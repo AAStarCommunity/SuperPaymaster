@@ -1,0 +1,29 @@
+{
+ "contract": "XPNTsV2WitnessHalmosTest",
+ "check": "check_witness_I2_spRenewIncrements",
+ "abi": "xPNTsTokenV2",
+ "parts": 1,
+ "verdict": "NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)",
+ "wall_s": 55,
+ "extra_args": [
+  "--default-bytes-lengths",
+  "0,65",
+  "--statistics",
+  "--solver-timeout-assertion",
+  "300000",
+  "--early-exit"
+ ],
+ "results": [
+  {
+   "part": "tryLockForGas-ec290731",
+   "D5C1_PART": 3962111793,
+   "exit": 1,
+   "wall_s": 55,
+   "log": "check_witness_I2_spRenewIncrements.tryLockForGas-ec290731.log",
+   "result": "FAIL",
+   "paths": 678,
+   "time_s": 40.25,
+   "counterexample": true
+  }
+ ]
+}

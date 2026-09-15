@@ -1,2 +1,0 @@
-XPNTsV2I6HalmosTest.check_I6J_coreAbi over xPNTsTokenV2: NOT-ALL-PASS (1 parts, wall 42 s)
-  tryReserveCredit-de9e4cae                FAIL            paths=11 time=3.71s exit=1

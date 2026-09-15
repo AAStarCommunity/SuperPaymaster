@@ -828,24 +828,10 @@ contract XPNTsV2I6HalmosTest is XPNTsV2HalmosBase {
 // mean the matching check is vacuous. Witness counterexamples are replayed in D5c1Replay.t.sol.
 // =====================================================================================
 contract XPNTsV2WitnessHalmosTest is XPNTsV2HalmosBase {
-    /// A-3: an SP settle really burns the victim's balance (priming made the record live).
-    function check_witness_A3_spSettleBurnsVictim() public {
-        (S memory a, S memory b, Ctx memory c) = _step(false, true, PRIME_LOCK, false, 0);
-        assert((_u(c.ok) & _u(c.sel == xPNTsTokenV2.settleLocked.selector) & _u(c.v != c.sender)
-            & _u(b.bal < a.bal)) == 0);
-    }
-
     /// I2-3: the SP-relayed renewal really increments autoRenewUsed.
     function check_witness_I2_spRenewIncrements() public {
         (S memory a, S memory b, ) = _step(false, false, PRIME_LOCK, false, 0);
         assert(_u(b.renewUsed > a.renewUsed) == 0);
-    }
-
-    /// I2-7: a third-party pull metered by the auto-allowance really happens.
-    function check_witness_I2_meteredPull() public {
-        (S memory a, S memory b, Ctx memory c) = _step(false, false, PRIME_LOCK, false, 0);
-        assert((_u(c.ok) & _u(c.sender != c.v) & _u(c.e == c.sender) & _u(b.bal < a.bal)
-            & _u(b.usedA > a.usedA)) == 0);
     }
 
     /// I6-2: debt really grows through settleCredit.
@@ -865,5 +851,40 @@ contract XPNTsV2WitnessHalmosTest is XPNTsV2HalmosBase {
 contract XPNTsV2I6MintNoDebtHalmosTest is XPNTsV2I6HalmosTest {
     function _extraAssumptions(Ctx memory c) internal view override {
         vm.assume(_ld(_m1(c.v, S_DEBTS)) == 0);
+    }
+}
+
+/// Reachability witnesses whose antecedent runs through OpenZeppelin Math.mulDiv (512-bit, many
+/// non-linear branches): settleLocked computes mulDiv(charge, x0, a0, Ceil) and the metered branch
+/// of transferFrom computes mulDiv(rest, 1e18, rate, Ceil). With those inputs symbolic, neither
+/// witness produced its counterexample inside the 10-minute cap. A witness only has to exhibit ONE
+/// instance of its antecedent, so the mulDiv inputs are pinned to concrete values; everything else
+/// (balances, lockedOf, the locker, the counters and caps, the sender, the priming of §2.3) stays
+/// symbolic. The pins are selected by the (concrete, per-partition) selector.
+contract XPNTsV2WitnessPinnedHalmosTest is XPNTsV2HalmosBase {
+    function _extraAssumptions(Ctx memory c) internal view override {
+        if (c.sel == xPNTsTokenV2.settleLocked.selector) {
+            vm.assume(_ld(_mh(c.h, c.v, S_LOCKS)) == (uint256(1 ether) << 128) | 1 ether); // x0 = a0 = 1e18
+            vm.assume(c.w2 == 1 ether);                                                    // charge
+        }
+        if (c.sel == xPNTsTokenV2.transferFrom.selector) {
+            vm.assume(_ld(bytes32(S_RATE)) == 1 ether);
+            vm.assume(c.w2 == 1 ether);                                          // value
+            vm.assume(_ld(_m2(c.userArg, c.sender, S_ALLOW)) == 0);             // rest = value
+        }
+    }
+
+    /// A-3: an SP settle really burns the victim's balance (priming made the record live).
+    function check_witness_A3_spSettleBurnsVictim() public {
+        (S memory a, S memory b, Ctx memory c) = _step(false, true, PRIME_LOCK, false, 0);
+        assert((_u(c.ok) & _u(c.sel == xPNTsTokenV2.settleLocked.selector) & _u(c.v != c.sender)
+            & _u(b.bal < a.bal)) == 0);
+    }
+
+    /// I2-7: a third-party pull metered by the auto-allowance really happens.
+    function check_witness_I2_meteredPull() public {
+        (S memory a, S memory b, Ctx memory c) = _step(false, false, PRIME_LOCK, false, 0);
+        assert((_u(c.ok) & _u(c.sender != c.v) & _u(c.e == c.sender) & _u(b.bal < a.bal)
+            & _u(b.usedA > a.usedA)) == 0);
     }
 }

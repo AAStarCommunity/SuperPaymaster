@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# D5c-1 — liveness of the fuzz substitutes (D5c1BoundedFuzz.t.sol). Positive control first: the
+# D5c-1 — liveness of the fuzz substitutes (D5c1BoundedFuzz.t.sol; MintRepayLemmaFuzzTest for lemma M). Positive control first: the
 # UNMUTATED suite must be all green (>= 10,000 runs each). Then, under each mutation, the named fuzz
 # test(s) must go red, and the source must be restored to its pristine sha256.
 # Run in the git checkout (the unmutated run must be bound to a clean tree: dirty_src == 0) and only
@@ -10,17 +10,18 @@
 set -uo pipefail
 o="$1"; mkdir -p "$o"
 F="$HOME/.foundry/bin/forge"
+FUZZ="^(D5c1BoundedFuzzTest|MintRepayLemmaFuzzTest)$"   # the fuzz substitutes of the bounded partitions / lemma M
 [ -z "$(git status --porcelain contracts/src)" ] || { echo "DIRTY contracts/src — refusing"; exit 3; }
 cur=""
 trap '[ -n "$cur" ] && python3 script/halmos/d5c1-mutations.py revert "$cur"' EXIT
-"$F" test --match-path contracts/test/halmos/D5c1BoundedFuzz.t.sol > "$o/fuzz-bounded-partitions.log" 2>&1
+"$F" test --match-path "contracts/test/halmos/*.t.sol" --match-contract "$FUZZ" > "$o/fuzz-bounded-partitions.log" 2>&1
 python3 script/halmos/d5c1_binding.py xpnts --line >> "$o/fuzz-bounded-partitions.log"
 echo "== unmutated: $(grep -E 'Suite result' "$o/fuzz-bounded-partitions.log" | tail -1)"
-for m in M-I2 M-PULL M-BURNALL; do
+for m in M-I2 M-PULL M-BURNALL M-REPAY; do
   cur="$m"
   python3 script/halmos/d5c1-mutations.py apply "$m" > "$o/$m.apply.txt" || { echo "APPLY-FAILED $m"; exit 3; }
   cp "cache/d5c1-mutations/$m.diff" "$o/"
-  "$F" test --match-path contracts/test/halmos/D5c1BoundedFuzz.t.sol > "$o/$m.fuzz.log" 2>&1
+  "$F" test --match-path "contracts/test/halmos/*.t.sol" --match-contract "$FUZZ" > "$o/$m.fuzz.log" 2>&1
   python3 script/halmos/d5c1_binding.py xpnts --line >> "$o/$m.fuzz.log"          # mutated tree
   python3 script/halmos/d5c1-mutations.py revert "$m" >> "$o/$m.fuzz.log" || { echo "REVERT-FAILED $m"; exit 3; }
   cur=""

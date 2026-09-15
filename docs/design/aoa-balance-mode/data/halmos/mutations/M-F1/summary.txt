@@ -1,4 +1,0 @@
-XPNTsV2RateHalmosTest.check_RATE_base_initialize: NOT-ALL-PASS
-XPNTsV2RateHalmosTest.check_RATE_base_realFactory: NOT-ALL-PASS
-scenario (REGRESSION_F1): exit 1 ; Suite result: FAILED. 1 passed; 1 failed; 0 skipped; finished in 5.44ms (1.07ms CPU time)
-reverted M-F1: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 3e1b80d8a900412c5a12175416fbe36ab476dcc68f88a7ed7406ab33841bbb04

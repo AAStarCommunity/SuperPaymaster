@@ -35,6 +35,7 @@ PAIRS = {
     ("XPNTsV2Halmos.t.sol", "XPNTsV2I2NoRHalmosTest"): _TOKEN,
     ("XPNTsV2Halmos.t.sol", "XPNTsV2I6HalmosTest"): _TOKEN,
     ("XPNTsV2Halmos.t.sol", "XPNTsV2WitnessHalmosTest"): _TOKEN,
+    ("XPNTsV2Halmos.t.sol", "XPNTsV2WitnessPinnedHalmosTest"): _TOKEN,
     ("XPNTsV2Halmos.t.sol", "XPNTsV2RateHalmosTest"): _TOKEN + [
         ("xPNTsFactoryV2.sol", "xPNTsFactoryV2"),
         ("GlobalTierSource.sol", "GlobalTierSource"),

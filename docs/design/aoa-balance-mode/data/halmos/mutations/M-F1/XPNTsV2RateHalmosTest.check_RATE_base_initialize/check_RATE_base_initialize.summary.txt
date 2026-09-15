@@ -1,2 +1,0 @@
-XPNTsV2RateHalmosTest.check_RATE_base_initialize over xPNTsTokenV2: NOT-ALL-PASS (1 parts, wall 50 s)
-  OTHER                                    FAIL            paths=3 time=0.25s exit=1

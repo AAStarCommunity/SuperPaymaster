@@ -115,10 +115,25 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 | 动态长度 | CAP-1：默认 `0,65,1024`；xPNTs：`--default-bytes-lengths 0,65` | xPNTs 里只有 `executeBySig(params, sig)`、`transferAndCall(…, data)`、`initialize` 的字符串用到 bytes/string；65 字节足以让 `executeBySig` 的每一种 `params` 解码成功（最长 `(address,uint256)` = 64 字节），`initialize` 在 W1 下必然 revert |
 | 符号地址上的代码 | Halmos 把符号地址别名到已部署的合约之一，或视为空账户（调用成功、返回空） | 分档源、ERC-1271 签名者、`transferAndCall` 的接收者只可能是已部署的合约或空账户；没有覆盖"任意恶意外部合约的重入"（§8） |
 | `ecrecover` | 未解释函数 | 可以"伪造"任何人的 ECDSA 签名。对单步引理这是过近似（更强）；在 I2 里 `executeBySig(user = v, …)` 因此被当作用户本人的操作（与规范 I2 的"用户亲自操作"一致，现实中需要 EUF-CMA 假设） |
-| 求解器 | Halmos 0.3.3 默认（分支可行性 z3，断言 yices，断言查询超时 60 s）；结果为 TIMEOUT 的分区自动用 `--solver-timeout-assertion 300000` 重跑一次（两份日志都保留，汇总里注明） | 超时报 TIMEOUT，不会静默算作 PASS |
+| 求解器 | Halmos 0.3.3 默认（分支可行性 z3，断言 yices）；断言查询超时 **300 s**（`--solver-timeout-assertion 300000`；引理 M 的四个 check 用 540 s）；每个分区**墙钟上限 600 s**（超过即杀掉整个进程组，记为 TIMEOUT-WALL）；**不重跑**（每个分区恰好一份日志） | TIMEOUT / TIMEOUT-WALL 从不算作 PASS；只有列在允许表里、写明理由和替代证据的分区可以是 BOUNDED（§2.6） |
 | `mint` 分区 | 受害者有债时断言查询超时：mint 的自动抵债 `repayX = ceil(min(floor(m·1e18/r), debt)·r/1e18)`，要证 `repayX ≤ m`（非线性 256 位除法）。拆成两半：`debts(v) = 0` 时没有抵债、这一步是线性的，由 `XPNTsV2*MintNoDebtHalmosTest` 在 `mint` 分区证明；`debts(v) > 0` 归结为引理 M（`MintRepayLemma.t.sol`）——Halmos 在它上面同样超时（孤立的算术，甚至拆成三个标准位向量事实也超时，§3.2），所以由纸面证明 + 真实代码路径上的 fuzz（10,000 次）承担 | 这一格是本交付里唯一不是符号证明的环节，结论标为“PASS（模引理 M）” |
 | 断言 panic | `--panic-error-codes '*'` | harness 自己的任何 Panic（例如断言里的算术溢出）都算失败，不会让一条路径静默消失 |
 | 性能设计 | 快照用 `vm.load` 直接读原始存储槽，谓词全部**无分支**计算（0/1 位运算，受谓词本身保护的 unchecked 算术），一个检查的所有谓词折叠成位掩码 `bad`，只有一个 `assert(bad == 0)` | 避免 harness 自身的 `if`/`&&` 让路径数指数增长（第一版每个选择器 1,259 条路径、10 分钟）。槽位公式在 `D5c1ReplayTest.test_D5c1_layout_*` 里逐一与公开 getter 对照 |
+
+### 2.6 证据绑定与判定（哪些日志算数）
+
+判定只由 `script/halmos/verify-d5c1.py` 给出（编排脚本以它的退出码退出），它只读证据、不重跑，对照**当前树**逐条检查：
+
+| 检查 | 规则 |
+|---|---|
+| 绑定 | 每份日志开头（运行前）和结尾（Halmos 自己 build 之后）各有一行 `# binding: {json}`（`script/halmos/d5c1_binding.py`）：被测合约源码集合里每个 `contracts/src` 文件的 sha256（手写清单 ∪ 编译器 metadata 里的 import 闭包）、库文件树哈希、harness 树哈希、default profile 的运行时字节码哈希、`out/` 是否就是当前源码的 build（metadata 里的 keccak256 与磁盘文件比对）、`dirty_src`、git head。结尾那一行说了算；开头与结尾在源码 / 库 / harness 上必须一致（运行期间源码没变）。没有绑定行 = UNBOUND，哈希与当前树不同 = STALE，`dirty_src ≠ 0` = DIRTY，都判 MISMATCH，没有豁免 |
+| 完整性 | 期望的分区集合**从当前 build 的 ABI 现场生成**（与运行器用的是同一个生成器 `partition_specs`：`OTHER` + 每个非 view 函数一个分区）；目录里的分区日志集合必须**恰好等于**它——少一个、多一个（包括残留的 `.retry.log`）都判 MISMATCH。不分区的日志：日志里出现的 check 集合必须恰好等于期望表列出的集合 |
+| 期望 | PASS：每个分区 PASS，只有允许表里的分区可以是 TIMEOUT / TIMEOUT-WALL（报为 BOUNDED，附理由和替代证据）；允许表的键必须是当前存在的分区，且 FAIL 期望（witness / 负对照）**不允许**有允许表。FAIL：至少一个分区 FAIL **且带反例**，没有中止的分区 |
+| 墙钟与结果 | 结果行出现在墙钟上限之后（Halmos 的 `[time] total` ≥ 600 s）不算，按 TIMEOUT-WALL 处理；结果与 `Symbolic test result` 汇总都在上限之内打印、只是进程退出阶段被杀的，结果算数并单独列一行说明（本次：I2 core `settleLocked`，见 §3.3） |
+| 变异 | 变异日志必须绑定到“当前源码 + 存档的 diff”（在临时副本里重算），`binding-mutated.json` 的字节码与原树不同；恢复后的 `binding-restored.json` 在源码 / 库 / harness / 字节码上与当前树相同；`apply.txt` 的原始文件 sha256 = 恢复后的 sha256 = 当前文件 |
+| 期望表 | `script/halmos/d5c1-expectations.json` 的 sha256 打印在每次判定的第一行，并写进 §0 的结果表 |
+
+**判定器自己的对照**（`script/halmos/verify-selftest.py`，日志 `data/halmos/verify-selftest.log`）：在一棵假树（自带 git、源码、harness、带 ABI 与 metadata 的 `out/` 产物）上造出绑定真实的假证据，每个对照只扰动一处，检查退出码；负对照还必须**因为它自己的原因**失败（一个正则必须命中某一条 MISMATCH 行，被别的行弄红不算）。共 29 个：P1/P2/P4 正对照；N1–N23 负对照（分区 FAIL、witness PASS、witness 无反例、TIMEOUT 不在允许表、中止、变异存活、变异未恢复、fuzz 变异存活、未变异 fuzz 变红、缺分区、多分区、源码哈希不符、`dirty_src`、字节码哈希不符、允许表的键不存在、无绑定、残留 retry 日志、变异日志绑定到原树、多出的 check、`out/` 不是当前源码的 build、开头结尾绑定不一致、FAIL 期望带允许表、结果行在墙钟之后）；O1/O2 编排入口；P3 = 真实证据对真实树退出 0。
 
 ## 3. 逐项结果
 
@@ -196,11 +211,13 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 | witness（Halmos，预期 FAIL） | 证明可达的前件 | 用在 | 具体回放（forge，绿） |
 |---|---|---|---|
 | `APNTsCappedWitnessHalmosTest.check_witness_CAP1_supplyCanIncrease` | 供应量增加 | CAP-1 (b)(c) | `test_D5c1_CAP1_scenario_mintBeyondCapReverts` 第一步 mint 成功 |
-| `XPNTsV2WitnessHalmosTest.check_witness_A3_spSettleBurnsVictim` | SP 的 settle 真的烧了受害者的币（预热让记录变活） | A-3 bit 2–6 | `test_D5c1_witness_spRenewLockThenSettle` |
+| `XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim`（钉住 x0 = a0 = charge = 1e18，见下） | SP 的 settle 真的烧了受害者的币（预热让记录变活） | A-3 bit 2–6 | `test_D5c1_witness_spRenewLockThenSettle` |
 | `…check_witness_I2_spRenewIncrements` | SP 续期真的让 `autoRenewUsed` 增加 | I2-3 | 同上第一步 |
-| `…check_witness_I2_meteredPull` | 第三方 spender 真的按自动额度拉走了余额 | I2-7 | `test_D5c1_witness_meteredPull` |
+| `XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull`（钉住汇率 = value = 1e18、显式授权 = 0，见下） | 第三方 spender 真的按自动额度拉走了余额 | I2-7 | `test_D5c1_witness_meteredPull` |
 | `…check_witness_I6_reservationAdmitted` | 新预留真的被准入 | I6-1 | `test_D5c1_witness_creditReserveThenSettle` |
 | `…check_witness_I6_debtGrows` | 债务真的增加 | I6-2、I6-J | 同上 |
+
+**两个 witness 为什么钉住了取值**：它们的前件都经过 OpenZeppelin `Math.mulDiv`（512 位乘除，分支很多且全是非线性）——`settleLocked` 算 `mulDiv(charge, x0, a0, Ceil)`，`transferFrom` 的计量分支算 `mulDiv(rest, 1e18, rate, Ceil)`。第一次完整运行（harness 修改之前）里，输入全是符号值的这两个 witness 都没有在 10 分钟墙钟内给出反例（两个分区都是 TIMEOUT-WALL；按 §2.6 这就是失败，不能当作"可达"）。witness 只需要**一个**前件实例，所以把 `mulDiv` 的输入钉成具体值（`_extraAssumptions` 按分区的具体选择器决定钉哪些），其余状态（余额、`lockedOf`、locker、各计数与额度、发送者、§2.3 的预热）仍然全是符号值。钉住之后反例在一两分钟内出现（§0 表）。这一改动改变了 harness，于是**所有**日志的 harness 哈希失效，全部检查在新 harness 上重跑了一遍（§0 的数字都来自这次重跑）。钉值只出现在这两个 witness 里，正向检查一个都没有钉。
 
 具体回放不只证明前件可达，还用 `XPNTsV2HalmosProbe` 在同一步上**计算 harness 自己的谓词位掩码**，断言为 0——谓词接受真实行为，不是恒假的。
 

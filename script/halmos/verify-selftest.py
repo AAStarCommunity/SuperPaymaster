@@ -31,6 +31,8 @@ the exit code:
   N20 out/ is not the build of the sources (metadata keccak256 differs; everything else consistent) -> != 0
   N21 header and trailer bindings of one log disagree (source changed during the run) -> != 0
   N22 allow_bounded on a FAIL expectation (a witness may not be "bounded") -> != 0
+  N23 a result line printed AFTER the wall cap (halmos total >= cap, killed) -> counts as TIMEOUT-WALL -> != 0
+  P4  a result printed inside the cap, process killed only during shutdown -> the result counts -> 0
   O1  run-step-d5c1.sh verify propagates a mismatch             -> != 0
   O2  run-step-d5c1.sh verify on a clean fake tree              -> 0
   P3  the REAL evidence under docs/design/aoa-balance-mode/data/halmos against the real tree -> 0
@@ -276,6 +278,14 @@ def main():
     ex = json.loads(json.dumps(EXPECT)); ex["partitioned"][1]["allow_bounded"] = {"OTHER": {"reason": "r", "substitute": "s"}}
     t, r, e, b, mb = fresh(ex)
     expect("N22_allow_bounded_on_fail_expectation", False, t, r, e, why=r"allow_bounded is not permitted")
+    def walled(total):
+        return ("[PASS] check_P() (paths: 3, time: 1.0s, bounds: [])\nSymbolic test result: 1 passed; 0 failed\n"
+                f"[time] total: {total}s (build: 1s)\n\n# WALL-CAP: killed after 600 s (per-partition cap)\n"
+                "\n# exit_code: -9  wall_seconds: 601\n")
+    t, r, e, b, mb = fresh(); write(f"{r}/C.check_P/check_P.foo-00000001.log", walled("612.40") + b)
+    expect("N23_result_after_wall_cap", False, t, r, e, why=r"BOUNDED foo-00000001")
+    t, r, e, b, mb = fresh(); write(f"{r}/C.check_P/check_P.foo-00000001.log", walled("577.56") + b)
+    expect("P4_result_inside_cap_teardown_killed", True, t, r, e)
     t, r, e, b, mb = fresh(); write(f"{r}/C.check_P/check_P.OTHER.log", res("FAIL", "check_P", True) + b)
     expect("O1_orchestrator_propagates", False, t, r, e, orchestrator=True, why=r"FAIL OTHER")
     t, r, e, b, mb = fresh(); expect("O2_orchestrator_clean", True, t, r, e, orchestrator=True)

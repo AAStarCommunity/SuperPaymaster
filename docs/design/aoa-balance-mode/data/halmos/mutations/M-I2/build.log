@@ -1,6 +1,0 @@
-# (trimmed: 5079 lines of forge build output omitted; last 5 kept)
-247 │         if (block.timestamp >= validBefore)                 revert AuthorizationExpired();
-    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    │
-    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
-

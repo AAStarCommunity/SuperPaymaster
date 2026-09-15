@@ -1,6 +1,0 @@
-# (trimmed: 5079 lines of forge build output omitted; last 5 kept)
-    │       // forge-lint: disable-next-line(unsafe-typecast)
-    │       
-    │       
-    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
-

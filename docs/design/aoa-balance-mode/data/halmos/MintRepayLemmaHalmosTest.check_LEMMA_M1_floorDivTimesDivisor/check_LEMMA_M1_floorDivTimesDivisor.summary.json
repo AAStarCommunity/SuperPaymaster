@@ -3,8 +3,8 @@
  "check": "check_LEMMA_M1_floorDivTimesDivisor",
  "abi": "xPNTsTokenV2",
  "parts": 1,
- "verdict": "NOT-ALL-PASS",
- "wall_s": 564,
+ "verdict": "NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)",
+ "wall_s": 558,
  "extra_args": [
   "--solver-timeout-assertion",
   "540000"
@@ -14,11 +14,11 @@
    "part": "OTHER",
    "D5C1_PART": 1,
    "exit": 1,
-   "wall_s": 564,
+   "wall_s": 558,
    "log": "check_LEMMA_M1_floorDivTimesDivisor.OTHER.log",
    "result": "TIMEOUT",
    "paths": 3,
-   "time_s": 540.14,
+   "time_s": 540.1,
    "counterexample": false
   }
  ]

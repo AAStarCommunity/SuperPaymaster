@@ -47,9 +47,9 @@ case "$G" in
            for p in "${pids[@]}"; do wait "$p"; chk $? "lemma pid $p"; done; FILTER="MintRepayLemma" ;;
   a3x)     run XPNTsV2A3xHalmosTest check_A3x_exactCeilBound core --only settleLocked; FILTER="A3x" ;;
   nor)     runx XPNTsV2I2NoRHalmosTest check_I2_coreAbi core --only tryLockForGas; FILTER="I2NoR" ;;
-  witness) runx XPNTsV2WitnessHalmosTest check_witness_A3_spSettleBurnsVictim core --only settleLocked
+  witness) runx XPNTsV2WitnessPinnedHalmosTest check_witness_A3_spSettleBurnsVictim core --only settleLocked
            runx XPNTsV2WitnessHalmosTest check_witness_I2_spRenewIncrements core --only tryLockForGas
-           runx XPNTsV2WitnessHalmosTest check_witness_I2_meteredPull core --only transferFrom
+           runx XPNTsV2WitnessPinnedHalmosTest check_witness_I2_meteredPull core --only transferFrom
            runx XPNTsV2WitnessHalmosTest check_witness_I6_reservationAdmitted core --only tryReserveCredit
            runx XPNTsV2WitnessHalmosTest check_witness_I6_debtGrows core --only settleCredit; FILTER="witness" ;;
   verify)  FILTER="${D5C1_FILTER:-}" ;;

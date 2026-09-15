@@ -65,6 +65,13 @@ MUTATIONS = {
         "old": "        if (xBurned > r.xLocked) xBurned = r.xLocked;\n",
         "new": "        xBurned = r.xLocked; // D5c-1 M-BURNALL: burn the whole escrow\n",
     },
+    # liveness of the lemma-M fuzz substitute (MintRepayLemmaFuzzTest): the mint auto-repay burns
+    # one xPNTs-wei more than ceil(repayAPNTs * rate / 1e18), so repayX can exceed the minted amount
+    "M-REPAY": {
+        "file": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+        "old": "                    uint256 repayXPNTs = (repayAPNTs * rate + 1e18 - 1) / 1e18;\n",
+        "new": "                    uint256 repayXPNTs = (repayAPNTs * rate + 1e18 - 1) / 1e18 + 1; // D5c-1 M-REPAY\n",
+    },
     # I6: the credit ceiling ignores the user's requestedCap (keeps the protocol ceiling + tier)
     "M-I6": {
         "file": "contracts/src/tokens/v2/xPNTsTokenV2.sol",

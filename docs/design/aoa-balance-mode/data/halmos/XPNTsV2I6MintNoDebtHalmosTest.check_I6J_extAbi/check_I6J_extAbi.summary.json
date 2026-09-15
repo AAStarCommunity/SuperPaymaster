@@ -8,7 +8,9 @@
  "extra_args": [
   "--default-bytes-lengths",
   "0,65",
-  "--statistics"
+  "--statistics",
+  "--solver-timeout-assertion",
+  "300000"
  ],
  "results": [
   {
@@ -18,8 +20,8 @@
    "wall_s": 19,
    "log": "check_I6J_extAbi.mint-40c10f19.log",
    "result": "PASS",
-   "paths": 71,
-   "time_s": 4.75,
+   "paths": 70,
+   "time_s": 4.53,
    "counterexample": false
   }
  ]

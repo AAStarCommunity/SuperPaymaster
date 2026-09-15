@@ -111,10 +111,26 @@ def results_in(text):
     return out
 
 
+WALL = re.compile(r"^# WALL-CAP: killed after (\d+) s", re.M)
+TOTAL = re.compile(r"^\[time\] total: ([0-9.]+)s", re.M)
+
+
+def teardown_walled(text):
+    """(total_s, cap_s) when halmos finished the test (result line + 'Symbolic test result' + its
+    '[time] total' below the cap) but the process was killed by the wall cap while shutting down;
+    else None."""
+    w, t = WALL.search(text), TOTAL.search(text)
+    if w and t and "Symbolic test result:" in text and float(t.group(1)) < int(w.group(1)):
+        return float(t.group(1)), int(w.group(1))
+    return None
+
+
 def part_result(text, check):
     r = results_in(text).get(check)
     if r is None:
         return "TIMEOUT-WALL" if "# WALL-CAP:" in text else "ABORTED"
+    if "# WALL-CAP:" in text and not teardown_walled(text):
+        return "TIMEOUT-WALL"   # a result line without a completed run inside the cap does not count
     return r[-1] if len(r) == 1 else "DUPLICATE-RESULT"
 
 
@@ -229,6 +245,11 @@ def check_partitioned(root, ex):
             actual = f"FAIL+cex in {','.join(cex_fail)}" if cex_fail else \
                 ("BOUNDED " + ",".join(bounded) if bounded else "no counterexample (vacuous?)")
         row("partitioned", e["dir"], e["expect"] + (" (allow-list: " + ",".join(sorted(allow)) + ")" if allow else ""), actual, ok)
+        for l in sorted(parts):
+            tw = teardown_walled(read(got[l]))
+            if tw and parts[l][0] in ("PASS", "FAIL"):
+                row("  teardown", f"{e['dir']}:{l}", "result inside the cap",
+                    f"{parts[l][0]} printed, halmos total {tw[0]:.1f} s < cap {tw[1]} s; process killed during shutdown", True)
         for l in bounded:
             if l in allow:
                 row("  bounded", f"{e['dir']}:{l}", "BOUNDED (allowed)",

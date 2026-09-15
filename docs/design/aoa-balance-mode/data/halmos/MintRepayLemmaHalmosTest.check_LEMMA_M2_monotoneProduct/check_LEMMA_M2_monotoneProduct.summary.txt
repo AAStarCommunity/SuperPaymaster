@@ -1,2 +1,2 @@
-MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct over xPNTsTokenV2: NOT-ALL-PASS (1 parts, wall 565 s)
-  OTHER                                    TIMEOUT         paths=2 time=540.09s exit=1
+MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct over xPNTsTokenV2: NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR) (1 parts, wall 558 s)
+  OTHER                                    TIMEOUT         paths=2 time=540.14s exit=1

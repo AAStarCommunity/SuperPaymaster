@@ -3,8 +3,8 @@
  "check": "check_LEMMA_M_repayNeverExceedsMint",
  "abi": "xPNTsTokenV2",
  "parts": 1,
- "verdict": "NOT-ALL-PASS",
- "wall_s": 565,
+ "verdict": "NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)",
+ "wall_s": 558,
  "extra_args": [
   "--solver-timeout-assertion",
   "540000"
@@ -14,11 +14,11 @@
    "part": "OTHER",
    "D5C1_PART": 1,
    "exit": 1,
-   "wall_s": 565,
+   "wall_s": 558,
    "log": "check_LEMMA_M_repayNeverExceedsMint.OTHER.log",
    "result": "TIMEOUT",
-   "paths": 11,
-   "time_s": 540.39,
+   "paths": 12,
+   "time_s": 540.4,
    "counterexample": false
   }
  ]

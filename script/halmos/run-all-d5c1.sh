@@ -83,9 +83,9 @@ if want settle; then
 fi
 if want witness; then
   runx XPNTsV2I2NoRHalmosTest check_I2_coreAbi core --only tryLockForGas
-  runx XPNTsV2WitnessHalmosTest check_witness_A3_spSettleBurnsVictim core --only settleLocked
+  runx XPNTsV2WitnessPinnedHalmosTest check_witness_A3_spSettleBurnsVictim core --only settleLocked
   runx XPNTsV2WitnessHalmosTest check_witness_I2_spRenewIncrements core --only tryLockForGas
-  runx XPNTsV2WitnessHalmosTest check_witness_I2_meteredPull core --only transferFrom
+  runx XPNTsV2WitnessPinnedHalmosTest check_witness_I2_meteredPull core --only transferFrom
   runx XPNTsV2WitnessHalmosTest check_witness_I6_reservationAdmitted core --only tryReserveCredit
   runx XPNTsV2WitnessHalmosTest check_witness_I6_debtGrows core --only settleCredit
 fi

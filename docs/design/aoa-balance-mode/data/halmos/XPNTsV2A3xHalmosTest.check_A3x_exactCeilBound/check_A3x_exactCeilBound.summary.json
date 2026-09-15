@@ -3,12 +3,14 @@
  "check": "check_A3x_exactCeilBound",
  "abi": "xPNTsTokenV2",
  "parts": 1,
- "verdict": "NOT-ALL-PASS",
+ "verdict": "NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)",
  "wall_s": 600,
  "extra_args": [
   "--default-bytes-lengths",
   "0,65",
-  "--statistics"
+  "--statistics",
+  "--solver-timeout-assertion",
+  "300000"
  ],
  "results": [
   {

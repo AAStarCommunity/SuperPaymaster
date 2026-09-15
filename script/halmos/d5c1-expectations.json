@@ -178,7 +178,7 @@
    "expect": "FAIL"
   },
   {
-   "dir": "XPNTsV2WitnessHalmosTest.check_witness_A3_spSettleBurnsVictim",
+   "dir": "XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim",
    "abi": "core",
    "parts": [
     "settleLocked"
@@ -194,7 +194,7 @@
    "expect": "FAIL"
   },
   {
-   "dir": "XPNTsV2WitnessHalmosTest.check_witness_I2_meteredPull",
+   "dir": "XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull",
    "abi": "core",
    "parts": [
     "transferFrom"
@@ -373,7 +373,8 @@
    "testFuzz_D5c1_I2_tryLockForGas",
    "testFuzz_D5c1_I2_settleLocked",
    "testFuzz_D5c1_I2_transferFrom",
-   "testFuzz_D5c1_I2_burnFrom"
+   "testFuzz_D5c1_I2_burnFrom",
+   "testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance"
   ],
   "mutations": [
    {
@@ -393,6 +394,12 @@
     "id": "M-BURNALL",
     "must_fail": [
      "testFuzz_D5c1_I2_settleLocked"
+    ]
+   },
+   {
+    "id": "M-REPAY",
+    "must_fail": [
+     "testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance"
     ]
    }
   ]
