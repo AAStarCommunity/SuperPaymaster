@@ -64,6 +64,16 @@
    "abi": "core",
    "expect": "PASS",
    "profile": "xp",
+   "allow_bounded": {
+    "settleLocked-7e48bbce": {
+     "reason": "solver / wall cap (mulDiv in settle)",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked asserts the A-3 bitmask (10,000 runs)"
+    },
+    "tryLockForGas-ec290731": {
+     "reason": "solver / wall cap (mulDiv in the lock path)",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_tryLockForGas asserts the A-3 bitmask (SP sender, 10,000 runs)"
+    }
+   },
    "discrepancies": {
     "burn-9dc29fac": "D-A3-2: spec 03 §2.3 A-3 rejects burn(address,uint256) for any current/historical SP caller; xPNTsTokenV2.sol:134 skips _spendV2 (and with it the firewall) when from == msg.sender, so an SP can burn its OWN balance. Reported, not weakened (replay: test_D5c1_DISCREPANCY_A3_2_spBurnsOwnBalance)"
    }
@@ -195,9 +205,17 @@
    "expect": "PASS",
    "profile": "xp",
    "allow_bounded": {
+    "burn-9dc29fac": {
+     "reason": "wall cap (metered burn(from): mulDiv)",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_burnFrom asserts the I4-B bitmask (10,000 runs)"
+    },
     "settleLocked-7e48bbce": {
      "reason": "solver / wall cap (mulDiv in settle)",
      "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked asserts the I4-B bitmask (10,000 runs)"
+    },
+    "transferFrom-23b872dd": {
+     "reason": "wall cap (metered pull: mulDiv)",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom asserts the I4-B bitmask (10,000 runs)"
     },
     "tryLockForGas-ec290731": {
      "reason": "solver / wall cap (mulDiv in the lock path)",
@@ -214,6 +232,10 @@
     "mint-40c10f19": {
      "reason": "mint auto-repay non-linearity",
      "substitute": "XPNTsV2I4BMintNoDebtHalmosTest (debts = 0) + D5c1BoundedFuzzTest.testFuzz_D5c1_I4B_mintWithDebt (10,000 runs)"
+    },
+    "transferFrom-23b872dd": {
+     "reason": "wall cap (metered pull: mulDiv)",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom asserts the I4-B bitmask (10,000 runs)"
     }
    }
   },

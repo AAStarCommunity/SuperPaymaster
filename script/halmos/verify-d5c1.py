@@ -95,7 +95,8 @@ REQUIRED = {
         _p("XPNTsV2RateHalmosTest.check_RATE_step_extAbi", "ext", "PASS"),
         # A-3, spec-literal bit 1: burn(address,uint256) by an SP always fails. The code lets an SP
         # burn its OWN balance (xPNTsTokenV2.sol:134) -> that partition must FAIL (discrepancy D-A3-2)
-        _p("XPNTsV2A3HalmosTest.check_A3_coreAbi", "core", "PASS", fail_parts=["burn-9dc29fac"]),
+        _p("XPNTsV2A3HalmosTest.check_A3_coreAbi", "core", "PASS", fail_parts=["burn-9dc29fac"],
+           ceiling=["tryLockForGas-ec290731", "settleLocked-7e48bbce"]),
         _p("XPNTsV2A3HalmosTest.check_A3_extAbi", "ext", "PASS", ceiling=[MINT]),
         _p("XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi", "core", "PASS", parts=["burn-9dc29fac"]),
         _p("XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi", "core", "PASS", parts=["transferFrom-23b872dd"]),
@@ -109,8 +110,8 @@ REQUIRED = {
         _p("XPNTsV2I2HalmosTest.check_I2_extAbi", "ext", "PASS", ceiling=["transferFrom-23b872dd", MINT]),
         _p("XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi", "ext", "PASS", parts=["mint"]),
         _p("XPNTsV2I4BHalmosTest.check_I4B_coreAbi", "core", "PASS",
-           ceiling=["tryLockForGas-ec290731", "settleLocked-7e48bbce"]),
-        _p("XPNTsV2I4BHalmosTest.check_I4B_extAbi", "ext", "PASS", ceiling=[MINT]),
+           ceiling=["tryLockForGas-ec290731", "settleLocked-7e48bbce", "transferFrom-23b872dd", "burn-9dc29fac"]),
+        _p("XPNTsV2I4BHalmosTest.check_I4B_extAbi", "ext", "PASS", ceiling=["transferFrom-23b872dd", MINT]),
         _p("XPNTsV2I4BMintNoDebtHalmosTest.check_I4B_extAbi", "ext", "PASS", parts=["mint"]),
         _p("XPNTsV2I6HalmosTest.check_I6_coreAbi", "core", "PASS"),
         _p("XPNTsV2I6HalmosTest.check_I6_extAbi", "ext", "PASS", ceiling=[MINT]),

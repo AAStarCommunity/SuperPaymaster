@@ -997,6 +997,14 @@ contract XPNTsV2I6HalmosTest is XPNTsV2HalmosBase {
 // mean the matching check is vacuous. Witness counterexamples are replayed in D5c1Replay.t.sol.
 // =====================================================================================
 contract XPNTsV2WitnessHalmosTest is XPNTsV2HalmosBase {
+    /// Only check_witness_I2_explicitPull runs on the transferFrom partition: its antecedent is the
+    /// explicit-allowance branch, so the pre-state is restricted to E >= value (no mulDiv branch; the
+    /// unrestricted run needed 4,423 paths / 276 s to reach its counterexample). Every other value
+    /// (E, value, balances, sender, victim) stays symbolic.
+    function _extraAssumptions(Ctx memory c) internal view override {
+        if (c.sel == xPNTsTokenV2.transferFrom.selector) vm.assume(_ld(_m2(c.userArg, c.sender, S_ALLOW)) >= c.w2);
+    }
+
     /// I2-3: the SP-relayed renewal really increments autoRenewUsed.
     function check_witness_I2_spRenewIncrements() public {
         (S memory a, S memory b, ) = _step(false, false, PRIME_LOCK, false, 0);

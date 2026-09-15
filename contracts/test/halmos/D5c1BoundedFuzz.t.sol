@@ -99,7 +99,7 @@ contract D5c1BoundedFuzzTest is Test {
         if (s0.bal >= s0.locked) assertEq(probe.i4bBits(s1), 0, "I4-B bitmask");
     }
 
-    /// I2 / I4-B core / tryLockForGas (Halmos: bounded partition)
+    /// I2 / I4-B / A-3 core / tryLockForGas (Halmos: bounded partition)
     /// forge-config: default.fuzz.runs = 10000
     function testFuzz_D5c1_I2_tryLockForGas(uint256 rate, uint256 bal, uint256 capSp, uint256 capTotal, uint256 pre,
         uint256 a, uint256 mode, bool renew) public
@@ -121,7 +121,7 @@ contract D5c1BoundedFuzzTest is Test {
         vm.prank(sp);
         (bool ok, ) = address(tok).call(abi.encodeCall(xPNTsTokenV2.tryLockForGas, (user, h, a, renew)));
         c.ok = ok;
-        _bits(s0, c);
+        assertEq(probe.a3Bits(s0, _bits(s0, c), c), 0, "A-3 bitmask on the SP's tryLockForGas");
     }
 
     /// I2 / A-3 / A3x / I4-B core / settleLocked (Halmos: bounded partition)
