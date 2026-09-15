@@ -23,8 +23,10 @@ mkdir -p "$(dirname "$log")"
   echo "# forge: $(forge --version 2>&1 | head -1)"
   echo "# FOUNDRY_PROFILE: ${FOUNDRY_PROFILE:-<unset> (= default)}"
   echo "# command: halmos --contract $contract --panic-error-codes '*' $*"
-  echo
 } > "$log"
+fam=xpnts; case "$contract" in APNTsCapped*) fam=apnts ;; esac
+python3 script/halmos/d5c1_binding.py "$fam" --line >> "$log"   # header binding (before the run)
+echo >> "$log"
 # A plain `forge build` / `forge test` writes the harness artifacts WITHOUT an AST, and forge's
 # cache then keeps them when halmos runs `forge build --ast`, so halmos would skip the harness
 # ("KeyError: 'ast'"). Dropping the harness artifacts forces forge to rebuild just those files.
@@ -42,5 +44,6 @@ set -e
 end=$(date +%s)
 echo >> "$log"
 echo "# exit_code: $rc  wall_seconds: $((end - start))" >> "$log"
+python3 script/halmos/d5c1_binding.py "$fam" --line >> "$log"   # trailer binding (after halmos' build)
 tail -n 40 "$log"
 exit $rc

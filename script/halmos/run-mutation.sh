@@ -31,11 +31,15 @@ done
 # the exact build halmos performs (AST + storageLayout + metadata), so the partition driver reads
 # the MUTATED ABI (e.g. a selector added by the mutation) before it launches any part
 forge build --ast --extra-output storageLayout metadata > "$out/build.log" 2>&1 || { echo "BUILD-FAILED"; exit 3; }
+fam=xpnts; [ "$mid" = M-CAP1 ] && fam=apnts
+python3 script/halmos/d5c1_binding.py "$fam" > "$out/binding-mutated.json"   # the mutated tree + its build
 for spec in "$@"; do
   IFS=: read -r c f a o <<<"$spec"
   if [ "$f" = unpartitioned ]; then
-    halmos --contract "$c" --panic-error-codes '*' > "$out/$c.log" 2>&1
+    python3 script/halmos/d5c1_binding.py "$fam" --line > "$out/$c.log"
+    halmos --contract "$c" --panic-error-codes '*' >> "$out/$c.log" 2>&1
     echo "$c: exit $? $(grep -cE 'FAIL\]' "$out/$c.log") FAIL lines" | tee -a "$out/summary.txt"
+    python3 script/halmos/d5c1_binding.py "$fam" --line >> "$out/$c.log"
   else
     extra=()
     [ -n "${o:-}" ] && extra=(--only "$o")
@@ -45,6 +49,9 @@ for spec in "$@"; do
 done
 forge test --match-path contracts/test/halmos/D5c1Replay.t.sol --match-test "$scen" -vv > "$out/scenario.log" 2>&1
 echo "scenario ($scen): exit $? ; $(grep -E 'Suite result' "$out/scenario.log" | tail -1)" | tee -a "$out/summary.txt"
+python3 script/halmos/d5c1_binding.py "$fam" --line >> "$out/scenario.log"
 restore
 trap - EXIT
+forge build > "$out/build-restored.log" 2>&1 || { echo "BUILD-FAILED (restored)"; exit 3; }
+python3 script/halmos/d5c1_binding.py "$fam" > "$out/binding-restored.json"   # must equal the pristine tree
 python3 script/halmos/verify-d5c1.py --only mutations --mutations-dir "$(dirname "$out")" --filter "$mid"

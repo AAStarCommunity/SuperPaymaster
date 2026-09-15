@@ -7,7 +7,9 @@
 #         summary.json/txt) and data/halmos/<name>.log for the unpartitioned runs.
 # Options of every xPNTs run: --default-bytes-lengths 0,65, --panic-error-codes '*', loop bound 2
 # (each result line reports the loop bounds actually hit; "bounds: []" = none), a 600 s hard wall
-# cap per partition (TIMEOUT-WALL) and one retry of solver TIMEOUTs with a 300 s assertion timeout.
+# cap per partition (TIMEOUT-WALL), a 300 s assertion-query timeout (TIMEOUT) and no retry (exactly
+# one log per partition). Expected-FAIL checks (witnesses, the I2NoR negative control) add
+# --early-exit: the first counterexample is the whole answer.
 #
 # Exit code: every child's exit code is collected (run-partitioned: 0 = all PASS, 1 = not all PASS,
 # anything else = error), and the run ends with script/halmos/verify-d5c1.py, the verdict authority
@@ -19,13 +21,18 @@ export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH"
 D=docs/design/aoa-balance-mode/data/halmos
 G="${1:-all}"; J="${2:-6}"
 CAP=600
-X=(--default-bytes-lengths 0,65 --statistics)
+X=(--default-bytes-lengths 0,65 --statistics --solver-timeout-assertion 300000)
 P="python3 script/halmos/run-partitioned.py"
 RC=0
 chk() { if [ "$1" -gt 1 ]; then echo "CHILD-ERROR rc=$1 $2"; RC=1; fi; }
 run() { # contract check abi [--only parts]
   local c="$1" f="$2" a="$3"; shift 3
-  $P "$c" "$f" "$a" "$D/$c.$f" --jobs "$J" --retry-timeout-ms 300000 --part-wall-cap-s $CAP "$@" -- "${X[@]}"
+  $P "$c" "$f" "$a" "$D/$c.$f" --jobs "$J" --retry-timeout-ms 0 --part-wall-cap-s $CAP "$@" -- "${X[@]}"
+  chk $? "$c.$f"
+}
+runx() { # expected-FAIL checks: stop at the first counterexample
+  local c="$1" f="$2" a="$3"; shift 3
+  $P "$c" "$f" "$a" "$D/$c.$f" --jobs "$J" --retry-timeout-ms 0 --part-wall-cap-s $CAP "$@" -- "${X[@]}" --early-exit
   chk $? "$c.$f"
 }
 want() { [ "$G" = all ] || [ "$G" = "$1" ]; }
@@ -75,12 +82,12 @@ if want settle; then
   run XPNTsV2A3xHalmosTest check_A3x_exactCeilBound core --only settleLocked
 fi
 if want witness; then
-  run XPNTsV2I2NoRHalmosTest check_I2_coreAbi core --only tryLockForGas
-  run XPNTsV2WitnessHalmosTest check_witness_A3_spSettleBurnsVictim core --only settleLocked
-  run XPNTsV2WitnessHalmosTest check_witness_I2_spRenewIncrements core --only tryLockForGas
-  run XPNTsV2WitnessHalmosTest check_witness_I2_meteredPull core --only transferFrom
-  run XPNTsV2WitnessHalmosTest check_witness_I6_reservationAdmitted core --only tryReserveCredit
-  run XPNTsV2WitnessHalmosTest check_witness_I6_debtGrows core --only settleCredit
+  runx XPNTsV2I2NoRHalmosTest check_I2_coreAbi core --only tryLockForGas
+  runx XPNTsV2WitnessHalmosTest check_witness_A3_spSettleBurnsVictim core --only settleLocked
+  runx XPNTsV2WitnessHalmosTest check_witness_I2_spRenewIncrements core --only tryLockForGas
+  runx XPNTsV2WitnessHalmosTest check_witness_I2_meteredPull core --only transferFrom
+  runx XPNTsV2WitnessHalmosTest check_witness_I6_reservationAdmitted core --only tryReserveCredit
+  runx XPNTsV2WitnessHalmosTest check_witness_I6_debtGrows core --only settleCredit
 fi
 python3 script/halmos/verify-d5c1.py --only logs,partitioned
 V=$?

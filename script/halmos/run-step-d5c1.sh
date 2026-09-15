@@ -11,13 +11,16 @@ export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH"
 D=docs/design/aoa-balance-mode/data/halmos
 G="$1"; J="${2:-6}"
 CAP=600
-X=(--default-bytes-lengths 0,65 --statistics)
+X=(--default-bytes-lengths 0,65 --statistics --solver-timeout-assertion 300000)
 P="python3 script/halmos/run-partitioned.py"
 RC=0
 chk() { # rc label : run-partitioned exits 0 (all PASS) or 1 (not all PASS: judged by verify); anything else is an error
   if [ "$1" -gt 1 ]; then echo "CHILD-ERROR rc=$1 $2"; RC=1; fi; }
 run() { local c="$1" f="$2" a="$3"; shift 3
-  $P "$c" "$f" "$a" "$D/$c.$f" --jobs "$J" --retry-timeout-ms 300000 --part-wall-cap-s $CAP "$@" -- "${X[@]}"
+  $P "$c" "$f" "$a" "$D/$c.$f" --jobs "$J" --retry-timeout-ms 0 --part-wall-cap-s $CAP "$@" -- "${X[@]}"
+  chk $? "$c.$f"; }
+runx() { local c="$1" f="$2" a="$3"; shift 3   # expected-FAIL checks: stop at the first counterexample
+  $P "$c" "$f" "$a" "$D/$c.$f" --jobs "$J" --retry-timeout-ms 0 --part-wall-cap-s $CAP "$@" -- "${X[@]}" --early-exit
   chk $? "$c.$f"; }
 if [ "$G" != verify ]; then
   # harness artifacts left by a plain forge build lack an AST -> halmos would skip them; rebuild once
@@ -43,12 +46,12 @@ case "$G" in
            done
            for p in "${pids[@]}"; do wait "$p"; chk $? "lemma pid $p"; done; FILTER="MintRepayLemma" ;;
   a3x)     run XPNTsV2A3xHalmosTest check_A3x_exactCeilBound core --only settleLocked; FILTER="A3x" ;;
-  nor)     run XPNTsV2I2NoRHalmosTest check_I2_coreAbi core --only tryLockForGas; FILTER="I2NoR" ;;
-  witness) run XPNTsV2WitnessHalmosTest check_witness_A3_spSettleBurnsVictim core --only settleLocked
-           run XPNTsV2WitnessHalmosTest check_witness_I2_spRenewIncrements core --only tryLockForGas
-           run XPNTsV2WitnessHalmosTest check_witness_I2_meteredPull core --only transferFrom
-           run XPNTsV2WitnessHalmosTest check_witness_I6_reservationAdmitted core --only tryReserveCredit
-           run XPNTsV2WitnessHalmosTest check_witness_I6_debtGrows core --only settleCredit; FILTER="witness" ;;
+  nor)     runx XPNTsV2I2NoRHalmosTest check_I2_coreAbi core --only tryLockForGas; FILTER="I2NoR" ;;
+  witness) runx XPNTsV2WitnessHalmosTest check_witness_A3_spSettleBurnsVictim core --only settleLocked
+           runx XPNTsV2WitnessHalmosTest check_witness_I2_spRenewIncrements core --only tryLockForGas
+           runx XPNTsV2WitnessHalmosTest check_witness_I2_meteredPull core --only transferFrom
+           runx XPNTsV2WitnessHalmosTest check_witness_I6_reservationAdmitted core --only tryReserveCredit
+           runx XPNTsV2WitnessHalmosTest check_witness_I6_debtGrows core --only settleCredit; FILTER="witness" ;;
   verify)  FILTER="${D5C1_FILTER:-}" ;;
   *)       echo "unknown group $G"; exit 2 ;;
 esac

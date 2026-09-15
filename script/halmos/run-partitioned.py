@@ -24,31 +24,15 @@ import os
 import re
 import subprocess
 import sys
+import shutil
 import signal
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import d5c1_binding  # noqa: E402
+
 ABI_OF = {"core": "xPNTsTokenV2", "ext": "xPNTsTokenV2Ext"}
-
-
-def selectors(abi_name):
-    d = json.load(open(f"out/{abi_name}.sol/{abi_name}.json"))
-    out = []
-    for sig, sel in d["methodIdentifiers"].items():
-        name = sig.split("(")[0]
-        entry = next(f for f in d["abi"] if f["type"] == "function" and f["name"] == name
-                     and "(" + ",".join(_t(i) for i in f["inputs"]) + ")" == sig[len(name):])
-        if entry["stateMutability"] in ("view", "pure"):
-            continue
-        out.append((sig, int(sel, 16)))
-    return sorted(out)
-
-
-def _t(inp):
-    t = inp["type"]
-    if t.startswith("tuple"):
-        return "(" + ",".join(_t(c) for c in inp["components"]) + ")" + t[len("tuple"):]
-    return t
 
 
 WALL_CAP_S = 3600  # set from --part-wall-cap-s in main()
@@ -67,6 +51,9 @@ def run_part(contract, check, part, label, out_dir, extra, suffix=""):
         except Exception:
             head = os.environ.get("D5C1_TREE", "<no git: see D5C1_TREE / mutation diff>")
         f.write(f"# git_head: {head}\n# tree_note: {os.environ.get('D5C1_TREE', '-')}\n")
+        # binding BEFORE the run (source / harness it starts from); the trailer below is written
+        # after halmos' own build — verify requires the two to agree on src/lib/harness
+        f.write(d5c1_binding.line(d5c1_binding.family_of(contract)) + "\n")
         f.flush()
         # own process group: on the wall cap we kill exactly this halmos and its solver children
         pr = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, env=env, start_new_session=True)
@@ -80,6 +67,8 @@ def run_part(contract, check, part, label, out_dir, extra, suffix=""):
         if walled:
             f.write(f"\n# WALL-CAP: killed after {WALL_CAP_S} s (per-partition cap); no result line = bounded/open\n")
         f.write(f"\n# exit_code: {rc}  wall_seconds: {int(time.time() - t0)}\n")
+        # evidence binding, computed AFTER the run (its build is what the bytecode hash reflects)
+        f.write(d5c1_binding.line(d5c1_binding.family_of(contract)) + "\n")
     text = open(log).read()
     m = re.search(r"\[(PASS|FAIL|TIMEOUT|ERROR)\]\s*\x1b?\[?0?m?\s*" + re.escape(check) + r"\([^)]*\) \(paths: (\d+), time: ([0-9.]+)s", text)
     res = {"part": label, "D5C1_PART": part, "exit": rc, "wall_s": int(time.time() - t0), "log": os.path.basename(log)}
@@ -102,9 +91,10 @@ def main():
     ap.add_argument("out_dir")
     ap.add_argument("--jobs", type=int, default=6)
     ap.add_argument("--only", default="")
-    ap.add_argument("--retry-timeout-ms", type=int, default=900000,
+    ap.add_argument("--retry-timeout-ms", type=int, default=0,
                     help="parts whose result is TIMEOUT are re-run once with --solver-timeout-assertion <ms> "
-                         "(0 = no retry); the first log is kept, the retry log ends in .retry.log")
+                         "(0 = no retry, the default); the retry REPLACES the partition log (exactly one log "
+                         "per partition) and the first attempt is moved to <out_dir>/attempts/")
     ap.add_argument("--part-wall-cap-s", type=int, default=3600,
                     help="hard wall-clock cap per partition; exceeded -> TIMEOUT-WALL (no retry)")
     argv = sys.argv[1:]
@@ -116,10 +106,16 @@ def main():
     global WALL_CAP_S
     WALL_CAP_S = a.part_wall_cap_s
     os.makedirs(a.out_dir, exist_ok=True)
-    parts = [(1, "OTHER")] + [(sel, f"{sig.split('(')[0]}-{sel:08x}") for sig, sel in selectors(ABI_OF[a.abi])]
+    parts = d5c1_binding.partition_specs(ABI_OF[a.abi])
     if a.only:
         keep = set(a.only.split(","))
         parts = [p for p in parts if p[1] in keep or p[1].split("-")[0] in keep]
+    else:
+        # a full run replaces the whole directory's evidence: no partition log of an earlier run survives
+        for fn in os.listdir(a.out_dir):
+            if fn.startswith(a.check + ".") and (fn.endswith(".log") or ".summary." in fn):
+                os.remove(os.path.join(a.out_dir, fn))
+        shutil.rmtree(os.path.join(a.out_dir, "attempts"), ignore_errors=True)
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=a.jobs) as ex:
         futs = []
@@ -129,9 +125,13 @@ def main():
         results = [f.result() for f in futs]
     if a.retry_timeout_ms:
         idx = [i for i, r in enumerate(results) if r["result"] == "TIMEOUT"]
+        os.makedirs(os.path.join(a.out_dir, "attempts"), exist_ok=True)
+        for i in idx:
+            os.replace(os.path.join(a.out_dir, results[i]["log"]), os.path.join(a.out_dir, "attempts", results[i]["log"]))
+            results[i]["log"] = "attempts/" + results[i]["log"]
         with ThreadPoolExecutor(max_workers=a.jobs) as ex:
             futs = {i: ex.submit(run_part, a.contract, a.check, results[i]["D5C1_PART"], results[i]["part"],
-                                 a.out_dir, extra + ["--solver-timeout-assertion", str(a.retry_timeout_ms)], ".retry")
+                                 a.out_dir, extra + ["--solver-timeout-assertion", str(a.retry_timeout_ms)])
                     for i in idx}
             for i, fu in futs.items():
                 r = fu.result()

@@ -1,20 +1,51 @@
-# command: script/halmos/verify-selftest.sh
-# git HEAD: 0ec063f78011c87a6bf374fbdd9b9a41918ec2df
-# forge: forge Version: 1.7.1
-# utc: 2026-09-13T14:38:10Z
-# exit code: 0
 ok    P1_all_met (rc=0, wanted 0)
-ok    N1_pass_check_fails (rc=1, wanted nonzero)
-ok    N2_witness_passes (rc=1, wanted nonzero)
-ok    N3_witness_no_cex (rc=1, wanted nonzero)
-ok    N4_timeout_not_allowed (rc=1, wanted nonzero)
+ok    N1_pass_check_fails (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (allow-list: bar-00000002) MISMATCH 2/3 PASS; FAIL foo-00000001
+ok    N2_witness_passes (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned W.check_W FAIL MISMATCH no counterexample (vacuous?)
+ok    N3_witness_no_cex (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned W.check_W FAIL MISMATCH no counterexample (vacuous?)
+ok    N4_timeout_not_allowed (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (allow-list: bar-00000002) MISMATCH 2/3 PASS; BOUNDED foo-00000001
 ok    P2_timeout_allowed (rc=0, wanted 0)
-ok    N5_aborted_part (rc=1, wanted nonzero)
-ok    N6_mutation_survives (rc=1, wanted nonzero)
-ok    N7_not_restored (rc=1, wanted nonzero)
-ok    N8_fuzz_mutation_survives (rc=1, wanted nonzero)
-ok    N9_unmutated_fuzz_red (rc=1, wanted nonzero)
-ok    O1_orchestrator_propagates (rc=1, wanted nonzero)
+ok    N5_aborted_part (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (allow-list: bar-00000002) MISMATCH 2/3 PASS; ABORTED/ERROR foo-00000001
+ok    N6_mutation_survives (rc=1, wanted !=0, 2 mismatch row(s), reason matched: True)
+      mutation M-X scenario test_scen red (1 != 0) MISMATCH green / missing
+ok    N7_not_restored (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      mutation M-X source restored pristine == reverted == current file MISMATCH cccccccccccc (pristine 14d7672c36aa, current 14d7672c36aa)
+ok    N8_fuzz_mutation_survives (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      fuzz M-Y reddens testFuzz_t red MISMATCH green / missing
+ok    N9_unmutated_fuzz_red (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      fuzz unmutated testFuzz_t PASS (>=10000 runs) MISMATCH not green
+ok    N10_missing_partition (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P: partition set exactly 3 (from current ABI) MISMATCH missing ['bar-00000002'] extra []
+ok    N11_extra_partition (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P: partition set exactly 3 (from current ABI) MISMATCH missing [] extra ['baz-00000009']
+ok    N12_source_hash_mismatch (rc=1, wanted !=0, 10 mismatch row(s), reason matched: True)
+      binding u.log bound to current tree (xpnts) MISMATCH STALE (src_sha differ from the current tree; files: X.sol)
+ok    N13_dirty_src (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs bound to current tree MISMATCH OTHER: DIRTY (dirty_src=1)
+ok    N14_bytecode_hash_mismatch (rc=1, wanted !=0, 6 mismatch row(s), reason matched: True)
+      binding u.log bound to current tree (xpnts) MISMATCH STALE (bytecode_sha differ from the current tree)
+ok    N15_allow_bounded_ghost (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P: allow_bounded keys ⊆ expected partitions MISMATCH not an expected partition: ['zzz-000000ff']
+ok    N16_unbound_log (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs bound to current tree MISMATCH OTHER: UNBOUND (no # binding: trailer)
+ok    N17_leftover_retry_log (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P: partition set exactly 3 (from current ABI) MISMATCH missing [] extra ['check_P.foo-00000001.retry.log']
+ok    N18_mutation_log_bound_to_pristine (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      mutation M-X binding (mutated) logs bound to current src + diff MISMATCH C.check_P/foo-00000001: src_sha != current src + diff (stale); C.check_P/foo-00000001: bytecode_s
+ok    N19_unpartitioned_extra_check (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      log u.log: check set exactly 1 checks MISMATCH missing [] extra ['check_Extra']
+ok    N20_out_not_built_from_sources (rc=1, wanted !=0, 8 mismatch row(s), reason matched: True)
+      tree out/ [xpnts] the build of the current sources (metadata keccak256) MISMATCH stale: ['contracts/src/tokens/v2/X.sol']
+ok    N21_header_trailer_drift (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs bound to current tree MISMATCH OTHER: DRIFT (header and trailer bindings differ on src_sha)
+ok    N22_allow_bounded_on_fail_expectation (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned W.check_W: allow_bounded none on a FAIL expectation MISMATCH a witness / negative control must produce a counterexample; allow_bounded is not permitted
+ok    O1_orchestrator_propagates (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (allow-list: bar-00000002) MISMATCH 2/3 PASS; FAIL OTHER
 ok    O2_orchestrator_clean (rc=0, wanted 0)
 
-SELFTEST: all 13 controls behave
+SELFTEST: all 26 controls behave

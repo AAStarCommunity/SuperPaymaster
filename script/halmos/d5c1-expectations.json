@@ -1,77 +1,400 @@
 {
-  "_doc": "D5c-1 expectation table read by script/halmos/verify-d5c1.py. Paths are relative to the evidence root (docs/design/aoa-balance-mode/data/halmos). expect: PASS | FAIL (a counterexample is REQUIRED: witnesses / negative controls) | BOUNDED is never a whole-check expectation; individual partitions may be BOUNDED only if listed in allow_bounded with a reason and a substitute.",
-  "logs": [
-    {"log": "cap1.log", "check": "check_CAP1_a_supplyIncreaseStaysUnderCap", "expect": "PASS"},
-    {"log": "cap1.log", "check": "check_CAP1_b_onlyMinterMintIncreasesSupply", "expect": "PASS"},
-    {"log": "cap1.log", "check": "check_CAP1_c_mintDoesNotMoveCap", "expect": "PASS"},
-    {"log": "cap1-witness.log", "check": "check_witness_CAP1_supplyCanIncrease", "expect": "FAIL"},
-    {"log": "rate-base.log", "check": "check_RATE_base_initialize", "expect": "PASS"},
-    {"log": "rate-base.log", "check": "check_RATE_base_realFactory", "expect": "PASS"}
-  ],
-  "partitioned": [
-    {"dir": "XPNTsV2RateHalmosTest.check_RATE_step_coreAbi", "expect": "PASS", "min_parts": 15},
-    {"dir": "XPNTsV2RateHalmosTest.check_RATE_step_extAbi", "expect": "PASS", "min_parts": 44},
-    {"dir": "XPNTsV2A3HalmosTest.check_A3_coreAbi", "expect": "PASS", "min_parts": 15},
-    {"dir": "XPNTsV2A3HalmosTest.check_A3_extAbi", "expect": "PASS", "min_parts": 44,
-     "allow_bounded": {"mint-40c10f19": {"reason": "mint auto-repay non-linearity (lemma M)", "substitute": "XPNTsV2A3MintNoDebtHalmosTest (debts=0, symbolic) + MintRepayLemmaFuzzTest (debts>0, fuzz 10k) + paper proof"}}},
-    {"dir": "XPNTsV2I2HalmosTest.check_I2_coreAbi", "expect": "PASS", "min_parts": 15,
-     "allow_bounded": {
-       "tryLockForGas-ec290731": {"reason": "solver TIMEOUT (15 min, 960 paths)", "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_tryLockForGas (10k)"},
-       "settleLocked-7e48bbce": {"reason": "solver TIMEOUT (56 min, 575 paths)", "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked (10k)"},
-       "transferFrom-23b872dd": {"reason": "60-min wall cap", "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom (10k)"},
-       "burn-9dc29fac": {"reason": "60-min wall cap", "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_burnFrom (10k)"}}},
-    {"dir": "XPNTsV2I2HalmosTest.check_I2_extAbi", "expect": "PASS", "min_parts": 44,
-     "allow_bounded": {
-       "transferFrom-23b872dd": {"reason": "10-min wall cap", "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom (10k)"},
-       "mint-40c10f19": {"reason": "mint auto-repay non-linearity (lemma M)", "substitute": "XPNTsV2I2MintNoDebtHalmosTest + MintRepayLemmaFuzzTest + paper proof"}}},
-    {"dir": "XPNTsV2I6HalmosTest.check_I6_coreAbi", "expect": "PASS", "min_parts": 15},
-    {"dir": "XPNTsV2I6HalmosTest.check_I6_extAbi", "expect": "PASS", "min_parts": 44},
-    {"dir": "XPNTsV2I6HalmosTest.check_I6J_coreAbi", "expect": "PASS", "min_parts": 15},
-    {"dir": "XPNTsV2I6HalmosTest.check_I6J_extAbi", "expect": "PASS", "min_parts": 44},
-    {"dir": "XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi", "expect": "PASS", "min_parts": 1},
-    {"dir": "XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi", "expect": "PASS", "min_parts": 1},
-    {"dir": "XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi", "expect": "PASS", "min_parts": 1},
-    {"dir": "XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi", "expect": "PASS", "min_parts": 1},
-    {"dir": "XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound", "expect": "PASS", "min_parts": 1,
-     "allow_bounded": {"settleLocked-7e48bbce": {"reason": "non-linear exact ceil bound", "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked asserts the A3x bitmask (10k)"}}},
-    {"dir": "XPNTsV2I2NoRHalmosTest.check_I2_coreAbi", "expect": "FAIL", "min_parts": 1,
-     "allow_bounded": {"tryLockForGas-ec290731": {"reason": "negative control (finding F-D5c1-1 without R) may exceed the cap", "substitute": "concrete pre-fix replay finding-F-D5c1-1-prefix-275abaef-replay.log"}}},
-    {"dir": "XPNTsV2WitnessHalmosTest.check_witness_A3_spSettleBurnsVictim", "expect": "FAIL", "min_parts": 1},
-    {"dir": "XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements", "expect": "FAIL", "min_parts": 1},
-    {"dir": "XPNTsV2WitnessHalmosTest.check_witness_I2_meteredPull", "expect": "FAIL", "min_parts": 1},
-    {"dir": "XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted", "expect": "FAIL", "min_parts": 1},
-    {"dir": "XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows", "expect": "FAIL", "min_parts": 1},
-    {"dir": "MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint", "expect": "PASS", "min_parts": 1,
-     "allow_bounded": {"OTHER": {"reason": "256-bit division beyond the solver", "substitute": "paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10k)"}}},
-    {"dir": "MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor", "expect": "PASS", "min_parts": 1,
-     "allow_bounded": {"OTHER": {"reason": "256-bit division beyond the solver", "substitute": "paper proof + fuzz"}}},
-    {"dir": "MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct", "expect": "PASS", "min_parts": 1,
-     "allow_bounded": {"OTHER": {"reason": "256-bit product beyond the solver", "substitute": "paper proof + fuzz"}}},
-    {"dir": "MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant", "expect": "PASS", "min_parts": 1,
-     "allow_bounded": {"OTHER": {"reason": "256-bit division beyond the solver", "substitute": "paper proof + fuzz"}}}
+ "_doc": "D5c-1 expectation table read by script/halmos/verify-d5c1.py (its sha256 is printed in every verdict). Paths are relative to the evidence root (docs/design/aoa-balance-mode/data/halmos). logs: one entry per check; the set of checks in a log must equal the entries naming it; family = binding family (xpnts|apnts). partitioned: abi (core=xPNTsTokenV2, ext=xPNTsTokenV2Ext) + optional parts (function names) define the EXACT partition set, derived from the current build ABI (OTHER included unless parts excludes it). expect: PASS | FAIL (a counterexample is REQUIRED: witnesses / negative controls); BOUNDED is never a whole-check expectation; individual partitions may be BOUNDED only if listed in allow_bounded (keys must be expected partitions) with a reason and a substitute. mutations: halmos_parts[].labels is the exact partition set run on the mutated tree (every one must go red).",
+ "logs": [
+  {
+   "log": "cap1.log",
+   "check": "check_CAP1_a_supplyIncreaseStaysUnderCap",
+   "expect": "PASS",
+   "family": "apnts"
+  },
+  {
+   "log": "cap1.log",
+   "check": "check_CAP1_b_onlyMinterMintIncreasesSupply",
+   "expect": "PASS",
+   "family": "apnts"
+  },
+  {
+   "log": "cap1.log",
+   "check": "check_CAP1_c_mintDoesNotMoveCap",
+   "expect": "PASS",
+   "family": "apnts"
+  },
+  {
+   "log": "cap1-witness.log",
+   "check": "check_witness_CAP1_supplyCanIncrease",
+   "expect": "FAIL",
+   "family": "apnts"
+  },
+  {
+   "log": "rate-base.log",
+   "check": "check_RATE_base_initialize",
+   "expect": "PASS",
+   "family": "xpnts"
+  },
+  {
+   "log": "rate-base.log",
+   "check": "check_RATE_base_realFactory",
+   "expect": "PASS",
+   "family": "xpnts"
+  }
+ ],
+ "partitioned": [
+  {
+   "dir": "XPNTsV2RateHalmosTest.check_RATE_step_coreAbi",
+   "abi": "core",
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2RateHalmosTest.check_RATE_step_extAbi",
+   "abi": "ext",
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2A3HalmosTest.check_A3_coreAbi",
+   "abi": "core",
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2A3HalmosTest.check_A3_extAbi",
+   "abi": "ext",
+   "expect": "PASS",
+   "allow_bounded": {
+    "mint-40c10f19": {
+     "reason": "mint auto-repay non-linearity (lemma M)",
+     "substitute": "XPNTsV2A3MintNoDebtHalmosTest (debts=0, symbolic) + MintRepayLemmaFuzzTest (debts>0, fuzz 10k) + paper proof"
+    }
+   }
+  },
+  {
+   "dir": "XPNTsV2I2HalmosTest.check_I2_coreAbi",
+   "abi": "core",
+   "expect": "PASS",
+   "allow_bounded": {
+    "tryLockForGas-ec290731": {
+     "reason": "solver TIMEOUT (15 min, 960 paths)",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_tryLockForGas (10k)"
+    },
+    "settleLocked-7e48bbce": {
+     "reason": "solver TIMEOUT (56 min, 575 paths)",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked (10k)"
+    },
+    "transferFrom-23b872dd": {
+     "reason": "60-min wall cap",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom (10k)"
+    },
+    "burn-9dc29fac": {
+     "reason": "60-min wall cap",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_burnFrom (10k)"
+    }
+   }
+  },
+  {
+   "dir": "XPNTsV2I2HalmosTest.check_I2_extAbi",
+   "abi": "ext",
+   "expect": "PASS",
+   "allow_bounded": {
+    "transferFrom-23b872dd": {
+     "reason": "10-min wall cap",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom (10k)"
+    },
+    "mint-40c10f19": {
+     "reason": "mint auto-repay non-linearity (lemma M)",
+     "substitute": "XPNTsV2I2MintNoDebtHalmosTest + MintRepayLemmaFuzzTest + paper proof"
+    }
+   }
+  },
+  {
+   "dir": "XPNTsV2I6HalmosTest.check_I6_coreAbi",
+   "abi": "core",
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2I6HalmosTest.check_I6_extAbi",
+   "abi": "ext",
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2I6HalmosTest.check_I6J_coreAbi",
+   "abi": "core",
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2I6HalmosTest.check_I6J_extAbi",
+   "abi": "ext",
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi",
+   "abi": "ext",
+   "parts": [
+    "mint"
+   ],
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi",
+   "abi": "ext",
+   "parts": [
+    "mint"
+   ],
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi",
+   "abi": "ext",
+   "parts": [
+    "mint"
+   ],
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi",
+   "abi": "ext",
+   "parts": [
+    "mint"
+   ],
+   "expect": "PASS"
+  },
+  {
+   "dir": "XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound",
+   "abi": "core",
+   "parts": [
+    "settleLocked"
+   ],
+   "expect": "PASS",
+   "allow_bounded": {
+    "settleLocked-7e48bbce": {
+     "reason": "non-linear exact ceil bound",
+     "substitute": "D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked asserts the A3x bitmask (10k)"
+    }
+   }
+  },
+  {
+   "dir": "XPNTsV2I2NoRHalmosTest.check_I2_coreAbi",
+   "abi": "core",
+   "parts": [
+    "tryLockForGas"
+   ],
+   "expect": "FAIL"
+  },
+  {
+   "dir": "XPNTsV2WitnessHalmosTest.check_witness_A3_spSettleBurnsVictim",
+   "abi": "core",
+   "parts": [
+    "settleLocked"
+   ],
+   "expect": "FAIL"
+  },
+  {
+   "dir": "XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements",
+   "abi": "core",
+   "parts": [
+    "tryLockForGas"
+   ],
+   "expect": "FAIL"
+  },
+  {
+   "dir": "XPNTsV2WitnessHalmosTest.check_witness_I2_meteredPull",
+   "abi": "core",
+   "parts": [
+    "transferFrom"
+   ],
+   "expect": "FAIL"
+  },
+  {
+   "dir": "XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted",
+   "abi": "core",
+   "parts": [
+    "tryReserveCredit"
+   ],
+   "expect": "FAIL"
+  },
+  {
+   "dir": "XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows",
+   "abi": "core",
+   "parts": [
+    "settleCredit"
+   ],
+   "expect": "FAIL"
+  },
+  {
+   "dir": "MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint",
+   "abi": "core",
+   "parts": [
+    "OTHER"
+   ],
+   "expect": "PASS",
+   "allow_bounded": {
+    "OTHER": {
+     "reason": "256-bit division beyond the solver",
+     "substitute": "paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10k)"
+    }
+   }
+  },
+  {
+   "dir": "MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor",
+   "abi": "core",
+   "parts": [
+    "OTHER"
+   ],
+   "expect": "PASS",
+   "allow_bounded": {
+    "OTHER": {
+     "reason": "256-bit division beyond the solver",
+     "substitute": "paper proof + fuzz"
+    }
+   }
+  },
+  {
+   "dir": "MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct",
+   "abi": "core",
+   "parts": [
+    "OTHER"
+   ],
+   "expect": "PASS",
+   "allow_bounded": {
+    "OTHER": {
+     "reason": "256-bit product beyond the solver",
+     "substitute": "paper proof + fuzz"
+    }
+   }
+  },
+  {
+   "dir": "MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant",
+   "abi": "core",
+   "parts": [
+    "OTHER"
+   ],
+   "expect": "PASS",
+   "allow_bounded": {
+    "OTHER": {
+     "reason": "256-bit division beyond the solver",
+     "substitute": "paper proof + fuzz"
+    }
+   }
+  }
+ ],
+ "mutations": [
+  {
+   "id": "M-CAP1",
+   "halmos_logs": [
+    {
+     "log": "APNTsCappedHalmosTest.log",
+     "check": "check_CAP1_a_supplyIncreaseStaysUnderCap"
+    }
+   ],
+   "halmos_parts": [],
+   "scenario_test": "test_D5c1_CAP1_scenario_mintBeyondCapReverts",
+   "scenario_msg": "next call did not revert as expected",
+   "family": "apnts"
+  },
+  {
+   "id": "M-A3",
+   "halmos_logs": [],
+   "halmos_parts": [
+    {
+     "dir": "XPNTsV2A3HalmosTest.check_A3_extAbi",
+     "labels": [
+      "spPull-20992765"
+     ]
+    },
+    {
+     "dir": "XPNTsV2A3HalmosTest.check_A3_coreAbi",
+     "labels": [
+      "OTHER"
+     ]
+    }
+   ],
+   "scenario_test": "test_D5c1_A3_scenario_spCannotMoveUserTokens",
+   "scenario_msg": "28 != 0",
+   "family": "xpnts"
+  },
+  {
+   "id": "M-I2",
+   "halmos_logs": [],
+   "halmos_parts": [
+    {
+     "dir": "XPNTsV2I2HalmosTest.check_I2_coreAbi",
+     "labels": [
+      "tryLockForGas-ec290731"
+     ]
+    }
+   ],
+   "scenario_test": "test_D5c1_I2_scenario_lockBeyondSpCapRejected",
+   "scenario_msg": "1 != 0",
+   "family": "xpnts"
+  },
+  {
+   "id": "M-I6",
+   "halmos_logs": [],
+   "halmos_parts": [
+    {
+     "dir": "XPNTsV2I6HalmosTest.check_I6_coreAbi",
+     "labels": [
+      "tryReserveCredit-de9e4cae"
+     ]
+    },
+    {
+     "dir": "XPNTsV2I6HalmosTest.check_I6J_coreAbi",
+     "labels": [
+      "tryReserveCredit-de9e4cae"
+     ]
+    }
+   ],
+   "scenario_test": "test_D5c1_I6_scenario_reservationBoundedByRequestedCap",
+   "scenario_msg": "1 != 0",
+   "family": "xpnts"
+  },
+  {
+   "id": "M-F1",
+   "halmos_logs": [],
+   "halmos_parts": [
+    {
+     "dir": "XPNTsV2RateHalmosTest.check_RATE_base_initialize",
+     "labels": [
+      "OTHER"
+     ]
+    },
+    {
+     "dir": "XPNTsV2RateHalmosTest.check_RATE_base_realFactory",
+     "labels": [
+      "OTHER"
+     ]
+    }
+   ],
+   "scenario_test": "test_D5c1_REGRESSION_F1_rateOutOfRangeRejectedAtInit",
+   "scenario_msg": "next call did not revert as expected",
+   "family": "xpnts"
+  }
+ ],
+ "fuzz_liveness": {
+  "unmutated_log": "fuzz-liveness/fuzz-bounded-partitions.log",
+  "unmutated_tests": [
+   "testFuzz_D5c1_I2_tryLockForGas",
+   "testFuzz_D5c1_I2_settleLocked",
+   "testFuzz_D5c1_I2_transferFrom",
+   "testFuzz_D5c1_I2_burnFrom"
   ],
   "mutations": [
-    {"id": "M-CAP1", "halmos_logs": [{"log": "APNTsCappedHalmosTest.log", "check": "check_CAP1_a_supplyIncreaseStaysUnderCap"}],
-     "halmos_parts": [], "scenario_test": "test_D5c1_CAP1_scenario_mintBeyondCapReverts", "scenario_msg": "next call did not revert as expected"},
-    {"id": "M-A3", "halmos_logs": [],
-     "halmos_parts": [{"dir": "XPNTsV2A3HalmosTest.check_A3_extAbi", "part_prefix": "spPull"}, {"dir": "XPNTsV2A3HalmosTest.check_A3_coreAbi", "part_prefix": "OTHER"}],
-     "scenario_test": "test_D5c1_A3_scenario_spCannotMoveUserTokens", "scenario_msg": "28 != 0"},
-    {"id": "M-I2", "halmos_logs": [], "halmos_parts": [{"dir": "XPNTsV2I2HalmosTest.check_I2_coreAbi", "part_prefix": "tryLockForGas"}],
-     "scenario_test": "test_D5c1_I2_scenario_lockBeyondSpCapRejected", "scenario_msg": "1 != 0"},
-    {"id": "M-I6", "halmos_logs": [],
-     "halmos_parts": [{"dir": "XPNTsV2I6HalmosTest.check_I6_coreAbi", "part_prefix": "tryReserveCredit"}, {"dir": "XPNTsV2I6HalmosTest.check_I6J_coreAbi", "part_prefix": "tryReserveCredit"}],
-     "scenario_test": "test_D5c1_I6_scenario_reservationBoundedByRequestedCap", "scenario_msg": "1 != 0"},
-    {"id": "M-F1", "halmos_logs": [],
-     "halmos_parts": [{"dir": "XPNTsV2RateHalmosTest.check_RATE_base_initialize", "part_prefix": "OTHER"}, {"dir": "XPNTsV2RateHalmosTest.check_RATE_base_realFactory", "part_prefix": "OTHER"}],
-     "scenario_test": "test_D5c1_REGRESSION_F1_rateOutOfRangeRejectedAtInit", "scenario_msg": "next call did not revert as expected"}
-  ],
-  "fuzz_liveness": {
-    "unmutated_log": "fuzz-bounded-partitions.log",
-    "unmutated_tests": ["testFuzz_D5c1_I2_tryLockForGas", "testFuzz_D5c1_I2_settleLocked", "testFuzz_D5c1_I2_transferFrom", "testFuzz_D5c1_I2_burnFrom"],
-    "mutations": [
-      {"id": "M-I2", "must_fail": ["testFuzz_D5c1_I2_tryLockForGas"]},
-      {"id": "M-PULL", "must_fail": ["testFuzz_D5c1_I2_transferFrom", "testFuzz_D5c1_I2_burnFrom"]},
-      {"id": "M-BURNALL", "must_fail": ["testFuzz_D5c1_I2_settleLocked"]}
+   {
+    "id": "M-I2",
+    "must_fail": [
+     "testFuzz_D5c1_I2_tryLockForGas"
     ]
-  }
+   },
+   {
+    "id": "M-PULL",
+    "must_fail": [
+     "testFuzz_D5c1_I2_transferFrom",
+     "testFuzz_D5c1_I2_burnFrom"
+    ]
+   },
+   {
+    "id": "M-BURNALL",
+    "must_fail": [
+     "testFuzz_D5c1_I2_settleLocked"
+    ]
+   }
+  ]
+ }
 }
