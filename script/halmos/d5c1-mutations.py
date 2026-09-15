@@ -37,6 +37,48 @@ MUTATIONS = {
             "    function getMetadata() external view returns (\n"
         ),
     },
+    # A-3 bit 0 liveness: the SP firewall is gone from transferFrom ONLY (an SP / historical SP
+    # skips _spendV2 there: no firewall, no allowance); burn(address,uint256) keeps it
+    "M-A3TF": {
+        "file": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+        "old": "        _spendV2(from, msg.sender, value, to);\n",
+        "new": "        if (!historicalSP[msg.sender]) _spendV2(from, msg.sender, value, to); // D5c-1 M-A3TF\n",
+    },
+    # A-3 bit 1 liveness: the SP firewall is gone from burn(address,uint256) ONLY
+    "M-A3BF": {
+        "file": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+        "old": "        if (msg.sender != from) _spendV2(from, msg.sender, amount, msg.sender);\n",
+        "new": "        if (msg.sender != from && !historicalSP[msg.sender]) _spendV2(from, msg.sender, amount, msg.sender); // D5c-1 M-A3BF\n",
+    },
+    # I4 balance conjunct liveness: the A-1 lock check in _update is gone
+    "M-I4B": {
+        "file": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+        "old": "                if (bal < value || bal - value < locked) revert BalanceLocked(from, locked);\n",
+        "new": "                // D5c-1 M-I4B: A-1 lock check removed\n",
+    },
+    # I2 explicit half (fuzz liveness): an explicit-allowance pull no longer debits the allowance
+    "M-EXPL": {
+        "file": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+        "old": "            if (e != type(uint256).max) _approve(owner, spender, e - value, false);\n",
+        "new": "            // D5c-1 M-EXPL: explicit allowance not debited\n",
+    },
+    # I4 balance conjunct, mint auto-repay (fuzz liveness): the repay burns one wei more AND bypasses
+    # the A-1 lock check (M-REPAY alone is caught by A-1 and cannot break I4)
+    "M-REPAYLOCK": {
+        "file": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+        "old": (
+            "                    uint256 repayXPNTs = (repayAPNTs * rate + 1e18 - 1) / 1e18;\n"
+            "                    debts[to] = debt - repayAPNTs;\n"
+            "                    super._update(from, to, value);\n"
+            "                    _burn(to, repayXPNTs);\n"
+        ),
+        "new": (
+            "                    uint256 repayXPNTs = (repayAPNTs * rate + 1e18 - 1) / 1e18 + 1; // D5c-1 M-REPAYLOCK\n"
+            "                    debts[to] = debt - repayAPNTs;\n"
+            "                    super._update(from, to, value);\n"
+            "                    super._update(to, address(0), repayXPNTs); // D5c-1 M-REPAYLOCK: no A-1 check\n"
+        ),
+    },
     # I2: drop the per-(spender,user) + total remaining-cap admission check of tryLockForGas
     "M-I2": {
         "file": "contracts/src/tokens/v2/xPNTsTokenV2.sol",

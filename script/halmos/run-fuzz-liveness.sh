@@ -17,7 +17,7 @@ trap '[ -n "$cur" ] && python3 script/halmos/d5c1-mutations.py revert "$cur"' EX
 "$F" test --match-path "contracts/test/halmos/*.t.sol" --match-contract "$FUZZ" > "$o/fuzz-bounded-partitions.log" 2>&1
 python3 script/halmos/d5c1_binding.py xpnts --line >> "$o/fuzz-bounded-partitions.log"
 echo "== unmutated: $(grep -E 'Suite result' "$o/fuzz-bounded-partitions.log" | tail -1)"
-for m in M-I2 M-PULL M-BURNALL M-REPAY; do
+for m in M-I2 M-PULL M-EXPL M-BURNALL M-REPAY M-REPAYLOCK; do
   cur="$m"
   python3 script/halmos/d5c1-mutations.py apply "$m" > "$o/$m.apply.txt" || { echo "APPLY-FAILED $m"; exit 3; }
   cp "cache/d5c1-mutations/$m.diff" "$o/"

@@ -18,12 +18,22 @@ binding(family) -> {family, src_sha, src_files, lib_sha, harness_sha, bytecode_s
                the artifact metadata ([] = out/ is the build of the current sources)
   dirty_src    `git status --porcelain contracts/src` line count (-1 when there is no git, e.g. the
                scratch copy used for mutations)
+  harness_contract / harness_artifact_sha   (only when a contract is named: `line(fam, contract=C)`)
+               sha256 of the CREATION bytecode of the harness contract C in out/ — the code Halmos
+               deployed and executed (it embeds the tested contracts' creation code, see
+               artifact-parity.py), so a log is bound to the exact harness build that produced it
+  harness_artifacts (only with `all_artifacts=True`): the same hash for every harness contract
 Families: `xpnts` (xPNTs v2 checks, rate invariant, lemma M) and `apnts` (CAP-1).
+
+PROFILES is the ONE definition of the Halmos argument sets: the runners launch with exactly these
+arguments and verify-d5c1.py requires each log's recorded argument list to equal the one expected
+for its item (`--early-exit` only on expected-FAIL items).
 
 The partition generator (partition_specs) also lives here: run-partitioned.py launches exactly
 these partitions and verify-d5c1.py expects exactly these logs, both from the current build ABI.
 
-CLI: python3 script/halmos/d5c1_binding.py <family> [--line]   (--line prints `# binding: {json}`)
+CLI: python3 script/halmos/d5c1_binding.py <family> [--line] [--contract C] [--all-artifacts]
+     (--line prints `# binding: {json}`)
 """
 import hashlib
 import json
@@ -49,6 +59,26 @@ HARNESS = ["contracts/test/halmos", "contracts/test/helpers/V2TokenDeployer.sol"
            "contracts/test/helpers/V2TestFixtures.sol"]
 HARNESS_ARTIFACT_DIRS = ["XPNTsV2Halmos.t.sol", "APNTsCappedHalmos.t.sol", "MintRepayLemma.t.sol",
                          "XPNTsV2HalmosProbe.sol", "D5c1Replay.t.sol", "D5c1BoundedFuzz.t.sol"]
+
+# Halmos argument profiles (everything after `halmos --contract C [--function F] [--match-test M]
+# --panic-error-codes '*'`). `<name>-fail` = the same + --early-exit (expected-FAIL items only:
+# witnesses, negative controls, spec-vs-code discrepancies, mutations).
+_XP = ["--loop", "2", "--default-bytes-lengths", "0,65", "--statistics", "--solver-timeout-assertion", "300000"]
+PROFILES = {
+    "xp": _XP,
+    "lemma": ["--loop", "2", "--statistics", "--solver-timeout-assertion", "540000"],
+    "cap1": ["--loop", "2", "--default-bytes-lengths", "0,65,1024", "--statistics", "--solver-timeout-assertion", "300000"],
+}
+for _k in list(PROFILES):
+    PROFILES[_k + "-fail"] = PROFILES[_k] + ["--early-exit"]
+WALL_CAP_S = 600   # hard wall-clock cap per partition / per unpartitioned run
+
+
+def halmos_argv(contract, profile, function=None, match_test=None):
+    """The canonical argument list (after the `halmos` executable) for one run."""
+    return (["--contract", contract] + (["--function", function] if function else [])
+            + (["--match-test", match_test] if match_test else []) + ["--panic-error-codes", "*"]
+            + PROFILES[profile])
 
 
 def family_of(contract_or_name):
@@ -207,19 +237,56 @@ def partition_labels(abi_name, out_dir="out"):
     return sorted(l for _, l in partition_specs(abi_name, out_dir))
 
 
-def binding(family, root="."):
+def harness_artifacts(root="."):
+    """contract -> sha256 of its creation bytecode, over every harness artifact in out/. A contract
+    name that occurs in two harness artifact dirs maps to None (ambiguous; never matches)."""
+    out = {}
+    for dn in HARNESS_ARTIFACT_DIRS:
+        d = os.path.join(root, "out", dn)
+        if not os.path.isdir(d):
+            continue
+        for fn in sorted(os.listdir(d)):
+            if not fn.endswith(".json") or fn.count(".") != 1:
+                continue   # skip profile-suffixed duplicates such as X.registry-size.json
+            try:
+                code = json.load(open(os.path.join(d, fn)))["bytecode"]["object"]
+            except Exception:
+                continue
+            c = fn[:-5]
+            h = hashlib.sha256(code.encode()).hexdigest()
+            out[c] = None if c in out and out[c] != h else h
+    return out
+
+
+def binding(family, root=".", contract=None, all_artifacts=False):
     srcs = src_list(family, root)
-    return {"family": family, "src_sha": tree_sha(srcs, root),
-            "src_files": {p: _sha(os.path.join(root, p)) for p in srcs},
-            "lib_sha": tree_sha(lib_list(family, root), root),
-            "harness_sha": tree_sha(harness_list(root), root), "bytecode_sha": bytecode_sha(family, root),
-            "out_stale": out_stale(family, root), "dirty_src": dirty_src(root), "git_head": git_head(root)}
+    b = {"family": family, "src_sha": tree_sha(srcs, root),
+         "src_files": {p: _sha(os.path.join(root, p)) for p in srcs},
+         "lib_sha": tree_sha(lib_list(family, root), root),
+         "harness_sha": tree_sha(harness_list(root), root), "bytecode_sha": bytecode_sha(family, root),
+         "out_stale": out_stale(family, root), "dirty_src": dirty_src(root), "git_head": git_head(root)}
+    if contract or all_artifacts:
+        arts = harness_artifacts(root)
+        if contract:
+            b["harness_contract"] = contract
+            b["harness_artifact_sha"] = arts.get(contract)
+        if all_artifacts:
+            b["harness_artifacts"] = arts
+    return b
 
 
-def line(family, root="."):
-    return "# binding: " + json.dumps(binding(family, root), sort_keys=True)
+def line(family, root=".", contract=None, all_artifacts=False):
+    return "# binding: " + json.dumps(binding(family, root, contract, all_artifacts), sort_keys=True)
+
+
+def meta_line(**kw):
+    """`# meta: {json}` — what a run WAS (runner, contract, check, abi, partition, argv, cap), written
+    by the runner before it starts Halmos, from the same values it launches with."""
+    return "# meta: " + json.dumps(kw, sort_keys=True)
 
 
 if __name__ == "__main__":
     fam = sys.argv[1]
-    print(line(fam) if "--line" in sys.argv else json.dumps(binding(fam), indent=1, sort_keys=True))
+    c = sys.argv[sys.argv.index("--contract") + 1] if "--contract" in sys.argv else None
+    alla = "--all-artifacts" in sys.argv
+    print(line(fam, ".", c, alla) if "--line" in sys.argv else json.dumps(binding(fam, ".", c, alla), indent=1, sort_keys=True))

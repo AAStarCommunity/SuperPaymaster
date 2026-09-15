@@ -4,18 +4,20 @@
 # usage (from the root of a checkout, typically a scratch copy so the main tree's evidence runs
 # never compile mutated source):
 #   script/halmos/run-mutation.sh <MUT_ID> <out_dir> <scenario_test_regex> <spec>...
-#   spec = Contract:check_function:core|ext[:only]   (only = partition label filter, e.g. settleLocked)
-#          or   Contract:unpartitioned               (whole contract, one halmos process)
-# Halmos runs use --early-exit: the question is only WHICH predicate goes red; the forge scenario
-# test must go red too (the mutation really changes behaviour in the targeted scenario).
+#   spec = Contract:check_function:core|ext:only:red|green   (only = partition label filter)
+#          or   Contract:unpartitioned[:match-test-regex]     (one halmos process, expected red)
+# red specs run with the `-fail` profile (--early-exit: the question is only WHICH check goes red);
+# green specs (must stay PASS under the mutation: the independence of two predicates) run with the
+# plain profile. The forge scenario test must go red too (the mutation really changes behaviour in
+# the targeted scenario). The mutated ABI artifacts are copied to <out_dir>/abi-out so the verdict
+# can map a label the mutation added (e.g. M-A3's spPull) to its selector.
 # Exit code: 0 only if the mutation is KILLED as expected — judged by verify-d5c1.py --only mutations
-# against the expectation table (named Halmos check/partition FAIL with a counterexample, named
-# scenario test red with the named message) — AND the source is restored to its pristine sha256.
+# against the mandatory suite — AND the source is restored to its pristine sha256.
 # Revert always runs (trap), and a failed revert is exit 3.
 set -uo pipefail
 export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH" PYTHONUNBUFFERED=1
 mid="$1"; out="$2"; scen="$3"; shift 3
-mkdir -p "$out"
+rm -rf "$out"; mkdir -p "$out"
 python3 script/halmos/d5c1-mutations.py apply "$mid" | tee "$out/apply.txt" || { echo "APPLY-FAILED"; exit 3; }
 reverted=0
 restore() { [ $reverted -eq 1 ] && return; reverted=1
@@ -24,7 +26,7 @@ trap restore EXIT
 cp "cache/d5c1-mutations/$mid.diff" "$out/$mid.diff"
 export D5C1_TREE="D5c-1 tree + mutation $mid (see $mid.diff)"
 # harness artifacts without an AST (left by a plain forge build) would make halmos skip them
-for d in out/APNTsCappedHalmos.t.sol out/XPNTsV2Halmos.t.sol out/XPNTsV2HalmosProbe.sol; do
+for d in out/APNTsCappedHalmos.t.sol out/XPNTsV2Halmos.t.sol out/XPNTsV2HalmosProbe.sol out/MintRepayLemma.t.sol; do
   [ -d "$d" ] || continue
   python3 -c 'import json,sys,glob; sys.exit(0 if all("ast" in json.load(open(f)) for f in glob.glob(sys.argv[1]+"/*.json")) else 1)' "$d" || rm -rf "$d"
 done
@@ -32,19 +34,17 @@ done
 # the MUTATED ABI (e.g. a selector added by the mutation) before it launches any part
 forge build --ast --extra-output storageLayout metadata > "$out/build.log" 2>&1 || { echo "BUILD-FAILED"; exit 3; }
 fam=xpnts; [ "$mid" = M-CAP1 ] && fam=apnts
-python3 script/halmos/d5c1_binding.py "$fam" > "$out/binding-mutated.json"   # the mutated tree + its build
+python3 script/halmos/d5c1_binding.py "$fam" --all-artifacts > "$out/binding-mutated.json"   # the mutated tree + its build
+for x in xPNTsTokenV2 xPNTsTokenV2Ext; do mkdir -p "$out/abi-out/$x.sol"; cp "out/$x.sol/$x.json" "$out/abi-out/$x.sol/"; done
 for spec in "$@"; do
-  IFS=: read -r c f a o <<<"$spec"
+  IFS=: read -r c f a o k <<<"$spec"
   if [ "$f" = unpartitioned ]; then
-    python3 script/halmos/d5c1_binding.py "$fam" --line > "$out/$c.log"
-    halmos --contract "$c" --panic-error-codes '*' >> "$out/$c.log" 2>&1
-    echo "$c: exit $? $(grep -cE 'FAIL\]' "$out/$c.log") FAIL lines" | tee -a "$out/summary.txt"
-    python3 script/halmos/d5c1_binding.py "$fam" --line >> "$out/$c.log"
+    prof=xp-fail; [ "$fam" = apnts ] && prof=cap1-fail
+    script/halmos/run-d5c1.sh "$c" "$out/$c.log" "$prof" "${a:-}" | sed "s#^#$c: #" | tee -a "$out/summary.txt"
   else
-    extra=()
-    [ -n "${o:-}" ] && extra=(--only "$o")
-    python3 script/halmos/run-partitioned.py "$c" "$f" "$a" "$out/$c.$f" --jobs 3 --part-wall-cap-s 600 "${extra[@]}" \
-      -- --default-bytes-lengths 0,65 --early-exit | tail -1 | sed "s#^#$c.$f: #" | tee -a "$out/summary.txt"
+    prof=xp-fail; [ "$k" = green ] && prof=xp
+    python3 script/halmos/run-partitioned.py "$c" "$f" "$a" "$out/$c.$f" --profile "$prof" --jobs 3 --only "$o" \
+      | tail -1 | sed "s#^#$c.$f ($k): #" | tee -a "$out/summary.txt"
   fi
 done
 forge test --match-path contracts/test/halmos/D5c1Replay.t.sol --match-test "$scen" -vv > "$out/scenario.log" 2>&1
