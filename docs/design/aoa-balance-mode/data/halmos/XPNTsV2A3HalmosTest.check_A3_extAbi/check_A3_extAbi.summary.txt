@@ -1,4 +1,4 @@
-XPNTsV2A3HalmosTest.check_A3_extAbi over xPNTsTokenV2Ext: NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR) (44 parts, wall 373 s)
+XPNTsV2A3HalmosTest.check_A3_extAbi over xPNTsTokenV2Ext: NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR) (44 parts, wall 356 s)
   OTHER                                    PASS            paths=2 time=1.28s exit=0
   activateSP-9c707a14                      PASS            paths=8 time=0.76s exit=0
   activateSpender-1615e5dc                 PASS            paths=16 time=2.55s exit=0
@@ -15,7 +15,7 @@ XPNTsV2A3HalmosTest.check_A3_extAbi over xPNTsTokenV2Ext: NOT-ALL-PASS (1 BOUNDE
   executeBySig-d182c298                    PASS            paths=94 time=6.69s exit=0
   executeCreditPolicy-5050a44a             PASS            paths=4 time=0.61s exit=0
   executeTierSource-f0575df6               PASS            paths=20 time=2.76s exit=0
-  mint-40c10f19                            TIMEOUT         paths=71 time=308.75s exit=1
+  mint-40c10f19                            TIMEOUT         paths=71 time=328.71s exit=1
   permit-d505accf                          PASS            paths=9 time=1.26s exit=0
   proposeSP-95483c15                       PASS            paths=20 time=3.29s exit=0
   proposeSpender-9c664f84                  PASS            paths=17 time=5.0s exit=0

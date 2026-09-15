@@ -4,7 +4,7 @@
  "abi": "xPNTsTokenV2",
  "parts": 1,
  "verdict": "NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)",
- "wall_s": 600,
+ "wall_s": 601,
  "extra_args": [
   "--default-bytes-lengths",
   "0,65",
@@ -17,11 +17,17 @@
    "part": "settleLocked-7e48bbce",
    "D5C1_PART": 2118695886,
    "exit": -9,
-   "wall_s": 600,
+   "wall_s": 601,
    "log": "check_A3x_exactCeilBound.settleLocked-7e48bbce.log",
    "result": "TIMEOUT-WALL",
    "wall_cap_s": 600,
-   "counterexample": false
+   "counterexample": false,
+   "previous_attempt": {
+    "result": "NO-RESULT-LINE",
+    "paths": null,
+    "time_s": null,
+    "log": "check_A3x_exactCeilBound.settleLocked-7e48bbce.log"
+   }
   }
  ]
 }

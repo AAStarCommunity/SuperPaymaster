@@ -4,7 +4,7 @@
  "abi": "xPNTsTokenV2Ext",
  "parts": 44,
  "verdict": "NOT-ALL-PASS (2 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)",
- "wall_s": 800,
+ "wall_s": 345,
  "extra_args": [
   "--default-bytes-lengths",
   "0,65",
@@ -193,12 +193,18 @@
    "part": "mint-40c10f19",
    "D5C1_PART": 1086394137,
    "exit": 1,
-   "wall_s": 333,
+   "wall_s": 345,
    "log": "check_I2_extAbi.mint-40c10f19.log",
    "result": "TIMEOUT",
-   "paths": 70,
-   "time_s": 309.7,
-   "counterexample": false
+   "paths": 71,
+   "time_s": 321.66,
+   "counterexample": false,
+   "previous_attempt": {
+    "result": "NO-RESULT-LINE",
+    "paths": null,
+    "time_s": null,
+    "log": "check_I2_extAbi.mint-40c10f19.log"
+   }
   },
   {
    "part": "permit-d505accf",
@@ -472,7 +478,13 @@
    "log": "check_I2_extAbi.transferFrom-23b872dd.log",
    "result": "TIMEOUT-WALL",
    "wall_cap_s": 600,
-   "counterexample": false
+   "counterexample": false,
+   "previous_attempt": {
+    "result": "TIMEOUT-WALL",
+    "paths": null,
+    "time_s": null,
+    "log": "check_I2_extAbi.transferFrom-23b872dd.log"
+   }
   },
   {
    "part": "unsetEmergencyDisabled-027e6d67",

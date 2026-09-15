@@ -1,0 +1,15 @@
+{
+ "bytecode_sha": "82f5592948afe88a620b124f6773017cfeba1ee8faf1c2fa5ddc104aca2f7e68",
+ "dirty_src": 0,
+ "family": "apnts",
+ "git_head": "8f44437d140d24755f8d5a723db7a8dbf66be32f",
+ "harness_sha": "3a54c474da5057e0df40cdd14f20b016027e5d10de47535311f85bdc77a0c831",
+ "lib_sha": "05842a54805346ef0b7386191fa3bc166ecfb7faff757b5cc0c5465339b9bcc0",
+ "out_stale": [],
+ "src_files": {
+  "contracts/src/interfaces/IERC1363.sol": "1245f089e02e84b63c61f0e2105fba9340900ef0605b883a7bbc73530490ee26",
+  "contracts/src/interfaces/IVersioned.sol": "bfc8d3a871afcc530aa814c01e62d61f03ca03412fe87773e9932198563bc83d",
+  "contracts/src/tokens/APNTsCapped.sol": "d868f95fbb0005b34e9dbd0ab8202c7a33c09aeb9b195eca01d500a5da996798"
+ },
+ "src_sha": "67724a36829dbdeddd2f1b24b68d6826f1e27a4e3060f03f3c00a24783645fe9"
+}
