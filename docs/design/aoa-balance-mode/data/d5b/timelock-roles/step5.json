@@ -3,14 +3,14 @@
   "result": "FAIL",
   "chainId": 31337,
   "rpc2ChainId": null,
-  "manifestChainId": 31337,
+  "manifestChainId": "31337",
   "timelock": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st3/manifest.json",
-  "manifestSha256": "372a7c3ca3d631ab48641e109af5c9691cb4a2a5a73fcd639f67ba170120afc9",
-  "manifestKeccak256": "0x588de6e5c4378e6d8fe353587c1ee7d69fcb294905dc0e8c9b2af219ade05c2f",
-  "deploymentBlock": 1,
+  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/manifest.json",
+  "manifestSha256": "41538c543e09f71f00999c754640cc791e18d8729ab0ce2380dd13a23c1d7108",
+  "manifestKeccak256": "0x6718cfbb499da08902cf5063b45dfebee3f84a14bfc788cc46334c02f0512ca8",
+  "deploymentBlock": "1",
   "headBlock": 5,
-  "headBlockHash": "0xbb0664a749888e836b7d4106aa53b891afb7f3c76e33023e5ecbb1e447024500",
+  "headBlockHash": "0x09e91253c51583beea5a06cbe3fe99d7f69b96849f51d01ff779f12142b75e7d",
   "roles": {
     "DEFAULT_ADMIN_ROLE": [
       "0x5FbDB2315678afecb367f032d93F642f64180aa3"
@@ -43,8 +43,8 @@
   "problems": [],
   "checker": {
     "path": "script/governance/check-timelock-roles.mjs",
-    "version": "check-timelock-roles/1.3.0",
-    "gitCommit": "626b6ea8a0dd5f58b1eb6e912bc9a65c8ab2b144",
+    "version": "check-timelock-roles/1.4.0",
+    "gitCommit": "7ca435493edaced110f74882c2a1acc32cc1e899",
     "gitDirty": true
   },
   "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs.",

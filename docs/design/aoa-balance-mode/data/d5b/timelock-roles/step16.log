@@ -3,7 +3,7 @@ timelock 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 (chain 31337): 4 role logs i
   PROPOSER_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
   CANCELLER_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
   EXECUTOR_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
-attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st3/att16.json (result FAIL)
+attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/att16.json (result FAIL)
 TIMELOCK ROLE CHECK FAILED:
   - positive control failed: constructor grant PROPOSER_ROLE -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 not found in deployment block 8
   - positive control failed: constructor grant CANCELLER_ROLE -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 not found in deployment block 8

@@ -18,9 +18,9 @@
   ],
   "_placeholder": true,
   "network": "example-sepolia",
-  "chainId": 11155111,
+  "chainId": "11155111",
   "timelock": "0x00000000000000000000000000000000FA4E0001",
-  "deploymentBlock": 1,
+  "deploymentBlock": "1",
   "roles": {
     "DEFAULT_ADMIN_ROLE": ["0x00000000000000000000000000000000FA4E0001"],
     "PROPOSER_ROLE": ["0x00000000000000000000000000000000FA4E0002"],

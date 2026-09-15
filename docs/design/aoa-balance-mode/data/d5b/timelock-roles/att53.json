@@ -1,0 +1,36 @@
+{
+  "schema": "d5b-timelock-roles-attestation/2",
+  "result": "FAIL",
+  "chainId": null,
+  "rpc2ChainId": null,
+  "manifestChainId": "31337",
+  "timelock": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/manifest-mut.json",
+  "manifestSha256": "f6bbb3ee44a96274aa540c4ab70085e4b174ef4417b615729db10d769872e556",
+  "manifestKeccak256": "0x6a5c5acacf1beeae640a9a11c43a071cdd31ebcaf81feff37b219292034a9e74",
+  "deploymentBlock": null,
+  "headBlock": null,
+  "headBlockHash": null,
+  "roles": {},
+  "unknownRoles": [],
+  "mustHoldNothing": [],
+  "mustHoldNothingLabels": [],
+  "logs": null,
+  "depthProbe": null,
+  "rpc2DepthProbe": null,
+  "constructorControl": null,
+  "completeness": null,
+  "rpc2Used": false,
+  "endpoint": "http://127.0.0.1:18792",
+  "endpoint2": null,
+  "problems": [
+    "manifest: .roles.EXECUTOR_ROLE must be a non-empty array"
+  ],
+  "checker": {
+    "path": "script/governance/check-timelock-roles.mjs",
+    "version": "check-timelock-roles/1.4.0",
+    "gitCommit": "7ca435493edaced110f74882c2a1acc32cc1e899",
+    "gitDirty": true
+  },
+  "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs."
+}

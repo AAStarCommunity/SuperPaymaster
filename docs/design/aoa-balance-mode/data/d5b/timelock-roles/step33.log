@@ -1,3 +1,3 @@
-attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st3/att33.json (result FAIL)
+attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/att33.json (result FAIL)
 TIMELOCK ROLE CHECK FAILED:
-  - manifest: `_placeholder` is set — this is the example schema with FAKE addresses, not a network manifest
+  - manifest: .chainId must be a decimal string (no leading zeros, <= uint64), got 31337 (number)

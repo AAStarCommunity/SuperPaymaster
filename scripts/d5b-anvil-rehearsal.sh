@@ -31,7 +31,10 @@ OWNER=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266     # anvil dev account #0 (pub
 MULTISIG=0x70997970C51812dc3A010C7d01b50e0d17dc79C8  # anvil dev account #1 (public) = proposer/executor/Safe
 EP=0x0000000071727De22E5E9d8BAf0edAc6f37da032
 
-"$ANVIL" --port "$PORT" --chain-id 31337 --hardfork osaka >"$W/anvil.log" 2>&1 &
+# CHAIN_ID: 31337 (default, a local chain id) or a live one (e.g. 11155111) to exercise the live-chain path
+# of the operator preflight (headBlockHash fail-closed: the attested head must be 1..256 blocks old)
+CHAIN_ID="${CHAIN_ID:-31337}"
+"$ANVIL" --port "$PORT" --chain-id "$CHAIN_ID" --hardfork osaka >"$W/anvil.log" 2>&1 &
 APID=$!; echo "$APID" >"$W/anvil.pid"
 MANIFEST="deployments/timelock-roles.$ENVNAME.json"
 cleanup() { kill "$APID" 2>/dev/null || true; rm -f "$ROOT/$CFG" "$ROOT/$MANIFEST" "$ROOT"/deployments/attestations/timelock-roles."$ENVNAME".*.json; }
@@ -74,14 +77,17 @@ printf '{\n  "superPaymaster": "%s",\n  "registry": "%s",\n  "entryPoint": "%s",
   "$SP" "$REG" "$EP" "$FEED" "$TL" >"$CFG"
 cp "$CFG" "$W/config.$ENVNAME.json"
 # committed-manifest shape (deployments/timelock-roles.example.json): M1 policy + historical accounts
-printf '{\n  "network": "%s",\n  "chainId": 31337,\n  "timelock": "%s",\n  "deploymentBlock": %s,\n  "roles": {\n    "DEFAULT_ADMIN_ROLE": ["%s"],\n    "PROPOSER_ROLE": ["%s"],\n    "CANCELLER_ROLE": ["%s"],\n    "EXECUTOR_ROLE": ["%s"]\n  },\n  "mustHoldNothing": ["%s"],\n  "mustHoldNothingLabels": ["deployer / old SP and Registry owner"]\n}\n' \
-  "$ENVNAME" "$TL" "$TL_BLOCK" "$TL" "$MULTISIG" "$MULTISIG" "$MULTISIG" "$OWNER" >"$MANIFEST"
+printf '{\n  "network": "%s",\n  "chainId": "%s",\n  "timelock": "%s",\n  "deploymentBlock": "%s",\n  "roles": {\n    "DEFAULT_ADMIN_ROLE": ["%s"],\n    "PROPOSER_ROLE": ["%s"],\n    "CANCELLER_ROLE": ["%s"],\n    "EXECUTOR_ROLE": ["%s"]\n  },\n  "mustHoldNothing": ["%s"],\n  "mustHoldNothingLabels": ["deployer / old SP and Registry owner"]\n}\n' \
+  "$ENVNAME" "$CHAIN_ID" "$TL" "$TL_BLOCK" "$TL" "$MULTISIG" "$MULTISIG" "$MULTISIG" "$OWNER" >"$MANIFEST"
 cp "$MANIFEST" "$W/timelock-roles.$ENVNAME.json"
 roles_check() { # event-history role check -> attestation; UpgradeViaTimelock REQUIRES it (TL_ROLES_ATTESTATION)
   node script/governance/check-timelock-roles.mjs --rpc "$RPC" --manifest "$MANIFEST" --out "$W/roles-$1.json" \
     --attest "deployments/attestations/timelock-roles.$ENVNAME.$1.json" | tee "$W/roles-$1.log" | tail -2
   ATT="deployments/attestations/timelock-roles.$ENVNAME.$1.json"   # forge may only read inside the project
   cp "$ATT" "$W/attestation-$1.json"
+  # runbook: let at least one block pass after the checker, so the attested head has a blockhash (on a
+  # live chain id the preflight refuses an attestation of the current block)
+  "$CAST" rpc evm_mine --rpc-url "$RPC" >/dev/null
 }
 echo "  SP proxy $SP (impl $SP_IMPL, $("$CAST" call "$SP" 'version()(string)' --rpc-url "$RPC"))"
 echo "  Registry proxy $REG (impl $REG_IMPL, $("$CAST" call "$REG" 'version()(string)' --rpc-url "$RPC"))"

@@ -8,9 +8,13 @@
 // NOT an enforcement boundary: UpgradeViaTimelock reads it as an operator preflight, but nothing binds
 // what the Safe signers submit to it. Its load-bearing uses are (a) establishing the initial role sets
 // ONCE at A5s / A6 (archived), and (b) letting operators and Safe signers re-check before a schedule /
-// execute. After M1 the only DEFAULT_ADMIN is the timelock itself, so any later grantRole / revokeRole is
-// a public, >= 48h-delayed timelock operation: ongoing assurance = monitoring CallScheduled / RoleGranted /
-// RoleRevoked + Safe signers reviewing scheduled role changes (D5b-design §6.3d).
+// execute. The on-chain basis is a CONDITIONAL invariant (D5b-design §6.3d): WHILE DEFAULT_ADMIN_ROLE ==
+// [timelock] AND minDelay == 172800, every grantRole / revokeRole / updateDelay is a public timelock
+// operation delayed >= 48h. A scheduled operation can break either invariant (lower minDelay; grant
+// DEFAULT_ADMIN to an outside account, which can then change roles without scheduling), but that FIRST
+// weakening operation is itself publicly scheduled under the current 48h delay — it is what monitoring
+// must alert on (updateDelay, grantRole(DEFAULT_ADMIN_ROLE, *), any grantRole to a non-manifest account)
+// and what the Safe signers must refuse.
 //
 // OZ TimelockController uses AccessControl, NOT AccessControlEnumerable: nothing on-chain can list who
 // holds a role, so the forge preflight (UpgradeViaTimelock.m1Preflight) is only a bounded check of the
@@ -61,7 +65,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createPublicClient, http, parseAbiItem, getAddress, isAddress, keccak256, toBytes } from "viem";
 
-const CHECKER_VERSION = "check-timelock-roles/1.3.0";
+const CHECKER_VERSION = "check-timelock-roles/1.4.0";
 const USAGE = "usage: --rpc <url> --manifest <path> [--rpc2 <url>] [--chunk <positive integer>] [--out f] [--attest <path>|auto]";
 const ATTEST_SCHEMA = "d5b-timelock-roles-attestation/2";
 const args = process.argv.slice(2);
@@ -154,17 +158,42 @@ function fail(problems, code = 1) {
 }
 
 // ------------------------------------------------------------------ manifest (M3: complete schema, non-vacuous)
-let manifestBytes;
-try { manifestBytes = readFileSync(MANIFEST); } catch (e) { usage(`cannot read manifest ${MANIFEST}: ${e.message}`); }
-att.manifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
-att.manifestKeccak256 = keccak256(manifestBytes);
-let m;
-try { m = JSON.parse(manifestBytes.toString("utf8")); } catch (e) { fail([`manifest is not valid JSON: ${e.message}`]); }
+// Everything from reading the manifest on runs inside main() (Codex re-check of 7ca43549, L2): any
+// exception — a malformed manifest included — ends in main().catch, which writes a FAIL attestation.
+let TL, FROM, MANIFEST_CHAIN, expected, mustNothing, m;
+const U64_MAX = 18446744073709551615n;
+// ONE canonical integer form for chainId / deploymentBlock (Codex re-check of 7ca43549, M2): a JSON
+// STRING of decimal digits, no leading zeros (except "0"), <= uint64 — checked on the RAW JSON type, so
+// bare numbers (1, 1.0, 9007199254740993), hex strings, "007" and "" are all rejected. Forge's
+// UpgradeViaTimelock.canonicalUint applies the same rule to the raw JSON text.
+const canonU64 = (v) => typeof v === "string" && /^(0|[1-9][0-9]{0,19})$/.test(v) && BigInt(v) <= U64_MAX;
+
+function loadManifest() {
+  let manifestBytes;
+  try { manifestBytes = readFileSync(MANIFEST); } catch (e) { usage(`cannot read manifest ${MANIFEST}: ${e.message}`); }
+  att.manifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
+  att.manifestKeccak256 = keccak256(manifestBytes);
+  try { m = JSON.parse(manifestBytes.toString("utf8")); } catch (e) { fail([`manifest is not valid JSON: ${e.message}`]); }
+  const v = validateManifest(m);
+  if (typeof m?.network === "string" && /^[A-Za-z0-9._-]+$/.test(m.network)) manifestNetwork = m.network;
+  att.manifestChainId = typeof m?.chainId === "string" ? m.chainId : null;
+  att.timelock = v.tl;
+  if (v.problems.length) fail(v.problems);
+  TL = v.tl;
+  FROM = BigInt(m.deploymentBlock);
+  MANIFEST_CHAIN = BigInt(m.chainId);
+  expected = Object.fromEntries(ROLE_LIST.map((r) => [r, new Set(v.roles[r])]));
+  mustNothing = v.mhn;
+  att.deploymentBlock = m.deploymentBlock;
+  att.mustHoldNothing = mustNothing;
+  att.mustHoldNothingLabels = m.mustHoldNothingLabels;
+}
 
 function validateManifest(m) {
   const p = [];
-  const has = (o, k) => o !== null && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, k);
-  const posInt = (v) => (typeof v === "number" && Number.isSafeInteger(v) && v > 0) || (typeof v === "string" && /^[1-9][0-9]*$/.test(v));
+  const isObj = (o) => o !== null && typeof o === "object" && !Array.isArray(o);
+  const has = (o, k) => isObj(o) && Object.prototype.hasOwnProperty.call(o, k);
+  if (!isObj(m)) return { problems: [`manifest: must be a JSON object (got ${Array.isArray(m) ? "array" : m === null ? "null" : typeof m})`], tl: null, roles: {}, mhn: [] };
   const addr = (v, where) => {
     if (typeof v !== "string" || !isAddress(v, { strict: false })) { p.push(`${where}: not an address (${JSON.stringify(v)})`); return null; }
     const a = getAddress(v);
@@ -176,11 +205,16 @@ function validateManifest(m) {
     if (!has(m, k)) p.push(`manifest: missing field .${k}`);
   }
   if (has(m, "network") && (typeof m.network !== "string" || m.network.length === 0)) p.push("manifest: .network must be a non-empty string");
-  if (has(m, "chainId") && !posInt(m.chainId)) p.push("manifest: .chainId must be a positive integer");
-  if (has(m, "deploymentBlock") && !posInt(m.deploymentBlock)) p.push("manifest: .deploymentBlock must be a positive integer");
+  for (const k of ["chainId", "deploymentBlock"]) {
+    if (!has(m, k)) continue;
+    if (!canonU64(m[k])) p.push(`manifest: .${k} must be a decimal string (no leading zeros, <= uint64), got ${JSON.stringify(m[k])} (${typeof m[k]})`);
+    else if (m[k] === "0") p.push(`manifest: .${k} must be > 0`);
+  }
   const tl = has(m, "timelock") ? addr(m.timelock, "manifest .timelock") : null;
   const roles = {};
-  if (has(m, "roles")) {
+  if (has(m, "roles") && !isObj(m.roles)) {
+    p.push(`manifest: .roles must be an object (got ${Array.isArray(m.roles) ? "array" : m.roles === null ? "null" : typeof m.roles})`);
+  } else if (has(m, "roles")) {
     for (const r of ROLE_LIST) {
       if (!has(m.roles, r)) { p.push(`manifest: missing field .roles.${r}`); continue; }
       if (!Array.isArray(m.roles[r]) || m.roles[r].length === 0) { p.push(`manifest: .roles.${r} must be a non-empty array`); continue; }
@@ -214,19 +248,6 @@ function validateManifest(m) {
   return { problems: p, tl, roles, mhn };
 }
 
-const v = validateManifest(m);
-if (typeof m?.network === "string" && /^[A-Za-z0-9._-]+$/.test(m.network)) manifestNetwork = m.network;
-att.manifestChainId = typeof m?.chainId === "number" || typeof m?.chainId === "string" ? Number(m.chainId) : null;
-att.timelock = v.tl;
-if (v.problems.length) fail(v.problems);
-const TL = v.tl;
-const FROM = BigInt(m.deploymentBlock);
-const MANIFEST_CHAIN = BigInt(m.chainId);
-const expected = Object.fromEntries(ROLE_LIST.map((r) => [r, new Set(v.roles[r])]));
-const mustNothing = v.mhn;
-att.deploymentBlock = Number(FROM);
-att.mustHoldNothing = mustNothing;
-att.mustHoldNothingLabels = m.mustHoldNothingLabels;
 
 // ------------------------------------------------------------------ scanning
 const client = (url) => createPublicClient({ transport: http(url, { retryCount: 3 }) });
@@ -270,6 +291,7 @@ function replay(logs) {
 const eq = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 
 async function main() {
+  loadManifest();
   const problems = [];
   const c1 = client(RPC);
   // M1: the endpoint must be the manifest's chain — otherwise nothing below is about the right timelock
@@ -382,7 +404,7 @@ async function main() {
 }
 
 main().catch((e) => {
-  const msg = `infrastructure error: ${e.shortMessage ?? e.message}`;
+  const msg = `infrastructure or internal error: ${e.shortMessage ?? e.message}`;
   console.error(msg);
   att.result = "FAIL";
   att.problems = [msg];

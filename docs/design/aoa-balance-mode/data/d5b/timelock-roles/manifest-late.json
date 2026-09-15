@@ -1,8 +1,8 @@
 {
   "network": "anvil-selftest",
-  "chainId": 31337,
+  "chainId": "31337",
   "timelock": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
-  "deploymentBlock": 8,
+  "deploymentBlock": "8",
   "roles": {
     "DEFAULT_ADMIN_ROLE": ["0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"],
     "PROPOSER_ROLE": ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8"],

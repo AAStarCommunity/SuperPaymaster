@@ -3,11 +3,11 @@
   "result": "FAIL",
   "chainId": null,
   "rpc2ChainId": null,
-  "manifestChainId": 31337,
+  "manifestChainId": "31337",
   "timelock": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st3/manifest-mut.json",
-  "manifestSha256": "b8436f5a5a6f056f0ad95bfcbb77a24b8d1d889690d2c2b6cc4662ff7188c8e5",
-  "manifestKeccak256": "0x6f10f55f68b6c1e5385ca414d48b26bcfe0876bf23bf99334f74bff2c70757d6",
+  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/manifest-mut.json",
+  "manifestSha256": "918a810d1d64c7301a81b1acf34c224798d26859ed3e5302d24d53b56bfb737b",
+  "manifestKeccak256": "0x532f08852b3ccac47a4bd311784ba3dcd3f2241063fa9b652c9f6288ffbf4156",
   "deploymentBlock": null,
   "headBlock": null,
   "headBlockHash": null,
@@ -29,8 +29,8 @@
   ],
   "checker": {
     "path": "script/governance/check-timelock-roles.mjs",
-    "version": "check-timelock-roles/1.3.0",
-    "gitCommit": "626b6ea8a0dd5f58b1eb6e912bc9a65c8ab2b144",
+    "version": "check-timelock-roles/1.4.0",
+    "gitCommit": "7ca435493edaced110f74882c2a1acc32cc1e899",
     "gitDirty": true
   },
   "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs."

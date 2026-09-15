@@ -225,10 +225,29 @@ MUTATIONS = [
         "name": "r-max-age-raise-anywhere",
         "what": "Codex re-check of 626b6ea8 (operator safety): TL_ATTEST_MAX_AGE may be raised on a live chain",
         "edits": [(UVT, """        require(requested <= ATTEST_MAX_AGE_BLOCKS || _isLocalChain(),
-            "roles attestation: TL_ATTEST_MAX_AGE above 300 is local-only");
+            "roles attestation: TL_ATTEST_MAX_AGE above 256 is local-only");
 """, "")],
         "red": ["test_attest_max_age_raise_is_local_only"],
         "blind": ["test_attestation_stale_head_reverts"],
+        "suites": [PF],
+    },
+    # ---- Codex re-check of 7ca43549 (M2, L1)
+    {
+        "name": "s-integer-not-canonical",
+        "what": "Codex re-check of 7ca43549 (M2): chainId is read with parseJsonUint again (bare numbers / hex accepted)",
+        "edits": [(UVT, """        m.chainId = canonicalUint(j, ".chainId");""", """        m.chainId = vm.parseJsonUint(j, ".chainId");""")],
+        "red": ["test_manifest_integer_canonical_form_only"],
+        "blind": ["test_manifest_file_missing_field_each_rejected", "test_manifest_chainid_mismatch_reverts"],
+        "suites": [PF],
+    },
+    {
+        "name": "t-live-head-hash-not-fail-closed",
+        "what": "Codex re-check of 7ca43549 (L1): live chain ids no longer fail closed on an unverifiable head hash",
+        "edits": [(UVT, """            require(inWindow, "roles attestation: live chain: head must be 1..256 blocks older than block.number");
+            require(chainHash != bytes32(0), "roles attestation: live chain: blockhash(head) unavailable");
+""", "")],
+        "red": ["test_live_chain_head_block_hash_fail_closed"],
+        "blind": ["test_attestation_head_block_hash_checked_when_available", "test_attestation_opt_out_rejected_on_live_chain"],
         "suites": [PF],
     },
 ]

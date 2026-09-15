@@ -212,10 +212,13 @@ contract UpgradeRegistryD5b is D5bUpgradeChecks {
  *         checker's UNSIGNED attestation TL_ROLES_ATTESTATION). It only protects the run of THIS script.
  *         On a live chain the Safe is a contract: the calldata this script prints IS the production path,
  *         and nothing binds what the Safe signers later submit (or build themselves) to this preflight or
- *         to any attestation. The on-chain basis of role exclusivity is the timelock's own
- *         self-administration (D5b-design §6.3d): after M1 the only DEFAULT_ADMIN is the timelock, so every
- *         grantRole / revokeRole is itself a public, 48h-delayed timelock operation, to be monitored and
- *         reviewed by the Safe signers. deploy-impl, direct-upgrade and UpgradeRegistryD5b (runbook 5c) are
+ *         to any attestation. The on-chain basis of role exclusivity is a CONDITIONAL invariant of the
+ *         timelock's self-administration (D5b-design §6.3d): WHILE DEFAULT_ADMIN_ROLE == [timelock] AND
+ *         minDelay == 172800, every grantRole / revokeRole / updateDelay is a public timelock operation
+ *         delayed >= 48h. A scheduled operation can break either invariant (lower minDelay, or grant
+ *         DEFAULT_ADMIN to an outside account that then grants / revokes without scheduling) — but that
+ *         FIRST weakening operation is itself publicly scheduled under the current 48h delay, and is what
+ *         monitoring must alert on and the Safe signers must refuse. deploy-impl, direct-upgrade and UpgradeRegistryD5b (runbook 5c) are
  *         PRE-M1 EOA paths and do not run the preflight (they touch no timelock; owner == broadcaster).
  *         TL_SALT (bytes32, default keccak256("d5b")). The proposer / executor is the broadcaster
  *         (`--sender`); when it is not the Safe the script only PRINTS the calldata for the Safe.
@@ -269,7 +272,9 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         bool optOut;          // TL_ALLOW_NO_ATTESTATION: local chains only, loudly logged
     }
 
-    uint256 internal constant ATTEST_MAX_AGE_BLOCKS = 300; // default; env TL_ATTEST_MAX_AGE overrides
+    // default and live-chain maximum = the EVM blockhash window, so a live head hash is always checkable;
+    // env TL_ATTEST_MAX_AGE may lower it anywhere and raise it only on a local chain
+    uint256 internal constant ATTEST_MAX_AGE_BLOCKS = 256;
 
     function _manifest(Cfg memory c) internal view returns (RoleManifest memory m) {
         string memory env = vm.envOr("ENV", string("anvil"));
@@ -305,9 +310,9 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         require(bytes(vm.parseJsonString(j, ".network")).length > 0, "M1 manifest: empty network");
         // the four role keys exist (checked above); any further key under .roles is rejected, as in the checker
         require(vm.parseJsonKeys(j, ".roles").length == 4, "M1 manifest: unknown role key in .roles");
-        m.chainId = vm.parseJsonUint(j, ".chainId");
+        m.chainId = canonicalUint(j, ".chainId");
         m.timelock = vm.parseJsonAddress(j, ".timelock");
-        m.deploymentBlock = vm.parseJsonUint(j, ".deploymentBlock");
+        m.deploymentBlock = canonicalUint(j, ".deploymentBlock");
         m.admins = vm.parseJsonAddressArray(j, ".roles.DEFAULT_ADMIN_ROLE");
         m.proposers = vm.parseJsonAddressArray(j, ".roles.PROPOSER_ROLE");
         m.cancellers = vm.parseJsonAddressArray(j, ".roles.CANCELLER_ROLE");
@@ -315,6 +320,55 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         m.mustHoldNothing = vm.parseJsonAddressArray(j, ".mustHoldNothing");
         m.mustHoldNothingLabels = vm.parseJsonStringArray(j, ".mustHoldNothingLabels");
         m.fileKeccak = keccak256(bytes(j));
+    }
+
+    /**
+     * @notice The ONE canonical form of `chainId` and `deploymentBlock` in a manifest (Codex re-check of
+     *         7ca43549, M2): a JSON STRING of decimal digits, no leading zeros (except "0"), <= 2^64 - 1.
+     *         Everything else is rejected, bare JSON numbers included (JSON numbers lose precision above
+     *         2^53 in the JS checker; forge coerces "0x.." strings and long digit strings to numbers).
+     *         Because forge's JSON cheatcodes coerce types, the RAW JSON text is inspected: the key must
+     *         occur exactly once as a key token (an unescaped `"<key>"` followed by `:`), and its value
+     *         token must be a double-quoted run of 1..20 decimal digits. forge's own reading of the same
+     *         key must then agree with the value. The checker applies the same rule to the raw JSON type.
+     */
+    function canonicalUint(string memory j, string memory key) public view returns (uint256 v) {
+        string memory err = string.concat("M1 manifest: ", key, " must be a decimal string (no leading zeros, <= uint64)");
+        bytes memory b = bytes(j);
+        bytes memory kb = bytes(key);
+        bytes memory pat = new bytes(kb.length + 1); // `"<key without the leading dot>"`
+        pat[0] = '"';
+        for (uint256 i = 1; i < kb.length; ++i) pat[i] = kb[i];
+        pat[kb.length] = '"';
+        uint256 found;
+        uint256 at;
+        for (uint256 i; i + pat.length <= b.length; ++i) {
+            if (i > 0 && b[i - 1] == "\\") continue; // an escaped quote inside a string
+            bool hit = true;
+            for (uint256 k; k < pat.length; ++k) {
+                if (b[i + k] != pat[k]) { hit = false; break; }
+            }
+            if (!hit) continue;
+            uint256 q = _skipWs(b, i + pat.length);
+            if (q >= b.length || b[q] != ":") continue; // a string value, not a key
+            ++found;
+            at = _skipWs(b, q + 1);
+        }
+        require(found == 1 && at < b.length && b[at] == '"', err);
+        uint256 n;
+        uint256 p = at + 1;
+        for (; p < b.length && b[p] != '"'; ++p) {
+            uint8 c = uint8(b[p]);
+            require(c >= 0x30 && c <= 0x39 && ++n <= 20, err);
+            v = v * 10 + (c - 0x30);
+        }
+        require(p < b.length && n != 0 && (n == 1 || b[at + 1] != "0") && v <= type(uint64).max, err);
+        require(vm.parseJsonUint(j, key) == v, err);
+    }
+
+    function _skipWs(bytes memory b, uint256 i) internal pure returns (uint256) {
+        while (i < b.length && (b[i] == " " || b[i] == "\t" || b[i] == "\n" || b[i] == "\r")) ++i;
+        return i;
     }
 
     /**
@@ -466,11 +520,11 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
 
     string internal constant ATTEST_SCHEMA = "d5b-timelock-roles-attestation/2";
 
-    /// @notice Maximum accepted attestation age: TL_ATTEST_MAX_AGE may LOWER the 300-block default
+    /// @notice Maximum accepted attestation age: TL_ATTEST_MAX_AGE may LOWER the 256-block default
     ///         anywhere, but raise it only on a local chain (31337 / 1337). Operator safety, not security.
     function attestMaxAge(uint256 requested) public view returns (uint256) {
         require(requested <= ATTEST_MAX_AGE_BLOCKS || _isLocalChain(),
-            "roles attestation: TL_ATTEST_MAX_AGE above 300 is local-only");
+            "roles attestation: TL_ATTEST_MAX_AGE above 256 is local-only");
         return requested;
     }
 
@@ -484,9 +538,11 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
      *         role history no longer matches the committed manifest. Checks, all before anything is
      *         broadcast: schema == ATTEST_SCHEMA; result == "PASS"; chainId == block.chainid; timelock ==
      *         this timelock; manifestKeccak256 == keccak256 of the manifest file as read now; the head
-     *         block is not in the future, at most attestMaxAge(TL_ATTEST_MAX_AGE, default 300) blocks old,
-     *         and — when the EVM still serves its blockhash (<= 256 blocks back) — headBlockHash equals it
-     *         (same-chain-id fork / reorg); each attested holder set equals the manifest's and every
+     *         block is not in the future and at most attestMaxAge(TL_ATTEST_MAX_AGE, default 256) blocks
+     *         old; on a LIVE chain id the head must be 1..256 blocks older than block.number and
+     *         blockhash(head) must be non-zero and equal headBlockHash (fail-closed: same-chain-id fork /
+     *         reorg / an attestation of the current block is refused); on a local chain id an unavailable
+     *         blockhash is tolerated and loudly logged; each attested holder set equals the manifest's and every
      *         attested holder still holds its role. Opt-out: TL_ALLOW_NO_ATTESTATION=true only on chain ids
      *         31337 / 1337, loudly logged; it reverts on any other chain. The on-chain basis of role
      *         exclusivity is the timelock's self-administration + monitoring (D5b-design §6.3d).
@@ -521,12 +577,18 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
             "roles attestation: stale");
         require(vm.keyExistsJson(j, ".headBlockHash"), "roles attestation: headBlockHash missing");
         bytes32 attestedHash = vm.parseJsonBytes32(j, ".headBlockHash");
-        bytes32 chainHash = head < block.number && block.number - head <= 256 ? blockhash(head) : bytes32(0);
+        bool inWindow = head < block.number && block.number - head <= 256;
+        bytes32 chainHash = inWindow ? blockhash(head) : bytes32(0);
+        if (!_isLocalChain()) {
+            // Codex re-check of 7ca43549, L1: fail closed on live chains
+            require(inWindow, "roles attestation: live chain: head must be 1..256 blocks older than block.number");
+            require(chainHash != bytes32(0), "roles attestation: live chain: blockhash(head) unavailable");
+        }
         if (chainHash != bytes32(0)) {
             require(chainHash == attestedHash, "roles attestation: headBlockHash != this chain's block (fork / reorg)");
             console.log("  roles attestation: head block hash verified against blockhash()", head);
         } else {
-            console.log("  roles attestation: head block hash NOT verifiable here (blockhash unavailable)", head);
+            console.log("  !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!!", head);
         }
         _attestedRole(tl, j, "DEFAULT_ADMIN_ROLE", tl.DEFAULT_ADMIN_ROLE(), m.admins);
         _attestedRole(tl, j, "PROPOSER_ROLE", tl.PROPOSER_ROLE(), m.proposers);

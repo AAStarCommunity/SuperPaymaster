@@ -432,11 +432,18 @@ contract D5bTimelockPreflightTest is Test {
     }
 
     function _bodyWith(TimelockController tl, uint256 omit, bool extraRole) internal view returns (string memory j) {
+        return _bodyRaw(tl, omit, extraRole, string.concat("\"", vm.toString(block.chainid), "\""), "\"1\"");
+    }
+
+    /// @dev `chainRaw` / `blockRaw` are the raw JSON values of chainId / deploymentBlock (canonical: "\"123\"").
+    function _bodyRaw(TimelockController tl, uint256 omit, bool extraRole, string memory chainRaw, string memory blockRaw)
+        internal view returns (string memory j)
+    {
         string[10] memory k = ["network", "chainId", "timelock", "deploymentBlock", "DEFAULT_ADMIN_ROLE",
             "PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE", "mustHoldNothing", "mustHoldNothingLabels"];
         string[10] memory v = [
-            "\"n\"", vm.toString(block.chainid), string.concat("\"", vm.toString(address(tl)), "\""),
-            "1", _addrs(_one(address(tl))), _addrs(_one(safe)), _addrs(_one(safe)), _addrs(_one(safe)),
+            "\"n\"", chainRaw, string.concat("\"", vm.toString(address(tl)), "\""),
+            blockRaw, _addrs(_one(address(tl))), _addrs(_one(safe)), _addrs(_one(safe)), _addrs(_one(safe)),
             _addrs(_two(deployer, eoa)), "[\"deployer\",\"ops\"]"
         ];
         string memory top;
@@ -565,13 +572,84 @@ contract D5bTimelockPreflightTest is Test {
         _assertRejected(tl, m, "roles attestation: headBlockHash missing");
     }
 
-    /// @notice TL_ATTEST_MAX_AGE may lower the 300-block default anywhere, raise it only on a local chain.
+    /// @notice TL_ATTEST_MAX_AGE may lower the 256-block default anywhere, raise it only on a local chain.
     function test_attest_max_age_raise_is_local_only() public {
         assertEq(script.attestMaxAge(1000), 1000, "local chain: may raise");
         vm.chainId(10);
-        assertEq(script.attestMaxAge(300), 300, "live chain: the default");
+        assertEq(script.attestMaxAge(256), 256, "live chain: the default (the blockhash window)");
         assertEq(script.attestMaxAge(50), 50, "live chain: may lower");
-        vm.expectRevert(bytes("roles attestation: TL_ATTEST_MAX_AGE above 300 is local-only"));
-        script.attestMaxAge(301);
+        vm.expectRevert(bytes("roles attestation: TL_ATTEST_MAX_AGE above 256 is local-only"));
+        script.attestMaxAge(257);
+    }
+
+    // ------------------------------------------------------------------ Codex re-check of 7ca43549 (M2, L1)
+
+    /// @notice chainId / deploymentBlock have ONE canonical form: a JSON string of decimal digits, no
+    ///         leading zeros, <= uint64. Each non-canonical form is rejected for each key; the canonical
+    ///         form is accepted (positive control).
+    function test_manifest_integer_canonical_form_only() public {
+        TimelockController tl = _correctTl();
+        string memory chainOk = string.concat("\"", vm.toString(block.chainid), "\"");
+        UpgradeViaTimelock.RoleManifest memory ok = script.parseManifest(_bodyRaw(tl, 10, false, chainOk, "\"1\""));
+        assertEq(ok.chainId, block.chainid, "positive control: canonical chainId");
+        assertEq(ok.deploymentBlock, 1, "positive control: canonical deploymentBlock");
+        assertEq(script.parseManifest(_bodyRaw(tl, 10, false, chainOk, "\"18446744073709551615\"")).deploymentBlock,
+            type(uint64).max, "positive control: uint64 max");
+        string[7] memory bad = [
+            vm.toString(block.chainid), // bare number
+            "9007199254740993",         // bare number above 2^53
+            "\"0x7a69\"",               // hex string
+            "\"031337\"",               // leading zero
+            "1.0",                      // bare float
+            "\"18446744073709551616\"", // uint64 max + 1
+            "\"\""                      // empty string
+        ];
+        // the raw-text scan: an escaped "chainId": inside a string value is not a key (positive control) ...
+        string memory base = _bodyRaw(tl, 10, false, chainOk, "\"1\"");
+        string memory noted = string.concat("{\"_note\":\"say \\\"chainId\\\": \\\"9\\\"\",", _dropFirst(base));
+        assertEq(script.parseManifest(noted).chainId, block.chainid, "escaped key text inside a string is ignored");
+        // ... but a second "chainId" key anywhere (here nested) is ambiguous and rejected
+        vm.expectRevert(bytes("M1 manifest: .chainId must be a decimal string (no leading zeros, <= uint64)"));
+        script.parseManifest(string.concat("{\"_x\":{\"chainId\":\"9\"},", _dropFirst(base)));
+        for (uint256 i; i < bad.length; ++i) {
+            vm.expectRevert(bytes("M1 manifest: .chainId must be a decimal string (no leading zeros, <= uint64)"));
+            script.parseManifest(_bodyRaw(tl, 10, false, bad[i], "\"1\""));
+            vm.expectRevert(bytes("M1 manifest: .deploymentBlock must be a decimal string (no leading zeros, <= uint64)"));
+            script.parseManifest(_bodyRaw(tl, 10, false, chainOk, bad[i]));
+        }
+    }
+
+    function _dropFirst(string memory s) internal pure returns (string memory) {
+        bytes memory b = bytes(s);
+        bytes memory o = new bytes(b.length - 1);
+        for (uint256 i = 1; i < b.length; ++i) o[i - 1] = b[i];
+        return string(o);
+    }
+
+    /// @notice LIVE chain ids fail closed on headBlockHash: an attestation of the current block (no
+    ///         blockhash yet), a zero blockhash, a mismatching one, and one older than the 256-block window
+    ///         are all refused; a matching blockhash 1..256 blocks back passes.
+    function test_live_chain_head_block_hash_fail_closed() public {
+        TimelockController tl = _correctTl();
+        vm.chainId(10);
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "live-current"); // head == block.number
+        _assertRejected(tl, m, "roles attestation: live chain: head must be 1..256 blocks older than block.number");
+
+        Att memory a = _goodAtt(tl);
+        a.head = block.number;
+        a.headHash = keccak256("the live head block");
+        m.attestation = _writeAtt("live-hash", a);
+        vm.roll(block.number + 10);
+        vm.setBlockhash(a.head, a.headHash);
+        script.operatorPreflight(tl, m); // positive control: matching hash 10 blocks back
+        vm.setBlockhash(a.head, keccak256("a same-chain-id fork's block"));
+        _assertRejected(tl, m, "roles attestation: headBlockHash != this chain's block (fork / reorg)");
+        vm.setBlockhash(a.head, bytes32(0));
+        _assertRejected(tl, m, "roles attestation: live chain: blockhash(head) unavailable");
+
+        a.head = block.number;
+        m.attestation = _writeAtt("live-old", a);
+        vm.roll(block.number + 257);
+        _assertRejected(tl, m, "roles attestation: stale"); // 257 > the live maximum of 256
     }
 }

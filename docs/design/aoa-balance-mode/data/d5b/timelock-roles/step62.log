@@ -1,0 +1,3 @@
+attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/att62.json (result FAIL, usage error)
+usage error: --chunk needs a value
+usage: --rpc <url> --manifest <path> [--rpc2 <url>] [--chunk <positive integer>] [--out f] [--attest <path>|auto]

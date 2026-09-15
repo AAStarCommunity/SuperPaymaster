@@ -1,0 +1,42 @@
+{
+  "schema": "d5b-timelock-roles-attestation/2",
+  "result": "FAIL",
+  "chainId": 31337,
+  "rpc2ChainId": null,
+  "manifestChainId": "11155111",
+  "timelock": "0x00000000000000000000000000000000fA4e0001",
+  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/example-unflagged.json",
+  "manifestSha256": "56e5bb0ca98cd2d0ca8689af98b305282194801bbccf01646241bc77ad259259",
+  "manifestKeccak256": "0x4d0b044fb480c6ef6e9c43e6e2b809b06a812d46a63406d17e9406b312bcbb5a",
+  "deploymentBlock": "1",
+  "headBlock": null,
+  "headBlockHash": null,
+  "roles": {},
+  "unknownRoles": [],
+  "mustHoldNothing": [
+    "0x00000000000000000000000000000000fA4e0003",
+    "0x00000000000000000000000000000000Fa4E0004"
+  ],
+  "mustHoldNothingLabels": [
+    "FAKE placeholder: deployer EOA",
+    "FAKE placeholder: previous SuperPaymaster / Registry owner"
+  ],
+  "logs": null,
+  "depthProbe": null,
+  "rpc2DepthProbe": null,
+  "constructorControl": null,
+  "completeness": null,
+  "rpc2Used": false,
+  "endpoint": "http://127.0.0.1:18792",
+  "endpoint2": null,
+  "problems": [
+    "chain mismatch: --rpc chainId 31337 != manifest chainId 11155111"
+  ],
+  "checker": {
+    "path": "script/governance/check-timelock-roles.mjs",
+    "version": "check-timelock-roles/1.4.0",
+    "gitCommit": "7ca435493edaced110f74882c2a1acc32cc1e899",
+    "gitDirty": true
+  },
+  "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs."
+}

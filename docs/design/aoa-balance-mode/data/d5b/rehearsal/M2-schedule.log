@@ -2,9 +2,9 @@ No files changed, compilation skipped
 Script ran successfully.
 
 == Logs ==
-    roles attestation: head block hash NOT verifiable here (blockhash unavailable) 28
-    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 28
-    call scheduled; ready at: 1790161217
+    roles attestation: head block hash verified against blockhash() 34
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 34
+    call scheduled; ready at: 1790164437
   0x540a7b651416274ac7b332ee07f9991366ac39b13923964a489a6eec81838b71
 
 ## Setting up 1 EVM.
@@ -13,11 +13,11 @@ Script ran successfully.
 
 Chain 31337
 
-Estimated gas price: 0.078417083 gwei
+Estimated gas price: 0.030805729 gwei
 
 Estimated total gas used for script: 77236
 
-Estimated amount required: 0.000006056621822588 ETH
+Estimated amount required: 0.000002379311285044 ETH
 
 ==========================
 
