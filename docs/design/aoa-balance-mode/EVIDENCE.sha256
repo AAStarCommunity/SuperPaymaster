@@ -49,6 +49,7 @@ b8d9df8fe2312856a16946420b516913d108456f74c6b8c12d988b7fb086dd67  data/d5b/b-lay
 08f52812245ee4aa869f6c72808f7c29a6a0bfba56cd9580b6c35fee08cfaba4  data/d5b/g-layer/PostOpBound-c30854f9-baseline.log
 4ad56dc365947a65de986ae715093d2ed3c7eee6dfdefdc252ee6b71f5b80e22  data/d5b/g-layer/PostOpBound-d5b.log
 caa0ae4de657bc1c1c4cca13341dadd7299564ef17169afb48af80d004124736  data/d5b/g-layer/V55Fuzz-G2-d5b.log
+cd4748c4bc0acce2f354acf98a40b315da8b4a4f6b6fd62106ee822ae5d4aa08  data/d5b/gates/canonicalize-selftest.log
 ef80848c616e0b5ef339d5833cf61cf720c9d089d545220dc99f45324e524f21  data/d5b/gates/check-abi-bundle.log
 2af730601052bb75e639fdbfa4d8d1a80967b671ec8e7578a3c0825af7f32bdb  data/d5b/gates/check-live-scripts-compile.log
 4d4c129260d4f04f18da5373353c0778eb1f48d9813d9458da2eadf6f2f2899a  data/d5b/gates/check-sp-layout.log

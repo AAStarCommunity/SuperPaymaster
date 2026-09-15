@@ -133,9 +133,13 @@ const opt = (k, d) => {
 };
 // --canonicalize <path>: print the canonical form (operators fix a file with it); no chain access
 if (args.includes("--canonicalize")) {
+  // A formatting helper, never a check: combined with any check option it is a usage error, so an
+  // `--attest` path given alongside it is overwritten with FAIL instead of keeping an earlier PASS.
+  const mixed = ["--attest", "--rpc", "--rpc2", "--manifest", "--out", "--chunk"].filter((k) => args.includes(k));
+  if (mixed.length) usage(`--canonicalize cannot be combined with ${mixed.join(", ")} (it checks nothing)`);
   const p = opt("--canonicalize");
   let v;
-  try { v = JSON.parse(readFileSync(p, "utf8").replace(/^\uFEFF/, "")); } catch (e) { console.error(`cannot parse ${p}: ${e.message}`); process.exit(2); }
+  try { v = JSON.parse(readFileSync(p, "utf8").replace(/^\uFEFF/, "")); } catch (e) { usage(`cannot parse ${p}: ${e.message}`); }
   process.stdout.write(canonicalManifest(v));
   process.exit(0);
 }

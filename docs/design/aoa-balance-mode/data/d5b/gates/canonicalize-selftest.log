@@ -1,0 +1,6 @@
+ok    combined (--attest /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//canon.vWkx/att.json) -> exit 2, PASS replaced by FAIL
+ok    combined (--attest /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//canon.vWkx/att.json --rpc http://127.0.0.1:1) -> exit 2, PASS replaced by FAIL
+ok    combined (--attest /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//canon.vWkx/att.json --manifest deployments/timelock-roles.example.json) -> exit 2, PASS replaced by FAIL
+ok    plain --canonicalize prints the canonical example (positive control)
+ok    unparsable input -> exit 2, FAIL written
+SELFTEST: canonicalize controls behave
