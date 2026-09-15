@@ -108,9 +108,24 @@ const RAW_ATTEST = (() => {
   const v = i >= 0 ? args[i + 1] : undefined;
   return v !== undefined && !v.startsWith("--") ? v : undefined;
 })();
+// EVERY destination the caller may have meant, in any spelling (`--attest p`, `--attest=p`,
+// repeated flags): a usage error overwrites all of them, so no earlier PASS can survive.
+const ALL_ATTEST = (() => {
+  const out = [];
+  args.forEach((a, i) => {
+    if (a === "--attest" && args[i + 1] !== undefined && !args[i + 1].startsWith("--")) out.push(args[i + 1]);
+    else if (a.startsWith("--attest=") && a.length > "--attest=".length) out.push(a.slice("--attest=".length));
+  });
+  return [...new Set(out)];
+})();
 function writeUsageFail(msg) {
-  if (!RAW_ATTEST) return;
-  const path = RAW_ATTEST === "auto" ? "deployments/attestations/timelock-roles.unknown.nohead.json" : RAW_ATTEST;
+  for (const a of ALL_ATTEST) writeUsageFailAt(a, msg);
+}
+function writeUsageFailAt(raw, msg) {
+  // `auto` names a network/head-specific file that is unknown before the chain is read; a usage
+  // error can only write the fixed placeholder below (documented limit: an earlier auto-named PASS
+  // is not replaced — auto-named files are single-use and must be checked for freshness anyway)
+  const path = raw === "auto" ? "deployments/attestations/timelock-roles.unknown.nohead.json" : raw;
   try {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify({
@@ -131,6 +146,20 @@ const opt = (k, d) => {
   if (v === undefined || v.startsWith("--")) usage(`${k} needs a value`);
   return v;
 };
+// Strict argument grammar: only `--flag value` (no `--flag=value`), each flag at most once, only
+// known flags. Anything else is a usage error — which overwrites every --attest destination found
+// above with FAIL (Codex check of 279a7026: `--attest=path` and repeated flags bypassed that).
+{
+  const KNOWN = new Set(["--rpc", "--rpc2", "--manifest", "--chunk", "--out", "--attest", "--canonicalize"]);
+  const seen = new Set();
+  for (const a of args) {
+    if (!a.startsWith("--")) continue;
+    if (a.includes("=")) usage(`"${a}": the --flag=value form is not supported; use "--flag value"`);
+    if (!KNOWN.has(a)) usage(`unknown option ${a}`);
+    if (seen.has(a)) usage(`${a} given more than once`);
+    seen.add(a);
+  }
+}
 // --canonicalize <path>: print the canonical form (operators fix a file with it); no chain access
 if (args.includes("--canonicalize")) {
   // A formatting helper, never a check: combined with any check option it is a usage error, so an
