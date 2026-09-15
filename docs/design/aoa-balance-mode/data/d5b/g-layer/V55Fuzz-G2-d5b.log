@@ -1,0 +1,109 @@
+Missing dependencies found. Installing now...
+
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts'. Retry scheduled
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/Vectorized/solady.git' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' failed
+Failed to clone 'contracts/lib/solady'. Retry scheduled
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts' a second time, aborting
+Warning: Your project has missing dependencies that could not be installed.
+No files changed, compilation skipped
+
+Ran 5 tests for contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest
+[PASS] testFuzz_G2_I8_I9_I10_conservation(uint256) (runs: 1000, μ: 11843605, ~: 11167770)
+[PASS] testFuzz_G2_floor_params(uint256) (runs: 1000, μ: 12638038, ~: 12087193)
+[PASS] testFuzz_G2_noOOGBand_direct_postOp(uint256,bool) (runs: 1000, μ: 315602, ~: 335259)
+[PASS] test_G2_coverage_replay_fixed_seeds() (gas: 52170121)
+Logs:
+  G2 campaign: seeds 1000 bundles executed 2531
+    campaigns with a low-balance operator 594
+    ops planned / rejected (AA34, verified one by one) 10483 4414
+    rejected: postOpGasLimit == MIN-1 / operator solvency 789 657
+    settled BALANCE / CREDIT 3271 1127
+    exact charge checks (from postOp calldata) 4398
+    settled after mid-bundle ETH move / aPNTs move 820 838
+    injected settle failures (BALANCE / CREDIT) 785 886
+    stale releases lock / credit 785 886
+    ... with a same-user same-token record alive (lock / credit) 54 69
+    bundles with a repeated sender 1209
+    single-op groups settled: per user+token / per token 2851 1428
+    ops at postOpGasLimit == MIN: admitted / settled 1962 1415
+    opReverted settled (of which OOG) 1702 806
+    executions kept 2696
+    events: blacklist / policy / tier 530 413 496
+    events: pause / top-up / E-1 disable 285 341 469
+    events: emergency / rate / price 43 782 703
+    I9 unbacked count / amount 0 0
+    EP deposit delta (wei) / sum G settled / sum G injected 4897654858120709384 3643486538661018128 1254168319459691256
+    sum net charge (ETH wei) over settled ops 4455441680819463031
+    R1-8 overcharge (chargeEthNet - G)/G, all settled ops, ppm; n = 4398
+      mean ppm 232880
+      p95  ppm 381387
+      max  ppm 463604
+      min  ppm 95212
+      median ppm 229265
+    R1-8 overcharge, settled ops with postOpGasLimit <= MIN+50k, ppm; n = 3492
+      mean ppm 244170
+      p95  ppm 390590
+      max  ppm 463604
+      min  ppm 116115
+      median ppm 244960
+    R1-8 overcharge, settled ops with postOpGasLimit in [1.0M, 1.5M], ppm; n = 906
+      mean ppm 189367
+      p95  ppm 293504
+      max  ppm 332086
+      min  ppm 95212
+      median ppm 192010
+    buffer: C_POSTOP / C_WRAP / old formula 175000 5000 0
+    SUBSIDY: ops / total wei / max ppm 0 0 0
+
+[PASS] test_G2_coverage_replay_floor_params() (gas: 51030113)
+Logs:
+  G2 campaign: seeds 1000 bundles executed 2537
+    campaigns with a low-balance operator 594
+    ops planned / rejected (AA34, verified one by one) 10478 4383
+    rejected: postOpGasLimit == MIN-1 / operator solvency 783 645
+    settled BALANCE / CREDIT 3284 1137
+    exact charge checks (from postOp calldata) 4421
+    settled after mid-bundle ETH move / aPNTs move 829 839
+    injected settle failures (BALANCE / CREDIT) 791 883
+    stale releases lock / credit 791 883
+    ... with a same-user same-token record alive (lock / credit) 55 68
+    bundles with a repeated sender 1217
+    single-op groups settled: per user+token / per token 2870 1443
+    ops at postOpGasLimit == MIN: admitted / settled 1968 1419
+    opReverted settled (of which OOG) 1709 813
+    executions kept 2712
+    events: blacklist / policy / tier 520 407 493
+    events: pause / top-up / E-1 disable 292 339 466
+    events: emergency / rate / price 43 789 703
+    I9 unbacked count / amount 0 0
+    EP deposit delta (wei) / sum G settled / sum G injected 4891697314947712257 3643363586843085996 1248333728104626261
+    sum net charge (ETH wei) over settled ops 4458864496585633496
+    R1-8 overcharge (chargeEthNet - G)/G, all settled ops, ppm; n = 4421
+      mean ppm 234083
+      p95  ppm 383386
+      max  ppm 471266
+      min  ppm 95213
+      median ppm 230015
+    R1-8 overcharge, settled ops with postOpGasLimit <= MIN+50k, ppm; n = 3498
+      mean ppm 245841
+      p95  ppm 393635
+      max  ppm 471266
+      min  ppm 116713
+      median ppm 246763
+    R1-8 overcharge, settled ops with postOpGasLimit in [1.0M, 1.5M], ppm; n = 923
+      mean ppm 189522
+      p95  ppm 293348
+      max  ppm 332094
+      min  ppm 95213
+      median ppm 192014
+    buffer: C_POSTOP / C_WRAP / old formula 175000 5000 0
+    SUBSIDY: ops / total wei / max ppm 0 0 0
+
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 41.87s (113.58s CPU time)
+
+Ran 1 test suite in 41.88s (41.87s CPU time): 5 tests passed, 0 failed, 0 skipped (5 total tests)

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
@@ -169,7 +171,7 @@ contract DVTSlashTest is Test {
 
         // A raced second node re-queues within the cooldown → blocked at the queue step, so no
         // stale pending flag is parked (this is what actually prevents the double-slash).
-        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        vm.expectRevert(SuperPaymasterStorage.SlashCooldown.selector);
         paymaster.queueSlash(operator);
         assertFalse(paymaster.isSlashPending(operator), "no stale pending parked during cooldown");
         vm.stopPrank();
@@ -268,13 +270,13 @@ contract DVTSlashTest is Test {
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
 
         // Within the window a re-queue is blocked; owner cancel does not reset the BLS cooldown.
-        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        vm.expectRevert(SuperPaymasterStorage.SlashCooldown.selector);
         paymaster.queueSlash(operator);
         vm.stopPrank();
         vm.prank(owner);
         paymaster.cancelSlash(operator); // idempotent unlock; must not reset _blsSlashCd
         vm.prank(dvtAggregator);
-        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        vm.expectRevert(SuperPaymasterStorage.SlashCooldown.selector);
         paymaster.queueSlash(operator);
 
         // After expiry a fresh slash succeeds.
@@ -297,7 +299,7 @@ contract DVTSlashTest is Test {
 
         // A never-slashed operator's BLS queue is blocked within the floor window...
         vm.prank(dvtAggregator);
-        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        vm.expectRevert(SuperPaymasterStorage.SlashCooldown.selector);
         paymaster.queueSlash(operator);
 
         // ...and succeeds once the floor lapses.

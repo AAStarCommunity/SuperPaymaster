@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // AAStar.io contribution with love from 2023
 pragma solidity 0.8.33;
-import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import "../utils/Ownable2StepNamespaced.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol";
@@ -15,7 +15,10 @@ interface IGuardianExitGate {
     function consumeGuardianExit(address guardian) external;
 }
 
-contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, IRegistry {
+/// @dev D5b GOV-2 (spec 03 §10.7b A, B.5): two-step ownership via Ownable2StepNamespaced — the pending
+///      owner lives in an ERC-7201 namespaced slot, so the sequential layout below is unchanged. No
+///      guardian on Registry.
+contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUPSUpgradeable, IRegistry {
 
     // Role identifiers — imported as file-level constants from IRegistry.sol.
     // Use ROLE_COMMUNITY / ROLE_ENDUSER / etc. directly anywhere in this contract.
@@ -24,7 +27,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.8.0";
+        return "Registry-5.9.0";
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -85,6 +88,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     }
 
     function initialize(address _owner, address _gtokenStaking, address _mysbt) external initializer {
+        // GOV-2 B.5: a fresh proxy must never start ownerless.
+        if (_owner == address(0)) revert OwnableInvalidOwner(address(0));
         _transferOwnership(_owner);
         GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
         MYSBT = IMySBT(_mysbt);
@@ -964,7 +969,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    /// @dev GOV-2: no implementation change while a two-step nomination is pending (see Ownable2StepNamespaced).
+    function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
 
     /// @notice Monotonic nonce for blacklist BLS proofs (P0-3 replay protection).
     uint256 public blacklistNonce;

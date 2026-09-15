@@ -1,0 +1,4 @@
+D5b B-layer re-run vs committed G1 baseline (b-layer/cases/*-results.json, commit 4ba1d546): per-case `pass` verdicts
+rundler: 16 cases; differing verdicts: []; FAIL in baseline: ['B10', 'B2b']; FAIL in D5b: ['B10', 'B2b']
+alto: 16 cases; differing verdicts: []; FAIL in baseline: ['B2a', 'B3', 'B4-lowStake', 'B9-below']; FAIL in D5b: ['B2a', 'B3', 'B4-lowStake', 'B9-below']
+altoMulti: 16 cases; differing verdicts: []; FAIL in baseline: ['B3', 'B4-lowStake', 'B9-below']; FAIL in D5b: ['B3', 'B4-lowStake', 'B9-below']

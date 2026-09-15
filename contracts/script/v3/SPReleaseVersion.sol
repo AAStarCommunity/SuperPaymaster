@@ -8,5 +8,5 @@ pragma solidity 0.8.33;
 ///         version() and lens.EXPECTED_SP_VERSION in lock-step with these constants.
 library SPReleaseVersion {
     string internal constant SP = "SuperPaymaster-5.5.0";
-    string internal constant LENS = "SuperPaymasterLens-1.1.0";
+    string internal constant LENS = "SuperPaymasterLens-1.2.0";
 }

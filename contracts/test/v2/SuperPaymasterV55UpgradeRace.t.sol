@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -116,6 +118,13 @@ contract SuperPaymasterV55UpgradeRaceTest is Test {
         timelock = new TimelockController(1 days, proposers, executors, address(0));
         sp.transferOwnership(address(timelock));
         vm.stopPrank();
+        if (sp.owner() != address(timelock)) {
+            // D5b GOV-2: the new implementation's transfer is two-step — the timelock accepts
+            // (the old fixture's OZ single-step transfer completed above already).
+            vm.prank(address(timelock));
+            sp.acceptOwnership();
+        }
+        assertEq(sp.owner(), address(timelock), "timelock owns SP");
 
         vm.startPrank(operator);
         token = xPNTsTokenV2(factory.deployxPNTsToken("Comm", "xC", "Comm", "c.eth", 1 ether, address(0)));

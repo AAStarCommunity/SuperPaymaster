@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -201,7 +203,7 @@ contract SuperPaymasterQueryTest is Test {
     // ====================================
 
     function test_GetLatestSlash_NoHistory() public {
-        vm.expectRevert(SuperPaymaster.NoSlashHistory.selector);
+        vm.expectRevert(SuperPaymasterStorage.NoSlashHistory.selector);
         paymaster.getLatestSlash(operator);
     }
 

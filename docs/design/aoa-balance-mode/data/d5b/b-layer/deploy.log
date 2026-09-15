@@ -1,0 +1,40 @@
+    [v55] new   xPNTsTokenV2 impl   0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
+    [artifact] default artifact OK: xPNTsFactoryV2 0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44 6899
+    [v55] new   xPNTsFactoryV2      0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44
+    [artifact] default artifact OK: SuperPaymasterLens 0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f 5329
+    [v55] new   SuperPaymasterLens  0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f
+    [v55] v2 token issued: aXPNTs 0xF1823bc4243b40423b8C8c3F6174e687a4C690b8
+    [artifact] default artifact OK: GlobalTierSource 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1 542
+    [artifact] default artifact OK: AOAProtocolRegistry 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 2554
+    [artifact] default artifact OK: xPNTsTokenV2Ext 0x59b670e9fA9D0A427751Af201D676719a970857b 21922
+    [artifact] default artifact OK: xPNTsTokenV2 0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1 19929
+    [artifact] default artifact OK: xPNTsFactoryV2 0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44 6899
+    [artifact] default artifact OK: SuperPaymasterLens 0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f 5329
+    [v55] step-4 read-back OK (sealed registry, approvals, template codehash, factory->SP)
+    [artifact] default artifact OK: SuperPaymaster 0x9A676e781A523b5d0C0e43731313A708CB607508 13504
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x8e80FFe6Dc044F4A766Afd6e5a8732Fe0977A493
+  B-layer stack written to docs/design/aoa-balance-mode/data/d5b/b-layer/deploy.json
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 31337
+
+Estimated gas price: 2.000000001 gwei
+
+Estimated total gas used for script: 58051474
+
+Estimated amount required: 0.116102948058051474 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/broadcast/DeployBLayerAnvil.s.sol/31337/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/cache/DeployBLayerAnvil.s.sol/31337/run-latest.json
+

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // 11_1_ConfigureBreadOperator.s.sol
 pragma solidity ^0.8.26;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";

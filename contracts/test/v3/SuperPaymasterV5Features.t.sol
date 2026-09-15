@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -479,7 +481,7 @@ contract SuperPaymasterV5Features_Test is Test {
 
     function test_SetAgentRegistries_RejectsEOA() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InvalidAddress.selector));
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.InvalidAddress.selector));
         paymaster.setAgentRegistries(address(0xAA), address(0));
     }
 

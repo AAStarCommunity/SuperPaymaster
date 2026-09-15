@@ -1,0 +1,17 @@
+alto B9-below: FAIL — included
+alto B9-above: PASS — included
+alto B1: PASS — included; burn=126863220570884490000 lockedOf=0 opΔ=-126863220570884490000 revΔ=126863220570884490000
+alto B3: FAIL — included,reject,reject in 1 tx; LockSettled users=1
+alto B5: PASS — included; renewedEvent={"user":"0xcf3624e0c7a51575359B745E514f7aD475E8f389","spender":"0x0B306BF915C4d645ff596e518fAf3F9669b97016","bySP":"true"}
+alto B6: PASS — included; renewedEvent={"user":"0x66C8954C5F541C292c98457dCFeC51F18b470E54","spender":"0x0B306BF915C4d645ff596e518fAf3F9669b97016","bySP":"false"}
+alto B7: PASS — included; debts 0→128964000515856000000; reserved=0
+alto B8: PASS — included
+alto B4-unstaked: PASS — reject [-32502] unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000
+alto B4-lowStake: FAIL — included
+alto B4-shortDelay: PASS — included
+alto B4-ok: PASS — included
+alto B10: PASS — suppliedPostOpMin: pmPostOp=0x3a980 pmVerif=0x4897e | omittedPmGas: pmPostOp=0x1c62c pmVerif=0x4897e | omittedPostOpOnly: pmPostOp=0x1c62c pmVerif=0x4897e
+alto B2a: PASS — included=2 in 1 tx; lockedOf=0
+alto B2b: PASS — handleOps(all)={"name":"FailedOp","args":["2","AA34 signature error"]}; verdicts=included | included | reject[-32500] AA34 signature error
+alto B2-aftermath: included
+alto all pass: false

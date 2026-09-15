@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import { APNTsCapped } from "src/tokens/APNTsCapped.sol";
@@ -146,13 +148,13 @@ contract APNTsCappedSPIntegrationTest is Test {
 
         // a non-operator push is rejected by SP and the revert is bubbled through the token
         vm.prank(funder);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         apnts.transferAndCall(address(sp), 1 ether);
         assertEq(apnts.balanceOf(funder), 1_000 ether);
 
         // onTransferReceived only honours the configured APNTS_TOKEN
         vm.prank(funder);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         sp.onTransferReceived(funder, operator, 1 ether, "");
     }
 
@@ -249,7 +251,7 @@ contract APNTsCappedSPIntegrationTest is Test {
         uint256 amt = rev - 0.1 ether;
 
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InsufficientRevenue.selector);
+        vm.expectRevert(SuperPaymasterStorage.InsufficientRevenue.selector);
         sp.withdrawProtocolRevenue(treasury, amt + 1);
 
         uint256 t0 = apnts.balanceOf(treasury);

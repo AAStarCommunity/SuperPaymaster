@@ -1,0 +1,4 @@
+$ ./scripts/check-live-scripts-compile.sh
+compiling 7 live scripts + 1 dir(s)…
+SCRIPT COMPILE GATE: OK — every script the tooling invokes compiles.
+exit 0

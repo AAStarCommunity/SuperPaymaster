@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -395,7 +397,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // Must revert because protocolRevenue != 0
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
 
@@ -414,7 +416,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // Do NOT warp — timelock has not elapsed
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
 
@@ -460,7 +462,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         uint256 tooMuch = revenue - PROTOCOL_REVENUE_BUFFER + 1;
 
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InsufficientRevenue.selector);
+        vm.expectRevert(SuperPaymasterStorage.InsufficientRevenue.selector);
         paymaster.withdrawProtocolRevenue(treasury, tooMuch);
     }
 
@@ -478,7 +480,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // protocolRevenue < BUFFER → available == 0
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InsufficientRevenue.selector);
+        vm.expectRevert(SuperPaymasterStorage.InsufficientRevenue.selector);
         paymaster.withdrawProtocolRevenue(treasury, 1);
     }
 
@@ -487,7 +489,7 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D2_WithdrawProtocolRevenue_Reverts_ZeroAddress() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidAddress.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidAddress.selector);
         paymaster.withdrawProtocolRevenue(address(0), 1 ether);
     }
 
@@ -504,7 +506,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         // mockFactory.getTokenAddress(operator1) == address(xpnts), not wrongToken
 
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
         paymaster.configureOperator(wrongToken, address(0x999));
     }
 
@@ -518,7 +520,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         mockFactory.setToken(operator1, legacy);
 
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
         paymaster.configureOperator(legacy, address(0x999));
     }
 
@@ -531,7 +533,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         mockFactory.setToken(operator1, future);
 
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
         paymaster.configureOperator(future, address(0x999));
     }
 
@@ -540,7 +542,7 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D3_ConfigureOperator_Reverts_ZeroTreasury() public {
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.configureOperator(address(xpnts), address(0));
     }
 
@@ -549,7 +551,7 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D3_ConfigureOperator_Reverts_NoRole() public {
         vm.prank(user1);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         paymaster.configureOperator(address(xpnts), address(0x999));
     }
 
@@ -563,7 +565,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         // Note: ROLE_COMMUNITY is NOT set for op2
 
         vm.prank(op2);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         paymaster.configureOperator(address(xpnts), address(0x999));
     }
 
@@ -583,7 +585,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         );
 
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         fresh.configureOperator(address(xpnts), address(0x999));
     }
 
@@ -617,7 +619,7 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D6_SetAgentRegistries_Reverts_NonContract() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidAddress.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidAddress.selector);
         paymaster.setAgentRegistries(address(0xDEAD), address(0));
     }
 
@@ -738,7 +740,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         uint256 rev = paymaster.protocolRevenue();
         if (rev <= PROTOCOL_REVENUE_BUFFER) {
             vm.prank(owner);
-            vm.expectRevert(SuperPaymaster.InsufficientRevenue.selector);
+            vm.expectRevert(SuperPaymasterStorage.InsufficientRevenue.selector);
             paymaster.withdrawProtocolRevenue(treasury, 1);
         } else {
             // More than buffer: verify we can only withdraw the excess

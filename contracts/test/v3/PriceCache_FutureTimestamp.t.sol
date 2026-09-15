@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -274,7 +276,7 @@ contract SuperPaymaster_FutureTimestampTest is Test {
         uint256 grace = 15; // TIMESTAMP_GRACE_SECONDS (internal constant)
         uint256 badTs = block.timestamp + grace + 1;
 
-        vm.expectRevert(SuperPaymaster.OracleError.selector);
+        vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
         vm.prank(owner);
         paymaster.updatePriceDVT(2500e8, badTs, "", 0);
     }

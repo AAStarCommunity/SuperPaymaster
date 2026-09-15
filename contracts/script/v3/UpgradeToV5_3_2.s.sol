@@ -14,7 +14,7 @@ import {UUPSUpgradeable} from "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUp
  * @notice UUPS upgrade: SuperPaymaster 5.3.1 -> 5.3.2.
  *
  * Changes:
- *   - SuperPaymaster.setXPNTsFactory rejects address(0). Fix-4.
+ *   - SuperPaymasterAdmin.setXPNTsFactory rejects address(0). Fix-4.
  *
  * Registry stays at 5.3.3: the originally planned Fix-1 (auto-revoke hasRole
  * on stake==0) was withdrawn after Codex review revealed it would leave

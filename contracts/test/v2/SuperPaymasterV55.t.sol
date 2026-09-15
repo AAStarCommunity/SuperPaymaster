@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -235,7 +237,7 @@ contract SuperPaymasterV55Test is Test {
         bytes32 h = entryPoint.getUserOpHash(op);
         vm.prank(address(entryPoint));
         sp.validatePaymasterUserOp(op, h, 1e15);
-        vm.expectRevert(SuperPaymaster.SponsorshipInFlight.selector);
+        vm.expectRevert(SuperPaymasterStorage.SponsorshipInFlight.selector);
         sp.releaseStaleSponsorship(h); // same transaction
     }
 
@@ -315,7 +317,7 @@ contract SuperPaymasterV55Test is Test {
         registry.setRole(keccak256("COMMUNITY"), other, true);
         V55APNTs plain = new V55APNTs();
         vm.prank(other);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector); // factory binding
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector); // factory binding
         sp.configureOperator(address(plain), treasury);
     }
 
@@ -395,7 +397,7 @@ contract SuperPaymasterV55Test is Test {
         vm.prank(address(entryPoint));
         (bytes memory ctx, ) = sp.validatePaymasterUserOp(op, h, 1e15);
         vm.prank(address(entryPoint));
-        vm.expectRevert(SuperPaymaster.PostOpGasTooLow.selector);
+        vm.expectRevert(SuperPaymasterStorage.PostOpGasTooLow.selector);
         sp.postOp{gas: 60_000}(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei);
         // control: the same call with ample gas settles
         vm.prank(address(entryPoint));
@@ -438,7 +440,7 @@ contract SuperPaymasterV55Test is Test {
                     continue;
                 }
                 vm.revertTo(snap);
-                assertEq(ret, abi.encodeWithSelector(SuperPaymaster.PostOpGasTooLow.selector),
+                assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector),
                     "no OOG band: a postOp that passed the entry check must complete");
                 assertEq(ok, 0, "no failure above a success (monotone)");
                 guard++;

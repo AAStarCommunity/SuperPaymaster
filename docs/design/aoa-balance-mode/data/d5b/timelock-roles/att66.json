@@ -1,0 +1,36 @@
+{
+  "schema": "d5b-timelock-roles-attestation/2",
+  "result": "FAIL",
+  "chainId": null,
+  "rpc2ChainId": null,
+  "manifestChainId": "11155111",
+  "timelock": "0x00000000000000000000000000000000fA4e0001",
+  "manifestPath": "deployments/timelock-roles.example.json",
+  "manifestSha256": "ff733cb5f266bcdffdb000f1cf0c0d0a0ebbf7634c18a9d94b3ff99463d1c594",
+  "manifestKeccak256": "0x7e969e0620fa802f0f5c1a4d022aab915e9eae329d3967f3c2dcd01b80a09f82",
+  "deploymentBlock": null,
+  "headBlock": null,
+  "headBlockHash": null,
+  "roles": {},
+  "unknownRoles": [],
+  "mustHoldNothing": [],
+  "mustHoldNothingLabels": [],
+  "logs": null,
+  "depthProbe": null,
+  "rpc2DepthProbe": null,
+  "constructorControl": null,
+  "completeness": null,
+  "rpc2Used": false,
+  "endpoint": "http://127.0.0.1:18792",
+  "endpoint2": null,
+  "problems": [
+    "manifest: `_placeholder` is set — this is the example schema with FAKE addresses, not a network manifest"
+  ],
+  "checker": {
+    "path": "script/governance/check-timelock-roles.mjs",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "48cba3bde3e78df9593ec82f34635742cbdacce9",
+    "gitDirty": true
+  },
+  "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs."
+}

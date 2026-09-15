@@ -1,0 +1,36 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    roles attestation: head block hash verified against blockhash() 25
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 25
+    [artifact] default artifact OK: ERC1967Proxy 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9 100
+    [artifact] default artifact OK: SuperPaymaster 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1 13571
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x24B3c7704709ed1491473F30393FFc93cFB0FC34
+    SuperPaymaster read-back OK: impl / version / owner / pendingOwner == 0; version = SuperPaymaster-5.5.0
+    BLS three legs unchanged (SP / Registry / DVT): 0x0000000000000000000000000000000000000b15 0x0000000000000000000000000000000000000b15
+    SuperPaymaster: raw slots 0..N-1 byte-identical, N = 65
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.097456519 gwei
+
+Estimated total gas used for script: 81780
+
+Estimated amount required: 0.00000796999412382 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/broadcast/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/cache/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+

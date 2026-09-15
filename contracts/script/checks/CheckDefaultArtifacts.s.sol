@@ -383,8 +383,15 @@ contract CheckDefaultArtifacts is DefaultArtifacts {
     function _bindings(string memory name, address a) internal view returns (bool, string memory) {
         bytes32 n = keccak256(bytes(name));
         if (n == keccak256("SuperPaymaster")) {
-            return _all3(_is(a, "REGISTRY()", "registry"), _is(a, "entryPoint()", "entryPoint"), _is(a, "ETH_USD_PRICE_FEED()", "priceFeed"),
-                "REGISTRY, entryPoint, ETH_USD_PRICE_FEED == config");
+            // D5b-design §2.2: EXTENSION is masked by the runtime comparison; require it to be the
+            // default SuperPaymasterAdmin build carrying the same three immutables.
+            address ext = _call(a, "EXTENSION()");
+            bool extOk = ext != address(0) && _codeEqArtifact(ext, _defaultArtifact("SuperPaymasterAdmin"))
+                && _is(ext, "REGISTRY()", "registry") && _is(ext, "entryPoint()", "entryPoint")
+                && _is(ext, "ETH_USD_PRICE_FEED()", "priceFeed");
+            return _all3(_is(a, "REGISTRY()", "registry") && extOk, _is(a, "entryPoint()", "entryPoint"),
+                _is(a, "ETH_USD_PRICE_FEED()", "priceFeed"),
+                "REGISTRY, entryPoint, ETH_USD_PRICE_FEED == config; EXTENSION == default SuperPaymasterAdmin with the same three");
         }
         if (n == keccak256("GTokenAuthorization")) return _one(_is(a, "factory()", "xPNTsFactory"), "factory == config.xPNTsFactory");
         if (n == keccak256("GTokenStaking")) return _two(_is(a, "GTOKEN()", "gToken"), _is(a, "REGISTRY()", "registry"), "GTOKEN, REGISTRY == config");

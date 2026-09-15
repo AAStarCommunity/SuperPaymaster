@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
@@ -365,13 +367,13 @@ contract TestAccountPrepare is V54Bootstrap, V55Bootstrap {
         // -----------------------------------------------------------------------
         vm.startBroadcast(deployerPK);
         console.log("[Phase 2.4] Refreshing paymaster price caches...");
-        // SuperPaymaster.updatePrice() — non-fatal on failure (e.g. price-oracle
+        // SuperPaymasterAdmin.updatePrice() — non-fatal on failure (e.g. price-oracle
         // unavailable on local anvil with mock feed).
         (bool spOk,) = address(superPaymaster).call(abi.encodeWithSignature("updatePrice()"));
         if (spOk) {
-            console.log("  SuperPaymaster.updatePrice() OK");
+            console.log("  SuperPaymasterAdmin.updatePrice() OK");
         } else {
-            console.log("  SuperPaymaster.updatePrice() skipped (oracle unavailable)");
+            console.log("  SuperPaymasterAdmin.updatePrice() skipped (oracle unavailable)");
         }
         // PaymasterV4 (Anni's proxy) — same pattern.
         if (pmProxyAnni != address(0)) {

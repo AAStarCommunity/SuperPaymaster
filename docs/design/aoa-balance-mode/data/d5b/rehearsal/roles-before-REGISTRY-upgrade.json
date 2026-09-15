@@ -1,0 +1,122 @@
+{
+  "schema": "d5b-timelock-roles-attestation/2",
+  "result": "FAIL",
+  "chainId": 31337,
+  "rpc2ChainId": null,
+  "manifestChainId": "31337",
+  "timelock": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+  "manifestPath": "deployments/timelock-roles.d5b-rehearsal.json",
+  "manifestSha256": "0e023c5ef9e8b6affc43f100937a216ff2781453c48853fcfe8f1ce155af4185",
+  "manifestKeccak256": "0x4999acc0c97a7f88f75acecdf04930074300e5b2d9cf9973b6a9bce5ea2acc20",
+  "deploymentBlock": "6",
+  "headBlock": 28,
+  "headBlockHash": "0x1c6f08b3d9744e3cedb027e132c938b1622bf667bb3029ce247a27ae0c73de74",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+    ],
+    "PROPOSER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "CANCELLER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ]
+  },
+  "unknownRoles": [],
+  "mustHoldNothing": [
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  ],
+  "mustHoldNothingLabels": [
+    "deployer / old SP and Registry owner"
+  ],
+  "logs": 4,
+  "depthProbe": true,
+  "rpc2DepthProbe": null,
+  "constructorControl": "constructor grants found in deployment block 6",
+  "completeness": "completeness NOT independently verified (no --rpc2)",
+  "rpc2Used": false,
+  "endpoint": "http://127.0.0.1:18791",
+  "endpoint2": null,
+  "problems": [],
+  "checker": {
+    "path": "script/governance/check-timelock-roles.mjs",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "48cba3bde3e78df9593ec82f34635742cbdacce9",
+    "gitDirty": true
+  },
+  "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs.",
+  "holders": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+    ],
+    "PROPOSER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "CANCELLER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ]
+  },
+  "expected": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+    ],
+    "PROPOSER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "CANCELLER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ]
+  },
+  "liveHasRole": [
+    {
+      "role": "DEFAULT_ADMIN_ROLE",
+      "account": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "hasRole": true
+    },
+    {
+      "role": "DEFAULT_ADMIN_ROLE",
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hasRole": false
+    },
+    {
+      "role": "PROPOSER_ROLE",
+      "account": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "hasRole": true
+    },
+    {
+      "role": "PROPOSER_ROLE",
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hasRole": false
+    },
+    {
+      "role": "CANCELLER_ROLE",
+      "account": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "hasRole": true
+    },
+    {
+      "role": "CANCELLER_ROLE",
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hasRole": false
+    },
+    {
+      "role": "EXECUTOR_ROLE",
+      "account": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "hasRole": true
+    },
+    {
+      "role": "EXECUTOR_ROLE",
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hasRole": false
+    }
+  ],
+  "ok": true
+}

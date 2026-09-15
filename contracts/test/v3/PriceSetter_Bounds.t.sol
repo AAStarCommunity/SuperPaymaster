@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -17,7 +19,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 ///         radius of a mis-click or partially-compromised owner key.
 ///
 ///         Setters under test:
-///           1. SuperPaymaster.setAPNTSPrice       (±10%, absolute [1e15, 1e21])
+///           1. SuperPaymasterAdmin.setAPNTSPrice       (±10%, absolute [1e15, 1e21])
 ///           2. xPNTsToken.updateExchangeRate       (±20%, absolute [1e14, 1e22])
 ///           3. PaymasterBase.setCachedPrice        (±30%, absolute [100e8, 1e14])
 
@@ -43,7 +45,7 @@ contract MockRegistryBounds {
     function hasRole(bytes32, address) external pure returns (bool) { return true; }
 }
 
-// ─── Test 1: SuperPaymaster.setAPNTSPrice ─────────────────────────────────────
+// ─── Test 1: SuperPaymasterAdmin.setAPNTSPrice ─────────────────────────────────────
 
 contract PriceSetter_APNTS_Test is Test {
     using stdStorage for StdStorage;
@@ -88,19 +90,19 @@ contract PriceSetter_APNTS_Test is Test {
 
     function test_SetAPNTSPrice_RejectsZero() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.setAPNTSPrice(0);
     }
 
     function test_SetAPNTSPrice_RejectsBelowMin() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.setAPNTSPrice(MIN - 1);
     }
 
     function test_SetAPNTSPrice_RejectsAboveMax() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.setAPNTSPrice(MAX + 1);
     }
 
@@ -123,7 +125,7 @@ contract PriceSetter_APNTS_Test is Test {
         // 11.1% above INIT_PRICE — outside ±10%
         uint256 tooHigh = INIT_PRICE * 11100 / 10000;
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.setAPNTSPrice(tooHigh);
     }
 
@@ -131,7 +133,7 @@ contract PriceSetter_APNTS_Test is Test {
         // 11% below INIT_PRICE — outside ±10%
         uint256 tooLow = INIT_PRICE * 8900 / 10000;
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.setAPNTSPrice(tooLow);
     }
 

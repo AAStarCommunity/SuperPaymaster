@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -675,7 +677,7 @@ contract SuperPaymasterV55AdversarialTest is Test {
                 (address f, ) = sp.inflightOf(h);
                 assertEq(f, address(0), "postOp returned -> in-flight cleared");
             } catch (bytes memory e) {
-                if (e.length >= 4 && bytes4(e) == SuperPaymaster.PostOpGasTooLow.selector) guard++;
+                if (e.length >= 4 && bytes4(e) == SuperPaymasterStorage.PostOpGasTooLow.selector) guard++;
                 else oog++;
                 assertGt(token.lockedOf(u), 0, "failed postOp leaves the escrow (nothing half-settled)");
                 assertEq(token.balanceOf(u), bal0, "failed postOp charges nothing");

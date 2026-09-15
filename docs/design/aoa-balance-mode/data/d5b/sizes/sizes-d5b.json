@@ -1,0 +1,116 @@
+{
+  "tree": ".",
+  "eip170": 24576,
+  "rows": [
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 13571,
+      "headroom": 11005,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 13163,
+      "headroom": 11413,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/v3/SuperPaymaster.sol/SuperPaymaster.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 13163,
+      "headroom": 11413,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterAdmin",
+      "artifact": "out/SuperPaymasterAdmin.sol/SuperPaymasterAdmin.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 19208,
+      "headroom": 5368,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterAdmin",
+      "artifact": "out/SuperPaymasterAdmin.sol/SuperPaymasterAdmin.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 18885,
+      "headroom": 5691,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterAdmin",
+      "artifact": "out/v3/SuperPaymasterAdmin.sol/SuperPaymasterAdmin.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 18885,
+      "headroom": 5691,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterLens",
+      "artifact": "out/SuperPaymasterLens.sol/SuperPaymasterLens.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 5329,
+      "headroom": 19247,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterLens",
+      "artifact": "out/SuperPaymasterLens.sol/SuperPaymasterLens.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 5310,
+      "headroom": 19266,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "Registry",
+      "artifact": "out/Registry.sol/Registry.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 23306,
+      "headroom": 1270,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "BLSAggregator",
+      "artifact": "out/BLSAggregator.sol/BLSAggregator.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 24345,
+      "headroom": 231,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "BLSAggregator",
+      "artifact": "out/BLSAggregator.sol/BLSAggregator.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 23940,
+      "headroom": 636,
+      "sourceKeccakMatchesTree": true
+    }
+  ]
+}

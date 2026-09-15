@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -242,7 +244,7 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         uint256 a0 = abi.decode(ctx, (SuperPaymaster.OpCtx)).a0;
         uint128 opMid = _opBalance();
 
-        vm.expectRevert(SuperPaymaster.SponsorshipInFlight.selector);
+        vm.expectRevert(SuperPaymasterStorage.SponsorshipInFlight.selector);
         paymaster.releaseStaleSponsorship(bytes32(uint256(1)));
 
         (address f, uint256 inflA0) = paymaster.inflightOf(bytes32(uint256(1)));
