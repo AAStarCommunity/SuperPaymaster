@@ -14,7 +14,10 @@
 #   C      : timelock-aware upgrade for SP and Registry: deploy-impl → schedule-upgrade → negative early
 #            execute → +48h → execute-upgrade (read-backs: impl slot, version, owner, pendingOwner 0,
 #            default artifacts incl. the SP extension binding, BLS legs, raw slots).
-#   M2     : guardian (the Safe) pauses; guardian unpause reverts; timelock-scheduled unpause after 48h.
+#   M2     : guardian (the Safe) pauses; guardian unpause reverts; the unpause is scheduled / executed
+#            through UpgradeViaTimelock schedule-call / execute-call (checker -> attestation -> gate).
+#   EVERY timelock schedule / execute above runs check-timelock-roles.mjs first and passes its
+#   attestation (TL_ROLES_ATTESTATION); each gate also has a negative 'WITHOUT a roles attestation'.
 # Usage: scripts/d5b-anvil-rehearsal.sh <workDir>   (plain `forge build` first: default artifacts)
 # =============================================================================
 set -euo pipefail
@@ -111,6 +114,7 @@ step "C / §10.7b C: timelock-aware upgrade (SP then Registry)"
 for T in SP REGISTRY; do
   fscript UpgradeViaTimelock "$OWNER" TL_MODE=deploy-impl TL_TARGET=$T | tee "$W/C-$T-deploy.log" | grep -E "ready|new implementation|Error|revert" || true
   NI=$(grep -oE "pass as TL_NEW_IMPL\): 0x[0-9a-fA-F]{40}" "$W/C-$T-deploy.log" | awk '{print $NF}')
+  must_fail "schedule-upgrade $T WITHOUT a roles attestation" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
   roles_check "before-$T-upgrade"
   fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-schedule.log" | grep -E "scheduled|Error|revert" || true
   must_fail "execute-upgrade $T before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
@@ -126,10 +130,16 @@ send "$MULTISIG" "$SP" "setGlobalPaused(bool)" true
 echo "  paused() = $("$CAST" call "$SP" 'paused()(bool)' --rpc-url "$RPC")"
 must_fail "guardian unpause" "$CAST" send --rpc-url "$RPC" --unlocked --from "$MULTISIG" "$SP" "setGlobalPaused(bool)" false
 UNP=$("$CAST" calldata "setGlobalPaused(bool)" false)
-send "$MULTISIG" "$TL" "schedule(address,uint256,bytes,bytes32,bytes32,uint256)" "$SP" 0 "$UNP" 0x0000000000000000000000000000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000000000000000000000000001 172800
-must_fail "timelock unpause before 48h" "$CAST" send --rpc-url "$RPC" --unlocked --from "$MULTISIG" "$TL" "execute(address,uint256,bytes,bytes32,bytes32)" "$SP" 0 "$UNP" 0x0000000000000000000000000000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000000000000000000000000001
+# Codex re-check L1: the unpause is a timelock schedule like any other -> checker -> attestation -> gate
+must_fail "schedule-call (unpause) WITHOUT a roles attestation" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-call TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause)
+roles_check before-M2-unpause
+fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause) | tee "$W/M2-schedule.log" | grep -E "roles attestation|scheduled|Error|revert" || true
+grep -q "call scheduled" "$W/M2-schedule.log"
+must_fail "execute-call (unpause) before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause)
 warp48h
-send "$MULTISIG" "$TL" "execute(address,uint256,bytes,bytes32,bytes32)" "$SP" 0 "$UNP" 0x0000000000000000000000000000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000000000000000000000000001
+roles_check before-M2-unpause-execute
+fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause) | tee "$W/M2-execute.log" | grep -E "roles attestation|executed|Error|revert" || true
+grep -q "governed call executed" "$W/M2-execute.log"
 [ "$("$CAST" call "$SP" 'paused()(bool)' --rpc-url "$RPC")" = "false" ]
 echo "  paused() after the timelock's unpause = false"
 

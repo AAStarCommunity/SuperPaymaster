@@ -21,27 +21,39 @@
 
 === B / M1: two-step transfer to the timelock + ONE scheduleBatch ===
   after step 1: SP.owner=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 pendingOwner=0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+  negative ok: schedule-accept WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-M1.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
-    M1 batch scheduled; ready at: 1789482854
+    M1 batch scheduled; ready at: 1789634120
   negative ok: execute-accept before 48h reverted (Error: script failed: M1: batch not ready)
+attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-M1-execute.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
     M1/M2 read-back OK: owners == timelock, pendingOwner == 0, guardian == SAFE, minDelay == 48h 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
   negative ok: old EOA owner upgradeToAndCall after M1 reverted (Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 00)
 
 === C / §10.7b C: timelock-aware upgrade (SP then Registry) ===
     SP impl ready (default build, immutables == live, headroom >= 1,024): 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1 13571
     new implementation (pass as TL_NEW_IMPL): 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1
+  negative ok: schedule-upgrade SP WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-SP-upgrade.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
-    scheduled; ready at: 1789655664
+    scheduled; ready at: 1789806928
   negative ok: execute-upgrade SP before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
+attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-SP-execute.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
     [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x24B3c7704709ed1491473F30393FFc93cFB0FC34
     SuperPaymaster read-back OK: impl / version / owner / pendingOwner == 0; version = SuperPaymaster-5.5.0
     BLS three legs unchanged (SP / Registry / DVT): 0x0000000000000000000000000000000000000b15 0x0000000000000000000000000000000000000b15
     SuperPaymaster: raw slots 0..N-1 byte-identical, N = 65
     Registry impl ready (default build, runs=200): 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23306
     new implementation (pass as TL_NEW_IMPL): 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE
+  negative ok: schedule-upgrade REGISTRY WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-REGISTRY-upgrade.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
-    scheduled; ready at: 1789828474
+    scheduled; ready at: 1789979736
   negative ok: execute-upgrade REGISTRY before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
+attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-REGISTRY-execute.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
     Registry read-back OK: impl / version / owner / pendingOwner == 0; version = Registry-5.9.0
     BLS three legs unchanged (SP / Registry / DVT): 0x0000000000000000000000000000000000000b15 0x0000000000000000000000000000000000000b15
     Registry: raw slots 0..N-1 byte-identical, N = 74
@@ -49,7 +61,16 @@ TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the ma
 === M2 drill: guardian (Safe) pauses; guardian cannot unpause; timelock unpauses after 48h ===
   paused() = true
   negative ok: guardian unpause reverted (Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x82b42900)
-  negative ok: timelock unpause before 48h reverted (Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x5ead8eb5: 3e)
+  negative ok: schedule-call (unpause) WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-M2-unpause.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+    roles attestation OK: event-history holder sets == manifest, head block 28
+    call scheduled; ready at: 1790152542
+  negative ok: execute-call (unpause) before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
+attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-M2-unpause-execute.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+    roles attestation OK: event-history holder sets == manifest, head block 30
+    governed call executed 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
   paused() after the timelock's unpause = false
 
 === final state ===

@@ -9,7 +9,7 @@ suite (and, for the routing mutations, the C2 suite), and record which tests fai
               run to show the red set is specific, not "everything broke".
 A mutation whose red set is missing a test, or whose blind set turns red, fails the matrix.
 The unmutated tree is run first as column 0 (everything green), so a red is attributable to the
-mutation. Usage: python3 scripts/d5b-mutation-matrix.py [--only NAME] > log
+mutation. Usage: python3 scripts/d5b-mutation-matrix.py [--only NAME[,NAME...]] > log
 """
 import json
 import os
@@ -25,6 +25,8 @@ RACE = "contracts/test/v2/SuperPaymasterD5bUpgradeRace.t.sol"
 O2S = "contracts/src/utils/Ownable2StepNamespaced.sol"
 ADM = "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol"
 CORE = "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol"
+PF = "contracts/test/v2/D5bTimelockPreflight.t.sol"
+UVT = "contracts/script/v3/UpgradeViaTimelock.s.sol"
 
 PAUSE_LINE = '        if (paused) return ("", _packValidationData(true, 0, 0));\n'
 
@@ -137,6 +139,49 @@ MUTATIONS = [
         "red": ["test_gov2_sp_transferOwnership_via_proxy_is_two_step"],
         "blind": ["test_gov2_sp_transferOwnership_requires_owner"],
     },
+    # ---- Codex re-check of ed2a4762 (M1 / M3 / L1): the governed-flow gate in UpgradeViaTimelock
+    {
+        "name": "j-manifest-validation-skipped",
+        "what": "Codex re-check M1/M3: m1Preflight no longer runs validateManifest (chainId, non-vacuous manifest)",
+        "edits": [(UVT, "        validateManifest(m);\n", "")],
+        "red": ["test_manifest_chainid_mismatch_reverts", "test_manifest_vacuous_fields_each_rejected"],
+        "blind": ["test_preflight_rejects_72h_delay", "test_attestation_stale_head_reverts",
+                  "test_preflight_correct_timelock_passes_and_M1_completes"],
+        "suites": [PF],
+    },
+    {
+        "name": "k-placeholder-manifest-accepted",
+        "what": "Codex re-check M3: parseManifest accepts the committed example (FAKE placeholder addresses)",
+        "edits": [(UVT, """        require(!vm.keyExistsJson(j, "._placeholder"),
+            "M1 manifest: placeholder (the example schema with FAKE addresses) - not a network manifest");
+""", "")],
+        "red": ["test_manifest_example_placeholder_refused"],
+        "blind": ["test_manifest_file_missing_field_each_rejected"],
+        "suites": [PF],
+    },
+    {
+        "name": "l-governed-call-accepts-upgrade",
+        "what": "Codex re-check L1: schedule-call no longer refuses upgradeToAndCall (bypassing the upgrade read-backs)",
+        "edits": [(UVT, """        require(bytes4(data) != ID5bOwned.upgradeToAndCall.selector, "governed call: use schedule-upgrade for upgrades");
+""", "")],
+        "red": ["test_governed_call_refuses_upgrade"],
+        "blind": ["test_governed_call_unpause_goes_through_gate"],
+        "suites": [PF],
+    },
+    {
+        "name": "m-governed-call-ungated",
+        "what": "Codex re-check L1: scheduleCallWith (the M2 unpause path) skips governedGate",
+        "edits": [(UVT, """        governedGate(tl, m);
+        address safe = _safeOf(m);
+        address proxy = _governedCall(c, isSP, data);
+        require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");""",
+                   """        address safe = _safeOf(m);
+        address proxy = _governedCall(c, isSP, data);
+        require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");""")],
+        "red": ["test_governed_call_unpause_goes_through_gate"],
+        "blind": ["test_governed_call_refuses_upgrade", "test_attestation_missing_reverts"],
+        "suites": [PF],
+    },
 ]
 
 
@@ -149,8 +194,11 @@ def scratch():
     os.makedirs(os.path.join(tmp, "contracts", "test", "helpers"))
     for h in ["UUPSDeployHelper.sol", "V55TestFixtures.sol", "V55FuzzFixtures.sol"]:
         shutil.copy(os.path.join(ROOT, "contracts", "test", "helpers", h), os.path.join(tmp, "contracts", "test", "helpers", h))
-    for t in [GOV2, RACE]:
+    for t in [GOV2, RACE, PF]:
         shutil.copy(os.path.join(ROOT, t), os.path.join(tmp, t))
+    shutil.copytree(os.path.join(ROOT, "contracts", "script"), os.path.join(tmp, "contracts", "script"))
+    os.makedirs(os.path.join(tmp, "deployments"))
+    shutil.copy(os.path.join(ROOT, "deployments", "timelock-roles.example.json"), os.path.join(tmp, "deployments"))
     os.symlink(os.path.join(ROOT, "contracts", "lib"), os.path.join(tmp, "contracts", "lib"))
     os.symlink(os.path.join(ROOT, "singleton-paymaster"), os.path.join(tmp, "singleton-paymaster"))
     return tmp
@@ -171,19 +219,19 @@ def run_suite(tmp, suite):
 
 
 def main():
-    only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
+    only = sys.argv[sys.argv.index("--only") + 1].split(",") if "--only" in sys.argv else None
     tmp = scratch()
     failed = False
     try:
         pristine = {}
-        for s in [GOV2, RACE]:
+        for s in [GOV2, RACE, PF]:
             pristine.update(run_suite(tmp, s))
         reds = [k for k, v in pristine.items() if v[0] != "Success"]
         print(f"column 0 (unmutated): {len(pristine)} tests, red = {reds}")
         if reds:
             raise SystemExit("unmutated tree is not green — matrix meaningless")
         for mu in MUTATIONS:
-            if only and mu["name"] != only:
+            if only and mu["name"] not in only:
                 continue
             work = scratch()
             try:

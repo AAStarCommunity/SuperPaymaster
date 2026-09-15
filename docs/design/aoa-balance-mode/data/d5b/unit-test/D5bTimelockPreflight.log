@@ -1,33 +1,30 @@
-Missing dependencies found. Installing now...
-
-fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
-fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
-Failed to clone 'contracts/lib/chainlink-brownie-contracts'. Retry scheduled
-fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' already exists and is not an empty directory.
-fatal: clone of 'https://github.com/Vectorized/solady.git' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' failed
-Failed to clone 'contracts/lib/solady'. Retry scheduled
-fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
-fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
-Failed to clone 'contracts/lib/chainlink-brownie-contracts' a second time, aborting
-Warning: Your project has missing dependencies that could not be installed.
-Compiling 1 files with Solc 0.8.33
-Solc 0.8.33 finished in 11.04s
-Compiler run successful with warnings:
-Warning (4591): There are more than 256 warnings. Ignoring the rest.
-
-Ran 12 tests for contracts/test/v2/D5bTimelockPreflight.t.sol:D5bTimelockPreflightTest
-[PASS] test_non_safe_caller_does_not_schedule() (gas: 1417472)
-[PASS] test_preflight_correct_timelock_passes_and_M1_completes() (gas: 1571185)
-[PASS] test_preflight_is_bounded_unlisted_admin_passes() (gas: 1511364)
-[PASS] test_preflight_manifest_file_missing_reverts() (gas: 1338725)
-[PASS] test_preflight_rejects_72h_delay() (gas: 1365087)
-[PASS] test_preflight_rejects_deployer_still_admin() (gas: 1408048)
-[PASS] test_preflight_rejects_extra_eoa_proposer() (gas: 1450245)
-[PASS] test_preflight_rejects_manifest_for_another_timelock() (gas: 1352376)
-[PASS] test_preflight_rejects_manifest_not_m1_policy() (gas: 1343895)
-[PASS] test_preflight_rejects_open_executor() (gas: 1399935)
-[PASS] test_preflight_rejects_safe_missing_canceller() (gas: 1360950)
-[PASS] test_preflight_reruns_before_execute() (gas: 1520185)
-Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 26.76ms (10.57ms CPU time)
-
-Ran 1 test suite in 28.92ms (26.76ms CPU time): 12 tests passed, 0 failed, 0 skipped (12 total tests)
+# extracted verbatim from unit-test/forge-test-cancun.log (the full Cancun run)
+Ran 27 tests for contracts/test/v2/D5bTimelockPreflight.t.sol:D5bTimelockPreflightTest
+[PASS] test_attestation_holder_set_not_manifest_reverts() (gas: 1465287)
+[PASS] test_attestation_manifest_changed_reverts() (gas: 1436176)
+[PASS] test_attestation_missing_reverts() (gas: 1431204)
+[PASS] test_attestation_opt_out_allowed_on_local_chain_only() (gas: 1474807)
+[PASS] test_attestation_opt_out_rejected_on_live_chain() (gas: 1431818)
+[PASS] test_attestation_result_fail_reverts() (gas: 1451219)
+[PASS] test_attestation_stale_head_reverts() (gas: 1438055)
+[PASS] test_attestation_wrong_chainid_reverts() (gas: 1450956)
+[PASS] test_attestation_wrong_timelock_reverts() (gas: 1452242)
+[PASS] test_bounded_preflight_passes_unlisted_admin_but_attestation_gate_blocks() (gas: 1603032)
+[PASS] test_governed_call_refuses_upgrade() (gas: 1688887)
+[PASS] test_governed_call_unpause_goes_through_gate() (gas: 1862600)
+[PASS] test_manifest_chainid_mismatch_reverts() (gas: 1384578)
+[PASS] test_manifest_example_placeholder_refused() (gas: 19104)
+[PASS] test_manifest_file_missing_field_each_rejected() (gas: 1965855)
+[PASS] test_manifest_vacuous_fields_each_rejected() (gas: 1999477)
+[PASS] test_non_safe_caller_does_not_schedule() (gas: 1468812)
+[PASS] test_preflight_correct_timelock_passes_and_M1_completes() (gas: 1686285)
+[PASS] test_preflight_manifest_file_missing_reverts() (gas: 1340147)
+[PASS] test_preflight_rejects_72h_delay() (gas: 1386938)
+[PASS] test_preflight_rejects_deployer_still_admin() (gas: 1430096)
+[PASS] test_preflight_rejects_extra_eoa_proposer() (gas: 1472310)
+[PASS] test_preflight_rejects_manifest_for_another_timelock() (gas: 1385827)
+[PASS] test_preflight_rejects_manifest_not_m1_policy() (gas: 1389478)
+[PASS] test_preflight_rejects_open_executor() (gas: 1421785)
+[PASS] test_preflight_rejects_safe_missing_canceller() (gas: 1382867)
+[PASS] test_preflight_reruns_before_execute() (gas: 1573809)
+Suite result: ok. 27 passed; 0 failed; 0 skipped; finished in 111.61ms (108.74ms CPU time)

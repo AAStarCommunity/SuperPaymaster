@@ -1,0 +1,2 @@
+usage error: --chunk must be a strictly positive integer, got "abc"
+usage: --rpc <url> --manifest <path> [--rpc2 <url>] [--chunk <positive integer>] [--out f] [--attest <path>|auto]

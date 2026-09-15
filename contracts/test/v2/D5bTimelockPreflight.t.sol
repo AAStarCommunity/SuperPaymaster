@@ -105,7 +105,7 @@ contract D5bTimelockPreflightTest is Test {
     function _writeAtt(string memory name, Att memory a) internal returns (string memory path) {
         path = string.concat(ATT_DIR, name, ".json");
         string memory j = string.concat(
-            "{\"schema\":\"d5b-timelock-roles-attestation/1\",\"result\":\"", a.result,
+            "{\"schema\":\"d5b-timelock-roles-attestation/2\",\"result\":\"", a.result,
             "\",\"chainId\":", vm.toString(a.chainId),
             ",\"timelock\":\"", vm.toString(a.timelock),
             "\",\"manifestKeccak256\":\"", vm.toString(a.manifestKeccak),
@@ -125,12 +125,17 @@ contract D5bTimelockPreflightTest is Test {
     function _manifest(TimelockController tl, string memory name)
         internal returns (UpgradeViaTimelock.RoleManifest memory m)
     {
+        m.chainId = block.chainid;
         m.timelock = address(tl);
+        m.deploymentBlock = block.number;
         m.admins = _one(address(tl));
         m.proposers = _one(safe);
         m.cancellers = _one(safe);
         m.executors = _one(safe);
         m.mustHoldNothing = _two(deployer, eoa);
+        m.mustHoldNothingLabels = new string[](2);
+        m.mustHoldNothingLabels[0] = "deployer / old owner";
+        m.mustHoldNothingLabels[1] = "ops EOA";
         m.fileKeccak = MANIFEST_KECCAK;
         m.attestation = _writeAtt(name, _goodAtt(tl));
     }
@@ -340,6 +345,7 @@ contract D5bTimelockPreflightTest is Test {
         m.attestation = "";
         m.optOut = true;
         vm.chainId(10); // OP mainnet
+        m.chainId = 10; // a correct OP-mainnet manifest: only the opt-out is wrong
         _assertRejected(tl, m, "roles attestation: opt-out is impossible on a live chain");
     }
 
@@ -351,5 +357,134 @@ contract D5bTimelockPreflightTest is Test {
         assertEq(block.chainid, 31337, "precondition: local chain id");
         bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m); // loudly logged, proceeds
         assertTrue(tl.isOperationPending(id), "opt-out works on a local chain");
+    }
+
+    // ------------------------------------------------------------------ Codex re-check M1 / M3: manifest chainId + completeness
+
+    function test_manifest_chainid_mismatch_reverts() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "mchain");
+        m.chainId = 11155111; // a Sepolia manifest used against this chain
+        _assertRejected(tl, m, "M1 manifest: chainId != this chain");
+    }
+
+    /// @notice Every way a manifest can be vacuous is rejected before anything is scheduled.
+    function test_manifest_vacuous_fields_each_rejected() public {
+        TimelockController tl = _correctTl();
+        string[12] memory reasons = [
+            "M1 manifest: chainId != this chain",           // 0 chainId missing (0)
+            "M1 manifest: zero timelock",                   // 1 timelock missing (0)
+            "M1 manifest: deploymentBlock unset",           // 2
+            "M1 manifest: empty role set",                  // 3 DEFAULT_ADMIN_ROLE []
+            "M1 manifest: empty role set",                  // 4 PROPOSER_ROLE []
+            "M1 manifest: empty role set",                  // 5 CANCELLER_ROLE []
+            "M1 manifest: empty role set",                  // 6 EXECUTOR_ROLE []
+            "M1 manifest: mustHoldNothing is empty",        // 7
+            "M1 manifest: one label per mustHoldNothing account", // 8 labels missing
+            "M1 manifest: empty mustHoldNothing label",     // 9
+            "M1 manifest: zero address in mustHoldNothing", // 10
+            "M1 manifest: duplicate in mustHoldNothing"     // 11
+        ];
+        for (uint256 k; k < reasons.length; ++k) {
+            UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, string.concat("vac", vm.toString(k)));
+            if (k == 0) m.chainId = 0;
+            if (k == 1) m.timelock = address(0);
+            if (k == 2) m.deploymentBlock = 0;
+            if (k == 3) m.admins = new address[](0);
+            if (k == 4) m.proposers = new address[](0);
+            if (k == 5) m.cancellers = new address[](0);
+            if (k == 6) m.executors = new address[](0);
+            if (k == 7) { m.mustHoldNothing = new address[](0); m.mustHoldNothingLabels = new string[](0); }
+            if (k == 8) m.mustHoldNothingLabels = new string[](0);
+            if (k == 9) m.mustHoldNothingLabels[1] = "";
+            if (k == 10) m.mustHoldNothing[1] = address(0);
+            if (k == 11) m.mustHoldNothing[1] = deployer;
+            _assertRejected(tl, m, reasons[k]);
+        }
+    }
+
+    /// @dev The committed file shape, optionally without field `omit` (10 = complete). Field order:
+    ///      0 network, 1 chainId, 2 timelock, 3 deploymentBlock, 4-7 roles.*, 8 mustHoldNothing, 9 labels.
+    function _body(TimelockController tl, uint256 omit) internal view returns (string memory j) {
+        string[10] memory k = ["network", "chainId", "timelock", "deploymentBlock", "DEFAULT_ADMIN_ROLE",
+            "PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE", "mustHoldNothing", "mustHoldNothingLabels"];
+        string[10] memory v = [
+            "\"n\"", vm.toString(block.chainid), string.concat("\"", vm.toString(address(tl)), "\""),
+            "1", _addrs(_one(address(tl))), _addrs(_one(safe)), _addrs(_one(safe)), _addrs(_one(safe)),
+            _addrs(_two(deployer, eoa)), "[\"deployer\",\"ops\"]"
+        ];
+        string memory top;
+        string memory roles;
+        for (uint256 i; i < 10; ++i) {
+            if (i == omit) continue;
+            string memory kv = string.concat("\"", k[i], "\":", v[i]);
+            if (i >= 4 && i <= 7) roles = string.concat(roles, bytes(roles).length == 0 ? "" : ",", kv);
+            else top = string.concat(top, bytes(top).length == 0 ? "" : ",", kv);
+        }
+        j = string.concat("{", top, ",\"roles\":{", roles, "}}");
+    }
+
+    /// @notice The committed file must carry every schema field: omitting any one is a named revert, not
+    ///         an empty (vacuously satisfied) set. Positive control: the complete body parses and validates.
+    function test_manifest_file_missing_field_each_rejected() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory ok = script.parseManifest(_body(tl, 10));
+        script.validateManifest(ok);
+        assertEq(ok.mustHoldNothingLabels.length, 2, "positive control: labels parsed");
+        assertEq(ok.chainId, block.chainid, "positive control: chainId parsed");
+        assertEq(ok.timelock, address(tl), "positive control: timelock parsed");
+        string[10] memory paths = [".network", ".chainId", ".timelock", ".deploymentBlock", ".roles.DEFAULT_ADMIN_ROLE",
+            ".roles.PROPOSER_ROLE", ".roles.CANCELLER_ROLE", ".roles.EXECUTOR_ROLE", ".mustHoldNothing", ".mustHoldNothingLabels"];
+        for (uint256 i; i < 10; ++i) {
+            vm.expectRevert(bytes(string.concat("M1 manifest: missing field ", paths[i])));
+            script.parseManifest(_body(tl, i));
+        }
+    }
+
+    /// @notice The committed example (FAKE placeholder addresses) can never be used as a network manifest.
+    function test_manifest_example_placeholder_refused() public {
+        string memory j = vm.readFile("deployments/timelock-roles.example.json");
+        vm.expectRevert(bytes("M1 manifest: placeholder (the example schema with FAKE addresses) - not a network manifest"));
+        script.parseManifest(j);
+    }
+
+    // ------------------------------------------------------------------ Codex re-check L1: governed non-upgrade calls
+
+    function _m1Done(string memory name) internal returns (TimelockController tl, UpgradeViaTimelock.RoleManifest memory m) {
+        tl = _correctTl();
+        m = _manifest(tl, name);
+        script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
+        vm.warp(block.timestamp + 48 hours);
+        script.executeAcceptWith(_cfg(tl), safe, SALT, safe, m);
+    }
+
+    /// @notice The runbook M2 unpause goes through the same gate: guardian pauses, the Safe schedules the
+    ///         unpause via scheduleCallWith (gate), 48h, executeCallWith; without an attestation it is refused.
+    function test_governed_call_unpause_goes_through_gate() public {
+        (TimelockController tl, UpgradeViaTimelock.RoleManifest memory m) = _m1Done("m2");
+        vm.prank(safe);
+        SuperPaymasterAdmin(address(sp)).setGlobalPaused(true);
+        assertTrue(sp.paused(), "guardian paused");
+        bytes memory unpause = abi.encodeWithSignature("setGlobalPaused(bool)", false);
+        bytes32 id = tl.hashOperation(address(sp), 0, unpause, bytes32(0), SALT);
+        string memory att = m.attestation;
+        m.attestation = "";
+        vm.expectRevert(bytes("roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)"));
+        script.scheduleCallWith(_cfg(tl), true, unpause, SALT, safe, m);
+        assertFalse(tl.isOperation(id), "nothing scheduled without the attestation");
+        m.attestation = att;
+        script.scheduleCallWith(_cfg(tl), true, unpause, SALT, safe, m);
+        assertTrue(tl.isOperationPending(id), "unpause scheduled through the gate");
+        vm.warp(block.timestamp + 48 hours);
+        script.executeCallWith(_cfg(tl), true, unpause, SALT, safe, m);
+        assertFalse(sp.paused(), "timelock unpaused");
+    }
+
+    function test_governed_call_refuses_upgrade() public {
+        (TimelockController tl, UpgradeViaTimelock.RoleManifest memory m) = _m1Done("noupg");
+        bytes memory upg = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", address(0x1234), bytes(""));
+        vm.expectRevert(bytes("governed call: use schedule-upgrade for upgrades"));
+        script.scheduleCallWith(_cfg(tl), true, upg, SALT, safe, m);
+        assertFalse(tl.isOperation(tl.hashOperation(address(sp), 0, upg, bytes32(0), SALT)), "nothing scheduled");
     }
 }

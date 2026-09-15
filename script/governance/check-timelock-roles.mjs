@@ -1,51 +1,77 @@
 #!/usr/bin/env node
 // =============================================================================
 // check-timelock-roles.mjs — role-exclusivity check for the GOV-1 TimelockController (D5b, Codex
-// closing review Medium).
+// closing review Medium; hardened after the Codex re-check of ed2a4762: M1/M2/M3/L2).
 //
 // OZ TimelockController uses AccessControl, NOT AccessControlEnumerable: nothing on-chain can list who
 // holds a role, so the forge preflight (UpgradeViaTimelock.m1Preflight) is only a bounded check of the
 // accounts it is told about. This script establishes exclusivity from the event history instead: it
-// pulls every RoleGranted / RoleRevoked log of the timelock from its deployment block to `latest`
-// (chunked), replays them in (block, logIndex) order, and exits non-zero unless the resulting holder
-// set of EVERY role equals the committed manifest (deployments/timelock-roles.<env>.json) exactly, and
-// no `mustHoldNothing` account holds anything.
+// pulls every RoleGranted / RoleRevoked log of the timelock from its deployment block to a PINNED head
+// block (chunked), replays them in (block, logIndex) order, and exits non-zero unless the resulting
+// holder set of EVERY role equals the committed manifest (deployments/timelock-roles.<env>.json)
+// exactly, and no `mustHoldNothing` account holds anything.
+//
+// Manifest (M3): every schema field is required — network, chainId, timelock, deploymentBlock,
+// roles.{DEFAULT_ADMIN,PROPOSER,CANCELLER,EXECUTOR}_ROLE, mustHoldNothing, mustHoldNothingLabels — and
+// must state the M1 policy (DEFAULT_ADMIN = [timelock]; PROPOSER = CANCELLER = EXECUTOR = [one Safe]),
+// with a non-empty, unique, non-zero mustHoldNothing and one non-empty label per entry. A manifest that
+// omits a field is rejected, never read as an empty (vacuously satisfied) set.
+//
+// Chain (M1): the primary endpoint's chainId — and --rpc2's — must equal the manifest chainId; both are
+// recorded. UpgradeViaTimelock additionally requires manifest chainId == block.chainid.
 //
 // Completeness: a log scan cannot prove from its own results that no log was dropped (a missing range
 // looks exactly like an empty one). What this script DOES verify, and prints:
 //   1. depth probe — the endpoint serves state at the deployment block (code present at
 //      deploymentBlock, absent at deploymentBlock - 1), i.e. it is an archive for that range;
 //   2. positive control — the constructor's own grants (DEFAULT_ADMIN to the timelock itself, and the
-//      manifest's proposer/canceller/executor) appear in the history;
+//      manifest's proposer/canceller/executor) appear IN THE DEPLOYMENT BLOCK (a later grant of the
+//      same role does not satisfy it: it would not prove the scan reached the constructor);
 //   3. state cross-check — every reconstructed holder, and every manifest holder, is confirmed with a
-//      live hasRole() call at the scan head block;
-//   4. optional second endpoint (--rpc2): the whole scan is repeated there and must match log-for-log.
+//      live hasRole() call at the pinned head block;
+//   4. optional second endpoint (--rpc2): it must serve the SAME head block (number AND hash — a lagging
+//      or forked endpoint fails), pass its own depth probe, and return the identical log list over the
+//      identical range, compared on the canonical decoded fields (event, role, account, sender,
+//      blockNumber, blockHash, logIndex, transactionHash). The head hash is re-read on both endpoints
+//      after the scan (a reorg during the scan fails the check).
 // Without (4) the report says "completeness NOT independently verified". Keys in RPC URLs are never
 // printed or written.
 //
 // Usage: node script/governance/check-timelock-roles.mjs --rpc <url> --manifest <path>
-//            [--rpc2 <url>] [--chunk 10000] [--out <report.json>] [--attest <path>|auto]
-// Exit: 0 = history == manifest; 1 = mismatch / check failed; 2 = usage / infrastructure error.
+//            [--rpc2 <url>] [--chunk <positive integer, default 10000>] [--out <report.json>]
+//            [--attest <path>|auto]
+// Exit: 0 = history == manifest; 1 = mismatch / check failed / invalid manifest;
+//       2 = usage / infrastructure error.
+// With --attest, EVERY run that gets past argument parsing writes the attestation file, with result
+// "PASS" only on exit 0 (a FAIL file replaces any earlier PASS at that path).
 // =============================================================================
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { createPublicClient, http, parseAbiItem, getAddress, keccak256, toBytes } from "viem";
+import { createPublicClient, http, parseAbiItem, getAddress, isAddress, keccak256, toBytes } from "viem";
 
+const CHECKER_VERSION = "check-timelock-roles/1.2.0";
+const USAGE = "usage: --rpc <url> --manifest <path> [--rpc2 <url>] [--chunk <positive integer>] [--out f] [--attest <path>|auto]";
 const args = process.argv.slice(2);
-const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
+const usage = (msg) => { console.error(`usage error: ${msg}\n${USAGE}`); process.exit(2); };
+const opt = (k, d) => {
+  const i = args.indexOf(k);
+  if (i < 0) return d;
+  const v = args[i + 1];
+  if (v === undefined || v.startsWith("--")) usage(`${k} needs a value`);
+  return v;
+};
 const RPC = opt("--rpc");
 const RPC2 = opt("--rpc2");
 const MANIFEST = opt("--manifest");
-const CHUNK = BigInt(opt("--chunk", "10000"));
+const CHUNK_RAW = opt("--chunk", "10000");
 const OUT = opt("--out");
-// --attest <path>: write the attestation UpgradeViaTimelock requires (TL_ROLES_ATTESTATION) for every
-// governed broadcast; default deployments/attestations/timelock-roles.<network>.<head>.json when
-// --attest is given without a path value of its own ("auto").
 const ATTEST = opt("--attest");
-const CHECKER_VERSION = "check-timelock-roles/1.1.0";
-if (!RPC || !MANIFEST) { console.error("usage: --rpc <url> --manifest <path> [--rpc2 <url>] [--chunk N] [--out f]"); process.exit(2); }
+if (!RPC || !MANIFEST) usage("--rpc and --manifest are required");
+// L2: a zero / negative / non-integer chunk would never advance the scan loop
+if (!/^[1-9][0-9]*$/.test(CHUNK_RAW)) usage(`--chunk must be a strictly positive integer, got "${CHUNK_RAW}"`);
+const CHUNK = BigInt(CHUNK_RAW);
 const redact = (u) => { try { const x = new URL(u); return `${x.protocol}//${x.host}`; } catch { return "<rpc>"; } };
 
 const ROLE_NAMES = {
@@ -55,37 +81,144 @@ const ROLE_NAMES = {
   [keccak256(toBytes("EXECUTOR_ROLE"))]: "EXECUTOR_ROLE",
 };
 const ROLE_ID = Object.fromEntries(Object.entries(ROLE_NAMES).map(([id, n]) => [n, id]));
+const ROLE_LIST = Object.values(ROLE_NAMES);
 const GRANTED = parseAbiItem("event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)");
 const REVOKED = parseAbiItem("event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender)");
 const HASROLE = parseAbiItem("function hasRole(bytes32 role, address account) view returns (bool)");
 
-const manifestBytes = readFileSync(MANIFEST);
-const m = JSON.parse(manifestBytes.toString("utf8"));
-const manifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
-const manifestKeccak256 = keccak256(manifestBytes);
 const gitCommit = (() => { try { return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(); } catch { return "unknown"; } })();
 const gitDirty = (() => { try { return execFileSync("git", ["status", "--porcelain", "--", "script/governance"], { encoding: "utf8" }).trim().length > 0; } catch { return null; } })();
-const TL = getAddress(m.timelock);
-const FROM = BigInt(m.deploymentBlock);
-const expected = {};
-for (const n of Object.values(ROLE_NAMES)) expected[n] = new Set((m.roles?.[n] ?? []).map((a) => getAddress(a)));
-const mustNothing = (m.mustHoldNothing ?? []).map((a) => getAddress(a));
 
-async function scan(url) {
-  const c = createPublicClient({ transport: http(url, { retryCount: 3 }) });
-  const head = await c.getBlockNumber();
+// ------------------------------------------------------------------ attestation (written on every outcome)
+const att = {
+  schema: "d5b-timelock-roles-attestation/2",
+  result: "FAIL",
+  chainId: null, rpc2ChainId: null, manifestChainId: null, timelock: null,
+  manifestPath: MANIFEST, manifestSha256: null, manifestKeccak256: null,
+  deploymentBlock: null, headBlock: null, headBlockHash: null,
+  roles: {}, unknownRoles: [], mustHoldNothing: [], mustHoldNothingLabels: [], logs: null,
+  depthProbe: null, rpc2DepthProbe: null, constructorControl: null, completeness: null, rpc2Used: !!RPC2,
+  endpoint: redact(RPC), endpoint2: RPC2 ? redact(RPC2) : null,
+  problems: [],
+  checker: { path: "script/governance/check-timelock-roles.mjs", version: CHECKER_VERSION, gitCommit, gitDirty },
+  note: "Generated by the checker, not cryptographically signed; UpgradeViaTimelock re-verifies chainId, timelock, manifest hash, freshness and every attested holder on-chain.",
+};
+let manifestNetwork = "unknown";
+function writeAttestation() {
+  if (!ATTEST) return;
+  const path = ATTEST === "auto" ? `deployments/attestations/timelock-roles.${manifestNetwork}.${att.headBlock ?? "nohead"}.json` : ATTEST;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(att, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2) + "\n");
+  console.log(`attestation written: ${path} (result ${att.result})`);
+}
+function fail(problems, code = 1) {
+  att.result = "FAIL";
+  att.problems = problems;
+  writeAttestation();
+  console.log("TIMELOCK ROLE CHECK FAILED:");
+  for (const p of problems) console.log("  - " + p);
+  process.exit(code);
+}
+
+// ------------------------------------------------------------------ manifest (M3: complete schema, non-vacuous)
+let manifestBytes;
+try { manifestBytes = readFileSync(MANIFEST); } catch (e) { usage(`cannot read manifest ${MANIFEST}: ${e.message}`); }
+att.manifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
+att.manifestKeccak256 = keccak256(manifestBytes);
+let m;
+try { m = JSON.parse(manifestBytes.toString("utf8")); } catch (e) { fail([`manifest is not valid JSON: ${e.message}`]); }
+
+function validateManifest(m) {
+  const p = [];
+  const has = (o, k) => o !== null && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, k);
+  const posInt = (v) => (typeof v === "number" && Number.isSafeInteger(v) && v > 0) || (typeof v === "string" && /^[1-9][0-9]*$/.test(v));
+  const addr = (v, where) => {
+    if (typeof v !== "string" || !isAddress(v, { strict: false })) { p.push(`${where}: not an address (${JSON.stringify(v)})`); return null; }
+    const a = getAddress(v);
+    if (a === "0x0000000000000000000000000000000000000000") { p.push(`${where}: zero address`); return null; }
+    return a;
+  };
+  if (has(m, "_placeholder")) p.push("manifest: `_placeholder` is set — this is the example schema with FAKE addresses, not a network manifest");
+  for (const k of ["network", "chainId", "timelock", "deploymentBlock", "roles", "mustHoldNothing", "mustHoldNothingLabels"]) {
+    if (!has(m, k)) p.push(`manifest: missing field .${k}`);
+  }
+  if (has(m, "network") && (typeof m.network !== "string" || m.network.length === 0)) p.push("manifest: .network must be a non-empty string");
+  if (has(m, "chainId") && !posInt(m.chainId)) p.push("manifest: .chainId must be a positive integer");
+  if (has(m, "deploymentBlock") && !posInt(m.deploymentBlock)) p.push("manifest: .deploymentBlock must be a positive integer");
+  const tl = has(m, "timelock") ? addr(m.timelock, "manifest .timelock") : null;
+  const roles = {};
+  if (has(m, "roles")) {
+    for (const r of ROLE_LIST) {
+      if (!has(m.roles, r)) { p.push(`manifest: missing field .roles.${r}`); continue; }
+      if (!Array.isArray(m.roles[r]) || m.roles[r].length === 0) { p.push(`manifest: .roles.${r} must be a non-empty array`); continue; }
+      roles[r] = m.roles[r].map((a, i) => addr(a, `manifest .roles.${r}[${i}]`));
+      if (new Set(roles[r]).size !== roles[r].length) p.push(`manifest: duplicate address in .roles.${r}`);
+    }
+    for (const k of Object.keys(m.roles)) if (!ROLE_LIST.includes(k)) p.push(`manifest: unknown role key .roles.${k}`);
+  }
+  // M1 policy: DEFAULT_ADMIN = [timelock]; PROPOSER = CANCELLER = EXECUTOR = [the same single Safe]
+  const one = (r) => (roles[r]?.length === 1 ? roles[r][0] : undefined);
+  const safe = one("PROPOSER_ROLE");
+  if (Object.keys(roles).length === 4) {
+    if (!(one("DEFAULT_ADMIN_ROLE") && tl && one("DEFAULT_ADMIN_ROLE") === tl)) p.push("manifest: not the M1 policy: DEFAULT_ADMIN_ROLE must be exactly [timelock]");
+    if (!(safe && one("CANCELLER_ROLE") === safe && one("EXECUTOR_ROLE") === safe)) p.push("manifest: not the M1 policy: PROPOSER = CANCELLER = EXECUTOR must be exactly [the same Safe]");
+    if (safe && tl && safe === tl) p.push("manifest: the Safe must not be the timelock");
+  }
+  let mhn = [];
+  if (has(m, "mustHoldNothing")) {
+    if (!Array.isArray(m.mustHoldNothing) || m.mustHoldNothing.length === 0) p.push("manifest: .mustHoldNothing must be a non-empty array (historical accounts: deployer, old owners)");
+    else {
+      mhn = m.mustHoldNothing.map((a, i) => addr(a, `manifest .mustHoldNothing[${i}]`));
+      if (new Set(mhn).size !== mhn.length) p.push("manifest: duplicate address in .mustHoldNothing");
+      for (const a of mhn) if (a && (a === tl || a === safe)) p.push(`manifest: .mustHoldNothing lists the timelock / Safe (${a})`);
+    }
+  }
+  if (has(m, "mustHoldNothingLabels")) {
+    const L = m.mustHoldNothingLabels;
+    if (!Array.isArray(L) || L.length !== (Array.isArray(m.mustHoldNothing) ? m.mustHoldNothing.length : -1)) p.push("manifest: .mustHoldNothingLabels must have exactly one label per .mustHoldNothing entry");
+    else L.forEach((l, i) => { if (typeof l !== "string" || l.trim().length === 0) p.push(`manifest: .mustHoldNothingLabels[${i}] must be a non-empty string`); });
+  }
+  return { problems: p, tl, roles, mhn };
+}
+
+const v = validateManifest(m);
+if (typeof m?.network === "string" && /^[A-Za-z0-9._-]+$/.test(m.network)) manifestNetwork = m.network;
+att.manifestChainId = typeof m?.chainId === "number" || typeof m?.chainId === "string" ? Number(m.chainId) : null;
+att.timelock = v.tl;
+if (v.problems.length) fail(v.problems);
+const TL = v.tl;
+const FROM = BigInt(m.deploymentBlock);
+const MANIFEST_CHAIN = BigInt(m.chainId);
+const expected = Object.fromEntries(ROLE_LIST.map((r) => [r, new Set(v.roles[r])]));
+const mustNothing = v.mhn;
+att.deploymentBlock = Number(FROM);
+att.mustHoldNothing = mustNothing;
+att.mustHoldNothingLabels = m.mustHoldNothingLabels;
+
+// ------------------------------------------------------------------ scanning
+const client = (url) => createPublicClient({ transport: http(url, { retryCount: 3 }) });
+
+async function depthProbe(c) {
   const codeAt = await c.getCode({ address: TL, blockNumber: FROM });
-  const codeBefore = FROM > 0n ? await c.getCode({ address: TL, blockNumber: FROM - 1n }) : undefined;
-  const depthOk = !!codeAt && codeAt !== "0x" && (FROM === 0n || !codeBefore || codeBefore === "0x");
+  const codeBefore = await c.getCode({ address: TL, blockNumber: FROM - 1n });
+  return !!codeAt && codeAt !== "0x" && (!codeBefore || codeBefore === "0x");
+}
+
+async function scanLogs(c, head) {
   const logs = [];
   for (let a = FROM; a <= head; a += CHUNK) {
     const b = a + CHUNK - 1n > head ? head : a + CHUNK - 1n;
-    const got = await c.getLogs({ address: TL, events: [GRANTED, REVOKED], fromBlock: a, toBlock: b });
-    logs.push(...got);
+    logs.push(...(await c.getLogs({ address: TL, events: [GRANTED, REVOKED], fromBlock: a, toBlock: b })));
   }
   logs.sort((x, y) => (x.blockNumber === y.blockNumber ? x.logIndex - y.logIndex : (x.blockNumber < y.blockNumber ? -1 : 1)));
-  return { c, head, depthOk, logs };
+  return logs;
 }
+
+// canonical decoded form used for the rpc2 comparison (M2)
+const canon = (l) => ({
+  event: l.eventName, role: l.args.role, account: getAddress(l.args.account), sender: getAddress(l.args.sender),
+  blockNumber: l.blockNumber.toString(), blockHash: l.blockHash, logIndex: Number(l.logIndex), transactionHash: l.transactionHash,
+});
 
 function replay(logs) {
   const holders = {};
@@ -105,86 +238,121 @@ const eq = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 
 async function main() {
   const problems = [];
-  const s1 = await scan(RPC);
-  const { holders, unknownRoles } = replay(s1.logs);
-  if (!s1.depthOk) problems.push(`depth probe failed: no code at deploymentBlock ${FROM} or code already at ${FROM - 1n} (wrong block or non-archive endpoint)`);
-  // positive control: the constructor grants must be in the scanned history
-  const grants = s1.logs.filter((l) => l.eventName === "RoleGranted");
-  const has = (role, acct) => grants.some((l) => l.args.role === ROLE_ID[role] && getAddress(l.args.account) === acct);
-  if (!has("DEFAULT_ADMIN_ROLE", TL)) problems.push("positive control failed: constructor grant DEFAULT_ADMIN_ROLE -> timelock not found in the scanned history");
-  for (const r of ["PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE"]) {
-    for (const a of expected[r]) if (!has(r, a)) problems.push(`positive control failed: no RoleGranted(${r}, ${a}) in the history`);
+  const c1 = client(RPC);
+  // M1: the endpoint must be the manifest's chain — otherwise nothing below is about the right timelock
+  const chain1 = BigInt(await c1.getChainId());
+  att.chainId = Number(chain1);
+  let c2;
+  if (RPC2) {
+    c2 = client(RPC2);
+    const chain2 = BigInt(await c2.getChainId());
+    att.rpc2ChainId = Number(chain2);
+    if (chain2 !== MANIFEST_CHAIN) problems.push(`chain mismatch: --rpc2 chainId ${chain2} != manifest chainId ${MANIFEST_CHAIN}`);
   }
+  if (chain1 !== MANIFEST_CHAIN) problems.push(`chain mismatch: --rpc chainId ${chain1} != manifest chainId ${MANIFEST_CHAIN}`);
+  if (problems.length) fail(problems);
+
+  // M2: pin the head (number AND hash) once; everything below is evaluated at exactly this block
+  const head = await c1.getBlockNumber();
+  const headHash = (await c1.getBlock({ blockNumber: head })).hash;
+  att.headBlock = Number(head);
+  att.headBlockHash = headHash;
+  if (head < FROM) fail([`manifest deploymentBlock ${FROM} is after the endpoint head ${head}`]);
+
+  const depth1 = await depthProbe(c1);
+  att.depthProbe = depth1;
+  if (!depth1) problems.push(`depth probe failed: no code at deploymentBlock ${FROM} or code already at ${FROM - 1n} (wrong block or non-archive endpoint)`);
+  const logs = await scanLogs(c1, head);
+  for (const l of logs) if (l.blockNumber === head && l.blockHash !== headHash) problems.push(`log ${l.transactionHash}:${l.logIndex} at the pinned head carries block hash ${l.blockHash} != ${headHash}`);
+  const { holders, unknownRoles } = replay(logs);
+  att.logs = logs.length;
+
+  // positive control, restricted to the deployment block (the constructor's own grants)
+  const ctor = logs.filter((l) => l.eventName === "RoleGranted" && l.blockNumber === FROM);
+  const inCtor = (role, acct) => ctor.some((l) => l.args.role === ROLE_ID[role] && getAddress(l.args.account) === acct);
+  const ctorMissing = [];
+  if (!inCtor("DEFAULT_ADMIN_ROLE", TL)) ctorMissing.push("DEFAULT_ADMIN_ROLE -> timelock");
+  for (const r of ["PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE"]) for (const a of expected[r]) if (!inCtor(r, a)) ctorMissing.push(`${r} -> ${a}`);
+  att.constructorControl = ctorMissing.length === 0 ? `constructor grants found in deployment block ${FROM}` : `MISSING in deployment block ${FROM}: ${ctorMissing.join("; ")}`;
+  for (const x of ctorMissing) problems.push(`positive control failed: constructor grant ${x} not found in deployment block ${FROM}`);
+
   // exact equality per role
-  for (const r of Object.values(ROLE_NAMES)) {
+  for (const r of ROLE_LIST) {
     const got = holders[r] ?? new Set();
-    if (!eq(got, expected[r])) {
-      problems.push(`${r}: history holders [${[...got].join(", ")}] != manifest [${[...expected[r]].join(", ")}]`);
-    }
+    if (!eq(got, expected[r])) problems.push(`${r}: history holders [${[...got].join(", ")}] != manifest [${[...expected[r]].join(", ")}]`);
   }
   for (const r of unknownRoles) problems.push(`unexpected role id granted: ${r} holders [${[...(holders[r] ?? [])].join(", ")}]`);
-  for (const a of mustNothing) {
-    for (const r of Object.values(ROLE_NAMES)) if ((holders[r] ?? new Set()).has(a)) problems.push(`mustHoldNothing account ${a} holds ${r}`);
-  }
-  // state cross-check at the scan head
+  for (const a of mustNothing) for (const r of ROLE_LIST) if ((holders[r] ?? new Set()).has(a)) problems.push(`mustHoldNothing account ${a} holds ${r}`);
+
+  // state cross-check at the pinned head
   const live = [];
-  for (const r of Object.values(ROLE_NAMES)) {
+  for (const r of ROLE_LIST) {
     const acc = new Set([...(holders[r] ?? []), ...expected[r], ...mustNothing]);
     for (const a of acc) {
-      const v = await s1.c.readContract({ address: TL, abi: [HASROLE], functionName: "hasRole", args: [ROLE_ID[r], a], blockNumber: s1.head });
+      const val = await c1.readContract({ address: TL, abi: [HASROLE], functionName: "hasRole", args: [ROLE_ID[r], a], blockNumber: head });
       const want = (holders[r] ?? new Set()).has(a);
-      live.push({ role: r, account: a, hasRole: v });
-      if (v !== want) problems.push(`state cross-check: hasRole(${r}, ${a}) = ${v} but the replayed history says ${want}`);
+      live.push({ role: r, account: a, hasRole: val });
+      if (val !== want) problems.push(`state cross-check: hasRole(${r}, ${a}) = ${val} but the replayed history says ${want}`);
     }
   }
+
+  // M2: the second endpoint must serve the SAME pinned head and return the identical canonical log list
   let second = "completeness NOT independently verified (no --rpc2)";
-  if (RPC2) {
-    const s2 = await scan(RPC2);
-    const key = (l) => `${l.blockNumber}:${l.logIndex}:${l.transactionHash}`;
-    const k1 = s1.logs.filter((l) => l.blockNumber <= s2.head).map(key).join("|");
-    const k2 = s2.logs.filter((l) => l.blockNumber <= s1.head).map(key).join("|");
-    second = k1 === k2 ? `second endpoint ${redact(RPC2)} returned the identical ${s2.logs.length} role logs` : "SECOND ENDPOINT DISAGREES";
-    if (k1 !== k2) problems.push("second endpoint returned a different role-log set");
+  if (c2) {
+    let head2Hash = null;
+    try { head2Hash = (await c2.getBlock({ blockNumber: head })).hash; } catch { head2Hash = null; }
+    const head2 = await c2.getBlockNumber();
+    if (head2Hash === null || head2 < head) {
+      problems.push(`--rpc2 does not serve the pinned head block ${head} (its head is ${head2}: lagging endpoint)`);
+      second = "SECOND ENDPOINT LAGGING";
+    } else if (head2Hash !== headHash) {
+      problems.push(`--rpc2 block ${head} hash ${head2Hash} != primary ${headHash} (different chain or fork)`);
+      second = "SECOND ENDPOINT ON A DIFFERENT CHAIN / FORK";
+    } else {
+      const depth2 = await depthProbe(c2);
+      att.rpc2DepthProbe = depth2;
+      if (!depth2) problems.push("--rpc2 depth probe failed (not an archive for the deployment block)");
+      const logs2 = await scanLogs(c2, head);
+      const k1 = logs.map(canon);
+      const k2 = logs2.map(canon);
+      const firstDiff = (() => { for (let i = 0; i < Math.max(k1.length, k2.length); ++i) if (JSON.stringify(k1[i]) !== JSON.stringify(k2[i])) return i; return -1; })();
+      if (firstDiff >= 0) {
+        problems.push(`--rpc2 returned a different role-log list over [${FROM}, ${head}] (${k2.length} vs ${k1.length} logs; first difference at index ${firstDiff}: ${JSON.stringify(k2[firstDiff] ?? null)} vs ${JSON.stringify(k1[firstDiff] ?? null)})`);
+        second = "SECOND ENDPOINT DISAGREES";
+      } else {
+        second = `second endpoint ${redact(RPC2)} served the same head ${head} (${headHash}), passed its depth probe and returned the identical ${k2.length} role logs (canonical fields)`;
+      }
+    }
+    // reorg guard: the pinned head must still be canonical on both endpoints after the scan
+    const again2 = await c2.getBlock({ blockNumber: head }).then((b) => b.hash).catch(() => null);
+    if (head2Hash !== null && again2 !== head2Hash) problems.push(`--rpc2 head block ${head} changed during the scan (reorg)`);
   }
+  const again1 = (await c1.getBlock({ blockNumber: head })).hash;
+  if (again1 !== headHash) problems.push(`primary head block ${head} changed during the scan (reorg)`);
+
+  att.roles = Object.fromEntries(ROLE_LIST.map((r) => [r, [...(holders[r] ?? [])]]));
+  att.unknownRoles = unknownRoles;
+  att.completeness = second;
   const report = {
-    timelock: TL, deploymentBlock: FROM.toString(), headBlock: s1.head.toString(), endpoint: redact(RPC),
-    logs: s1.logs.length, depthProbe: s1.depthOk,
-    holders: Object.fromEntries(Object.entries(holders).map(([r, s]) => [r, [...s]])),
+    ...att, holders: Object.fromEntries(Object.entries(holders).map(([r, s]) => [r, [...s]])),
     expected: Object.fromEntries(Object.entries(expected).map(([r, s]) => [r, [...s]])),
-    mustHoldNothing: mustNothing, liveHasRole: live, completeness: second,
-    note: "A log scan cannot prove completeness from its own results; see the checks above.",
-    problems, ok: problems.length === 0,
+    liveHasRole: live, problems, ok: problems.length === 0,
   };
-  if (OUT) writeFileSync(OUT, JSON.stringify(report, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2) + "\n");
-  if (ATTEST) {
-    const chainId = await s1.c.getChainId();
-    const headBlk = await s1.c.getBlock({ blockNumber: s1.head });
-    const att = {
-      schema: "d5b-timelock-roles-attestation/1",
-      result: problems.length === 0 ? "PASS" : "FAIL",
-      chainId, timelock: TL,
-      manifestPath: MANIFEST, manifestSha256, manifestKeccak256,
-      deploymentBlock: Number(FROM), headBlock: Number(s1.head), headBlockHash: headBlk.hash,
-      roles: Object.fromEntries(Object.values(ROLE_NAMES).map((r) => [r, [...(holders[r] ?? [])]])),
-      unknownRoles, mustHoldNothing: mustNothing, logs: s1.logs.length, depthProbe: s1.depthOk,
-      completeness: second, rpc2Used: !!RPC2, endpoint: redact(RPC),
-      problems,
-      checker: { path: "script/governance/check-timelock-roles.mjs", version: CHECKER_VERSION, gitCommit, gitDirty },
-      note: "Generated by the checker, not cryptographically signed; UpgradeViaTimelock re-verifies chainId, timelock, manifest hash, freshness and every attested holder on-chain.",
-    };
-    const path = ATTEST === "auto" ? `deployments/attestations/timelock-roles.${m.network ?? "unknown"}.${s1.head}.json` : ATTEST;
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify(att, null, 2) + "\n");
-    console.log(`attestation written: ${path} (result ${att.result})`);
-  }
-  console.log(`timelock ${TL}: ${s1.logs.length} role logs in [${FROM}, ${s1.head}] from ${redact(RPC)}; depth probe ${s1.depthOk ? "ok" : "FAILED"}; ${second}`);
+  if (OUT) writeFileSync(OUT, JSON.stringify(report, (_, x) => (typeof x === "bigint" ? x.toString() : x), 2) + "\n");
+  console.log(`timelock ${TL} (chain ${chain1}${RPC2 ? `, rpc2 chain ${att.rpc2ChainId}` : ""}): ${logs.length} role logs in [${FROM}, ${head}] from ${redact(RPC)}; depth probe ${depth1 ? "ok" : "FAILED"}; ${second}`);
   for (const [r, s] of Object.entries(holders)) console.log(`  ${r}: ${[...s].join(", ") || "(none)"}`);
-  if (problems.length) {
-    console.log("TIMELOCK ROLE CHECK FAILED:");
-    for (const p of problems) console.log("  - " + p);
-    process.exit(1);
-  }
+  if (problems.length) fail(problems);
+  att.result = "PASS";
+  att.problems = [];
+  writeAttestation();
   console.log("TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest");
 }
 
-main().catch((e) => { console.error("infrastructure error:", e.shortMessage ?? e.message); process.exit(2); });
+main().catch((e) => {
+  const msg = `infrastructure error: ${e.shortMessage ?? e.message}`;
+  console.error(msg);
+  att.result = "FAIL";
+  att.problems = [msg];
+  try { writeAttestation(); } catch {}
+  process.exit(2);
+});

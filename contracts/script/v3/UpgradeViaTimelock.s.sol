@@ -203,9 +203,12 @@ contract UpgradeRegistryD5b is D5bUpgradeChecks {
  *                                                    SP.setGuardian(SAFE)] — runbook M1 ② / M2
  *           execute-accept    SAFE                   executeBatch + read-backs (owner == timelock, pendingOwner 0,
  *                                                    guardian == SAFE, minDelay == 172800)
- *         GUARD SCOPE: schedule-upgrade / execute-upgrade / schedule-accept / execute-accept run the M1
- *         preflight (a bounded known-account check against deployments/timelock-roles.<ENV>.json, see
- *         m1Preflight). deploy-impl, direct-upgrade and UpgradeRegistryD5b (runbook 5c) are PRE-M1 EOA
+ *           schedule-call     TL_TARGET, TL_CALLDATA any other governed call on SP / Registry (e.g. the M2
+ *                                                    unpause setGlobalPaused(false)); upgradeToAndCall refused
+ *           execute-call      TL_TARGET, TL_CALLDATA execute it
+ *         GUARD SCOPE: every schedule-* / execute-* mode runs governedGate (validateManifest + the M1
+ *         preflight, a bounded known-account check against deployments/timelock-roles.<ENV>.json, then the
+ *         event-history roles attestation TL_ROLES_ATTESTATION). deploy-impl, direct-upgrade and UpgradeRegistryD5b (runbook 5c) are PRE-M1 EOA
  *         paths and are NOT guarded by it (they touch no timelock; they rely on owner == broadcaster).
  *         TL_SALT (bytes32, default keccak256("d5b")). The proposer / executor is the broadcaster
  *         (`--sender`); when it lacks the role the script only PRINTS the calldata for the Safe.
@@ -222,6 +225,8 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         if (m == keccak256("direct-upgrade")) { directUpgrade(c, _target(), vm.envAddress("TL_NEW_IMPL"), msg.sender); return; }
         if (m == keccak256("schedule-accept")) { scheduleAccept(c, _safeOf(_manifest(c)), salt, msg.sender); return; }
         if (m == keccak256("execute-accept")) { executeAccept(c, _safeOf(_manifest(c)), salt, msg.sender); return; }
+        if (m == keccak256("schedule-call")) { scheduleCallWith(c, _target(), vm.envBytes("TL_CALLDATA"), salt, msg.sender, _manifest(c)); return; }
+        if (m == keccak256("execute-call")) { executeCallWith(c, _target(), vm.envBytes("TL_CALLDATA"), salt, msg.sender, _manifest(c)); return; }
         revert("UpgradeViaTimelock: unknown TL_MODE");
     }
 
@@ -242,6 +247,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     ///         Registry owners, …) — never derived from the proxies' current owner(), which stops naming
     ///         them once M1 has executed.
     struct RoleManifest {
+        uint256 chainId;      // must equal block.chainid (Codex re-check M1)
         address timelock;
         uint256 deploymentBlock;
         address[] admins;
@@ -249,6 +255,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         address[] cancellers;
         address[] executors;
         address[] mustHoldNothing;
+        string[] mustHoldNothingLabels; // one non-empty label per mustHoldNothing account
         // gate inputs (not part of the JSON manifest)
         bytes32 fileKeccak;   // keccak256 of the manifest file bytes as read
         string attestation;   // TL_ROLES_ATTESTATION: path of the checker's attestation file
@@ -266,6 +273,30 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         } catch {
             revert("M1 preflight: manifest deployments/timelock-roles.<ENV>.json missing");
         }
+        m = parseManifest(j);
+        m.attestation = vm.envOr("TL_ROLES_ATTESTATION", string(""));
+        m.optOut = vm.envOr("TL_ALLOW_NO_ATTESTATION", false);
+        require(m.timelock == c.timelock, "M1 preflight: manifest timelock != configured timelock");
+    }
+
+    string[10] internal MANIFEST_KEYS = [
+        ".network", ".chainId", ".timelock", ".deploymentBlock", ".roles.DEFAULT_ADMIN_ROLE",
+        ".roles.PROPOSER_ROLE", ".roles.CANCELLER_ROLE", ".roles.EXECUTOR_ROLE", ".mustHoldNothing",
+        ".mustHoldNothingLabels"
+    ];
+
+    /// @notice Parse a manifest body. EVERY schema field is required (Codex re-check M3: a manifest
+    ///         that omits a field must not parse as an empty — vacuously satisfied — set); the content
+    ///         rules (chainId, M1 policy, non-empty unique labelled mustHoldNothing) are enforced by
+    ///         validateManifest, which m1Preflight runs.
+    function parseManifest(string memory j) public view returns (RoleManifest memory m) {
+        require(!vm.keyExistsJson(j, "._placeholder"),
+            "M1 manifest: placeholder (the example schema with FAKE addresses) - not a network manifest");
+        for (uint256 i; i < MANIFEST_KEYS.length; ++i) {
+            require(vm.keyExistsJson(j, MANIFEST_KEYS[i]), string.concat("M1 manifest: missing field ", MANIFEST_KEYS[i]));
+        }
+        require(bytes(vm.parseJsonString(j, ".network")).length > 0, "M1 manifest: empty network");
+        m.chainId = vm.parseJsonUint(j, ".chainId");
         m.timelock = vm.parseJsonAddress(j, ".timelock");
         m.deploymentBlock = vm.parseJsonUint(j, ".deploymentBlock");
         m.admins = vm.parseJsonAddressArray(j, ".roles.DEFAULT_ADMIN_ROLE");
@@ -273,10 +304,33 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         m.cancellers = vm.parseJsonAddressArray(j, ".roles.CANCELLER_ROLE");
         m.executors = vm.parseJsonAddressArray(j, ".roles.EXECUTOR_ROLE");
         m.mustHoldNothing = vm.parseJsonAddressArray(j, ".mustHoldNothing");
+        m.mustHoldNothingLabels = vm.parseJsonStringArray(j, ".mustHoldNothingLabels");
         m.fileKeccak = keccak256(bytes(j));
-        m.attestation = vm.envOr("TL_ROLES_ATTESTATION", string(""));
-        m.optOut = vm.envOr("TL_ALLOW_NO_ATTESTATION", false);
-        require(m.timelock == c.timelock, "M1 preflight: manifest timelock != configured timelock");
+    }
+
+    /**
+     * @notice Content rules of a manifest (Codex re-check M1 + M3), checked first by m1Preflight:
+     *         chainId == block.chainid; a non-zero timelock and deployment block; all four role sets
+     *         non-empty (m1Preflight then requires exactly the M1 policy); `mustHoldNothing` non-empty,
+     *         every entry non-zero and unique, with exactly one non-empty label per entry. An empty
+     *         mustHoldNothing would make the "historical accounts hold nothing" check vacuous.
+     */
+    function validateManifest(RoleManifest memory m) public view {
+        require(m.chainId != 0 && m.chainId == block.chainid, "M1 manifest: chainId != this chain");
+        require(m.timelock != address(0), "M1 manifest: zero timelock");
+        require(m.deploymentBlock != 0, "M1 manifest: deploymentBlock unset");
+        require(m.admins.length != 0 && m.proposers.length != 0 && m.cancellers.length != 0 && m.executors.length != 0,
+            "M1 manifest: empty role set");
+        uint256 n = m.mustHoldNothing.length;
+        require(n != 0, "M1 manifest: mustHoldNothing is empty");
+        require(m.mustHoldNothingLabels.length == n, "M1 manifest: one label per mustHoldNothing account");
+        for (uint256 i; i < n; ++i) {
+            require(m.mustHoldNothing[i] != address(0), "M1 manifest: zero address in mustHoldNothing");
+            require(bytes(m.mustHoldNothingLabels[i]).length != 0, "M1 manifest: empty mustHoldNothing label");
+            for (uint256 k = i + 1; k < n; ++k) {
+                require(m.mustHoldNothing[i] != m.mustHoldNothing[k], "M1 manifest: duplicate in mustHoldNothing");
+            }
+        }
     }
 
     /// @notice Public for tests / operators: the manifest the governed modes will enforce.
@@ -309,7 +363,8 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
      *         full holder set from the RoleGranted / RoleRevoked history and must equal the manifest;
      *         the runbook requires running it (output archived) before every schedule.
      *
-     *         Reverts unless: minDelay == 172800 exactly; the manifest is for this timelock and states the
+     *         Reverts unless: the manifest passes validateManifest (chainId == block.chainid, complete and
+     *         non-vacuous); minDelay == 172800 exactly; the manifest is for this timelock and states the
      *         M1 policy (DEFAULT_ADMIN = [timelock]; PROPOSER = CANCELLER = EXECUTOR = [Safe]); every
      *         listed holder holds its role; the executor role is not open (address(0)); the Safe does not
      *         hold DEFAULT_ADMIN; and no `mustHoldNothing` account holds any of the four roles. Execution
@@ -317,6 +372,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
      *         unlocked / pranked Safe); any other caller only gets the calldata to submit from the Safe.
      */
     function m1Preflight(TimelockController tl, RoleManifest memory m) public view {
+        validateManifest(m);
         require(m.timelock == address(tl), "M1 preflight: manifest timelock != timelock");
         require(tl.getMinDelay() == GOV1_MIN_DELAY, "M1 preflight: minDelay != 172800");
         address safe = m.proposers.length == 1 ? m.proposers[0] : address(0);
@@ -586,5 +642,59 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         require(tl.getMinDelay() == GOV1_MIN_DELAY, "M1 read-back: minDelay != 172800");
         require(!tl.hasRole(tl.EXECUTOR_ROLE(), address(0)), "M1 read-back: executor is OPEN (spec: multisig only)");
         console.log("  M1/M2 read-back OK: owners == timelock, pendingOwner == 0, guardian == SAFE, minDelay == 48h", address(tl));
+    }
+
+    /// @dev A governed call must not be an upgrade: upgrades go through schedule-upgrade / execute-upgrade,
+    ///      which carry the implementation checks and read-backs.
+    function _governedCall(Cfg memory c, bool isSP, bytes memory data) internal pure returns (address proxy) {
+        require(data.length >= 4, "governed call: calldata too short");
+        require(bytes4(data) != ID5bOwned.upgradeToAndCall.selector, "governed call: use schedule-upgrade for upgrades");
+        proxy = isSP ? c.sp : c.registry;
+    }
+
+    /// @notice Schedule any other timelock-governed SP / Registry call (runbook M2 unpause, parameter
+    ///         changes) behind the same gate as the upgrade and acceptance paths (Codex re-check L1).
+    function scheduleCallWith(Cfg memory c, bool isSP, bytes memory data, bytes32 salt, address proposer,
+        RoleManifest memory m) public returns (bytes32 id)
+    {
+        TimelockController tl = _timelock(c);
+        governedGate(tl, m);
+        address safe = _safeOf(m);
+        address proxy = _governedCall(c, isSP, data);
+        require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");
+        uint256 delay = tl.getMinDelay();
+        id = tl.hashOperation(proxy, 0, data, bytes32(0), salt);
+        if (proposer == safe) {
+            vm.startBroadcast(proposer);
+            tl.schedule(proxy, 0, data, bytes32(0), salt, delay);
+            vm.stopBroadcast();
+            require(tl.isOperationPending(id), "schedule: not pending after schedule");
+            console.log("  call scheduled; ready at:", tl.getTimestamp(id));
+        } else {
+            console.log("  broadcaster is not the Safe - submit this from the Safe:");
+            console.logBytes(abi.encodeCall(TimelockController.schedule, (proxy, 0, data, bytes32(0), salt, delay)));
+        }
+        console.logBytes32(id);
+    }
+
+    function executeCallWith(Cfg memory c, bool isSP, bytes memory data, bytes32 salt, address executor,
+        RoleManifest memory m) public
+    {
+        TimelockController tl = _timelock(c);
+        governedGate(tl, m); // again, immediately before the execute broadcast
+        address safe = _safeOf(m);
+        address proxy = _governedCall(c, isSP, data);
+        bytes32 id = tl.hashOperation(proxy, 0, data, bytes32(0), salt);
+        require(tl.isOperationReady(id), "execute: operation not ready (not scheduled, or minDelay not elapsed)");
+        if (executor != safe) {
+            console.log("  broadcaster is not the Safe - submit this from the Safe:");
+            console.logBytes(abi.encodeCall(TimelockController.execute, (proxy, 0, data, bytes32(0), salt)));
+            return;
+        }
+        vm.startBroadcast(executor);
+        tl.execute(proxy, 0, data, bytes32(0), salt);
+        vm.stopBroadcast();
+        require(tl.isOperationDone(id), "execute: operation not done");
+        console.log("  governed call executed", proxy);
     }
 }
