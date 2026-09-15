@@ -73,12 +73,21 @@ contract MintRepayLemmaFuzzTest is Test {
     }
 
     /// Real token path: build a debt through the credit flow, then mint; the balance never drops.
+    /// Domains (Codex M5): the rate inside the proven range R; the debt over everything the credit
+    /// path admits (up to PROTOCOL_CREDIT_CEILING = maxSingleTxLimit = 50,000e18, the limit raised to
+    /// its maximum); the minted amount over the whole uint256 (a mint whose m * 1e18 or totalSupply
+    /// overflows reverts and must change nothing). `mode` only shapes the distribution of m.
     /// forge-config: default.fuzz.runs = 10000
-    function testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256 rate, uint256 debtA, uint256 m) public {
+    function testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256 rate, uint256 debtA, uint256 m, uint256 mode) public {
         rate = bound(rate, 1e14, 1e22);
-        debtA = bound(debtA, 1, 5_000 ether);
-        m = bound(m, 1, 1e30);
+        debtA = bound(debtA, 1, 50_000 ether);
+        mode %= 4;
+        if (mode == 1) m %= (50_000 ether * rate / 1e18 + 2);                  // around the debt, in xPNTs
+        else if (mode == 2) m = type(uint256).max / 1e18 - (m % 3);            // the largest mints
+        else if (mode == 3) m %= uint256(1) << 129;
         xPNTsTokenV2 t = V2TokenDeployer.newToken(st, owner_, address(0xC1), sp, rate);
+        vm.prank(owner_);
+        IxPNTsV2Admin(address(t)).setMaxSingleTxLimit(50_000 ether);
         registry.setCreditLimit(user, 50_000 ether);
         vm.prank(owner_);
         IxPNTsV2Admin(address(t)).queueCreditPolicy(2);
@@ -92,7 +101,11 @@ contract MintRepayLemmaFuzzTest is Test {
         vm.stopPrank();
         assertEq(t.debts(user), debtA);
         uint256 b0 = t.balanceOf(user);
-        IxPNTsV2Admin(address(t)).mint(user, m); // test contract = FACTORY
+        (bool ok, ) = address(t).call(abi.encodeWithSignature("mint(address,uint256)", user, m)); // test contract = FACTORY
+        if (!ok) {
+            assertTrue(m > type(uint256).max / 1e18, "only an overflowing m * 1e18 can make this mint revert");
+            assertEq(t.debts(user), debtA);
+        }
         assertGe(t.balanceOf(user), b0, "lemma M: mint never lowers the recipient's balance");
         assertLe(t.debts(user), debtA, "debt only falls");
     }
