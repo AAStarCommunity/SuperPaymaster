@@ -139,7 +139,7 @@ MUTATIONS = [
         "red": ["test_gov2_sp_transferOwnership_via_proxy_is_two_step"],
         "blind": ["test_gov2_sp_transferOwnership_requires_owner"],
     },
-    # ---- Codex re-check of ed2a4762 (M1 / M3 / L1): the governed-flow gate in UpgradeViaTimelock
+    # ---- Codex re-check of ed2a4762 (M1 / M3 / L1): the operator preflight in UpgradeViaTimelock
     {
         "name": "j-manifest-validation-skipped",
         "what": "Codex re-check M1/M3: m1Preflight no longer runs validateManifest (chainId, non-vacuous manifest)",
@@ -165,21 +165,70 @@ MUTATIONS = [
         "edits": [(UVT, """        require(bytes4(data) != ID5bOwned.upgradeToAndCall.selector, "governed call: use schedule-upgrade for upgrades");
 """, "")],
         "red": ["test_governed_call_refuses_upgrade"],
-        "blind": ["test_governed_call_unpause_goes_through_gate"],
+        "blind": ["test_governed_call_unpause_runs_operator_preflight"],
         "suites": [PF],
     },
     {
-        "name": "m-governed-call-ungated",
-        "what": "Codex re-check L1: scheduleCallWith (the M2 unpause path) skips governedGate",
-        "edits": [(UVT, """        governedGate(tl, m);
+        "name": "m-governed-call-skips-operator-preflight",
+        "what": "Codex re-check L1: scheduleCallWith (the M2 unpause path) skips operatorPreflight",
+        "edits": [(UVT, """        operatorPreflight(tl, m);
         address safe = _safeOf(m);
         address proxy = _governedCall(c, isSP, data);
         require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");""",
                    """        address safe = _safeOf(m);
         address proxy = _governedCall(c, isSP, data);
         require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");""")],
-        "red": ["test_governed_call_unpause_goes_through_gate"],
+        "red": ["test_governed_call_unpause_runs_operator_preflight"],
         "blind": ["test_governed_call_refuses_upgrade", "test_attestation_missing_reverts"],
+        "suites": [PF],
+    },
+    # ---- Codex re-check of 626b6ea8 (Medium + operator-safety items): still an operator preflight
+    {
+        "name": "n-attestation-schema-unchecked",
+        "what": "Codex re-check of 626b6ea8 (Medium): the attestation .schema is no longer checked",
+        "edits": [(UVT, """        require(vm.keyExistsJson(j, ".schema")
+            && keccak256(bytes(vm.parseJsonString(j, ".schema"))) == keccak256(bytes(ATTEST_SCHEMA)),
+            "roles attestation: schema != d5b-timelock-roles-attestation/2");
+""", "")],
+        "red": ["test_attestation_wrong_schema_reverts"],
+        "blind": ["test_attestation_result_fail_reverts", "test_preflight_correct_timelock_passes_and_M1_completes"],
+        "suites": [PF],
+    },
+    {
+        "name": "o-whitespace-label-accepted",
+        "what": "Codex re-check of 626b6ea8 (Medium): labels are no longer trimmed (whitespace-only accepted)",
+        "edits": [(UVT, "            require(!_isBlank(m.mustHoldNothingLabels[i]), \"M1 manifest: empty mustHoldNothing label\");",
+                   "            require(bytes(m.mustHoldNothingLabels[i]).length != 0, \"M1 manifest: empty mustHoldNothing label\");")],
+        "red": ["test_manifest_whitespace_only_label_rejected"],
+        "blind": ["test_manifest_vacuous_fields_each_rejected"],
+        "suites": [PF],
+    },
+    {
+        "name": "p-extra-role-key-accepted",
+        "what": "Codex re-check of 626b6ea8 (Medium): an extra key under .roles is no longer rejected",
+        "edits": [(UVT, """        require(vm.parseJsonKeys(j, ".roles").length == 4, "M1 manifest: unknown role key in .roles");
+""", "")],
+        "red": ["test_manifest_extra_role_key_rejected"],
+        "blind": ["test_manifest_file_missing_field_each_rejected"],
+        "suites": [PF],
+    },
+    {
+        "name": "q-head-block-hash-unchecked",
+        "what": "Codex re-check of 626b6ea8 (operator safety): headBlockHash is no longer compared with blockhash()",
+        "edits": [(UVT, """            require(chainHash == attestedHash, "roles attestation: headBlockHash != this chain's block (fork / reorg)");
+""", "")],
+        "red": ["test_attestation_head_block_hash_checked_when_available"],
+        "blind": ["test_attestation_stale_head_reverts", "test_attestation_wrong_chainid_reverts"],
+        "suites": [PF],
+    },
+    {
+        "name": "r-max-age-raise-anywhere",
+        "what": "Codex re-check of 626b6ea8 (operator safety): TL_ATTEST_MAX_AGE may be raised on a live chain",
+        "edits": [(UVT, """        require(requested <= ATTEST_MAX_AGE_BLOCKS || _isLocalChain(),
+            "roles attestation: TL_ATTEST_MAX_AGE above 300 is local-only");
+""", "")],
+        "red": ["test_attest_max_age_raise_is_local_only"],
+        "blind": ["test_attestation_stale_head_reverts"],
         "suites": [PF],
     },
 ]

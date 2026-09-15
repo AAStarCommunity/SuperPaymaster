@@ -15,9 +15,10 @@
 #            execute → +48h → execute-upgrade (read-backs: impl slot, version, owner, pendingOwner 0,
 #            default artifacts incl. the SP extension binding, BLS legs, raw slots).
 #   M2     : guardian (the Safe) pauses; guardian unpause reverts; the unpause is scheduled / executed
-#            through UpgradeViaTimelock schedule-call / execute-call (checker -> attestation -> gate).
+#            through UpgradeViaTimelock schedule-call / execute-call (checker -> attestation -> operator preflight).
 #   EVERY timelock schedule / execute above runs check-timelock-roles.mjs first and passes its
-#   attestation (TL_ROLES_ATTESTATION); each gate also has a negative 'WITHOUT a roles attestation'.
+#   attestation (TL_ROLES_ATTESTATION) — an operator preflight, not an enforcement boundary; each kind
+#   also has a negative 'WITHOUT a roles attestation' (the script run stops).
 # Usage: scripts/d5b-anvil-rehearsal.sh <workDir>   (plain `forge build` first: default artifacts)
 # =============================================================================
 set -euo pipefail
@@ -130,7 +131,7 @@ send "$MULTISIG" "$SP" "setGlobalPaused(bool)" true
 echo "  paused() = $("$CAST" call "$SP" 'paused()(bool)' --rpc-url "$RPC")"
 must_fail "guardian unpause" "$CAST" send --rpc-url "$RPC" --unlocked --from "$MULTISIG" "$SP" "setGlobalPaused(bool)" false
 UNP=$("$CAST" calldata "setGlobalPaused(bool)" false)
-# Codex re-check L1: the unpause is a timelock schedule like any other -> checker -> attestation -> gate
+# Codex re-check L1: the unpause is a timelock schedule like any other -> checker -> attestation -> operator preflight
 must_fail "schedule-call (unpause) WITHOUT a roles attestation" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-call TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause)
 roles_check before-M2-unpause
 fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause) | tee "$W/M2-schedule.log" | grep -E "roles attestation|scheduled|Error|revert" || true

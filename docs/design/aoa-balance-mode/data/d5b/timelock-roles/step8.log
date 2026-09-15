@@ -1,7 +1,7 @@
 timelock 0x5FbDB2315678afecb367f032d93F642f64180aa3 (chain 31337): 4 role logs in [4, 7] from http://127.0.0.1:18792; depth probe FAILED; completeness NOT independently verified (no --rpc2)
   PROPOSER_ROLE: (none)
   EXECUTOR_ROLE: (none)
-attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st2/att8.json (result FAIL)
+attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st3/att8.json (result FAIL)
 TIMELOCK ROLE CHECK FAILED:
   - depth probe failed: no code at deploymentBlock 4 or code already at 3 (wrong block or non-archive endpoint)
   - positive control failed: constructor grant DEFAULT_ADMIN_ROLE -> timelock not found in deployment block 4

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Self-test of script/governance/check-timelock-roles.mjs on LOCAL anvils (no public RPC; anvil's public
+# Self-test of script/governance/check-timelock-roles.mjs (an OPERATOR check, not a security boundary) on LOCAL anvils (no public RPC; anvil's public
 # dev accounts via --unlocked / impersonation; no private key is passed or printed). Every FAIL step also
 # names the problem line it must produce (so a FAIL for the wrong reason does not count), and every step
 # checks the attestation the checker wrote (--attest): result PASS iff the check passed.
@@ -20,7 +20,9 @@
 #   E  manifest (M3)     each required field missing, empty role set, empty / duplicate / zero
 #                        mustHoldNothing, label count / empty label, the committed example
 #                        (placeholder) -> FAIL; the example minus `_placeholder` fails ONLY on its chain
-#   F  --chunk (L2)      0, -5, 1.5, abc, missing value -> exit 2, no attestation written
+#   F  exit 2            --chunk 0 / -5 / 1.5 / abc / missing value, unreadable manifest, missing --rpc,
+#                        unreachable endpoint -> exit 2, and the PASS already at the --attest path is
+#                        replaced by a FAIL naming the reason; --chunk 1 -> PASS (control)
 # Usage: scripts/d5b-timelock-roles-selftest.sh <workDir>   (plain `forge build` first)
 # =============================================================================
 set -euo pipefail
@@ -28,7 +30,7 @@ W="$1"; mkdir -p "$W"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 ANVIL="${ANVIL:-$HOME/.foundry/bin/anvil}"; CAST="${CAST:-$HOME/.foundry/bin/cast}"
 PORT="${PORT:-18792}"; RPC="http://127.0.0.1:$PORT"
-P2=$((PORT + 1)); P3=$((PORT + 2)); PP=$((PORT + 3))
+P2=$((PORT + 1)); PP=$((PORT + 3))
 OWNER=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266     # anvil #0: deployer / old owner (mustHoldNothing)
 SAFE=0x70997970C51812dc3A010C7d01b50e0d17dc79C8      # anvil #1: the governance Safe
 X=0x00000000000000000000000000000000000AD111         # an address the manifest does not name
@@ -165,16 +167,24 @@ M="$W/example-unflagged.json"; expect 1 "the example minus _placeholder: complet
 if grep -q "manifest:" "$W/step$n.log"; then bad "the example has a schema problem"; fi
 M="$M_SAVE"
 
-echo "== F: --chunk must be a strictly positive integer (Codex re-check L2)"
-for c in 0 -5 1.5 abc ""; do
-  n=$((n+1)); rm -f "$W/att$n.json"
-  set +e
-  if [ -z "$c" ]; then $CHECK --rpc "$RPC" --manifest "$M" --attest "$W/att$n.json" --chunk >"$W/step$n.log" 2>&1
-  else $CHECK --rpc "$RPC" --manifest "$M" --attest "$W/att$n.json" --chunk "$c" >"$W/step$n.log" 2>&1; fi
-  rc=$?; set -e
-  if [ "$rc" != 2 ] || [ -e "$W/att$n.json" ] || ! grep -q "usage error" "$W/step$n.log"; then bad "--chunk '$c' (exit $rc)"; continue; fi
-  echo "  step $n ok: --chunk '${c:-<missing>}' -> exit 2, no attestation"
+echo "== F: exit-2 paths replace an earlier PASS (--chunk: Codex re-check L2 of ed2a4762; overwrite: Low of 626b6ea8)"
+# every exit-2 run below targets an --attest path that already holds a genuine PASS (step 1's attestation)
+python3 -c "import json,sys;assert json.load(open(sys.argv[1]))['result']=='PASS'" "$W/att1.json" || bad "precondition: step 1 attestation is not a PASS"
+exit2() { # <label> <checker args...>: seeded PASS at $W/att$n.json must become FAIL with the reason, exit 2
+  local label="$1"; shift
+  n=$((n+1)); cp "$W/att1.json" "$W/att$n.json"
+  set +e; $CHECK "$@" >"$W/step$n.log" 2>&1; local rc=$?; set -e
+  local res; res=$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(d['result'], '|'.join(d['problems']))" "$W/att$n.json" 2>/dev/null || echo "none")
+  if [ "$rc" != 2 ] || [ "${res%% *}" != FAIL ]; then bad "$label (exit $rc, attestation now: $res)"; return 0; fi
+  echo "  step $n ok: $label -> exit 2, the earlier PASS at that path is now FAIL (${res#* })"
+}
+for c in 0 -5 1.5 abc; do
+  exit2 "--chunk '$c'" --rpc "$RPC" --manifest "$M" --attest "$W/att$((n+1)).json" --chunk "$c"
 done
+exit2 "--chunk without a value" --rpc "$RPC" --manifest "$M" --attest "$W/att$((n+1)).json" --chunk
+exit2 "manifest file unreadable" --rpc "$RPC" --manifest "$W/no-such-manifest.json" --attest "$W/att$((n+1)).json"
+exit2 "--rpc missing" --manifest "$M" --attest "$W/att$((n+1)).json"
+exit2 "endpoint unreachable (infrastructure error)" --rpc "http://127.0.0.1:1" --manifest "$M" --attest "$W/att$((n+1)).json"
 expect 0 "--chunk 1 (smallest valid; control)" - --chunk 1
 
 if [ "$BAD" != 0 ]; then echo "TIMELOCK ROLE CHECKER SELF-TEST FAILED: $BAD of $n steps"; exit 1; fi

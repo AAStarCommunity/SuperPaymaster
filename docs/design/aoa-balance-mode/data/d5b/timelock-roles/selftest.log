@@ -38,11 +38,14 @@
   step 32 ok: blank label (exit 1; "manifest: .mustHoldNothingLabels[0] must be a non-empty string")
   step 33 ok: the committed example (FAKE placeholders) (exit 1; "manifest: `_placeholder` is set")
   step 34 ok: the example minus _placeholder: complete schema, fails only on its chain (exit 1; "chain mismatch: --rpc chainId 31337 != manifest chainId 11155111")
-== F: --chunk must be a strictly positive integer (Codex re-check L2)
-  step 35 ok: --chunk '0' -> exit 2, no attestation
-  step 36 ok: --chunk '-5' -> exit 2, no attestation
-  step 37 ok: --chunk '1.5' -> exit 2, no attestation
-  step 38 ok: --chunk 'abc' -> exit 2, no attestation
-  step 39 ok: --chunk '<missing>' -> exit 2, no attestation
-  step 40 ok: --chunk 1 (smallest valid; control) (exit 0)
-TIMELOCK ROLE CHECKER SELF-TEST OK (40 steps)
+== F: exit-2 paths replace an earlier PASS (--chunk: Codex re-check L2 of ed2a4762; overwrite: Low of 626b6ea8)
+  step 35 ok: --chunk '0' -> exit 2, the earlier PASS at that path is now FAIL (usage error: --chunk must be a strictly positive integer, got "0")
+  step 36 ok: --chunk '-5' -> exit 2, the earlier PASS at that path is now FAIL (usage error: --chunk must be a strictly positive integer, got "-5")
+  step 37 ok: --chunk '1.5' -> exit 2, the earlier PASS at that path is now FAIL (usage error: --chunk must be a strictly positive integer, got "1.5")
+  step 38 ok: --chunk 'abc' -> exit 2, the earlier PASS at that path is now FAIL (usage error: --chunk must be a strictly positive integer, got "abc")
+  step 39 ok: --chunk without a value -> exit 2, the earlier PASS at that path is now FAIL (usage error: --chunk needs a value)
+  step 40 ok: manifest file unreadable -> exit 2, the earlier PASS at that path is now FAIL (usage error: cannot read manifest /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st3/no-such-manifest.json: ENOENT: no such file or directory, open '/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st3/no-such-manifest.json')
+  step 41 ok: --rpc missing -> exit 2, the earlier PASS at that path is now FAIL (usage error: --rpc and --manifest are required)
+  step 42 ok: endpoint unreachable (infrastructure error) -> exit 2, the earlier PASS at that path is now FAIL (infrastructure error: HTTP request failed.)
+  step 43 ok: --chunk 1 (smallest valid; control) (exit 0)
+TIMELOCK ROLE CHECKER SELF-TEST OK (43 steps)

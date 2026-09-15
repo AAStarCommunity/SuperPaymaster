@@ -206,12 +206,19 @@ contract UpgradeRegistryD5b is D5bUpgradeChecks {
  *           schedule-call     TL_TARGET, TL_CALLDATA any other governed call on SP / Registry (e.g. the M2
  *                                                    unpause setGlobalPaused(false)); upgradeToAndCall refused
  *           execute-call      TL_TARGET, TL_CALLDATA execute it
- *         GUARD SCOPE: every schedule-* / execute-* mode runs governedGate (validateManifest + the M1
- *         preflight, a bounded known-account check against deployments/timelock-roles.<ENV>.json, then the
- *         event-history roles attestation TL_ROLES_ATTESTATION). deploy-impl, direct-upgrade and UpgradeRegistryD5b (runbook 5c) are PRE-M1 EOA
- *         paths and are NOT guarded by it (they touch no timelock; they rely on owner == broadcaster).
+ *         OPERATOR PREFLIGHT, NOT AN ENFORCEMENT BOUNDARY: every schedule-* / execute-* mode first runs
+ *         operatorPreflight (validateManifest + m1Preflight, a bounded known-account check against
+ *         deployments/timelock-roles.<ENV>.json, then requireRolesAttestation on the event-history
+ *         checker's UNSIGNED attestation TL_ROLES_ATTESTATION). It only protects the run of THIS script.
+ *         On a live chain the Safe is a contract: the calldata this script prints IS the production path,
+ *         and nothing binds what the Safe signers later submit (or build themselves) to this preflight or
+ *         to any attestation. The on-chain basis of role exclusivity is the timelock's own
+ *         self-administration (D5b-design §6.3d): after M1 the only DEFAULT_ADMIN is the timelock, so every
+ *         grantRole / revokeRole is itself a public, 48h-delayed timelock operation, to be monitored and
+ *         reviewed by the Safe signers. deploy-impl, direct-upgrade and UpgradeRegistryD5b (runbook 5c) are
+ *         PRE-M1 EOA paths and do not run the preflight (they touch no timelock; owner == broadcaster).
  *         TL_SALT (bytes32, default keccak256("d5b")). The proposer / executor is the broadcaster
- *         (`--sender`); when it lacks the role the script only PRINTS the calldata for the Safe.
+ *         (`--sender`); when it is not the Safe the script only PRINTS the calldata for the Safe.
  */
 contract UpgradeViaTimelock is D5bUpgradeChecks {
     function run() external {
@@ -256,7 +263,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         address[] executors;
         address[] mustHoldNothing;
         string[] mustHoldNothingLabels; // one non-empty label per mustHoldNothing account
-        // gate inputs (not part of the JSON manifest)
+        // preflight inputs (not part of the JSON manifest)
         bytes32 fileKeccak;   // keccak256 of the manifest file bytes as read
         string attestation;   // TL_ROLES_ATTESTATION: path of the checker's attestation file
         bool optOut;          // TL_ALLOW_NO_ATTESTATION: local chains only, loudly logged
@@ -296,6 +303,8 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
             require(vm.keyExistsJson(j, MANIFEST_KEYS[i]), string.concat("M1 manifest: missing field ", MANIFEST_KEYS[i]));
         }
         require(bytes(vm.parseJsonString(j, ".network")).length > 0, "M1 manifest: empty network");
+        // the four role keys exist (checked above); any further key under .roles is rejected, as in the checker
+        require(vm.parseJsonKeys(j, ".roles").length == 4, "M1 manifest: unknown role key in .roles");
         m.chainId = vm.parseJsonUint(j, ".chainId");
         m.timelock = vm.parseJsonAddress(j, ".timelock");
         m.deploymentBlock = vm.parseJsonUint(j, ".deploymentBlock");
@@ -326,16 +335,47 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         require(m.mustHoldNothingLabels.length == n, "M1 manifest: one label per mustHoldNothing account");
         for (uint256 i; i < n; ++i) {
             require(m.mustHoldNothing[i] != address(0), "M1 manifest: zero address in mustHoldNothing");
-            require(bytes(m.mustHoldNothingLabels[i]).length != 0, "M1 manifest: empty mustHoldNothing label");
+            require(!_isBlank(m.mustHoldNothingLabels[i]), "M1 manifest: empty mustHoldNothing label");
             for (uint256 k = i + 1; k < n; ++k) {
                 require(m.mustHoldNothing[i] != m.mustHoldNothing[k], "M1 manifest: duplicate in mustHoldNothing");
             }
         }
     }
 
-    /// @notice Public for tests / operators: the manifest the governed modes will enforce.
+    /// @dev True when `s` is empty or consists only of whitespace. Mirrors the checker's JS String.trim():
+    ///      ASCII \t \n \v \f \r space, and the UTF-8 encodings of U+00A0, U+1680, U+2000-U+200A,
+    ///      U+2028, U+2029, U+202F, U+205F, U+3000 and U+FEFF.
+    function _isBlank(string memory s) internal pure returns (bool) {
+        bytes memory b = bytes(s);
+        uint256 i;
+        while (i < b.length) {
+            uint8 c = uint8(b[i]);
+            if (c == 0x20 || (c >= 0x09 && c <= 0x0d)) { i += 1; continue; }
+            if (c == 0xc2 && i + 1 < b.length && uint8(b[i + 1]) == 0xa0) { i += 2; continue; }
+            if (i + 2 < b.length) {
+                uint8 c1 = uint8(b[i + 1]);
+                uint8 c2 = uint8(b[i + 2]);
+                bool ws = (c == 0xe1 && c1 == 0x9a && c2 == 0x80)
+                    || (c == 0xe2 && c1 == 0x80 && ((c2 >= 0x80 && c2 <= 0x8a) || c2 == 0xa8 || c2 == 0xa9 || c2 == 0xaf))
+                    || (c == 0xe2 && c1 == 0x81 && c2 == 0x9f)
+                    || (c == 0xe3 && c1 == 0x80 && c2 == 0x80)
+                    || (c == 0xef && c1 == 0xbb && c2 == 0xbf);
+                if (ws) { i += 3; continue; }
+            }
+            return false;
+        }
+        return true;
+    }
+
+    /// @notice Public for tests / operators: the manifest the operator preflight checks.
     function manifestOf(Cfg memory c) public view returns (RoleManifest memory) {
         return _manifest(c);
+    }
+
+    /// @dev Printed with every calldata handed to the Safe: the preflight does not travel with it.
+    function _safeSignerNotice() internal pure {
+        console.log("  NOTE for Safe signers: the operator preflight above binds only this script run. Before");
+        console.log("  signing, re-run check-timelock-roles.mjs at the current head and review the operation.");
     }
 
     /// @dev The Safe is the manifest's single proposer; an explicit SAFE env must agree with it.
@@ -352,16 +392,17 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
 
     /**
      * @notice GOV-1 / M1 configuration preflight (Codex D5b closing review). Runs BEFORE scheduling and
-     *         AGAIN before broadcasting any execute, so a mis-configured timelock can never complete an
-     *         ownership hand-over or an upgrade and only then fail a post-condition.
+     *         AGAIN before broadcasting any execute, so THIS SCRIPT does not prepare an ownership
+     *         hand-over or an upgrade on a mis-configured timelock (an operator preflight: it does not bind
+     *         what the Safe submits). The GOV-2 accept step itself remains the on-chain abort point.
      *
      *         THIS IS A BOUNDED KNOWN-ACCOUNT CHECK. OZ TimelockController (AccessControl, not
      *         AccessControlEnumerable) cannot list role holders on-chain, so this function can only ask
      *         `hasRole` about accounts it is told about: the timelock, the Safe and every account in the
      *         committed manifest. An UNLISTED holder of any role is NOT detected here. Exclusivity is
      *         established off-chain by script/governance/check-timelock-roles.mjs, which rebuilds the
-     *         full holder set from the RoleGranted / RoleRevoked history and must equal the manifest;
-     *         the runbook requires running it (output archived) before every schedule.
+     *         full holder set from the RoleGranted / RoleRevoked history and must equal the manifest
+     *         (an operator check; see requireRolesAttestation for what it does and does not establish).
      *
      *         Reverts unless: the manifest passes validateManifest (chainId == block.chainid, complete and
      *         non-vacuous); minDelay == 172800 exactly; the manifest is for this timelock and states the
@@ -397,7 +438,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         }
     }
 
-    /// @notice Local development chains on which the attestation opt-out is permitted.
+    /// @notice Local development chains on which the attestation opt-out / a larger max age is permitted.
     function _isLocalChain() internal view returns (bool) {
         return block.chainid == 31337 || block.chainid == 1337;
     }
@@ -423,17 +464,32 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         }
     }
 
+    string internal constant ATTEST_SCHEMA = "d5b-timelock-roles-attestation/2";
+
+    /// @notice Maximum accepted attestation age: TL_ATTEST_MAX_AGE may LOWER the 300-block default
+    ///         anywhere, but raise it only on a local chain (31337 / 1337). Operator safety, not security.
+    function attestMaxAge(uint256 requested) public view returns (uint256) {
+        require(requested <= ATTEST_MAX_AGE_BLOCKS || _isLocalChain(),
+            "roles attestation: TL_ATTEST_MAX_AGE above 300 is local-only");
+        return requested;
+    }
+
     /**
-     * @notice MACHINE-ENFORCED exclusivity gate (Codex stop-time finding on ed2a4762). The event-history
-     *         checker (script/governance/check-timelock-roles.mjs) is the only thing that can establish
-     *         that NO unlisted account holds a role; every governed broadcast therefore requires the
-     *         attestation it writes (env TL_ROLES_ATTESTATION). Reverts — before anything is scheduled
-     *         or executed — unless: result == "PASS"; chainId == block.chainid; timelock == this timelock;
-     *         manifestKeccak256 == keccak256 of the manifest file as read now; the scan head is not in
-     *         the future and at most TL_ATTEST_MAX_AGE (default 300) blocks old; each attested holder set
-     *         equals the manifest's and every attested holder still holds its role.
-     *         Opt-out: TL_ALLOW_NO_ATTESTATION=true is accepted ONLY on chain ids 31337 / 1337 and is
-     *         loudly logged; on any other chain it reverts.
+     * @notice OPERATOR PREFLIGHT on the event-history checker's attestation — NOT an enforcement
+     *         boundary (Codex re-check of 626b6ea8, H1/H2). The attestation is UNSIGNED (a hand-made
+     *         file can claim PASS and omit a holder), it is a snapshot (a grant made after its head block
+     *         stays invisible until it is TL_ATTEST_MAX_AGE blocks old), and it only gates THIS script:
+     *         the Safe can submit the printed calldata later, or build its own, without any of it. What
+     *         it is for: stopping an operator from preparing a schedule / execute against a timelock whose
+     *         role history no longer matches the committed manifest. Checks, all before anything is
+     *         broadcast: schema == ATTEST_SCHEMA; result == "PASS"; chainId == block.chainid; timelock ==
+     *         this timelock; manifestKeccak256 == keccak256 of the manifest file as read now; the head
+     *         block is not in the future, at most attestMaxAge(TL_ATTEST_MAX_AGE, default 300) blocks old,
+     *         and — when the EVM still serves its blockhash (<= 256 blocks back) — headBlockHash equals it
+     *         (same-chain-id fork / reorg); each attested holder set equals the manifest's and every
+     *         attested holder still holds its role. Opt-out: TL_ALLOW_NO_ATTESTATION=true only on chain ids
+     *         31337 / 1337, loudly logged; it reverts on any other chain. The on-chain basis of role
+     *         exclusivity is the timelock's self-administration + monitoring (D5b-design §6.3d).
      */
     function requireRolesAttestation(TimelockController tl, RoleManifest memory m) public view {
         if (bytes(m.attestation).length == 0) {
@@ -451,6 +507,9 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         } catch {
             revert("roles attestation: file unreadable");
         }
+        require(vm.keyExistsJson(j, ".schema")
+            && keccak256(bytes(vm.parseJsonString(j, ".schema"))) == keccak256(bytes(ATTEST_SCHEMA)),
+            "roles attestation: schema != d5b-timelock-roles-attestation/2");
         require(keccak256(bytes(vm.parseJsonString(j, ".result"))) == keccak256("PASS"), "roles attestation: result != PASS");
         require(vm.parseJsonUint(j, ".chainId") == block.chainid, "roles attestation: chainId != this chain");
         require(vm.parseJsonAddress(j, ".timelock") == address(tl), "roles attestation: timelock mismatch");
@@ -458,16 +517,27 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
             "roles attestation: manifest changed after the attestation");
         uint256 head = vm.parseJsonUint(j, ".headBlock");
         require(head <= block.number, "roles attestation: head block is in the future");
-        require(block.number - head <= vm.envOr("TL_ATTEST_MAX_AGE", ATTEST_MAX_AGE_BLOCKS), "roles attestation: stale");
+        require(block.number - head <= attestMaxAge(vm.envOr("TL_ATTEST_MAX_AGE", ATTEST_MAX_AGE_BLOCKS)),
+            "roles attestation: stale");
+        require(vm.keyExistsJson(j, ".headBlockHash"), "roles attestation: headBlockHash missing");
+        bytes32 attestedHash = vm.parseJsonBytes32(j, ".headBlockHash");
+        bytes32 chainHash = head < block.number && block.number - head <= 256 ? blockhash(head) : bytes32(0);
+        if (chainHash != bytes32(0)) {
+            require(chainHash == attestedHash, "roles attestation: headBlockHash != this chain's block (fork / reorg)");
+            console.log("  roles attestation: head block hash verified against blockhash()", head);
+        } else {
+            console.log("  roles attestation: head block hash NOT verifiable here (blockhash unavailable)", head);
+        }
         _attestedRole(tl, j, "DEFAULT_ADMIN_ROLE", tl.DEFAULT_ADMIN_ROLE(), m.admins);
         _attestedRole(tl, j, "PROPOSER_ROLE", tl.PROPOSER_ROLE(), m.proposers);
         _attestedRole(tl, j, "CANCELLER_ROLE", tl.CANCELLER_ROLE(), m.cancellers);
         _attestedRole(tl, j, "EXECUTOR_ROLE", tl.EXECUTOR_ROLE(), m.executors);
-        console.log("  roles attestation OK: event-history holder sets == manifest, head block", head);
+        console.log("  roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block", head);
     }
 
-    /// @notice The gate every governed broadcast runs: bounded preflight, then the attestation.
-    function governedGate(TimelockController tl, RoleManifest memory m) public view {
+    /// @notice The operator preflight every schedule-* / execute-* mode runs before it broadcasts or prints:
+    ///         bounded known-account check, then the attestation check. It binds only this script run.
+    function operatorPreflight(TimelockController tl, RoleManifest memory m) public view {
         m1Preflight(tl, m);
         requireRolesAttestation(tl, m);
     }
@@ -495,7 +565,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         RoleManifest memory m) public returns (bytes32 id)
     {
         TimelockController tl = _timelock(c);
-        governedGate(tl, m);
+        operatorPreflight(tl, m);
         address safe = _safeOf(m);
         address proxy = isSP ? c.sp : c.registry;
         require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");
@@ -512,6 +582,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
             require(tl.isOperationPending(id), "schedule: not pending after schedule");
             console.log("  scheduled; ready at:", tl.getTimestamp(id));
         } else {
+            _safeSignerNotice();
             console.log("  broadcaster is not the Safe - submit this from the Safe:");
             console.log("  to  :", address(tl));
             console.logBytes(abi.encodeCall(TimelockController.schedule, (proxy, 0, data, bytes32(0), salt, delay)));
@@ -527,7 +598,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         RoleManifest memory m) public
     {
         TimelockController tl = _timelock(c);
-        governedGate(tl, m); // again, immediately before the execute broadcast
+        operatorPreflight(tl, m); // again, immediately before the execute broadcast
         address safe = _safeOf(m);
         address proxy = isSP ? c.sp : c.registry;
         bytes memory data = _upgradeCall(impl);
@@ -538,6 +609,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         Bls3 memory bls = _bls(c);
         bytes32[] memory before = _slots(proxy, isSP ? SP_LAYOUT_END : REGISTRY_LAYOUT_END);
         if (executor != safe) {
+            _safeSignerNotice();
             console.log("  broadcaster is not the Safe - submit this from the Safe:");
             console.logBytes(abi.encodeCall(TimelockController.execute, (proxy, 0, data, bytes32(0), salt)));
             return;
@@ -597,7 +669,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         public returns (bytes32 id)
     {
         TimelockController tl = _timelock(c);
-        governedGate(tl, m);
+        operatorPreflight(tl, m);
         require(safe == _safeOf(m), "M1 preflight: guardian Safe != manifest Safe");
         require(ID5bOwned(c.sp).pendingOwner() == address(tl), "M1: SP.pendingOwner != timelock (run SP.transferOwnership(timelock) first)");
         require(ID5bOwned(c.registry).pendingOwner() == address(tl), "M1: Registry.pendingOwner != timelock");
@@ -611,6 +683,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
             require(tl.isOperationPending(id), "M1: batch not pending");
             console.log("  M1 batch scheduled; ready at:", tl.getTimestamp(id));
         } else {
+            _safeSignerNotice();
             console.log("  broadcaster is not the Safe - submit this scheduleBatch from the Safe:");
             console.logBytes(abi.encodeCall(TimelockController.scheduleBatch, (t, v, p, bytes32(0), salt, delay)));
         }
@@ -623,12 +696,13 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
 
     function executeAcceptWith(Cfg memory c, address safe, bytes32 salt, address executor, RoleManifest memory m) public {
         TimelockController tl = _timelock(c);
-        governedGate(tl, m); // again, immediately before the acceptance broadcast
+        operatorPreflight(tl, m); // again, immediately before the acceptance broadcast
         require(safe == _safeOf(m), "M1 preflight: guardian Safe != manifest Safe");
         (address[] memory t, uint256[] memory v, bytes[] memory p) = _acceptBatch(c, safe);
         bytes32 id = tl.hashOperationBatch(t, v, p, bytes32(0), salt);
         require(tl.isOperationReady(id), "M1: batch not ready");
         if (executor != safe) {
+            _safeSignerNotice();
             console.log("  broadcaster is not the Safe - submit this executeBatch from the Safe:");
             console.logBytes(abi.encodeCall(TimelockController.executeBatch, (t, v, p, bytes32(0), salt)));
             return;
@@ -653,12 +727,12 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     }
 
     /// @notice Schedule any other timelock-governed SP / Registry call (runbook M2 unpause, parameter
-    ///         changes) behind the same gate as the upgrade and acceptance paths (Codex re-check L1).
+    ///         changes) behind the same operator preflight as the upgrade and acceptance paths.
     function scheduleCallWith(Cfg memory c, bool isSP, bytes memory data, bytes32 salt, address proposer,
         RoleManifest memory m) public returns (bytes32 id)
     {
         TimelockController tl = _timelock(c);
-        governedGate(tl, m);
+        operatorPreflight(tl, m);
         address safe = _safeOf(m);
         address proxy = _governedCall(c, isSP, data);
         require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");
@@ -671,6 +745,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
             require(tl.isOperationPending(id), "schedule: not pending after schedule");
             console.log("  call scheduled; ready at:", tl.getTimestamp(id));
         } else {
+            _safeSignerNotice();
             console.log("  broadcaster is not the Safe - submit this from the Safe:");
             console.logBytes(abi.encodeCall(TimelockController.schedule, (proxy, 0, data, bytes32(0), salt, delay)));
         }
@@ -681,12 +756,13 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         RoleManifest memory m) public
     {
         TimelockController tl = _timelock(c);
-        governedGate(tl, m); // again, immediately before the execute broadcast
+        operatorPreflight(tl, m); // again, immediately before the execute broadcast
         address safe = _safeOf(m);
         address proxy = _governedCall(c, isSP, data);
         bytes32 id = tl.hashOperation(proxy, 0, data, bytes32(0), salt);
         require(tl.isOperationReady(id), "execute: operation not ready (not scheduled, or minDelay not elapsed)");
         if (executor != safe) {
+            _safeSignerNotice();
             console.log("  broadcaster is not the Safe - submit this from the Safe:");
             console.logBytes(abi.encodeCall(TimelockController.execute, (proxy, 0, data, bytes32(0), salt)));
             return;

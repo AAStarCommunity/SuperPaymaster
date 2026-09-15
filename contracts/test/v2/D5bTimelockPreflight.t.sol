@@ -12,15 +12,18 @@ import { V55Registry, V55PriceFeed } from "../helpers/V55TestFixtures.sol";
 import { UpgradeViaTimelock } from "../../script/v3/UpgradeViaTimelock.s.sol";
 
 /**
- * @title D5bTimelockPreflightTest — Codex D5b closing review + re-check (M1 preflight, roles attestation gate)
- * @notice UpgradeViaTimelock.m1Preflight must reject a mis-configured GOV-1 timelock BEFORE any
- *         schedule / execute is broadcast, so an ownership hand-over can never complete on a wrong
- *         timelock and only then fail a post-condition. One positive path and one negative control per
- *         condition; each negative asserts the M1 batch was never scheduled and the owners / nominations
- *         are unchanged. The preflight is a BOUNDED known-account check (OZ AccessControl is not
- *         enumerable): `test_preflight_is_bounded_unlisted_admin_passes` shows an admin that the manifest
- *         does not name passes it — that case is caught by script/governance/check-timelock-roles.mjs
- *         (event-history enumeration), whose anvil self-test is scripts/d5b-timelock-roles-selftest.sh.
+ * @title D5bTimelockPreflightTest — M1 preflight + roles-attestation check of UpgradeViaTimelock
+ * @dev   These test an OPERATOR PREFLIGHT, not an enforcement boundary (Codex re-check of 626b6ea8):
+ *        it binds only the script run; the attestation is unsigned; the Safe can submit calldata without it.
+ *        `test_hand_made_pass_attestation_omitting_a_holder_is_accepted` states that limit as a test.
+ * @notice UpgradeViaTimelock.m1Preflight stops the operator's script run on a mis-configured GOV-1
+ *         timelock BEFORE it broadcasts (or prints) a schedule / execute. One positive path and one
+ *         negative control per condition; each negative asserts the M1 batch was not scheduled by the
+ *         script and the owners / nominations are unchanged. The preflight is a BOUNDED known-account
+ *         check (OZ AccessControl is not enumerable): an admin the manifest does not name passes it
+ *         (`test_bounded_preflight_passes_unlisted_admin_genuine_attestation_stops_the_operator`); the
+ *         event-history checker (script/governance/check-timelock-roles.mjs, self-test
+ *         scripts/d5b-timelock-roles-selftest.sh) sees it, as an operator check.
  */
 contract D5bTimelockPreflightTest is Test {
     UpgradeViaTimelock script;
@@ -82,6 +85,8 @@ contract D5bTimelockPreflightTest is Test {
     }
 
     struct Att {
+        string schema;
+        bytes32 headHash; // 0 = omit the field
         string result;
         uint256 chainId;
         address timelock;
@@ -92,6 +97,8 @@ contract D5bTimelockPreflightTest is Test {
     }
 
     function _goodAtt(TimelockController tl) internal view returns (Att memory a) {
+        a.schema = "d5b-timelock-roles-attestation/2";
+        a.headHash = keccak256("head block hash (unverifiable at the current block)");
         a.result = "PASS";
         a.chainId = block.chainid;
         a.timelock = address(tl);
@@ -101,15 +108,16 @@ contract D5bTimelockPreflightTest is Test {
         a.proposers = _one(safe);
     }
 
-    /// @dev Same shape as check-timelock-roles.mjs --attest (only the fields the gate reads + result).
+    /// @dev Same shape as check-timelock-roles.mjs --attest (only the fields the preflight reads).
     function _writeAtt(string memory name, Att memory a) internal returns (string memory path) {
         path = string.concat(ATT_DIR, name, ".json");
         string memory j = string.concat(
-            "{\"schema\":\"d5b-timelock-roles-attestation/2\",\"result\":\"", a.result,
+            "{\"schema\":\"", a.schema, "\",\"result\":\"", a.result,
             "\",\"chainId\":", vm.toString(a.chainId),
             ",\"timelock\":\"", vm.toString(a.timelock),
             "\",\"manifestKeccak256\":\"", vm.toString(a.manifestKeccak),
-            "\",\"headBlock\":", vm.toString(a.head)
+            "\",\"headBlock\":", vm.toString(a.head),
+            a.headHash == bytes32(0) ? "" : string.concat(",\"headBlockHash\":\"", vm.toString(a.headHash), "\"")
         );
         j = string.concat(j,
             ",\"roles\":{\"DEFAULT_ADMIN_ROLE\":", _addrs(a.admins),
@@ -151,7 +159,7 @@ contract D5bTimelockPreflightTest is Test {
         return tl.hashOperationBatch(t, v, p, bytes32(0), SALT);
     }
 
-    /// @dev The negative-control shape: the gate reverts with `reason` inside scheduleAcceptWith, nothing
+    /// @dev The negative-control shape: the preflight reverts with `reason` inside scheduleAcceptWith, nothing
     ///      was scheduled, ownership / nominations untouched.
     function _assertRejected(TimelockController tl, UpgradeViaTimelock.RoleManifest memory m, string memory reason) internal {
         vm.expectRevert(bytes(reason));
@@ -172,7 +180,7 @@ contract D5bTimelockPreflightTest is Test {
     function test_preflight_correct_timelock_passes_and_M1_completes() public {
         TimelockController tl = _correctTl();
         UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "positive");
-        script.governedGate(tl, m);
+        script.operatorPreflight(tl, m);
         bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
         assertTrue(tl.isOperationPending(id), "scheduled");
         vm.warp(block.timestamp + 48 hours);
@@ -219,7 +227,7 @@ contract D5bTimelockPreflightTest is Test {
         _assertRejected(tl, _manifest(tl, "eoaprop"), "M1 preflight: a listed account holds a timelock role");
     }
 
-    /// @notice The gate also runs immediately before the acceptance broadcast: a role granted AFTER
+    /// @notice The preflight also runs immediately before the acceptance broadcast: a role granted AFTER
     ///         scheduling (here an extra executor) stops the execute, owners unchanged.
     function test_preflight_reruns_before_execute() public {
         TimelockController tl = _correctTl();
@@ -258,13 +266,13 @@ contract D5bTimelockPreflightTest is Test {
         script.manifestOf(_cfg(tl));
     }
 
-    // ------------------------------------------------------------------ the bound, and how the attestation closes it
+    // ------------------------------------------------------------------ the bounds of the preflight, stated as tests
 
-    /// @notice DOCUMENTED BOUND: an admin the manifest does not name is invisible to the forge preflight
-    ///         (AccessControl cannot enumerate holders): m1Preflight PASSES. The event-history checker sees
-    ///         it (anvil self-test step 2), so its attestation lists it — and the MACHINE-ENFORCED gate then
-    ///         refuses to schedule because the attested admin set != the manifest.
-    function test_bounded_preflight_passes_unlisted_admin_but_attestation_gate_blocks() public {
+    /// @notice BOUND 1: an admin the manifest does not name is invisible to the forge preflight
+    ///         (AccessControl cannot enumerate holders): m1Preflight PASSES. A genuine checker attestation
+    ///         for this timelock is FAIL (anvil self-test step 2) and stops the operator; a PASS that lists
+    ///         the admin is stopped because the attested set != the manifest.
+    function test_bounded_preflight_passes_unlisted_admin_genuine_attestation_stops_the_operator() public {
         address unlisted = address(0xAD1);
         TimelockController tl = _tl(48 hours, _one(safe), _one(safe), unlisted);
         assertTrue(tl.hasRole(tl.DEFAULT_ADMIN_ROLE(), unlisted), "precondition: an unlisted external admin exists");
@@ -275,12 +283,26 @@ contract D5bTimelockPreflightTest is Test {
         a.admins = _two(address(tl), unlisted); // ... with the admin it found in the event history
         m.attestation = _writeAtt("unlisted-fail", a);
         _assertRejected(tl, m, "roles attestation: result != PASS");
-        a.result = "PASS"; // even a hand-edited PASS cannot hide it: the holder sets must equal the manifest
-        m.attestation = _writeAtt("unlisted-forged", a);
+        a.result = "PASS"; // a PASS that still lists the admin
+        m.attestation = _writeAtt("unlisted-listed", a);
         _assertRejected(tl, m, "roles attestation: attested DEFAULT_ADMIN_ROLE holders != manifest");
     }
 
-    // ------------------------------------------------------------------ attestation gate: one negative per condition
+    /// @notice BOUND 2 (Codex re-check of 626b6ea8, H2): the attestation is UNSIGNED. A hand-made PASS
+    ///         that simply omits the unlisted admin satisfies every check — the preflight lets the operator
+    ///         schedule while an unlisted admin exists. This is why the preflight is not a security
+    ///         boundary; the on-chain basis is the timelock's self-administration + monitoring (§6.3d).
+    function test_hand_made_pass_attestation_omitting_a_holder_is_accepted() public {
+        address unlisted = address(0xAD1);
+        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), unlisted);
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "handmade"); // PASS, admins == [timelock]
+        script.operatorPreflight(tl, m);
+        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
+        assertTrue(tl.isOperationPending(id), "scheduled despite the unlisted admin");
+        assertTrue(tl.hasRole(tl.DEFAULT_ADMIN_ROLE(), unlisted), "the unlisted admin still holds DEFAULT_ADMIN_ROLE");
+    }
+
+    // ------------------------------------------------------------------ attestation check: one negative per condition
 
     function test_attestation_missing_reverts() public {
         TimelockController tl = _correctTl();
@@ -406,6 +428,10 @@ contract D5bTimelockPreflightTest is Test {
     /// @dev The committed file shape, optionally without field `omit` (10 = complete). Field order:
     ///      0 network, 1 chainId, 2 timelock, 3 deploymentBlock, 4-7 roles.*, 8 mustHoldNothing, 9 labels.
     function _body(TimelockController tl, uint256 omit) internal view returns (string memory j) {
+        return _bodyWith(tl, omit, false);
+    }
+
+    function _bodyWith(TimelockController tl, uint256 omit, bool extraRole) internal view returns (string memory j) {
         string[10] memory k = ["network", "chainId", "timelock", "deploymentBlock", "DEFAULT_ADMIN_ROLE",
             "PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE", "mustHoldNothing", "mustHoldNothingLabels"];
         string[10] memory v = [
@@ -421,6 +447,7 @@ contract D5bTimelockPreflightTest is Test {
             if (i >= 4 && i <= 7) roles = string.concat(roles, bytes(roles).length == 0 ? "" : ",", kv);
             else top = string.concat(top, bytes(top).length == 0 ? "" : ",", kv);
         }
+        if (extraRole) roles = string.concat(roles, ",\"GUARDIAN_ROLE\":", _addrs(_one(eoa)));
         j = string.concat("{", top, ",\"roles\":{", roles, "}}");
     }
 
@@ -458,9 +485,9 @@ contract D5bTimelockPreflightTest is Test {
         script.executeAcceptWith(_cfg(tl), safe, SALT, safe, m);
     }
 
-    /// @notice The runbook M2 unpause goes through the same gate: guardian pauses, the Safe schedules the
-    ///         unpause via scheduleCallWith (gate), 48h, executeCallWith; without an attestation it is refused.
-    function test_governed_call_unpause_goes_through_gate() public {
+    /// @notice The runbook M2 unpause runs the same operator preflight: guardian pauses, the Safe schedules
+    ///         the unpause via scheduleCallWith, 48h, executeCallWith; without an attestation the script stops.
+    function test_governed_call_unpause_runs_operator_preflight() public {
         (TimelockController tl, UpgradeViaTimelock.RoleManifest memory m) = _m1Done("m2");
         vm.prank(safe);
         SuperPaymasterAdmin(address(sp)).setGlobalPaused(true);
@@ -474,7 +501,7 @@ contract D5bTimelockPreflightTest is Test {
         assertFalse(tl.isOperation(id), "nothing scheduled without the attestation");
         m.attestation = att;
         script.scheduleCallWith(_cfg(tl), true, unpause, SALT, safe, m);
-        assertTrue(tl.isOperationPending(id), "unpause scheduled through the gate");
+        assertTrue(tl.isOperationPending(id), "unpause scheduled after the preflight");
         vm.warp(block.timestamp + 48 hours);
         script.executeCallWith(_cfg(tl), true, unpause, SALT, safe, m);
         assertFalse(sp.paused(), "timelock unpaused");
@@ -486,5 +513,65 @@ contract D5bTimelockPreflightTest is Test {
         vm.expectRevert(bytes("governed call: use schedule-upgrade for upgrades"));
         script.scheduleCallWith(_cfg(tl), true, upg, SALT, safe, m);
         assertFalse(tl.isOperation(tl.hashOperation(address(sp), 0, upg, bytes32(0), SALT)), "nothing scheduled");
+    }
+
+    // ------------------------------------------------------------------ Codex re-check of 626b6ea8 (Medium / operator safety)
+
+    function test_attestation_wrong_schema_reverts() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "schema");
+        Att memory a = _goodAtt(tl);
+        a.schema = "d5b-timelock-roles-attestation/1"; // the pre-626b6ea8 format
+        m.attestation = _writeAtt("schema-bad", a);
+        _assertRejected(tl, m, "roles attestation: schema != d5b-timelock-roles-attestation/2");
+    }
+
+    /// @notice Labels are trimmed like the checker's String.trim(): whitespace-only is empty.
+    function test_manifest_whitespace_only_label_rejected() public {
+        TimelockController tl = _correctTl();
+        string[6] memory blanks = [" ", "\t\n \r", "\u00a0", "\u3000 ", "\ufeff", "\u2003\u205f"];
+        for (uint256 k; k < blanks.length; ++k) {
+            UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, string.concat("blank", vm.toString(k)));
+            m.mustHoldNothingLabels[1] = blanks[k];
+            _assertRejected(tl, m, "M1 manifest: empty mustHoldNothing label");
+        }
+        UpgradeViaTimelock.RoleManifest memory ok = _manifest(tl, "blank-ok");
+        ok.mustHoldNothingLabels[1] = " \u00a0x "; // positive control: surrounding blanks, real content
+        script.validateManifest(ok);
+    }
+
+    function test_manifest_extra_role_key_rejected() public {
+        TimelockController tl = _correctTl();
+        script.parseManifest(_bodyWith(tl, 10, false)); // positive control
+        vm.expectRevert(bytes("M1 manifest: unknown role key in .roles"));
+        script.parseManifest(_bodyWith(tl, 10, true));
+    }
+
+    /// @notice headBlockHash is compared with blockhash() while the EVM still serves it (<= 256 blocks).
+    function test_attestation_head_block_hash_checked_when_available() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "hash");
+        Att memory a = _goodAtt(tl);
+        a.head = block.number;
+        a.headHash = keccak256("the attested head block");
+        m.attestation = _writeAtt("hash-att", a);
+        vm.roll(block.number + 10);
+        vm.setBlockhash(a.head, keccak256("a same-chain-id fork's block"));
+        _assertRejected(tl, m, "roles attestation: headBlockHash != this chain's block (fork / reorg)");
+        vm.setBlockhash(a.head, a.headHash); // positive control: the attested hash is this chain's block
+        script.operatorPreflight(tl, m);
+        a.headHash = bytes32(0); // field absent
+        m.attestation = _writeAtt("hash-missing", a);
+        _assertRejected(tl, m, "roles attestation: headBlockHash missing");
+    }
+
+    /// @notice TL_ATTEST_MAX_AGE may lower the 300-block default anywhere, raise it only on a local chain.
+    function test_attest_max_age_raise_is_local_only() public {
+        assertEq(script.attestMaxAge(1000), 1000, "local chain: may raise");
+        vm.chainId(10);
+        assertEq(script.attestMaxAge(300), 300, "live chain: the default");
+        assertEq(script.attestMaxAge(50), 50, "live chain: may lower");
+        vm.expectRevert(bytes("roles attestation: TL_ATTEST_MAX_AGE above 300 is local-only"));
+        script.attestMaxAge(301);
     }
 }

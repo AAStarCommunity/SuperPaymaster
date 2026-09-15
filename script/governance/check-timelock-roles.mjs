@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 // =============================================================================
 // check-timelock-roles.mjs — role-exclusivity check for the GOV-1 TimelockController (D5b, Codex
-// closing review Medium; hardened after the Codex re-check of ed2a4762: M1/M2/M3/L2).
+// closing review Medium; hardened after the Codex re-checks of ed2a4762 and 626b6ea8).
+//
+// WHAT THIS IS: an OPERATOR CHECK. It tells the person running it whether the timelock's role history,
+// up to one head block, matches the committed manifest. Its attestation (--attest) is NOT signed and is
+// NOT an enforcement boundary: UpgradeViaTimelock reads it as an operator preflight, but nothing binds
+// what the Safe signers submit to it. Its load-bearing uses are (a) establishing the initial role sets
+// ONCE at A5s / A6 (archived), and (b) letting operators and Safe signers re-check before a schedule /
+// execute. After M1 the only DEFAULT_ADMIN is the timelock itself, so any later grantRole / revokeRole is
+// a public, >= 48h-delayed timelock operation: ongoing assurance = monitoring CallScheduled / RoleGranted /
+// RoleRevoked + Safe signers reviewing scheduled role changes (D5b-design §6.3d).
 //
 // OZ TimelockController uses AccessControl, NOT AccessControlEnumerable: nothing on-chain can list who
 // holds a role, so the forge preflight (UpgradeViaTimelock.m1Preflight) is only a bounded check of the
@@ -42,8 +51,9 @@
 //            [--attest <path>|auto]
 // Exit: 0 = history == manifest; 1 = mismatch / check failed / invalid manifest;
 //       2 = usage / infrastructure error.
-// With --attest, EVERY run that gets past argument parsing writes the attestation file, with result
-// "PASS" only on exit 0 (a FAIL file replaces any earlier PASS at that path).
+// With --attest <path>, EVERY run writes the attestation file at that path — usage errors, invalid
+// manifests and infrastructure errors included — with result "PASS" only on exit 0, so a later failing
+// run always replaces an earlier PASS (only `--attest` given without a value cannot be written).
 // =============================================================================
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -51,10 +61,33 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createPublicClient, http, parseAbiItem, getAddress, isAddress, keccak256, toBytes } from "viem";
 
-const CHECKER_VERSION = "check-timelock-roles/1.2.0";
+const CHECKER_VERSION = "check-timelock-roles/1.3.0";
 const USAGE = "usage: --rpc <url> --manifest <path> [--rpc2 <url>] [--chunk <positive integer>] [--out f] [--attest <path>|auto]";
+const ATTEST_SCHEMA = "d5b-timelock-roles-attestation/2";
 const args = process.argv.slice(2);
-const usage = (msg) => { console.error(`usage error: ${msg}\n${USAGE}`); process.exit(2); };
+// --attest is located before anything else is validated, so that even a usage error overwrites a
+// previous PASS at that path (Codex re-check of 626b6ea8, Low)
+const RAW_ATTEST = (() => {
+  const i = args.indexOf("--attest");
+  const v = i >= 0 ? args[i + 1] : undefined;
+  return v !== undefined && !v.startsWith("--") ? v : undefined;
+})();
+function writeUsageFail(msg) {
+  if (!RAW_ATTEST) return;
+  const path = RAW_ATTEST === "auto" ? "deployments/attestations/timelock-roles.unknown.nohead.json" : RAW_ATTEST;
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({
+      schema: ATTEST_SCHEMA, result: "FAIL", problems: [`usage error: ${msg}`],
+      checker: { path: "script/governance/check-timelock-roles.mjs", version: CHECKER_VERSION },
+      note: "usage error: nothing was checked; this file only replaces any earlier attestation at this path",
+    }, null, 2) + "\n");
+    console.error(`attestation written: ${path} (result FAIL, usage error)`);
+  } catch (e) {
+    console.error(`could not write the FAIL attestation at ${path}: ${e.message}`);
+  }
+}
+const usage = (msg) => { writeUsageFail(msg); console.error(`usage error: ${msg}\n${USAGE}`); process.exit(2); };
 const opt = (k, d) => {
   const i = args.indexOf(k);
   if (i < 0) return d;
@@ -91,7 +124,7 @@ const gitDirty = (() => { try { return execFileSync("git", ["status", "--porcela
 
 // ------------------------------------------------------------------ attestation (written on every outcome)
 const att = {
-  schema: "d5b-timelock-roles-attestation/2",
+  schema: ATTEST_SCHEMA,
   result: "FAIL",
   chainId: null, rpc2ChainId: null, manifestChainId: null, timelock: null,
   manifestPath: MANIFEST, manifestSha256: null, manifestKeccak256: null,
@@ -101,7 +134,7 @@ const att = {
   endpoint: redact(RPC), endpoint2: RPC2 ? redact(RPC2) : null,
   problems: [],
   checker: { path: "script/governance/check-timelock-roles.mjs", version: CHECKER_VERSION, gitCommit, gitDirty },
-  note: "Generated by the checker, not cryptographically signed; UpgradeViaTimelock re-verifies chainId, timelock, manifest hash, freshness and every attested holder on-chain.",
+  note: "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs.",
 };
 let manifestNetwork = "unknown";
 function writeAttestation() {

@@ -92,7 +92,7 @@ lens 读取 SP 的 view 时，如果其中一部分移到了扩展，staticcall 
 | C2 中途升级测试 | 通过（见下方 C2 小节） | `SuperPaymasterD5bUpgradeRace.t.sol`；原有 `SuperPaymasterV55UpgradeRace`（旧 5.5.0 fixture ↔ 当前）仍绿 |
 | B 层重跑 | 通过（结论与已提交的 G1 基线逐项相同）：本机 anvil（Osaka）+ Rundler v0.11.0 + Alto v1.2.5（默认与 86400 s 两组），16 × 3 个用例的 `pass` 判定与 `b-layer/cases/*-results.json` 完全一致（原有的已知 FAIL：Rundler B10、B2b，Alto B2a/B3/B4-lowStake/B9-below，未增未减）；ERC-7562 访问检查 OUTSIDE = 0、FORBIDDEN = 0，正对照 `allFlagged = true`；SP 自有槽读取从 26 到 28（多出 GOV-5 参数槽和 D5b 的 slot 40，均为 SP 自有存储） | `data/d5b/b-layer/`（`verdict-diff-vs-committed.txt`、`access-check.txt/json`、三组 results / cases / traces）；运行方式 `scripts/d5b-blayer-rerun.sh`（`g1-run.sh` 的副本，端口 +200，输出只写 `data/d5b/b-layer/`，没有碰 `b-layer/cases` 与 F1 冻结集） |
 | 体积门槛 | 通过：核心 13,571 B（余量 11,005）、扩展 19,208、Registry 23,306（余量 1,270）、lens 5,329、BLSAggregator 24,345（余量 231，未改动） | `scripts/check-sp-size.py --self-test`（余量 1,023 被拒、恰好 1,024 通过）→ `gates/check-sp-size.log`；`sizes/sizes-d5b.json`（`script/evidence/sizes.mjs`）；CI：`.github/workflows/test.yml` 新增 "D5b release gates" 一步 |
-| Cancun / Prague 全量 | Cancun：136 个套件，**1,686 passed / 0 failed / 49 skipped**；Prague（最后跑）：**1,595 / 0 / 21**（passed / failed / skipped）；之后重新 `forge build` 恢复 default 产物 | `unit-test/forge-test-cancun.log`、`unit-test/forge-test-prague.log` 末行 |
+| Cancun / Prague 全量 | Cancun：136 个套件，**1,692 passed / 0 failed / 49 skipped**；Prague（最后跑）：**1,601 / 0 / 21**（passed / failed / skipped）；之后重新 `forge build` 恢复 default 产物 | `unit-test/forge-test-cancun.log`、`unit-test/forge-test-prague.log` 末行 |
 | Codex 审阅 | 见 §6.4 | — |
 
 ### §6.1 变异表（`gates/mutation-matrix.log`；先跑未变异的第 0 列 34 个测试全绿）
@@ -112,10 +112,15 @@ lens 读取 SP 的 view 时，如果其中一部分移到了扩展，staticcall 
 | (g) 两步 override 只写在扩展里 | `test_gov2_sp_transferOwnership_via_proxy_is_two_step`："owner unchanged…"（扩展里的 override 是死代码） | requires_owner |
 | (j) `m1Preflight` 不再调用 `validateManifest`（Codex 复核 `ed2a4762` 的 M1/M3） | `test_manifest_chainid_mismatch_reverts`、`test_manifest_vacuous_fields_each_rejected`（"next call did not revert as expected"：Sepolia 清单、chainId 为 0 的清单都能调度） | 72h 延迟、过旧证明、正例 M1 |
 | (k) `parseManifest` 接受带 `_placeholder` 的示例清单 | `test_manifest_example_placeholder_refused` | 缺字段逐项拒绝 |
-| (l) `schedule-call` 不再拒绝 `upgradeToAndCall`（绕开升级读回） | `test_governed_call_refuses_upgrade` | 解除暂停经闸门 |
-| (m) `scheduleCallWith`（M2 解除暂停路径）跳过 `governedGate` | `test_governed_call_unpause_goes_through_gate`（不带证明也调度成功） | 拒绝升级、证明缺失 |
+| (l) `schedule-call` 不再拒绝 `upgradeToAndCall`（绕开升级读回） | `test_governed_call_refuses_upgrade` | 解除暂停运行预检 |
+| (m) `scheduleCallWith`（M2 解除暂停路径）跳过 `operatorPreflight` | `test_governed_call_unpause_runs_operator_preflight`（不带证明也调度成功） | 拒绝升级、证明缺失 |
+| (n) 不再核对证明文件的 `schema`（Codex 复核 `626b6ea8` 的 Medium） | `test_attestation_wrong_schema_reverts` | 结果为 FAIL、正例 M1 |
+| (o) 标签不再去空白（只含空白的标签被接受） | `test_manifest_whitespace_only_label_rejected` | 十二种空洞清单 |
+| (p) `.roles` 下多出的键不再被拒 | `test_manifest_extra_role_key_rejected` | 缺字段逐项拒绝 |
+| (q) 不再用 `blockhash` 核对 `headBlockHash` | `test_attestation_head_block_hash_checked_when_available` | 过旧证明、chainId 错 |
+| (r) 线上链也能调大 `TL_ATTEST_MAX_AGE` | `test_attest_max_age_raise_is_local_only` | 过旧证明 |
 
-(j)–(m) 在同一个脚本里跑（`gates/mutation-matrix-recheck2.log`，第 0 列 61 个测试全绿，四个变异 RESULT 全部 OK）；脚本的 scratch 树现在也复制 `contracts/script` 与示例清单。
+(j)–(r) 在同一个脚本里跑（`gates/mutation-matrix-recheck3.log`，第 0 列 67 个测试全绿，九个变异 RESULT 全部 OK；(j)–(m) 因测试改名重跑，上一轮的 `mutation-matrix-recheck2.log` 保留作历史）；脚本的 scratch 树也复制 `contracts/script` 与示例清单。这些变异证明的是**预检的各条核对各自有效**，不代表预检是安全边界（§6.3b）。
 
 ### §6.2 C2（spec §10.7b C2，覆盖扩展函数）
 
@@ -126,43 +131,64 @@ lens 读取 SP 的 view 时，如果其中一部分移到了扩展，staticcall 
 ### §6.3 升级流程与演练
 
 - `contracts/script/v3/UpgradeViaTimelock.s.sol`：`UpgradeRegistryD5b`（runbook 第 5c 步，EOA）；`UpgradeViaTimelock` 的 `deploy-impl` / `direct-upgrade`（M1 之前）/ `schedule-upgrade` / `execute-upgrade`（§10.7b C）/ `schedule-accept` / `execute-accept`（M1 的单个 `scheduleBatch` + M2 的 `setGuardian`）/ `schedule-call` / `execute-call`（其余经 timelock 的 SP / Registry 调用，如 M2 的解除暂停；拒绝 `upgradeToAndCall`，升级必须走带读回的 upgrade 模式）。广播者没有 proposer / executor 角色时只打印给 Safe 的 calldata。`UpgradeLive` 遇到 timelock 持有的代理直接拒绝并指向本脚本。
-- 本机 anvil 演练（`scripts/d5b-anvil-rehearsal.sh`，`--unlocked`，不传私钥）：c30854f9 的 SP / Registry 上链 → 5c → SP rc→D5b（EOA）→ M1（两步转移、单个 scheduleBatch、48h 前执行失败、48h 后执行、原 EOA 升级失败）→ SP 与 Registry 各一次 schedule → 48h → execute（提前执行失败）→ M2 演练（guardian 暂停；guardian 解除失败；解除暂停经 `schedule-call` / `execute-call` 走同一闸门，48h 后执行）。全部读回通过：`REHEARSAL OK` → `data/d5b/rehearsal/`。这是本机演练，不是 fork 演练；rc1 门槛要求的 Sepolia fork 演练（spec §6 A2）没有做。
+- 本机 anvil 演练（`scripts/d5b-anvil-rehearsal.sh`，`--unlocked`，不传私钥）：c30854f9 的 SP / Registry 上链 → 5c → SP rc→D5b（EOA）→ M1（两步转移、单个 scheduleBatch、48h 前执行失败、48h 后执行、原 EOA 升级失败）→ SP 与 Registry 各一次 schedule → 48h → execute（提前执行失败）→ M2 演练（guardian 暂停；guardian 解除失败；解除暂停经 `schedule-call` / `execute-call` 运行同一运维预检，48h 后执行）。全部读回通过：`REHEARSAL OK` → `data/d5b/rehearsal/`。这是本机演练，不是 fork 演练；rc1 门槛要求的 Sepolia fork 演练（spec §6 A2）没有做。
 - Registry 版本 `Registry-5.8.0` → **`Registry-5.9.0`**；SP 仍为 `SuperPaymaster-5.5.0`；lens 因为新增 `DRYRUN_SPONSORSHIP_PAUSED`（ABI 变化）改为 **`SuperPaymasterLens-1.2.0`**（`SPReleaseVersion.LENS` 同步）。
 - SDK：`abis/SuperPaymaster.json` 只剩核心函数，**必须改用 `abis/SuperPaymaster.full.json`**（核心 + 扩展独有 46 项，同一个代理地址）；需要通知 repo:sdk、repo:dvt。Solidity 调用方用 `SuperPaymasterAdminCalls`（`using … for SuperPaymaster`）。
 
-### §6.3b M1 配置预检：forge 侧是**有界的已知账户检查**，排他性由事件历史检查建立（Codex 收尾审阅与复核，两条 Medium）
+### §6.3b M1 配置预检：forge 侧是**有界的已知账户检查**；事件历史检查是**运维检查**（Codex 收尾审阅与历次复核）
 
-**forge 侧 `UpgradeViaTimelock.m1Preflight`（有界的已知账户检查）**。在 schedule 之前、以及每一次 execute / acceptance 广播之前都运行（六个受治理的广播：schedule-upgrade、execute-upgrade、schedule-accept、execute-accept、schedule-call、execute-call）。它读取**提交在仓库里的逐网络清单** `deployments/timelock-roles.<ENV>.json`（格式见 `deployments/timelock-roles.example.json`；示例里全是标明为 FAKE 的占位地址并带 `_placeholder`，两侧检查都拒绝它），不满足下列任一条就 revert：清单**每个字段都在**（`parseManifest`：缺任何一个字段是具名 revert，不会读成空集合）；`validateManifest`：`chainId == block.chainid`、timelock 与部署块非零、四个角色集合非空、`mustHoldNothing` 非空且无零地址无重复、每项恰好一个非空标签（Codex 复核 `ed2a4762` 的 M1 / M3）；清单存在且 `timelock` 与配置的 timelock 相同；`getMinDelay() == 172800`（原来只要求 ≥ 48h，而且精确值只在 accept 广播**之后**才读回）；清单写的就是 M1 策略（DEFAULT_ADMIN = [timelock]；PROPOSER = CANCELLER = EXECUTOR = [Safe]，线上 Safe 是 Mycelium 多签 `0x51eD…E114`）；清单列出的持有者都确实持有对应角色；`address(0)` 没有 EXECUTOR；Safe 没有 DEFAULT_ADMIN；清单 `mustHoldNothing` 里的每个账户四种角色都没有。`mustHoldNothing` 是**持久记录在清单里的历史账户**（部署者、SP 与 Registry 的旧 owner 等），不再像上一版那样从代理当前的 `owner()` 推出——那种推法在 M1 执行之后就把旧 owner 丢掉了。执行路径：只有调用者就是 Safe 时才广播，其他调用者只拿到给 Safe 的 calldata。
+**先说定位（Codex 复核 `626b6ea8` 之后的结论，SP 决定）**：本节与 §6.3c 描述的全部脚本检查——forge 侧预检、事件历史检查脚本、它写出的证明文件——都是**给运维人员用的预检（operator preflight）**，**不是安全边界**。理由有两条，都无法在脚本层面修补：① 线上的 Safe 是合约，脚本打印出来交给 Safe 的 schedule / execute calldata **本身就是生产路径**，这份 calldata 不带任何证明，Safe 可以晚些提交它，也可以自己另行构造，脚本管不到 Safe 签什么；② 证明文件**没有签名**：手工写一个 PASS 就能漏掉一个清单外的持有者（测试 `test_hand_made_pass_attestation_omitting_a_holder_is_accepted` 如实展示了这一点）；真实的 PASS 在一次新的清单外授权之后，最多仍可用 300 个块。本文此前"机器强制执行""没有证明就不能调度""生产闸门"一类说法都是过度声称，**全部撤回**。角色排他性在链上的真正依据见 §6.3d。
 
-**局限（必须如实写）**：OZ `TimelockController` 用的是不可枚举的 `AccessControl`，链上没有办法列出某个角色的全部持有者。forge 预检只能对它被告知的账户（timelock、Safe、清单里的账户）调用 `hasRole`；**清单没列出的持有者，forge 预检看不到**。本文此前"DEFAULT_ADMIN_ROLE 只在 timelock 自己手里"的说法是过度声称，已撤回。测试 `test_preflight_is_bounded_unlisted_admin_passes` 正面展示了这一点：一个清单没列出的外部 admin 能通过 forge 预检。
+**forge 侧 `UpgradeViaTimelock.m1Preflight`（有界的已知账户检查）**。六个模式（schedule-upgrade、execute-upgrade、schedule-accept、execute-accept、schedule-call、execute-call）在广播或打印 calldata 之前都运行 `operatorPreflight` = `m1Preflight` + `requireRolesAttestation`；它只约束**这一次脚本运行**。`m1Preflight` 读取**提交在仓库里的逐网络清单** `deployments/timelock-roles.<ENV>.json`（格式见 `deployments/timelock-roles.example.json`；示例里全是标明为 FAKE 的占位地址并带 `_placeholder`，两侧检查都拒绝它），不满足下列任一条就 revert：清单**每个字段都在**（`parseManifest`：缺任何一个字段是具名 revert，不会读成空集合；`.roles` 下除四个角色外不能有别的键）；`validateManifest`：`chainId == block.chainid`、timelock 与部署块非零、四个角色集合非空、`mustHoldNothing` 非空且无零地址无重复、每项恰好一个标签且标签去掉空白后非空（与检查脚本的 `String.trim()` 一致：ASCII 空白以及 U+00A0、U+1680、U+2000–U+200A、U+2028/2029、U+202F、U+205F、U+3000、U+FEFF）；清单 `timelock` 与配置的 timelock 相同；`getMinDelay() == 172800`；清单写的就是 M1 策略（DEFAULT_ADMIN = [timelock]；PROPOSER = CANCELLER = EXECUTOR = [Safe]，线上 Safe 是 Mycelium 多签 `0x51eD…E114`）；清单列出的持有者都确实持有对应角色；`address(0)` 没有 EXECUTOR；Safe 没有 DEFAULT_ADMIN；清单 `mustHoldNothing` 里的每个账户四种角色都没有。`mustHoldNothing` 是**持久记录在清单里的历史账户**（部署者、SP 与 Registry 的旧 owner 等），不从代理当前的 `owner()` 推出。执行路径：只有调用者就是 Safe 时才广播（本机 anvil 上是解锁 / prank 的 Safe），其他调用者只拿到给 Safe 的 calldata，并同时打印一段提示：这次预检只约束本次脚本运行，Safe 签名人签名前要在当前头块重跑事件检查并审阅操作内容。
 
-**排他性由事件历史检查建立**：`script/governance/check-timelock-roles.mjs`（viem，版本 `check-timelock-roles/1.2.0`）先校验清单（与 forge 侧同一套完整性规则，另外要求就是 M1 策略、Safe 不是 timelock、`mustHoldNothing` 不含 Safe / timelock；清单不合格退出 1，不扫描），再要求 `--rpc`（以及 `--rpc2`）的 chainId 等于清单 `chainId`（不等退出 1，两个 chainId 都写入报告与证明），然后**钉住一个头块（块号与块哈希）**，从清单的 `deploymentBlock` 到该头块分块（`--chunk` 必须是严格正整数，0、负数、小数、非数字或缺值都以用法错误退出 2——此前 0 或负数会让扫描死循环）拉取该 timelock 的全部 `RoleGranted` / `RoleRevoked`，按（块号，logIndex）重放出每个角色的**完整**持有者集合，与清单**逐项相等**才退出 0；`mustHoldNothing` 账户持有任何角色都失败。完整性：日志扫描无法仅凭返回的数据证明没有漏掉区间（缺失区间与空区间逐字节相同），脚本实际检查并在报告里写明的是：① 深度探针——`deploymentBlock` 有代码、前一块没有，说明端点提供该深度的状态；② 正对照——构造函数自己的授予（timelock 自身的 DEFAULT_ADMIN，以及清单里的 proposer / canceller / executor）必须出现在**部署块内**（此前任何块里出现都算，后来补授的同一角色也能满足它，证明不了扫描到达了构造函数）；③ 状态交叉核对——对每个重放出的持有者、清单持有者和 `mustHoldNothing` 账户，在钉住的头块读 `hasRole`，必须与重放结果一致；④ 可选第二个独立端点 `--rpc2`：必须提供**同一个头块（块号与哈希都相同；落后的端点或另一条链 / 分叉都失败）**，自己也要通过深度探针，并在同一区间返回按规范解码字段（事件、role、account、sender、blockNumber、blockHash、logIndex、transactionHash）逐条相同的日志列表（此前只比 `blockNumber:logIndex:txHash`，而且取两个头的交集——落后的端点照样"一致"）；扫描结束后在两个端点重读头块哈希，发生重组就失败。没有 ④ 时，报告写"completeness NOT independently verified"。带 `--attest` 时，只要通过了参数解析，**每一次运行都写证明文件**，只有退出 0 时 `result` 才是 PASS（同一路径上旧的 PASS 会被 FAIL 覆盖）。
+**局限**：OZ `TimelockController` 用的是不可枚举的 `AccessControl`，链上没有办法列出某个角色的全部持有者。forge 预检只能对它被告知的账户调用 `hasRole`；**清单没列出的持有者，forge 预检看不到**（`test_bounded_preflight_passes_unlisted_admin_genuine_attestation_stops_the_operator` 的前半段）。
 
-**自测**（`scripts/d5b-timelock-roles-selftest.sh`，本机 anvil，40 步；每个失败步骤都要求出现指定的 problem 文本，失败原因不对不算）：A 角色历史——正确的 M1 timelock → 通过；清单外 DEFAULT_ADMIN → 失败，撤销 → 通过；PROPOSER 授给清单外地址 → 失败，撤销 → 通过；EXECUTOR 授给 `mustHoldNothing` 账户 → 失败，撤销 → 通过；`deploymentBlock` 写错 → 深度探针失败。B 链——清单 chainId 与主端点不同 → 失败；`--rpc2` 是另一条链（第二个 anvil，chainId 31338）→ 失败。C 第二端点——`--rpc2` 为主链在头块处的 anvil fork → 通过（正对照）；在头块前一块处的 fork（落后）→ 失败；忠实转发的代理 → 通过（正对照：代理本身不破坏检查）；丢掉一条日志的代理、改写 indexed `sender` 的代理（旧的比对键里没有 sender）→ 都失败（`scripts/d5b-rpc-tamper-proxy.mjs`，只用于自测）。D 部署块正对照——一个构造时不授予 P/C/E、之后才授给 Safe 的 timelock：持有者集合 == 清单、深度探针与 `hasRole` 都干净，只有部署块正对照失败（自测同时断言其他检查没有触发）。E 清单——十个必需字段逐个删除、空角色集合、空 / 重复 / 零地址 `mustHoldNothing`、标签数量不符、空白标签、提交的示例（`_placeholder`）→ 都失败；示例去掉 `_placeholder` 后**只**因 chainId 失败（证明示例本身是完整的格式）。F `--chunk` 为 0、-5、1.5、abc、缺值 → 退出 2 且不写证明；`--chunk 1` → 通过。输出在 `data/d5b/timelock-roles/`。**修复前一栏**：同一个自测在 `KEEP_GOING=1` 下对 `5ce18296` 的检查脚本跑，40 步里 31 步不符合要求（B、C、D、E、F 全部；`--chunk 0` 被 40 秒闹钟杀掉，退出 142）；C 里两个正对照在旧脚本上也"失败"，只是因为输出里没有新的说明文字（旧脚本退出 0），不算旧脚本的缺陷——`selftest-prefix-5ce18296.log`。forge 侧与事件侧的对照：同一个"清单外 admin"，forge 预检**通过**（`test_preflight_is_bounded_unlisted_admin_passes`），事件检查**失败**（自测第 2 步）。
+**事件历史检查（运维检查）**：`script/governance/check-timelock-roles.mjs`（viem，版本 `check-timelock-roles/1.3.0`）先校验清单（与 forge 侧同一套完整性规则，另外要求就是 M1 策略、Safe 不是 timelock、`mustHoldNothing` 不含 Safe / timelock；清单不合格退出 1，不扫描），再要求 `--rpc`（以及 `--rpc2`）的 chainId 等于清单 `chainId`（两个 chainId 都写入报告与证明），然后**钉住一个头块（块号与块哈希）**，从清单的 `deploymentBlock` 到该头块分块（`--chunk` 必须是严格正整数）拉取该 timelock 的全部 `RoleGranted` / `RoleRevoked`，按（块号，logIndex）重放出每个角色的**完整**持有者集合，与清单**逐项相等**才退出 0；`mustHoldNothing` 账户持有任何角色都失败。完整性：日志扫描无法仅凭返回的数据证明没有漏掉区间（缺失区间与空区间逐字节相同），脚本实际检查并在报告里写明的是：① 深度探针——`deploymentBlock` 有代码、前一块没有；② 正对照——构造函数自己的授予必须出现在**部署块内**；③ 状态交叉核对——在钉住的头块读 `hasRole`，必须与重放结果一致；④ 可选第二个独立端点 `--rpc2`：必须提供同一个头块（块号与哈希都相同），自己也要通过深度探针，并在同一区间返回按规范解码字段逐条相同的日志列表；扫描结束后在两个端点重读头块哈希，发生重组就失败。没有 ④ 时，报告写"completeness NOT independently verified"。带 `--attest <path>` 时**每一次运行都在该路径写证明文件**——用法错误、清单不合格、基础设施错误（退出 2）也不例外，只有退出 0 时 `result` 才是 PASS，所以同一路径上较早的 PASS 一定会被后来的失败覆盖（Codex 复核 `626b6ea8` 的 Low；只有 `--attest` 本身缺值时无处可写）。
 
-**forge 测试** `contracts/test/v2/D5bTimelockPreflight.t.sol`（预检部分；全部 27 个见 §6.3c）：正例（完整走完 M1）；非 Safe 调用者不调度；五个负对照——72h 延迟、开放 executor、部署者仍是 admin、Safe 缺 canceller、多一个 EOA proposer——每个都在预检里 revert，批次没有被调度，两个代理的 owner 与提名都没变；调度之后再授予角色，execute 前的第二次预检拦下；清单指向另一个 timelock、清单不是 M1 策略、清单文件缺失，三者都 revert；以及上面的"有界"正面展示。
+**自测**（`scripts/d5b-timelock-roles-selftest.sh`，本机 anvil，43 步；每个失败步骤都要求出现指定的 problem 文本，失败原因不对不算）：A 角色历史 8 步；B 链——清单 chainId 与主端点不同、`--rpc2` 是另一条链（第二个 anvil，chainId 31338）；C 第二端点——头块处的 anvil fork 与原样转发的代理两个正对照通过，落后一块的 fork、丢一条日志的代理、改写 indexed `sender` 的代理失败（`scripts/d5b-rpc-tamper-proxy.mjs`，只用于自测）；D 部署块正对照——构造时不授予 P/C/E、之后才授给 Safe 的 timelock，只有部署块正对照失败；E 清单——十个必需字段逐个删除、空角色集合、空 / 重复 / 零地址 `mustHoldNothing`、标签数量不符、空白标签、提交的示例（`_placeholder`）失败，示例去掉 `_placeholder` 后**只**因 chainId 失败；F 退出 2 的路径——`--chunk` 为 0、-5、1.5、abc、缺值，清单文件读不到，缺 `--rpc`，端点不可达，八种情况下事先放在 `--attest` 路径上的**真实 PASS 都被替换成写明原因的 FAIL**；`--chunk 1` 正对照通过。输出在 `data/d5b/timelock-roles/`。**修复前两栏**：对 `5ce18296` 的检查脚本 40 步里 31 步不符合要求（`selftest-prefix-5ce18296.log`，那时 F 段还是旧写法）；对 `626b6ea8` 的检查脚本 43 步里 7 步不符合要求——正是 F 段的七个用法错误，旧的 PASS 原样留在路径上（`selftest-prefix-626b6ea8.log`）；"端点不可达"那一步在 `626b6ea8` 上本来就写 FAIL，两栏都绿，不算这次修复覆盖的缺陷。
 
-### §6.3c 排他性闸门在代码里强制执行（Codex 在 `ed2a4762` 上的收尾发现："只写在 runbook 里，生产流程可以绕过"）
+**forge 测试** `contracts/test/v2/D5bTimelockPreflight.t.sol`（33 个，全部是预检测试，名字里不再有"gate"或强制执行的说法）：正例（完整走完 M1）；非 Safe 调用者不调度；五个配置负对照（72h 延迟、开放 executor、部署者仍是 admin、Safe 缺 canceller、多一个 EOA proposer）——每个都在预检里 revert，批次没有被调度，两个代理的 owner 与提名都没变；调度之后再授予角色，execute 前的第二次预检拦下；清单指向另一个 timelock、清单不是 M1 策略、清单文件缺失；两条"界限"测试（见 §6.3c）。
 
-**闸门在代码里，不只在 runbook 里。** `UpgradeViaTimelock` 的六个受治理广播（schedule-upgrade、execute-upgrade，对 SP 和 Registry 都适用；M1 的 schedule-accept、execute-accept；其余经 timelock 的调用 schedule-call、execute-call，例如 M2 的解除暂停）都先调用 `governedGate` = 有界预检 `m1Preflight` + `requireRolesAttestation`。后者要求事件历史检查脚本写出的证明文件（环境变量 `TL_ROLES_ATTESTATION`，路径必须在仓库目录内，forge 只能读项目内文件；建议 `deployments/attestations/timelock-roles.<env>.<head>.json`），在任何 schedule / execute 之前逐项核对，不满足就 revert：
+### §6.3c 证明文件核对：运维预检，不是强制执行（Codex 在 `ed2a4762` 上的停止前发现、对 `626b6ea8` 的复核）
 
-- `result == "PASS"`；`chainId == block.chainid`；`timelock` 等于配置的 timelock；
-- `manifestKeccak256` 等于**此刻读到的清单文件字节**的 keccak256（证明之后清单被改过就拒绝；证明文件同时记录 sha256 供人核对）；
-- 扫描头块不晚于当前块，且不早于当前块 `TL_ATTEST_MAX_AGE` 个块（默认 300；可配置）；
+`requireRolesAttestation` 读取环境变量 `TL_ROLES_ATTESTATION` 指向的证明文件（路径必须在仓库目录内，forge 只能读项目内文件；建议 `deployments/attestations/timelock-roles.<env>.<head>.json`），不满足下列任一条就让**本次脚本运行**停下（revert）：
+
+- `schema == "d5b-timelock-roles-attestation/2"`（Codex 复核 `626b6ea8` 的 Medium）；`result == "PASS"`；`chainId == block.chainid`；`timelock` 等于配置的 timelock；
+- `manifestKeccak256` 等于**此刻读到的清单文件字节**的 keccak256；
+- 扫描头块不晚于当前块，且不早于当前块 `TL_ATTEST_MAX_AGE` 个块——默认 300；**只能在本地链（31337 / 1337）上调大**，线上链只能调小（`attestMaxAge`）；
+- `headBlockHash` 必须存在；当 EVM 还能给出该块的 `blockhash`（头块早于当前块且不超过 256 块）时，两者必须相等，用来发现同 chainId 的分叉 / 重组；给不出时打印"NOT verifiable"。演练里 9 次核对中有 1 次真正比对了哈希（证明头块比当前块早一块的那次），其余 8 次头块就是当前块，只打印了不可核对——`data/d5b/rehearsal/neg-last-execute-call-before-48h.log`；
 - 四个角色的证明持有者集合与清单**完全相等**，并且每个证明里的持有者此刻在链上仍 `hasRole`。
 
-证明文件由 `check-timelock-roles.mjs --attest <path|auto>` 写出（schema `d5b-timelock-roles-attestation/2`），字段：`result`、`chainId`（主端点）、`rpc2ChainId`、`manifestChainId`、`timelock`、`manifestPath`、`manifestSha256`、`manifestKeccak256`、`deploymentBlock`、`headBlock`、`headBlockHash`（钉住的头块）、四个角色重建出的持有者集合、`mustHoldNothing` 及标签、日志条数、两个端点的深度探针结果、部署块正对照结果、完整性说明（是否用了 `--rpc2`，两个端点均脱敏）、`problems`，以及脚本版本与 git commit（含脚本目录是否有未提交改动）。清单的 chainId 由 forge 侧再核一次（`validateManifest`：`chainId == block.chainid`）。**它不是密码学签名**：文件由检查脚本生成，forge 侧重新核对 chainId、timelock、清单哈希、新鲜度和每个持有者的链上状态，伪造一个 PASS 也骗不过"证明集合 == 清单"加链上 `hasRole` 这两条（见 `test_bounded_preflight_passes_unlisted_admin_but_attestation_gate_blocks`：清单外 admin 的 FAIL 证明被拒，手工改成 PASS 的证明也因集合不等被拒）。
+证明文件由 `check-timelock-roles.mjs --attest <path|auto>` 写出，字段：`schema`、`result`、`chainId`、`rpc2ChainId`、`manifestChainId`、`timelock`、`manifestPath`、`manifestSha256`、`manifestKeccak256`、`deploymentBlock`、`headBlock`、`headBlockHash`、四个角色重建出的持有者集合、`mustHoldNothing` 及标签、日志条数、两个端点的深度探针、部署块正对照、完整性说明、`problems`、脚本版本与 git commit。
 
-**逃生开关**：`TL_ALLOW_NO_ATTESTATION=true` 只在本地链（chainId 31337 / 1337）上接受，并打印醒目警告；在其他任何 chainId 上 revert（`test_attestation_opt_out_rejected_on_live_chain`，`vm.chainId(10)`）。
+**这些核对能做到的与做不到的（如实写）**：能做到——让运维人员在调度 / 执行前发现"当前角色历史与清单不符"、"证明是别的链 / 别的 timelock / 旧清单的"、"证明过旧"、"证明格式不对"。做不到——① 约束 Safe：线上 Safe 提交的 calldata 不经过这里；② 证明真实性：证明没有签名，一个漏掉持有者的手工 PASS 能通过全部核对（`test_hand_made_pass_attestation_omitting_a_holder_is_accepted`）；③ 实时性：头块之后新增的清单外授权，在 `TL_ATTEST_MAX_AGE` 以内看不到。
+
+**逃生开关**：`TL_ALLOW_NO_ATTESTATION=true` 只在本地链上接受，并打印醒目警告；在其他任何 chainId 上 revert。
 
 **runbook（M1 与之后每一次经 timelock 的升级或参数修改）**：
 1. M1 之前提交 `deployments/timelock-roles.<env>.json`（`network`、`chainId`、timelock 地址、部署块、M1 策略的四个角色集合、`mustHoldNothing` 历史账户及标签；不带 `_placeholder`），走评审。
-2. 每一次 schedule **和** execute 之前运行 `node script/governance/check-timelock-roles.mjs --rpc <归档端点> --rpc2 <第二个独立归档端点> --manifest deployments/timelock-roles.<env>.json --out <报告> --attest auto`；把生成的证明文件路径设为 `TL_ROLES_ATTESTATION` 再运行对应模式——没有它，脚本直接拒绝。报告、证明文件与命令行（RPC 已脱敏）按 03 §6.1 归档。只有一个端点时，证明里的"completeness NOT independently verified"要原样保留。
-3. anvil 演练已按"检查 → 证明 → schedule / execute"端到端执行：**每一个** timelock schedule 与 execute 之前各一次（M1 的 accept、SP 与 Registry 的升级、M2 的解除暂停——此前 M2 的解除暂停是直接用 `cast` 调 timelock 的 `schedule`，绕过了检查，Codex 复核 L1），外加每种受治理调度各一个"不带证明被拒"的负对照（schedule-accept、SP 与 Registry 的 schedule-upgrade、schedule-call）：`data/d5b/rehearsal/roles-*.log`、`attestation-*.json`。
+2. **A5s / A6（timelock 部署之后、M1 之前）一次性建立初始角色集合**：运行 `node script/governance/check-timelock-roles.mjs --rpc <归档端点> --rpc2 <第二个独立归档端点> --manifest deployments/timelock-roles.<env>.json --out <报告> --attest auto`，报告、证明文件与命令行（RPC 已脱敏）按 03 §6.1 归档。这一次是 §6.3d 依据 (a) 的证据。
+3. 之后每次 schedule / execute 之前，运维人员照样运行它并把证明路径设为 `TL_ROLES_ATTESTATION`（运维预检）；**Safe 签名人签名前自己在当前头块重跑一次**，并审阅被调度操作的内容（尤其是目标为 timelock 自身的 `grantRole` / `revokeRole` / `updateDelay`）。
+4. anvil 演练已按"检查 → 证明 → 预检 → schedule / execute"端到端执行：每一个 timelock schedule 与 execute 之前各一次（M1 的 accept、SP 与 Registry 的升级、M2 的解除暂停），外加每种调度各一个"不带证明时脚本停下"的负对照：`data/d5b/rehearsal/roles-*.log`、`attestation-*.json`。
 
-**测试**（`contracts/test/v2/D5bTimelockPreflight.t.sol`，27 个）：有效证明通过（完整走完 M1）；证明缺失、chainId 错、timelock 错、扫描头过旧（`vm.roll` +301）、证明之后清单被改、结果为 FAIL、持有者集合与清单不等，各自 revert，批次未调度、owner 与提名不变；逃生开关在 live chainId 上被拒、在本地链上放行；以及上面那条"清单外 admin：有界预检放行，证明闸门拦下"。Codex 复核 `ed2a4762` 之后新增：清单 chainId 与本链不同被拒；十二种空洞清单（chainId 0、timelock 0、部署块 0、四个角色各自为空、`mustHoldNothing` 为空、缺标签、空标签、零地址、重复）逐项以具名原因被拒；清单文件缺任何一个字段（十个）逐项以具名原因被拒，完整清单能解析通过（正对照）；提交的示例清单被拒；M2 解除暂停经 `scheduleCallWith` / `executeCallWith` 走闸门（不带证明被拒、带证明调度并在 48h 后执行）；`schedule-call` 拒绝 `upgradeToAndCall`。
+**测试**（`D5bTimelockPreflight.t.sol` 中与证明文件有关的部分）：有效证明通过（完整走完 M1）；证明缺失、schema 不对（旧格式 `/1`）、chainId 错、timelock 错、扫描头过旧（`vm.roll` +301）、证明之后清单被改、结果为 FAIL、持有者集合与清单不等、`headBlockHash` 缺失、`headBlockHash` 与 `blockhash` 不符（`vm.setBlockhash`，并以相等的哈希作正对照）各自让脚本停下，批次未调度、owner 与提名不变；`TL_ATTEST_MAX_AGE` 在 live chainId 上只能调小；逃生开关在 live chainId 上被拒、在本地链上放行；清单 chainId 与本链不同；十二种空洞清单；只含空白的标签（六种，另有一个带内容的正对照）；`.roles` 下多一个键；清单文件缺任何一个字段（十个）；示例清单；M2 解除暂停经 `scheduleCallWith` / `executeCallWith` 运行预检；`schedule-call` 拒绝 `upgradeToAndCall`；以及两条**界限测试**——清单外 admin 能通过有界的 forge 预检、真实证明（FAIL，或列出该 admin 的 PASS）让运维人员停下；**手工 PASS 漏掉该 admin 时能通过全部核对并调度成功**。
 
-**不受 M1 闸门保护的路径（明确说明）**：Registry 第 5c 步（`UpgradeRegistryD5b`）、`deploy-impl`、`direct-upgrade` 是 **M1 之前的 EOA 路径**，不涉及 timelock，也不运行预检和证明核对；它们只依赖"owner == 广播者"与各自的读回。M1 之后这三条路径不能再用于代理升级（`direct-upgrade` 与 5c 会因 owner 不是广播者而拒绝；`deploy-impl` 只部署 impl，不改代理）。
+**不运行预检的路径**：Registry 第 5c 步（`UpgradeRegistryD5b`）、`deploy-impl`、`direct-upgrade` 是 **M1 之前的 EOA 路径**，不涉及 timelock；它们只依赖"owner == 广播者"与各自的读回。M1 之后这三条路径不能再用于代理升级（`direct-upgrade` 与 5c 会因 owner 不是广播者而拒绝；`deploy-impl` 只部署 impl，不改代理）。
+
+### §6.3d 角色排他性在链上的真正依据（Codex 复核 `626b6ea8` 之后，SP 决定；已按 OZ 5.0.2 源码核对）
+
+源码：`singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/`（`package.json` 版本 5.0.2）。
+
+**(a) 部署时的初始角色集合，由构造参数决定，事件检查一次性建立。** `governance/TimelockController.sol` L115–L137 的构造函数：L117 `_grantRole(DEFAULT_ADMIN_ROLE, address(this))`（timelock 自己管理自己）；L120–L122 只有 `admin != address(0)` 时才额外授予一个 admin——GOV-1 要求 `admin = address(0)`（若部署时给了临时 admin，必须由它自己 `renounceRole`，`access/AccessControl.sol` L157–L163，只有持有者本人能放弃）；L125–L128 每个 proposer 同时得到 PROPOSER 与 CANCELLER；L131–L133 每个 executor 得到 EXECUTOR；这些授予都在部署交易里发出 `RoleGranted`。所以初始集合完全由部署交易决定，A5s / A6 用事件检查（部署块正对照 + 深度探针 + 第二端点）**一次性**核对并归档（runbook 第 2 步）。
+
+**(b) 此后唯一的 DEFAULT_ADMIN 是 timelock 自己，所以任何角色变更本身都必须是一次公开调度、至少延迟 48h 的 timelock 操作。** `TimelockController.sol` 里没有调用 `_setRoleAdmin`（全文 0 处），所以四个角色的 admin 都是默认值 `DEFAULT_ADMIN_ROLE = 0x00`（`AccessControl.sol` L57，`getRoleAdmin` L106–L108 返回 `_roles[role].adminRole`，未设置即 0x00）；`grantRole` L122 与 `revokeRole` L137 都带 `onlyRole(getRoleAdmin(role))`，即调用者必须持有 DEFAULT_ADMIN。当 DEFAULT_ADMIN 只有 timelock 自己时，唯一能调用它们的是 timelock，而 timelock 发起外部调用只能经 `execute` / `executeBatch`（L364、L391，`onlyRoleOrOpenRole(EXECUTOR_ROLE)`），被执行的操作必须先 `schedule` / `scheduleBatch`（L273、L298，`onlyRole(PROPOSER_ROLE)`），调度时 `_schedule` 要求 `delay >= getMinDelay()`（L316–L323，否则 `TimelockInsufficientDelay`），并发出带目标与 calldata 的 `CallScheduled`（L72–L80）。延迟本身也只能由 timelock 自己改（`updateDelay` L449–L456，`sender != address(this)` 就 revert），同样要经过调度。**唯一不经 timelock 的角色变化是 `renounceRole`**（L157–L163）：持有者可以立即放弃**自己的**角色，这只会缩小集合（例如 Safe 放弃 EXECUTOR 会让 timelock 无法执行），不会增加持有者。
+
+**(c) 所以持续的保障 = 监控 + Safe 签名人审阅，不是脚本。** 任何新增持有者都会先以 `CallScheduled(target = timelock, data = grantRole(...))` 公开至少 48h，然后才有 `RoleGranted`。**TODO（交给 reputation / 监控系统，本轮不写代码）**：监控这把 timelock 的 `CallScheduled`（目标为 timelock 自身、selector 为 `grantRole` / `revokeRole` / `updateDelay` 的调用报警）、`RoleGranted`、`RoleRevoked`、`Cancelled`、`MinDelayChange`；并由 Safe 签名人审阅任何被调度的角色变更。事件检查脚本在这里的角色是：(a) 的一次性证据，以及运维人员 / 签名人随时可以重跑的核对工具。
+
+**可选的后续加固（登记为 O 项，不进 5.5.0）**：**O-D5b-1**——在 Safe 上加一个 Guard / 模块，在链上检查被提交到 timelock 的操作（例如拒绝目标为 timelock 的 `grantRole`，或要求链上可验证的条件），这样约束才真正落在 Safe 签名的路径上。需要单独设计与审计，不在 5.5.0 范围内。
+
+**待并入 03 规范的说明**（建议放在 §10.7b GOV-1 / M1 行之后；D5b 不直接改规范正文）：
+> GOV-1 的角色排他性依据：timelock 以 `admin = address(0)` 部署（或部署后临时 admin 已 `renounceRole`），A5s / A6 用事件历史检查一次性核对初始角色集合并归档；此后 DEFAULT_ADMIN 只有 timelock 自己，OZ 5.0.2 `TimelockController` 中任何 `grantRole` / `revokeRole` 都必须是一次公开调度、延迟 ≥ minDelay（172800 s）的 timelock 操作（`TimelockController.sol` L115–L137、L316–L323；`AccessControl.sol` L57、L106、L122、L137）；唯一例外 `renounceRole` 只能缩小集合。持续保障 = 监控 timelock 的 `CallScheduled` / `RoleGranted` / `RoleRevoked`（TODO：reputation / 监控系统）+ Safe 签名人审阅被调度的角色变更。`UpgradeViaTimelock` 的预检与 `check-timelock-roles.mjs` 的证明文件是运维工具，不是安全边界（不能约束 Safe 签什么，证明未签名）。可选加固 O-D5b-1：Safe Guard / 模块在链上执行该检查，不进 5.5.0。
 
 ### §6.4 Codex 审阅（第 1 轮，2026-09-13，只读，范围 = `c30854f9..HEAD` 的 src、升级脚本、布局 / selector 门槛）
 
@@ -182,7 +208,7 @@ MCP 形式的 Codex 连接失败，改用 codex 插件的后台任务（`task-mt
 
 **Codex 复核（`036a2921`）**：此前各项修复全部确认；新提 1 条 Medium——forge 预检无法证明角色排他（`AccessControl` 不可枚举），而注释与本文把它写成了排他性保证；旧 owner 只在仍是 owner 时才被列入禁用名单，M1 之后就掉出去。已处理（§6.3b、§6.3c）：措辞改为"有界的已知账户检查"；强制使用提交在仓库里的逐网络清单（历史账户持久记录，不再从 `owner()` 推）；新增事件历史检查脚本 `check-timelock-roles.mjs` 与 anvil 自测；runbook 要求每次 schedule 前运行并归档；明确 5c、`deploy-impl`、`direct-upgrade` 是不受 M1 预检保护的 M1 前 EOA 路径；测试里同时展示"清单外 admin：forge 预检通过、事件检查失败"。
 
-**Codex 停止前发现（`ed2a4762`）**：事件历史检查只写在 runbook 里，生产流程可以绕过。已处理（§6.3c）：证明文件在代码里强制执行（`governedGate`），本地链之外没有逃生开关。
+**Codex 停止前发现（`ed2a4762`）**：事件历史检查只写在 runbook 里，生产流程可以绕过。当时的处理是让脚本在每次调度 / 执行前核对证明文件，并称之为"强制执行"；**这一说法已被 `626b6ea8` 的复核推翻并撤回**（见下），现在的定位是运维预检（§6.3b、§6.3c）。
 
 **Codex 复核（`ed2a4762`）**：无 Critical / High；3 Medium + 2 Low，全部在本轮修复：
 
@@ -191,7 +217,16 @@ MCP 形式的 Codex 连接失败，改用 codex 插件的后台任务（`task-mt
 | Medium M1 | 清单的 `chainId` 从未被核对 | 检查脚本要求 `--rpc` 与 `--rpc2` 的 chainId 都等于清单 chainId（两者都记录）；forge `validateManifest` 要求等于 `block.chainid` | 自测 B（两步）；`test_manifest_chainid_mismatch_reverts`；变异 (j) |
 | Medium M2 | `--rpc2` 夸大了完整性：取两个头的交集（落后端点也"一致"）、只比 `blockNumber:logIndex:txHash`、没有自己的深度探针；构造正对照接受任何块里的授予 | 两个扫描钉在同一头块（块号与哈希）、要求 rpc2 深度探针、比对规范解码字段（含 role / account / sender / blockHash）、扫描后重读头块哈希；构造正对照只认部署块 | 自测 C（五步，含两个正对照）、D |
 | Medium M3 | 空洞清单：缺字段读成空集合，空 `mustHoldNothing` 让"历史账户不持有角色"恒真 | 两侧都要求完整格式与非空、唯一、非零、带标签的 `mustHoldNothing`；示例改为标明 FAKE 的占位地址并加 `_placeholder`（两侧拒绝） | 自测 E（18 步）；`test_manifest_vacuous_fields_each_rejected`、`test_manifest_file_missing_field_each_rejected`、`test_manifest_example_placeholder_refused`；变异 (j)、(k) |
-| Low L1 | 演练在 M2 解除暂停的 schedule 前没有跑检查（直接 `cast` 调 timelock） | 新增受闸门保护的 `schedule-call` / `execute-call`（拒绝 `upgradeToAndCall`）；演练里每一次 schedule / execute 都走"检查 → 证明 → 闸门"，并有"不带证明被拒"的负对照 | `data/d5b/rehearsal/`；`test_governed_call_*`；变异 (l)、(m) |
-| Low L2 | `--chunk 0` 或负数使扫描死循环 | 必须是严格正整数，否则用法错误退出 2（不写证明） | 自测 F（五个非法值 + `--chunk 1` 正对照） |
+| Low L1 | 演练在 M2 解除暂停的 schedule 前没有跑检查（直接 `cast` 调 timelock） | 新增运行同一预检的 `schedule-call` / `execute-call`（拒绝 `upgradeToAndCall`）；演练里每一次 schedule / execute 都走"检查 → 证明 → 预检"，并有"不带证明时脚本停下"的负对照 | `data/d5b/rehearsal/`；`test_governed_call_*`；变异 (l)、(m) |
+| Low L2 | `--chunk 0` 或负数使扫描死循环 | 必须是严格正整数，否则用法错误退出 2（`626b6ea8` 之后还会把 FAIL 写到 `--attest` 路径） | 自测 F |
 
 修复前一栏：自测对 `5ce18296` 的检查脚本 40 步里 31 步不符合要求（`--chunk 0` 被闹钟杀掉）；forge 侧新测试无法对旧脚本编译（旧 `RoleManifest` 没有 `chainId` / 标签字段），改用变异 (j)–(m) 证明新断言各自有效。
+
+**Codex 复核（`626b6ea8`）：CHANGES REQUIRED，2 High + 1 Medium + 1 Low**；其余全部确认无误（六个 schedule / execute 函数都先运行预检；清单哈希绑定到确切的文件字节；链 / timelock 不符被拒；逃生开关只限本地链；rpc2 钉头块与解码比对正确；示例清单被拒；自测与变异 (j)–(m) 真实有效；各退出路径都按失败处理；`contracts/src` 自 `036a2921` 以来未变）。
+
+| 级别 | 发现 | 处理 |
+|---|---|---|
+| High H1 | 线上 Safe 是合约，脚本打印的 schedule / execute calldata 就是生产路径，不带证明；Safe 可以晚些提交或自己构造 | **不在脚本层修补（做不到）**，按 SP 决定改为如实定位：脚本检查是运维预检、不是安全边界（NatSpec、本文 §6.3b–§6.3c、runbook、报告全部改写，"机器强制执行 / 生产闸门 / 没有证明不能调度"的说法全部撤回；`governedGate` 改名 `operatorPreflight`）；链上依据写进 §6.3d（按 OZ 5.0.2 源码行号核对）；持续保障 = 监控 + Safe 签名人审阅（TODO，交给 reputation / 监控系统）；打印给 Safe 的 calldata 旁边加提示；可选加固登记为 **O-D5b-1**（Safe Guard / 模块），不进 5.5.0 |
+| High H2 | 证明未签名：手工 PASS 可漏掉清单外持有者；真实 PASS 在新授权后最多仍可用 300 块；`TL_ATTEST_MAX_AGE` 可任意调大；forge 不核对 `headBlockHash`（同 chainId 分叉重放） | 同上，定位改为运维预检，并新增界限测试 `test_hand_made_pass_attestation_omitting_a_holder_is_accepted` 如实展示；作为低成本的运维安全改进（不是安全声明）：`TL_ATTEST_MAX_AGE` 只能在本地链调大（`attestMaxAge`，`test_attest_max_age_raise_is_local_only`，变异 (r)）；EVM 能给出 `blockhash` 时核对 `headBlockHash`（`test_attestation_head_block_hash_checked_when_available`，变异 (q)） |
+| Medium | forge 不核对证明 `schema`；标签不去空白；不拒绝多出的角色键（与检查脚本不一致） | 三项都已补并各有测试与变异：(n)、(o)、(p) |
+| Low | 退出 2（用法 / 基础设施错误）时不覆盖 `--attest` 路径上已有的证明 | 已修：先定位 `--attest`，任何退出 2 都在该路径写带原因的 FAIL；自测 F 段八种情况都先放一个真实 PASS 再验证被替换；修复前一栏（`626b6ea8` 的检查脚本）F 段七个用法错误全红，旧 PASS 原样留下 |

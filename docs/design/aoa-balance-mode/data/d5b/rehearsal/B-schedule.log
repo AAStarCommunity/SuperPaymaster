@@ -2,8 +2,9 @@ No files changed, compilation skipped
 Script ran successfully.
 
 == Logs ==
-    roles attestation OK: event-history holder sets == manifest, head block 16
-    M1 batch scheduled; ready at: 1789634120
+    roles attestation: head block hash NOT verifiable here (blockhash unavailable) 16
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 16
+    M1 batch scheduled; ready at: 1789642794
   0x321972a6451f193637afcec5d53a80129cb545e2bdc3916686a0cd0c11773e88
 
 ## Setting up 1 EVM.
