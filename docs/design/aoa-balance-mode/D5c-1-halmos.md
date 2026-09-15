@@ -1,42 +1,27 @@
 # D5c-1 · 有界符号验证（Halmos）：CAP-1、A-3、I2、I6
 
-> **RESUME（WIP 检查点，2026-09-13 暂停；以下是暂停时的真实状态，本文其余"待填"处以此为准）**
->
-> **已完成（最终 harness，日志在 `data/halmos/`）**
-> - CAP-1：PROVEN（`cap1.log`：a/b/c 全 PASS，`bounds: []`；witness 按预期 FAIL `cap1-witness.log`）。
-> - R（汇率/单笔上限不变量）：基础情形 `rate-base.log` 两个 PASS（`initialize` + 真实工厂、rate 取满 uint256）；归纳步 `check_RATE_step_coreAbi` PASS（15 分区）、`check_RATE_step_extAbi` PASS（44 分区）。
-> - A-3：`check_A3_coreAbi` PASS（15 分区，含 `settleLocked` 预热路径）；`check_A3_extAbi` 43/44 PASS，`mint` 分区 TIMEOUT（60 s 与 300 s 重跑均超时，属引理 M，见下）。
-> - 五个变异全部完成（最终 harness，`data/halmos/mutations/M-*`）：M-CAP1→CAP1-a；M-A3→A3 ext `spPull` + A3 core `OTHER`（位掩码 28）；M-I2→I2 core `tryLockForGas`（bit 0）；M-I6→I6 与 I6-J core `tryReserveCredit`（bit 0）；M-F1→RATE 两个基础情形。五个场景测试在变异下都变红；源码逐字节恢复（sha256 一致），副本 `contracts/src` 与主树 diff 为空。
-> - 发现 F-D5c1-1 → 修复 `3c28ec21` → 回归测试（§F）；forge 回放 / 回归 / 预热 / 布局 / 选择器列表 / witness 回放测试全部绿（`forge test --match-path "contracts/test/halmos/*"`：15 + 2 + 1 fuzz）。
->
-> **未完成（暂停时被中止或尚未开始）**
-> - I2 ext：42/44 PASS；`mint` TIMEOUT（尚未 300 s 重跑）；`transferFrom` 被中止（W3 加强后首次重跑，已跑约 40 分钟；上一版在该分区给出的是假反例，已回放，见 §6）。
-> - I2 core：10/15 PASS；`burn(address,uint256)`、`transferFrom`、`settleLocked`、`tryLockForGas` 被中止，`tryReserveCredit` 未开始。
-> - 尚未运行：I6 / I6-J（core 与 ext）、`mint` 分区的 `debts(v) = 0` 变体（A3 / I2 / I6 / I6-J）、引理 M 的四个 check、A3x（精确上界）、`XPNTsV2I2NoRHalmosTest`、五个 witness。
-> - 收尾未做：`trim-logs.py` 裁剪日志、`artifact-parity.py`（最终 build 前后两次）、全量 `forge build` + `forge test`（Cancun）计数、EVIDENCE-INDEX 行与 `build-manifest.mjs`、§0 / §3 的结果表。
->
-> **待分析的两处**：(1) I2 `transferFrom` 在 W3 两两加强后是否 PASS（加强前的反例已确认是不可达状态上的回绕假反例）；(2) 引理 M（`mint` 自动抵债 `repayX ≤ m`）的符号证明在 Halmos 上超时（含拆成 M1–M3），当前处理 = `debts(v)=0` 变体符号证明 + 纸面证明 + fuzz；M3 第一版的"反例"是 harness 自身溢出（已修正前提，日志 `spurious/lemmaM3-harness-overflow.log`）。
->
-> **重启命令**（仓库根目录；先确认没有自己的 halmos 进程在跑，并记录 PID）：
-> ```
-> # 已完成的组不需要重跑；剩余的依次：
-> rm -rf docs/design/aoa-balance-mode/data/halmos/XPNTsV2I2HalmosTest.check_I2_{ext,core}Abi
-> for g in ext core mint lemma settle witness; do script/halmos/run-all-d5c1.sh $g 6; done
-> #   注：ext 组会把 A3 ext 也重跑一遍（约 11 分钟），结果应与现有日志一致；I2 transferFrom 分区单个就可能超过 1 小时
-> # 收尾：
-> python3 script/halmos/trim-logs.py docs/design/aoa-balance-mode/data/halmos
-> forge build && python3 script/halmos/artifact-parity.py
-> forge test          # Cancun，记录 pass/fail/skip
-> node script/evidence/build-manifest.mjs && (cd docs/design/aoa-balance-mode && shasum -a 256 -c EVIDENCE.sha256)
-> ```
+> **状态（2026-09-15，最终）**：全部证据由加固后的判定脚本 `script/halmos/verify-d5c1.py` 判定——**ALL EXPECTATIONS MET（151 行，退出码 0）**，输出存档 `data/halmos/verify-final.txt`。每条日志都绑定到当前源码与字节码（源码集 sha256 + 被测字节码哈希 + `dirty_src = 0`，头尾两次绑定一致），分区集合与当前 ABI 逐一相等；有界（TIMEOUT）只允许出现在`script/halmos/d5c1-expectations.json` 的白名单分区上，每个都写明原因和替代证据。2026-09-13 暂停前的 RESUME 记录已被本段取代（历史见 git log）。
 
 > 分支 `d5c-1/halmos-token`，基线 `275abaef`（`feat/aoa-balance-mode-5.5.0` 的头）。规范：[03-final-spec.md](03-final-spec.md)（§2.3 A-3、§4 I2/I4/I6、§10.2 的 xc 公式、§10.7b GOV-4）、[apnts-capped-design.md](apnts-capped-design.md)。
 > 本交付只加测试和脚本，本身不改 `contracts/src/`（五个变异都在树的临时副本里做，逐字节恢复并用 sha256 校验，见 §5）。唯一的源码变化是协调方针对本交付发现 F-D5c1-1 的修复 `3c28ec21`（fast-forward 进本分支，§F）。
-> 证据登记：[EVIDENCE-INDEX.md](EVIDENCE-INDEX.md) 的 S-01…S-06 行；原始日志在 `data/halmos/`。
+> 证据登记：[EVIDENCE-INDEX.md](EVIDENCE-INDEX.md) 的 H-01…H-06 行（合入 feat 时登记；S- 前缀已用于规范冻结）；原始日志在 `data/halmos/`。
 
 ## 0. 结论
 
-（待填）
+| 性质 | 结论 | 说明 |
+|---|---|---|
+| **CAP-1**（APNTsCapped 上限） | **PROVEN**（单步归纳，任意前置状态，`bounds: []`） | 3 个 check 全 PASS；witness 按预期给出反例 |
+| **R**（汇率 ∈ [1e14, 1e22]，单笔上限 ≤ 50,000e18） | **PROVEN**（基础情形 + 归纳步） | 基础情形：`initialize` 与真实工厂路径（初始汇率取满 `uint256`）；归纳步 core 15/15、ext 44/44 |
+| **A-3**（SP / 历史 SP 不能转走、只能按记录销毁） | **BOUNDED**：core 15/15 PASS，ext 43/44 PASS；`mint` 分区 TIMEOUT | `mint` 分区拆开：`debts(v) = 0` 的变体 PASS；`debts(v) > 0` 归结为引理 M（纸面证明 + fuzz） |
+| **A3x**（精确向上取整界 `dec ≤ ceil(c·x0/a0)`） | **BOUNDED**（`settleLocked` 在 600 s 墙钟上限处 TIMEOUT） | 替代：`D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked` 断言 A3x 位掩码（10,000 次） |
+| **I2**（额度累计 ≤ cap） | **BOUNDED**：core 12/15、ext 42/44 PASS | TIMEOUT 分区：core `burn(address,uint256)` / `transferFrom` / `tryLockForGas`，ext `transferFrom` / `mint`；替代：各自的 10,000 次 fuzz（`D5c1BoundedFuzzTest`）与 `mint` 的 `debts = 0` 变体 PASS |
+| **I6 / I6-J**（恶意 SP 只能销毁；新债 ≤ 申请上限） | **PROVEN**（core 15/15、ext 44/44，两者都是） | 含 `mint` 分区 |
+| **引理 M**（`mint` 自动抵债不降低收款人余额） | **BOUNDED**（M、M1–M3 都在 540 s 求解器上限处 TIMEOUT） | 唯一不是符号证明的环节：纸面证明（§7）+ 真实代码路径上的 fuzz（`MintRepayLemmaFuzzTest`，10,000 次） |
+
+- **可达性对照**：5 个 witness 与 `XPNTsV2I2NoRHalmosTest`（去掉 R 的负对照）都按预期给出反例，说明 harness 不是空洞地通过。
+- **变异**：M-CAP1、M-A3、M-I2、M-I6、M-F1 五个 Halmos 变异都在指名的 check / 分区上给出反例，对应的场景测试变红，源码按 sha256 逐字节恢复；fuzz 替代证据的变异 M-I2、M-PULL、M-BURNALL、M-REPAY 都让指名的 fuzz 测试变红，未变异时全绿（§5）。
+- **发现**：F-D5c1-1（初始汇率不设范围 → `uint128` 截断 → I4 失效）是真实、可达的缺陷，已在 `3c28ec21` 修复并有回归测试与变异 M-F1（§F）。
+- **口径**：本交付是**有界符号验证**（bounds 与抽象见 §2.5、§8），不是对全部输入的完整证明；BOUNDED 的分区由写明的 fuzz 或纸面证明替代，论文里按"有界 / 仅 fuzz"如实标注。
 
 ## F. 发现（Findings）
 
@@ -175,7 +160,7 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 **Harness**：`XPNTsV2A3HalmosTest.check_A3_{core,ext}Abi`、`XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound`（只探索 `settleLocked`，A3-4 已证明它是唯一能减少受害者余额的路径）、`XPNTsV2A3MintNoDebtHalmosTest`（`mint` 分区，§2.5）。
 
-**结果**：（待填：分区汇总）
+**结果：BOUNDED**。`check_A3_coreAbi` PASS（15/15 分区）；`check_A3_extAbi` 43/44 PASS，`mint` 分区 TIMEOUT（300 s 断言上限，71 条路径）——拆开后 `XPNTsV2A3MintNoDebtHalmosTest`（`debts(v) = 0`）PASS，`debts(v) > 0` 归结为引理 M（§7）。A3x（`check_A3x_exactCeilBound`，只探索 `settleLocked`）在 600 s 墙钟上限处 TIMEOUT，替代证据为 `testFuzz_D5c1_I2_settleLocked`（断言 A3x 位掩码，10,000 次）。可达性对照 `check_witness_A3_spSettleBurnsVictim` 给出反例（按预期）。
 
 ### 3.3 I2（额度累计 ≤ cap）
 
@@ -185,7 +170,7 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 **Harness**：`XPNTsV2I2HalmosTest.check_I2_{core,ext}Abi`（以 R 为前置条件）、`XPNTsV2I2NoRHalmosTest`（去掉 R，发现 F-D5c1-1 的符号侧）、`XPNTsV2I2MintNoDebtHalmosTest`、`XPNTsV2RateHalmosTest`（R 的基础情形与归纳步）。
 
-**结果**：（待填）
+**结果：BOUNDED**。R 的基础情形（`rate-base.log`：`initialize`、真实工厂各 PASS）与归纳步（core 15/15、ext 44/44）全部 PASS。`check_I2_coreAbi` 12/15 PASS，`burn(address,uint256)`、`transferFrom`、`tryLockForGas` 三个分区 TIMEOUT；`check_I2_extAbi` 42/44 PASS，`transferFrom`（600 s 墙钟上限）与 `mint`（300 s 断言上限）TIMEOUT。替代：`D5c1BoundedFuzzTest` 对 `tryLockForGas`、`settleLocked`、`transferFrom`、`burn(from)` 各 10,000 次，断言与 harness 相同的谓词位掩码为 0；`mint` 的 `debts = 0` 变体 PASS。负对照 `XPNTsV2I2NoRHalmosTest`（去掉 R）在 `tryLockForGas` 给出反例——即 F-D5c1-1 在符号侧的样子。可达性对照 `check_witness_I2_spRenewIncrements`、`check_witness_I2_meteredPull` 给出反例（按预期）。
 
 ### 3.4 I6（恶意 SP：只能销毁不能转走；新债 ≤ 用户申请上限）
 
@@ -202,7 +187,7 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 **Harness**：`XPNTsV2I6HalmosTest.check_I6_{core,ext}Abi`、`check_I6J_{core,ext}Abi`、`XPNTsV2I6MintNoDebtHalmosTest`。
 
-**结果**：（待填）
+**结果：PROVEN**。`check_I6_coreAbi` 与 `check_I6J_coreAbi` 各 15/15 PASS，`check_I6_extAbi` 与 `check_I6J_extAbi` 各 44/44 PASS（含 `mint` 分区）；`mint` 的 `debts = 0` 变体两者也都 PASS。可达性对照 `check_witness_I6_reservationAdmitted`、`check_witness_I6_debtGrows` 给出反例（按预期）。
 
 ## 4. 可达性对照（witness）
 
