@@ -66,6 +66,9 @@ eff4fb383a360b5d75e4f408e79269b1f1b55d8b17dc4808cf20aa8601590743  data/d5b/gates
 559ccc742957778ce959892529d2b0f56e5b58f95c45487945bf1c871924a0b7  data/d5b/gates/mutation-matrix-recheck5.log
 a4dac42450410812ca93bdd24eef706a427c78f98e5b729f4f1da08a1a9fb3a8  data/d5b/gates/mutation-matrix.log
 774cc410057843d830bcc8b269a94c94e7ac6feb5b562c703af8e7df07c09492  data/d5b/gates/roles-selftest-strict-args.log
+66450d6966f336fdbe4d02bf26ee886c601e205bb69c90d6f8ac8cf5207ce0af  data/d5b/ir-diff/postop-new-head.yul
+af393ae045ebca0da07d7fbb2024cd10b7b76e828c8cf93dcc4006d100c8a34f  data/d5b/ir-diff/postop-old-c30854f9.yul
+0e49739a61501f1a79a7cb7a85d6dc3ccc886e8d4bd48cf1badb977ef54cfe21  data/d5b/ir-diff/postop.diff
 3f273c632906ec1ca6122fbca3c01c199ff96d1b0e276387d4771407cbcdcab3  data/d5b/rehearsal-live-chainid/A-5-deploy.log
 b53e1afd7b49865da25938da16df3b16bb851154d82bab46aa3fffaa49f95f99  data/d5b/rehearsal-live-chainid/A-5-upgrade.log
 b1ee1041c262a0e0b2bb2c1ede13d160a9044eb834cef8c8275191af92381b5f  data/d5b/rehearsal-live-chainid/A-5c.log
