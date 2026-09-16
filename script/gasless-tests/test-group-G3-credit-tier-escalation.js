@@ -19,8 +19,7 @@
  *   3. getCreditLimit — current limit for deployer and a fresh address
  *   4. Tier escalation simulation — expected credit at each threshold
  *   5. setCreditTier — admin can expand the tier ceiling
- *   6. getAvailableCredit — credit remaining after in-flight usage
- *   7. Debt and credit interaction (via pending debt check)
+ *   6. effectiveCreditCap (token, 5.5.0) — credit ceiling remaining after in-flight usage
  *
  * Prerequisites:
  *   - SuperPaymaster V5.3.0 + Registry V4.1.0 deployed
@@ -177,37 +176,51 @@ async function main() {
     catchStep(`setCreditTier`, e);
   }
 
-  // Cleanup: reset tier 7 to 0 (unused)
+  // Cleanup: Registry.setCreditTier now enforces monotonicity across adjacent tiers
+  // (CreditTiersNotMonotonic, Registry.sol:690 — unrelated to 5.5.0, an independent
+  // Registry hardening). Resetting tier 7 to 0 is no longer possible once it has been
+  // raised above tier 6's limit — 0 < tier6 always reverts. The closest safe cleanup is
+  // tier 6's own limit (tier 7 becomes a no-op duplicate of tier 6, same effective
+  // behavior as the original 0 since level 7 is unreachable — maxLevel is 6 with 5
+  // configured thresholds, so no user's getCreditLimit ever resolves to level 7 either way).
   if (tierSet) {
     try {
-      await sendTxSafe(registry, 'setCreditTier', [testTier, 0n], 'Reset tier 7 to 0', { critical: false });
-      printInfo('Tier 7 reset to 0 (cleanup)');
+      const tier6Limit = tierLimits[6] ?? await registry.creditTierConfig(6n);
+      await sendTxSafe(registry, 'setCreditTier', [testTier, tier6Limit], 'Reset tier 7 to tier 6 limit (monotonicity floor)', { critical: false });
+      printInfo(`Tier 7 reset to ${ethers.formatEther(tier6Limit)} aPNTs (cleanup; cannot go back to 0 under monotonicity)`);
     } catch (e) {
       printInfo(`Cleanup: ${e.message.substring(0, 60)}`);
     }
   }
 
   // ──────────────────────────────────────────
-  // Step 6: getAvailableCredit — credit remaining
+  // Step 6: effectiveCreditCap — reputation-tier ceiling, now read off the token
+  // 5.5.0: SP.getAvailableCredit(user, token) is gone; the reputation-derived ceiling
+  // moved onto the xPNTs v2 token (spec C-0), gated behind creditPolicy != OFF and an
+  // active requestCredit() for the current epoch — see test-group-G1 Step 7 for the
+  // full rationale. A fresh/unrequested user reading 0 here is expected, not a bug.
   // ──────────────────────────────────────────
-  printStep(6, 'getAvailableCredit — SuperPaymaster tracks in-flight usage');
+  printStep(6, 'effectiveCreditCap — reputation-tier ceiling as seen by the token');
   try {
-    const aPNTsAddr = await sp.APNTS_TOKEN();
-    const deployerAvail = await sp.getAvailableCredit(deployerAddr, aPNTsAddr);
-    const freshAvail = await sp.getAvailableCredit(freshUser, aPNTsAddr);
+    const xToken = c.aastarXPNTsV2;
+    if (!xToken) {
+      printSkip('config.aastarXPNTsV2 missing — this deployment predates 5.5.0 balance mode');
+    } else {
+      const deployerAvail = await xToken.effectiveCreditCap(deployerAddr);
+      const freshAvail = await xToken.effectiveCreditCap(freshUser);
 
-    printKeyValue('aPNTs token', aPNTsAddr);
-    printKeyValue('Deployer available credit', `${ethers.formatEther(deployerAvail)} aPNTs`);
-    printKeyValue('Fresh user available credit', `${ethers.formatEther(freshAvail)} aPNTs`);
+      printKeyValue('xPNTs v2 token', config.aastarXPNTsV2);
+      printKeyValue('Deployer effectiveCreditCap', `${ethers.formatEther(deployerAvail)} aPNTs`);
+      printKeyValue('Fresh user effectiveCreditCap', `${ethers.formatEther(freshAvail)} aPNTs`);
 
-    // Available credit = min(creditLimit, creditLimit - pendingDebt)
-    // For a fresh user with no pending debt it should equal getCreditLimit
-    const freshLimit = await registry.getCreditLimit(freshUser);
-    const tier1Limit = tierLimits[1] ?? 0n;
-    assertEqual(freshLimit, tier1Limit, 'Fresh user getCreditLimit == tier 1');
-    printSuccess('getAvailableCredit read successfully');
+      // Registry.getCreditLimit itself is unaffected by 5.5.0 — still verifiable directly.
+      const freshLimit = await registry.getCreditLimit(freshUser);
+      const tier1Limit = tierLimits[1] ?? 0n;
+      assertEqual(freshLimit, tier1Limit, 'Fresh user getCreditLimit == tier 1');
+      printSuccess('effectiveCreditCap read successfully');
+    }
   } catch (e) {
-    catchStep(`getAvailableCredit`, e);
+    catchStep(`effectiveCreditCap`, e);
   }
 
   // ──────────────────────────────────────────

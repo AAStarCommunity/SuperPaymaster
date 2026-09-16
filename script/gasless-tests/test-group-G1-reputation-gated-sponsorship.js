@@ -10,7 +10,7 @@
  *   2. globalReputation read from Registry
  *   3. getCreditLimit — tier determination by reputation score
  *   4. levelThresholds and creditTierConfig configuration
- *   5. getAvailableCredit — credit remaining after usage
+ *   5. effectiveCreditCap (token, 5.5.0) — credit ceiling remaining after usage
  *   6. Eligibility gateway: non-SBT non-agent user is rejected
  *
  * Prerequisites:
@@ -191,21 +191,34 @@ async function main() {
   }
 
   // ──────────────────────────────────────────
-  // Step 7: getAvailableCredit — credit after usage
+  // Step 7: effectiveCreditCap — reputation-tier ceiling, now read off the token
+  // 5.5.0: SP.getAvailableCredit(user, token) is gone. The reputation-derived credit
+  // ceiling now lives on the xPNTs v2 token itself (spec C-0: effectiveCreditCap wraps
+  // min(requestedCap, PROTOCOL_CREDIT_CEILING, tierOf(community, user)), and
+  // GlobalTierSource.tierOf(_, user) == Registry.getCreditLimit(user) — so this reads
+  // the SAME reputation tier Step 6 computed, but gated behind creditPolicy != OFF and
+  // an active requestCredit() for the current epoch (C-0). A fresh/unrequested user
+  // legitimately reads 0 here even with reputation — that's not a failure, it's the new
+  // "you must opt in to credit" precondition; test-case-4 exercises the full opt-in flow.
   // ──────────────────────────────────────────
-  printStep(7, 'getAvailableCredit — on-hand credit remaining');
+  printStep(7, 'effectiveCreditCap — reputation-tier ceiling as seen by the token');
   try {
-    const aPNTsAddr = await sp.APNTS_TOKEN();
-    const deployerCredit = await sp.getAvailableCredit(deployerAddr, aPNTsAddr);
-    const randomCredit = await sp.getAvailableCredit(nonSbtUser, aPNTsAddr);
+    const xToken = c.aastarXPNTsV2;
+    if (!xToken) {
+      printSkip('config.aastarXPNTsV2 missing — this deployment predates 5.5.0 balance mode');
+    } else {
+      const deployerCap = await xToken.effectiveCreditCap(deployerAddr);
+      const randomCap = await xToken.effectiveCreditCap(nonSbtUser);
 
-    printKeyValue('aPNTs token', aPNTsAddr);
-    printKeyValue('Deployer available credit', `${ethers.formatEther(deployerCredit)} aPNTs`);
-    printKeyValue('Random addr available credit', `${ethers.formatEther(randomCredit)} aPNTs`);
+      printKeyValue('xPNTs v2 token', config.aastarXPNTsV2);
+      printKeyValue('Deployer effectiveCreditCap', `${ethers.formatEther(deployerCap)} aPNTs`);
+      printKeyValue('Random addr effectiveCreditCap', `${ethers.formatEther(randomCap)} aPNTs`);
+      printInfo('0 here (even with reputation > 0) means creditPolicy is OFF or the user has no active requestCredit() for this epoch — not a bug.');
 
-    printSuccess('getAvailableCredit call succeeded');
+      printSuccess('effectiveCreditCap call succeeded');
+    }
   } catch (e) {
-    catchStep(`getAvailableCredit`, e);
+    catchStep(`effectiveCreditCap`, e);
   }
 
   // ──────────────────────────────────────────

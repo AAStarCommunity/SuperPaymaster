@@ -192,9 +192,15 @@ async function main() {
 
   // ──────────────────────────────────────────────────────────────
   // Step 7: dryRunValidation — construct minimal UserOp + dry-run
+  // 5.5.0: dryRunValidation moved from SuperPaymaster to SuperPaymasterLens (EIP-170
+  // headroom, spec F1/§5) — new signature takes a leading `sp` address param.
   // ──────────────────────────────────────────────────────────────
-  printStep(7, 'dryRunValidation — static call with minimal UserOp');
+  printStep(7, 'dryRunValidation (via SuperPaymasterLens) — static call with minimal UserOp');
   try {
+    const lens = c.superPaymasterLens;
+    if (!lens) {
+      printSkip('config.superPaymasterLens missing — dryRunValidation moved there in 5.5.0');
+    } else {
     const senderAcc = process.env.TEST_AA_ACCOUNT_ADDRESS_A || deployerAddr;
 
     // Try to read nonce from the AA account; fall back to 0 on any error
@@ -207,12 +213,17 @@ async function main() {
       printInfo('getNonce() failed (not an AA account or not deployed) — using nonce=0');
     }
 
-    const pmVerificationGasLimit = 150000n;
+    // 5.5.0 validation does more external-call work than 3.x (exchangeRate + tryLockForGas),
+    // 150K measured AA36 on a cold account — see test-case-2-fixed.js for the same bump.
+    const pmVerificationGasLimit = 400000n;
     const pmPostOpGasLimit = 200000n;
-    // paymasterAndData: [paymaster(20)] [verGasLimit(16)] [postOpGasLimit(16)] [operator(20)]
+    // paymasterAndData (SuperPaymasterStorage.sol:177-180):
+    // [paymaster(20)][pmVerGas(16)][pmPostGas(16)][operator(20)][maxRate(32)][token(20)][flags(1)]
+    const deployerOp = await sp.operators(deployerAddr);
     const paymasterAndData = ethers.solidityPacked(
-      ['address', 'uint128', 'uint128', 'address'],
-      [config.superPaymaster, pmVerificationGasLimit, pmPostOpGasLimit, deployerAddr]
+      ['address', 'uint128', 'uint128', 'address', 'uint256', 'address', 'uint8'],
+      [config.superPaymaster, pmVerificationGasLimit, pmPostOpGasLimit, deployerAddr,
+       ethers.MaxUint256, deployerOp.xPNTsToken, 0]
     );
 
     const userOp = {
@@ -231,7 +242,7 @@ async function main() {
 
     try {
       // dryRunValidation is `view` — use staticCall
-      const [ok, reasonCode] = await sp.dryRunValidation.staticCall(userOp, maxCost);
+      const [ok, reasonCode] = await lens.dryRunValidation.staticCall(config.superPaymaster, userOp, maxCost);
       if (ok) {
         printSuccess('dryRunValidation returned ok=true (validation would pass)');
       } else {
@@ -247,6 +258,7 @@ async function main() {
       // revert. A caught error is unexpected: infra → inconclusive skip, anything
       // else → FAIL. Do NOT treat "contains 0x" as a clean pass (masks failures).
       catchStep('dryRunValidation', innerErr);
+    }
     }
   } catch (e) {
     catchStep('dryRunValidation setup', e);

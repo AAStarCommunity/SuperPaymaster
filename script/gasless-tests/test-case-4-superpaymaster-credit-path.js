@@ -3,12 +3,24 @@
 /**
  * Gasless Transfer Test Case 4 - Credit/Debt Path
  *
- * Demonstrates the credit/debt fallback path in SuperPaymaster's postOp:
- *   - Burn path: burnFromWithOpHash(user, chargeAPNTs, opHash) — burns xPNTs
- *   - Credit path: recordDebtWithOpHash(user, chargeAPNTs, opHash) — records debt
+ * Demonstrates the balance/credit fallback path in SuperPaymaster's 5.5.0 postOp
+ * (spec 03 §1, §2.2):
+ *   - Balance path: SP.validatePaymasterUserOp -> token.tryLockForGas OK -> postOp
+ *     settles via token.settleLocked — burns xPNTs.
+ *   - Credit path: tryLockForGas INSUFFICIENT -> token.tryReserveCredit OK -> postOp
+ *     settles via token.settleCredit — adds to token.debts(user), no burn.
  *
- * When Account A has zero xPNTs balance, postOp falls back to the credit/debt
- * path and getDebt(Account_A) increases after the UserOp.
+ * When Account A has zero xPNTs balance, postOp falls back to the credit path
+ * and xPNTs.debts(Account_A) increases after the UserOp.
+ *
+ * PRECONDITION (5.5.0): the credit path additionally requires the token's
+ * creditPolicy != OFF (default at deploy) AND Account A to have an active
+ * requestCredit() for the current policyEpoch (effectiveCreditCap, spec C-0).
+ * creditPolicy changes go through a 48h TIMELOCK (queueCreditPolicy ->
+ * executeCreditPolicy, xPNTsTokenV2Ext.sol:161-176) gated by the token's
+ * communityOwner — this script queues/executes it if authorized and the
+ * window has elapsed, and SKIPs with a clear reason otherwise (there is no
+ * way to fast-forward a real network's clock from here).
  *
  * EXIT CODES — LESSON LEARNED (2026-05-13):
  *   0 = PASS  — UserOp submitted and confirmed on-chain
@@ -35,20 +47,38 @@ const XPNTS_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
-  "function getDebt(address user) view returns (uint256)",
+  "function debts(address user) view returns (uint256)",
   "function repayDebt(uint256 amountXPNTs)",
   "function exchangeRate() view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
+  // Balance-mode credit (spec 03 §2.2, §2.3 C-0)
+  "function effectiveCreditCap(address user) view returns (uint256)",
+  "function creditReservedOf(address user) view returns (uint256)",
+  "function creditPolicy() view returns (uint8)",
+  "function policyEpoch() view returns (uint32)",
+  "function pendingPolicy() view returns (uint8)",
+  "function pendingPolicyEta() view returns (uint64)",
+  "function creditReq(address user) view returns (uint112 requestedCap, uint112 approvedCap, uint32 epoch)",
+  "function communityOwner() view returns (address)",
+  "function queueCreditPolicy(uint8 p)",
+  "function executeCreditPolicy()",
+  "function requestCredit(uint256 maxCapAPNTs)",
 ];
 
 const SP_ABI = [
   "function operators(address) view returns (uint128 aPNTsBalance, bool isConfigured, bool isPaused, address xPNTsToken, uint32 reputation, uint48 minTxInterval, address treasury, uint256 totalSpent, uint256 totalTxSponsored)",
-  "function getAvailableCredit(address user, address token) view returns (uint256)",
+  // getAvailableCredit(user, token) is GONE in 5.5.0 — the credit cap moved to the token
+  // itself (xPNTs.effectiveCreditCap, above).
   "function sbtHolders(address user) view returns (bool)",
   "function updatePrice()",
   "function priceValidUntil() view returns (uint256)",
-  "function dryRunValidation(tuple(address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature) userOp, uint256 maxCost) view returns (bool ok, bytes32 reasonCode)",
+];
+
+// dryRunValidation moved OUT of SuperPaymaster into SuperPaymasterLens in 5.5.0 (EIP-170
+// headroom, spec F1/§5) — note the extra leading `sp` address param.
+const LENS_ABI = [
+  "function dryRunValidation(address sp, tuple(address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature) userOp, uint256 maxCost) view returns (bool ok, bytes32 reasonCode)",
 ];
 
 const REGISTRY_ABI = [
@@ -158,10 +188,10 @@ function errIsAA32(err) {
   return msg.includes('aa32') || msg.includes('expired or not due') || data.includes('41413332');
 }
 
-async function classifyValidationFailure(sp, userOp, err) {
+async function classifyValidationFailure(lens, spAddr, userOp, err) {
   try {
     const maxCost = computeMaxCost(userOp);
-    const [ok, reasonCode] = await sp.dryRunValidation(userOp, maxCost);
+    const [ok, reasonCode] = await lens.dryRunValidation(spAddr, userOp, maxCost);
     if (!ok) {
       const reason = decodeReason(reasonCode);
       if (DRYRUN_SKIP_REASONS.has(reason)) {
@@ -187,11 +217,11 @@ async function classifyValidationFailure(sp, userOp, err) {
 // credit-path submit hits RATE_LIMITED — the test is valid, only too soon. So we
 // wait out the window and retry instead of SKIPping, making the suite order-
 // independent and robust to timing. dryRunValidation re-checks every cycle.
-async function waitOutRateLimit(sp, userOp, maxAttempts = 3) {
+async function waitOutRateLimit(lens, spAddr, userOp, maxAttempts = 3) {
   for (let i = 0; i < maxAttempts; i++) {
     let ok, reasonCode;
     try {
-      [ok, reasonCode] = await sp.dryRunValidation(userOp, computeMaxCost(userOp));
+      [ok, reasonCode] = await lens.dryRunValidation(spAddr, userOp, computeMaxCost(userOp));
     } catch (_) {
       return; // cannot pre-check (network) — let the normal submit path decide
     }
@@ -223,8 +253,17 @@ async function main() {
   }
 
   const SUPER_PAYMASTER_ADDRESS = config.superPaymaster;
-  const XPNTS_TOKEN_ADDRESS     = config.aPNTs;
+  // SP 5.5.0: the deployer operator's configured xPNTsToken is the v2 token
+  // (config.aastarXPNTsV2) — config.aPNTs is now only SP's operator-deposit collateral
+  // asset (APNTS_TOKEN), a different address. See test-case-2-fixed.js for the same note.
+  const XPNTS_TOKEN_ADDRESS     = config.aastarXPNTsV2;
   const ENTRYPOINT_ADDRESS      = config.entryPoint;
+  const LENS_ADDRESS            = config.superPaymasterLens;
+
+  if (!LENS_ADDRESS) {
+    console.error('❌ config.superPaymasterLens missing — dryRunValidation moved there in 5.5.0');
+    process.exit(2);
+  }
 
   const rpcUrl          = process.env.SEPOLIA_RPC_URL;
   const senderPrivateKey = process.env.OWNER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
@@ -261,7 +300,9 @@ async function main() {
   // ── Provider / signers ────────────────────────────────────────
   let provider;
   try {
-    provider = makeProvider(rpcUrl); // 20s/request timeout + read retry → survives RPC hiccups
+    // CHAIN_ID override: makeProvider's staticNetwork default (11155111) makes anvil (31337)
+    // reject every signed tx at the mempool unless overridden.
+    provider = makeProvider(rpcUrl, Number(process.env.CHAIN_ID) || 11155111); // 20s/request timeout + read retry → survives RPC hiccups
   } catch (err) {
     console.warn('\n⚠️  SKIP: Cannot connect to RPC:', err.message);
     process.exit(2);
@@ -271,11 +312,25 @@ async function main() {
 
   // ── Contract instances ──────────────────────────────────────
   const xPNTs         = new ethers.Contract(XPNTS_TOKEN_ADDRESS, XPNTS_ABI, provider);
+  const xPNTsAsWallet = new ethers.Contract(XPNTS_TOKEN_ADDRESS, XPNTS_ABI, wallet);
   const sp            = new ethers.Contract(SUPER_PAYMASTER_ADDRESS, SP_ABI, provider);
+  const lens          = new ethers.Contract(LENS_ADDRESS, LENS_ABI, provider);
   const simpleAccount = new ethers.Contract(senderAAAccount, SIMPLE_ACCOUNT_ABI, provider);
   const entryPoint    = new ethers.Contract(ENTRYPOINT_ADDRESS, ENTRYPOINT_ABI, wallet);
   const xPNTsAsERC20  = new ethers.Contract(XPNTS_TOKEN_ADDRESS, ERC20_ABI, provider);
   const registry      = new ethers.Contract(config.registry, REGISTRY_ABI, wallet);
+
+  // effectiveCreditCap is the CEILING (spec C-0); tryReserveCredit gates on
+  // debts + creditReservedOf + amount <= cap (C-1), so headroom is the cap net of both.
+  async function recomputeAvailableCredit() {
+    const [cap, debt, reserved] = await Promise.all([
+      xPNTs.effectiveCreditCap(senderAAAccount),
+      xPNTs.debts(senderAAAccount),
+      xPNTs.creditReservedOf(senderAAAccount),
+    ]);
+    const spent = debt + reserved;
+    return cap > spent ? cap - spent : 0n;
+  }
 
   // Hoisted so cleanup can run from any early-exit path
   let creditSetupRestoreValue = null;
@@ -299,8 +354,8 @@ async function main() {
     try {
       [xPNTsBalance, debtBefore, creditBefore, opConfig, symbol, decimals] = await Promise.all([
         xPNTs.balanceOf(senderAAAccount),
-        xPNTs.getDebt(senderAAAccount),
-        sp.getAvailableCredit(senderAAAccount, XPNTS_TOKEN_ADDRESS),
+        xPNTs.debts(senderAAAccount),
+        recomputeAvailableCredit(),
         sp.operators(operatorAddress),
         xPNTs.symbol(),
         xPNTs.decimals(),
@@ -320,10 +375,61 @@ async function main() {
     console.log(`  Operator aPNTs bal:   ${ethers.formatEther(opConfig[0])} aPNTs`);
 
     // ── Step 2: Credit precondition — ensure Account A has available credit ──
+    // 5.5.0 adds two gates ahead of the Registry credit-tier one this test already did
+    // (spec 03 §2.2, §2.3 C-0): the token's creditPolicy must not be OFF, and the account
+    // must hold an active requestCredit() for the CURRENT policyEpoch.
     console.log('\n📊 Step 2: Credit precondition check');
 
+    // Step 2a: creditPolicy — 48h TIMELOCK, communityOwner-gated. Cannot be fast-forwarded
+    // on a real network from here, so this queues/executes only when the window has already
+    // elapsed and SKIPs (never fails) when it hasn't or the wallet isn't authorized.
+    const CREDIT_POLICY_AUTO = 2;
+    let creditPolicy = await xPNTs.creditPolicy();
+    if (creditPolicy === 0n) { // OFF — ethers v6 decodes every uintN (incl. uint8) as bigint
+      const owner = await xPNTs.communityOwner();
+      if (owner.toLowerCase() !== wallet.address.toLowerCase()) {
+        console.log(`  ❌ SKIP: token.creditPolicy() is OFF and this wallet (${wallet.address}) is not communityOwner (${owner}) — cannot queue AUTO.`);
+        process.exit(2);
+      }
+      const [pending, eta] = await Promise.all([xPNTs.pendingPolicy(), xPNTs.pendingPolicyEta()]);
+      // Chain time, not local Date.now(): the ETA is measured against block.timestamp, and
+      // comparing against the test runner's wall clock is wrong wherever the two can drift
+      // (clock skew, or a time-warped local anvil).
+      const now = BigInt((await provider.getBlock('latest')).timestamp);
+      if (pending === 0n || eta === 0n) {
+        const tx = await xPNTsAsWallet.queueCreditPolicy(CREDIT_POLICY_AUTO);
+        await tx.wait();
+        const newEta = await xPNTs.pendingPolicyEta();
+        console.log(`  ❌ SKIP: creditPolicy was OFF — queued AUTO, executable at ${new Date(Number(newEta) * 1000).toISOString()} (48h TIMELOCK). Re-run this test after that time.`);
+        process.exit(2);
+      }
+      if (now < eta) {
+        console.log(`  ❌ SKIP: creditPolicy AUTO already queued, executable at ${new Date(Number(eta) * 1000).toISOString()}. Re-run after that time.`);
+        process.exit(2);
+      }
+      const tx = await xPNTsAsWallet.executeCreditPolicy();
+      await tx.wait();
+      creditPolicy = await xPNTs.creditPolicy();
+      console.log(`  ✅ executeCreditPolicy() succeeded — creditPolicy is now ${creditPolicy} (2 = AUTO)`);
+    }
+
+    // Step 2b: requestCredit — must come from senderAAAccount itself (msg.sender-gated) and
+    // match the CURRENT policyEpoch (C-0: a stale epoch reads as 0 cap even with requestedCap set).
+    const [policyEpoch, req] = await Promise.all([xPNTs.policyEpoch(), xPNTs.creditReq(senderAAAccount)]);
+    const REQUEST_CREDIT_CAP = ethers.parseEther('1000');
+    if (req.epoch !== policyEpoch || req.requestedCap === 0n) {
+      console.log(`  ⚠️  No active credit request for this epoch (req.epoch=${req.epoch}, policyEpoch=${policyEpoch}) — requesting ${ethers.formatEther(REQUEST_CREDIT_CAP)} aPNTs via the AA account...`);
+      const requestCalldata = xPNTs.interface.encodeFunctionData('requestCredit', [REQUEST_CREDIT_CAP]);
+      const tx = await simpleAccount.connect(wallet).execute(XPNTS_TOKEN_ADDRESS, 0, requestCalldata);
+      await tx.wait();
+      console.log('  ✅ requestCredit() submitted from the AA account');
+    }
+
+    // Step 2c: Registry credit-tier headroom (unchanged from pre-5.5.0 — the token's
+    // GlobalTierSource reads Registry.getCreditLimit, spec C-5).
+    creditBefore = await recomputeAvailableCredit();
     if (creditBefore === 0n) {
-      console.log('  ⚠️  Available credit is 0 — attempting to set up credit via Registry.setCreditTier(1, 1000 ether)...');
+      console.log('  ⚠️  Available credit is still 0 — attempting to set up credit via Registry.setCreditTier(1, 1000 ether)...');
       try {
         const tier1Before = await registry.creditTierConfig(1n);
         const TEMP_CREDIT = ethers.parseEther('1000');
@@ -334,7 +440,7 @@ async function main() {
         creditSetupRestoreValue = tier1Before; // save for restoration (outer scope)
 
         // Re-read credit after tier boost
-        creditBefore = await sp.getAvailableCredit(senderAAAccount, XPNTS_TOKEN_ADDRESS);
+        creditBefore = await recomputeAvailableCredit();
         console.log(`  ✅ Available credit after tier boost: ${ethers.formatEther(creditBefore)} aPNTs`);
       } catch (setupErr) {
         console.log(`  ❌ SKIP: Could not set up credit tier (not Registry owner? err: ${setupErr.message.substring(0, 80)})`);
@@ -356,10 +462,10 @@ async function main() {
 
     if (pureCreditPath) {
       console.log('  Account A has 0 xPNTs balance — will use PURE CREDIT PATH');
-      console.log('  (postOp: burnFromWithOpHash will fail → recordDebtWithOpHash called)');
+      console.log('  (validate: tryLockForGas INSUFFICIENT → tryReserveCredit OK; postOp: settleCredit)');
     } else {
-      console.log(`  Account A has ${ethers.formatUnits(xPNTsBalance, decimals)} ${symbol} — will use BURN PATH`);
-      console.log('  (postOp: burnFromWithOpHash will succeed → xPNTs burned, no debt)');
+      console.log(`  Account A has ${ethers.formatUnits(xPNTsBalance, decimals)} ${symbol} — will use BALANCE PATH`);
+      console.log('  (validate: tryLockForGas OK; postOp: settleLocked burns xPNTs, no debt)');
       console.log('  Note: run again after balance reaches 0 to exercise pure credit path');
     }
 
@@ -384,15 +490,21 @@ async function main() {
     }
     console.log(`  Nonce: ${nonce}`);
 
-    // Paymaster gas limits — same values as TC2 (tested on Sepolia):
-    // pmVerificationGasLimit: 150K (validatePaymasterUserOp overhead)
-    // pmPostOpGasLimit: 200K  (postOp runs burn→recordDebt→pendingDebts fallback chain,
+    // Paymaster gas limits — same values as TC2 (tested on anvil, D7):
+    // pmVerificationGasLimit: 400K (5.5.0 validatePaymasterUserOp does more work than 3.x —
+    //                          exchangeRate low-level call + tryLockForGas/tryReserveCredit
+    //                          external call; 150K measured AA36 on a cold-storage account)
+    // pmPostOpGasLimit: 200K  (postOp runs settleLocked/settleCredit on the v2 token,
     //                          ~120K with xPNTsToken._update + event emits; 100K was OOG)
-    const pmVerificationGasLimit = 150000n;
+    const pmVerificationGasLimit = 400000n;
     const pmPostOpGasLimit       = 200000n;
+    // 5.5.0 paymasterAndData layout (SuperPaymasterStorage.sol:177-180):
+    // [paymaster(20)][pmVerGas(16)][pmPostGas(16)][operator(20)][maxRate(32)][token(20)][flags(1)]
+    const maxRate = ethers.MaxUint256;
+    const flags = 0; // no SP_RENEW / ACCOUNT_RENEW
     const paymasterAndData       = ethers.solidityPacked(
-      ['address', 'uint128', 'uint128', 'address'],
-      [SUPER_PAYMASTER_ADDRESS, pmVerificationGasLimit, pmPostOpGasLimit, operatorAddress]
+      ['address', 'uint128', 'uint128', 'address', 'uint256', 'address', 'uint8'],
+      [SUPER_PAYMASTER_ADDRESS, pmVerificationGasLimit, pmPostOpGasLimit, operatorAddress, maxRate, XPNTS_TOKEN_ADDRESS, flags]
     );
 
     const userOp = {
@@ -418,7 +530,7 @@ async function main() {
 
     // Wait out the operator's minTxInterval if a prior same-operator UserOp just
     // ran (keeps the credit-path test order-independent instead of SKIPping).
-    await waitOutRateLimit(sp, userOp);
+    await waitOutRateLimit(lens, SUPER_PAYMASTER_ADDRESS, userOp);
 
     try {
       const gasEstimate = await entryPoint.handleOps.estimateGas([userOp], beneficiary);
@@ -435,7 +547,7 @@ async function main() {
         process.exit(2);
       }
       if (isValidationRejection(estimateErr)) {
-        const verdict = await classifyValidationFailure(sp, userOp, estimateErr);
+        const verdict = await classifyValidationFailure(lens, SUPER_PAYMASTER_ADDRESS, userOp, estimateErr);
         if (verdict.action === 'FAIL') {
           console.error(`\n❌ FAIL: validation rejected on gas estimation — ${verdict.reason}`);
           await restoreCreditTier();
@@ -472,7 +584,7 @@ async function main() {
       }
       if (isValidationRejection(txErr)) {
         // handleOps already failed, so even an AA32 artifact is terminal here.
-        const verdict = await classifyValidationFailure(sp, userOp, txErr);
+        const verdict = await classifyValidationFailure(lens, SUPER_PAYMASTER_ADDRESS, userOp, txErr);
         await restoreCreditTier();
         if (verdict.action === 'FAIL') {
           console.error(`\n❌ FAIL: validation rejected on handleOps — ${verdict.reason}`);
@@ -510,8 +622,8 @@ async function main() {
         try {
           [xPNTsBalanceAfter, debtAfter, creditAfter] = await Promise.all([
             xPNTs.balanceOf(senderAAAccount),
-            xPNTs.getDebt(senderAAAccount),
-            sp.getAvailableCredit(senderAAAccount, XPNTS_TOKEN_ADDRESS),
+            xPNTs.debts(senderAAAccount),
+            recomputeAvailableCredit(),
           ]);
           postReadErr = null;
           break;

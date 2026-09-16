@@ -87,8 +87,12 @@ function initTestEnv() {
   // (the E1 "TIMEOUT after 300s" we hit on a flaky RPC).
   const _fr = new ethers.FetchRequest(rpcUrl);
   _fr.timeout = 20000;
+  // CHAIN_ID override: this file's own default target is Sepolia, but staticNetwork means
+  // ethers signs with whatever chain id it's given here rather than probing the RPC — against
+  // a local anvil (chain 31337) that mismatch gets every signed tx rejected at the mempool.
+  const chainId = Number(process.env.CHAIN_ID) || 11155111;
   const provider = _addProviderRetry(
-    new ethers.JsonRpcProvider(_fr, 11155111, { staticNetwork: true })
+    new ethers.JsonRpcProvider(_fr, chainId, { staticNetwork: true })
   );
 
   const deployerKey = process.env.DEPLOYER_PRIVATE_KEY || process.env.PRIVATE_KEY;
@@ -197,19 +201,29 @@ const ABI = {
     // V5.4 god-split: the x402 Facilitator layer (facilitatorFeeBPS / operatorFacilitatorFees /
     // facilitatorEarnings / settleX402* / set*/withdraw*) was extracted out of SuperPaymaster
     // into the standalone X402Facilitator contract — see the X402Facilitator ABI below.
-    // V5.3: Credit
-    "function getAvailableCredit(address user, address token) view returns (uint256)",
+    // 5.5.0 balance mode: getAvailableCredit(user, token) is GONE — the credit cap now lives
+    // on the token itself (IxPNTsTokenV2.effectiveCreditCap, ABI.xPNTsToken below).
     // Governance / Admin (covered by B4)
     "function setTreasury(address _treasury)",
     "function updateSBTStatus(address user, bool status)",
     "function updateBlockedStatus(address operator, address[] users, bool[] statuses)",
     "function withdrawProtocolRevenue(address to, uint256 amount)",
-    "function dryRunValidation(tuple(address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature) userOp, uint256 maxCost) view returns (bool ok, bytes32 reasonCode)",
+    // dryRunValidation moved OUT of SuperPaymaster into SuperPaymasterLens in 5.5.0
+    // (EIP-170 headroom, spec F1/§5). See ABI.SuperPaymasterLens — note its extra
+    // leading `sp` address param (SuperPaymaster.sol:367; SuperPaymasterLens.sol:95).
     "function queueBLSAggregator(address _bls)",
     "function treasury() view returns (address)",
     "function pendingBLSAgg() view returns (address)",
     "function pendingBLSAggEta() view returns (uint48)",
     "function priceValidUntil() view returns (uint256)",
+  ],
+
+  // dryRunValidation's new home (5.5.0). Stateless/non-upgradeable, bound to ONE SP version
+  // (answers VERSION_MISMATCH on any other). Same decision code as tryLockForGas/tryReserveCredit
+  // via the token's previewLock/previewCredit (SuperPaymasterLens.sol).
+  SuperPaymasterLens: [
+    "function dryRunValidation(address sp, tuple(address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature) userOp, uint256 maxCost) view returns (bool ok, bytes32 reasonCode)",
+    "function EXPECTED_SP_VERSION() view returns (bytes32)",
   ],
 
   MicroPaymentChannel: [
@@ -316,26 +330,49 @@ const ABI = {
     "function getNonce() view returns (uint256)",
   ],
 
+  // xPNTs v2 (XPNTs-4.0.0, spec 03 §2.2). 3.x's burnFromWithOpHash / recordDebt /
+  // recordDebtWithOpHash / getDebt are GONE — SP holds only tryLockForGas / settleLocked /
+  // tryReserveCredit / settleCredit on a v2 token; debt is now the public `debts` mapping.
   xPNTsToken: [
     "function balanceOf(address) view returns (uint256)",
     "function symbol() view returns (string)",
     "function decimals() view returns (uint8)",
     "function totalSupply() view returns (uint256)",
     "function name() view returns (string)",
-    "function getDebt(address user) view returns (uint256)",
+    "function debts(address user) view returns (uint256)",
     "function repayDebt(uint256 amountXPNTs)",
     "function exchangeRate() view returns (uint256)",
     "function updateExchangeRate(uint256 newRate)",
     "function maxSingleTxLimit() view returns (uint256)",
     "function exchangeRateUpdatedAt() view returns (uint256)",
-    "function burnFromWithOpHash(address from, uint256 amountAPNTs, bytes32 opHash)",
-    "function recordDebt(address user, uint256 amountAPNTs)",
-    "function recordDebtWithOpHash(address user, uint256 amountAPNTs, bytes32 opHash)",
     "function mint(address to, uint256 amount)",
     "function approve(address spender, uint256 amount) returns (bool)",
     "function allowance(address owner, address spender) view returns (uint256)",
     "function transfer(address to, uint256 amount) returns (bool)",
     "function transferFrom(address from, address to, uint256 amount) returns (bool)",
+    // Balance-mode locks/credit (validation-time state, read here for post-tx assertions)
+    "function lockedOf(address user) view returns (uint256)",
+    "function creditReservedOf(address user) view returns (uint256)",
+    "function effectiveCreditCap(address user) view returns (uint256)",
+    "function autoAllowance(address user, address spender) view returns (uint256 cap, uint256 used)",
+    "function BALANCE_MODE_VERSION() view returns (uint16)",
+    // Credit policy / request (communityOwner-gated queue/execute has a 48h TIMELOCK — see
+    // xPNTsV2Base.sol TIMELOCK / xPNTsTokenV2Ext.sol:161-176)
+    "function communityOwner() view returns (address)",
+    "function creditPolicy() view returns (uint8)",
+    "function policyEpoch() view returns (uint32)",
+    "function pendingPolicy() view returns (uint8)",
+    "function pendingPolicyEta() view returns (uint64)",
+    "function creditReq(address user) view returns (uint112 requestedCap, uint112 approvedCap, uint32 epoch)",
+    "function requestCredit(uint256 maxCapAPNTs)",
+    "function revokeCredit()",
+    "function approveCredit(address user, uint256 capAPNTs)",
+    "function queueCreditPolicy(uint8 p)",
+    "function executeCreditPolicy()",
+    "function cancelCreditPolicy()",
+    // Read-only mirror of tryReserveCredit's decision (same code path, no state written) —
+    // used to test rejection behavior without needing a real UserOp (test-group-I1).
+    "function previewCredit(address spender, address user, bytes32 opHash, uint256 aPNTs) view returns (uint8 result)",
   ],
 };
 
@@ -725,6 +762,10 @@ function getContracts(config, signerOrProvider) {
     staking:          new ethers.Contract(config.staking, ABI.GTokenStaking, signerOrProvider),
     sbt:              new ethers.Contract(config.sbt, ABI.MySBT, signerOrProvider),
     aPNTs:            new ethers.Contract(config.aPNTs, ABI.ERC20, signerOrProvider),
+    // 5.5.0: config.aPNTs is now SP's own operator-deposit collateral asset, NOT a
+    // balance-mode xPNTs v2 token — it does not implement tryLockForGas/debts/
+    // effectiveCreditCap etc. aPNTsToken is kept bound to it only for legacy plain-ERC20
+    // reads existing callers already rely on; use aastarXPNTsV2 below for v2 reads.
     aPNTsToken:       new ethers.Contract(config.aPNTs, ABI.xPNTsToken, signerOrProvider),
     reputationSystem: new ethers.Contract(config.reputationSystem, ABI.ReputationSystem, signerOrProvider),
     paymasterFactory: new ethers.Contract(config.paymasterFactory, ABI.PaymasterFactory, signerOrProvider),
@@ -741,6 +782,16 @@ function getContracts(config, signerOrProvider) {
   const x402Addr = config.x402Facilitator || process.env.X402_FACILITATOR;
   if (x402Addr) {
     contracts.x402Facilitator = new ethers.Contract(x402Addr, ABI.X402Facilitator, signerOrProvider);
+  }
+  // 5.5.0: dryRunValidation's new home (only present after a 5.5.0 deployment).
+  if (config.superPaymasterLens) {
+    contracts.superPaymasterLens = new ethers.Contract(config.superPaymasterLens, ABI.SuperPaymasterLens, signerOrProvider);
+  }
+  // 5.5.0: the actual balance-mode xPNTs v2 token (tryLockForGas/settleLocked/
+  // tryReserveCredit/settleCredit/debts/effectiveCreditCap) — distinct from config.aPNTs
+  // above. Optional key so this helper still works against a pre-5.5.0 deployment.
+  if (config.aastarXPNTsV2) {
+    contracts.aastarXPNTsV2 = new ethers.Contract(config.aastarXPNTsV2, ABI.xPNTsToken, signerOrProvider);
   }
   return contracts;
 }
