@@ -4,28 +4,19 @@
  "abi": "xPNTsTokenV2",
  "parts": 1,
  "verdict": "NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)",
- "wall_s": 560,
- "extra_args": [
-  "--solver-timeout-assertion",
-  "540000"
- ],
+ "wall_s": 559,
+ "profile": "lemma",
  "results": [
   {
    "part": "OTHER",
    "D5C1_PART": 1,
    "exit": 1,
-   "wall_s": 560,
+   "wall_s": 559,
    "log": "check_LEMMA_M3_ceilDivByConstant.OTHER.log",
    "result": "TIMEOUT",
    "paths": 5,
-   "time_s": 540.25,
-   "counterexample": false,
-   "previous_attempt": {
-    "result": "TIMEOUT-WALL",
-    "paths": null,
-    "time_s": null,
-    "log": "check_LEMMA_M3_ceilDivByConstant.OTHER.log"
-   }
+   "time_s": 540.23,
+   "counterexample": false
   }
  ]
 }

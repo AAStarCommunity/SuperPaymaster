@@ -1,2 +1,2 @@
-MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant over xPNTsTokenV2: NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR) (1 parts, wall 560 s)
-  OTHER                                    TIMEOUT         paths=5 time=540.25s exit=1
+MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant over xPNTsTokenV2: NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR) (1 parts, wall 559 s)
+  OTHER                                    TIMEOUT         paths=5 time=540.23s exit=1

@@ -5,10 +5,7 @@
  "parts": 1,
  "verdict": "NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)",
  "wall_s": 560,
- "extra_args": [
-  "--solver-timeout-assertion",
-  "540000"
- ],
+ "profile": "lemma",
  "results": [
   {
    "part": "OTHER",
@@ -18,14 +15,8 @@
    "log": "check_LEMMA_M_repayNeverExceedsMint.OTHER.log",
    "result": "TIMEOUT",
    "paths": 11,
-   "time_s": 540.45,
-   "counterexample": false,
-   "previous_attempt": {
-    "result": "NO-RESULT-LINE",
-    "paths": null,
-    "time_s": null,
-    "log": "check_LEMMA_M_repayNeverExceedsMint.OTHER.log"
-   }
+   "time_s": 540.32,
+   "counterexample": false
   }
  ]
 }
