@@ -1,16 +1,16 @@
-XPNTsV2RateHalmosTest.check_RATE_step_coreAbi over xPNTsTokenV2: PASS (15 parts, wall 127 s)
-  OTHER                                    PASS            paths=2 time=0.3s exit=0
-  approve-095ea7b3                         PASS            paths=5 time=0.18s exit=0
+XPNTsV2RateHalmosTest.check_RATE_step_coreAbi over xPNTsTokenV2: PASS (15 parts, wall 155 s)
+  OTHER                                    PASS            paths=2 time=0.23s exit=0
+  approve-095ea7b3                         PASS            paths=5 time=0.17s exit=0
   burn-42966c68                            PASS            paths=7 time=0.2s exit=0
-  burn-9dc29fac                            PASS            paths=3568 time=73.14s exit=0
-  initialize-dd1ea56c                      PASS            paths=2 time=0.12s exit=0
-  permit-d505accf                          PASS            paths=10 time=0.26s exit=0
-  releaseStaleCredit-de4880ca              PASS            paths=4 time=0.16s exit=0
-  releaseStaleLock-f7b3d30d                PASS            paths=11 time=0.27s exit=0
-  renewForSelf-e8c122c7                    PASS            paths=6 time=0.22s exit=0
-  settleCredit-1baf4408                    PASS            paths=5 time=0.2s exit=0
-  settleLocked-7e48bbce                    PASS            paths=7 time=0.35s exit=0
+  burn-9dc29fac                            PASS            paths=3631 time=76.5s exit=0
+  initialize-dd1ea56c                      PASS            paths=2 time=0.11s exit=0
+  permit-d505accf                          PASS            paths=10 time=0.22s exit=0
+  releaseStaleCredit-de4880ca              PASS            paths=6 time=0.21s exit=0
+  releaseStaleLock-f7b3d30d                PASS            paths=11 time=0.25s exit=0
+  renewForSelf-e8c122c7                    PASS            paths=6 time=0.2s exit=0
+  settleCredit-1baf4408                    PASS            paths=4 time=0.16s exit=0
+  settleLocked-7e48bbce                    PASS            paths=4 time=0.15s exit=0
   transfer-a9059cbb                        PASS            paths=9 time=0.24s exit=0
-  transferFrom-23b872dd                    PASS            paths=3690 time=71.55s exit=0
-  tryLockForGas-ec290731                   PASS            paths=1369 time=36.33s exit=0
-  tryReserveCredit-de9e4cae                PASS            paths=38 time=0.63s exit=0
+  transferFrom-23b872dd                    PASS            paths=3691 time=75.33s exit=0
+  tryLockForGas-ec290731                   PASS            paths=1342 time=36.97s exit=0
+  tryReserveCredit-de9e4cae                PASS            paths=38 time=0.61s exit=0
