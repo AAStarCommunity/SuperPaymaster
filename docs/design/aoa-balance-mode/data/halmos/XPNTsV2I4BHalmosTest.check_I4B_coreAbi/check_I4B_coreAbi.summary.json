@@ -3,7 +3,7 @@
  "check": "check_I4B_coreAbi",
  "abi": "xPNTsTokenV2",
  "parts": 15,
- "verdict": "NOT-ALL-PASS (3 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)",
+ "verdict": "NOT-ALL-PASS (4 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)",
  "wall_s": 693,
  "profile": "xp",
  "results": [
@@ -15,7 +15,7 @@
    "log": "check_I4B_coreAbi.OTHER.log",
    "result": "PASS",
    "paths": 3,
-   "time_s": 0.89,
+   "time_s": 1.0,
    "counterexample": false
   },
   {
@@ -26,7 +26,7 @@
    "log": "check_I4B_coreAbi.approve-095ea7b3.log",
    "result": "PASS",
    "paths": 4,
-   "time_s": 0.44,
+   "time_s": 0.43,
    "counterexample": false
   },
   {
@@ -54,11 +54,11 @@
    "part": "initialize-dd1ea56c",
    "D5C1_PART": 3709773164,
    "exit": 0,
-   "wall_s": 21,
+   "wall_s": 20,
    "log": "check_I4B_coreAbi.initialize-dd1ea56c.log",
    "result": "PASS",
    "paths": 2,
-   "time_s": 0.4,
+   "time_s": 0.39,
    "counterexample": false
   },
   {
@@ -69,7 +69,7 @@
    "log": "check_I4B_coreAbi.permit-d505accf.log",
    "result": "PASS",
    "paths": 9,
-   "time_s": 0.75,
+   "time_s": 0.69,
    "counterexample": false
   },
   {
@@ -80,18 +80,18 @@
    "log": "check_I4B_coreAbi.releaseStaleCredit-de4880ca.log",
    "result": "PASS",
    "paths": 4,
-   "time_s": 0.45,
+   "time_s": 0.44,
    "counterexample": false
   },
   {
    "part": "releaseStaleLock-f7b3d30d",
    "D5C1_PART": 4155757325,
    "exit": 0,
-   "wall_s": 23,
+   "wall_s": 22,
    "log": "check_I4B_coreAbi.releaseStaleLock-f7b3d30d.log",
    "result": "PASS",
    "paths": 16,
-   "time_s": 2.03,
+   "time_s": 1.96,
    "counterexample": false
   },
   {
@@ -102,29 +102,28 @@
    "log": "check_I4B_coreAbi.renewForSelf-e8c122c7.log",
    "result": "PASS",
    "paths": 5,
-   "time_s": 0.55,
+   "time_s": 0.58,
    "counterexample": false
   },
   {
    "part": "settleCredit-1baf4408",
    "D5C1_PART": 464471048,
    "exit": 0,
-   "wall_s": 21,
+   "wall_s": 20,
    "log": "check_I4B_coreAbi.settleCredit-1baf4408.log",
    "result": "PASS",
    "paths": 5,
-   "time_s": 0.55,
+   "time_s": 0.53,
    "counterexample": false
   },
   {
    "part": "settleLocked-7e48bbce",
    "D5C1_PART": 2118695886,
-   "exit": 0,
-   "wall_s": 260,
+   "exit": -9,
+   "wall_s": 603,
    "log": "check_I4B_coreAbi.settleLocked-7e48bbce.log",
-   "result": "PASS",
-   "paths": 580,
-   "time_s": 228.45,
+   "result": "TIMEOUT-WALL",
+   "wall_cap_s": 600,
    "counterexample": false
   },
   {
@@ -134,8 +133,8 @@
    "wall_s": 27,
    "log": "check_I4B_coreAbi.transfer-a9059cbb.log",
    "result": "PASS",
-   "paths": 11,
-   "time_s": 4.67,
+   "paths": 12,
+   "time_s": 4.28,
    "counterexample": false
   },
   {
@@ -162,11 +161,11 @@
    "part": "tryReserveCredit-de9e4cae",
    "D5C1_PART": 3734916270,
    "exit": 0,
-   "wall_s": 116,
+   "wall_s": 69,
    "log": "check_I4B_coreAbi.tryReserveCredit-de9e4cae.log",
    "result": "PASS",
-   "paths": 122,
-   "time_s": 35.92,
+   "paths": 127,
+   "time_s": 28.18,
    "counterexample": false
   }
  ]
