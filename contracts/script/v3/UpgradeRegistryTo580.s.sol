@@ -37,6 +37,15 @@ interface ITimelockBatch {
 
 /**
  * @title UpgradeRegistryTo580
+ * @notice ❌ DEPRECATED (2026-09-16): this script's target is `Registry-5.8.0`, which is now
+ *         the FROM-version of a later, superseding migration. `UpgradeRegistryD5b`
+ *         (`contracts/script/v3/UpgradeViaTimelock.s.sol`) upgrades a live 5.8.0 Registry to
+ *         `Registry-5.9.0` (D5b GOV-2 two-step ownership) and is the current upgrade path for any
+ *         Registry that has already been taken through the batch below. This file is kept for
+ *         historical reference (any Registry still on a pre-5.8.0 version, if one exists, would
+ *         need it first) — do not schedule it against a Registry that is already >= 5.8.0 without
+ *         re-auditing it against the CURRENT `Registry.sol`, since the CC-48 checks it encodes were
+ *         written against that snapshot of the contract and have not been kept in sync since.
  * @notice CC-48 MEDIUM-3: build the ONE governance batch that takes a live Registry
  *         proxy to 5.8.0. Every step must land in a single transaction.
  *
