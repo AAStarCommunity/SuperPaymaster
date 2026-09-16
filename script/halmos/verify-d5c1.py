@@ -153,7 +153,9 @@ REQUIRED = {
          "scenario_msg": "A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 2 != 0"},
         {"id": "M-I2", "family": "xpnts", "halmos_logs": [],
          "halmos_parts": [{"dir": "XPNTsV2I2HalmosTest.check_I2_coreAbi", "abi": "core", "labels": ["tryLockForGas-ec290731"]}],
-         "green_parts": [], "scenario_test": "test_D5c1_I2_scenario_lockBeyondSpCapRejected", "scenario_msg": "1 != 0"},
+         "green_parts": [], "scenario_test": "test_D5c1_I2_scenario_lockBeyondSpCapRejected",
+         # bit 0 (cap bound) AND bit 15 (I2-F cap-headroom, added 2026-09-16) both break: 1 | (1<<15) = 32769
+         "scenario_msg": "I2 predicate bitmask on the over-cap lock attempt: 32769 != 0"},
         {"id": "M-I4B", "family": "xpnts", "halmos_logs": [],
          "halmos_parts": [{"dir": "XPNTsV2I4BHalmosTest.check_I4B_coreAbi", "abi": "core", "labels": ["transfer-a9059cbb"]}],
          "green_parts": [], "scenario_test": "test_D5c1_I4B_scenario_transferBelowLockedRejected",
@@ -599,9 +601,17 @@ def restore_row(kind, mid, ap, rv_text):
         (r.group(1)[:12] if r else "no revert line") + ("" if ok else f" (pristine {a.group(2)[:12] if a else '?'}, current {str(now)[:12]})"), ok)
 
 
-def check_mutations(root, req, mroot=None):
+def check_mutations(root, req, mroot=None, only_id=None):
     mroot = mroot or os.path.join(root, "mutations")
     for m in req.get("mutations", []):
+        # An exact-id restriction (run-mutation.sh's own self-check after applying ONE mutation):
+        # unlike --filter (a post-hoc, substring row filter applied downstream), this must be exact
+        # and must happen HERE, before evaluating sibling mutations — "M-A3" is a substring of
+        # "M-A3TF"/"M-A3BF", so a downstream substring filter would still evaluate (and could still
+        # report MISSING for) mutations that have not run yet in this sequence, corrupting a
+        # single mutation's own pass/fail (Codex-adjacent finding, 2026-09-16).
+        if only_id is not None and m["id"] != only_id:
+            continue
         md = os.path.join(mroot, m["id"])
         fam = m.get("family", "xpnts")
         if not os.path.isdir(md):
@@ -803,6 +813,7 @@ def main():
     ap.add_argument("--mutations-dir", default="")
     ap.add_argument("--fuzz-dir", default="")
     ap.add_argument("--filter", default="", help="keep only rows whose item contains one of these comma-separated substrings")
+    ap.add_argument("--mutation-id", default="", help="check only this ONE mutation id (exact match; for a single mutation's own self-check mid-sequence, so sibling mutations that have not run yet are never evaluated — --filter alone is unsafe here since ids like M-A3TF/M-A3BF contain M-A3 as a substring)")
     ap.add_argument("--only", default="suite,logs,partitioned,mutations,fuzz,archives")
     ap.add_argument("--markdown", default="")
     a = ap.parse_args()
@@ -827,7 +838,7 @@ def main():
     if "suite" in sel: check_suite(req, ex)
     if "logs" in sel: check_logs(a.root, req, ex)
     if "partitioned" in sel: check_partitioned(a.root, req, ex)
-    if "mutations" in sel: check_mutations(a.root, req, a.mutations_dir or None)
+    if "mutations" in sel: check_mutations(a.root, req, a.mutations_dir or None, a.mutation_id or None)
     if "fuzz" in sel: check_fuzz(a.root, req, a.fuzz_dir or None)
     if "archives" in sel: check_archives(a.root, req)
     if a.filter:

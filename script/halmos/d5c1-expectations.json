@@ -541,7 +541,7 @@
    ],
    "green_parts": [],
    "scenario_test": "test_D5c1_I2_scenario_lockBeyondSpCapRejected",
-   "scenario_msg": "1 != 0"
+   "scenario_msg": "I2 predicate bitmask on the over-cap lock attempt: 32769 != 0"
   },
   {
    "id": "M-I4B",

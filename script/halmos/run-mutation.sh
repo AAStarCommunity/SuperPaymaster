@@ -54,4 +54,4 @@ restore
 trap - EXIT
 forge build > "$out/build-restored.log" 2>&1 || { echo "BUILD-FAILED (restored)"; exit 3; }
 python3 script/halmos/d5c1_binding.py "$fam" > "$out/binding-restored.json"   # must equal the pristine tree
-python3 script/halmos/verify-d5c1.py --only mutations --mutations-dir "$(dirname "$out")" --filter "$mid"
+python3 script/halmos/verify-d5c1.py --only mutations --mutations-dir "$(dirname "$out")" --mutation-id "$mid"
