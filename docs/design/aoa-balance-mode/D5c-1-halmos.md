@@ -1,10 +1,10 @@
-# D5c-1 · 有界符号验证（Halmos）：CAP-1、A-3、I2、I6
+# D5c-1 · 有界符号验证（Halmos）：CAP-1、A-3、I2（含 I2-F）、I4-B、I6
 
-> **状态（2026-09-15，最终）**：全部证据由加固后的判定脚本 `script/halmos/verify-d5c1.py` 判定——**ALL EXPECTATIONS MET（151 行，退出码 0）**，输出存档 `data/halmos/verify-final.txt`。每条日志都绑定到当前源码与字节码（源码集 sha256 + 被测字节码哈希 + `dirty_src = 0`，头尾两次绑定一致），分区集合与当前 ABI 逐一相等；有界（TIMEOUT）只允许出现在`script/halmos/d5c1-expectations.json` 的白名单分区上，每个都写明原因和替代证据。2026-09-13 暂停前的 RESUME 记录已被本段取代（历史见 git log）。
+> **状态（2026-09-16，最终，DSR 已核实）**：全部证据由加固后的判定脚本 `script/halmos/verify-d5c1.py` 判定——**ALL EXPECTATIONS MET（266 行，退出码 0）**，输出存档 `data/halmos/verify-final.txt`。每条日志都绑定到当前源码与字节码（源码集 sha256 + 被测字节码哈希 + `dirty_src = 0`，头尾两次绑定一致），分区集合与当前 ABI 逐一相等；有界（TIMEOUT）只允许出现在`script/halmos/d5c1-expectations.json` 的白名单分区上，每个都写明原因和替代证据。本版在 2026-09-15 的 151 行版本之上补齐了 DSR 要求的两项：**I2-F**（单步性质，§3.3、§7(c)）与 **I4-B**（余额 ≥ 锁定量，§3.5），并把整套证据（含这两项）重跑到最终状态；2026-09-13 暂停前的 RESUME 记录已被本段取代（历史见 git log）。
 
 > 分支 `d5c-1/halmos-token`，基线 `275abaef`（`feat/aoa-balance-mode-5.5.0` 的头）。规范：[03-final-spec.md](03-final-spec.md)（§2.3 A-3、§4 I2/I4/I6、§10.2 的 xc 公式、§10.7b GOV-4）、[apnts-capped-design.md](apnts-capped-design.md)。
-> 本交付只加测试和脚本，本身不改 `contracts/src/`（五个变异都在树的临时副本里做，逐字节恢复并用 sha256 校验，见 §5）。唯一的源码变化是协调方针对本交付发现 F-D5c1-1 的修复 `3c28ec21`（fast-forward 进本分支，§F）。
-> 证据登记：[EVIDENCE-INDEX.md](EVIDENCE-INDEX.md) 的 H-01…H-06 行（合入 feat 时登记；S- 前缀已用于规范冻结）；原始日志在 `data/halmos/`。
+> 本交付只加测试和脚本，本身不改 `contracts/src/`（8 个变异都在树的临时副本里做，逐字节恢复并用 sha256 校验，见 §5）。唯一的源码变化是协调方针对本交付发现 F-D5c1-1 的修复 `3c28ec21`（fast-forward 进本分支，§F）。
+> 证据登记：[EVIDENCE-INDEX.md](EVIDENCE-INDEX.md) 的 H-01…H-05 行（合入 feat 时登记；S- 前缀已用于规范冻结）；原始日志在 `data/halmos/`。
 
 ## 0. 结论
 
@@ -12,16 +12,17 @@
 |---|---|---|
 | **CAP-1**（APNTsCapped 上限） | **PROVEN**（单步归纳，任意前置状态，`bounds: []`） | 3 个 check 全 PASS；witness 按预期给出反例 |
 | **R**（汇率 ∈ [1e14, 1e22]，单笔上限 ≤ 50,000e18） | **PROVEN**（基础情形 + 归纳步） | 基础情形：`initialize` 与真实工厂路径（初始汇率取满 `uint256`）；归纳步 core 15/15、ext 44/44 |
-| **A-3**（SP / 历史 SP 不能转走、只能按记录销毁） | **BOUNDED**：core 15/15 PASS，ext 43/44 PASS；`mint` 分区 TIMEOUT | `mint` 分区拆开：`debts(v) = 0` 的变体 PASS；`debts(v) > 0` 归结为引理 M（纸面证明 + fuzz） |
+| **A-3**（SP / 历史 SP：`from ≠ sender` 才拒绝；只能按记录销毁，见 §F D-A3-2） | **PROVEN**（最终口径）+ 1 项 BOUNDED | `check_A3_coreAbi` 14/15 PASS，`burn` 分区是**已记录的 discrepancy**（不是 TIMEOUT）：D-A3-2 的具体情形，`check_A3_selfBurnDiscrepancy` 按预期 FAIL 复现它；`XPNTsV2A3NoSelfBurnHalmosTest`（最终口径：`from ≠ sender`）该分区独立 PASS。`check_A3_extAbi` 43/44 PASS，`mint` BOUNDED（`debts(v) = 0` 变体 PASS，`debts(v) > 0` 归结为引理 M） |
 | **A3x**（精确向上取整界 `dec ≤ ceil(c·x0/a0)`） | **BOUNDED**（`settleLocked` 在 600 s 墙钟上限处 TIMEOUT） | 替代：`D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked` 断言 A3x 位掩码（10,000 次） |
-| **I2**（额度累计 ≤ cap） | **BOUNDED**：core 12/15、ext 42/44 PASS | TIMEOUT 分区：core `burn(address,uint256)` / `transferFrom` / `tryLockForGas`，ext `transferFrom` / `mint`；替代：各自的 10,000 次 fuzz（`D5c1BoundedFuzzTest`）与 `mint` 的 `debts = 0` 变体 PASS |
+| **I2**（自动额度累计 ≤ 生效过的最大 cap；**I2-F**：单步增量 ≤ `max(0, cap_now − used)`） | **BOUNDED**：core 11/15、ext 42/44 PASS | TIMEOUT 分区：core `burn(address,uint256)` / `settleLocked` / `transferFrom` / `tryLockForGas`，ext `mint` / `transferFrom`；替代：各自的 10,000 次 fuzz（`D5c1BoundedFuzzTest`，探针已含 I2-F）与 `mint` 的 `debts = 0` 变体 PASS。**I2-F**（bit 15/16）在所有能跑完的分区上成立；变异 M-I2 同时把 bit 0 与 bit 15 弄红（位掩码 32769），是 I2-F 的派生变异覆盖，无需单开 |
+| **I4-B**（`balanceOf(u) ≥ lockedOf(u)`，DSR 要求新增） | **BOUNDED**：core 11/15、ext PASS 44/44 | 基础情形（`initialize`、真实工厂）PASS；归纳步 TIMEOUT 分区与 I2 相同的四个 core 分区，替代同上（fuzz 探针同时断言 I4-B 位掩码）。详见 §3.5 |
 | **I6 / I6-J**（恶意 SP 只能销毁；新债 ≤ 申请上限） | **PROVEN**（core 15/15、ext 44/44，两者都是） | 含 `mint` 分区 |
 | **引理 M**（`mint` 自动抵债不降低收款人余额） | **BOUNDED**（M、M1–M3 都在 540 s 求解器上限处 TIMEOUT） | 唯一不是符号证明的环节：纸面证明（§7）+ 真实代码路径上的 fuzz（`MintRepayLemmaFuzzTest`，10,000 次） |
 
-- **可达性对照**：5 个 witness 与 `XPNTsV2I2NoRHalmosTest`（去掉 R 的负对照）都按预期给出反例，说明 harness 不是空洞地通过。
-- **变异**：M-CAP1、M-A3、M-I2、M-I6、M-F1 五个 Halmos 变异都在指名的 check / 分区上给出反例，对应的场景测试变红，源码按 sha256 逐字节恢复；fuzz 替代证据的变异 M-I2、M-PULL、M-BURNALL、M-REPAY 都让指名的 fuzz 测试变红，未变异时全绿（§5）。
-- **发现**：F-D5c1-1（初始汇率不设范围 → `uint128` 截断 → I4 失效）是真实、可达的缺陷，已在 `3c28ec21` 修复并有回归测试与变异 M-F1（§F）。
-- **口径**：本交付是**有界符号验证**（bounds 与抽象见 §2.5、§8），不是对全部输入的完整证明；BOUNDED 的分区由写明的 fuzz 或纸面证明替代，论文里按"有界 / 仅 fuzz"如实标注。
+- **可达性对照**：8 个 witness（含 §3.5 I4-B 的 `check_witness_I4B_outgoingWithLock`、I2 显式额度的 `check_witness_I2_explicitPull`）与 `XPNTsV2I2NoRHalmosTest`（去掉 R 的负对照）都按预期给出反例，说明 harness 不是空洞地通过（§4）。
+- **变异**：8 个 Halmos 变异——M-CAP1、M-A3、**M-A3TF**、**M-A3BF**（分别只破坏 transferFrom / burn(from) 防火墙，互不影响，见 §5）、M-I2、**M-I4B**、M-I6、M-F1——都在指名的 check / 分区上给出反例，对应的场景测试变红，源码按 sha256 逐字节恢复；6 个 fuzz 替代证据的变异 M-I2、M-PULL、**M-EXPL**、M-BURNALL、M-REPAY、**M-REPAYLOCK** 都让指名的 fuzz 测试变红，未变异时（正对照）全绿（§5）。
+- **发现**：F-D5c1-1（初始汇率不设范围 → `uint128` 截断 → I4 失效）是真实、可达的缺陷，已在 `3c28ec21` 修复并有回归测试与变异 M-F1（§F）；D-A3-2（规范说 SP 的 `burn` 一律拒绝，代码允许 SP 烧自己的余额）经 DSR 与作者核实，规范表述已改（03 v4.1，S-03），A-3 的最终口径见上（§F）。
+- **口径**：本交付是**有界符号验证**（bounds 与抽象见 §2.5、§8），不是对全部输入的完整证明；BOUNDED 的分区由写明的 fuzz 或纸面证明替代，论文里按"有界 / 仅 fuzz"如实标注。I2 的口径（排除显式 approve、I2-F、"累计 ≤ 生效过的最大 cap"）已由 DSR 复核确认，写入 03 v4.1（S-03），不再是待定项。
 
 ## F. 发现（Findings）
 
@@ -50,7 +51,7 @@
 | 怎么发现的 | 按 Codex M4 的要求把 A3-2（bit 1）改成规范的字面形式（不再限定 `from ≠ sender`）。`check_A3_coreAbi` 的 `burn(address,uint256)` 分区随即 FAIL；`check_A3_selfBurnDiscrepancy`（只断言字面 bit 1，限定 `from == sender`）给出反例；`XPNTsV2A3NoSelfBurnHalmosTest`（bit 1 限定为 `from ≠ sender`，其余位不变）在同一分区 PASS——所以字面 A-3 失败的**唯一**方式就是 SP 烧自己的余额 |
 | 具体回放 | `D5c1ReplayTest.test_D5c1_DISCREPANCY_A3_2_spBurnsOwnBalance`（绿，记录代码现状）：当前 SP 持有 5 xPNTs，`burn(sp, 1e18)` 成功、totalSupply 同额减少；harness 位掩码恰好是 bit 1（字面 A3-2），NoSelfBurn 位掩码为 0；SP 轮换之后，历史 SP 同样可以烧自己的余额；同一个 SP 对用户调 `burn(user, x)` 仍然 `SPCannotTransfer` |
 | 影响 | 没有安全影响：只动 SP 自己的余额，不触及任何第三方，A-3 的目的（SP 不能转走或烧掉用户的币）完整成立（NoSelfBurn 变体 PASS、I6 余额部分不变）。它是规范文字与代码的不一致 |
-| 处理 | **没有弱化断言**：`REQUIRED` 把该分区列为 `expect_fail_parts`（必须 FAIL 且带反例），判定表单列一行 "discrepancy"。需要协调方 / DSR 决定：改代码（SP 调 `burn(address,uint256)` 一律 revert，与规范一致），还是在 v4.1 把规范改成"`from ≠ msg.sender` 时一律拒绝"。本交付不改 `contracts/src`，也不改 03 |
+| 处理 | **没有弱化断言**：`REQUIRED` 把该分区列为 `expect_fail_parts`（必须 FAIL 且带反例），判定表单列一行 "discrepancy"。DSR 与作者已核实并决定：**改规范、不改合约**——03 v4.1（S-03）把 A-3 改为"`from ≠ msg.sender` 时一律拒绝，SP 自烧不受约束"，与代码现状一致；`contracts/src` 未改动 |
 
 ## 1. 工具、版本与编译设置
 
@@ -170,21 +171,23 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 | A3-6（bit 5） | `dec > 0` ⇒ `lockedOf(v)` 正好减少 x0，记录被删除 |
 | A3x（bit 6，单独的 check） | `dec > 0` ⇒ `dec ≤ x0` 且 `dec = 0 ∨ (dec − 1)·a0 < c·x0`，`c = min(charge, a0)`（即 `dec ≤ ceil(c·x0/a0)`） |
 
-说明：代码允许 SP 调 `burn(SP 自己, x)`（`from == msg.sender`，等同 `burn(x)`）——这烧的是 SP 自己的余额，不是第三方路径；A3-2 按规范的意图写成 `from ≠ s`。
+**发现 D-A3-2、最终口径（v4.1，见 §F）**：代码允许 SP 调 `burn(SP 自己, x)`（`from == msg.sender`，等同 `burn(x)`）——这烧的是 SP 自己的余额，不是第三方路径。这与"A3-2 一律拒绝"的字面文字不符；DSR 与作者核实后，**改规范不改合约**：A3-2 的最终形式改为 `from ≠ s ⇒ 调用失败`（自烧不受约束）。下表的 A3-2 就是这个最终形式；`XPNTsV2A3HalmosTest`（默认 `_literalBurn() = true`）额外提供**字面**旧文字的断言，用于在 `burn` 分区上具体复现 D-A3-2（预期在那一个分区 FAIL，其余分区仍 PASS），`XPNTsV2A3NoSelfBurnHalmosTest`（`_literalBurn() = false`）是只按最终口径断言的版本。`XPNTsV2A3Bit0HalmosTest` / `XPNTsV2A3Bit1HalmosTest` 把 bit 0、bit 1 拆成独立 check，配合 §5 的 M-A3TF / M-A3BF 证明两条防火墙互相独立。
 
-**Harness**：`XPNTsV2A3HalmosTest.check_A3_{core,ext}Abi`、`XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound`（只探索 `settleLocked`，A3-4 已证明它是唯一能减少受害者余额的路径）、`XPNTsV2A3MintNoDebtHalmosTest`（`mint` 分区，§2.5）。
+**Harness**：`XPNTsV2A3HalmosTest.check_A3_{core,ext}Abi`（字面口径，`burn` 分区预期 discrepancy）、`check_A3_selfBurnDiscrepancy`（预期 FAIL，D-A3-2 的具体回放）、`XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi`（最终口径，`burn` 分区独立 PASS）、`XPNTsV2A3Bit0/Bit1HalmosTest.check_A3_coreAbi`（独立防火墙位）、`XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound`（只探索 `settleLocked`，A3-4 已证明它是唯一能减少受害者余额的路径）、`XPNTsV2A3MintNoDebtHalmosTest`（`mint` 分区，§2.5）。
 
-**结果：BOUNDED**。`check_A3_coreAbi` PASS（15/15 分区）；`check_A3_extAbi` 43/44 PASS，`mint` 分区 TIMEOUT（300 s 断言上限，71 条路径）——拆开后 `XPNTsV2A3MintNoDebtHalmosTest`（`debts(v) = 0`）PASS，`debts(v) > 0` 归结为引理 M（§7）。A3x（`check_A3x_exactCeilBound`，只探索 `settleLocked`）在 600 s 墙钟上限处 TIMEOUT，替代证据为 `testFuzz_D5c1_I2_settleLocked`（断言 A3x 位掩码，10,000 次）。可达性对照 `check_witness_A3_spSettleBurnsVictim` 给出反例（按预期）。
+**结果：最终口径 PROVEN，加 1 项 BOUNDED**。`check_A3_coreAbi`（字面口径）14/15 PASS，`burn-9dc29fac` 分区是**已记录的 discrepancy**——`check_A3_selfBurnDiscrepancy` 按预期 FAIL（`FAIL+cex in burn-9dc29fac`），复现 D-A3-2 的具体反例；`XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi`（最终口径）该分区 PASS，`XPNTsV2A3Bit0HalmosTest`（`transferFrom`）与 `XPNTsV2A3Bit1HalmosTest`（`burn`，最终口径）各自独立 PASS。`check_A3_extAbi` 43/44 PASS，`mint` 分区 BOUNDED（300 s 断言上限）——拆开后 `XPNTsV2A3MintNoDebtHalmosTest`（`debts(v) = 0`）PASS，`debts(v) > 0` 归结为引理 M（§7）。A3x（`check_A3x_exactCeilBound`，只探索 `settleLocked`）在 600 s 墙钟上限处 TIMEOUT，替代证据为 `testFuzz_D5c1_I2_settleLocked`（断言 A3x 位掩码，10,000 次）。可达性对照 `check_witness_A3_spSettleBurnsVictim` 给出反例（按预期）。
 
 ### 3.3 I2（额度累计 ≤ cap）
 
-**规范**（03 §4 I2）：对任意 (user, spender)，自上次合法重置以来经 `transferFrom`、`burn(from)`、`settleLocked` 的累计 ≤ cap；各 spender 的累计之和 ≤ 总额上限；两次用户亲自操作之间 SP 转述的续期 ≤ K（K = 1）。
+**规范**（03 §4 I2，v4.1 更正）：对任意 (user, spender)，自上次合法重置以来经 `transferFrom`、`burn(from)`、`settleLocked` 的**自动额度**累计 ≤ 窗口内生效过的最大 cap；各 spender 的累计之和 ≤ 总额上限；两次用户亲自操作之间 SP 转述的续期 ≤ K（K = 1）；用户显式 ERC-20 `approve` 的额度不计入 I2（普通授权，由用户负责；按 A-3 这项排除只与非 SP 的 spender 有关）；**I2-F**：任意一步中 `used_after − used_before ≤ max(0, cap_now − used_before)`（`_auto`、`_budget` 各一份）——这是"调低或撤销额度立刻在下一步生效"这条论文主张的直接依据。
 
-**形式化陈述（单步引理）**。σ 满足 W1–W3 与 R；s 任意；v、e（spender 格子）任意；d 任意。位 0–10 见 `XPNTsV2Halmos.t.sol` 中 I2 注释块（I2-1 … I2-9、I4-L），语义见 §7 (a)–(d)。累计性质由 §7 的归纳得到。
+**形式化陈述（单步引理）**。σ 满足 W1–W3 与 R；s 任意；v、e（spender 格子）任意；d 任意。位 0–14 见 `XPNTsV2Halmos.t.sol` 中 I2 注释块（I2-1 … I2-9、I4-L、I2-7E/7A/7U），语义见 §7 (c)(d) 的事实表 S1–S5/E1–E2/P；累计性质由 §7 的归纳得到。
 
-**Harness**：`XPNTsV2I2HalmosTest.check_I2_{core,ext}Abi`（以 R 为前置条件）、`XPNTsV2I2NoRHalmosTest`（去掉 R，发现 F-D5c1-1 的符号侧）、`XPNTsV2I2MintNoDebtHalmosTest`、`XPNTsV2RateHalmosTest`（R 的基础情形与归纳步）。
+**I2-F 的形式化陈述**：`_i2F(a, b)`（bit 15 = `_auto`、bit 16 = `_budget`）：`b.usedA > a.usedA ⇒ b.usedA − a.usedA ≤ max(0, b.capA − a.usedA)`（`_budget` 同形）。`cap_now` 取步后的 cap：由 bit 0/1 的注释，cap 变化从不与 `used` 增长同一步发生，所以增长时 `a.capA == b.capA`，`cap_now` 用哪一个都一样；这个写法额外覆盖了"cap 在**另一步**已经被调低到 `used` 以下"的边界——此时 `max(0, cap_now − used) = 0`，本步增长必须为 0。
 
-**结果：BOUNDED**。R 的基础情形（`rate-base.log`：`initialize`、真实工厂各 PASS）与归纳步（core 15/15、ext 44/44）全部 PASS。`check_I2_coreAbi` 12/15 PASS，`burn(address,uint256)`、`transferFrom`、`tryLockForGas` 三个分区 TIMEOUT；`check_I2_extAbi` 42/44 PASS，`transferFrom`（600 s 墙钟上限）与 `mint`（300 s 断言上限）TIMEOUT。替代：`D5c1BoundedFuzzTest` 对 `tryLockForGas`、`settleLocked`、`transferFrom`、`burn(from)` 各 10,000 次，断言与 harness 相同的谓词位掩码为 0；`mint` 的 `debts = 0` 变体 PASS。负对照 `XPNTsV2I2NoRHalmosTest`（去掉 R）在 `tryLockForGas` 给出反例——即 F-D5c1-1 在符号侧的样子。可达性对照 `check_witness_I2_spRenewIncrements`、`check_witness_I2_meteredPull` 给出反例（按预期）。
+**Harness**：`XPNTsV2I2HalmosTest.check_I2_{core,ext}Abi`（以 R 为前置条件，`_i2()` 调用 `_i2counters | _i2pull | _i2create | _i2reset | _i2F`，I2-F 随主检查一起跑）、`XPNTsV2I2NoRHalmosTest`（去掉 R，发现 F-D5c1-1 的符号侧）、`XPNTsV2I2MintNoDebtHalmosTest`、`XPNTsV2RateHalmosTest`（R 的基础情形与归纳步）。fuzz 替代证据的探针 `XPNTsV2HalmosProbe.i2Bits` 已同步加入 `_i2F`（H3 复核时发现的遗漏，已修，见 §5）。
+
+**结果：BOUNDED**（含 I2-F）。R 的基础情形（`rate-base.log`：`initialize`、真实工厂各 PASS）与归纳步（core 15/15、ext 44/44）全部 PASS。`check_I2_coreAbi` **11/15** PASS，`burn(address,uint256)`、`settleLocked`、`transferFrom`、`tryLockForGas` 四个分区 TIMEOUT；`check_I2_extAbi` 42/44 PASS，`mint`（300 s 断言上限）与 `transferFrom`（600 s 墙钟上限）TIMEOUT。**I2-F（bit 15/16）在全部能跑完的分区上都成立**，包括 TIMEOUT 分区之外的所有 core/ext 选择器。替代：`D5c1BoundedFuzzTest` 对 `tryLockForGas`、`settleLocked`、`transferFrom`、`burn(from)` 各 10,000 次，断言与 harness 相同的谓词位掩码为 0（含 I2-F 的位）；`mint` 的 `debts = 0` 变体 PASS。负对照 `XPNTsV2I2NoRHalmosTest`（去掉 R）在 `tryLockForGas` 给出反例——即 F-D5c1-1 在符号侧的样子。可达性对照 `check_witness_I2_spRenewIncrements`、`check_witness_I2_meteredPull`、`check_witness_I2_explicitPull` 给出反例（按预期）。**I2-F 的变异覆盖**：M-I2（删掉 `tryLockForGas` 的剩余额度检查）在最终 harness 上同时把 bit 0 与 bit 15 弄红（位掩码 32769 = bit 0 | bit 15），说明这一处代码缺陷会同时破坏旧的"used ≤ cap"检查和新的 I2-F 检查，I2-F 因此获得了这个既有变异的派生覆盖，判定脚本的期望消息已同步更新为 `32769 != 0`（原因见对应 commit）。
 
 ### 3.4 I6（恶意 SP：只能销毁不能转走；新债 ≤ 用户申请上限）
 
@@ -203,6 +206,23 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 **结果：PROVEN**。`check_I6_coreAbi` 与 `check_I6J_coreAbi` 各 15/15 PASS，`check_I6_extAbi` 与 `check_I6J_extAbi` 各 44/44 PASS（含 `mint` 分区）；`mint` 的 `debts = 0` 变体两者也都 PASS。可达性对照 `check_witness_I6_reservationAdmitted`、`check_witness_I6_debtGrows` 给出反例（按预期）。
 
+### 3.5 I4-B（`balanceOf(u) ≥ lockedOf(u)`，DSR 要求新增）
+
+**规范依据**（03 §4 I4）：`lockedOf(u)` 是用户 `u` 名下未结清锁定记录的 `xLocked` 之和；这部分余额被 A-1 冻结、不能转出。I4-B 是 I4 的一个必要推论——如果它不成立，`lockedOf` 会把用户的余额记账记到超过其实际持有量，A-1 的"冻结"检查（`balance − locked ≥ transferAmount`）就会对某些应该被允许的转账产生错误的下溢或错误的拒绝。I4-B 本身不是 I4 求和性质的替代，而是 I4 隐含的、可以直接写成单步归纳不变量的下界。
+
+**形式化陈述（基础情形 + 归纳步）**。记 `bal_σ(u)`、`locked_σ(u)` 为状态 σ 中 u 的余额与锁定量。
+
+- **基础情形**：clone 刚被 `initialize`（`check_I4B_base_initialize`，`initRate` 为完整 `uint256` 上的符号值）或经真实工厂路径 `xPNTsFactoryV2.deployxPNTsToken`（`check_I4B_base_realFactory`，`deployRate` 同为符号值）之后，对任意用户 `u`：`bal(u) = 0 = locked(u)`，I4-B 平凡成立。
+- **归纳步**（`XPNTsV2I4BHalmosTest.check_I4B_{core,ext}Abi`）：σ 满足 W1–W3 且 `bal_σ(u) ≥ locked_σ(u)`（归纳假设，`_preAssume` 对任意符号用户 `u` 施加）；s 为任意发送者；d 为 core 或 extension ABI 上任意规范编码调用（含预热 `PRIME_LOCK`，§2.3）；σ' 为执行后的状态。断言：`bal_σ'(u) ≥ locked_σ'(u)`（bit 0，`_i4bbits`）。
+
+由基础情形 + 归纳步对步数归纳：**从部署状态出发，任意长度的交易序列之后，每个用户的余额始终不低于其被锁定的量**——这正是 A-1 冻结检查不会因为记账错误而产生下溢或误判所依赖的前提。
+
+**Harness**：`XPNTsV2I4BHalmosTest.check_I4B_{core,ext}Abi`（归纳步）、`check_I4B_base_initialize` / `check_I4B_base_realFactory`（基础情形，见 `contracts/test/halmos/XPNTsV2Halmos.t.sol:844-896`）、`XPNTsV2I4BMintNoDebtHalmosTest`（`mint` 分区、`debts(v) = 0` 的线性半边，§2.5 同款拆分）。
+
+**结果：BOUNDED**。基础情形两个 check（`i4b-base.log`）均 PASS。归纳步 `check_I4B_coreAbi` **11/15** PASS，`burn(address,uint256)`、`settleLocked`、`transferFrom`、`tryLockForGas` 四个分区 TIMEOUT-WALL（与 I2 完全相同的四个分区，同样源于 `mulDiv` 的非线性求解代价）；`check_I4B_extAbi` **PASS 44/44**（`mint`、`transferFrom` 两个原本预期的上限分区实际都在时限内求解完成）；`XPNTsV2I4BMintNoDebtHalmosTest` 的 `mint` 分区 PASS（1/1）。替代：`D5c1BoundedFuzzTest` 对 `tryLockForGas`、`settleLocked`、`transferFrom`、`burn(from)` 各 10,000 次，断言与 harness 相同的谓词位掩码（含 I4-B 的 bit 0）为 0；`testFuzz_D5c1_I4B_mintWithDebt` 单独覆盖 `mint` 有债路径（10,000 次，PASS）。可达性对照 `check_witness_I4B_outgoingWithLock` 给出反例（按预期，见 §4）：v 持有锁定记录时，v 自己发起的一次调用真的能让余额减少（说明"归纳步"不是因为"余额永不减少"而空洞成立）。
+
+**变异覆盖**：M-I4B（见 §5）在 `check_I4B_coreAbi` 的 `transfer` 分区上给出反例（`red ['transfer-a9059cbb']`），证明 I4-B 这条不变量确实依赖对应的代码检查，不是恒真的谓词。
+
 ## 4. 可达性对照（witness）
 
 "断言绿"可能只是因为断言的前件在这个 harness 里根本到达不了（例如没做 §2.3 的预热，所有结算路径都不可达）。所以每条性质都配了一个**反向**的 witness 检查：它断言"某个前件不可达"，**预期 Halmos 给出反例**。反例 = 该前件可达 = 对应的正向检查不是空洞的。
@@ -213,6 +233,8 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 | `XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim`（钉住 x0 = a0 = charge = 1e18，见下） | SP 的 settle 真的烧了受害者的币（预热让记录变活） | A-3 bit 2–6 | `test_D5c1_witness_spRenewLockThenSettle` |
 | `…check_witness_I2_spRenewIncrements` | SP 续期真的让 `autoRenewUsed` 增加 | I2-3 | 同上第一步 |
 | `XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull`（钉住汇率 = value = 1e18、显式授权 = 0，见下） | 第三方 spender 真的按自动额度拉走了余额 | I2-7 | `test_D5c1_witness_meteredPull` |
+| `XPNTsV2WitnessHalmosTest.check_witness_I2_explicitPull`（其余状态仍全符号；只在 `transferFrom` 分区上额外假设 `explicitAllow ≥ value`，收窄到显式授权分支，避开 mulDiv 分支——不钉具体数值，与下面两个"钉住取值"的 witness 不同） | 第三方 spender 真的靠**显式** ERC-20 授权拉走了余额（bit 11 的前件） | I2-7E | 无独立 forge 场景；Halmos 反例本身给出满足前件的具体赋值（`FAIL+cex in transferFrom-23b872dd`） |
+| `…check_witness_I4B_outgoingWithLock` | v 持有锁定记录时，v 自己发起的调用真的能让余额减少 | I4-B | 无独立 forge 场景；Halmos 反例本身给出满足前件的具体赋值（`FAIL+cex in transfer-a9059cbb`） |
 | `…check_witness_I6_reservationAdmitted` | 新预留真的被准入 | I6-1 | `test_D5c1_witness_creditReserveThenSettle` |
 | `…check_witness_I6_debtGrows` | 债务真的增加 | I6-2、I6-J | 同上 |
 
@@ -234,7 +256,10 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 |---|---|---|---|---|---|
 | M-CAP1 | `APNTsCapped.mint` 删掉 `CapExceeded` 检查 | `check_CAP1_a_supplyIncreaseStaysUnderCap` **FAIL**；(b)(c) 仍 PASS（这个变异不影响"谁能铸"和"铸币不动 cap"） | CAP-1 (a) | `test_D5c1_CAP1_scenario_mintBeyondCapReverts`：`next call did not revert as expected`（超出 cap 的 mint 成功了） | sha256 一致 |
 | M-A3 | extension 加一个 SP 可调用的 `spPull(from, amount)`（内部 `_transfer`） | `check_A3_extAbi` 分区 `spPull` **FAIL**；`check_A3_coreAbi` 分区 `OTHER` 也 **FAIL**（core ABI 的未知选择器经 fallback 进入 extension，打到新函数） | `28` = bit 2（A3-3：总供应没降，是转走不是销毁）+ bit 3（A3-4：不是 settleLocked）+ bit 4（A3-5：超过 x0） | `test_D5c1_A3_scenario_spCannotMoveUserTokens`：`A-3 predicate bitmask on the SP pull attempt: 28 != 0` | sha256 一致 |
-| M-I2 | `_lockDecision` 删掉剩余额度检查 | `check_I2_coreAbi` 分区 `tryLockForGas` **FAIL**（65 条路径，51.7 s；说明：在最终 harness 之前的一次试跑里，同一配置第一次以断言查询 TIMEOUT 结束、重跑才给出反例——求解器超时有不确定性，TIMEOUT 从不被当成 PASS） | `1` = bit 0（I2-1：`used` 超过 cap） | `test_D5c1_I2_scenario_lockBeyondSpCapRejected`：`I2 predicate bitmask on the over-cap lock attempt: 1 != 0` | sha256 一致 |
+| M-A3TF | `transferFrom` 的 SP 防火墙加一个 `!historicalSP[msg.sender]` 豁免（只影响 transferFrom 这一条通道） | `XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi` 分区 `transferFrom` **FAIL**；`XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi` 分区 `burn` 仍 **PASS**（独立性对照：这个变异不影响 burn 通道） | `1` = bit 0（A3-1：transferFrom 应当失败却成功了） | `test_D5c1_A3_scenario_spFirewallBits`：`A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 1 != 0` | sha256 一致 |
+| M-A3BF | `burn(address,uint256)` 的防火墙条件从 `from ≠ sender` 加一个 `&& !historicalSP[msg.sender]` 豁免（只影响 burn(from) 这一条通道） | `XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi` 分区 `burn` **FAIL**；`XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi` 分区 `transferFrom` 仍 **PASS**（独立性对照） | `2` = bit 1（A3-2：`from ≠ sender` 的 burn 应当失败却成功了） | `test_D5c1_A3_scenario_spFirewallBits`：`A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 2 != 0` | sha256 一致 |
+| M-I2 | `_lockDecision` 删掉剩余额度检查 | `check_I2_coreAbi` 分区 `tryLockForGas` **FAIL**（65 条路径，51.7 s；说明：在最终 harness 之前的一次试跑里，同一配置第一次以断言查询 TIMEOUT 结束、重跑才给出反例——求解器超时有不确定性，TIMEOUT 从不被当成 PASS） | `32769` = bit 0（I2-1：`used` 超过 cap）+ bit 15（I2-F：单步增量超过 `max(0, cap_now − used)`，见 §3.3） | `test_D5c1_I2_scenario_lockBeyondSpCapRejected`：`I2 predicate bitmask on the over-cap lock attempt: 32769 != 0` | sha256 一致 |
+| M-I4B | `xPNTsV2Base._update` 删掉 A-1 的锁定检查（`bal < value \|\| bal − value < locked` revert） | `check_I4B_coreAbi` 分区 `transfer` **FAIL** | `1` = bit 0（I4-B：转账后余额低于锁定量却没有被拒绝） | `test_D5c1_I4B_scenario_transferBelowLockedRejected`：`I4-B predicate bitmask on the over-lock transfer: 1 != 0` | sha256 一致 |
 | M-I6 | `effectiveCreditCap` 忽略用户的 `requestedCap`（改用协议上限） | `check_I6_coreAbi` 与 `check_I6J_coreAbi` 分区 `tryReserveCredit` 均 **FAIL** | `1` = bit 0（I6-1：预留超过 `min(requestedCap, CEILING) − debts`）；I6-J 同样变红 | `test_D5c1_I6_scenario_reservationBoundedByRequestedCap`：`I6 predicate bitmask on the over-request reservation: 1 != 0` | sha256 一致 |
 | M-F1 | 删掉 `initialize` 的汇率范围检查（`3c28ec21` 的修复） | `check_RATE_base_initialize`（bit 0）与 `check_RATE_base_realFactory`（bit 2）均 **FAIL** | R 的基础情形 | `test_D5c1_REGRESSION_F1_rateOutOfRangeRejectedAtInit`：`next call did not revert as expected`（另一条 `…maxRateMaxLockIsExact` 仍绿，符合预期：它测的是合法的最大汇率） | sha256 一致 |
 
@@ -248,8 +273,8 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 |---|---|---|
 | `check_I2_extAbi` 分区 `transferFrom`（第一次完整运行，W3 只约束受害者—发送者一对；日志 `data/halmos/spurious/I2-extAbi-transferFrom-before-W3-pairs.log`，4 个反例，均为 `transferFrom(from ≠ 受害者, to = 受害者, value ≥ 2^255 附近)`） | **假反例**（不可达状态）：`from` 与受害者余额之和超过 totalSupply，OZ 给收款方的 `unchecked` 加法回绕 | `test_D5c1_replay_I2_transferFrom_wrapNeedsUnreachableState`：用 `vm.store` 造出 `bal(from) = bal(受害者) = totalSupply = 2^255`，同样的调用让受害者余额回绕为 0，harness 位掩码**恰好是 bit 6**（I2-7），与 Halmos 一致；同一测试断言该状态违反守恒（`bal(受害者) > totalSupply − bal(from)`）。W3 随后加强为两两组合（§2.2） |
 | `XPNTsV2I2NoRHalmosTest`（去掉 R；见 §3.3） | **真实**（修复前可达）：发现 F-D5c1-1 | 修复前：`data/halmos/finding-F-D5c1-1-prefix-275abaef-replay.log`（真实工厂、rate `1e40`）；修复后：`test_D5c1_REGRESSION_F1_*` |
-| 五个 witness（预期的反例） | 前件可达 | §4 表中的 `test_D5c1_witness_*`（同一步上谓词位掩码 = 0） |
-| 五个变异下的反例 | 变异确实改变了目标行为 | §5 表中的场景测试（位掩码指名变红的断言） |
+| 8 个 witness（预期的反例） | 前件可达 | §4 表中的 `test_D5c1_witness_*` 或 Halmos 反例自身给出的具体赋值（同一步上谓词位掩码 = 0） |
+| 8 个变异下的反例 | 变异确实改变了目标行为 | §5 表中的场景测试（位掩码指名变红的断言） |
 | 引理 M 的第一版 `check_LEMMA_M3`（`(x + 1e18) − 1` 在 harness 里溢出，`--panic-error-codes '*'` 把 harness 自己的 Panic 记为失败） | **harness 缺陷**，不是引理的反例：反例 `x = 2^256 − 1e18` 让 harness 的 checked 加法溢出；合约里同一表达式在同样的输入下会 revert（mint 失败，余额不变）。修正为与合约一致的前提 `x ≤ max − 1e18` | 由算术直接核对：`x = 2^256 − 1e18`，`m = ⌊(2^256−1)/1e18⌋` 满足 `x ≤ m·1e18`，但 `x + 1e18 = 2^256` 溢出（第一版日志保留在 `data/halmos/spurious/lemmaM3-harness-overflow.log`） |
 
 ## 7. 从步引理到累计性质（组合论证）
@@ -263,7 +288,7 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 **(b) 重置时没有未结清的预留**。I2-9（bit 9）：用户续期和 SP 续期都只在 `lockedOf(v) = 0` 且 `creditReservedOf(v) = 0` 时发生；由 (a) 与 I2-8 的最后一项（`a0 > 0 ⇒ x0 > 0`），重置时不存在 `a0 > 0` 的未结清锁（`a0 = 0` 的记录结算额 `c ≤ a0 = 0`）。
 
-**(c) I2（口径待 DSR 确认；规范正文要在 v4.1 修订，本交付不改 03）**。按 SP 的决定，I2 只约束**自动额度**；用户显式 `approve` 的额度是普通的 ERC-20 授权，不在 I2 之内，但单独断言它的两件事。用到的逐步事实（全部是 `check_I2_{core,ext}Abi` 的位，Halmos 在 §3.3 的分区上证明，其余分区由写明的 fuzz 替代）：
+**(c) I2（口径已由 DSR 复核确认，写入 03 v4.1 S-03；见 §3.3 I2-F）**。I2 只约束**自动额度**；用户显式 `approve` 的额度是普通的 ERC-20 授权，不在 I2 之内，但单独断言它的两件事。用到的逐步事实（全部是 `check_I2_{core,ext}Abi` 的位，Halmos 在 §3.3 的分区上证明，其余分区由写明的 fuzz 替代）：
 
 | 事实 | 位 | 内容 |
 |---|---|---|
@@ -280,7 +305,9 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 > **W 内经自动额度的累计消费 ≤ cap(t*) ≤ W 内（即自上次合法重置以来）曾经生效过的 cap 的最大值。**
 
-它不是"≤ 当前 cap"：调低 cap 不会重置 `used`，t* 之后调低的 cap 可以低于已经准入、仍在结清中的额度（这正是规范文字需要修订的第二处）。显式额度那一半：由 E1，W 内经显式额度的消费正好是 E 被扣减的量，从不超过 v 当时授予的额度；由 E2，这个额度只能由 v 自己提高；由 P，第三方拉走的余额恰好是这两部分之和的上界。对 `_budget[v]` 用同样的 S1–S4 得到跨 spender 的总额上界。
+它不是"≤ 当前 cap"：调低 cap 不会重置 `used`，t* 之后调低的 cap 可以低于已经准入、仍在结清中的额度（03 v4.1 已按此改写"累计 ≤ 窗口内生效过的最大 cap"）。显式额度那一半：由 E1，W 内经显式额度的消费正好是 E 被扣减的量，从不超过 v 当时授予的额度；由 E2，这个额度只能由 v 自己提高；由 P，第三方拉走的余额恰好是这两部分之和的上界。对 `_budget[v]` 用同样的 S1–S4 得到跨 spender 的总额上界。
+
+**I2-F 与 S1 的关系**：S1（bit 0、1）本身就是"同一步里 `used` 增加时 ≤ 该步前后的 cap"这条单步事实；**I2-F**（§3.3，bit 15/16）是它的字面单步形式 `used_after − used_before ≤ max(0, cap_now − used_before)`，直接可以对论文读者陈述为"调低或撤销额度在下一步立即生效"，不需要经过上面 W 窗口的组合论证——I2-F 已经是 Halmos 直接证明的归纳性质（BOUNDED 分区除外），(c) 的窗口论证只是从它推出**累计**上界，两者不是重复而是一个是逐步事实、一个是累计推论。
 
 **(d) I2 的 K**。I2-3（bit 2）：`autoRenewUsed(v)` 只经当前 SP 的 `spRenew` 锁定增加，且不超过 K；I2-4（bit 3）：只经用户本人的续期（`renewForSelf` 或 R2 `ACT_RENEW`）减少。所以两次用户续期之间 SP 转述的续期 ≤ K = 1。
 
@@ -294,8 +321,8 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 1. **性质是 token 侧的**。SuperPaymaster 本身没有被符号执行；A-3 / I6 的上界不依赖 SP 的实现（SP 被当成任意发送者），这正是规范 I6 的"恶意 SP"模型，但 SP 自己的资产（operator 存款、EntryPoint 押金）不在范围内（03 §10.7）。
 2. **单步 + 纸面组合**。累计形式的 I2、I4（前两个等式）由 §7 的归纳从逐步引理得到，归纳本身没有机器检查。被 Halmos 直接证明为归纳不变量的只有：R、I6-J（信用累计上界）、I4 的余额一半 `balanceOf ≥ lockedOf`（基础情形 + 归纳步，BOUNDED 分区除外）。
-3. **I2 的口径（待 DSR 确认）**：本交付证明的是"**自动额度**的累计消费 ≤ 自上次合法重置以来生效过的 cap 的最大值"（§7 (c)），显式 ERC-20 授权的消费不计入 I2，单独证明它只从显式额度扣、只能由用户本人提高。03 §4 I2 的原文（"经 `transferFrom`、`burn(from)`、`settleLocked` 的累计 ≤ cap"）在这两点上都比代码行为更强，需要在 v4.1 修订；修订之前，论文里应当按本节的口径陈述。
-4. **规范—代码不一致 D-A3-2**（§F）：A-3 的字面规则没有被弱化，对应分区按预期 FAIL；它不影响任何第三方余额，待协调方 / DSR 决定改代码还是改规范。
+3. **I2 的口径（已由 DSR 复核确认，写入 03 v4.1 S-03）**：本交付证明的是"**自动额度**的累计消费 ≤ 自上次合法重置以来生效过的 cap 的最大值"（§7 (c)），加上单步形式 **I2-F**（§3.3）；显式 ERC-20 授权的消费不计入 I2，单独证明它只从显式额度扣、只能由用户本人提高。03 §4 I2 的正文已按这三点改写（v4.1，见 03-final-spec.md 的勘误段落）。
+4. **规范—代码不一致 D-A3-2**（§F）：A-3 的字面规则没有被弱化，对应分区按预期 FAIL；它不影响任何第三方余额，DSR 与作者已核实并决定改规范（不改合约），最终口径见 03 v4.1、§3.2。
 5. **瞬态存储的覆盖**：被调用触及的 (v, h) 记录要么不活、要么活，其余存储任意（§2.3）；同一交易里其他记录的活标记没有枚举（对单步不可观测）。
 6. **外部代码**：符号地址只会别名到 harness 部署的合约或空账户；没有覆盖任意恶意外部合约（例如 `transferAndCall` 的接收者、ERC-1271 签名者）在回调里重入 token 的情形。重入者自己的调用是另一个发送者的另一步，单步引理对它同样成立，但"在 `_reentrancyStatus = 2` 且上半截已执行"的中间状态上的调用没有单独枚举（`_reentrancyStatus` 在符号存储里本来就是任意值，这一点部分缓解）。
 7. **密码学**：`ecrecover` 是未解释函数，签名可被"伪造"；因此 I2 里 `executeBySig(user = v, ACT_RENEW)` 被当作用户本人的续期、`permit(owner = v, …)` 被当作用户本人的授权（I2-7U），其现实可靠性依赖 ECDSA / ERC-1271 的不可伪造性。
