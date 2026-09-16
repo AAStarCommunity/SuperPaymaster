@@ -1,0 +1,196 @@
+No files changed, compilation skipped
+Traces:
+  [10819645] → new UpgradeViaTimelock@0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519
+    ├─ [2176827] → new T4ArtifactReader@0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141
+    │   └─ ← [Return] 10762 bytes of code
+    └─ ← [Return] 41744 bytes of code
+
+  [178664] UpgradeViaTimelock::run()
+    ├─ [0] VM::envString("TL_MODE") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("ENV", "anvil") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/jason/Dev/aastar/SuperPaymaster"
+    ├─ [0] VM::readFile("/Users/jason/Dev/aastar/SuperPaymaster/deployments/config.sepolia.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".superPaymaster") [staticcall]
+    │   └─ ← [Return] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".registry") [staticcall]
+    │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".entryPoint") [staticcall]
+    │   └─ ← [Return] 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".priceFeed") [staticcall]
+    │   └─ ← [Return] 0x694AA1769357215DE4FAC081bf1f309aDC325306
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".dvtValidator") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".dvtValidator") [staticcall]
+    │   └─ ← [Return] 0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".timelockController") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelockController") [staticcall]
+    │   └─ ← [Return] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+    ├─ [0] VM::envOr("TIMELOCK", 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("TL_SALT", 0xc622d2f64c74019f79e31c718b7213be7512d7cc9270ae1e458dcefbf2859ce3) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envString("TL_TARGET") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envBytes("TL_CALLDATA") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("ENV", "anvil") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/jason/Dev/aastar/SuperPaymaster"
+    ├─ [0] VM::readFile("/Users/jason/Dev/aastar/SuperPaymaster/deployments/timelock-roles.sepolia.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::keyExistsJson("<JSON file>", "._placeholder") [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".network") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".chainId") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".timelock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".network") [staticcall]
+    │   └─ ← [Return] "sepolia"
+    ├─ [0] VM::parseJsonKeys("{\n  \"network\": \"sepolia\",\n  \"chainId\": \"11155111\",\n  \"timelock\": \"0x86C86c789EDc099801cc6a5F48334F1D67dC9564\",\n  \"deploymentBlock\": \"11151057\",\n  \"roles\": {\n    \"DEFAULT_ADMIN_ROLE\": [\n      \"0x86C86c789EDc099801cc6a5F48334F1D67dC9564\"\n    ],\n    \"PROPOSER_ROLE\": [\n      \"0xb5600060e6de5E11D3636731964218E53caadf0E\"\n    ],\n    \"CANCELLER_ROLE\": [\n      \"0xb5600060e6de5E11D3636731964218E53caadf0E\"\n    ],\n    \"EXECUTOR_ROLE\": [\n      \"0xb5600060e6de5E11D3636731964218E53caadf0E\"\n    ]\n  },\n  \"mustHoldNothing\": [\n    \"0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a\"\n  ],\n  \"mustHoldNothingLabels\": [\n    \"retired SuperPaymaster proxy from this same project's Sepolia deployment history (superseded by the current 0x09DF0d2e... proxy); used because an exhaustive on-chain check (current + 4 prior SP deployments, all owner() reads) found no distinct EOA anywhere in this project's history -- see the script comment above for the full reasoning and the open question this leaves for the schema owner\"\n  ]\n}\n", ".roles") [staticcall]
+    │   └─ ← [Return] ["DEFAULT_ADMIN_ROLE", "PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE"]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+    │   └─ ← [Return] 11155111 [1.115e7]
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelock") [staticcall]
+    │   └─ ← [Return] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] 11151057 [1.115e7]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] [0x86C86c789EDc099801cc6a5F48334F1D67dC9564]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] [0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a]
+    ├─ [0] VM::parseJsonStringArray("<stringified JSON>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] ["retired SuperPaymaster proxy from this same project's Sepolia deployment history (superseded by the current 0x09DF0d2e... proxy); used because an exhaustive on-chain check (current + 4 prior SP deployments, all owner() reads) found no distinct EOA anywhere in this project's history -- see the script comment above for the full reasoning and the open question this leaves for the schema owner"]
+    ├─ [0] VM::envOr("TL_ROLES_ATTESTATION", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("TL_ALLOW_NO_ATTESTATION", false) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [2838] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::getMinDelay() [staticcall]
+    │   └─ ← [Return] 172800 [1.728e5]
+    ├─ [497] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::PROPOSER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    ├─ [563] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::CANCELLER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783
+    ├─ [189] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::EXECUTOR_ROLE() [staticcall]
+    │   └─ ← [Return] 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63
+    ├─ [540] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::DEFAULT_ADMIN_ROLE() [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] VM::readFile("deployments/attestations/timelock-roles.sepolia.before-M2-unpause.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".schema") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".schema") [staticcall]
+    │   └─ ← [Return] "d5b-timelock-roles-attestation/2"
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".result") [staticcall]
+    │   └─ ← [Return] "PASS"
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+    │   └─ ← [Return] 11155111 [1.115e7]
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelock") [staticcall]
+    │   └─ ← [Return] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+    ├─ [0] VM::parseJsonBytes32("<stringified JSON>", ".manifestKeccak256") [staticcall]
+    │   └─ ← [Return] 0xcb73c6d097c03728d55f544f749cc70879e4ffdf6eaba9eff535a1df52eefc3a
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".headBlock") [staticcall]
+    │   └─ ← [Return] 11716223 [1.171e7]
+    ├─ [0] VM::envOr("TL_ATTEST_MAX_AGE", 256) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".headBlockHash") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonBytes32("<stringified JSON>", ".headBlockHash") [staticcall]
+    │   └─ ← [Return] 0xc62375de65a8503a736e1808dbd176ca48fc9cf2f1041fa309f2e1e941ed6139
+    ├─ [0] console::log("  roles attestation: head block hash verified against blockhash()", 11716223 [1.171e7]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".manifestChainId") [staticcall]
+    │   └─ ← [Return] 11155111 [1.115e7]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] 11151057 [1.115e7]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] [0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a]
+    ├─ [0] VM::parseJsonStringArray("<stringified JSON>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] ["retired SuperPaymaster proxy from this same project's Sepolia deployment history (superseded by the current 0x09DF0d2e... proxy); used because an exhaustive on-chain check (current + 4 prior SP deployments, all owner() reads) found no distinct EOA anywhere in this project's history -- see the script comment above for the full reasoning and the open question this leaves for the schema owner"]
+    ├─ [540] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::DEFAULT_ADMIN_ROLE() [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] [0x86C86c789EDc099801cc6a5F48334F1D67dC9564]
+    ├─ [850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [497] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::PROPOSER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E]
+    ├─ [850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [563] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::CANCELLER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E]
+    ├─ [850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [189] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::EXECUTOR_ROLE() [staticcall]
+    │   └─ ← [Return] 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E]
+    ├─ [850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("  roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block", 11716223 [1.171e7]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::envOr("SAFE", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [1248] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hashOperation(0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, 0, 0x76cad8340000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000, 0xe79f1d18b7a6effb56ffb1f1209fb2cb086e9e6f0d031e3486d0833dac327cbc) [staticcall]
+    │   └─ ← [Return] 0xbd9a323dba4130561f301024076a91d7a832b8d0e0fe2c5cfb187713efbf7c67
+    ├─ [2567] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::isOperationReady(0xbd9a323dba4130561f301024076a91d7a832b8d0e0fe2c5cfb187713efbf7c67) [staticcall]
+    │   └─ ← [Return] false
+    └─ ← [Revert] execute: operation not ready (not scheduled, or minDelay not elapsed)
+
+
+
+== Logs ==
+    roles attestation: head block hash verified against blockhash() 11716223
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716223
+Error: script failed: execute: operation not ready (not scheduled, or minDelay not elapsed)

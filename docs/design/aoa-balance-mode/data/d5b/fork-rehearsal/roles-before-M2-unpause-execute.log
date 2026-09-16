@@ -1,0 +1,7 @@
+timelock 0x86C86c789EDc099801cc6a5F48334F1D67dC9564 (chain 11155111): 6 role logs in [11151057, 11716226] from http://127.0.0.1:28571; depth probe ok; completeness NOT independently verified (no --rpc2)
+  DEFAULT_ADMIN_ROLE: 0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+  PROPOSER_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  CANCELLER_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  EXECUTOR_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+attestation written: deployments/attestations/timelock-roles.sepolia.before-M2-unpause-execute.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest

@@ -271,4 +271,22 @@ MCP 形式的 Codex 连接失败，改用 codex 插件的后台任务（`task-mt
 
 **Codex 聚焦复核（`48cba3bd`）：1 Medium**，其余确认无误（1..256 没有差一；检查脚本没有任何异常路径跳过 FAIL 的写入）。Medium：forge 的 `canonicalUint` 没有绑定到根对象——unicode 转义的根键加一个嵌套的字面键，全局扫描会取到嵌套值、放行不规范的根值；"恰好出现一次"在 JSON 键转义下不成立；两个方向的判定也不一致（检查脚本在 `JSON.parse` 之后接受转义键，forge 拒绝；上面的攻击形态则反过来）。
 
+## §7 Sepolia fork 演练（2026-09-16，回应 DSR：D5b 之前只在 anvil 全新部署上演练过，rc1 门槛要求真实链状态）
+
+`scripts/d5b-anvil-rehearsal.sh`（§6.3）在一棵**全新部署的合成栈**上演练：所有合约、timelock、角色都是脚本自己造的，不反映真实 Sepolia 的治理状态。`script/evidence/d5b-fork-rehearsal.sh`（新增）改为 fork **真实 Sepolia 在写这段文字时的实际状态**（block 11716195）：真实的 SP / Registry 代理、真实已经部署好的 TimelockController、真实的 owner EOA 和真实的 operator，只在本地 fork 上广播，从不触碰真正的 Sepolia。
+
+**范围比预期大**：探测发现线上 SP 实际停在 `SuperPaymaster-5.4.2`（不是 D5b 假设的起点"5.5.0 rc"），Registry 已经是 `Registry-5.8.0`。于是分两段：
+
+- **Stage I（5.4.2 → 5.5.0，D5b 已经包含在内，因为 D5b 不是独立版本号，见 §6 引言）**：取消线上一个既存的、与 D5b 无关的 pending aPNTs 切换提案（`UpgradeToV5_5_0.cancelPendingAPNTs`）→ `pauseOperators` → `run()`（部署 xPNTs v2 栈 + 换 SP 实现，读回版本号与 `EXTENSION` 立即数）→ `UpgradeRegistryD5b`（换 Registry 实现）。全部通过一个 EOA 直接 `upgradeToAndCall`，因为线上此刻 owner 还是 EOA、GOV-1 移交还没发生。
+- **Stage II（D5b 的 GOV-1/GOV-2 timelock 机制）**：在 Stage I 落地的状态上继续演练 M1（两步 `transferOwnership` 到真实 timelock + 一次 `scheduleBatch` 接受）、C（timelock-aware 升级演练，SP 与 Registry 各走一轮 `deploy-impl → schedule-upgrade →（提前执行被拒）→ +48h → execute-upgrade`）、M2（guardian 暂停、guardian 解除暂停被拒、timelock 走 `schedule-call/execute-call` 解除暂停）。角色手册要求的 proposer=canceller=executor=admin 全部由**同一个 EOA**充当——这不是为图省事简化，而是线上现状本来就是这样（见下）。
+
+**两项真实发现（不是 rehearsal 的产物，是 Sepolia 现场状态）**：
+
+1. **线上 TimelockController 的部署者 EOA 仍然持有 `DEFAULT_ADMIN_ROLE`**（连同它已经持有的 PROPOSER/CANCELLER/EXECUTOR）。`check-timelock-roles.mjs` 的 `validateManifest` **硬性要求** `DEFAULT_ADMIN_ROLE` 必须**恰好**是 `[timelock 自己]`（M1 policy）——所以**真实的 M1 批次现在完全无法调度**，直到该 EOA 对自己执行一次 `renounceRole(DEFAULT_ADMIN_ROLE, self)`。这是一个 rc1 前必须在真实 Sepolia 上执行的、独立于 D5b 代码本身的前置动作；本演练在 fork 上演示了这一步（`renounceRole` 交易，§rehearsal.log），验证之后 M1 才能顺利往下走。
+2. **`mustHoldNothing` 在单密钥研究部署下没有天然的答案**：穷举查了这个 timelock 自己的完整 `RoleGranted` 事件历史（只授予过 timelock 自己和这一个 EOA）、SP 与 Registry 的 `OwnershipTransferred` 历史（各自只有一条：genesis → 同一个 EOA）、以及这个项目在 Sepolia 上**历史上部署过的另外 4 个已废弃 SP 代理**的 `owner()`（`0xFb090E82…`、`0x506962D1…`、`0x33404ccD…`、`0x829C3178…`，全部读到同一个 EOA）——结论是**这个部署从创世到现在，一直只有这一个账户存在过，没有第二个"曾经有权限、现在应该一无所有"的历史账户可以填进 `mustHoldNothing`**。schema 要求这一项非空且必须是真实、可核验的条目（设计上刻意如此，见 §6.3b 的 M3 修复），本演练最终登记的是**这个项目自己在 Sepolia 上被淘汰的上一个 SP 代理地址** `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a`（真实存在、经链上直接核验持有零角色，标注为"没有真正的历史 EOA 候选"）——这本身仍然不是一个理想答案（它是合约不是钱包，从未有资格持有这些角色），留给规范/工具的所有者决定：要么接受"单密钥部署没有第二候选"这一事实并扩展 schema 支持显式声明它（附带同等严格的链上核验），要么维持现状、每次都要求填一个类似的、诚实标注过的次优条目。**本演练故意没有绕过或削弱 `check-timelock-roles.mjs` 本身**——它是治理安全工具，改动它的验证逻辑不在这次任务范围内。
+
+**结果**：Stage I 与 Stage II 全部通过，末行 `REHEARSAL OK (all)`。M1/C/M2 的每一次 schedule / execute 都先验证"没有证明就拒绝"（负对照）、"48h 内提前执行就拒绝"（负对照），执行后读回：SP.owner = Registry.owner = 真实 timelock，guardian = 该 EOA，`paused()` 在 guardian 暂停后无法被 guardian 自己解除、只能经 timelock 的 48h 流程解除。C 段的 SP/Registry 升级读回（`impl`/`version`/`owner`/`pendingOwner`）与存储槽逐位核对都 OK。fork 演练全程没有写任何真实交易到 Sepolia；脚本自己的 cleanup trap 在退出时删掉了临时写入工作树的 `deployments/timelock-roles.sepolia.json` 与其证明文件，`deployments/config.sepolia.json`（真实提交的配置）未被触碰。
+
+证据：`data/d5b/fork-rehearsal/rehearsal.log`（全程摘要）、`I-A*.log`/`II-*.log`（每一步的完整 forge 输出）、`manifest.json`/`manifest.draft.json`、`attestation-*.json`/`roles-*.json`（每次 schedule/execute 前的角色证明）；复现：`script/evidence/d5b-fork-rehearsal.sh .env.sepolia <fork block> <out dir> all`（读 `.env.sepolia` 的 `RPC_URL`，从不打印密钥）。
+
 **按 SP 的决定重新设计**：① 规范形式只在一处强制——检查脚本要求清单字节 == 规范序列化（§6.3b），并提供 `--canonicalize`；② forge 删除原始文本扫描，改用普通 JSON cheatcode 读值，并要求证明里的清单值与之相等，规范形式经"证明只给规范字节 + `manifestKeccak256` 绑定字节"传递过来（§6.3c、`requireRolesAttestation` 的 NatSpec）；本地逃生开关路径尽力解析并醒目打印"canonical byte form NOT verified"；③ 测试：自测 E4 九种不规范字节（含该攻击形态）都被拒、`--canonicalize` 的输出被接受；forge 侧保留"清单字节与证明哈希不符即停"（`test_attestation_manifest_changed_reverts`），新增证明值一致性测试，逃生开关路径的警告见 `unit-test/D5bTimelockPreflight-vv.log`；④ 变异：删去 (s)，新增检查脚本变异 (u)（由自测杀死）与 forge 变异 (v)；⑤ 示例、演练、自测清单都由 `--canonicalize` 生成。

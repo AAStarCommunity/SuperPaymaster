@@ -1,0 +1,35 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    roles attestation: head block hash verified against blockhash() 11716220
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716220
+    [artifact] default artifact OK: ERC1967Proxy 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71 100
+    [artifact] default artifact OK: Registry 0x9F88504c465A4FCA99337763f5335fB8ec8025Dd 23306
+    Registry read-back OK: impl / version / owner / pendingOwner == 0; version = Registry-5.9.0
+    BLS three legs unchanged (SP / Registry / DVT): 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+    Registry: raw slots 0..N-1 byte-identical, N = 74
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.160757694 gwei
+
+Estimated total gas used for script: 81829
+
+Estimated amount required: 0.000013154641342326 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/broadcast/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/cache/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+

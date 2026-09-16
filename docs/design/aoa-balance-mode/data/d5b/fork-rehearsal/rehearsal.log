@@ -1,0 +1,72 @@
+=== fork Sepolia at block 11716195 ===
+  chainId 11155111 head 11716195
+  pre-fork inventory: SP="SuperPaymaster-5.4.2" Registry="Registry-5.8.0"
+=== STAGE I / A1: cancel the pending APNTsCapped switch (0xBb46...), orthogonal to D5b ===
+  pendingAPNTsToken after cancel: 0x0000000000000000000000000000000000000000
+=== STAGE I / A2: pauseOperators([Owner,Anni]) (runbook step 3 precondition for run()) ===
+=== STAGE I / A3: run() -- land CURRENT HEAD SuperPaymaster (5.5.0 AOA balance mode, D5b core+extension split already included) via a plain EOA upgradeToAndCall ===
+  SP version after run(): "SuperPaymaster-5.5.0"
+  SP EXTENSION (D5b core/ext split marker): 0x06294f6D5baB3c8AD46A4772bB486FCA44AC9440
+=== STAGE I / A4: UpgradeRegistryD5b -- land CURRENT HEAD Registry (5.9.0, GOV-2 two-step ownership) via a plain EOA upgradeToAndCall ===
+  Registry version after UpgradeRegistryD5b: "Registry-5.9.0"
+=== STAGE II / precondition: renounce the deployer's leftover DEFAULT_ADMIN_ROLE on the live TimelockController ===
+  BEFORE: admin(OWNER)=true admin(timelock itself)=true
+  >>> FINDING (real, live Sepolia): the deployer EOA still holds DEFAULT_ADMIN_ROLE on the already-deployed TimelockController 0x86C86c789EDc099801cc6a5F48334F1D67dC9564.
+  >>> check-timelock-roles.mjs's validateManifest HARD-REQUIRES DEFAULT_ADMIN_ROLE == [timelock] exactly (the M1 policy),
+  >>> so the REAL M1 batch cannot be scheduled at all until the deployer renounces this role for real. Demonstrated here on the fork:
+  renounceRole tx (fork only) 0x4f9fc0ae2e1d9a2c0de075c00d96b40037ac2b7869bc9c302ae0246278a1fcbc
+  AFTER : admin(OWNER)=false admin(timelock itself)=true
+=== STAGE II / manifest: build + canonicalize the M1-policy manifest for the now-corrected role shape ===
+  verified: retired SP proxy 0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a holds none of the four roles on 0x86C86c789EDc099801cc6a5F48334F1D67dC9564 (live check, not assumed)
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "timelock": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+  "deploymentBlock": "11151057",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
+    ],
+    "PROPOSER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "CANCELLER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "EXECUTOR_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ]
+  },
+  "mustHoldNothing": [
+    "0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a"
+  ],
+  "mustHoldNothingLabels": [
+    "retired SuperPaymaster proxy from this same project's Sepolia deployment history (superseded by the current 0x09DF0d2e... proxy); used because an exhaustive on-chain check (current + 4 prior SP deployments, all owner() reads) found no distinct EOA anywhere in this project's history -- see the script comment above for the full reasoning and the open question this leaves for the schema owner"
+  ]
+}
+=== STAGE II / M1: two-step transferOwnership(timelock) on SP + Registry, then ONE scheduleBatch (accept + setGuardian) ===
+  after transferOwnership: SP.pendingOwner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564 Registry.pendingOwner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+  negative ok: schedule-accept WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+  negative ok: execute-accept before 48h reverted (Error: script failed: M1: batch not ready)
+  M1 read-back OK
+  negative ok: old EOA owner upgradeToAndCall after M1 reverted (Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 00)
+  SP.owner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564 guardian=0xb5600060e6de5E11D3636731964218E53caadf0E
+  Registry.owner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+=== STAGE II / C: timelock-aware upgrade drill (SP then Registry) -- demo cycle, redeploys the same implementation to exercise the mechanism ===
+  negative ok: schedule-upgrade SP WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+  negative ok: execute-upgrade SP before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
+  SP timelock-aware upgrade: read-back OK
+  negative ok: schedule-upgrade REGISTRY WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+  negative ok: execute-upgrade REGISTRY before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
+  REGISTRY timelock-aware upgrade: read-back OK
+=== STAGE II / M2: guardian (owner) pauses; guardian cannot unpause; timelock unpauses after 48h ===
+  paused() = true
+  negative ok: guardian unpause reverted (Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x82b42900)
+  negative ok: schedule-call (unpause) WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+  negative ok: execute-call (unpause) before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
+  governed unpause executed
+  paused() after the timelock's unpause = false
+=== final state ===
+  SP owner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564 guardian=0xb5600060e6de5E11D3636731964218E53caadf0E impl=0x2ee9450544064b68f907fba24a92948287096e49 version="SuperPaymaster-5.5.0"
+  Registry owner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564 impl=0x9f88504c465a4fca99337763f5335fb8ec8025dd version="Registry-5.9.0"
+REHEARSAL OK (all)

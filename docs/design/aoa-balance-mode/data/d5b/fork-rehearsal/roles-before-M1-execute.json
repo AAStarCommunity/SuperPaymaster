@@ -1,0 +1,122 @@
+{
+  "schema": "d5b-timelock-roles-attestation/2",
+  "result": "FAIL",
+  "chainId": 11155111,
+  "rpc2ChainId": null,
+  "manifestChainId": "11155111",
+  "timelock": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+  "manifestPath": "docs/design/aoa-balance-mode/data/d5b/fork-rehearsal/manifest.json",
+  "manifestSha256": "927697f9e7dd8877324f5a29cce69e48af73d40e4455a0d25a321807c2ad720f",
+  "manifestKeccak256": "0xcb73c6d097c03728d55f544f749cc70879e4ffdf6eaba9eff535a1df52eefc3a",
+  "deploymentBlock": "11151057",
+  "headBlock": 11716208,
+  "headBlockHash": "0x8af0896426dceb1afa647f77628e486f4ca08097417b931cb73728777e5e9c3e",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
+    ],
+    "PROPOSER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "CANCELLER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "EXECUTOR_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ]
+  },
+  "unknownRoles": [],
+  "mustHoldNothing": [
+    "0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a"
+  ],
+  "mustHoldNothingLabels": [
+    "retired SuperPaymaster proxy from this same project's Sepolia deployment history (superseded by the current 0x09DF0d2e... proxy); used because an exhaustive on-chain check (current + 4 prior SP deployments, all owner() reads) found no distinct EOA anywhere in this project's history -- see the script comment above for the full reasoning and the open question this leaves for the schema owner"
+  ],
+  "logs": 6,
+  "depthProbe": true,
+  "rpc2DepthProbe": null,
+  "constructorControl": "constructor grants found in deployment block 11151057",
+  "completeness": "completeness NOT independently verified (no --rpc2)",
+  "rpc2Used": false,
+  "endpoint": "http://127.0.0.1:28571",
+  "endpoint2": null,
+  "problems": [],
+  "checker": {
+    "path": "script/governance/check-timelock-roles.mjs",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "1efb130628bebaab896e745cac9291199066c475",
+    "gitDirty": false
+  },
+  "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs.",
+  "holders": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
+    ],
+    "PROPOSER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "CANCELLER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "EXECUTOR_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ]
+  },
+  "expected": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
+    ],
+    "PROPOSER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "CANCELLER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "EXECUTOR_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ]
+  },
+  "liveHasRole": [
+    {
+      "role": "DEFAULT_ADMIN_ROLE",
+      "account": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+      "hasRole": true
+    },
+    {
+      "role": "DEFAULT_ADMIN_ROLE",
+      "account": "0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a",
+      "hasRole": false
+    },
+    {
+      "role": "PROPOSER_ROLE",
+      "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "hasRole": true
+    },
+    {
+      "role": "PROPOSER_ROLE",
+      "account": "0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a",
+      "hasRole": false
+    },
+    {
+      "role": "CANCELLER_ROLE",
+      "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "hasRole": true
+    },
+    {
+      "role": "CANCELLER_ROLE",
+      "account": "0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a",
+      "hasRole": false
+    },
+    {
+      "role": "EXECUTOR_ROLE",
+      "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "hasRole": true
+    },
+    {
+      "role": "EXECUTOR_ROLE",
+      "account": "0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a",
+      "hasRole": false
+    }
+  ],
+  "ok": true
+}

@@ -1,0 +1,36 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    roles attestation: head block hash verified against blockhash() 11716214
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716214
+    [artifact] default artifact OK: ERC1967Proxy 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9 100
+    [artifact] default artifact OK: SuperPaymaster 0x2Ee9450544064B68f907Fba24a92948287096e49 13571
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xC8cc45f87C4380DC993eA0bcf9f87c9A9fF65320
+    SuperPaymaster read-back OK: impl / version / owner / pendingOwner == 0; version = SuperPaymaster-5.5.0
+    BLS three legs unchanged (SP / Registry / DVT): 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+    SuperPaymaster: raw slots 0..N-1 byte-identical, N = 65
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.348231258 gwei
+
+Estimated total gas used for script: 81780
+
+Estimated amount required: 0.00002847835227924 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/broadcast/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/cache/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+

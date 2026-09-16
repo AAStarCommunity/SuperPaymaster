@@ -1,0 +1,34 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig cancelPendingAPNTs() --rpc-url http://127.0.0.1:28571 --unlocked --sender 0xb5600060e6de5E11D3636731964218E53caadf0E --broadcast
+# git HEAD: 1efb130628bebaab896e745cac9291199066c475
+# forge: forge Version: 1.7.1
+# utc: 2026-09-16T10:54:44Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    step 1 (cancel): pendingAPNTsToken cleared, APNTS_TOKEN unchanged: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 3.888771232 gwei
+
+Estimated total gas used for script: 43677
+
+Estimated amount required: 0.000169849861100064 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/broadcast/UpgradeToV5_5_0.s.sol/11155111/cancelPendingAPNTs-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/cache/UpgradeToV5_5_0.s.sol/11155111/cancelPendingAPNTs-latest.json
+
