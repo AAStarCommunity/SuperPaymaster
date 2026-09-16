@@ -41,6 +41,17 @@
 | 同类修复（仅记录） | 协调方另在 feat 上提交了 `cbcb7045`（`SP.initialize` 的 `priceStalenessThreshold` 限定在 `[60, 86400]`），同一条规则的另一个实例；本交付不涉及 |
 | 符号侧 | 修复后，汇率范围不再作为自由假设：`R := 1e14 ≤ exchangeRate ≤ 1e22 ∧ 0 < maxSingleTxLimit ≤ 50,000e18` 由 `XPNTsV2RateHalmosTest` 证明为归纳不变量（基础情形：`initialize`；归纳步：core + ext 全部选择器、任意发送者），I2 检查以 R 为前置条件。去掉 R 的变体 `XPNTsV2I2NoRHalmosTest` 预期在 bit 7 / bit 10 给出反例——这就是本发现在 Halmos 里的样子（§3.3） |
 
+### D-A3-2：规范说 SP 的 `burn(address,uint256)` 一律拒绝，代码允许 SP 烧自己的余额（规范—代码不一致；Codex M4 复审时按字面断言后暴露）
+
+| 项 | 内容 |
+|---|---|
+| 规范 | 03 §2.3 A-3："`transferFrom` 与 `burn(address,uint256)`：当 `msg.sender == 当前 SP` 或 `historicalSP[msg.sender]` 时，不论是否有显式 approve，一律拒绝"；§2.5 权限："`historicalSP` 里的地址永远不能使用 `transferFrom` 和 `burn(from)`" |
+| 代码 | `xPNTsTokenV2.sol:134`：`if (msg.sender != from) _spendV2(from, msg.sender, amount, msg.sender);`。防火墙（`SPCannotTransfer`）在 `_spendV2` 里（`:146`），`from == msg.sender` 时整个 `_spendV2` 被跳过，所以当前 SP 或历史 SP 调 `burn(自己, x)` 会成功，效果等同 `burn(uint256)` |
+| 怎么发现的 | 按 Codex M4 的要求把 A3-2（bit 1）改成规范的字面形式（不再限定 `from ≠ sender`）。`check_A3_coreAbi` 的 `burn(address,uint256)` 分区随即 FAIL；`check_A3_selfBurnDiscrepancy`（只断言字面 bit 1，限定 `from == sender`）给出反例；`XPNTsV2A3NoSelfBurnHalmosTest`（bit 1 限定为 `from ≠ sender`，其余位不变）在同一分区 PASS——所以字面 A-3 失败的**唯一**方式就是 SP 烧自己的余额 |
+| 具体回放 | `D5c1ReplayTest.test_D5c1_DISCREPANCY_A3_2_spBurnsOwnBalance`（绿，记录代码现状）：当前 SP 持有 5 xPNTs，`burn(sp, 1e18)` 成功、totalSupply 同额减少；harness 位掩码恰好是 bit 1（字面 A3-2），NoSelfBurn 位掩码为 0；SP 轮换之后，历史 SP 同样可以烧自己的余额；同一个 SP 对用户调 `burn(user, x)` 仍然 `SPCannotTransfer` |
+| 影响 | 没有安全影响：只动 SP 自己的余额，不触及任何第三方，A-3 的目的（SP 不能转走或烧掉用户的币）完整成立（NoSelfBurn 变体 PASS、I6 余额部分不变）。它是规范文字与代码的不一致 |
+| 处理 | **没有弱化断言**：`REQUIRED` 把该分区列为 `expect_fail_parts`（必须 FAIL 且带反例），判定表单列一行 "discrepancy"。需要协调方 / DSR 决定：改代码（SP 调 `burn(address,uint256)` 一律 revert，与规范一致），还是在 v4.1 把规范改成"`from ≠ msg.sender` 时一律拒绝"。本交付不改 `contracts/src`，也不改 03 |
+
 ## 1. 工具、版本与编译设置
 
 | 项 | 值 |
@@ -107,18 +118,21 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 ### 2.6 证据绑定与判定（哪些日志算数）
 
-判定只由 `script/halmos/verify-d5c1.py` 给出（编排脚本以它的退出码退出），它只读证据、不重跑，对照**当前树**逐条检查：
+判定只由 `script/halmos/verify-d5c1.py` 给出（编排脚本以它的退出码退出），它只读证据、不重跑，对照**当前树**逐条检查。下面是 Codex 复审 H3 之后的版本：
 
 | 检查 | 规则 |
 |---|---|
-| 绑定 | 每份日志开头（运行前）和结尾（Halmos 自己 build 之后）各有一行 `# binding: {json}`（`script/halmos/d5c1_binding.py`）：被测合约源码集合里每个 `contracts/src` 文件的 sha256（手写清单 ∪ 编译器 metadata 里的 import 闭包）、库文件树哈希、harness 树哈希、default profile 的运行时字节码哈希、`out/` 是否就是当前源码的 build（metadata 里的 keccak256 与磁盘文件比对）、`dirty_src`、git head。结尾那一行说了算；开头与结尾在源码 / 库 / harness 上必须一致（运行期间源码没变）。没有绑定行 = UNBOUND，哈希与当前树不同 = STALE，`dirty_src ≠ 0` = DIRTY，都判 MISMATCH，没有豁免 |
-| 完整性 | 期望的分区集合**从当前 build 的 ABI 现场生成**（与运行器用的是同一个生成器 `partition_specs`：`OTHER` + 每个非 view 函数一个分区）；目录里的分区日志集合必须**恰好等于**它——少一个、多一个（包括残留的 `.retry.log`）都判 MISMATCH。不分区的日志：日志里出现的 check 集合必须恰好等于期望表列出的集合 |
-| 期望 | PASS：每个分区 PASS，只有允许表里的分区可以是 TIMEOUT / TIMEOUT-WALL（报为 BOUNDED，附理由和替代证据）；允许表的键必须是当前存在的分区，且 FAIL 期望（witness / 负对照）**不允许**有允许表。FAIL：至少一个分区 FAIL **且带反例**，没有中止的分区 |
-| 墙钟与结果 | 结果行出现在墙钟上限之后（Halmos 的 `[time] total` ≥ 600 s）不算，按 TIMEOUT-WALL 处理；结果与 `Symbolic test result` 汇总都在上限之内打印、只是进程退出阶段被杀的，结果算数并单独列一行说明（本次：I2 core `settleLocked`，见 §3.3） |
-| 变异 | 变异日志必须绑定到“当前源码 + 存档的 diff”（在临时副本里重算），`binding-mutated.json` 的字节码与原树不同；恢复后的 `binding-restored.json` 在源码 / 库 / harness / 字节码上与当前树相同；`apply.txt` 的原始文件 sha256 = 恢复后的 sha256 = 当前文件 |
-| 期望表 | `script/halmos/d5c1-expectations.json` 的 sha256 打印在每次判定的第一行，并写进 §0 的结果表 |
+| 强制套件 | **要求哪些项写死在 `verify-d5c1.py` 的 `REQUIRED` 里**，不放在可编辑的 `script/halmos/d5c1-expectations.json` 里。JSON 必须逐字重复每一项的固定字段，只额外提供文字（BOUNDED 的理由与替代证据、discrepancy 的说明）；多一项、少一项、改一个字段（例如把 FAIL 期望改成 PASS）都判 MISMATCH。一个分区能不能是 BOUNDED 由 `REQUIRED` 的 `bounded_ceiling` 决定，JSON 只能在这个上限内给理由。所以"从 JSON 里连同证据一起删掉一条性质"会让判定失败。强制套件的 sha256 打印在每次判定的第一行；只有环境变量 `D5C1_REQUIRED`（自检用）能替换它，这时判定行写明 "OVERRIDE … not a release verdict" |
+| 日志身份（H3） | 每份日志（分区的、不分区的、变异下的）都由**它自己的**头尾来绑定，不看文件名。运行器在启动 Halmos 之前写 `# meta: {json}`：runner、合约、check、ABI（core/ext）、分区标签、`D5C1_PART` 选择器（必须等于当前 ABI 给这个标签的选择器）、墙钟上限、**完整的 Halmos 参数表**。参数表必须等于 `d5c1_binding.halmos_argv(该项)`：参数只来自 `d5c1_binding.PROFILES` 的固定档（`xp`：`--loop 2 --default-bytes-lengths 0,65 --statistics --solver-timeout-assertion 300000`；`lemma`：`--loop 2 --statistics --solver-timeout-assertion 540000`；`cap1`：`--default-bytes-lengths 0,65,1024`），`--early-exit` **只允许**出现在 FAIL 期望的项上。Halmos 自己打印的 `Running N tests for <文件>:<合约>` 必须是该项的合约，所有结果行必须是该项的 check。所以拷贝到别的分区或别的 check 名下的日志会被拒 |
+| 绑定 | 头（运行前）尾（Halmos 自己 build 之后）两行 `# binding:`（`script/halmos/d5c1_binding.py`）：被测源码集合每个文件的 sha256（手写清单 ∪ 编译器 metadata 的 import 闭包）、库树哈希、harness 树哈希、default profile 运行时字节码哈希、`out/` 是否就是当前源码的 build、`dirty_src`。尾行另有 **harness 合约的创建字节码哈希**（Halmos 部署并执行的就是它，§1），必须等于当前 build 里该合约的哈希。头尾在源码 / 库 / harness 上必须一致（运行期间没有改树）。没有绑定 = UNBOUND，哈希不同 = STALE，`dirty_src ≠ 0` = DIRTY，都判 MISMATCH，没有豁免 |
+| 退出码与 bounds | `# exit_code:` 必须与结果一致（PASS 0，FAIL / TIMEOUT 1，墙钟杀掉 −9）；PASS 只有在结果行是 `bounds: []`（没有循环达到展开界）时才算 |
+| 完整性 | 分区集合从当前 build 的 ABI 现场生成（与运行器用同一个生成器 `partition_specs`），目录里的分区日志集合必须**恰好等于**它。不分区的日志：出现的 check 集合必须恰好等于该项的 check 集合 |
+| 期望 | PASS：每个分区 PASS，只有 `bounded_ceiling` 内、JSON 给了理由和替代证据的分区可以是 TIMEOUT / TIMEOUT-WALL（报为 BOUNDED）；`expect_fail_parts` 内的分区**必须** FAIL 且带反例（已记录的规范—代码不一致，§F D-A3-2）。FAIL（witness / 负对照）：至少一个分区 FAIL 且带反例、没有中止，也不允许有 BOUNDED 上限 |
+| 墙钟 | 结果行出现在墙钟上限之后（Halmos 的 `[time] total` ≥ 600 s）不算，按 TIMEOUT-WALL 处理；结果与汇总都在上限内打印、只是进程退出阶段被杀的，结果算数并单列一行 |
+| 变异 | 变异日志绑定到"当前源码 + 存档 diff"（在临时副本里重算）和变异后的 harness 产物（`binding-mutated.json` 含全部 harness 合约的字节码哈希）；要求变红的分区 FAIL 且带反例，`green_parts`（独立性对照）在变异下仍然 PASS；恢复后的 `binding-restored.json` 与当前树相同；`apply.txt` 的原始 sha256 = 恢复后的 = 当前文件的 |
+| 存档（M6） | 强制项：`artifact-parity.log`（两遍，都是 `RESULT: OK`，绑定当前树和 harness 产物）；`verify-selftest.log`（第一行记录被测脚本的 sha256，必须等于当前的 `verify-d5c1.py` / `verify-selftest.py` / `d5c1_binding.py`；最后一行的对照数必须等于 `ok` 行数，也必须等于下面引用的数字）；`forge-halmos-suite.log`（replay / layout / priming / 边界 / fuzz 替代的 forge 套件：全绿、点名的测试都在、绑定当前树）；§3.1 引用的 CAP-1 路径数与时间必须与最终 `cap1.log` 逐字一致 |
 
-**判定器自己的对照**（`script/halmos/verify-selftest.py`，日志 `data/halmos/verify-selftest.log`）：在一棵假树（自带 git、源码、harness、带 ABI 与 metadata 的 `out/` 产物）上造出绑定真实的假证据，每个对照只扰动一处，检查退出码；负对照还必须**因为它自己的原因**失败（一个正则必须命中某一条 MISMATCH 行，被别的行弄红不算）。共 29 个：P1/P2/P4 正对照；N1–N23 负对照（分区 FAIL、witness PASS、witness 无反例、TIMEOUT 不在允许表、中止、变异存活、变异未恢复、fuzz 变异存活、未变异 fuzz 变红、缺分区、多分区、源码哈希不符、`dirty_src`、字节码哈希不符、允许表的键不存在、无绑定、残留 retry 日志、变异日志绑定到原树、多出的 check、`out/` 不是当前源码的 build、开头结尾绑定不一致、FAIL 期望带允许表、结果行在墙钟之后）；O1/O2 编排入口；P3 = 真实证据对真实树退出 0。
+**判定器自己的对照**（`script/halmos/verify-selftest.py`，日志 `data/halmos/verify-selftest.log`）共 57 个。做法：在一棵假树上（自带 git、源码、harness 产物、带 ABI 与 metadata 的 `out/` 产物、假的强制套件）造出绑定真实的假证据，每个对照只扰动一处，然后检查退出码；负对照还必须**因为它自己的原因**失败（一个正则必须命中某一条 MISMATCH 行）。正对照：P1（全部满足）、P2（上限内的 TIMEOUT）、P4（上限内打印、退出时被杀）、O2（编排入口）、P3（真实证据对真实树，存档项除外，因为这份日志本身就是存档项）。负对照 N1–N51 与 O1；H3 新增的有：拷贝到别的分区名下的日志（N24）、别的 check 的日志（N25）、错误的 Halmos 参数（N26）、PASS 项带 `--early-exit`（N27）、FAIL 项不带（N28）、Halmos 实际跑的是别的合约（N29）、选择器与 ABI 不符（N30）、墙钟上限不符（N31）、退出码与结果不符（N32）、PASS 但循环达到展开界（N33）、强制项连同证据一起被删（N35）、JSON 多出非强制项（N36）、BOUNDED 超出强制上限（N37）、JSON 改了固定字段（N38）、BOUNDED 缺替代证据（N39）、discrepancy 分区却 PASS（N42）、harness 产物被编译成别的字节码（N22）、尾行点名别的 harness 合约（N23）；M6 新增：存档缺失、parity 只有一遍、自检日志不是当前脚本的、对照数与报告不符、forge 套件不绿、报告引用的 CAP-1 数字与日志不符、parity 日志对应别的 harness build（N44–N51）。
 
 ## 3. 逐项结果
 
@@ -136,7 +150,7 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 **边界与抽象**：全部存储符号化；calldata 覆盖 APNTsCapped 的**全部**选择器（含 view、空 calldata、未知选择器）；`--loop 2`，三个 check 的结果行都是 `bounds: []`（没有任何循环达到展开界）；bytes 长度 `0,65,1024`（`permit` 以外没有动态参数，`transferAndCall(address,uint256,bytes)` 的回调只可能打到已部署合约或空账户）。
 
-**结果：PROVEN（归纳步，对任意前置状态）**。`data/halmos/cap1.log`：(a) PASS，109 条路径，1.93 s；(b) PASS，108 条，3.02 s；(c) PASS，107 条，1.83 s。可达性对照 `check_witness_CAP1_supplyCanIncrease` 按预期 FAIL（`cap1-witness.log`）。
+**结果：PROVEN（归纳步，对任意前置状态）**。`data/halmos/cap1.log`：(a) PASS，108 条路径，1.37 s；(b) PASS，107 条路径，2.26 s；(c) PASS，107 条路径，1.31 s。可达性对照 `check_witness_CAP1_supplyCanIncrease` 按预期 FAIL（`cap1-witness.log`）。
 
 **变异**：M-CAP1（删掉 `mint` 的上限检查）→ 只有 (a) 变红，场景测试变红（§5）。
 
@@ -242,31 +256,71 @@ Halmos 每个测试交易开始时瞬态存储为空。`settleLocked` / `settleC
 
 单步引理对任意前置状态成立，所以可以在任意可达轨迹上逐步套用。下面的归纳都从 genesis 出发（新 clone：所有计数、锁、预留、债务为 0）。**这一节是纸面论证，不是 Halmos 的输出**；它用到的每一条引理都标了出处。
 
-**(a) I4（锁这一半）**。前提：不变量 R（汇率 ∈ [1e14, 1e22]、`0 < maxSingleTxLimit ≤ 50,000e18`）由 `XPNTsV2RateHalmosTest` 证明为归纳不变量（基础情形 `initialize`，归纳步覆盖全部选择器），I2 检查以 R 为前置条件；没有 R 时这一步不成立（发现 F-D5c1-1，§F）。由 I4-L（I2 检查 bit 10）：`lockedOf(v)` 只在创建或删除 (v, h) 记录的那一步变化，变化量正好是该记录的 `x0`；由 I2-8 / I2-8b（bit 7、8）：记录只由当前 SP 的 `tryLockForGas` 创建，且从不原地覆盖。对步数归纳：任何时刻 `lockedOf(v) = Σ_{未结清的 (v,·) 记录} x0`。信用这一半同理，用 I4-C（I6 检查 bit 2）：`creditReservedOf(v) = Σ 未结清预留的 amount`。
+**(a) I4**。
+- 锁这一半：前提是不变量 R（汇率 ∈ [1e14, 1e22]、`0 < maxSingleTxLimit ≤ 50,000e18`），它由 `XPNTsV2RateHalmosTest` 证明为归纳不变量（基础情形 `initialize` 与真实工厂，归纳步覆盖全部选择器），I2 检查以 R 为前置条件；没有 R 时这一步不成立（发现 F-D5c1-1，§F）。由 I4-L（I2 检查 bit 10）：`lockedOf(v)` 只在创建或删除 (v, h) 记录的那一步变化，变化量正好是该记录的 `x0`；由 I2-8 / I2-8b（bit 7、8）：记录只由当前 SP 的 `tryLockForGas` 创建，且从不原地覆盖。对步数归纳：任何时刻 `lockedOf(v) = Σ_{未结清的 (v,·) 记录} x0`。
+- 信用这一半同理，用 I4-C（I6 检查 bit 2）：`creditReservedOf(v) = Σ 未结清预留的 amount`。
+- **余额这一半（H2 新增）**：`balanceOf(u) ≥ lockedOf(u)` 本身就是 Halmos 证明的归纳不变量，不需要求和：基础情形 `check_I4B_base_initialize` / `check_I4B_base_realFactory`（部署之后对任意 u 成立），归纳步 `check_I4B_{core,ext}Abi`（任意前置状态满足 `bal(v) ≥ locked(v)`、任意发送者、全部选择器，含预热后的 `settleLocked` 与 mint 的自动抵债）。归纳步里 BOUNDED 的分区见 §3.5，由写明的替代证据承担。
 
 **(b) 重置时没有未结清的预留**。I2-9（bit 9）：用户续期和 SP 续期都只在 `lockedOf(v) = 0` 且 `creditReservedOf(v) = 0` 时发生；由 (a) 与 I2-8 的最后一项（`a0 > 0 ⇒ x0 > 0`），重置时不存在 `a0 > 0` 的未结清锁（`a0 = 0` 的记录结算额 `c ≤ a0 = 0`）。
 
-**(c) I2（每个 (user, spender) 格子的累计 ≤ cap）**。取一个窗口 W = `_auto[e][v].used` 两次重置之间。在 W 内，`used` 的每次增加都是一次准入（I2-8：创建记录时正好 `+a0`；I2-7：第三方拉取时按自动额度计量），且增加后 `used ≤ 当时生效的 cap`（I2-1）；每次减少都是消费那一条记录时的退款，且不超过 `a0 − c`（结算）或 `a0`（stale release）（I2-5），`c = min(charge, a0)` 正是 `settleLocked` 收取的额度。于是 W 内任意时刻 `used ≥ Σ 已结算的 c + Σ 未结清的 a0 + Σ 计量拉取`（饱和减法只会让左边更大）。设 t* 是 W 内最后一次增加：`used(t*) ≤ cap(t*)`；t* 之后的消费只能来自结算 t* 之前准入的记录，它们的 `c ≤ a0` 已经计入 `used(t*)`。所以 **W 内累计消费 ≤ W 内各次准入时生效的 cap 的最大值**。对 `_budget[v]` 用 I2-2 / I2-6 做同样的论证，得到跨 spender 的总额上界。
+**(c) I2（口径待 DSR 确认；规范正文要在 v4.1 修订，本交付不改 03）**。按 SP 的决定，I2 只约束**自动额度**；用户显式 `approve` 的额度是普通的 ERC-20 授权，不在 I2 之内，但单独断言它的两件事。用到的逐步事实（全部是 `check_I2_{core,ext}Abi` 的位，Halmos 在 §3.3 的分区上证明，其余分区由写明的 fuzz 替代）：
+
+| 事实 | 位 | 内容 |
+|---|---|---|
+| S1 | 0、1 | `_auto[e][v].used`（`_budget[v].used`）在一步里增加时，增加后的值 ≤ 这一步**之前和之后**的 cap（同一步里不会既改 cap 又增加 used） |
+| S2 | 13 | `used` 只经准入增加：当前 SP 为 v 的 `tryLockForGas`（只记在 SP 自己的格子上），或 e 对 v 的 `transferFrom` / `burn(from)` |
+| S3 | 7、12 | 每次准入按它的 aPNTs 额计入：锁定正好 `+a0`（格子与总额）；拉取在显式额度之外的部分 `rest` 以同一个 `du` 计入格子与总额，`du · rate ≥ rest · 1e18`（即 `du ≥ rest` 的 aPNTs 价值） |
+| S4 | 4、5 | `used` 只经三种方式减少：用户续期、SP 续期（SP 格子）、消费 e 持有的那条 (v, h) 记录时的退款，退款 ≤ `a0 − c`（结算，`c = min(charge, a0)` 就是 `settleLocked` 收取的额度）或 `a0`（stale release） |
+| S5 | 9 | 重置（用户或 SP 续期）只在 `lockedOf(v) = creditReservedOf(v) = 0` 时发生，见 (b) |
+| E1 | 11 | 显式额度覆盖的拉取（`value ≤ E`）正好从显式额度扣掉 `value`（无限授权保持无限），而且**不碰**自动计数 |
+| E2 | 14 | `_allowances[v][e]` 只能由 v 自己提高（v 的 `approve`，或 owner 为 v 的 `permit`） |
+| P | 6 | 第三方让 v 余额减少（结算除外）只能经 v 的 `transferFrom` / `burn(from)`，减少量 ≤ 其 value |
+
+论证。取一个窗口 W = 某个 (v, e) 格子两次合法重置之间。W 内 `used` 的每次增加都是一次准入（S2），按准入额计入（S3）；每次减少都是 S4 的退款，不超过对应记录"准入额 − 实际收取"。于是 W 内任意时刻 `used ≥ Σ 已结算记录的 c + Σ 未结清记录的 a0 + Σ 拉取的 du`（S4 用的是饱和减法，只会让左边更大）。设 t* 是 W 内最后一次增加：由 S1，`used(t*) ≤ cap(t*)`，这里 `cap(t*)` 是 t* 那一步之前与之后生效的 cap 中较小的一个。t* 之后的消费只能来自结算 t* 之前准入的记录，它们的 `c ≤ a0` 已经计入 `used(t*)`。所以：
+
+> **W 内经自动额度的累计消费 ≤ cap(t*) ≤ W 内（即自上次合法重置以来）曾经生效过的 cap 的最大值。**
+
+它不是"≤ 当前 cap"：调低 cap 不会重置 `used`，t* 之后调低的 cap 可以低于已经准入、仍在结清中的额度（这正是规范文字需要修订的第二处）。显式额度那一半：由 E1，W 内经显式额度的消费正好是 E 被扣减的量，从不超过 v 当时授予的额度；由 E2，这个额度只能由 v 自己提高；由 P，第三方拉走的余额恰好是这两部分之和的上界。对 `_budget[v]` 用同样的 S1–S4 得到跨 spender 的总额上界。
 
 **(d) I2 的 K**。I2-3（bit 2）：`autoRenewUsed(v)` 只经当前 SP 的 `spRenew` 锁定增加，且不超过 K；I2-4（bit 3）：只经用户本人的续期（`renewForSelf` 或 R2 `ACT_RENEW`）减少。所以两次用户续期之间 SP 转述的续期 ≤ K = 1。
 
 **(e) I6（恶意 SP）**。
-- 余额：A-3（bit 2–5）对**任意**前置状态、当前或历史 SP 发起的任意调用成立：受害者余额只可能经 `settleLocked` 消费受害者自己的、由该 SP 持有的那条记录而减少，totalSupply 至少同额减少（只能销毁、不能转走），且减少量 ≤ x0、`lockedOf` 正好减少 x0、记录被删除；精确上界 `≤ xc = min(x0, ceil(c·x0/a0))` 见 A3x（bit 6）。按锁定路径结算的 aPNTs 总额由 (c)(d) 给出：≤ `min(剩余 SP 额度 + K·SP cap, 剩余总额 + K·总额上限)`。
+- 余额：A-3（bit 2–5）对**任意**前置状态、当前或历史 SP 发起的任意调用成立：受害者余额只可能经 `settleLocked` 消费受害者自己的、由该 SP 持有的那条记录而减少，totalSupply 至少同额减少（只能销毁、不能转走），且减少量 ≤ x0、`lockedOf` 正好减少 x0、记录被删除；精确上界 `≤ xc = min(x0, ceil(c·x0/a0))` 见 A3x（bit 6）。SP 用 `burn(from = 自己, x)` 烧的是它自己的余额（D-A3-2，§F），不影响任何第三方。按锁定路径结算的 aPNTs 总额由 (c)(d) 给出：≤ `min(剩余 SP 额度 + K·SP cap, 剩余总额 + K·总额上限)`，其中"SP cap"按 (c) 取自上次重置以来生效过的最大值。
 - 信用：I6-1 / I6-2 是规范 I6 的逐笔形式（新预留只在当期 epoch 由当前 SP 准入，额度 ≤ `min(requestedCap, CEILING) − debts − reserved`；新债只能消费一笔预留，且 ≤ 其 amount）。**累计形式由 I6-J 直接证明，不需要 (a)**：J(B) = `debts(v) + creditReservedOf(v) ≤ B` 在"调用前后 `requestedCap(v) ≤ B`"的条件下被任意调用保持。取 B = 用户历史上申请过的最大上限，从 genesis（0 ≤ B）归纳：**任何时刻用户的信用暴露（债务 + 在途预留）都不超过他本人申请过的最大上限**，与 SP 的实现、分档源、策略、epoch 切换无关。规范 I6(ii) 的"失效后新增债务 ≤ 失效那一刻的 `creditReservedOf`"由 I6-1（失效后不再准入）、I6-2（每笔 ≤ 其 amount 且删除）与 (a) 的信用一半得到。
 
-**仍然依赖、但本交付没有符号证明的环节**：(a) 里“记录由 `(opHash, user)` 唯一标识、删除后不会复活”是 Solidity 映射语义；归纳本身（对步数的求和）是纸面的；`mint` 分区在受害者有债时依赖引理 M（§2.5）。D3 的有状态不变量套件（`xPNTsTokenV2Invariant.t.sol`，I1–I7）在具体轨迹上覆盖了这些组合。
+**仍然依赖、但本交付没有符号证明的环节**：(a) 里"记录由 `(opHash, user)` 唯一标识、删除后不会复活"是 Solidity 映射语义；归纳本身（对步数的求和）是纸面的；`mint` 分区在受害者有债时依赖引理 M（§2.5）；BOUNDED 分区上的步引理由 fuzz 承担（§3）。D3 的有状态不变量套件（`xPNTsTokenV2Invariant.t.sol`，I1–I7）在具体轨迹上覆盖了这些组合。
 
 ## 8. 局限（供论文附录 X）
 
 1. **性质是 token 侧的**。SuperPaymaster 本身没有被符号执行；A-3 / I6 的上界不依赖 SP 的实现（SP 被当成任意发送者），这正是规范 I6 的"恶意 SP"模型，但 SP 自己的资产（operator 存款、EntryPoint 押金）不在范围内（03 §10.7）。
-2. **单步 + 纸面组合**。累计形式的 I2、I4 由 §7 的归纳从逐步引理得到，归纳本身没有机器检查；I6 的信用累计上界（I6-J）是唯一被 Halmos 直接证明的累计性质。
-3. **瞬态存储的覆盖**：被调用触及的 (v, h) 记录要么不活、要么活，其余存储任意（§2.3）；同一交易里其他记录的活标记没有枚举（对单步不可观测）。
-4. **外部代码**：符号地址只会别名到 harness 部署的合约或空账户；没有覆盖任意恶意外部合约（例如 `transferAndCall` 的接收者、ERC-1271 签名者）在回调里重入 token 的情形。重入者自己的调用是另一个发送者的另一步，单步引理对它同样成立，但"在 `_reentrancyStatus = 2` 且上半截已执行"的中间状态上的调用没有单独枚举（`_reentrancyStatus` 在符号存储里本来就是任意值，这一点部分缓解）。
-5. **密码学**：`ecrecover` 是未解释函数，签名可被"伪造"；因此 I2 里 `executeBySig(user = v, ACT_RENEW)` 被当作用户本人的续期（规范 I2 的口径），其现实可靠性依赖 ECDSA / ERC-1271 的不可伪造性。
-6. **非线性**：Halmos 对符号乘除做抽象，PASS 在抽象下可靠。两处非线性可能超出求解器能力：A3x 的精确向上取整界（结果见 §3.2）与 `mint` 自动抵债的引理 M（§2.5；纸面证明 + fuzz）。
-7. **编译产物**：结论针对 `[profile.default]`（solc 0.8.33、optimizer 500、via-IR、cancun、`bytecode_hash = none`）的字节码，逐字节核对见 §1；其他 profile（`registry-size`，runs 200）的字节码不同，本结论不自动适用。
-8. **分档源**：I6 / I6-J 的信用检查把分档源固定为一个返回任意值的合约（W4），没有执行“分档源 revert / 返回畸形数据”那条 fail-closed 代码路径本身（它的结果 0 被覆盖）。
-9. **非规范 ABI 编码**：已知选择器配任意参数字节的输入没有探索（Halmos 的 `NotConcreteError`，§2.4）；规范编码已全覆盖。
-10. **bytes 长度**：xPNTs 的 bytes/string 参数只取长度 0 与 65（§2.5）。
+2. **单步 + 纸面组合**。累计形式的 I2、I4（前两个等式）由 §7 的归纳从逐步引理得到，归纳本身没有机器检查。被 Halmos 直接证明为归纳不变量的只有：R、I6-J（信用累计上界）、I4 的余额一半 `balanceOf ≥ lockedOf`（基础情形 + 归纳步，BOUNDED 分区除外）。
+3. **I2 的口径（待 DSR 确认）**：本交付证明的是"**自动额度**的累计消费 ≤ 自上次合法重置以来生效过的 cap 的最大值"（§7 (c)），显式 ERC-20 授权的消费不计入 I2，单独证明它只从显式额度扣、只能由用户本人提高。03 §4 I2 的原文（"经 `transferFrom`、`burn(from)`、`settleLocked` 的累计 ≤ cap"）在这两点上都比代码行为更强，需要在 v4.1 修订；修订之前，论文里应当按本节的口径陈述。
+4. **规范—代码不一致 D-A3-2**（§F）：A-3 的字面规则没有被弱化，对应分区按预期 FAIL；它不影响任何第三方余额，待协调方 / DSR 决定改代码还是改规范。
+5. **瞬态存储的覆盖**：被调用触及的 (v, h) 记录要么不活、要么活，其余存储任意（§2.3）；同一交易里其他记录的活标记没有枚举（对单步不可观测）。
+6. **外部代码**：符号地址只会别名到 harness 部署的合约或空账户；没有覆盖任意恶意外部合约（例如 `transferAndCall` 的接收者、ERC-1271 签名者）在回调里重入 token 的情形。重入者自己的调用是另一个发送者的另一步，单步引理对它同样成立，但"在 `_reentrancyStatus = 2` 且上半截已执行"的中间状态上的调用没有单独枚举（`_reentrancyStatus` 在符号存储里本来就是任意值，这一点部分缓解）。
+7. **密码学**：`ecrecover` 是未解释函数，签名可被"伪造"；因此 I2 里 `executeBySig(user = v, ACT_RENEW)` 被当作用户本人的续期、`permit(owner = v, …)` 被当作用户本人的授权（I2-7U），其现实可靠性依赖 ECDSA / ERC-1271 的不可伪造性。
+8. **非线性**：Halmos 对符号乘除做抽象，PASS 在抽象下可靠。超出求解器能力、由写明的 fuzz 或纸面证明承担的环节：A3x 的精确向上取整界、`mint` 自动抵债的引理 M（§2.5）、以及 `mulDiv` 所在的锁定 / 结算 / 计量拉取分区（§3 各表的 BOUNDED 行）。fuzz 替代的输入域见 §3.6（M5）：汇率只取已证明的 R，其余输入覆盖整个类型。
+9. **编译产物**：结论针对 `[profile.default]`（solc 0.8.33、optimizer 500、via-IR、cancun、`bytecode_hash = none`）的字节码，逐字节核对见 §1；其他 profile（`registry-size`，runs 200）的字节码不同，本结论不自动适用。
+10. **分档源**：I6 / I6-J 的信用检查把分档源固定为一个返回任意值的合约（W4），没有执行"分档源 revert / 返回畸形数据"那条 fail-closed 代码路径本身（它的结果 0 被覆盖）。
+11. **非规范 ABI 编码**：已知选择器配任意参数字节的输入没有探索（Halmos 的 `NotConcreteError`，§2.4）；规范编码已全覆盖。
+12. **bytes 长度**：xPNTs 的 bytes/string 参数只取长度 0 与 65（§2.5）。
+13. **witness 的前置限制**：`check_witness_A3_spSettleBurnsVictim`、`check_witness_I2_meteredPull` 把 `mulDiv` 的输入钉成具体值，`check_witness_I2_explicitPull` 把前置状态限制为 `E ≥ value`（§4）。witness 只需要一个前件实例，这些限制只出现在 witness 里，正向检查一个都没有。
 
 ## 9. 复现
+
+全部命令在仓库根目录执行，`export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH"`。
+
+```bash
+# 1. Halmos 证据（先做一次带 AST 的构建；每个分区 600 s 墙钟上限，参数只来自固定档）
+script/halmos/run-all-d5c1.sh all 6          # 或分组：cap1 rate a3 i2 i4b i6 mint lemma settle witness
+# 2. 变异（在树的临时副本里跑，主树的证据运行永远不会编译变异后的源码）
+rsync -a contracts singleton-paymaster standards foundry.toml foundry.lock out cache script <copy>/
+(cd <copy> && script/halmos/run-mutations-all.sh $PWD/docs/design/aoa-balance-mode/data/halmos/mutations)
+# 3. fuzz 替代的活性（在 git 检出里，源码干净时）
+script/halmos/run-fuzz-liveness.sh docs/design/aoa-balance-mode/data/halmos/fuzz-liveness
+# 4. 存档：artifact parity 两遍、halmos 目录的 forge 套件、判定器自检
+script/halmos/archive-d5c1.sh all
+# 5. 判定（唯一的判定者）
+python3 script/halmos/verify-d5c1.py --markdown docs/design/aoa-balance-mode/data/halmos/verify-final.md \
+  > docs/design/aoa-balance-mode/data/halmos/verify-final.txt
+```
