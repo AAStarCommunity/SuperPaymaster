@@ -48,7 +48,8 @@ contract XPNTsV2HalmosProbe is XPNTsV2HalmosBase {
 
     function i2Bits(S memory a, S memory b, Ctx memory c) external pure returns (uint256) {
         F memory f = _flags(a, c);
-        return _i2counters(a, b, c, f) | _i2pull(a, b, c, f) | _i2create(a, b, c, f) | _i2reset(a, b, f);
+        return _i2counters(a, b, c, f) | _i2pull(a, b, c, f) | _i2create(a, b, c, f) | _i2reset(a, b, f)
+            | _i2F(a, b);
     }
 
     function i6Bits(S memory a, S memory b, Ctx memory c) external pure returns (uint256) {
