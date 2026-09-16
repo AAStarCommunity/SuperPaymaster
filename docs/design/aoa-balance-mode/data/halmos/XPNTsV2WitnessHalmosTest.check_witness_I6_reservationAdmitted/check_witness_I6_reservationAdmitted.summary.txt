@@ -1,2 +1,2 @@
-XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted over xPNTsTokenV2: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 16 s)
-  tryReserveCredit-de9e4cae                FAIL            paths=15 time=0.92s exit=1
+XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted over xPNTsTokenV2: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 18 s)
+  tryReserveCredit-de9e4cae                FAIL            paths=14 time=0.92s exit=1

@@ -4,25 +4,18 @@
  "abi": "xPNTsTokenV2",
  "parts": 1,
  "verdict": "NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)",
- "wall_s": 55,
- "extra_args": [
-  "--default-bytes-lengths",
-  "0,65",
-  "--statistics",
-  "--solver-timeout-assertion",
-  "300000",
-  "--early-exit"
- ],
+ "wall_s": 61,
+ "profile": "xp-fail",
  "results": [
   {
    "part": "tryLockForGas-ec290731",
    "D5C1_PART": 3962111793,
    "exit": 1,
-   "wall_s": 55,
+   "wall_s": 61,
    "log": "check_witness_I2_spRenewIncrements.tryLockForGas-ec290731.log",
    "result": "FAIL",
-   "paths": 678,
-   "time_s": 40.25,
+   "paths": 677,
+   "time_s": 44.33,
    "counterexample": true
   }
  ]

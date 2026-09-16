@@ -1,2 +1,2 @@
-XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows over xPNTsTokenV2: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 17 s)
-  settleCredit-1baf4408                    FAIL            paths=15 time=1.98s exit=1
+XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows over xPNTsTokenV2: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 18 s)
+  settleCredit-1baf4408                    FAIL            paths=18 time=1.36s exit=1
