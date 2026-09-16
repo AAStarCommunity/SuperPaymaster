@@ -14,7 +14,7 @@
   >>> FINDING (real, live Sepolia): the deployer EOA still holds DEFAULT_ADMIN_ROLE on the already-deployed TimelockController 0x86C86c789EDc099801cc6a5F48334F1D67dC9564.
   >>> check-timelock-roles.mjs's validateManifest HARD-REQUIRES DEFAULT_ADMIN_ROLE == [timelock] exactly (the M1 policy),
   >>> so the REAL M1 batch cannot be scheduled at all until the deployer renounces this role for real. Demonstrated here on the fork:
-  renounceRole tx (fork only) 0x4f9fc0ae2e1d9a2c0de075c00d96b40037ac2b7869bc9c302ae0246278a1fcbc
+  renounceRole tx (fork only) 0x73a9bc006ebe3979ac178587363281a930660f4143d30e9a75c2b10e5f0e3bf1
   AFTER : admin(OWNER)=false admin(timelock itself)=true
 === STAGE II / manifest: build + canonicalize the M1-policy manifest for the now-corrected role shape ===
   verified: retired SP proxy 0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a holds none of the four roles on 0x86C86c789EDc099801cc6a5F48334F1D67dC9564 (live check, not assumed)

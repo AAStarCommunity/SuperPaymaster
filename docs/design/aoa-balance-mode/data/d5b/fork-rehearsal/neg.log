@@ -122,7 +122,7 @@ Traces:
     │   └─ ← [Return] false
     ├─ [2850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a) [staticcall]
     │   └─ ← [Return] false
-    ├─ [0] VM::readFile("deployments/attestations/timelock-roles.sepolia.before-M2-unpause.json") [staticcall]
+    ├─ [0] VM::readFile("deployments/attestations/timelock-roles.sepolia.fork-rehearsal-before-M2-unpause.json") [staticcall]
     │   └─ ← [Return] <file>
     ├─ [0] VM::keyExistsJson("<JSON file>", ".schema") [staticcall]
     │   └─ ← [Return] true
@@ -137,14 +137,14 @@ Traces:
     ├─ [0] VM::parseJsonBytes32("<stringified JSON>", ".manifestKeccak256") [staticcall]
     │   └─ ← [Return] 0xcb73c6d097c03728d55f544f749cc70879e4ffdf6eaba9eff535a1df52eefc3a
     ├─ [0] VM::parseJsonUint("<stringified JSON>", ".headBlock") [staticcall]
-    │   └─ ← [Return] 11716223 [1.171e7]
+    │   └─ ← [Return] 11716224 [1.171e7]
     ├─ [0] VM::envOr("TL_ATTEST_MAX_AGE", 256) [staticcall]
     │   └─ ← [Return] <env var value>
     ├─ [0] VM::keyExistsJson("<JSON file>", ".headBlockHash") [staticcall]
     │   └─ ← [Return] true
     ├─ [0] VM::parseJsonBytes32("<stringified JSON>", ".headBlockHash") [staticcall]
-    │   └─ ← [Return] 0xc62375de65a8503a736e1808dbd176ca48fc9cf2f1041fa309f2e1e941ed6139
-    ├─ [0] console::log("  roles attestation: head block hash verified against blockhash()", 11716223 [1.171e7]) [staticcall]
+    │   └─ ← [Return] 0x041273a80b16c4bb2bc4c0a4601a0c62f4623d08f8bbf32e4d0f77f6976231bd
+    ├─ [0] console::log("  roles attestation: head block hash verified against blockhash()", 11716224 [1.171e7]) [staticcall]
     │   └─ ← [Stop]
     ├─ [0] VM::parseJsonUint("<stringified JSON>", ".manifestChainId") [staticcall]
     │   └─ ← [Return] 11155111 [1.115e7]
@@ -178,7 +178,7 @@ Traces:
     │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E]
     ├─ [850] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
     │   └─ ← [Return] true
-    ├─ [0] console::log("  roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block", 11716223 [1.171e7]) [staticcall]
+    ├─ [0] console::log("  roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block", 11716224 [1.171e7]) [staticcall]
     │   └─ ← [Stop]
     ├─ [0] VM::envOr("SAFE", 0x0000000000000000000000000000000000000000) [staticcall]
     │   └─ ← [Return] <env var value>
@@ -191,6 +191,6 @@ Traces:
 
 
 == Logs ==
-    roles attestation: head block hash verified against blockhash() 11716223
-    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716223
+    roles attestation: head block hash verified against blockhash() 11716224
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716224
 Error: script failed: execute: operation not ready (not scheduled, or minDelay not elapsed)

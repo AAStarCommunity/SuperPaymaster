@@ -2,12 +2,12 @@ No files changed, compilation skipped
 Script ran successfully.
 
 == Logs ==
-    roles attestation: head block hash verified against blockhash() 11716211
-    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716211
+    roles attestation: head block hash verified against blockhash() 11716212
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716212
     [artifact] default artifact OK: SuperPaymaster 0x2Ee9450544064B68f907Fba24a92948287096e49 13571
     [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xC8cc45f87C4380DC993eA0bcf9f87c9A9fF65320
     SP impl ready (default build, immutables == live, headroom >= 1,024): 0x2Ee9450544064B68f907Fba24a92948287096e49 13571
-    scheduled; ready at: 1789900414
+    scheduled; ready at: 1789900421
   0xa04eb9ca38713677d3b6a23f592950624b18ec0a8f333f76f97442e6b7f8b433
 
 ## Setting up 1 EVM.
@@ -16,11 +16,11 @@ Script ran successfully.
 
 Chain 11155111
 
-Estimated gas price: 0.519175454 gwei
+Estimated gas price: 0.454532136 gwei
 
 Estimated total gas used for script: 78698
 
-Estimated amount required: 0.000040858069878892 ETH
+Estimated amount required: 0.000035770770038928 ETH
 
 ==========================
 

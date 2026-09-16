@@ -2,11 +2,11 @@ No files changed, compilation skipped
 Script ran successfully.
 
 == Logs ==
-    roles attestation: head block hash verified against blockhash() 11716217
-    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716217
+    roles attestation: head block hash verified against blockhash() 11716218
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716218
     [artifact] default artifact OK: Registry 0x9F88504c465A4FCA99337763f5335fB8ec8025Dd 23306
     Registry impl ready (default build, runs=200): 0x9F88504c465A4FCA99337763f5335fB8ec8025Dd 23306
-    scheduled; ready at: 1790073225
+    scheduled; ready at: 1790073233
   0x9fd283161dd1120d191a6dc282a97495c0f5656e4e62e4cdf7c304ac0bb47b04
 
 ## Setting up 1 EVM.
@@ -15,11 +15,11 @@ Script ran successfully.
 
 Chain 11155111
 
-Estimated gas price: 0.239407426 gwei
+Estimated gas price: 0.209665672 gwei
 
 Estimated total gas used for script: 78713
 
-Estimated amount required: 0.000018844476722738 ETH
+Estimated amount required: 0.000016503414040136 ETH
 
 ==========================
 

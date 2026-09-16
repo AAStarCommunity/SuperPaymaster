@@ -2,8 +2,8 @@ No files changed, compilation skipped
 Script ran successfully.
 
 == Logs ==
-    roles attestation: head block hash verified against blockhash() 11716226
-    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716226
+    roles attestation: head block hash verified against blockhash() 11716227
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716227
     governed call executed 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
 
 ## Setting up 1 EVM.
@@ -12,11 +12,11 @@ Script ran successfully.
 
 Chain 11155111
 
-Estimated gas price: 0.072751418 gwei
+Estimated gas price: 0.063800302 gwei
 
 Estimated total gas used for script: 85447
 
-Estimated amount required: 0.000006216390413846 ETH
+Estimated amount required: 0.000005451544404994 ETH
 
 ==========================
 

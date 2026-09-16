@@ -2,8 +2,8 @@ No files changed, compilation skipped
 Script ran successfully.
 
 == Logs ==
-    roles attestation: head block hash verified against blockhash() 11716220
-    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716220
+    roles attestation: head block hash verified against blockhash() 11716221
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11716221
     [artifact] default artifact OK: ERC1967Proxy 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71 100
     [artifact] default artifact OK: Registry 0x9F88504c465A4FCA99337763f5335fB8ec8025Dd 23306
     Registry read-back OK: impl / version / owner / pendingOwner == 0; version = Registry-5.9.0
@@ -16,11 +16,11 @@ Script ran successfully.
 
 Chain 11155111
 
-Estimated gas price: 0.160757694 gwei
+Estimated gas price: 0.140827636 gwei
 
 Estimated total gas used for script: 81829
 
-Estimated amount required: 0.000013154641342326 ETH
+Estimated amount required: 0.000011523784626244 ETH
 
 ==========================
 

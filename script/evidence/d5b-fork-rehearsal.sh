@@ -44,11 +44,34 @@ TL=0x86C86c789EDc099801cc6a5F48334F1D67dC9564
 EP=0x0000000071727De22E5E9d8BAf0edAc6f37da032
 ENVNAME=sepolia
 LOG=script/evidence/run-logged.sh
+# MANIFEST is a REAL, non-negotiable path: UpgradeViaTimelock.s.sol's _cfg()/_manifest() build it from
+# the SAME `ENV` value used to find the real deployments/config.sepolia.json, so it MUST be
+# "deployments/timelock-roles.sepolia.json" -- the exact path a real, committed GOV-1 manifest lives at
+# once the real M1 handoff happens (see deployments/timelock-roles.example.json's own comment: "create
+# the real file... change it only through a reviewed change"). This script must NEVER destroy that file
+# if it already exists for real: back it up before writing the rehearsal's own version, and RESTORE
+# (never just delete) on exit. Only delete on exit when it did NOT exist before this run touched it.
 MANIFEST="deployments/timelock-roles.$ENVNAME.json"
+MANIFEST_BACKUP="$OUT/REAL-manifest-backup.$ENVNAME.json"
+MANIFEST_PREEXISTED=0
+if [ -f "$W/$MANIFEST" ]; then
+  MANIFEST_PREEXISTED=1
+  cp "$W/$MANIFEST" "$MANIFEST_BACKUP"
+  echo "NOTE: $MANIFEST already exists (real committed manifest?) -- backed up to $MANIFEST_BACKUP, will be restored on exit, never deleted." | tee -a "$OUT/rehearsal.log" 2>/dev/null || true
+fi
 PIDS=()
 cleanup() {
   for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null; done
-  rm -f "$W/$MANIFEST" "$W"/deployments/attestations/timelock-roles."$ENVNAME".*.json
+  if [ "$MANIFEST_PREEXISTED" = "1" ]; then
+    cp "$MANIFEST_BACKUP" "$W/$MANIFEST"
+    echo "restored the pre-existing $MANIFEST from backup (not deleted)."
+  else
+    rm -f "$W/$MANIFEST"
+  fi
+  # Attestation filenames ARE fully chosen by this script (roles_check()'s label argument, below) and
+  # are namespaced with a "fork-rehearsal-" prefix specifically so they can never collide with a real
+  # attestation someone files for an actual governance action -- so a plain rm -f here is safe.
+  rm -f "$W"/deployments/attestations/timelock-roles."$ENVNAME".fork-rehearsal-*.json
 }
 trap cleanup EXIT
 
@@ -64,9 +87,12 @@ fscript_tl() { # <contract> <sender> [env...]
     --rpc-url "$RPC" --unlocked --sender "$s" --broadcast --slow 2>&1
 }
 roles_check() { # <label> -> sets $ATT
+  # "fork-rehearsal-" prefix: this filename is entirely our own choice (unlike $MANIFEST, whose path is
+  # fixed by UpgradeViaTimelock.s.sol), so namespace it so it can never collide with, shadow, or get
+  # cleaned up in place of a real attestation someone files for an actual governance action.
+  ATT="deployments/attestations/timelock-roles.$ENVNAME.fork-rehearsal-$1.json"
   node script/governance/check-timelock-roles.mjs --rpc "$RPC" --manifest "$OUT/manifest.json" --out "$OUT/roles-$1.json" \
-    --attest "deployments/attestations/timelock-roles.$ENVNAME.$1.json" | tee "$OUT/roles-$1.log" | tail -3
-  ATT="deployments/attestations/timelock-roles.$ENVNAME.$1.json"
+    --attest "$ATT" | tee "$OUT/roles-$1.log" | tail -3
   cp "$ATT" "$OUT/attestation-$1.json"
   cast rpc evm_mine --rpc-url "$RPC" >/dev/null   # let the attested head get a blockhash (live-chain path)
 }

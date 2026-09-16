@@ -9,8 +9,8 @@
   "manifestSha256": "927697f9e7dd8877324f5a29cce69e48af73d40e4455a0d25a321807c2ad720f",
   "manifestKeccak256": "0xcb73c6d097c03728d55f544f749cc70879e4ffdf6eaba9eff535a1df52eefc3a",
   "deploymentBlock": "11151057",
-  "headBlock": 11716220,
-  "headBlockHash": "0x3deb5366da8711295b1aa187b203d8376cb3556375e4c6734815224160c0320e",
+  "headBlock": 11716221,
+  "headBlockHash": "0x76371854ee753ded3018929ff746e3858d0d5b9dba21be1c5ee8896f9432b967",
   "roles": {
     "DEFAULT_ADMIN_ROLE": [
       "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
@@ -44,7 +44,7 @@
   "checker": {
     "path": "script/governance/check-timelock-roles.mjs",
     "version": "check-timelock-roles/1.5.0",
-    "gitCommit": "1efb130628bebaab896e745cac9291199066c475",
+    "gitCommit": "7db33131c0b07772560bba791800df72a70a0e87",
     "gitDirty": false
   },
   "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs."
