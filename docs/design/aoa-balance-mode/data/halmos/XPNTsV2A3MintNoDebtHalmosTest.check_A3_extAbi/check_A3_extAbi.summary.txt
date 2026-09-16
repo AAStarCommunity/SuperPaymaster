@@ -1,2 +1,2 @@
-XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi over xPNTsTokenV2Ext: PASS (1 parts, wall 21 s)
-  mint-40c10f19                            PASS            paths=70 time=5.37s exit=0
+XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi over xPNTsTokenV2Ext: PASS (1 parts, wall 22 s)
+  mint-40c10f19                            PASS            paths=70 time=5.78s exit=0

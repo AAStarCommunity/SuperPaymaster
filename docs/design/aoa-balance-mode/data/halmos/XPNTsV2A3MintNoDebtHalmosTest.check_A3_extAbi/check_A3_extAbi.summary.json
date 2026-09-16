@@ -4,24 +4,18 @@
  "abi": "xPNTsTokenV2Ext",
  "parts": 1,
  "verdict": "PASS",
- "wall_s": 21,
- "extra_args": [
-  "--default-bytes-lengths",
-  "0,65",
-  "--statistics",
-  "--solver-timeout-assertion",
-  "300000"
- ],
+ "wall_s": 22,
+ "profile": "xp",
  "results": [
   {
    "part": "mint-40c10f19",
    "D5C1_PART": 1086394137,
    "exit": 0,
-   "wall_s": 21,
+   "wall_s": 22,
    "log": "check_A3_extAbi.mint-40c10f19.log",
    "result": "PASS",
    "paths": 70,
-   "time_s": 5.37,
+   "time_s": 5.78,
    "counterexample": false
   }
  ]
