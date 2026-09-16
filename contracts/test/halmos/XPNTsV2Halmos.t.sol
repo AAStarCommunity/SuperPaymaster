@@ -596,6 +596,23 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
         }
     }
 
+    /// I2-F (DSR requirement, 2026-09-15): the single-step consumption increment never exceeds the
+    /// room left under the cap IN FORCE during this step. This is the literal, directly-citable
+    /// basis for "lowering or revoking a cap takes effect on the very next step" (paper decision
+    /// two: default $100, SP floor $5, other spenders revocable to 0). cap_now = b.capA/b.capB: the
+    /// comment above bit 0/1 already establishes a cap change never coincides with growth in the
+    /// same step, so a.capA == b.capA whenever usedA grows — using the post-step cap makes I2-F
+    /// meaningful even in the edge case where a cap was just lowered below usedA by a DIFFERENT step
+    /// (room = 0, so growth = 0 here). Split out of _i2counters to avoid stack-too-deep.
+    function _i2F(S memory a, S memory b) internal pure returns (uint256 bad) {
+        unchecked {
+            uint256 roomA = b.capA > a.usedA ? b.capA - a.usedA : 0;
+            bad |= (_imp(_u(b.usedA > a.usedA), _u(b.usedA - a.usedA <= roomA)) ^ 1) << 15;
+            uint256 roomB = b.capB > a.usedB ? b.capB - a.usedB : 0;
+            bad |= (_imp(_u(b.usedB > a.usedB), _u(b.usedB - a.usedB <= roomB)) ^ 1) << 16;
+        }
+    }
+
     /// bits 7-8
     function _i2create(S memory a, S memory b, Ctx memory c, F memory f) internal pure returns (uint256 bad) {
         unchecked {
@@ -783,7 +800,8 @@ contract XPNTsV2I2HalmosTest is XPNTsV2HalmosBase {
     function _i2(bool extAbi) internal {
         (S memory a, S memory b, Ctx memory c) = _step(extAbi, false, PRIME_LOCK, false, 0);
         F memory f = _flags(a, c);
-        uint256 bad = _i2counters(a, b, c, f) | _i2pull(a, b, c, f) | _i2create(a, b, c, f) | _i2reset(a, b, f);
+        uint256 bad = _i2counters(a, b, c, f) | _i2pull(a, b, c, f) | _i2create(a, b, c, f) | _i2reset(a, b, f)
+            | _i2F(a, b);
         _report(bad);
     }
 
