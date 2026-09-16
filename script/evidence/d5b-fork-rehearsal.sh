@@ -21,6 +21,11 @@
 # proposer/canceller/executor -- which is not a rehearsal simplification, it is what the account already
 # holds on real Sepolia today.
 #
+# Prerequisite: `pnpm install` at the repo root first (check-timelock-roles.mjs needs node_modules/viem
+# on the require path; on a fresh/clean clone without it, the script crashes partway through Stage II --
+# DSR hit exactly this in an isolated clone. The cleanup trap still fires and restores correctly even on
+# that failure exit, which is a stronger test than a clean run, but the run itself won't complete).
+#
 # Usage: script/evidence/d5b-fork-rehearsal.sh <env file with RPC_URL> <fork block> <out dir> [stage]
 #   stage (optional): I | II | all (default all). Re-run stage II alone once stage I evidence exists by
 #   also passing SP_ADDR/REG_ADDR pointing at nothing -- in practice this script's fork is ephemeral
