@@ -1,0 +1,22 @@
+{
+ "contract": "XPNTsV2WitnessHalmosTest",
+ "check": "check_witness_I6_reservationAdmitted",
+ "abi": "xPNTsTokenV2",
+ "parts": 1,
+ "verdict": "NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)",
+ "wall_s": 18,
+ "profile": "xp-fail",
+ "results": [
+  {
+   "part": "tryReserveCredit-de9e4cae",
+   "D5C1_PART": 3734916270,
+   "exit": 1,
+   "wall_s": 18,
+   "log": "check_witness_I6_reservationAdmitted.tryReserveCredit-de9e4cae.log",
+   "result": "FAIL",
+   "paths": 14,
+   "time_s": 0.92,
+   "counterexample": true
+  }
+ ]
+}

@@ -1,0 +1,22 @@
+{
+ "contract": "XPNTsV2I4BHalmosTest",
+ "check": "check_I4B_coreAbi",
+ "abi": "xPNTsTokenV2",
+ "parts": 1,
+ "verdict": "NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)",
+ "wall_s": 17,
+ "profile": "xp-fail",
+ "results": [
+  {
+   "part": "transfer-a9059cbb",
+   "D5C1_PART": 2835717307,
+   "exit": 1,
+   "wall_s": 17,
+   "log": "check_I4B_coreAbi.transfer-a9059cbb.log",
+   "result": "FAIL",
+   "paths": 9,
+   "time_s": 0.83,
+   "counterexample": true
+  }
+ ]
+}

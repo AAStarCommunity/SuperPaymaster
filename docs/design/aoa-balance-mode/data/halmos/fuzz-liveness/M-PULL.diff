@@ -1,0 +1,11 @@
+--- a/contracts/src/tokens/v2/xPNTsTokenV2.sol
++++ b/contracts/src/tokens/v2/xPNTsTokenV2.sol
+@@ -157,7 +157,7 @@
+         if (e != 0) _approve(owner, spender, 0, false);
+         uint256 a = Math.mulDiv(rest, 1e18, _requireRate(), Math.Rounding.Ceil);
+         if (a > maxSingleTxLimit) revert SingleTxLimitExceeded();
+-        if (_remaining(spender, owner) < a) revert AutoAllowanceExceeded();
++        // D5c-1 M-PULL: auto-allowance cap check removed
+         _auto[spender][owner].used += uint128(a);
+         _budget[owner].used += uint128(a);
+         _checkAndConsumeRateLimit(spender, rest);

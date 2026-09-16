@@ -1,6 +1,8 @@
-# 03 · SP 5.5.0 + xPNTs v2 规范（v4.0.1，冻结）
+# 03 · SP 5.5.0 + xPNTs v2 规范（v4.1，冻结）
 
 > **v4.0 冻结：后续修改须递增版本并登记进 EVIDENCE-INDEX。**
+>
+> **v4.1（2026-09-16，勘误，D5c-1 有界符号验证发现，经 DSR 复核并确认）**：D5c-1（`D5c-1-halmos.md`，EVIDENCE-INDEX H-01…H-05）在按规范字面断言 A-3 时，发现代码允许 SP 调用 `burn(SP 自己, x)`（`from == msg.sender` 时跳过防火墙，`xPNTsTokenV2.sol:133–136` 与 `burn(x)`（`:138`）等价），这只会烧掉 SP 自己持有的 xPNTs，不影响用户余额，DSR 与作者核实后确认**不改合约、改规范表述**。同一交付物里，作者决定 I2 的范围明确排除用户显式 ERC-20 `approve` 的额度（那是普通授权，用户自己负责；按 A-3 这项排除只影响非 SP 的 spender），并新增单步性质 I2-F 作为"额度调低/撤销立刻生效"这条论文主张的直接依据；连带更正"累计 ≤ cap"的表述——调低 cap 不回溯清零 `used`，所以准确说法是"≤ 窗口内生效过的最大 cap"，v4.0.1 及更早版本的字面表述比代码语义更强，这里改的是规范表述，不是放宽安全性。改动：不变量表 I2、§2.1 A-3。harness 已按本版本的表述作为最终口径实现并通过判定（`verify-d5c1.py`：266 行，0 处不一致）。
 >
 > **v4.0.1（2026-09-13，勘误，DSR 验收发现）**：§10.7 SP owner 行与 §10.8 RDR-7 ① 把 `slashOperator` 写成"owner 路径不设 30% 上限"，与源码不符。`slashOperator`（`cbcb7045` `:951`）须先 `queueSlash`（`:953`）、有 24h 冷却（`:956`），并调用 `_slash(…, applyCap = true)`（`:957`），每次 ≤ 余额的 30%（`:1027`；由 `972279dc` p0-14 引入，5.4.2 `d651646a` 起即如此），与 BLS 路径（`:1002`）相同。RDR-7 ② 的结论不变（owner 被攻破 → 全部 operator aPNTs），但依据改为"通过升级拿走"，并补上路径说明。其余内容与 v4.0 相同。
 >
@@ -190,7 +192,7 @@ function BALANCE_MODE_VERSION() external pure returns (uint16);          // = 1
 |---|---|
 | A-1 | `_update`：对 `from != 0`，要求 `balanceOf(from) − value ≥ lockedOf[from]`，覆盖 transfer、transferFrom、burn、`transferAndCall`、permit 之后的转账，以及 mint 自动抵债时的烧币 |
 | A-2 | 自动额度约束 `transferFrom`、`burn(address,uint256)` 和 SP 的锁定路径；显式 `approve` 优先使用，自动额度兜底。`allowance()` 返回 `显式 + 自动剩余（按实时汇率折算）`，并注明与锁定时汇率可能有差 |
-| A-3 | `transferFrom` 与 `burn(address,uint256)`：当 `msg.sender == 当前 SP` 或 `historicalSP[msg.sender]` 时，**不论是否有显式 approve，一律拒绝** |
+| A-3 | **（v4.1 更正，见文件头勘误）** 当前 SP 或历史 SP 作为调用者时，凡是 `from ≠ msg.sender` 的 `transferFrom` / `burn(address,uint256)` 一律 revert（不论是否有显式 approve）；SP 通过 `burn(x)` 或 `burn(SP 自己, x)`（`from == msg.sender`）只能减少**它自己**的余额，这不受 A-3 约束。SP 能减少**任何其他账户**余额的途径，只有 `settleLocked` / `settleCredit`，数额受 I6 约束 |
 | A-4 | `tryLockForGas`：`used += reserve`（per-spender 和总额分别计）；`settleLocked`：`used −= (aReserved − charge)`，而且退回记在 `_auto[lock.locker][user]` 上 |
 | A-5 | SP 转述的续期（`spRenew`）：只有 `renewalMode == SP_K`、`autoRenewUsed < K`、`lockedOf == 0`、`creditReservedOf == 0` 时才生效（`used` 清零，`autoRenewUsed += 1`），否则返回 `INVALID_RENEWAL`，并且**整个验证失败**，不会转去信用 |
 | A-6 | `renewForSelf`（方案 A）/ R2：只要 `lockedOf == 0` 且 `creditReservedOf == 0`，就清零 `used` 和 `autoRenewUsed`。`renewForSelf` **只访问**与 `msg.sender` 关联的槽，不读任何全局槽，因为账户帧没有 STO-033 的只读特权 |
@@ -323,7 +325,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | # | 不变量 |
 |---|---|
 | I1 | 用户 xPNTs 余额的减少只可能来自：用户本人的交易；`settleLocked`；名单内 spender 在额度内经 `transferFrom` 或 `burn(from)`；mint 时的自动抵债 |
-| I2 | 对任意 (user, spender)：自上次合法重置以来经 `transferFrom`、`burn(from)`、`settleLocked` 的累计 ≤ cap；各 spender 的累计之和 ≤ 总额上限；两次用户亲自操作之间，SP 转述的续期 ≤ K。**v3.9 澄清**："用户亲自操作"指用户本人发起的任意一次续期（`renewForSelf` 或 R2 `ACT_RENEW`），**不论指定哪个 spender**；A-6 的 `_renew` 总会把 `autoRenewUsed` 清零，所以用户续期任何 spender 都会重新开放 SP 的 K 次续期。每次重新开放都来自用户的签名或调用，所以 SP 在一个窗口内最多获得 K 次续期 |
+| I2 | 对任意 (user, spender)：自上次合法重置以来经 `transferFrom`、`burn(from)`、`settleLocked` 的**自动额度**（`_auto`/`_budget`）累计 ≤ cap；各 spender 的累计之和 ≤ 总额上限；两次用户亲自操作之间，SP 转述的续期 ≤ K。**v3.9 澄清**："用户亲自操作"指用户本人发起的任意一次续期（`renewForSelf` 或 R2 `ACT_RENEW`），**不论指定哪个 spender**；A-6 的 `_renew` 总会把 `autoRenewUsed` 清零，所以用户续期任何 spender 都会重新开放 SP 的 K 次续期。每次重新开放都来自用户的签名或调用，所以 SP 在一个窗口内最多获得 K 次续期。**v4.1 更正（见文件头勘误）**：I2 的范围明确为**自动**额度；用户经 ERC-20 `approve` 显式授权的额度不计入 I2（那是普通的 ERC-20 授权，由用户自己负责；按 A-3，SP 永远用不了显式授权，所以这项排除只与非 SP 的 spender 有关），显式授权的消费单独受"消费量 ≤ 授权量、且消费不影响自动额度的计数器"约束。**I2-F（新增单步性质）**：任意一步中，`used_after − used_before ≤ max(0, cap_now − used_before)`（`_auto`、`_budget` 各一份，`cap_now` 为该步生效的 cap）；这是"用户可以把额度调低或撤到 0、并且下一步立刻生效"这条论文主张的直接依据。**累计上界的准确表述**：由于调低 cap 不会回溯清零 `used`，"累计 ≤ cap"这句话准确说是"累计 ≤ 自上次重置以来窗口内**生效过的最大** cap"，v4.0.1 及更早版本"used ≤ cap"的字面表述比这更强，代码行为是有意为之，这里只是改正规范表述 |
 | I3 | 新债务只能由 `settleCredit` 产生，而且只能消费一笔在准入时满足 C-1 的有效预留。`creditPolicy == OFF`、没有有效的当期申请、已撤回或已停用，这些状态**阻止新的预留**；债务在这些状态下仍可能增加，但**只能**来自消费此前已准入的预留（与 E-2、C-3、C-4 一致，§9 R4-H4） |
 | I4 | 每笔交易结束时：`lockedOf[u] == Σ _locks[·][u].xLocked`，`creditReservedOf[u] == Σ _creditRes[·][u].amount`，并且 `balanceOf(u) ≥ lockedOf[u]` |
 | I5 | 活标记为 0 之后，任何记录都只能被 stale release 处理，不能再被结算 |

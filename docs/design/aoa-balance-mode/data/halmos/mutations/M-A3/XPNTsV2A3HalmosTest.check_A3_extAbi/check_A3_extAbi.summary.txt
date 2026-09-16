@@ -1,0 +1,2 @@
+XPNTsV2A3HalmosTest.check_A3_extAbi over xPNTsTokenV2Ext: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 18 s)
+  spPull-20992765                          FAIL            paths=12 time=0.99s exit=1

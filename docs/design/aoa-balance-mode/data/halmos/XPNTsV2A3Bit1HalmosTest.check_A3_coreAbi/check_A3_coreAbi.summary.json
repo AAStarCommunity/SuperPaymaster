@@ -1,0 +1,22 @@
+{
+ "contract": "XPNTsV2A3Bit1HalmosTest",
+ "check": "check_A3_coreAbi",
+ "abi": "xPNTsTokenV2",
+ "parts": 1,
+ "verdict": "PASS",
+ "wall_s": 17,
+ "profile": "xp",
+ "results": [
+  {
+   "part": "burn-9dc29fac",
+   "D5C1_PART": 2646777772,
+   "exit": 0,
+   "wall_s": 17,
+   "log": "check_A3_coreAbi.burn-9dc29fac.log",
+   "result": "PASS",
+   "paths": 10,
+   "time_s": 0.72,
+   "counterexample": false
+  }
+ ]
+}

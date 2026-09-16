@@ -1,0 +1,5 @@
+XPNTsV2RateHalmosTest: [31m[FAIL][0m check_RATE_base_initialize() (paths: 3, time: 0.15s (paths: 0.04s, models: 0.10s), bounds: [])
+XPNTsV2RateHalmosTest: [31m[FAIL][0m check_RATE_base_realFactory() (paths: 3, time: 0.28s (paths: 0.17s, models: 0.10s), bounds: [])
+XPNTsV2RateHalmosTest: # exit_code: 1  wall_seconds: 16
+scenario (REGRESSION_F1_rateOutOfRange): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.07ms (602.67µs CPU time)
+reverted M-F1: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 3e1b80d8a900412c5a12175416fbe36ab476dcc68f88a7ed7406ab33841bbb04

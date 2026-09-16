@@ -1,0 +1,11 @@
+--- a/contracts/src/tokens/v2/xPNTsTokenV2.sol
++++ b/contracts/src/tokens/v2/xPNTsTokenV2.sol
+@@ -146,7 +146,7 @@
+         if (spender == SUPERPAYMASTER_ADDRESS || historicalSP[spender]) revert SPCannotTransfer(); // A-3
+         uint256 e = super.allowance(owner, spender);
+         if (e >= value) {
+-            if (e != type(uint256).max) _approve(owner, spender, e - value, false);
++            // D5c-1 M-EXPL: explicit allowance not debited
+             return;
+         }
+         if (!autoApprovedSpenders[spender]) revert BurnExceedsAllowance();

@@ -1,0 +1,2 @@
+XPNTsV2WitnessHalmosTest.check_witness_I4B_outgoingWithLock over xPNTsTokenV2: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 18 s)
+  transfer-a9059cbb                        FAIL            paths=11 time=1.06s exit=1

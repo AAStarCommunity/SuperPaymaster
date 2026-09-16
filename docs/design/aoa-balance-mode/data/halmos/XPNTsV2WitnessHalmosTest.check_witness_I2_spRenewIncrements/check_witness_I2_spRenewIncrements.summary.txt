@@ -1,0 +1,2 @@
+XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements over xPNTsTokenV2: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 61 s)
+  tryLockForGas-ec290731                   FAIL            paths=677 time=44.33s exit=1
