@@ -4,22 +4,18 @@
  "abi": "xPNTsTokenV2",
  "parts": 1,
  "verdict": "NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)",
- "wall_s": 17,
- "extra_args": [
-  "--default-bytes-lengths",
-  "0,65",
-  "--early-exit"
- ],
+ "wall_s": 19,
+ "profile": "xp-fail",
  "results": [
   {
    "part": "tryReserveCredit-de9e4cae",
    "D5C1_PART": 3734916270,
    "exit": 1,
-   "wall_s": 17,
+   "wall_s": 19,
    "log": "check_I6_coreAbi.tryReserveCredit-de9e4cae.log",
    "result": "FAIL",
    "paths": 22,
-   "time_s": 1.42,
+   "time_s": 1.47,
    "counterexample": true
   }
  ]

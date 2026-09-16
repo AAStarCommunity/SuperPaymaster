@@ -4,22 +4,18 @@
  "abi": "xPNTsTokenV2Ext",
  "parts": 1,
  "verdict": "NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)",
- "wall_s": 17,
- "extra_args": [
-  "--default-bytes-lengths",
-  "0,65",
-  "--early-exit"
- ],
+ "wall_s": 18,
+ "profile": "xp-fail",
  "results": [
   {
    "part": "spPull-20992765",
    "D5C1_PART": 546908005,
    "exit": 1,
-   "wall_s": 17,
+   "wall_s": 18,
    "log": "check_A3_extAbi.spPull-20992765.log",
    "result": "FAIL",
    "paths": 12,
-   "time_s": 1.03,
+   "time_s": 0.99,
    "counterexample": true
   }
  ]

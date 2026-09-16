@@ -1,0 +1,2 @@
+XPNTsV2I4BHalmosTest.check_I4B_coreAbi over xPNTsTokenV2: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 17 s)
+  transfer-a9059cbb                        FAIL            paths=9 time=0.83s exit=1
