@@ -1,29 +1,34 @@
 Compiling 7 files with Solc 0.8.33
-Solc 0.8.33 finished in 36.40s
+Solc 0.8.33 finished in 36.31s
 Compiler run successful with warnings:
 Warning (4591): There are more than 256 warnings. Ignoring the rest.
 
 Ran 1 test for contracts/test/halmos/MintRepayLemma.t.sol:MintRepayLemmaFuzzTest
-[PASS] testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256,uint256,uint256) (runs: 10000, μ: 624841, ~: 618395)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.90s (2.90s CPU time)
+[PASS] testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256,uint256,uint256,uint256) (runs: 10000, μ: 627378, ~: 623449)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.06s (2.06s CPU time)
 
-Ran 4 tests for contracts/test/halmos/D5c1BoundedFuzz.t.sol:D5c1BoundedFuzzTest
-[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256) (runs: 10000, μ: 681531, ~: 670052)
-[FAIL: A3x exact bound on settleLocked: 64 != 0; counterexample: calldata=0x5eedac1d000000000000000000000000000000000000000000000000000000000000004e0000000000000000000000000000000000000000000000000000000000003f86000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000001 args=[78, 16262 [1.626e4], 12, true]] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,bool) (runs: 0, μ: 0, ~: 0)
-[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 814230, ~: 819538)
-[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 769883, ~: 758399)
-Suite result: FAILED. 3 passed; 1 failed; 0 skipped; finished in 2.91s (8.78s CPU time)
+Ran 9 tests for contracts/test/halmos/D5c1BoundedFuzz.t.sol:D5c1BoundedFuzzTest
+[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 744019, ~: 743225)
+[FAIL: A3x exact bound on settleLocked: 64 != 0; counterexample: calldata=0x84af657d000000000000000000000000000000000000000000000000000000010568278f000000000000000000000000000000002ec5ce7e121874dbdf7a26a3ab4eb3410000000000000000000000000000000000000000000000840c08f08398551aed0000000000000000000000000000000000000000000000272f0971d0658aad7000000000000000000000000000000000000000000000000000000000a4f1276b0000000000000000000000000000000000000000000000000000000000000000 args=[4385679247 [4.385e9], 62171558451964616484716655730542687041 [6.217e37], 2435837425105916730093 [2.435e21], 722812384209116245360 [7.228e20], 2767267691 [2.767e9], false]] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,uint256,uint256,bool) (runs: 4, μ: 737192, ~: 735625)
+[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 787325, ~: 773351)
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 767990, ~: 743108)
+[PASS] testFuzz_D5c1_I4B_mintWithDebt(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 951494, ~: 955613)
+[PASS] test_D5c1_boundary_largestMintWithDebt() (gas: 727324)
+[PASS] test_D5c1_boundary_lockAtTheLimitMaxRate() (gas: 891570)
+[PASS] test_D5c1_boundary_nearMaxBalanceAndAllowance() (gas: 818223)
+[PASS] test_D5c1_boundary_uint128Amounts() (gas: 1036664)
+Suite result: FAILED. 8 passed; 1 failed; 0 skipped; finished in 2.06s (8.28s CPU time)
 
-Ran 2 test suites in 2.92s (5.81s CPU time): 4 tests passed, 1 failed, 0 skipped (5 total tests)
+Ran 2 test suites in 2.06s (4.13s CPU time): 9 tests passed, 1 failed, 0 skipped (10 total tests)
 
 Failing tests:
 Encountered 1 failing test in contracts/test/halmos/D5c1BoundedFuzz.t.sol:D5c1BoundedFuzzTest
-[FAIL: A3x exact bound on settleLocked: 64 != 0; counterexample: calldata=0x5eedac1d000000000000000000000000000000000000000000000000000000000000004e0000000000000000000000000000000000000000000000000000000000003f86000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000001 args=[78, 16262 [1.626e4], 12, true]] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,bool) (runs: 0, μ: 0, ~: 0)
+[FAIL: A3x exact bound on settleLocked: 64 != 0; counterexample: calldata=0x84af657d000000000000000000000000000000000000000000000000000000010568278f000000000000000000000000000000002ec5ce7e121874dbdf7a26a3ab4eb3410000000000000000000000000000000000000000000000840c08f08398551aed0000000000000000000000000000000000000000000000272f0971d0658aad7000000000000000000000000000000000000000000000000000000000a4f1276b0000000000000000000000000000000000000000000000000000000000000000 args=[4385679247 [4.385e9], 62171558451964616484716655730542687041 [6.217e37], 2435837425105916730093 [2.435e21], 722812384209116245360 [7.228e20], 2767267691 [2.767e9], false]] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,uint256,uint256,bool) (runs: 4, μ: 737192, ~: 735625)
 
-Encountered a total of 1 failing tests, 4 tests succeeded
+Encountered a total of 1 failing tests, 9 tests succeeded
 
 Tip: Run `forge test --rerun` to retry only the 1 failed test
 
-Fuzz seed: 0x48d65e3fe5477a160b86903c46216e8cf07279668cbaeeba1b76728dd27b255b (use `--fuzz-seed` to reproduce)
-# binding: {"bytecode_sha": "dc16e1931466119e9bf8772616067c9036c3e9f1291108a66c056b0ec9533ffb", "dirty_src": 1, "family": "xpnts", "git_head": "8f44437d140d24755f8d5a723db7a8dbf66be32f", "harness_sha": "3a54c474da5057e0df40cdd14f20b016027e5d10de47535311f85bdc77a0c831", "lib_sha": "455d76e422c0fedd1b10fcbe6633d2fe701ac0bb8e401b8b3e3c459e70ee3cb1", "out_stale": [], "src_files": {"contracts/src/interfaces/IERC1363.sol": "1245f089e02e84b63c61f0e2105fba9340900ef0605b883a7bbc73530490ee26", "contracts/src/interfaces/IVersioned.sol": "bfc8d3a871afcc530aa814c01e62d61f03ca03412fe87773e9932198563bc83d", "contracts/src/interfaces/v3/IRegistry.sol": "3effca1e9eccdb4c9ad6445a08c6c3a5a74d427b5fdb74e33ff50f5a019e77a1", "contracts/src/tokens/v2/AOAProtocolRegistry.sol": "8d4779fafb15e77bbf1af67005f30448ef14b58e803880be3d3b54458cfcee31", "contracts/src/tokens/v2/GlobalTierSource.sol": "1e27f9ebefb20268bd215cec40a4cbbb5f6fb6a5bf4ee355a80e6bebd32ce3d0", "contracts/src/tokens/v2/ICreditTierSource.sol": "bcffbd4a6ce75e912d1de63a4b9ad9118b1ef6fcb43045c0de6718961abc0fed", "contracts/src/tokens/v2/IxPNTsTokenV2.sol": "297c6c02c713e5073e8f594d66b853c51aff46954432eebfc42589a12a33a115", "contracts/src/tokens/v2/xPNTsFactoryV2.sol": "6fbab27d0accd2cde0acca0abbcb81e43e1eae9897771f298c1d96c557b74de4", "contracts/src/tokens/v2/xPNTsTokenV2.sol": "478d3f149c2532c6b34aefda46eb74898d54526b67bc7dd71911c1c2c9a5d183", "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol": "c536cd8f025e7181c7523e6c9ac3dfed8125177ef3195147664e1a845f190d20", "contracts/src/tokens/v2/xPNTsV2Base.sol": "20d1bbda5cc769de35e5c82030779831fec7408a01ac4a50d63e9b7450d7292d"}, "src_sha": "42acb94b4caf44d430f4a403bbdbc248a6322889c330e2ff9d9c61e5711a6c15"}
+Fuzz seed: 0xeb6f89333d426ac85b1d85ee28ce0dd08d66990a1dc2d6efeec5fa147dbe9235 (use `--fuzz-seed` to reproduce)
+# binding: {"bytecode_sha": "dc16e1931466119e9bf8772616067c9036c3e9f1291108a66c056b0ec9533ffb", "dirty_src": 1, "family": "xpnts", "git_head": "dac6182b08cb601de4d02ad5cdf533cd64d9b28c", "harness_sha": "56f8867c316ed12dae4d3ca2ed421080e7dac9454749282c76602a4caffbea5a", "lib_sha": "455d76e422c0fedd1b10fcbe6633d2fe701ac0bb8e401b8b3e3c459e70ee3cb1", "out_stale": [], "src_files": {"contracts/src/interfaces/IERC1363.sol": "1245f089e02e84b63c61f0e2105fba9340900ef0605b883a7bbc73530490ee26", "contracts/src/interfaces/IVersioned.sol": "bfc8d3a871afcc530aa814c01e62d61f03ca03412fe87773e9932198563bc83d", "contracts/src/interfaces/v3/IRegistry.sol": "3effca1e9eccdb4c9ad6445a08c6c3a5a74d427b5fdb74e33ff50f5a019e77a1", "contracts/src/tokens/v2/AOAProtocolRegistry.sol": "8d4779fafb15e77bbf1af67005f30448ef14b58e803880be3d3b54458cfcee31", "contracts/src/tokens/v2/GlobalTierSource.sol": "1e27f9ebefb20268bd215cec40a4cbbb5f6fb6a5bf4ee355a80e6bebd32ce3d0", "contracts/src/tokens/v2/ICreditTierSource.sol": "bcffbd4a6ce75e912d1de63a4b9ad9118b1ef6fcb43045c0de6718961abc0fed", "contracts/src/tokens/v2/IxPNTsTokenV2.sol": "297c6c02c713e5073e8f594d66b853c51aff46954432eebfc42589a12a33a115", "contracts/src/tokens/v2/xPNTsFactoryV2.sol": "6fbab27d0accd2cde0acca0abbcb81e43e1eae9897771f298c1d96c557b74de4", "contracts/src/tokens/v2/xPNTsTokenV2.sol": "478d3f149c2532c6b34aefda46eb74898d54526b67bc7dd71911c1c2c9a5d183", "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol": "c536cd8f025e7181c7523e6c9ac3dfed8125177ef3195147664e1a845f190d20", "contracts/src/tokens/v2/xPNTsV2Base.sol": "20d1bbda5cc769de35e5c82030779831fec7408a01ac4a50d63e9b7450d7292d"}, "src_sha": "42acb94b4caf44d430f4a403bbdbc248a6322889c330e2ff9d9c61e5711a6c15"}
 reverted M-BURNALL: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 3e1b80d8a900412c5a12175416fbe36ab476dcc68f88a7ed7406ab33841bbb04

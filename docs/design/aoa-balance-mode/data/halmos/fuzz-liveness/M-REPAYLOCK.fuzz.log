@@ -1,0 +1,38 @@
+Compiling 9 files with Solc 0.8.33
+Solc 0.8.33 finished in 37.05s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/halmos/MintRepayLemma.t.sol:MintRepayLemmaFuzzTest
+[FAIL: only an overflowing m * 1e18 can make this mint revert; counterexample: calldata=0xb4a69aad00000000000000000000000000000000000000000000000000007bdf68a9b4a40000000000000000000000000000000000001396a2285d3582d721fb4f1335c600000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000001c4036f3e418a3a60ead9afc3d6a35b06937 args=[136199463875748 [1.361e14], 397300192215312419564821551461830 [3.973e32], 160, 2460995122238477489527901420828903466887479 [2.46e42]]] testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256,uint256,uint256,uint256) (runs: 3, μ: 632162, ~: 635462)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 20.18ms (19.38ms CPU time)
+
+Ran 9 tests for contracts/test/halmos/D5c1BoundedFuzz.t.sol:D5c1BoundedFuzzTest
+[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 743917, ~: 742966)
+[PASS] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 753445, ~: 739604)
+[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 788597, ~: 773418)
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 766963, ~: 742851)
+[FAIL: I4-B bitmask on mint with debt: 1 != 0; counterexample: calldata=0x53e20a4000000000000000000000000000000000000000000000000007fe96200e958c1600000000001cc507b76f464da900f347bf3fce98802079ef0eb9be73511de5cd0000000000000000000000000000002bdb3e42db51f38b3ed17a0073fbc8536e000000000000000000000000000000000000000000000000000000000f8391ae00000000000000000000000000000000000000000000000000000003c835c739 args=[576062866777803798 [5.76e17], 11835147133484546166019256117510865611822266140309639497588270541 [1.183e64], 14923565987097843808375577604550619059054 [1.492e40], 260280750 [2.602e8], 16243869497 [1.624e10]]] testFuzz_D5c1_I4B_mintWithDebt(uint256,uint256,uint256,uint256,uint256) (runs: 5, μ: 951590, ~: 955341)
+[FAIL: repayX = ceil(debt * rate / 1e18): 115792089237316195423570985008687907853264984665640564039456 != 115792089237316195423570985008687907853264984665640564039457] test_D5c1_boundary_largestMintWithDebt() (gas: 823870)
+[PASS] test_D5c1_boundary_lockAtTheLimitMaxRate() (gas: 891586)
+[PASS] test_D5c1_boundary_nearMaxBalanceAndAllowance() (gas: 818029)
+[PASS] test_D5c1_boundary_uint128Amounts() (gas: 1036567)
+Suite result: FAILED. 7 passed; 2 failed; 0 skipped; finished in 1.73s (6.93s CPU time)
+
+Ran 2 test suites in 1.73s (1.75s CPU time): 7 tests passed, 3 failed, 0 skipped (10 total tests)
+
+Failing tests:
+Encountered 2 failing tests in contracts/test/halmos/D5c1BoundedFuzz.t.sol:D5c1BoundedFuzzTest
+[FAIL: I4-B bitmask on mint with debt: 1 != 0; counterexample: calldata=0x53e20a4000000000000000000000000000000000000000000000000007fe96200e958c1600000000001cc507b76f464da900f347bf3fce98802079ef0eb9be73511de5cd0000000000000000000000000000002bdb3e42db51f38b3ed17a0073fbc8536e000000000000000000000000000000000000000000000000000000000f8391ae00000000000000000000000000000000000000000000000000000003c835c739 args=[576062866777803798 [5.76e17], 11835147133484546166019256117510865611822266140309639497588270541 [1.183e64], 14923565987097843808375577604550619059054 [1.492e40], 260280750 [2.602e8], 16243869497 [1.624e10]]] testFuzz_D5c1_I4B_mintWithDebt(uint256,uint256,uint256,uint256,uint256) (runs: 5, μ: 951590, ~: 955341)
+[FAIL: repayX = ceil(debt * rate / 1e18): 115792089237316195423570985008687907853264984665640564039456 != 115792089237316195423570985008687907853264984665640564039457] test_D5c1_boundary_largestMintWithDebt() (gas: 823870)
+
+Encountered 1 failing test in contracts/test/halmos/MintRepayLemma.t.sol:MintRepayLemmaFuzzTest
+[FAIL: only an overflowing m * 1e18 can make this mint revert; counterexample: calldata=0xb4a69aad00000000000000000000000000000000000000000000000000007bdf68a9b4a40000000000000000000000000000000000001396a2285d3582d721fb4f1335c600000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000001c4036f3e418a3a60ead9afc3d6a35b06937 args=[136199463875748 [1.361e14], 397300192215312419564821551461830 [3.973e32], 160, 2460995122238477489527901420828903466887479 [2.46e42]]] testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256,uint256,uint256,uint256) (runs: 3, μ: 632162, ~: 635462)
+
+Encountered a total of 3 failing tests, 7 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 3 failed tests
+
+Fuzz seed: 0x157058e85cd2c12ccb13d3dfaaa7e3928f913d527377392f51d081f779ad2ed4 (use `--fuzz-seed` to reproduce)
+# binding: {"bytecode_sha": "6aecdabd2f51ca0d0da22704fe7ae5442995a5847407851fada495ac7b3cba57", "dirty_src": 1, "family": "xpnts", "git_head": "dac6182b08cb601de4d02ad5cdf533cd64d9b28c", "harness_sha": "56f8867c316ed12dae4d3ca2ed421080e7dac9454749282c76602a4caffbea5a", "lib_sha": "455d76e422c0fedd1b10fcbe6633d2fe701ac0bb8e401b8b3e3c459e70ee3cb1", "out_stale": [], "src_files": {"contracts/src/interfaces/IERC1363.sol": "1245f089e02e84b63c61f0e2105fba9340900ef0605b883a7bbc73530490ee26", "contracts/src/interfaces/IVersioned.sol": "bfc8d3a871afcc530aa814c01e62d61f03ca03412fe87773e9932198563bc83d", "contracts/src/interfaces/v3/IRegistry.sol": "3effca1e9eccdb4c9ad6445a08c6c3a5a74d427b5fdb74e33ff50f5a019e77a1", "contracts/src/tokens/v2/AOAProtocolRegistry.sol": "8d4779fafb15e77bbf1af67005f30448ef14b58e803880be3d3b54458cfcee31", "contracts/src/tokens/v2/GlobalTierSource.sol": "1e27f9ebefb20268bd215cec40a4cbbb5f6fb6a5bf4ee355a80e6bebd32ce3d0", "contracts/src/tokens/v2/ICreditTierSource.sol": "bcffbd4a6ce75e912d1de63a4b9ad9118b1ef6fcb43045c0de6718961abc0fed", "contracts/src/tokens/v2/IxPNTsTokenV2.sol": "297c6c02c713e5073e8f594d66b853c51aff46954432eebfc42589a12a33a115", "contracts/src/tokens/v2/xPNTsFactoryV2.sol": "6fbab27d0accd2cde0acca0abbcb81e43e1eae9897771f298c1d96c557b74de4", "contracts/src/tokens/v2/xPNTsTokenV2.sol": "3e1b80d8a900412c5a12175416fbe36ab476dcc68f88a7ed7406ab33841bbb04", "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol": "c536cd8f025e7181c7523e6c9ac3dfed8125177ef3195147664e1a845f190d20", "contracts/src/tokens/v2/xPNTsV2Base.sol": "1d548a277c05f3a587aa326ec4bff867686c6fbdb07661b90906abe16cf3ff71"}, "src_sha": "237fcc08a26af9d9e106b3f062466d39dd9ecd69a66faa2726d35f87b2b80b8a"}
+reverted M-REPAYLOCK: contracts/src/tokens/v2/xPNTsV2Base.sol sha256 20d1bbda5cc769de35e5c82030779831fec7408a01ac4a50d63e9b7450d7292d
