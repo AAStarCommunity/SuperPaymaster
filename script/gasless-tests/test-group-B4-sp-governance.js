@@ -60,7 +60,14 @@ async function main() {
 
       // Restore
       if (currentTreasury.toLowerCase() !== deployerAddr.toLowerCase()) {
-        const restoreSent = await sendTxSafe(sp, 'setTreasury', [currentTreasury], 'setTreasury(restore)', { critical: false });
+        // Codex stop-gate (2026-09-17): this is a GOVERNANCE RESTORE, not optional cleanup —
+        // if it never lands, treasury stays pointed at deployerAddr instead of its original
+        // value. { critical: false } would let sendTxSafe's skip go uncounted and the whole
+        // run exit 0 with production-relevant state left modified. Must stay critical (the
+        // default) so an exhausted-retry skip here makes the run INCONCLUSIVE, never a clean
+        // PASS. The dependent read-back assertion below is still correctly skipped on `null`
+        // (DSR's causal-chain fix) — those are two separate concerns.
+        const restoreSent = await sendTxSafe(sp, 'setTreasury', [currentTreasury], 'setTreasury(restore)');
         if (restoreSent) {
           const afterRestore = await sp.treasury();
           assertEqual(afterRestore.toLowerCase(), currentTreasury.toLowerCase(), 'treasury restored');
@@ -156,7 +163,9 @@ async function main() {
       assertEqual(feeAfter, 100n, 'facilitatorFeeBPS == 100');
 
       // Restore
-      const facRestoreSent = await sendTxSafe(x402, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)', { critical: false });
+      // Same reasoning as the setTreasury restore above: a facilitator-fee restore that
+      // never lands leaves a governance parameter modified, which must not exit 0.
+      const facRestoreSent = await sendTxSafe(x402, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)');
       if (facRestoreSent) {
         const feeRestored = await x402.facilitatorFeeBPS();
         assertEqual(feeRestored, currentFacFee, 'facilitatorFeeBPS restored');

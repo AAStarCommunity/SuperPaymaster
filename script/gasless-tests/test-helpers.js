@@ -759,9 +759,33 @@ async function _sendTxSafeInner(contract, method, args, label, signer, maxRetrie
     // 'pending' accounts for this wallet's own unconfirmed txs; fetched fresh every
     // attempt (see nonce-strategy note above) so a concurrent writer elsewhere is
     // always visible before we build the next tx.
+    //
+    // Codex stop-gate (2026-09-17): broadcasting with sentNonce === null is a double-submit
+    // hazard, not a safe fallback. The post-broadcast network-error reconciliation above
+    // ("pending nonce advanced -> tx accepted, NOT resending") only works when sentNonce is
+    // known — with sentNonce === null the `sentNonce !== null` guard can never fire, so a lost
+    // response after a successful broadcast falls through to a resend of the same state-
+    // changing call. A failed nonce READ (no tx sent yet) is safe to retry with a short
+    // backoff; only give up on the whole attempt (never broadcast blind) if it keeps failing.
     let sentNonce = null;
     if (signer && signer.address) {
-      try { sentNonce = await _rawNonce(signer, 'pending'); } catch (_) { /* let the send below surface the error */ }
+      let nonceReadFailed = false;
+      for (let nonceAttempt = 1; nonceAttempt <= 3; nonceAttempt++) {
+        try { sentNonce = await _rawNonce(signer, 'pending'); break; }
+        catch (e) {
+          if (nonceAttempt === 3) {
+            // Same infra-vs-logic classification as the rest of this function's failure
+            // paths: this is a transient RPC problem, not a contract/logic bug, so it
+            // follows the caller's `critical` flag rather than always hard-FAILing.
+            printSkip(`${label}: could not read nonce after 3 attempts (${(e.message || '').substring(0, 80)}) — not broadcasting blind${critical ? ' [CRITICAL]' : ''}`);
+            if (critical) _criticalTxSkipped++;
+            nonceReadFailed = true;
+            break;
+          }
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+      if (nonceReadFailed) return null;
     }
     const txOpts = sentNonce !== null ? { nonce: sentNonce } : {};
 
