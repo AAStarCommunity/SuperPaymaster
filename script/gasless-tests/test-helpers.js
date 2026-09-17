@@ -632,6 +632,35 @@ function _isNonceConflict(err) {
     (err.code || '').toLowerCase() === 'replacement_underpriced';
 }
 
+// Codex stop-gate (2026-09-17), round 4: `_isNonceConflict` bundles two DIFFERENT signal
+// strengths under one name. "nonce too low" / "already known" / "nonce has already been
+// used" / "replacement (transaction) underpriced" are DEFINITIVE — the node is telling us
+// something already occupies this exact (sender, nonce) slot, either mined or pending.
+// "in-flight transaction limit" / "could not coalesce" are generic congestion/rate-limit
+// signals from the RPC/mempool layer — they say nothing about whether THIS SPECIFIC nonce
+// was ever accepted. Using the broad classifier to prove "the identical-nonce retry shows
+// the original landed" was wrong: a genuinely UNDELIVERED original combined with an
+// in-flight-limit/could-not-coalesce error on the retry would be misreported as
+// `{applied:true}` — a silent false "success" for an operation that never happened at all,
+// worse than the double-submit this whole fix chain has been closing.
+function _isDefiniteNonceCollision(err) {
+  const reason = (err.reason || err.shortMessage || err.message || '').toLowerCase();
+  return reason.includes('replacement transaction underpriced') ||
+    reason.includes('replacement underpriced') ||
+    reason.includes('nonce too low') ||
+    reason.includes('already known') ||
+    reason.includes('nonce has already been used') ||
+    (err.code || '').toLowerCase() === 'replacement_underpriced';
+}
+
+// The congestion/rate-limit subset of _isNonceConflict, deliberately excluding the
+// definitive-collision strings above — used only to decide "still ambiguous, keep
+// retrying the identical send" during post-broadcast reconciliation, never as proof.
+function _isAmbiguousCongestion(err) {
+  const reason = (err.reason || err.shortMessage || err.message || '').toLowerCase();
+  return reason.includes('in-flight transaction limit') || reason.includes('could not coalesce');
+}
+
 // Root cause of DSR's "impossible nonce conflict on a fresh, single-process anvil"
 // (2026-09-17): ethers v6's `Signer.getNonce()` / `Provider.getTransactionCount()`
 // can return STALE data even immediately after this SAME wallet's own `tx.wait(1)`
@@ -825,21 +854,30 @@ async function _sendTxSafeInner(contract, method, args, label, signer, maxRetrie
             resolved = true;
             break;
           } catch (err2) {
-            if (_isNonceConflict(err2)) {
+            // Codex stop-gate (2026-09-17), round 4: only a DEFINITIVE nonce-collision
+            // signal proves this exact (sender, nonce) slot is already occupied. The
+            // broader `_isNonceConflict` also matches "in-flight transaction limit" /
+            // "could not coalesce" — generic congestion signals that say nothing about
+            // whether THIS send was ever accepted. Treating those as proof would let a
+            // genuinely undelivered original get reported as `{applied:true}` — a false
+            // "success" for an op that never happened, silently, with no critical skip.
+            if (_isDefiniteNonceCollision(err2)) {
               printInfo(`${label}: identical-nonce retry rejected as a nonce conflict — the original send landed, NOT resending with a different nonce`);
               return { applied: true, noReceipt: true };
             }
-            if (_isNetworkError(err2)) {
+            if (_isNetworkError(err2) || _isAmbiguousCongestion(err2)) {
+              // Still ambiguous either way — neither proves delivery nor proves it
+              // failed — so keep retrying the SAME (sender, nonce) rather than guess.
               if (netAttempt < NETWORK_RETRY_BUDGET) {
-                printInfo(`${label}: network error persists on identical-nonce retry ${netAttempt}/${NETWORK_RETRY_BUDGET - 1}...`);
+                printInfo(`${label}: ambiguous error persists on identical-nonce retry ${netAttempt}/${NETWORK_RETRY_BUDGET - 1} (${(err2.message || '').substring(0, 60)})...`);
                 continue;
               }
               break; // exhausted — handled by the `if (!resolved)` branch below
             }
-            // A genuinely different error surfaced on the identical-nonce retry (e.g. a
-            // real revert) — that is a definitive outcome for this (sender, nonce), not
-            // more ambiguity, so report it directly instead of pretending it's the
-            // original error.
+            // A genuinely different, definitive error surfaced on the identical-nonce
+            // retry (e.g. a real revert) — that is a real outcome for this (sender,
+            // nonce), not more ambiguity, so report it directly instead of pretending
+            // it's the original error.
             const reason2 = err2.reason || err2.shortMessage || (err2.message || '').substring(0, 120);
             printError(`${label}: TX failed on identical-nonce retry (${reason2})`);
             return null;
