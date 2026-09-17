@@ -88,18 +88,30 @@ async function main() {
     printSkip('Deployer not configured as operator; skipping pause test');
   } else {
     // Pause
-    await sendTxSafe(sp, 'setOperatorPaused', [deployerAddr, true], 'Pause deployer operator');
+    const pauseSent = await sendTxSafe(sp, 'setOperatorPaused', [deployerAddr, true], 'Pause deployer operator');
+    if (!pauseSent) {
+      // sendTxSafe returns null on skip/failure (nonce conflict exhausted, revert, ...) — the
+      // operator was never actually paused, so asserting "should revert" here would be testing
+      // the wrong causal state (DSR review, 2026-09-17: same gap found in G3's setCreditTier).
+      printSkip('Pause deployer operator: write did not land — paused-operator revert check skipped');
+    } else {
+      // Try UserOp with paused operator
+      const aaAccount = process.env.TEST_AA_ACCOUNT_ADDRESS_A || noSBTAddress;
+      const userOp2 = buildDummyUserOp(aaAccount, config.superPaymaster, deployerAddr, config.aastarXPNTsV2);
+      await expectRevert(
+        () => entryPoint.handleOps.estimateGas([userOp2], deployerAddr),
+        'Paused operator should revert'
+      );
+    }
 
-    // Try UserOp with paused operator
-    const aaAccount = process.env.TEST_AA_ACCOUNT_ADDRESS_A || noSBTAddress;
-    const userOp2 = buildDummyUserOp(aaAccount, config.superPaymaster, deployerAddr, config.aastarXPNTsV2);
-    await expectRevert(
-      () => entryPoint.handleOps.estimateGas([userOp2], deployerAddr),
-      'Paused operator should revert'
-    );
-
-    // Unpause
-    await sendTxSafe(sp, 'setOperatorPaused', [deployerAddr, false], 'Unpause deployer operator');
+    // Unpause — always attempted regardless of whether the pause above landed, so a real
+    // pause is never left in place for later scripts sharing this operator's on-chain state
+    // (run-all-e2e-tests.sh runs many scripts against one deployment). Loud, not a soft skip:
+    // unlike the read-back assertions above, a failed unpause has a lasting side effect.
+    const unpauseSent = await sendTxSafe(sp, 'setOperatorPaused', [deployerAddr, false], 'Unpause deployer operator');
+    if (!unpauseSent) {
+      printError('Unpause deployer operator: write did not land — operator may be left PAUSED for later tests');
+    }
   }
 
   // ──────────────────────────────────────────
