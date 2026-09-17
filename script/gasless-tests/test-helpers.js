@@ -805,10 +805,25 @@ async function _sendTxSafeInner(contract, method, args, label, signer, maxRetrie
           printInfo(`${label}: network error but pending nonce advanced (${sentNonce}→${pendingNonce}) — tx accepted, NOT resending`);
           return { applied: true, noReceipt: true };
         }
-        if (attempt < maxRetries) {
-          printInfo(`${label}: pre-broadcast network error (pending nonce ${sentNonce} intact), retry ${attempt}/${maxRetries - 1} in 4s...`);
+        // Codex stop-gate (2026-09-17), round 2: retrying is only safe once reconciliation
+        // PROVES the original send never landed (pendingNonce === sentNonce exactly). If the
+        // reconciliation read itself failed (pendingNonce === null) we cannot distinguish
+        // "definitely not sent" from "sent, but we couldn't observe it" — mocked reproduction:
+        // nonce 0 sent and silently accepted, this reconciliation read fails, a blind retry
+        // re-fetches nonce 1 at the top of the loop and sends AGAIN — two real, non-
+        // conflicting transactions, the underlying call executed twice with zero
+        // failures/skips reported. Only continue on positive proof of "not sent"; any
+        // ambiguity stops here rather than risks a double-submit.
+        const provenNotSent = pendingNonce !== null && sentNonce !== null && pendingNonce === sentNonce;
+        if (provenNotSent && attempt < maxRetries) {
+          printInfo(`${label}: pre-broadcast network error (pending nonce ${sentNonce} confirmed intact), retry ${attempt}/${maxRetries - 1} in 4s...`);
           await new Promise(r => setTimeout(r, 4000));
           continue;
+        }
+        if (!provenNotSent) {
+          printSkip(`${label}: network error and could not prove the tx wasn't already sent (sentNonce=${sentNonce}, pendingNonce=${pendingNonce}) — stopping rather than risk a double-submit${critical ? ' [CRITICAL]' : ''}`);
+          if (critical) _criticalTxSkipped++;
+          return null;
         }
       }
       const reason = err.reason || err.shortMessage || (err.message || '').substring(0, 120);
