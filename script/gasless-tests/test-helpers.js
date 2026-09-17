@@ -684,6 +684,37 @@ async function _rawNonce(signer, tag) {
 // must stay fixed across these retries rather than being re-fetched.
 const NETWORK_RETRY_BUDGET = 3;
 
+// Codex stop-gate (2026-09-17), round 5: a definite nonce collision (nonce too low /
+// already known / replacement underpriced) proves this (sender, nonce) slot is occupied —
+// it does NOT prove the operation succeeded. "nonce too low" also follows a MINED-BUT-
+// REVERTED original (a revert still consumes the nonce, only rolls back state); "replacement
+// underpriced" can mean the original is merely PENDING, not yet mined at all. Returning an
+// "applied" sentinel on nonce-occupancy alone can report success for a reverted, or not-yet-
+// decided, operation. Look up the actual transaction mined at that nonce and read ITS real
+// status instead of inferring one from the collision error shape.
+//
+// How: scan recent blocks (raw eth_getBlockByNumber, full tx objects) for a tx `from` this
+// signer `with nonce === targetNonce`. Bounded search — this is a test-harness reconciliation
+// path, not a production indexer; a local/typical remote chain mines the tx we're looking for
+// within a handful of blocks of "now" since we only reach this code seconds after sending it.
+async function _findMinedTxAtNonce(signer, targetNonce, maxBlocksBack = 20) {
+  const latest = parseInt(await signer.provider.send('eth_blockNumber', []), 16);
+  for (let i = 0; i <= maxBlocksBack && latest - i >= 0; i++) {
+    const blockNum = '0x' + (latest - i).toString(16);
+    let block;
+    try { block = await signer.provider.send('eth_getBlockByNumber', [blockNum, true]); } catch (_) { continue; }
+    if (!block || !Array.isArray(block.transactions)) continue;
+    const match = block.transactions.find((t) =>
+      t.from && t.from.toLowerCase() === signer.address.toLowerCase() && parseInt(t.nonce, 16) === targetNonce);
+    if (match) return match.hash;
+  }
+  return null;
+}
+
+async function _rawReceipt(signer, hash) {
+  return signer.provider.send('eth_getTransactionReceipt', [hash]);
+}
+
 // Wait until the signer's mempool drains (pending nonce == latest nonce), i.e. all
 // previously-broadcast txs for this account have mined. This is the cure for the
 // "in-flight transaction limit" / nonce-conflict skips seen when the full suite
@@ -862,8 +893,27 @@ async function _sendTxSafeInner(contract, method, args, label, signer, maxRetrie
             // genuinely undelivered original get reported as `{applied:true}` — a false
             // "success" for an op that never happened, silently, with no critical skip.
             if (_isDefiniteNonceCollision(err2)) {
-              printInfo(`${label}: identical-nonce retry rejected as a nonce conflict — the original send landed, NOT resending with a different nonce`);
-              return { applied: true, noReceipt: true };
+              // Codex round 5: this proves the (sender, sentNonce) slot is occupied, not
+              // that the operation succeeded (see the _findMinedTxAtNonce comment above —
+              // mined-but-reverted still consumes the nonce; "replacement underpriced" can
+              // mean merely pending). Look up and verify the real outcome, don't assume.
+              printInfo(`${label}: identical-nonce retry rejected (${(err2.message || '').substring(0, 60)}) — looking up the actual mined tx to verify the outcome, not assuming success`);
+              const foundHash = await _findMinedTxAtNonce(signer, sentNonce).catch(() => null);
+              const foundReceipt = foundHash ? await _rawReceipt(signer, foundHash).catch(() => null) : null;
+              if (foundReceipt && foundReceipt.status === '0x1') {
+                printInfo(`${label}: verified — original send mined and succeeded (${foundHash}), NOT resending`);
+                return { applied: true, hash: foundHash, receipt: foundReceipt };
+              }
+              if (foundReceipt && foundReceipt.status === '0x0') {
+                printError(`${label}: original send was MINED BUT REVERTED (${foundHash}) — the nonce was consumed, the operation was not`);
+                return null;
+              }
+              // Couldn't find/verify the mined tx (still pending, outside the scan window,
+              // or the RPC doesn't expose full block tx objects) — nonce occupancy alone is
+              // not enough to report success per Codex's finding; stop as inconclusive.
+              printSkip(`${label}: nonce ${sentNonce} is occupied but the mined outcome could not be verified — stopping as inconclusive rather than assume success${critical ? ' [CRITICAL]' : ''}`);
+              if (critical) _criticalTxSkipped++;
+              return null;
             }
             if (_isNetworkError(err2) || _isAmbiguousCongestion(err2)) {
               // Still ambiguous either way — neither proves delivery nor proves it
