@@ -165,12 +165,19 @@ async function main() {
     if (ownerAddr.toLowerCase() !== deployerAddr.toLowerCase()) {
       printSkip(`setCreditTier: deployer is not registry owner (owner=${ownerAddr})`);
     } else {
-      await sendTxSafe(registry, 'setCreditTier', [testTier, testLimit], 'setCreditTier(7, 5000 aPNTs)');
-
-      const stored = await registry.creditTierConfig(testTier);
-      assertEqual(stored, testLimit, 'Tier 7 limit');
-      tierSet = true;
-      printSuccess('Tier 7 set to 5000 aPNTs — admin can expand credit ceiling');
+      const sent = await sendTxSafe(registry, 'setCreditTier', [testTier, testLimit], 'setCreditTier(7, 5000 aPNTs)');
+      if (!sent) {
+        // sendTxSafe returns null on skip/failure (nonce conflict exhausted, revert, ...) — the
+        // write never landed, so a read-back assertion here would compare against the OLD
+        // on-chain value and fail for a reason that has nothing to do with setCreditTier's
+        // correctness. tierSet stays false so the cleanup step below also correctly no-ops.
+        printSkip('setCreditTier(7, 5000 aPNTs): write did not land — read-back assertion skipped');
+      } else {
+        const stored = await registry.creditTierConfig(testTier);
+        assertEqual(stored, testLimit, 'Tier 7 limit');
+        tierSet = true;
+        printSuccess('Tier 7 set to 5000 aPNTs — admin can expand credit ceiling');
+      }
     }
   } catch (e) {
     catchStep(`setCreditTier`, e);
@@ -186,8 +193,12 @@ async function main() {
   if (tierSet) {
     try {
       const tier6Limit = tierLimits[6] ?? await registry.creditTierConfig(6n);
-      await sendTxSafe(registry, 'setCreditTier', [testTier, tier6Limit], 'Reset tier 7 to tier 6 limit (monotonicity floor)', { critical: false });
-      printInfo(`Tier 7 reset to ${ethers.formatEther(tier6Limit)} aPNTs (cleanup; cannot go back to 0 under monotonicity)`);
+      const resetSent = await sendTxSafe(registry, 'setCreditTier', [testTier, tier6Limit], 'Reset tier 7 to tier 6 limit (monotonicity floor)', { critical: false });
+      if (resetSent) {
+        printInfo(`Tier 7 reset to ${ethers.formatEther(tier6Limit)} aPNTs (cleanup; cannot go back to 0 under monotonicity)`);
+      } else {
+        printInfo('Cleanup: reset write did not land (skip/failure) — tier 7 left at 5000 aPNTs for this run');
+      }
     } catch (e) {
       printInfo(`Cleanup: ${e.message.substring(0, 60)}`);
     }

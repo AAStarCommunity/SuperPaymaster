@@ -5,6 +5,8 @@
  * display utilities, assertion helpers, and safe TX wrappers.
  */
 const { ethers } = require('ethers');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { loadConfig } = require('./load-config');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
@@ -463,8 +465,23 @@ function printCriticalSkip(msg) {
 // step could not be exercised → INCONCLUSIVE skip (exit 2), NOT a silent PASS and
 // NOT a false FAIL; a genuine contract/logic error → FAIL. Use in step `catch`
 // blocks instead of a bare printError so transient infra never flips PASS↔FAIL.
+// DSR review, 2026-09-17: a script that never sends a signed tx until deep into its run
+// (e.g. test-group-I1's Step 5, the only write in an otherwise read-only script) surfaces
+// a forgotten/wrong CHAIN_ID env var as a confusing "invalid chain id for signer" failure
+// far from the actual misconfiguration (reads never trigger chain-id validation, only a
+// signed send does). Reproduced: unsetting CHAIN_ID against a local anvil (so the default
+// Sepolia chainId 11155111 gets signed into a tx sent to chain 31337) reproduces this exact
+// message. Give the real cause instead of leaving the reader to guess.
+function _isChainIdMismatch(e) {
+  const msg = ((e && e.message) || '').toLowerCase();
+  return msg.includes('invalid chain id for signer');
+}
+
 function catchStep(label, e) {
-  if (_isNetworkError(e)) {
+  if (_isChainIdMismatch(e)) {
+    printError(`${label}: ${(e.message || '').substring(0, 100)}`);
+    printError(`  hint: CHAIN_ID env likely does not match the RPC's actual chain (this file defaults to Sepolia, 11155111) — set CHAIN_ID=31337 when testing against anvil`);
+  } else if (_isNetworkError(e)) {
     printCriticalSkip(`${label}: transient RPC error — ${(e.message || '').substring(0, 60)}`);
   } else {
     printError(`${label}: ${(e.message || '').substring(0, 100)}`);
@@ -584,10 +601,6 @@ async function expectRevert(fn, label) {
 // Safe TX wrapper with nonce management
 // ============================================================
 
-// Global nonce tracker to avoid conflicts on rapid TX sends
-let _nextNonce = null;
-let _nonceWallet = null;
-
 async function retryView(fn, label, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -619,6 +632,24 @@ function _isNonceConflict(err) {
     (err.code || '').toLowerCase() === 'replacement_underpriced';
 }
 
+// Root cause of DSR's "impossible nonce conflict on a fresh, single-process anvil"
+// (2026-09-17): ethers v6's `Signer.getNonce()` / `Provider.getTransactionCount()`
+// can return STALE data even immediately after this SAME wallet's own `tx.wait(1)`
+// resolved for the tx that should have advanced it — reproduced in total isolation
+// (one process, one wallet, no other writer): send at nonce N, await 1 confirmation,
+// `wallet.getNonce('pending')` still reports N. Same disease as this file's earlier
+// `provider.getBlock('latest')` caching bug (see `_waitMempoolDrain`'s original
+// version / test-group-I1's `nextTxNonce` comment) — some layer inside ethers'
+// Provider/Network machinery caches a response and does not invalidate on new
+// blocks the way a raw JSON-RPC call does. Fix: never call `signer.getNonce()` or
+// `provider.getTransactionCount()` for anything nonce-retry-sensitive — always hit
+// the RPC directly. Verified empirically: `provider.send('eth_getTransactionCount',
+// [addr, 'pending'])` correctly advances on every one of 3 repeated send/mine/read
+// cycles in the same isolated probe where `wallet.getNonce('pending')` never did.
+async function _rawNonce(signer, tag) {
+  return parseInt(await signer.provider.send('eth_getTransactionCount', [signer.address, tag]), 16);
+}
+
 // Wait until the signer's mempool drains (pending nonce == latest nonce), i.e. all
 // previously-broadcast txs for this account have mined. This is the cure for the
 // "in-flight transaction limit" / nonce-conflict skips seen when the full suite
@@ -630,14 +661,65 @@ async function _waitMempoolDrain(signer, maxWaitMs = 90000) {
   while (Date.now() - start < maxWaitMs) {
     try {
       const [pending, latest] = await Promise.all([
-        signer.getNonce('pending'),
-        signer.getNonce('latest'),
+        _rawNonce(signer, 'pending'),
+        _rawNonce(signer, 'latest'),
       ]);
       if (pending <= latest) return latest; // no in-flight txs left
     } catch (_) { /* transient RPC — retry below */ }
     await new Promise(r => setTimeout(r, 4000));
   }
   return null;
+}
+
+// Cross-PROCESS mutex for wallet nonce sequencing (DSR review, 2026-09-17). Root
+// cause of the "nonce/in-flight conflict" retries DSR hit on a supposedly
+// uncontended fresh anvil: this repo's E2E scripts are separate `node` processes
+// that routinely share one wallet (deployer) — D7's 12 migrated scripts, or simply
+// two scripts investigated side by side. Fetching the nonce fresh from 'pending'
+// on every attempt (rather than caching a locally-incremented counter, which is
+// only safe against a SINGLE process's own writes) closes the STALENESS window
+// but not the TOCTOU race: two processes can both read the same 'pending' value
+// before either has broadcast. Reproduced empirically — running two D7 scripts
+// against the same deployer wallet concurrently on a single freshly-deployed
+// anvil (confirmed via `ps aux` to have zero unrelated contention) collided
+// deterministically even with a fresh fetch per attempt. A lockfile (atomic
+// exclusive create — OS-level, no dependency needed) serializes the
+// fetch-nonce -> broadcast -> confirm section per (chainId, wallet) across
+// independent processes, which fresh-fetching alone cannot do.
+const _NONCE_LOCK_DIR = path.join(os.tmpdir(), 'sp-e2e-nonce-locks');
+const _NONCE_LOCK_STALE_MS = 120000; // a crashed holder's lock is reclaimable after 2 min
+const _NONCE_LOCK_WAIT_MS = 60000; // give up and surface an error rather than hang the suite forever
+
+async function _withWalletLock(signer, fn) {
+  if (!signer || !signer.address) return fn();
+  let chainId = 'unknown';
+  try { chainId = (await signer.provider.getNetwork()).chainId.toString(); } catch (_) { /* fall through with 'unknown' */ }
+  fs.mkdirSync(_NONCE_LOCK_DIR, { recursive: true });
+  const lockPath = path.join(_NONCE_LOCK_DIR, `${chainId}-${signer.address.toLowerCase()}.lock`);
+  const deadline = Date.now() + _NONCE_LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      const fd = fs.openSync(lockPath, 'wx'); // atomic exclusive create — the actual mutex
+      fs.writeSync(fd, `${process.pid} ${Date.now()}`);
+      fs.closeSync(fd);
+      break;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      try {
+        if (Date.now() - fs.statSync(lockPath).mtimeMs > _NONCE_LOCK_STALE_MS) {
+          fs.unlinkSync(lockPath); // reclaim a crashed holder's lock
+          continue;
+        }
+      } catch (_) { /* lock vanished between our stat and unlink — loop will just retry the create */ }
+      if (Date.now() > deadline) throw new Error(`nonce lock timeout waiting for ${lockPath}`);
+      await new Promise(r => setTimeout(r, 150 + Math.random() * 150)); // jittered poll, avoid lockstep retries
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    try { fs.unlinkSync(lockPath); } catch (_) { /* already gone (stale-reclaim race) — fine */ }
+  }
 }
 
 /**
@@ -657,20 +739,30 @@ async function _waitMempoolDrain(signer, maxWaitMs = 90000) {
  * Write-safety (HIGH #3): a network error is only retried when we can prove the
  * tx was NOT broadcast (on-chain nonce unchanged). If the nonce advanced, the tx
  * landed and we never resend.
+ *
+ * The whole attempt loop runs inside `_withWalletLock` (see above) — nonce fetch,
+ * broadcast, and confirmation wait are one critical section per wallet, safe
+ * against other `sendTxSafe` calls for the same wallet in THIS or ANY OTHER
+ * process holding the same lockfile.
  */
 async function sendTxSafe(contract, method, args, label, opts = {}) {
   if (typeof opts === 'number') opts = { maxRetries: opts }; // back-compat: numeric 5th arg
   const maxRetries = opts.maxRetries != null ? opts.maxRetries : 3;
   const critical = opts.critical !== false;
   const signer = contract.runner;
+  return _withWalletLock(signer, () => _sendTxSafeInner(contract, method, args, label, signer, maxRetries, critical));
+}
+
+async function _sendTxSafeInner(contract, method, args, label, signer, maxRetries, critical) {
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    // Track nonce for this wallet ('pending' accounts for unconfirmed TXs)
-    if (signer && signer.address && _nonceWallet !== signer.address) {
-      _nonceWallet = signer.address;
-      _nextNonce = await signer.getNonce('pending');
+    // 'pending' accounts for this wallet's own unconfirmed txs; fetched fresh every
+    // attempt (see nonce-strategy note above) so a concurrent writer elsewhere is
+    // always visible before we build the next tx.
+    let sentNonce = null;
+    if (signer && signer.address) {
+      try { sentNonce = await _rawNonce(signer, 'pending'); } catch (_) { /* let the send below surface the error */ }
     }
-    const sentNonce = _nextNonce;
     const txOpts = sentNonce !== null ? { nonce: sentNonce } : {};
 
     let tx;
@@ -684,16 +776,14 @@ async function sendTxSafe(contract, method, args, label, opts = {}) {
         // show the old count and we'd wrongly resend (double-submit). 'pending'
         // increments the moment the node accepts the tx.
         let pendingNonce = null;
-        try { pendingNonce = await signer.getNonce('pending'); } catch (_) {}
+        try { pendingNonce = await _rawNonce(signer, 'pending'); } catch (_) {}
         if (pendingNonce !== null && sentNonce !== null && pendingNonce > sentNonce) {
           printInfo(`${label}: network error but pending nonce advanced (${sentNonce}→${pendingNonce}) — tx accepted, NOT resending`);
-          _nextNonce = pendingNonce;
           return { applied: true, noReceipt: true };
         }
         if (attempt < maxRetries) {
           printInfo(`${label}: pre-broadcast network error (pending nonce ${sentNonce} intact), retry ${attempt}/${maxRetries - 1} in 4s...`);
           await new Promise(r => setTimeout(r, 4000));
-          if (pendingNonce !== null) _nextNonce = pendingNonce;
           continue;
         }
       }
@@ -701,33 +791,23 @@ async function sendTxSafe(contract, method, args, label, opts = {}) {
       if (_isNonceConflict(err)) {
         // RETRYABLE — never skip a critical tx on the first nonce/in-flight conflict.
         // Root cause is mempool congestion (RPC "in-flight transaction limit") or a
-        // drifted cached nonce when other code paths advanced the chain nonce. Cure:
-        // wait for the mempool to drain, re-sync the nonce to 'latest', then retry.
+        // concurrent writer elsewhere advancing this wallet's nonce between our fetch
+        // and our send. Cure: wait for the mempool to drain, then retry (the next
+        // attempt re-fetches 'pending' fresh, so no manual resync is needed here).
         if (attempt < maxRetries) {
           printInfo(`${label}: nonce/in-flight conflict — draining mempool & retrying ${attempt}/${maxRetries - 1}...`);
-          const drained = signer ? await _waitMempoolDrain(signer) : null;
-          if (_nonceWallet && signer && signer.address === _nonceWallet) {
-            _nextNonce = drained !== null ? drained : await signer.getNonce('pending').catch(() => _nextNonce);
-          }
+          if (signer) await _waitMempoolDrain(signer);
           continue;
         }
         // Budget exhausted — only NOW treat as an (inconclusive) skip.
         printSkip(`${label}: nonce/in-flight conflict persisted after ${maxRetries} attempts — skipped${critical ? ' [CRITICAL]' : ''}`);
         if (critical) _criticalTxSkipped++;
-        if (_nonceWallet && signer && signer.address === _nonceWallet) {
-          try { _nextNonce = await signer.getNonce('pending'); } catch (_) {}
-        }
         return null;
       }
       printError(`${label}: TX failed (${reason})`);
-      if (_nonceWallet && signer && signer.address === _nonceWallet) {
-        try { _nextNonce = await signer.getNonce('pending'); } catch (_) {}
-      }
       return null;
     }
 
-    // Broadcast succeeded — advance nonce, then await confirmation.
-    if (_nextNonce !== null) _nextNonce++;
     try {
       if (tx.wait) {
         const receipt = await tx.wait(1);

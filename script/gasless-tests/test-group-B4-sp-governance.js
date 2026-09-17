@@ -60,9 +60,16 @@ async function main() {
 
       // Restore
       if (currentTreasury.toLowerCase() !== deployerAddr.toLowerCase()) {
-        await sendTxSafe(sp, 'setTreasury', [currentTreasury], 'setTreasury(restore)', { critical: false });
-        const afterRestore = await sp.treasury();
-        assertEqual(afterRestore.toLowerCase(), currentTreasury.toLowerCase(), 'treasury restored');
+        const restoreSent = await sendTxSafe(sp, 'setTreasury', [currentTreasury], 'setTreasury(restore)', { critical: false });
+        if (restoreSent) {
+          const afterRestore = await sp.treasury();
+          assertEqual(afterRestore.toLowerCase(), currentTreasury.toLowerCase(), 'treasury restored');
+        } else {
+          // sendTxSafe returns null on skip/failure — the restore never landed, so reading
+          // back and asserting here would fail for a reason unrelated to setTreasury's
+          // correctness (DSR review, 2026-09-17: same causal-chain gap found in G3).
+          printSkip('setTreasury(restore): write did not land — read-back assertion skipped');
+        }
       } else {
         printInfo('Treasury was already deployer — no restore needed');
       }
@@ -149,9 +156,13 @@ async function main() {
       assertEqual(feeAfter, 100n, 'facilitatorFeeBPS == 100');
 
       // Restore
-      await sendTxSafe(x402, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)', { critical: false });
-      const feeRestored = await x402.facilitatorFeeBPS();
-      assertEqual(feeRestored, currentFacFee, 'facilitatorFeeBPS restored');
+      const facRestoreSent = await sendTxSafe(x402, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)', { critical: false });
+      if (facRestoreSent) {
+        const feeRestored = await x402.facilitatorFeeBPS();
+        assertEqual(feeRestored, currentFacFee, 'facilitatorFeeBPS restored');
+      } else {
+        printSkip('setFacilitatorFeeBPS(restore): write did not land — read-back assertion skipped');
+      }
     }
   } catch (e) {
     catchStep('setFacilitatorFeeBPS', e);
@@ -178,13 +189,17 @@ async function main() {
       assertEqual(opFeeAfter, 50n, 'operatorFacilitatorFees(deployer) == 50');
 
       // Restore
-      await sendTxSafe(
+      const opFeeRestoreSent = await sendTxSafe(
         x402, 'setOperatorFacilitatorFee',
         [deployerAddr, currentOpFacFee],
         'setOpFacFee(restore)'
       );
-      const opFeeRestored = await x402.operatorFacilitatorFees(deployerAddr);
-      assertEqual(opFeeRestored, currentOpFacFee, 'operatorFacilitatorFees restored');
+      if (opFeeRestoreSent) {
+        const opFeeRestored = await x402.operatorFacilitatorFees(deployerAddr);
+        assertEqual(opFeeRestored, currentOpFacFee, 'operatorFacilitatorFees restored');
+      } else {
+        printSkip('setOpFacFee(restore): write did not land — read-back assertion skipped');
+      }
     }
   } catch (e) {
     catchStep('setOperatorFacilitatorFee', e);
