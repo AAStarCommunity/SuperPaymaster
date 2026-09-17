@@ -650,6 +650,11 @@ async function _rawNonce(signer, tag) {
   return parseInt(await signer.provider.send('eth_getTransactionCount', [signer.address, tag]), 16);
 }
 
+// Retry budget for an identical-nonce resend after an ambiguous post-broadcast network
+// error (sendTxSafe) — see the Codex round-3 comment at that call site for why the nonce
+// must stay fixed across these retries rather than being re-fetched.
+const NETWORK_RETRY_BUDGET = 3;
+
 // Wait until the signer's mempool drains (pending nonce == latest nonce), i.e. all
 // previously-broadcast txs for this account have mined. This is the cure for the
 // "in-flight transaction limit" / nonce-conflict skips seen when the full suite
@@ -794,57 +799,83 @@ async function _sendTxSafeInner(contract, method, args, label, signer, maxRetrie
       tx = await contract[method](...args, txOpts);
     } catch (err) {
       if (_isNetworkError(err)) {
-        // Ambiguous: the node may have accepted the tx into its mempool before the
-        // socket dropped. Reconcile against the PENDING nonce (NOT 'latest') — a tx
-        // sits in the mempool for seconds before it is mined, so 'latest' would still
-        // show the old count and we'd wrongly resend (double-submit). 'pending'
-        // increments the moment the node accepts the tx.
-        let pendingNonce = null;
-        try { pendingNonce = await _rawNonce(signer, 'pending'); } catch (_) {}
-        if (pendingNonce !== null && sentNonce !== null && pendingNonce > sentNonce) {
-          printInfo(`${label}: network error but pending nonce advanced (${sentNonce}→${pendingNonce}) — tx accepted, NOT resending`);
-          return { applied: true, noReceipt: true };
-        }
-        // Codex stop-gate (2026-09-17), round 2: retrying is only safe once reconciliation
-        // PROVES the original send never landed (pendingNonce === sentNonce exactly). If the
-        // reconciliation read itself failed (pendingNonce === null) we cannot distinguish
-        // "definitely not sent" from "sent, but we couldn't observe it" — mocked reproduction:
-        // nonce 0 sent and silently accepted, this reconciliation read fails, a blind retry
-        // re-fetches nonce 1 at the top of the loop and sends AGAIN — two real, non-
-        // conflicting transactions, the underlying call executed twice with zero
-        // failures/skips reported. Only continue on positive proof of "not sent"; any
-        // ambiguity stops here rather than risks a double-submit.
-        const provenNotSent = pendingNonce !== null && sentNonce !== null && pendingNonce === sentNonce;
-        if (provenNotSent && attempt < maxRetries) {
-          printInfo(`${label}: pre-broadcast network error (pending nonce ${sentNonce} confirmed intact), retry ${attempt}/${maxRetries - 1} in 4s...`);
+        // Codex stop-gate (2026-09-17), round 3: a side-channel nonce READ used to
+        // "reconcile" whether an ambiguous send landed can itself be stale on a
+        // load-balanced remote RPC (this project defaults to Alchemy, which this repo
+        // has documented eventual-consistency quirks for elsewhere). Round 2 treated
+        // "pendingNonce === sentNonce" as proof of non-delivery, but that read can lag:
+        // by the time we'd loop back to the top of the outer attempt loop and fetch a
+        // FRESH nonce for the retry, propagation may have caught up, so the retry sends
+        // at an INCREMENTED nonce — a genuinely new, non-conflicting transaction — while
+        // the original also lands, executing the call twice.
+        //
+        // Fix: don't reconcile via a side-channel read at all. Retry the IDENTICAL send
+        // (same sentNonce, same txOpts) directly, without returning to the outer loop's
+        // fresh-nonce fetch. If the original actually landed, this identical-nonce retry
+        // is rejected by the node as a nonce conflict (already known / nonce too low) —
+        // Ethereum's own nonce-uniqueness guarantee IS the reconciliation, and unlike a
+        // side-channel read it cannot be stale: at most one transaction can ever be
+        // mined for a given (sender, nonce) pair, so retrying that exact pair can never
+        // itself cause a double execution.
+        let resolved = false;
+        for (let netAttempt = 1; netAttempt <= NETWORK_RETRY_BUDGET; netAttempt++) {
           await new Promise(r => setTimeout(r, 4000));
-          continue;
+          try {
+            tx = await contract[method](...args, txOpts); // SAME txOpts/nonce — identical send
+            resolved = true;
+            break;
+          } catch (err2) {
+            if (_isNonceConflict(err2)) {
+              printInfo(`${label}: identical-nonce retry rejected as a nonce conflict — the original send landed, NOT resending with a different nonce`);
+              return { applied: true, noReceipt: true };
+            }
+            if (_isNetworkError(err2)) {
+              if (netAttempt < NETWORK_RETRY_BUDGET) {
+                printInfo(`${label}: network error persists on identical-nonce retry ${netAttempt}/${NETWORK_RETRY_BUDGET - 1}...`);
+                continue;
+              }
+              break; // exhausted — handled by the `if (!resolved)` branch below
+            }
+            // A genuinely different error surfaced on the identical-nonce retry (e.g. a
+            // real revert) — that is a definitive outcome for this (sender, nonce), not
+            // more ambiguity, so report it directly instead of pretending it's the
+            // original error.
+            const reason2 = err2.reason || err2.shortMessage || (err2.message || '').substring(0, 120);
+            printError(`${label}: TX failed on identical-nonce retry (${reason2})`);
+            return null;
+          }
         }
-        if (!provenNotSent) {
-          printSkip(`${label}: network error and could not prove the tx wasn't already sent (sentNonce=${sentNonce}, pendingNonce=${pendingNonce}) — stopping rather than risk a double-submit${critical ? ' [CRITICAL]' : ''}`);
+        if (!resolved) {
+          printSkip(`${label}: network error persisted after ${NETWORK_RETRY_BUDGET} identical-nonce retries — stopping rather than guess whether the original landed${critical ? ' [CRITICAL]' : ''}`);
           if (critical) _criticalTxSkipped++;
           return null;
         }
-      }
-      const reason = err.reason || err.shortMessage || (err.message || '').substring(0, 120);
-      if (_isNonceConflict(err)) {
-        // RETRYABLE — never skip a critical tx on the first nonce/in-flight conflict.
-        // Root cause is mempool congestion (RPC "in-flight transaction limit") or a
-        // concurrent writer elsewhere advancing this wallet's nonce between our fetch
-        // and our send. Cure: wait for the mempool to drain, then retry (the next
-        // attempt re-fetches 'pending' fresh, so no manual resync is needed here).
-        if (attempt < maxRetries) {
-          printInfo(`${label}: nonce/in-flight conflict — draining mempool & retrying ${attempt}/${maxRetries - 1}...`);
-          if (signer) await _waitMempoolDrain(signer);
-          continue;
+        // resolved === true: `tx` now holds a handle from the successful identical-nonce
+        // retry. Fall through to the confirmation-wait code below — the generic error
+        // classifiers in the `else` branch are for the ORIGINAL `err`, which is now moot.
+      } else {
+        const reason = err.reason || err.shortMessage || (err.message || '').substring(0, 120);
+        if (_isNonceConflict(err)) {
+          // RETRYABLE — never skip a critical tx on the first nonce/in-flight conflict.
+          // Root cause is mempool congestion (RPC "in-flight transaction limit") or a
+          // concurrent writer elsewhere advancing this wallet's nonce between our fetch
+          // and our send. Cure: wait for the mempool to drain, then retry (the next
+          // attempt re-fetches 'pending' fresh, so no manual resync is needed here). This
+          // is a REJECTED send (never entered the mempool), unlike the ambiguous
+          // network-error case above — a fresh nonce on retry is safe here.
+          if (attempt < maxRetries) {
+            printInfo(`${label}: nonce/in-flight conflict — draining mempool & retrying ${attempt}/${maxRetries - 1}...`);
+            if (signer) await _waitMempoolDrain(signer);
+            continue;
+          }
+          // Budget exhausted — only NOW treat as an (inconclusive) skip.
+          printSkip(`${label}: nonce/in-flight conflict persisted after ${maxRetries} attempts — skipped${critical ? ' [CRITICAL]' : ''}`);
+          if (critical) _criticalTxSkipped++;
+          return null;
         }
-        // Budget exhausted — only NOW treat as an (inconclusive) skip.
-        printSkip(`${label}: nonce/in-flight conflict persisted after ${maxRetries} attempts — skipped${critical ? ' [CRITICAL]' : ''}`);
-        if (critical) _criticalTxSkipped++;
+        printError(`${label}: TX failed (${reason})`);
         return null;
       }
-      printError(`${label}: TX failed (${reason})`);
-      return null;
     }
 
     try {
