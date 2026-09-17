@@ -697,15 +697,36 @@ const NETWORK_RETRY_BUDGET = 3;
 // signer `with nonce === targetNonce`. Bounded search — this is a test-harness reconciliation
 // path, not a production indexer; a local/typical remote chain mines the tx we're looking for
 // within a handful of blocks of "now" since we only reach this code seconds after sending it.
-async function _findMinedTxAtNonce(signer, targetNonce, maxBlocksBack = 20) {
+// Codex stop-gate (2026-09-17), round 6: matching only (from, nonce) is not enough — if
+// the ORIGINAL broadcast never actually landed, but some OTHER write from this same wallet
+// (a concurrent script, a manual `cast send`, anything outside this call's own retry loop)
+// happened to occupy that exact nonce, a from+nonce match finds THAT unrelated transaction
+// and a successful receipt for it would be misreported as proof our intended call landed.
+// Also require the mined tx's `to` and calldata to match the call we actually intended —
+// only that is proof this specific operation is the one that occupied the nonce.
+async function _findMinedTxAtNonce(signer, targetNonce, expectedTo, expectedData, maxBlocksBack = 20) {
+  const wantTo = (expectedTo || '').toLowerCase();
+  const wantData = (expectedData || '').toLowerCase();
   const latest = parseInt(await signer.provider.send('eth_blockNumber', []), 16);
   for (let i = 0; i <= maxBlocksBack && latest - i >= 0; i++) {
     const blockNum = '0x' + (latest - i).toString(16);
     let block;
     try { block = await signer.provider.send('eth_getBlockByNumber', [blockNum, true]); } catch (_) { continue; }
     if (!block || !Array.isArray(block.transactions)) continue;
-    const match = block.transactions.find((t) =>
-      t.from && t.from.toLowerCase() === signer.address.toLowerCase() && parseInt(t.nonce, 16) === targetNonce);
+    const match = block.transactions.find((t) => {
+      if (!t.from || t.from.toLowerCase() !== signer.address.toLowerCase()) return false;
+      if (parseInt(t.nonce, 16) !== targetNonce) return false;
+      if (!t.to || t.to.toLowerCase() !== wantTo) return false;
+      // Ethereum JSON-RPC's standard calldata field is `input`; some clients also mirror it
+      // as `data` — accept either rather than assuming one.
+      const calldata = (t.input ?? t.data ?? '').toLowerCase();
+      if (calldata !== wantData) return false;
+      // sendTxSafe never attaches a `value` override today (grepped: no caller in this repo
+      // passes one) — expected value is always 0. If that ever changes, this must take the
+      // real expected value as a parameter instead of hardcoding 0n.
+      const val = t.value ? BigInt(t.value) : 0n;
+      return val === 0n;
+    });
     if (match) return match.hash;
   }
   return null;
@@ -898,7 +919,15 @@ async function _sendTxSafeInner(contract, method, args, label, signer, maxRetrie
               // mined-but-reverted still consumes the nonce; "replacement underpriced" can
               // mean merely pending). Look up and verify the real outcome, don't assume.
               printInfo(`${label}: identical-nonce retry rejected (${(err2.message || '').substring(0, 60)}) — looking up the actual mined tx to verify the outcome, not assuming success`);
-              const foundHash = await _findMinedTxAtNonce(signer, sentNonce).catch(() => null);
+              // Codex round 6: (from, nonce) alone can match an UNRELATED transaction that
+              // happened to occupy this nonce (a concurrent write outside this call's own
+              // retry loop) — require `to` and calldata to match the call we actually
+              // intended before trusting its receipt as proof of anything.
+              let expectedData = null;
+              try { expectedData = contract.interface.encodeFunctionData(method, args); } catch (_) { /* leave null — no match possible below, falls to inconclusive */ }
+              const foundHash = expectedData
+                ? await _findMinedTxAtNonce(signer, sentNonce, contract.target, expectedData).catch(() => null)
+                : null;
               const foundReceipt = foundHash ? await _rawReceipt(signer, foundHash).catch(() => null) : null;
               if (foundReceipt && foundReceipt.status === '0x1') {
                 printInfo(`${label}: verified — original send mined and succeeded (${foundHash}), NOT resending`);
