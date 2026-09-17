@@ -89,6 +89,21 @@ tunes real gas limits later: `TestAccountPrepare.s.sol` only deposits 1,000 aPNT
 deployer operator's SP collateral by default, which is INSUFFICIENT_BALANCE at this dry-run's
 (deliberately generous) gas limits — `collector.mjs`'s sender setup tops it up to 5,000 aPNTs.
 
+**What "AA31/AA33 verified" does and does NOT mean (DSR review, 2026-09-17).** During
+development, `classifyRevert`'s discrimination (AA31 → `infraFailure`, AA33/AA34 →
+`sponsorshipFailed`, not infra) was proven against two genuinely forced, independently
+confirmed on-chain reverts: a paymaster's EntryPoint deposit drained below what an op needed
+(real AA31), and TokenPaymaster's test-token allowance drained to zero for the sender (real
+AA33) — each confirmed via a raw `eth_getTransactionReceipt` call, not just the collector's own
+log. **Both were produced with temporary, since-removed debug-only env-var hooks** (to bypass
+the deposit-floor guard and to stop the sender's automatic token top-up) that exist in neither
+this commit nor any other — running the exact `collector.mjs --count N --b-max B` command above
+will only ever produce the happy-path or guard-withheld outcomes, never AA31/AA33, because
+`collector.mjs` has no built-in failure-injection feature. Whether/how to inject failure
+scenarios is scenario-mix territory — DSR's deliverable (§8.4), not decided here. Do not read
+"the classifier was verified" as "this artifact demonstrates AA31/AA33 handling on a plain
+re-run" — those are two different claims and only the first is true of the code as shipped.
+
 ## Things DSR's sample protocol will need to define (not resolved here)
 
 - Real `B_max` (this file's placeholder is `1`, chosen only so `F` is a nonzero, checkable
@@ -102,3 +117,10 @@ deployer operator's SP collateral by default, which is INSUFFICIENT_BALANCE at t
   been reconciled against whatever Passport/registry shape DSR settles on.
 - Top-up bookkeeping (plan: "只能在窗口之间由协议账户按固定额度补充，每次补充都登记") is an
   operational/runbook step, not automated here.
+- **Reporting for the "undecodable revert" fallback bucket** (DSR review, 2026-09-17):
+  `classifyRevert`'s default when a revert reason can't be decoded at all is `infraFailure:
+  true` — a conservative fallback, not a confirmed AA31. When the real sample protocol runs,
+  this bucket must be counted and reported SEPARATELY from genuine decoded-AA31 infra failures,
+  not silently merged into one "infrastructure failure" total — an undecoded revert could be a
+  bug in this collector, a new EntryPoint error shape, or something else entirely, and merging
+  it with AA31 would misattribute causes future readers can't recover from the aggregate number.
