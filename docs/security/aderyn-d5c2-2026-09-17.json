@@ -1,0 +1,4157 @@
+{
+  "files_summary": {
+    "total_source_units": 59,
+    "total_sloc": 8651
+  },
+  "files_details": {
+    "files_details": [
+      {
+        "file_path": "contracts/src/core/GTokenStaking.sol",
+        "n_sloc": 318
+      },
+      {
+        "file_path": "contracts/src/core/LivenessRegistry.sol",
+        "n_sloc": 58
+      },
+      {
+        "file_path": "contracts/src/core/PolicyRegistry.sol",
+        "n_sloc": 264
+      },
+      {
+        "file_path": "contracts/src/core/Registry.sol",
+        "n_sloc": 588
+      },
+      {
+        "file_path": "contracts/src/interfaces/IERC1363.sol",
+        "n_sloc": 9
+      },
+      {
+        "file_path": "contracts/src/interfaces/IPaymasterRouter.sol",
+        "n_sloc": 47
+      },
+      {
+        "file_path": "contracts/src/interfaces/ISBT.sol",
+        "n_sloc": 6
+      },
+      {
+        "file_path": "contracts/src/interfaces/ISuperPaymaster.sol",
+        "n_sloc": 50
+      },
+      {
+        "file_path": "contracts/src/interfaces/ISuperPaymasterRegistry.sol",
+        "n_sloc": 27
+      },
+      {
+        "file_path": "contracts/src/interfaces/IVersioned.sol",
+        "n_sloc": 4
+      },
+      {
+        "file_path": "contracts/src/interfaces/IxPNTsFactory.sol",
+        "n_sloc": 12
+      },
+      {
+        "file_path": "contracts/src/interfaces/IxPNTsToken.sol",
+        "n_sloc": 16
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/IAgentIdentityRegistry.sol",
+        "n_sloc": 6
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/IAgentReputationRegistry.sol",
+        "n_sloc": 19
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/IBLSAggregator.sol",
+        "n_sloc": 29
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/IERC3009.sol",
+        "n_sloc": 21
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/IGTokenStaking.sol",
+        "n_sloc": 96
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/ILivenessRegistry.sol",
+        "n_sloc": 17
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/IMySBT.sol",
+        "n_sloc": 30
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/IPolicyRegistry.sol",
+        "n_sloc": 132
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/IRegistry.sol",
+        "n_sloc": 89
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/IReputationCalculator.sol",
+        "n_sloc": 19
+      },
+      {
+        "file_path": "contracts/src/interfaces/v3/ISignatureTransfer.sol",
+        "n_sloc": 30
+      },
+      {
+        "file_path": "contracts/src/mocks/MockAgentIdentityRegistry.sol",
+        "n_sloc": 37
+      },
+      {
+        "file_path": "contracts/src/mocks/MockAgentReputationRegistry.sol",
+        "n_sloc": 46
+      },
+      {
+        "file_path": "contracts/src/mocks/MockBLSAggregator.sol",
+        "n_sloc": 41
+      },
+      {
+        "file_path": "contracts/src/mocks/MockUSDT.sol",
+        "n_sloc": 15
+      },
+      {
+        "file_path": "contracts/src/mocks/MyNFT.sol",
+        "n_sloc": 15
+      },
+      {
+        "file_path": "contracts/src/mocks/TestSBT.sol",
+        "n_sloc": 14
+      },
+      {
+        "file_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+        "n_sloc": 966
+      },
+      {
+        "file_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+        "n_sloc": 169
+      },
+      {
+        "file_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+        "n_sloc": 181
+      },
+      {
+        "file_path": "contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+        "n_sloc": 55
+      },
+      {
+        "file_path": "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol",
+        "n_sloc": 249
+      },
+      {
+        "file_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+        "n_sloc": 302
+      },
+      {
+        "file_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+        "n_sloc": 452
+      },
+      {
+        "file_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol",
+        "n_sloc": 73
+      },
+      {
+        "file_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+        "n_sloc": 111
+      },
+      {
+        "file_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+        "n_sloc": 190
+      },
+      {
+        "file_path": "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol",
+        "n_sloc": 139
+      },
+      {
+        "file_path": "contracts/src/paymasters/v4/Paymaster.sol",
+        "n_sloc": 70
+      },
+      {
+        "file_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+        "n_sloc": 365
+      },
+      {
+        "file_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+        "n_sloc": 237
+      },
+      {
+        "file_path": "contracts/src/tokens/APNTsCapped.sol",
+        "n_sloc": 99
+      },
+      {
+        "file_path": "contracts/src/tokens/GToken.sol",
+        "n_sloc": 30
+      },
+      {
+        "file_path": "contracts/src/tokens/GTokenAuthorization.sol",
+        "n_sloc": 139
+      },
+      {
+        "file_path": "contracts/src/tokens/MySBT.sol",
+        "n_sloc": 372
+      },
+      {
+        "file_path": "contracts/src/tokens/v2/AOAProtocolRegistry.sol",
+        "n_sloc": 86
+      },
+      {
+        "file_path": "contracts/src/tokens/v2/GlobalTierSource.sol",
+        "n_sloc": 19
+      },
+      {
+        "file_path": "contracts/src/tokens/v2/ICreditTierSource.sol",
+        "n_sloc": 4
+      },
+      {
+        "file_path": "contracts/src/tokens/v2/IxPNTsTokenV2.sol",
+        "n_sloc": 20
+      },
+      {
+        "file_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+        "n_sloc": 268
+      },
+      {
+        "file_path": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+        "n_sloc": 290
+      },
+      {
+        "file_path": "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol",
+        "n_sloc": 389
+      },
+      {
+        "file_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+        "n_sloc": 250
+      },
+      {
+        "file_path": "contracts/src/tokens/xPNTsFactory.sol",
+        "n_sloc": 260
+      },
+      {
+        "file_path": "contracts/src/tokens/xPNTsToken.sol",
+        "n_sloc": 516
+      },
+      {
+        "file_path": "contracts/src/utils/BLS.sol",
+        "n_sloc": 258
+      },
+      {
+        "file_path": "contracts/src/utils/Ownable2StepNamespaced.sol",
+        "n_sloc": 37
+      }
+    ]
+  },
+  "issue_count": {
+    "high": 10,
+    "low": 14
+  },
+  "high_issues": {
+    "issues": [
+      {
+        "title": "`abi.encodePacked()` should not be used with dynamic types when passing the result to a hash function such as `keccak256()`",
+        "description": "Use `abi.encode()` instead which will pad items to 32 bytes, which will [prevent hash collisions](https://docs.soliditylang.org/en/v0.8.13/abi-spec.html#non-standard-packed-mode) (e.g. `abi.encodePacked(0x123,0x456)` => `0x123456` => `abi.encodePacked(0x1,0x23456)`, but `abi.encode(0x123,0x456)` => `0x0...1230...456`). Unless there is a compelling reason, `abi.encode` should be preferred. If there is only one argument to `abi.encodePacked()` it can often be cast to `bytes()` or `bytes32()` [instead](https://ethereum.stackexchange.com/questions/30912/how-to-compare-strings-in-solidity#answer-82739).\nIf all arguments are strings and or bytes, `bytes.concat()` should be used instead.",
+        "detector_name": "avoid-abi-encode-packed",
+        "instances": [
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 628,
+            "src": "28987:16",
+            "src_char": "28963:16"
+          }
+        ]
+      },
+      {
+        "title": "Arbitrary `from` passed to `transferFrom` (or `safeTransferFrom`)",
+        "description": "Passing an arbitrary `from` address to `transferFrom` (or `safeTransferFrom`) can lead to loss of funds, because anyone can transfer tokens from the `from` address if an approval is made.  ",
+        "detector_name": "arbitrary-transfer-from",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 148,
+            "src": "5725:58",
+            "src_char": "5717:58"
+          },
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 156,
+            "src": "6164:53",
+            "src_char": "6156:53"
+          },
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 196,
+            "src": "7745:58",
+            "src_char": "7735:58"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol",
+            "line_no": 324,
+            "src": "17716:59",
+            "src_char": "17700:59"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 461,
+            "src": "21445:35",
+            "src_char": "21427:35"
+          }
+        ]
+      },
+      {
+        "title": "Unprotected initializer",
+        "description": "Consider protecting the initializer functions with modifiers.",
+        "detector_name": "unprotected-initializer",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 205,
+            "src": "11295:9",
+            "src_char": "11270:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol",
+            "line_no": 93,
+            "src": "6389:17",
+            "src_char": "6383:17"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 198,
+            "src": "9199:24",
+            "src_char": "8673:24"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 111,
+            "src": "3730:14",
+            "src_char": "3728:14"
+          }
+        ]
+      },
+      {
+        "title": "Unsafe Casting",
+        "description": "Downcasting int/uints in Solidity can be unsafe due to the potential for data loss and unintended behavior.When downcasting a larger integer type to a smaller one (e.g., uint256 to uint128), the value may exceed the range of the target type,leading to truncation and loss of significant digits. Use OpenZeppelin's SafeCast library to safely downcast integers.",
+        "detector_name": "unsafe-casting-detector",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 322,
+            "src": "13478:13",
+            "src_char": "13464:13"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+            "line_no": 305,
+            "src": "15381:14",
+            "src_char": "15362:14"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol",
+            "line_no": 157,
+            "src": "8489:10",
+            "src_char": "8486:10"
+          }
+        ]
+      },
+      {
+        "title": "Incorrect Assembly Shift Parameter Order",
+        "description": "Example: `shl(shifted, 4)` will shift the right constant `4` by `a` bits. The correct order is `shl(4, shifted)`.",
+        "detector_name": "incorrect-shift-order",
+        "instances": [
+          {
+            "contract_path": "contracts/src/utils/BLS.sol",
+            "line_no": 309,
+            "src": "11848:13",
+            "src_char": "11548:13"
+          }
+        ]
+      },
+      {
+        "title": "Uninitialized State Variables",
+        "description": "Solidity does initialize variables by default when you declare them, however it's good practice to explicitly declare an initial value. For example, if you transfer money to an address we must make sure that the address has been initialized.",
+        "detector_name": "uninitialized-state-variable",
+        "instances": [
+          {
+            "contract_path": "contracts/src/mocks/MyNFT.sol",
+            "line_no": 7,
+            "src": "245:12",
+            "src_char": "245:12"
+          },
+          {
+            "contract_path": "contracts/src/mocks/TestSBT.sol",
+            "line_no": 10,
+            "src": "256:12",
+            "src_char": "256:12"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 117,
+            "src": "5539:35",
+            "src_char": "5522:35"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 56,
+            "src": "2030:13",
+            "src_char": "2028:13"
+          }
+        ]
+      },
+      {
+        "title": "Yul block contains `return` function call.",
+        "description": "Remove this, as this causes execution to halt. Nothing after that call will execute, including code following the assembly block.",
+        "detector_name": "yul-return",
+        "instances": [
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 146,
+            "src": "7190:27",
+            "src_char": "7175:27"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+            "line_no": 63,
+            "src": "2679:27",
+            "src_char": "2675:27"
+          }
+        ]
+      },
+      {
+        "title": "Return value of the function call is not checked.",
+        "description": "Function returns a value but it is ignored.",
+        "detector_name": "unchecked-return",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 455,
+            "src": "23170:83",
+            "src_char": "23137:83"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 419,
+            "src": "20927:61",
+            "src_char": "20879:61"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 421,
+            "src": "21019:61",
+            "src_char": "20971:61"
+          }
+        ]
+      },
+      {
+        "title": "Weak Randomness",
+        "description": "The use of keccak256 hash functions on predictable values like block.timestamp, block.number, or similar data, including modulo operations on these values, should be avoided for generating randomness, as they are easily predictable and manipulable. The `PREVRANDAO` opcode also should not be used as a source of randomness. Instead, utilize Chainlink VRF for cryptographically secure and provably random values to ensure protocol integrity.",
+        "detector_name": "weak-randomness",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 177,
+            "src": "7053:62",
+            "src_char": "7043:62"
+          }
+        ]
+      },
+      {
+        "title": "Contract locks Ether without a withdraw function.",
+        "description": "It appears that the contract includes a payable function to accept Ether but lacks a corresponding function to withdraw it, which leads to the Ether being locked in the contract. To resolve this issue, please implement a public or external function that allows for the withdrawal of Ether from the contract.",
+        "detector_name": "contract-locks-ether",
+        "instances": [
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+            "line_no": 19,
+            "src": "976:24",
+            "src_char": "976:24"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 22,
+            "src": "1178:13",
+            "src_char": "1178:13"
+          }
+        ]
+      }
+    ]
+  },
+  "low_issues": {
+    "issues": [
+      {
+        "title": "Centralization Risk for trusted owners",
+        "description": "Contracts have owners with privileged rights to perform admin tasks and need to be trusted to not perform malicious updates or drain funds.",
+        "detector_name": "centralization-risk",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 20,
+            "src": "993:7",
+            "src_char": "989:7"
+          },
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 468,
+            "src": "19189:9",
+            "src_char": "19175:9"
+          },
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 474,
+            "src": "19428:9",
+            "src_char": "19414:9"
+          },
+          {
+            "contract_path": "contracts/src/core/LivenessRegistry.sol",
+            "line_no": 51,
+            "src": "4045:7",
+            "src_char": "4023:7"
+          },
+          {
+            "contract_path": "contracts/src/core/LivenessRegistry.sol",
+            "line_no": 156,
+            "src": "11034:9",
+            "src_char": "9252:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 226,
+            "src": "12329:9",
+            "src_char": "12302:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 249,
+            "src": "13213:9",
+            "src_char": "13186:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 274,
+            "src": "14238:9",
+            "src_char": "14211:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 281,
+            "src": "14511:9",
+            "src_char": "14484:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 288,
+            "src": "14759:9",
+            "src_char": "14732:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 681,
+            "src": "35961:9",
+            "src_char": "35924:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 764,
+            "src": "41764:9",
+            "src_char": "41727:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 826,
+            "src": "45991:9",
+            "src_char": "45948:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 853,
+            "src": "47365:9",
+            "src_char": "47322:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 875,
+            "src": "48839:9",
+            "src_char": "48796:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 973,
+            "src": "53979:9",
+            "src_char": "53934:9"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockAgentIdentityRegistry.sol",
+            "line_no": 10,
+            "src": "446:7",
+            "src_char": "446:7"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockAgentIdentityRegistry.sol",
+            "line_no": 21,
+            "src": "873:9",
+            "src_char": "873:9"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockAgentIdentityRegistry.sol",
+            "line_no": 29,
+            "src": "1162:9",
+            "src_char": "1162:9"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockAgentReputationRegistry.sol",
+            "line_no": 9,
+            "src": "365:7",
+            "src_char": "365:7"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockAgentReputationRegistry.sol",
+            "line_no": 28,
+            "src": "888:9",
+            "src_char": "888:9"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockUSDT.sol",
+            "line_no": 8,
+            "src": "335:7",
+            "src_char": "335:7"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockUSDT.sol",
+            "line_no": 19,
+            "src": "757:9",
+            "src_char": "757:9"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MyNFT.sol",
+            "line_no": 6,
+            "src": "215:7",
+            "src_char": "215:7"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MyNFT.sol",
+            "line_no": 11,
+            "src": "376:9",
+            "src_char": "376:9"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MyNFT.sol",
+            "line_no": 16,
+            "src": "500:9",
+            "src_char": "500:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 120,
+            "src": "6637:7",
+            "src_char": "6631:7"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 713,
+            "src": "44634:9",
+            "src_char": "44565:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 844,
+            "src": "53004:9",
+            "src_char": "52918:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 870,
+            "src": "54727:9",
+            "src_char": "54637:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1529,
+            "src": "89281:9",
+            "src_char": "89123:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1535,
+            "src": "89510:9",
+            "src_char": "89352:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1544,
+            "src": "89823:9",
+            "src_char": "89665:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1556,
+            "src": "90628:9",
+            "src_char": "90468:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1564,
+            "src": "90906:9",
+            "src_char": "90746:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1606,
+            "src": "94069:9",
+            "src_char": "93903:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1614,
+            "src": "94443:9",
+            "src_char": "94277:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1701,
+            "src": "100851:9",
+            "src_char": "100663:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 23,
+            "src": "964:7",
+            "src_char": "962:7"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 136,
+            "src": "6800:9",
+            "src_char": "6794:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 306,
+            "src": "15023:9",
+            "src_char": "15003:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 339,
+            "src": "16909:9",
+            "src_char": "16885:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 15,
+            "src": "607:7",
+            "src_char": "607:7"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 73,
+            "src": "2838:9",
+            "src_char": "2838:9"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 110,
+            "src": "4837:9",
+            "src_char": "4837:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+            "line_no": 45,
+            "src": "2005:9",
+            "src_char": "2005:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+            "line_no": 51,
+            "src": "2210:9",
+            "src_char": "2210:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+            "line_no": 55,
+            "src": "2361:9",
+            "src_char": "2361:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+            "line_no": 59,
+            "src": "2486:9",
+            "src_char": "2486:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+            "line_no": 63,
+            "src": "2605:9",
+            "src_char": "2605:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+            "line_no": 67,
+            "src": "2714:9",
+            "src_char": "2714:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol",
+            "line_no": 28,
+            "src": "1468:7",
+            "src_char": "1468:7"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol",
+            "line_no": 387,
+            "src": "14592:9",
+            "src_char": "14592:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 70,
+            "src": "3874:9",
+            "src_char": "3870:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 181,
+            "src": "8669:9",
+            "src_char": "8653:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 189,
+            "src": "9057:9",
+            "src_char": "9041:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 200,
+            "src": "9595:9",
+            "src_char": "9579:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 223,
+            "src": "10644:9",
+            "src_char": "10626:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 241,
+            "src": "11514:9",
+            "src_char": "11496:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 249,
+            "src": "11851:9",
+            "src_char": "11833:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 255,
+            "src": "12069:9",
+            "src_char": "12051:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 263,
+            "src": "12520:9",
+            "src_char": "12502:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 274,
+            "src": "13055:9",
+            "src_char": "13037:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 305,
+            "src": "14463:9",
+            "src_char": "14445:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 315,
+            "src": "15104:9",
+            "src_char": "15086:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 324,
+            "src": "15582:9",
+            "src_char": "15564:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 361,
+            "src": "17284:9",
+            "src_char": "17265:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 382,
+            "src": "18367:9",
+            "src_char": "18348:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 549,
+            "src": "25238:9",
+            "src_char": "25214:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 555,
+            "src": "25512:9",
+            "src_char": "25488:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 568,
+            "src": "26079:9",
+            "src_char": "26055:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 577,
+            "src": "26563:9",
+            "src_char": "26539:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 656,
+            "src": "30026:9",
+            "src_char": "30002:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 664,
+            "src": "30413:9",
+            "src_char": "30387:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 671,
+            "src": "30683:9",
+            "src_char": "30657:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol",
+            "line_no": 33,
+            "src": "1838:7",
+            "src_char": "1830:7"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol",
+            "line_no": 124,
+            "src": "5555:9",
+            "src_char": "5547:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol",
+            "line_no": 132,
+            "src": "5914:9",
+            "src_char": "5906:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/Paymaster.sol",
+            "line_no": 78,
+            "src": "4356:9",
+            "src_char": "3975:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/Paymaster.sol",
+            "line_no": 89,
+            "src": "4863:9",
+            "src_char": "4482:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 22,
+            "src": "1195:7",
+            "src_char": "1195:7"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 528,
+            "src": "25048:9",
+            "src_char": "24286:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 546,
+            "src": "26088:9",
+            "src_char": "25326:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 572,
+            "src": "27122:9",
+            "src_char": "26360:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 645,
+            "src": "29988:9",
+            "src_char": "29226:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 650,
+            "src": "30222:9",
+            "src_char": "29460:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 655,
+            "src": "30496:9",
+            "src_char": "29734:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 660,
+            "src": "30805:9",
+            "src_char": "30043:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 677,
+            "src": "31791:9",
+            "src_char": "31025:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 683,
+            "src": "31940:9",
+            "src_char": "31174:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 692,
+            "src": "32227:9",
+            "src_char": "31461:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 693,
+            "src": "32333:9",
+            "src_char": "31567:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 694,
+            "src": "32442:9",
+            "src_char": "31676:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 695,
+            "src": "32581:9",
+            "src_char": "31815:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 696,
+            "src": "32686:9",
+            "src_char": "31920:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 21,
+            "src": "874:7",
+            "src_char": "872:7"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 130,
+            "src": "4673:9",
+            "src_char": "4671:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 264,
+            "src": "9768:9",
+            "src_char": "9764:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 292,
+            "src": "10670:9",
+            "src_char": "10666:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 312,
+            "src": "11334:9",
+            "src_char": "11330:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/APNTsCapped.sol",
+            "line_no": 27,
+            "src": "1703:12",
+            "src_char": "1697:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/APNTsCapped.sol",
+            "line_no": 108,
+            "src": "5385:9",
+            "src_char": "5377:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/APNTsCapped.sol",
+            "line_no": 126,
+            "src": "6152:9",
+            "src_char": "6144:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/APNTsCapped.sol",
+            "line_no": 132,
+            "src": "6359:9",
+            "src_char": "6351:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/GToken.sol",
+            "line_no": 24,
+            "src": "1031:7",
+            "src_char": "1031:7"
+          },
+          {
+            "contract_path": "contracts/src/tokens/GToken.sol",
+            "line_no": 47,
+            "src": "1689:9",
+            "src_char": "1689:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/GTokenAuthorization.sol",
+            "line_no": 124,
+            "src": "7160:9",
+            "src_char": "6110:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/AOAProtocolRegistry.sol",
+            "line_no": 23,
+            "src": "1308:7",
+            "src_char": "1303:7"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/AOAProtocolRegistry.sol",
+            "line_no": 53,
+            "src": "2551:9",
+            "src_char": "2546:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/AOAProtocolRegistry.sol",
+            "line_no": 61,
+            "src": "2809:9",
+            "src_char": "2804:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/AOAProtocolRegistry.sol",
+            "line_no": 66,
+            "src": "2938:9",
+            "src_char": "2933:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/AOAProtocolRegistry.sol",
+            "line_no": 82,
+            "src": "3521:9",
+            "src_char": "3516:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 40,
+            "src": "1899:7",
+            "src_char": "1898:7"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 387,
+            "src": "16416:9",
+            "src_char": "16406:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 392,
+            "src": "16653:9",
+            "src_char": "16643:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 406,
+            "src": "17426:9",
+            "src_char": "17416:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 449,
+            "src": "19970:9",
+            "src_char": "19955:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 466,
+            "src": "20738:9",
+            "src_char": "20723:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 479,
+            "src": "21323:9",
+            "src_char": "21306:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 497,
+            "src": "22547:9",
+            "src_char": "22528:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 507,
+            "src": "22969:9",
+            "src_char": "22950:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 30,
+            "src": "1189:7",
+            "src_char": "1189:7"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 375,
+            "src": "15598:9",
+            "src_char": "15588:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 389,
+            "src": "16371:9",
+            "src_char": "16361:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 433,
+            "src": "18827:9",
+            "src_char": "18814:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 450,
+            "src": "19595:9",
+            "src_char": "19582:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 463,
+            "src": "20180:9",
+            "src_char": "20165:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 481,
+            "src": "21404:9",
+            "src_char": "21387:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 491,
+            "src": "21826:9",
+            "src_char": "21809:9"
+          },
+          {
+            "contract_path": "contracts/src/utils/Ownable2StepNamespaced.sol",
+            "line_no": 33,
+            "src": "2103:7",
+            "src_char": "2083:7"
+          },
+          {
+            "contract_path": "contracts/src/utils/Ownable2StepNamespaced.sol",
+            "line_no": 64,
+            "src": "3837:9",
+            "src_char": "3817:9"
+          }
+        ]
+      },
+      {
+        "title": "Unsafe ERC20 Operations should not be used",
+        "description": "ERC20 functions may not behave as expected. For example: return values are not always meaningful. It is recommended to use OpenZeppelin's SafeERC20 library.",
+        "detector_name": "unsafe-erc20-functions",
+        "instances": [
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 461,
+            "src": "21445:18",
+            "src_char": "21427:18"
+          }
+        ]
+      },
+      {
+        "title": "Missing checks for `address(0)` when assigning values to address state variables",
+        "description": "Check for `address(0)` when assigning values to address state variables.",
+        "detector_name": "zero-address-check",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 94,
+            "src": "4303:47",
+            "src_char": "4296:47"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 95,
+            "src": "4360:22",
+            "src_char": "4353:22"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1608,
+            "src": "94165:36",
+            "src_char": "93999:36"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 308,
+            "src": "15100:21",
+            "src_char": "15080:21"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 119,
+            "src": "5755:25",
+            "src_char": "5740:25"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 72,
+            "src": "3943:22",
+            "src_char": "3939:22"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 132,
+            "src": "4734:31",
+            "src_char": "4732:31"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 520,
+            "src": "18792:24",
+            "src_char": "18788:24"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 198,
+            "src": "9032:38",
+            "src_char": "9024:38"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 200,
+            "src": "9081:32",
+            "src_char": "9073:32"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 388,
+            "src": "16436:26",
+            "src_char": "16426:26"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol",
+            "line_no": 320,
+            "src": "15750:27",
+            "src_char": "15740:27"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 184,
+            "src": "8097:32",
+            "src_char": "8087:32"
+          }
+        ]
+      },
+      {
+        "title": "`public` functions not used internally could be marked `external`",
+        "description": "Instead of marking a function as `public`, consider marking it as `external` if it is not used internally.",
+        "detector_name": "useless-public-function",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 422,
+            "src": "17243:9",
+            "src_char": "17229:9"
+          },
+          {
+            "contract_path": "contracts/src/core/LivenessRegistry.sol",
+            "line_no": 163,
+            "src": "11392:17",
+            "src_char": "9608:17"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 322,
+            "src": "16670:12",
+            "src_char": "16641:12"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockUSDT.sol",
+            "line_no": 12,
+            "src": "481:8",
+            "src_char": "481:8"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MyNFT.sol",
+            "line_no": 11,
+            "src": "348:8",
+            "src_char": "348:8"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MyNFT.sol",
+            "line_no": 16,
+            "src": "482:8",
+            "src_char": "482:8"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/Paymaster.sol",
+            "line_no": 119,
+            "src": "6157:10",
+            "src_char": "5701:10"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 146,
+            "src": "5218:15",
+            "src_char": "5216:15"
+          },
+          {
+            "contract_path": "contracts/src/tokens/APNTsCapped.sol",
+            "line_no": 139,
+            "src": "6623:17",
+            "src_char": "6615:17"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+            "line_no": 116,
+            "src": "5311:9",
+            "src_char": "5307:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+            "line_no": 127,
+            "src": "5848:12",
+            "src_char": "5844:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 419,
+            "src": "18918:12",
+            "src_char": "18908:12"
+          }
+        ]
+      },
+      {
+        "title": "Define and use `constant` variables instead of using literals",
+        "description": "If the same constant literal value is used multiple times, create a constant state variable and reference it throughout the contract.",
+        "detector_name": "constants-instead-of-literals",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 104,
+            "src": "5023:1",
+            "src_char": "5016:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 108,
+            "src": "5195:1",
+            "src_char": "5188:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 108,
+            "src": "5221:8",
+            "src_char": "5214:8"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 108,
+            "src": "5242:8",
+            "src_char": "5235:8"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 108,
+            "src": "5252:8",
+            "src_char": "5245:8"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 108,
+            "src": "5262:9",
+            "src_char": "5255:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 109,
+            "src": "5296:1",
+            "src_char": "5289:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 110,
+            "src": "5337:7",
+            "src_char": "5330:7"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 110,
+            "src": "5347:7",
+            "src_char": "5340:7"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 110,
+            "src": "5356:7",
+            "src_char": "5349:7"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 110,
+            "src": "5374:8",
+            "src_char": "5367:8"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 110,
+            "src": "5384:8",
+            "src_char": "5377:8"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 111,
+            "src": "5421:1",
+            "src_char": "5414:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 111,
+            "src": "5449:2",
+            "src_char": "5442:2"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 111,
+            "src": "5454:2",
+            "src_char": "5447:2"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 111,
+            "src": "5458:2",
+            "src_char": "5451:2"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 111,
+            "src": "5466:1",
+            "src_char": "5459:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 112,
+            "src": "5491:1",
+            "src_char": "5484:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 112,
+            "src": "5530:1",
+            "src_char": "5523:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 113,
+            "src": "5555:1",
+            "src_char": "5548:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 114,
+            "src": "5618:1",
+            "src_char": "5611:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 114,
+            "src": "5644:2",
+            "src_char": "5637:2"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 114,
+            "src": "5649:2",
+            "src_char": "5642:2"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 114,
+            "src": "5653:2",
+            "src_char": "5646:2"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 114,
+            "src": "5657:1",
+            "src_char": "5650:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 114,
+            "src": "5660:2",
+            "src_char": "5653:2"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 115,
+            "src": "5686:1",
+            "src_char": "5679:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 115,
+            "src": "5715:4",
+            "src_char": "5708:4"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 115,
+            "src": "5722:4",
+            "src_char": "5715:4"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 115,
+            "src": "5728:4",
+            "src_char": "5721:4"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 115,
+            "src": "5734:4",
+            "src_char": "5727:4"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 115,
+            "src": "5740:4",
+            "src_char": "5733:4"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 116,
+            "src": "5769:1",
+            "src_char": "5762:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 116,
+            "src": "5839:7",
+            "src_char": "5832:7"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 117,
+            "src": "5871:1",
+            "src_char": "5864:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 117,
+            "src": "5898:7",
+            "src_char": "5891:7"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 117,
+            "src": "5908:7",
+            "src_char": "5901:7"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 117,
+            "src": "5917:7",
+            "src_char": "5910:7"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 117,
+            "src": "5926:7",
+            "src_char": "5919:7"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 117,
+            "src": "5935:7",
+            "src_char": "5928:7"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 118,
+            "src": "5983:1",
+            "src_char": "5976:1"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 150,
+            "src": "8270:9",
+            "src_char": "8245:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 151,
+            "src": "8311:9",
+            "src_char": "8286:9"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 154,
+            "src": "8434:10",
+            "src_char": "8409:10"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 155,
+            "src": "8476:10",
+            "src_char": "8451:10"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 160,
+            "src": "8769:10",
+            "src_char": "8744:10"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 465,
+            "src": "23674:4",
+            "src_char": "23641:4"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 544,
+            "src": "27824:3",
+            "src_char": "27789:3"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 576,
+            "src": "29639:3",
+            "src_char": "29602:3"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 576,
+            "src": "29653:3",
+            "src_char": "29616:3"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 577,
+            "src": "29714:3",
+            "src_char": "29677:3"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 577,
+            "src": "29728:3",
+            "src_char": "29691:3"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 633,
+            "src": "33053:3",
+            "src_char": "33016:3"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 876,
+            "src": "48883:2",
+            "src_char": "48840:2"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockBLSAggregator.sol",
+            "line_no": 25,
+            "src": "882:1",
+            "src_char": "880:1"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockBLSAggregator.sol",
+            "line_no": 26,
+            "src": "924:1",
+            "src_char": "922:1"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockUSDT.sol",
+            "line_no": 13,
+            "src": "546:1",
+            "src_char": "546:1"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockUSDT.sol",
+            "line_no": 26,
+            "src": "951:2",
+            "src_char": "951:2"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockUSDT.sol",
+            "line_no": 26,
+            "src": "956:2",
+            "src_char": "956:2"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockUSDT.sol",
+            "line_no": 26,
+            "src": "960:1",
+            "src_char": "960:1"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 674,
+            "src": "42396:1",
+            "src_char": "42327:1"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 675,
+            "src": "42471:1",
+            "src_char": "42402:1"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1111,
+            "src": "67830:1",
+            "src_char": "67724:1"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1112,
+            "src": "67878:1",
+            "src_char": "67772:1"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 1944,
+            "src": "115433:1",
+            "src_char": "115225:1"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 100,
+            "src": "4409:6",
+            "src_char": "4409:6"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 100,
+            "src": "4427:6",
+            "src_char": "4427:6"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 152,
+            "src": "6670:4",
+            "src_char": "6670:4"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 154,
+            "src": "6761:4",
+            "src_char": "6761:4"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 248,
+            "src": "10669:4",
+            "src_char": "10667:4"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 215,
+            "src": "10253:4",
+            "src_char": "10238:4"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 216,
+            "src": "10272:2",
+            "src_char": "10257:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 261,
+            "src": "12306:2",
+            "src_char": "12285:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 262,
+            "src": "12424:2",
+            "src_char": "12403:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 287,
+            "src": "13425:2",
+            "src_char": "13404:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 288,
+            "src": "13547:2",
+            "src_char": "13526:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 294,
+            "src": "13955:2",
+            "src_char": "13934:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 296,
+            "src": "14183:2",
+            "src_char": "14159:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 328,
+            "src": "15823:2",
+            "src_char": "15796:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 341,
+            "src": "16422:2",
+            "src_char": "16392:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 345,
+            "src": "16732:2",
+            "src_char": "16702:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 388,
+            "src": "19174:2",
+            "src_char": "19131:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 408,
+            "src": "20224:2",
+            "src_char": "20181:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 409,
+            "src": "20314:2",
+            "src_char": "20271:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 411,
+            "src": "20442:4",
+            "src_char": "20399:4"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 411,
+            "src": "20449:2",
+            "src_char": "20406:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 469,
+            "src": "23247:2",
+            "src_char": "23195:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 402,
+            "src": "19223:1",
+            "src_char": "19204:1"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 447,
+            "src": "21213:3",
+            "src_char": "21192:3"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 448,
+            "src": "21283:3",
+            "src_char": "21262:3"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 449,
+            "src": "21337:2",
+            "src_char": "21316:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 460,
+            "src": "21686:1",
+            "src_char": "21665:1"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 489,
+            "src": "22713:1",
+            "src_char": "22692:1"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 571,
+            "src": "26299:8",
+            "src_char": "26275:8"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 595,
+            "src": "27541:2",
+            "src_char": "27517:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 612,
+            "src": "28288:2",
+            "src_char": "28264:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 612,
+            "src": "28338:2",
+            "src_char": "28314:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 667,
+            "src": "30564:8",
+            "src_char": "30538:8"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+            "line_no": 85,
+            "src": "5606:2",
+            "src_char": "5600:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+            "line_no": 103,
+            "src": "6554:2",
+            "src_char": "6548:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+            "line_no": 108,
+            "src": "6975:2",
+            "src_char": "6969:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+            "line_no": 109,
+            "src": "7051:2",
+            "src_char": "7045:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+            "line_no": 117,
+            "src": "7464:2",
+            "src_char": "7458:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+            "line_no": 118,
+            "src": "7567:2",
+            "src_char": "7561:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+            "line_no": 123,
+            "src": "7956:2",
+            "src_char": "7950:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 213,
+            "src": "9914:9",
+            "src_char": "9388:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 274,
+            "src": "12590:2",
+            "src_char": "11987:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 275,
+            "src": "12677:2",
+            "src_char": "12074:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 486,
+            "src": "22342:2",
+            "src_char": "21656:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 486,
+            "src": "22349:2",
+            "src_char": "21663:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 488,
+            "src": "22404:2",
+            "src_char": "21718:2"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 656,
+            "src": "30560:9",
+            "src_char": "29798:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 209,
+            "src": "9504:9",
+            "src_char": "9496:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 215,
+            "src": "9844:6",
+            "src_char": "9836:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 216,
+            "src": "9885:12",
+            "src_char": "9877:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 219,
+            "src": "10057:12",
+            "src_char": "10049:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 220,
+            "src": "10101:12",
+            "src_char": "10093:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 221,
+            "src": "10145:12",
+            "src_char": "10137:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 304,
+            "src": "13513:2",
+            "src_char": "13503:2"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 324,
+            "src": "14228:9",
+            "src_char": "14218:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 329,
+            "src": "14424:9",
+            "src_char": "14414:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 356,
+            "src": "15350:9",
+            "src_char": "15340:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 360,
+            "src": "15498:9",
+            "src_char": "15488:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 453,
+            "src": "20186:5",
+            "src_char": "20171:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 453,
+            "src": "20219:5",
+            "src_char": "20204:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 454,
+            "src": "20266:5",
+            "src_char": "20251:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 454,
+            "src": "20299:5",
+            "src_char": "20284:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 508,
+            "src": "23011:6",
+            "src_char": "22992:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 602,
+            "src": "26040:2",
+            "src_char": "26021:2"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+            "line_no": 120,
+            "src": "5708:4",
+            "src_char": "5704:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+            "line_no": 158,
+            "src": "7355:4",
+            "src_char": "7351:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+            "line_no": 209,
+            "src": "10254:4",
+            "src_char": "10248:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol",
+            "line_no": 209,
+            "src": "10906:4",
+            "src_char": "10901:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol",
+            "line_no": 456,
+            "src": "22261:4",
+            "src_char": "22251:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 246,
+            "src": "12284:4",
+            "src_char": "12279:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 249,
+            "src": "12481:4",
+            "src_char": "12476:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 249,
+            "src": "12493:4",
+            "src_char": "12488:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 193,
+            "src": "8520:9",
+            "src_char": "8510:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 199,
+            "src": "8860:6",
+            "src_char": "8850:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 200,
+            "src": "8901:12",
+            "src_char": "8891:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 203,
+            "src": "9073:12",
+            "src_char": "9063:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 204,
+            "src": "9117:12",
+            "src_char": "9107:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 205,
+            "src": "9161:12",
+            "src_char": "9151:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 292,
+            "src": "12618:2",
+            "src_char": "12608:2"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 312,
+            "src": "13333:9",
+            "src_char": "13323:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 317,
+            "src": "13529:9",
+            "src_char": "13519:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 344,
+            "src": "14455:9",
+            "src_char": "14445:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 348,
+            "src": "14603:9",
+            "src_char": "14593:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 437,
+            "src": "19043:5",
+            "src_char": "19030:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 437,
+            "src": "19076:5",
+            "src_char": "19063:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 438,
+            "src": "19123:5",
+            "src_char": "19110:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 438,
+            "src": "19156:5",
+            "src_char": "19143:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 492,
+            "src": "21868:6",
+            "src_char": "21851:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 586,
+            "src": "24897:2",
+            "src_char": "24880:2"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 428,
+            "src": "19491:4",
+            "src_char": "19477:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 512,
+            "src": "23764:4",
+            "src_char": "23744:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 512,
+            "src": "23776:4",
+            "src_char": "23756:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 586,
+            "src": "27115:4",
+            "src_char": "27087:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 620,
+            "src": "28778:4",
+            "src_char": "28739:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 624,
+            "src": "29078:4",
+            "src_char": "29035:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 624,
+            "src": "29090:4",
+            "src_char": "29047:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 845,
+            "src": "41059:4",
+            "src_char": "40982:4"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 874,
+            "src": "42820:3",
+            "src_char": "42733:3"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 876,
+            "src": "42904:3",
+            "src_char": "42817:3"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 877,
+            "src": "42964:3",
+            "src_char": "42877:3"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 878,
+            "src": "43002:3",
+            "src_char": "42915:3"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 878,
+            "src": "43008:3",
+            "src_char": "42921:3"
+          }
+        ]
+      },
+      {
+        "title": "Event is missing `indexed` fields",
+        "description": "Index event fields make the field more quickly accessible to off-chain tools that parse events. However, note that each index field costs extra gas during emission, so it's not necessarily best to index the maximum allowed per event (three fields). Each event should use three indexed fields if there are three or more fields, and gas usage is not particularly of concern for the events in question. If there are fewer than three fields, all of the fields should be indexed.",
+        "detector_name": "unindexed-events",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 450,
+            "src": "18242:85",
+            "src_char": "18228:85"
+          },
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 452,
+            "src": "18417:76",
+            "src_char": "18403:76"
+          },
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 483,
+            "src": "19699:165",
+            "src_char": "19685:165"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 472,
+            "src": "23963:85",
+            "src_char": "23930:85"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 473,
+            "src": "24053:60",
+            "src_char": "24020:60"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 476,
+            "src": "24295:50",
+            "src_char": "24262:50"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 477,
+            "src": "24350:69",
+            "src_char": "24317:69"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 481,
+            "src": "24654:184",
+            "src_char": "24621:184"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 488,
+            "src": "24843:94",
+            "src_char": "24810:94"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/IPaymasterRouter.sol",
+            "line_no": 18,
+            "src": "818:113",
+            "src_char": "818:113"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/IPaymasterRouter.sol",
+            "line_no": 25,
+            "src": "1001:118",
+            "src_char": "1001:118"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/IPaymasterRouter.sol",
+            "line_no": 32,
+            "src": "1191:93",
+            "src_char": "1191:93"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/IPaymasterRouter.sol",
+            "line_no": 38,
+            "src": "1355:120",
+            "src_char": "1355:120"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/IPaymasterRouter.sol",
+            "line_no": 45,
+            "src": "1541:121",
+            "src_char": "1541:121"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/ISuperPaymaster.sol",
+            "line_no": 49,
+            "src": "1749:66",
+            "src_char": "1741:66"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/ISuperPaymaster.sol",
+            "line_no": 50,
+            "src": "1820:66",
+            "src_char": "1812:66"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/ISuperPaymaster.sol",
+            "line_no": 51,
+            "src": "1891:89",
+            "src_char": "1883:89"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/ISuperPaymaster.sol",
+            "line_no": 53,
+            "src": "2089:113",
+            "src_char": "2081:113"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/ISuperPaymaster.sol",
+            "line_no": 54,
+            "src": "2207:82",
+            "src_char": "2199:82"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/ISuperPaymaster.sol",
+            "line_no": 55,
+            "src": "2294:68",
+            "src_char": "2286:68"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IGTokenStaking.sol",
+            "line_no": 54,
+            "src": "1745:166",
+            "src_char": "1743:166"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IGTokenStaking.sol",
+            "line_no": 69,
+            "src": "2070:196",
+            "src_char": "2068:196"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IGTokenStaking.sol",
+            "line_no": 78,
+            "src": "2272:128",
+            "src_char": "2270:128"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IGTokenStaking.sol",
+            "line_no": 86,
+            "src": "2502:57",
+            "src_char": "2500:57"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/ILivenessRegistry.sol",
+            "line_no": 32,
+            "src": "2570:66",
+            "src_char": "2266:66"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/ILivenessRegistry.sol",
+            "line_no": 35,
+            "src": "2734:66",
+            "src_char": "2430:66"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IPolicyRegistry.sol",
+            "line_no": 349,
+            "src": "24778:182",
+            "src_char": "21752:182"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IPolicyRegistry.sol",
+            "line_no": 356,
+            "src": "24965:208",
+            "src_char": "21939:208"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IPolicyRegistry.sol",
+            "line_no": 386,
+            "src": "25883:74",
+            "src_char": "22857:74"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IRegistry.sol",
+            "line_no": 77,
+            "src": "2840:144",
+            "src_char": "2836:144"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IRegistry.sol",
+            "line_no": 84,
+            "src": "2990:137",
+            "src_char": "2986:137"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IRegistry.sol",
+            "line_no": 91,
+            "src": "3133:113",
+            "src_char": "3129:113"
+          },
+          {
+            "contract_path": "contracts/src/interfaces/v3/IRegistry.sol",
+            "line_no": 97,
+            "src": "3252:134",
+            "src_char": "3248:134"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockAgentReputationRegistry.sol",
+            "line_no": 18,
+            "src": "564:128",
+            "src_char": "564:128"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 454,
+            "src": "27282:67",
+            "src_char": "27231:67"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 456,
+            "src": "27434:94",
+            "src_char": "27383:94"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 458,
+            "src": "27604:60",
+            "src_char": "27553:60"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 463,
+            "src": "27994:137",
+            "src_char": "27943:137"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 469,
+            "src": "28343:107",
+            "src_char": "28292:107"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 472,
+            "src": "28537:53",
+            "src_char": "28486:53"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 477,
+            "src": "28932:96",
+            "src_char": "28881:96"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 478,
+            "src": "29033:87",
+            "src_char": "28982:87"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 479,
+            "src": "29125:65",
+            "src_char": "29074:65"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 480,
+            "src": "29195:70",
+            "src_char": "29144:70"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 481,
+            "src": "29270:97",
+            "src_char": "29219:97"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 490,
+            "src": "30037:94",
+            "src_char": "29984:94"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 501,
+            "src": "31035:138",
+            "src_char": "30978:138"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 508,
+            "src": "31502:151",
+            "src_char": "31445:151"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 516,
+            "src": "32072:90",
+            "src_char": "32013:90"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 517,
+            "src": "32167:77",
+            "src_char": "32108:77"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 518,
+            "src": "32249:84",
+            "src_char": "32190:84"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 58,
+            "src": "2376:81",
+            "src_char": "2372:81"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 65,
+            "src": "2880:76",
+            "src_char": "2876:76"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 54,
+            "src": "1919:98",
+            "src_char": "1919:98"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 55,
+            "src": "2022:70",
+            "src_char": "2022:70"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 56,
+            "src": "2097:97",
+            "src_char": "2097:97"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 57,
+            "src": "2199:62",
+            "src_char": "2199:62"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 58,
+            "src": "2266:63",
+            "src_char": "2266:63"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol",
+            "line_no": 107,
+            "src": "4237:119",
+            "src_char": "4237:119"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol",
+            "line_no": 113,
+            "src": "4362:112",
+            "src_char": "4362:112"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol",
+            "line_no": 119,
+            "src": "4480:90",
+            "src_char": "4480:90"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol",
+            "line_no": 124,
+            "src": "4576:115",
+            "src_char": "4576:115"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol",
+            "line_no": 130,
+            "src": "4697:88",
+            "src_char": "4697:88"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol",
+            "line_no": 135,
+            "src": "4791:64",
+            "src_char": "4791:64"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 218,
+            "src": "10812:70",
+            "src_char": "10793:70"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 220,
+            "src": "10968:72",
+            "src_char": "10949:72"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 222,
+            "src": "11112:103",
+            "src_char": "11093:103"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 223,
+            "src": "11220:57",
+            "src_char": "11201:57"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 224,
+            "src": "11282:46",
+            "src_char": "11263:46"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 225,
+            "src": "11333:53",
+            "src_char": "11314:53"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 226,
+            "src": "11391:53",
+            "src_char": "11372:53"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 227,
+            "src": "11449:60",
+            "src_char": "11430:60"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 228,
+            "src": "11514:57",
+            "src_char": "11495:57"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 232,
+            "src": "11776:83",
+            "src_char": "11757:83"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 233,
+            "src": "11864:95",
+            "src_char": "11845:95"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 236,
+            "src": "12136:190",
+            "src_char": "12117:190"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 245,
+            "src": "12432:48",
+            "src_char": "12413:48"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 247,
+            "src": "12558:49",
+            "src_char": "12539:49"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 249,
+            "src": "12706:71",
+            "src_char": "12687:71"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 250,
+            "src": "12782:67",
+            "src_char": "12763:67"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 251,
+            "src": "12854:108",
+            "src_char": "12835:108"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 252,
+            "src": "12967:84",
+            "src_char": "12948:84"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 253,
+            "src": "13056:86",
+            "src_char": "13037:86"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 254,
+            "src": "13147:86",
+            "src_char": "13128:86"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 255,
+            "src": "13238:108",
+            "src_char": "13219:108"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 256,
+            "src": "13351:98",
+            "src_char": "13332:98"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 258,
+            "src": "13486:91",
+            "src_char": "13467:91"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 259,
+            "src": "13582:83",
+            "src_char": "13563:83"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 260,
+            "src": "13670:63",
+            "src_char": "13651:63"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 263,
+            "src": "13841:56",
+            "src_char": "13822:56"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol",
+            "line_no": 76,
+            "src": "3651:60",
+            "src_char": "3643:60"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol",
+            "line_no": 77,
+            "src": "3716:100",
+            "src_char": "3708:100"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol",
+            "line_no": 78,
+            "src": "3821:126",
+            "src_char": "3813:126"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 144,
+            "src": "6820:58",
+            "src_char": "6519:58"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 145,
+            "src": "6883:59",
+            "src_char": "6582:59"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 147,
+            "src": "6952:82",
+            "src_char": "6651:82"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 148,
+            "src": "7039:82",
+            "src_char": "6738:82"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 149,
+            "src": "7126:62",
+            "src_char": "6825:62"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 152,
+            "src": "7245:183",
+            "src_char": "6944:183"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 159,
+            "src": "7433:53",
+            "src_char": "7132:53"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 160,
+            "src": "7491:76",
+            "src_char": "7190:76"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 65,
+            "src": "2260:151",
+            "src_char": "2258:151"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
+            "line_no": 78,
+            "src": "2577:88",
+            "src_char": "2575:88"
+          },
+          {
+            "contract_path": "contracts/src/tokens/APNTsCapped.sol",
+            "line_no": 49,
+            "src": "2748:48",
+            "src_char": "2740:48"
+          },
+          {
+            "contract_path": "contracts/src/tokens/APNTsCapped.sol",
+            "line_no": 50,
+            "src": "2801:69",
+            "src_char": "2793:69"
+          },
+          {
+            "contract_path": "contracts/src/tokens/APNTsCapped.sol",
+            "line_no": 53,
+            "src": "3034:83",
+            "src_char": "3026:83"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 65,
+            "src": "2423:168",
+            "src_char": "2423:168"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 73,
+            "src": "2597:148",
+            "src_char": "2597:148"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 80,
+            "src": "2751:129",
+            "src_char": "2751:129"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 86,
+            "src": "2886:146",
+            "src_char": "2886:146"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 93,
+            "src": "3038:145",
+            "src_char": "3038:145"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 99,
+            "src": "3189:60",
+            "src_char": "3189:60"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 100,
+            "src": "3254:62",
+            "src_char": "3254:62"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 101,
+            "src": "3321:84",
+            "src_char": "3321:84"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 102,
+            "src": "3410:72",
+            "src_char": "3410:72"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 103,
+            "src": "3487:92",
+            "src_char": "3487:92"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 104,
+            "src": "3584:59",
+            "src_char": "3584:59"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/AOAProtocolRegistry.sol",
+            "line_no": 36,
+            "src": "1888:76",
+            "src_char": "1883:76"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 145,
+            "src": "6744:110",
+            "src_char": "6736:110"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 147,
+            "src": "6860:76",
+            "src_char": "6852:76"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 149,
+            "src": "6942:73",
+            "src_char": "6934:73"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 151,
+            "src": "7021:60",
+            "src_char": "7013:60"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 154,
+            "src": "7170:66",
+            "src_char": "7162:66"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 156,
+            "src": "7319:51",
+            "src_char": "7311:51"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 158,
+            "src": "7458:63",
+            "src_char": "7450:63"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 135,
+            "src": "6512:99",
+            "src_char": "6509:99"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 136,
+            "src": "6616:82",
+            "src_char": "6613:82"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 138,
+            "src": "6815:85",
+            "src_char": "6812:85"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 139,
+            "src": "6905:83",
+            "src_char": "6902:83"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 140,
+            "src": "6993:84",
+            "src_char": "6990:84"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 141,
+            "src": "7082:81",
+            "src_char": "7079:81"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 142,
+            "src": "7168:83",
+            "src_char": "7165:83"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 143,
+            "src": "7256:57",
+            "src_char": "7253:57"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 144,
+            "src": "7318:55",
+            "src_char": "7315:55"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 145,
+            "src": "7378:90",
+            "src_char": "7375:90"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 146,
+            "src": "7473:74",
+            "src_char": "7470:74"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 147,
+            "src": "7552:70",
+            "src_char": "7549:70"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 148,
+            "src": "7627:51",
+            "src_char": "7624:51"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 149,
+            "src": "7683:55",
+            "src_char": "7680:55"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 151,
+            "src": "7778:51",
+            "src_char": "7775:51"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 152,
+            "src": "7834:55",
+            "src_char": "7831:55"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 153,
+            "src": "7894:59",
+            "src_char": "7891:59"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 156,
+            "src": "8082:65",
+            "src_char": "8079:65"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 159,
+            "src": "8289:54",
+            "src_char": "8286:54"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 164,
+            "src": "8590:60",
+            "src_char": "8587:60"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 165,
+            "src": "8655:66",
+            "src_char": "8652:66"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 166,
+            "src": "8726:57",
+            "src_char": "8723:57"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 167,
+            "src": "8788:61",
+            "src_char": "8785:61"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 168,
+            "src": "8854:89",
+            "src_char": "8851:89"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 169,
+            "src": "8948:82",
+            "src_char": "8945:82"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 131,
+            "src": "5817:110",
+            "src_char": "5810:110"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 133,
+            "src": "5933:76",
+            "src_char": "5926:76"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 135,
+            "src": "6015:73",
+            "src_char": "6008:73"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 137,
+            "src": "6094:60",
+            "src_char": "6087:60"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 140,
+            "src": "6243:66",
+            "src_char": "6236:66"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 142,
+            "src": "6392:51",
+            "src_char": "6385:51"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 144,
+            "src": "6531:63",
+            "src_char": "6524:63"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 218,
+            "src": "10470:60",
+            "src_char": "10460:60"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 220,
+            "src": "10610:57",
+            "src_char": "10600:57"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 221,
+            "src": "10672:84",
+            "src_char": "10662:84"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 225,
+            "src": "10947:61",
+            "src_char": "10937:61"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 226,
+            "src": "11013:89",
+            "src_char": "11003:89"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 228,
+            "src": "11198:82",
+            "src_char": "11188:82"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 232,
+            "src": "11491:66",
+            "src_char": "11481:66"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 234,
+            "src": "11641:57",
+            "src_char": "11631:57"
+          }
+        ]
+      },
+      {
+        "title": "The `nonReentrant` `modifier` should occur before all other modifiers",
+        "description": "This is a best-practice to protect against reentrancy in other modifiers.",
+        "detector_name": "non-reentrant-before-others",
+        "instances": [
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 225,
+            "src": "10541:12",
+            "src_char": "10526:12"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 374,
+            "src": "18177:12",
+            "src_char": "18139:12"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 274,
+            "src": "13065:12",
+            "src_char": "13047:12"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 252,
+            "src": "11404:12",
+            "src_char": "10803:12"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 321,
+            "src": "14459:12",
+            "src_char": "13854:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 233,
+            "src": "7910:12",
+            "src_char": "7908:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 297,
+            "src": "10430:12",
+            "src_char": "10428:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 349,
+            "src": "12387:12",
+            "src_char": "12385:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 366,
+            "src": "13081:12",
+            "src_char": "13079:12"
+          }
+        ]
+      },
+      {
+        "title": "Using `ERC721::_mint()` can be dangerous",
+        "description": "Using `ERC721::_mint()` can mint ERC721 tokens to addresses which don't support ERC721 tokens. Use `_safeMint()` instead of `_mint()` for ERC721.",
+        "detector_name": "unsafe-oz-erc721-mint",
+        "instances": [
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 255,
+            "src": "8640:5",
+            "src_char": "8638:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 319,
+            "src": "11108:5",
+            "src_char": "11106:5"
+          }
+        ]
+      },
+      {
+        "title": "Modifiers invoked only once can be shoe-horned into the function",
+        "description": "",
+        "detector_name": "useless-modifier",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/PolicyRegistry.sol",
+            "line_no": 103,
+            "src": "6570:22",
+            "src_char": "5392:22"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 111,
+            "src": "5317:22",
+            "src_char": "5311:22"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 311,
+            "src": "15035:12",
+            "src_char": "15025:12"
+          }
+        ]
+      },
+      {
+        "title": "Empty Block",
+        "description": "Consider removing empty blocks.",
+        "detector_name": "empty-block",
+        "instances": [
+          {
+            "contract_path": "contracts/src/mocks/MockBLSAggregator.sol",
+            "line_no": 55,
+            "src": "1687:16",
+            "src_char": "1685:16"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockBLSAggregator.sol",
+            "line_no": 59,
+            "src": "1857:23",
+            "src_char": "1855:23"
+          },
+          {
+            "contract_path": "contracts/src/mocks/MockBLSAggregator.sol",
+            "line_no": 63,
+            "src": "1976:15",
+            "src_char": "1974:15"
+          }
+        ]
+      },
+      {
+        "title": "Large literal values multiples of 10000 can be replaced with scientific notation",
+        "description": "Use `e` notation, for example: `1e18`, instead of its full numeric value.",
+        "detector_name": "large-numeric-literal",
+        "instances": [
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 74,
+            "src": "2802:16",
+            "src_char": "2794:16"
+          },
+          {
+            "contract_path": "contracts/src/core/GTokenStaking.sol",
+            "line_no": 366,
+            "src": "15468:5",
+            "src_char": "15454:5"
+          },
+          {
+            "contract_path": "contracts/src/core/LivenessRegistry.sol",
+            "line_no": 67,
+            "src": "5240:10",
+            "src_char": "4922:10"
+          },
+          {
+            "contract_path": "contracts/src/core/Registry.sol",
+            "line_no": 164,
+            "src": "9076:13",
+            "src_char": "9051:13"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 358,
+            "src": "21116:5",
+            "src_char": "21081:5"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 359,
+            "src": "21179:5",
+            "src_char": "21144:5"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 100,
+            "src": "4409:6",
+            "src_char": "4409:6"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 100,
+            "src": "4427:6",
+            "src_char": "4427:6"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 100,
+            "src": "4443:7",
+            "src_char": "4443:7"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 80,
+            "src": "4078:7",
+            "src_char": "4064:7"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol",
+            "line_no": 81,
+            "src": "4137:6",
+            "src_char": "4123:6"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+            "line_no": 52,
+            "src": "3184:6",
+            "src_char": "3181:6"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 171,
+            "src": "8077:7",
+            "src_char": "8059:7"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 193,
+            "src": "9631:7",
+            "src_char": "9612:7"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 194,
+            "src": "9689:7",
+            "src_char": "9670:7"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 198,
+            "src": "9903:9",
+            "src_char": "9884:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 199,
+            "src": "9969:6",
+            "src_char": "9950:6"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 200,
+            "src": "10024:9",
+            "src_char": "10005:9"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 203,
+            "src": "10188:6",
+            "src_char": "10169:6"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 207,
+            "src": "10334:5",
+            "src_char": "10315:5"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol",
+            "line_no": 49,
+            "src": "2392:5",
+            "src_char": "2384:5"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 46,
+            "src": "2349:5",
+            "src_char": "2274:5"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 174,
+            "src": "8326:7",
+            "src_char": "7950:7"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 215,
+            "src": "9844:6",
+            "src_char": "9836:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 216,
+            "src": "9885:12",
+            "src_char": "9877:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 217,
+            "src": "9963:12",
+            "src_char": "9955:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 218,
+            "src": "10010:12",
+            "src_char": "10002:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 219,
+            "src": "10057:12",
+            "src_char": "10049:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 324,
+            "src": "14228:9",
+            "src_char": "14218:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 356,
+            "src": "15350:9",
+            "src_char": "15340:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 453,
+            "src": "20186:5",
+            "src_char": "20171:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 453,
+            "src": "20219:5",
+            "src_char": "20204:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 454,
+            "src": "20266:5",
+            "src_char": "20251:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 454,
+            "src": "20299:5",
+            "src_char": "20284:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsFactoryV2.sol",
+            "line_no": 508,
+            "src": "23011:6",
+            "src_char": "22992:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+            "line_no": 85,
+            "src": "3731:12",
+            "src_char": "3727:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol",
+            "line_no": 36,
+            "src": "1766:12",
+            "src_char": "1766:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol",
+            "line_no": 41,
+            "src": "2055:6",
+            "src_char": "2055:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol",
+            "line_no": 463,
+            "src": "22543:6",
+            "src_char": "22533:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 33,
+            "src": "1858:12",
+            "src_char": "1858:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 34,
+            "src": "1966:12",
+            "src_char": "1966:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/v2/xPNTsV2Base.sol",
+            "line_no": 36,
+            "src": "2128:7",
+            "src_char": "2128:7"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 199,
+            "src": "8860:6",
+            "src_char": "8850:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 200,
+            "src": "8901:12",
+            "src_char": "8891:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 201,
+            "src": "8979:12",
+            "src_char": "8969:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 202,
+            "src": "9026:12",
+            "src_char": "9016:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 203,
+            "src": "9073:12",
+            "src_char": "9063:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 312,
+            "src": "13333:9",
+            "src_char": "13323:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 344,
+            "src": "14455:9",
+            "src_char": "14445:9"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 437,
+            "src": "19043:5",
+            "src_char": "19030:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 437,
+            "src": "19076:5",
+            "src_char": "19063:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 438,
+            "src": "19123:5",
+            "src_char": "19110:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 438,
+            "src": "19156:5",
+            "src_char": "19143:5"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsFactory.sol",
+            "line_no": 492,
+            "src": "21868:6",
+            "src_char": "21851:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 145,
+            "src": "6702:12",
+            "src_char": "6700:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 384,
+            "src": "17689:12",
+            "src_char": "17679:12"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 853,
+            "src": "41449:6",
+            "src_char": "41372:6"
+          },
+          {
+            "contract_path": "contracts/src/tokens/xPNTsToken.sol",
+            "line_no": 1117,
+            "src": "56146:6",
+            "src_char": "56026:6"
+          }
+        ]
+      },
+      {
+        "title": "Inconsistency in declaring uint256/uint (or) int256/int variables within a contract. Use explicit size declarations (uint256 or int256).",
+        "description": "Consider keeping the naming convention consistent in a given contract. Explicit size declarations are preferred (uint256, int256) over implicit ones (uint, int) to avoid confusion.",
+        "detector_name": "inconsistent-type-names",
+        "instances": [
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 131,
+            "src": "5715:1",
+            "src_char": "5715:1"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 135,
+            "src": "5876:1",
+            "src_char": "5876:1"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 158,
+            "src": "6825:1",
+            "src_char": "6825:1"
+          },
+          {
+            "contract_path": "contracts/src/modules/reputation/ReputationSystem.sol",
+            "line_no": 251,
+            "src": "10739:1",
+            "src_char": "10737:1"
+          },
+          {
+            "contract_path": "contracts/src/tokens/MySBT.sol",
+            "line_no": 414,
+            "src": "14827:1",
+            "src_char": "14825:1"
+          }
+        ]
+      },
+      {
+        "title": "Unused Custom Error",
+        "description": "it is recommended that the definition be removed when custom error is unused",
+        "detector_name": "useless-error",
+        "instances": [
+          {
+            "contract_path": "contracts/src/interfaces/v3/IPolicyRegistry.sol",
+            "line_no": 396,
+            "src": "26757:23",
+            "src_char": "23439:23"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/BLSAggregator.sol",
+            "line_no": 546,
+            "src": "33789:22",
+            "src_char": "33730:22"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 72,
+            "src": "3299:21",
+            "src_char": "3295:21"
+          },
+          {
+            "contract_path": "contracts/src/modules/monitoring/DVTValidator.sol",
+            "line_no": 73,
+            "src": "3325:22",
+            "src_char": "3321:22"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 276,
+            "src": "14255:27",
+            "src_char": "14236:27"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+            "line_no": 283,
+            "src": "14470:22",
+            "src_char": "14451:22"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/Paymaster.sol",
+            "line_no": 35,
+            "src": "1902:34",
+            "src_char": "1752:34"
+          },
+          {
+            "contract_path": "contracts/src/paymasters/v4/PaymasterBase.sol",
+            "line_no": 122,
+            "src": "5696:39",
+            "src_char": "5470:39"
+          },
+          {
+            "contract_path": "contracts/src/utils/BLS.sol",
+            "line_no": 86,
+            "src": "3703:20",
+            "src_char": "3478:20"
+          },
+          {
+            "contract_path": "contracts/src/utils/BLS.sol",
+            "line_no": 89,
+            "src": "3770:20",
+            "src_char": "3545:20"
+          },
+          {
+            "contract_path": "contracts/src/utils/BLS.sol",
+            "line_no": 92,
+            "src": "3837:20",
+            "src_char": "3612:20"
+          },
+          {
+            "contract_path": "contracts/src/utils/BLS.sol",
+            "line_no": 95,
+            "src": "3904:20",
+            "src_char": "3679:20"
+          },
+          {
+            "contract_path": "contracts/src/utils/BLS.sol",
+            "line_no": 98,
+            "src": "3973:22",
+            "src_char": "3748:22"
+          },
+          {
+            "contract_path": "contracts/src/utils/BLS.sol",
+            "line_no": 101,
+            "src": "4046:24",
+            "src_char": "3821:24"
+          },
+          {
+            "contract_path": "contracts/src/utils/BLS.sol",
+            "line_no": 104,
+            "src": "4121:25",
+            "src_char": "3896:25"
+          }
+        ]
+      },
+      {
+        "title": "Redundant statements have no effect.",
+        "description": "Remove the redundant statements because no code will be generated and it just congests the codebase.",
+        "detector_name": "redundant-statements",
+        "instances": [
+          {
+            "contract_path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol",
+            "line_no": 427,
+            "src": "19924:5",
+            "src_char": "19905:5"
+          }
+        ]
+      }
+    ]
+  },
+  "detectors_used": [
+    "delegate-call-in-loop",
+    "centralization-risk",
+    "solmate-safe-transfer-lib",
+    "avoid-abi-encode-packed",
+    "ecrecover",
+    "deprecated-oz-functions",
+    "unsafe-erc20-functions",
+    "unspecific-solidity-pragma",
+    "zero-address-check",
+    "useless-public-function",
+    "constants-instead-of-literals",
+    "unindexed-events",
+    "require-with-string",
+    "non-reentrant-before-others",
+    "block-timestamp-deadline",
+    "unsafe-oz-erc721-mint",
+    "push-zero-opcode",
+    "arbitrary-transfer-from",
+    "useless-modifier",
+    "empty-block",
+    "large-numeric-literal",
+    "useless-internal-function",
+    "contract-with-todos",
+    "inconsistent-type-names",
+    "unprotected-initializer",
+    "useless-error",
+    "reverts-and-requires-in-loops",
+    "division-before-multiplication",
+    "unsafe-casting-detector",
+    "enumerable-loop-removal",
+    "experimental-encoder",
+    "incorrect-shift-order",
+    "storage-array-edit-with-memory",
+    "multiple-constructors",
+    "reused-contract-name",
+    "nested-struct-in-mapping",
+    "selfdestruct-identifier",
+    "dynamic-array-length-assignment",
+    "uninitialized-state-variable",
+    "incorrect-caret-operator",
+    "yul-return",
+    "state-variable-shadowing",
+    "unchecked-send",
+    "misused-boolean",
+    "send-ether-no-checks",
+    "delegate-call-unchecked-address",
+    "tautological-compare",
+    "rtlo",
+    "unchecked-return",
+    "dangerous-unary-operator",
+    "tautology-or-contradiction",
+    "dangerous-strict-equailty-on-contract-balance",
+    "signed-storage-array",
+    "redundant-statements",
+    "public-variable-read-in-external-context",
+    "weak-randomness",
+    "pre-declared-local-variable-usage",
+    "delete-nested-mapping",
+    "constant-functions-assembly",
+    "boolean-equality",
+    "tx-origin-used-for-auth",
+    "msg-value-in-loop",
+    "contract-locks-ether"
+  ]
+}

@@ -16,7 +16,9 @@ import { IVersioned } from "src/interfaces/IVersioned.sol";
  *         upgrade. Roles:
  *           - owner (Ownable2Step; intended: the GOV-1 48h TimelockController whose proposer /
  *             canceller is the governance multisig): raiseCap, setMinter, setCapGuardian.
- *             Raising the cap is therefore always publicly queued for 48h.
+ *             Once ownership has been accepted by that correctly configured timelock, raising
+ *             the cap is publicly queued for 48h. This contract enforces only the owner check;
+ *             deployment must verify the owner's timelock configuration.
  *           - minter (governance multisig): mint, and only while totalSupply + amount <= cap.
  *           - capGuardian (governance multisig, no timelock): lowerCap — the safe direction,
  *             effective immediately. The owner may also lower.
@@ -28,7 +30,8 @@ contract APNTsCapped is ERC20, ERC20Permit, Ownable2Step, IVersioned {
     /// @notice Maximum totalSupply reachable through `mint` (enforced, not advisory).
     /// @dev    Deployment values (author decisions, 2026-09-13): mainnet initial cap 300,000e18
     ///         aPNTs; Sepolia 10,000,000e18 (TEST_CAP_SEPOLIA — a test value). Set by
-    ///         contracts/script/v3/DeployAPNTsCapped.s.sol; raised only through the 48h timelock.
+    ///         contracts/script/v3/DeployAPNTsCapped.s.sol; the deployment procedure hands
+    ///         ownership to the verified 48h timelock before the token enters service.
     uint256 public cap;
     /// @notice The only address allowed to mint.
     address public minter;
@@ -104,7 +107,7 @@ contract APNTsCapped is ERC20, ERC20Permit, Ownable2Step, IVersioned {
     // Cap governance
     // ------------------------------------------------------------------
 
-    /// @notice Raise the cap. Owner only (the 48h timelock), strictly upwards.
+    /// @notice Raise the cap. Owner only (intended to be the verified 48h timelock), strictly upwards.
     function raiseCap(uint256 newCap) external onlyOwner {
         uint256 old = cap;
         if (newCap <= old) revert CapNotRaised(old, newCap);

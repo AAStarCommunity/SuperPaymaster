@@ -77,6 +77,8 @@ interface ILensL4 {
  *     --sig "verify()" --rpc-url http://127.0.0.1:8545 -vv
  */
 contract L4GaslessTest is V55Bootstrap {
+    string internal constant SNAPSHOT_SCHEMA = "superpaymaster-l4-gasless/1";
+    uint256 internal constant DEFAULT_VERIFY_MAX_AGE_BLOCKS = 256;
     bytes32 internal constant ROLE_ENDUSER_L4 = keccak256("ENDUSER");
     uint256 internal constant ANVIL_DEPLOYER_PK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     uint256 internal constant ANVIL_ANNI_PK = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
@@ -206,6 +208,13 @@ contract L4GaslessTest is V55Bootstrap {
 
         // Persist for verify(): the simulated outcome above is re-checked against live chain state.
         string memory k = "l4";
+        vm.serializeString(k, "schema", SNAPSHOT_SCHEMA);
+        vm.serializeUint(k, "chainId", block.chainid);
+        require(block.number != 0, "L4: cannot bind snapshot at genesis");
+        vm.serializeUint(k, "runHeadBlock", block.number);
+        vm.serializeBytes32(k, "runParentBlockHash", blockhash(block.number - 1));
+        vm.serializeAddress(k, "entryPoint", c.entryPoint);
+        vm.serializeAddress(k, "superPaymaster", c.sp);
         vm.serializeAddress(k, "account", account);
         vm.serializeAddress(k, "operator", anni);
         vm.serializeAddress(k, "token", c.token);
@@ -225,6 +234,27 @@ contract L4GaslessTest is V55Bootstrap {
     function verify() external view {
         (Cfg memory c, string memory network) = _cfg();
         string memory j = vm.readFile(_outPath(network));
+        require(
+            keccak256(bytes(vm.parseJsonString(j, ".schema"))) == keccak256(bytes(SNAPSHOT_SCHEMA)),
+            "L4 verify: snapshot schema mismatch"
+        );
+        require(vm.parseJsonUint(j, ".chainId") == block.chainid, "L4 verify: snapshot chainId mismatch");
+        require(vm.parseJsonAddress(j, ".entryPoint") == c.entryPoint, "L4 verify: snapshot EntryPoint mismatch");
+        require(vm.parseJsonAddress(j, ".superPaymaster") == c.sp, "L4 verify: snapshot SP mismatch");
+        require(vm.parseJsonAddress(j, ".token") == c.token, "L4 verify: snapshot token mismatch");
+        uint256 runHead = vm.parseJsonUint(j, ".runHeadBlock");
+        require(runHead <= block.number, "L4 verify: snapshot head is in the future");
+        require(
+            block.number - runHead <= DEFAULT_VERIFY_MAX_AGE_BLOCKS,
+            "L4 verify: snapshot is stale"
+        );
+        require(runHead != 0, "L4 verify: snapshot head has no parent");
+        bytes32 parentHash = blockhash(runHead - 1);
+        require(parentHash != bytes32(0), "L4 verify: snapshot parent blockhash unavailable");
+        require(
+            parentHash == vm.parseJsonBytes32(j, ".runParentBlockHash"),
+            "L4 verify: snapshot is from another fork/reorg"
+        );
         address account = vm.parseJsonAddress(j, ".account");
         address operator = vm.parseJsonAddress(j, ".operator");
         bytes32 opHash = vm.parseJsonBytes32(j, ".opHash");

@@ -34,6 +34,9 @@
 #   without re-deriving anything by hand.
 set -uo pipefail
 ENVFILE="$1"; FORK_BLOCK="$2"; OUT="$3"; STAGE="${4:-all}"
+# stage_on <name>: STAGE is "all", an exact stage name, or a comma-separated list (e.g. "0,I") --
+# useful while iterating on one stage at a time without waiting through the whole thing.
+stage_on() { [ "$STAGE" = "all" ] && return 0; case ",$STAGE," in *",$1,"*) return 0 ;; esac; return 1; }
 export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH"
 W="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$W"
@@ -43,10 +46,13 @@ RPC_URL_FORK="$(grep -E '^RPC_URL=' "$ENVFILE" | head -1 | cut -d= -f2- | tr -d 
 
 OWNER=0xb5600060e6de5E11D3636731964218E53caadf0E   # live SP+Registry+Timelock(proposer/canceller/executor/admin) EOA
 ANNI=0xEcAACb915f7D92e9916f449F7ad42BD0408733c9    # live operator (community: Mycelium)
+GOV_MULTISIG=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114   # Mycelium governance multisig (APNTsCapped minter/capGuardian/timelock proposer)
 SP=0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
 REG=0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
 TL=0x86C86c789EDc099801cc6a5F48334F1D67dC9564
 EP=0x0000000071727De22E5E9d8BAf0edAc6f37da032
+OLD_APNTS=0x696A73701b104c6cCBbAadDD2216788ea08EaB89   # SP.APNTS_TOKEN() pre-switch (OWNER's balance is in this)
+PRICE_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306   # ETH/USD Chainlink proxy (deployments/config.sepolia.json .priceFeed)
 ENVNAME=sepolia
 LOG=script/evidence/run-logged.sh
 # MANIFEST is a REAL, non-negotiable path: UpgradeViaTimelock.s.sol's _cfg()/_manifest() build it from
@@ -64,6 +70,12 @@ if [ -f "$W/$MANIFEST" ]; then
   cp "$W/$MANIFEST" "$MANIFEST_BACKUP"
   echo "NOTE: $MANIFEST already exists (real committed manifest?) -- backed up to $MANIFEST_BACKUP, will be restored on exit, never deleted." | tee -a "$OUT/rehearsal.log" 2>/dev/null || true
 fi
+# FAILURES: read-back markers below are checked with `grep -q ... && ok || warn`, which by design
+# never aborts the script mid-run (so every stage still gets attempted and logged). Without this
+# counter that pattern degenerates into a false-positive gate: every warning was previously just an
+# echoed "!!!" line, and the script printed "REHEARSAL OK" unconditionally at the bottom regardless
+# of how many read-backs actually failed. Every soft-failure site below must increment this.
+FAILURES=0
 PIDS=()
 cleanup() {
   for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null; done
@@ -77,6 +89,10 @@ cleanup() {
   # are namespaced with a "fork-rehearsal-" prefix specifically so they can never collide with a real
   # attestation someone files for an actual governance action -- so a plain rm -f here is safe.
   rm -f "$W"/deployments/attestations/timelock-roles."$ENVNAME".fork-rehearsal-*.json
+  # "sepolia-fork" is not a real network name used anywhere else in this repo (only "sepolia" is a
+  # real deployment target), so this path can never collide with a real committed config -- safe to
+  # unconditionally remove, unlike $MANIFEST above.
+  rm -f "$W/deployments/config.sepolia-fork.json"
 }
 trap cleanup EXIT
 
@@ -86,10 +102,99 @@ must_fail() { local what="$1"; shift; if "$@" >"$OUT/neg.log" 2>&1; then echo "N
 txhash() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).transactionHash))'; }
 warp48h() { cast rpc evm_increaseTime 172800 --rpc-url "$RPC" >/dev/null; cast rpc evm_mine --rpc-url "$RPC" >/dev/null; }
 impl_of() { cast storage "$1" 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$RPC" | sed 's/0x000000000000000000000000/0x/'; }
+# refresh_oracle: a REAL, EXPECTED consequence of this rehearsal's own methodology, not a forge
+# bug -- warping the fork's clock 7 real days forward (APNTS_TOKEN_TIMELOCK, see warp48h/the A1e
+# fast-forward) leaves the forked Chainlink ETH/USD feed's `latestRoundData().updatedAt` exactly
+# as stale as it was at the fork block, since no new oracle round ever arrives on a frozen fork.
+# By the time SP.updatePrice() runs (step 7c), that staleness is ~9 days, past the ~4200s
+# priceStalenessThreshold recorded for Sepolia in 03-final-spec.md §6 step 5, so it reverts
+# OracleError() -- confirmed against real Sepolia state (round 36140, answer 248734837246,
+# updatedAt 1789715436 unchanged since the fork block; the fork's block.timestamp had moved to
+# 1790493075+). Fix: overwrite ONLY the round's packed timestamp field, in place, on the FORK
+# (anvil_setStorageAt -- never valid off a fork), leaving the price answer itself untouched.
+# Chainlink's OffchainAggregator packs `struct Transmission { int192 answer; uint64 timestamp; }`
+# into one slot of `mapping(uint32 => Transmission) s_transmissions` at a base slot that is fixed
+# for a given aggregator's bytecode but not published as part of its ABI, so this brute-forces the
+# base slot (0..80) by matching the CURRENTLY-known answer+timestamp against candidate
+# keccak256(roundId . baseSlot) reads, rather than hardcoding a slot index that could silently go
+# stale if Chainlink ever redeploys the underlying aggregator behind the (stable) proxy address.
+# Confirmed empirically on a Sepolia fork of block 11729160: base slot 44, roundId 36140.
+refresh_oracle() {
+  local agg roundid answer started updated answered_in nowts base found_base slot val intval expect keyhex slothex newval
+  agg=$(cast call "$PRICE_FEED" 'aggregator()(address)' --rpc-url "$RPC")
+  read -r roundid answer started updated answered_in <<< "$(cast call "$agg" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' --rpc-url "$RPC" | tr '\n' ' ' | sed 's/\[[^]]*\]//g')"
+  nowts=$(cast block latest --rpc-url "$RPC" --field timestamp)
+  expect=$(python3 -c "print(int('$answer') + (int('$updated') << 192))")
+  found_base=""
+  for base in $(seq 0 80); do
+    keyhex=$(printf '%064x' "$roundid")
+    slothex=$(printf '%064x' "$base")
+    slot=$(cast keccak "0x${keyhex}${slothex}")
+    val=$(cast storage "$agg" "$slot" --rpc-url "$RPC" 2>/dev/null)
+    intval=$(python3 -c "print(int('$val',16))" 2>/dev/null)
+    if [ "$intval" = "$expect" ]; then found_base=$base; found_slot=$slot; break; fi
+  done
+  if [ -z "$found_base" ]; then
+    echo "  !!! refresh_oracle: could not locate s_transmissions[$roundid] on $agg (base 0..80) -- oracle-dependent steps will fail" | tee -a "$OUT/rehearsal.log"
+    FAILURES=$((FAILURES+1))
+    return 1
+  fi
+  newval=$(python3 -c "print(format(int('$answer') + ($nowts << 192), '064x'))")
+  cast rpc anvil_setStorageAt "$agg" "$found_slot" "0x$newval" --rpc-url "$RPC" >/dev/null
+  cast rpc evm_mine --rpc-url "$RPC" >/dev/null
+  echo "  refresh_oracle: aggregator=$agg round=$roundid answer=$answer updatedAt $updated -> $nowts (base slot $found_base)" | tee -a "$OUT/rehearsal.log"
+}
 fscript_tl() { # <contract> <sender> [env...]
   local c="$1" s="$2"; shift 2
-  env ENV="$ENVNAME" "$@" forge script "contracts/script/v3/UpgradeViaTimelock.s.sol:$c" \
-    --rpc-url "$RPC" --unlocked --sender "$s" --broadcast --slow 2>&1
+  # ROOT-CAUSED (D5c-2 follow-up session, forge 1.7.1). UpgradeViaTimelock.s.sol (via
+  # UpgradeRegistryD5b/D5bUpgradeChecks) imports Registry.sol, so it's dual-compiled by
+  # foundry.toml's compilation_restrictions -> out/<File>.sol/<Contract>.default.json +
+  # <Contract>.registry-size.json, no bare <Contract>.json. Two DISTINCT, now fully
+  # mechanistic (not flaky) forge 1.7.1 bugs sit on opposite sides of this:
+  #   (a) `forge script <file>:<Contract>` target-contract resolution is broken specifically
+  #       on the "No files changed, compilation skipped" cache-hit fast path: whenever the
+  #       SolFilesCache reports the file unchanged, forge fails "Could not find target
+  #       contract" for any contract whose only artifacts are profile-suffixed. Reproduces
+  #       100/100 on that fast path (confirmed even immediately after a from-scratch
+  #       `rm -rf cache out && forge build`, since a fresh build IS "unchanged" on the very
+  #       next invocation); resolves 100/100 the moment forge is forced through a REAL
+  #       recompile of that file instead of the fast path.
+  #   (b) `--force` "fixes" (a) by forcing a real recompile, but --force has its own bug: it
+  #       scopes out/ artifact RETENTION to only the invoked script's actual `import` closure
+  #       and prunes everything else -- reproduced 100/100 here, not the "non-deterministic"
+  #       behavior an earlier session reported (that earlier read was confounded by which
+  #       TL_MODE ran last). DefaultArtifacts.sol's _requireDefaultProxy() reads
+  #       out/ERC1967Proxy.sol/* via vm.readFile (deliberately not `import`ed -- it needs the
+  #       profile.default build regardless of which profile the CURRENT invocation compiled
+  #       under), so --force reliably evicts it even when a preceding project-wide
+  #       `forge build --force` had just written it.
+  # Fix: get a real recompile WITHOUT --force's over-pruning by deleting only
+  # cache/solidity-files-cache.json (forge's actual SolFilesCache index -- NOT the whole
+  # cache/ dir: this repo's own scripts use cache/evidence-d5b-fork/ as a writable scratch
+  # dir for run()'s V55_OUT_CONFIG output, unrelated to forge's build cache but sharing the
+  # cache/ prefix by fs_permissions convention -- `rm -rf cache` here silently destroyed A3's
+  # freshly-written config.sepolia-fork.json before A5 could read it, a real regression caught
+  # by actually running the rehearsal, not just isolated forge-only testing), and dropping
+  # --force from the forge-script invocation entirely. Deleting solidity-files-cache.json
+  # invalidates the cache entry so the buggy "unchanged" fast path in (a) can never trigger;
+  # forge then goes through its normal incremental build (which only adds/updates artifacts --
+  # the same as any genuine edit-and-rebuild), never triggering (b)'s prune-to-import-closure
+  # behavior. Confirmed reliable across repeated back-to-back calls in isolation (target
+  # resolved + out/ERC1967Proxy.sol/* survived + cache/evidence-d5b-fork/* survived every time,
+  # 3/3) before wiring this into the rehearsal. The retry below is now a pure safety net, not
+  # the primary mechanism.
+  local attempt out rc
+  for attempt in 1 2 3; do
+    rm -f cache/solidity-files-cache.json
+    out="$(env ENV="$ENVNAME" "$@" forge script "contracts/script/v3/UpgradeViaTimelock.s.sol:$c" \
+      --rpc-url "$RPC" --unlocked --sender "$s" --broadcast --slow 2>&1)"
+    rc=$?
+    echo "$out"
+    if [ $rc -eq 0 ]; then return 0; fi
+    if ! echo "$out" | grep -qE "Could not find target contract|DefaultArtifacts: no profile.default build"; then return $rc; fi
+    echo "  (fscript_tl attempt $attempt/3: retrying with a fresh cache wipe)" >&2
+  done
+  return $rc
 }
 roles_check() { # <label> -> sets $ATT
   # "fork-rehearsal-" prefix: this filename is entirely our own choice (unlike $MANIFEST, whose path is
@@ -102,38 +207,253 @@ roles_check() { # <label> -> sets $ATT
   cast rpc evm_mine --rpc-url "$RPC" >/dev/null   # let the attested head get a blockhash (live-chain path)
 }
 
+step "forge build --force (once, up front)"
+# REAL, REPRODUCIBLE FAILURE (found running this script): any file that imports Registry.sol --
+# directly or transitively, e.g. UpgradeViaTimelock.s.sol via UpgradeRegistryD5b/D5bUpgradeChecks
+# -- gets compiled TWICE by foundry.toml's [[profile.default.compilation_restrictions]] (once at
+# the file's normal settings, once at Registry's forced runs<=200), and forge disambiguates by
+# writing out/<File>.sol/<Contract>.default.json + <Contract>.registry-size.json instead of a bare
+# <Contract>.json. After enough interleaved `forge build` / `forge build --skip test` / `forge test
+# --evm-version prague` runs in one working tree (exactly what a long release-review session does),
+# forge's incremental cache can end up in a state where `forge script <file>:<Contract>` for one of
+# these dual-profile files reports "No files changed, compilation skipped" and then "Error: Could
+# not find target contract" -- confirmed reproducible here even after a full `forge clean && forge
+# build`; only `--force` (bypassing the cache, not just cleaning it) resolved it. One `--force`
+# build up front, before anything else runs, gives every artifact (both profiles) a known-fresh
+# baseline. It is NOT what makes the later fscript_tl() calls correct, though -- root-caused below
+# (see fscript_tl()'s own comment): the per-call fix is deleting only
+# cache/solidity-files-cache.json (not the whole cache/ dir, and not out/) right before
+# each dual-profile forge-script invocation, never passing --force to the script call itself.
+export PATH="$HOME/.foundry/bin:$PATH"
+forge build --force > "$OUT/00-forge-build-force.log" 2>&1
+RC=$?
+if [ "$RC" -ne 0 ]; then echo "  !!! forge build --force FAILED (exit $RC), see $OUT/00-forge-build-force.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; fi
+
 step "fork Sepolia at block $FORK_BLOCK"
 anvil --fork-url "$RPC_URL_FORK" --fork-block-number "$FORK_BLOCK" --port "$PORT" --silent >"$OUT/anvil.log" 2>&1 &
 PIDS+=($!)
 for _ in $(seq 1 60); do cast chain-id --rpc-url "$RPC" >/dev/null 2>&1 && break; sleep 1; done
-for a in $OWNER $ANNI; do cast rpc anvil_impersonateAccount $a --rpc-url "$RPC" >/dev/null; done
+for a in $OWNER $ANNI $GOV_MULTISIG; do cast rpc anvil_impersonateAccount $a --rpc-url "$RPC" >/dev/null; done
 cast rpc anvil_setBalance $OWNER 0x56BC75E2D63100000 --rpc-url "$RPC" >/dev/null   # 100 ETH, real balance is fine but keep headroom
+cast rpc anvil_setBalance $GOV_MULTISIG 0x56BC75E2D63100000 --rpc-url "$RPC" >/dev/null
 echo "  chainId $(cast chain-id --rpc-url $RPC) head $(cast block-number --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  pre-fork inventory: SP=$(cast call $SP 'version()(string)' --rpc-url $RPC) Registry=$(cast call $REG 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
-if [ "$STAGE" = "I" ] || [ "$STAGE" = "all" ]; then
+if stage_on 0; then
+
+step "STAGE 0: fork-level check (real public RPCs, read-only, not fork-scoped) + on-chain inventory"
+node script/evidence/fork-level-probes.mjs "$OUT/0-fork-level-probes.json" > "$OUT/0-fork-level-probes.log" 2>&1
+RC=$?
+if [ "$RC" -ne 0 ]; then echo "  !!! STAGE 0 fork-level probe FAILED (exit $RC), see $OUT/0-fork-level-probes.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); fi
+grep -o '"next":[^,}]*' "$OUT/0-fork-level-probes.json" | head -1 | tee -a "$OUT/rehearsal.log" || true
+
+ENV=$ENVNAME $LOG "$OUT/0-inventory.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'inventory(address[])' "[$OWNER,$ANNI]" --rpc-url $RPC
+RC=$?
+if [ "$RC" -ne 0 ]; then echo "  !!! STAGE 0 inventory FAILED (exit $RC), see $OUT/0-inventory.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); fi
+grep -E "pendingAPNTsToken|operator " "$OUT/0-inventory.log" | tee -a "$OUT/rehearsal.log" || true
+
+ANNI_TOKEN=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC | sed -n '4p')
+ENV=$ENVNAME $LOG "$OUT/0-inventory-debts.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'inventoryDebts(address[],address[])' "[$OLD_APNTS,$ANNI_TOKEN]" "[$OWNER,$ANNI]" --rpc-url $RPC
+RC=$?
+if [ "$RC" -ne 0 ]; then echo "  !!! STAGE 0 inventoryDebts FAILED (exit $RC), see $OUT/0-inventory-debts.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); fi
+grep -E "pendingDebts|total" "$OUT/0-inventory-debts.log" | tee -a "$OUT/rehearsal.log" || true
+
+fi # stage 0
+
+if stage_on I; then
+
+# check_stage1() name FAILED action, exit code -> on failure: log loudly, count it, and STOP.
+# Unlike the Stage II read-back markers (which are independent checks that can all be attempted
+# even if one is missing), A1-A4 are a strict dependency chain: A2 assumes A1 actually cancelled,
+# A3's run() asserts pendingAPNTsToken==0 (A1's effect) and every V55_OPERATORS entry paused (A2's
+# effect), A4 assumes A3 landed SP first. Continuing past a real forge-script failure here doesn't
+# produce useful additional evidence, it produces a cascade of confusing downstream errors -- so
+# stop immediately, exactly like must_fail() already does for an unexpected negative-control result.
+check_stage1() {
+  local name="$1" rc="$2"
+  if [ "$rc" -ne 0 ]; then
+    echo "  !!! STAGE I / $name FAILED (exit $rc) -- stopping, see the matching log in $OUT" | tee -a "$OUT/rehearsal.log"
+    FAILURES=$((FAILURES+1))
+    exit 1
+  fi
+}
 
 step "STAGE I / A1: cancel the pending APNTsCapped switch (0xBb46...), orthogonal to D5b"
 ENV=$ENVNAME V55_APNTS_DECISION=cancel $LOG "$OUT/I-A1-cancel.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'cancelPendingAPNTs()' --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A1 $?
 echo "  pendingAPNTsToken after cancel: $(cast call $SP 'pendingAPNTsToken()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I / A1b: deploy a FRESH GOV-1-shaped TimelockController (172800; proposer=canceller=executor=GOV_MULTISIG; no admin) for the APNTsCapped handover"
+# The REAL live TimelockController ($TL) does NOT have GOV_MULTISIG as PROPOSER (verified live on
+# this fork: `hasRole(PROPOSER_ROLE, GOV_MULTISIG)` returns false) -- DeployAPNTsCapped.s.sol's own
+# _checkTimelock() correctly refuses it ("timelock: governance multisig is not PROPOSER"), which is
+# exactly the documented design intent (D5b-design.md, apnts-capped-deliverable.md L124: the real TL
+# was never GOV-1-shaped for this multisig; SP "倾向新部署一把符合 GOV-1 的" for this handover). So
+# deploy a fresh one here, matching script/evidence/fork-rehearsal.sh's precedent (row F-01).
+TLART=out/TimelockController.sol/TimelockController.default.json
+TLBC="$(node -e 'const j=require(process.argv[1]);const m=j.metadata;if(m.settings.evmVersion!=="cancun"||m.settings.optimizer.runs!==500)throw new Error("not a default build");console.log(j.bytecode.object)' "$W/$TLART")"
+TLARGS="$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 "[$GOV_MULTISIG]" "[$GOV_MULTISIG]" 0x0000000000000000000000000000000000000000)"
+FRESH_TL_JSON="$(cast send --unlocked --from $OWNER --rpc-url $RPC --json --create "$TLBC${TLARGS#0x}")"
+FRESH_TL="$(echo "$FRESH_TL_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).contractAddress))')"
+if [ -z "$FRESH_TL" ] || [ "$FRESH_TL" = "null" ]; then echo "  !!! STAGE I / A1b: fresh TimelockController deploy failed" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; fi
+echo "  fresh GOV-1-shaped TimelockController: $FRESH_TL" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I / A1c (runbook 1②): deploy APNTsCapped, start the Ownable2Step handover to the fresh TimelockController"
+ENV=$ENVNAME TIMELOCK=$FRESH_TL $LOG "$OUT/I-A1c-deploy-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A1c $?
+CAPPED=$(grep -oE "\[artifact\] default artifact OK: APNTsCapped 0x[0-9a-fA-F]{40}" "$OUT/I-A1c-deploy-apnts-capped.log" | awk '{print $NF}')
+if [ -z "$CAPPED" ]; then echo "  !!! STAGE I / A1c could not extract the deployed APNTsCapped address, see $OUT/I-A1c-deploy-apnts-capped.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; fi
+echo "  APNTsCapped deployed: $CAPPED (owner=$(cast call $CAPPED 'owner()(address)' --rpc-url $RPC) pendingOwner=$(cast call $CAPPED 'pendingOwner()(address)' --rpc-url $RPC))" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I / A1d: governance multisig accepts ownership of APNTsCapped via the fresh TimelockController (real schedule -> +48h -> execute on the fork, committed to the fork's persisted state -- not the script's own internal vm.prank simulation, which never leaves the simulation and would NOT be visible to a later plain cast call)"
+ACC_DATA=$(cast calldata "acceptOwnership()")
+ACC_SALT=$(cast keccak "APNTsCapped-1.0.0/acceptOwnership")
+ZERO32=0x0000000000000000000000000000000000000000000000000000000000000000
+cast send $FRESH_TL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT 172800 --unlocked --from $GOV_MULTISIG --rpc-url $RPC >/dev/null
+check_stage1 A1d-schedule $?
+must_fail "execute acceptOwnership before 48h" cast send $FRESH_TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT --unlocked --from $GOV_MULTISIG --rpc-url $RPC
+warp48h
+cast send $FRESH_TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT --unlocked --from $GOV_MULTISIG --rpc-url $RPC >/dev/null
+check_stage1 A1d-execute $?
+echo "  APNTsCapped after accept: owner=$(cast call $CAPPED 'owner()(address)' --rpc-url $RPC) pendingOwner=$(cast call $CAPPED 'pendingOwner()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I / A1e (runbook 1③): queue the aPNTs switch to APNTsCapped"
+ENV=$ENVNAME V55_APNTS_DECISION=queue $LOG "$OUT/I-A1e-queue.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'queueAPNTs(address)' $CAPPED --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A1e $?
+echo "  pendingAPNTsToken=$(cast call $SP 'pendingAPNTsToken()(address)' --rpc-url $RPC) eta=$(cast call $SP 'pendingAPNTsTokenEta()(uint256)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I: fast-forward 7 days (APNTS_TOKEN_TIMELOCK) so the queued switch is executable"
+cast rpc evm_increaseTime 604800 --rpc-url "$RPC" >/dev/null
+cast rpc evm_mine --rpc-url "$RPC" >/dev/null
+echo "  block.timestamp now $(cast block --rpc-url $RPC latest timestamp) >= eta $(cast call $SP 'pendingAPNTsTokenEta()(uint256)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I / A1f: pre-fund OWNER *and ANNI* with APNTsCapped before the redeposit"
+# REAL FINDING (verified on this fork, not assumed): SuperPaymaster.totalTrackedBalance() is a
+# WHOLE-CONTRACT aggregate across every operator, regardless of which community token each one
+# holds -- confirmed by exact arithmetic after A1g's first attempt (which only drained OWNER):
+# 2934135941213700000000 (pre) - 1690008712737068326800 (OWNER's withdraw) -
+# 399486525633215878600 (revenue drained to the buffer) = 844640702843415794600, which exactly
+# equals ANNI's untouched aPNTsBalance (844540702843415794600, a DIFFERENT token, Mycelium PNTs)
+# plus the 0.1 ether buffer. `executeAPNTsTokenChange`'s on-chain guard requires this GLOBAL total
+# <= PROTOCOL_REVENUE_BUFFER (see commit d968b547, "fix(H-4b): fix APNTS migration
+# totalTrackedBalance deadlock" -- pre-existing 5.4.2 production behaviour, not introduced by this
+# branch), so EVERY operator must fully withdraw, not just ones holding the old aPNTs token -- the
+# runbook's own step 1④ text already says this ("各 operator 取出全部余额", each operator, not
+# "each aPNTs operator"). Consequence worth flagging for the real A3a execution: ANNI/Mycelium's
+# balance gets swept into the NEW aPNTs token by the same 1:1 redeposit below, even though Mycelium
+# was never on aPNTs -- whoever runs this for real needs to decide whether Mycelium should be
+# reconfigured back to its own token immediately afterward (not something this script does).
+# cast call's tuple output appends a human-readable "[1.69e21]" annotation after the raw decimal on
+# the same line -- take only the first whitespace-delimited token, or `mint`'s uint256 arg is corrupt.
+OWNER_OLD_BAL=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $OWNER --rpc-url $RPC | head -1 | awk '{print $1}')
+ANNI_OLD_BAL=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC | head -1 | awk '{print $1}')
+cast send $CAPPED 'mint(address,uint256)' $OWNER "$OWNER_OLD_BAL" --unlocked --from $GOV_MULTISIG --rpc-url $RPC >/dev/null
+check_stage1 A1f-owner $?
+cast send $CAPPED 'mint(address,uint256)' $ANNI "$ANNI_OLD_BAL" --unlocked --from $GOV_MULTISIG --rpc-url $RPC >/dev/null
+check_stage1 A1f-anni $?
+# `protocolRevenue` (the 0.1 ether buffer left after withdrawing down to it) survives the token-
+# address swap as accounting denominated in the NEW token, but the old-token buffer physically left
+# in SP does not collateralise that number afterwards -- executePendingAPNTs' own read-back (a
+# Codex whole-branch-review fix) requires the new token to be pre-funded on the SP contract itself
+# before the irreversible switch, or it reverts "SP lacks new-token collateral for retained
+# protocolRevenue". Mint that buffer directly to the SP address.
+cast send $CAPPED 'mint(address,uint256)' $SP 100000000000000000 --unlocked --from $GOV_MULTISIG --rpc-url $RPC >/dev/null
+check_stage1 A1f-sp-buffer $?
+echo "  minted for 1:1 redeposit: OWNER $OWNER_OLD_BAL, ANNI $ANNI_OLD_BAL, SP buffer 0.1e18; APNTsCapped balances now OWNER=$(cast call $CAPPED 'balanceOf(address)(uint256)' $OWNER --rpc-url $RPC) ANNI=$(cast call $CAPPED 'balanceOf(address)(uint256)' $ANNI --rpc-url $RPC) SP=$(cast call $CAPPED 'balanceOf(address)(uint256)' $SP --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I / A1g (runbook 1④): execute the full aPNTs migration -- drain EVERY operator's balance in its OLD token (not just aPNTs holders, see A1f's finding), executeAPNTsTokenChange, redeposit 1:1 in APNTsCapped"
+ENV=$ENVNAME V55_APNTS_DECISION=execute V55_APNTS_RATIO_WAD=1000000000000000000 $LOG "$OUT/I-A1g-execute.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'executePendingAPNTs(address[])' "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A1g $?
+echo "  APNTS_TOKEN=$(cast call $SP 'APNTS_TOKEN()(address)' --rpc-url $RPC) pendingAPNTsToken=$(cast call $SP 'pendingAPNTsToken()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I / A1h (runbook step 2): clearPendingDebts (D-21 write-off; confirmed 0 for both known token/user pairs at Stage 0 -- this call is a no-op read-back, not a real write-off, since inventoryDebts already found nothing pending)"
+ANNI_TOKEN=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC | sed -n '4p')
+ENV=$ENVNAME $LOG "$OUT/I-A1h-clear-debts.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'clearPendingDebts(address[],address[])' "[$OLD_APNTS,$ANNI_TOKEN]" "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A1h $?
 
 step "STAGE I / A2: pauseOperators([Owner,Anni]) (runbook step 3 precondition for run())"
 ENV=$ENVNAME $LOG "$OUT/I-A2-pause.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'pauseOperators(address[])' "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A2 $?
 
 step "STAGE I / A3: run() -- land CURRENT HEAD SuperPaymaster (5.5.0 AOA balance mode, D5b core+extension split already included) via a plain EOA upgradeToAndCall"
 mkdir -p cache/evidence-d5b-fork
 ENV=$ENVNAME V55_OUT_CONFIG=cache/evidence-d5b-fork/config.sepolia-fork.json V55_OPERATORS=$OWNER,$ANNI \
   $LOG "$OUT/I-A3-run.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A3 $?
 echo "  SP version after run(): $(cast call $SP 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  SP EXTENSION (D5b core/ext split marker): $(cast call $SP 'EXTENSION()(address)' --rpc-url $RPC 2>&1)" | tee -a "$OUT/rehearsal.log"
 
 step "STAGE I / A4: UpgradeRegistryD5b -- land CURRENT HEAD Registry (5.9.0, GOV-2 two-step ownership) via a plain EOA upgradeToAndCall"
-fscript_tl UpgradeRegistryD5b $OWNER | tee "$OUT/I-A4-registry.log" | grep -E "read-back|BLS|raw slots|5c|Error|revert" || true
+# NOTE: the previous form of this line piped through `tee | grep ... || true`, which (with
+# pipefail) forced the WHOLE pipeline's reported exit status to 0 regardless of whether forge
+# script itself failed -- exactly the "reports success after a real failure" bug this fixes.
+# Redirect to the log file first (fscript_tl already merges stderr internally) so $? is forge
+# script's own exit code, unaffected by the display grep that follows.
+fscript_tl UpgradeRegistryD5b $OWNER > "$OUT/I-A4-registry.log" 2>&1
+RC=$?
+grep -E "read-back|BLS|raw slots|5c|Error|revert" "$OUT/I-A4-registry.log" || true
+check_stage1 A4 $RC
 echo "  Registry version after UpgradeRegistryD5b: $(cast call $REG 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
+
+V55_CFG=cache/evidence-d5b-fork/config.sepolia-fork.json
+
+step "STAGE I / A5 (runbook 7a): each community issues its own v2 token; operator stays paused (creditPolicy starts OFF)"
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A5-issue-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'issueCommunityToken(string,string,string,string,uint256)' "AAStar PNTs v2" "aPNTsV2" "AAStar" "aastar.eth" 1000000000000000000 --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A5-owner $?
+OWNER_V2=$(grep -oE "step 7a: v2 token 0x[0-9a-fA-F]{40}" "$OUT/I-A5-issue-owner.log" | awk '{print $NF}')
+[ -n "$OWNER_V2" ] || { echo "  !!! could not extract OWNER's v2 token address, see $OUT/I-A5-issue-owner.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; }
+
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A5-issue-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'issueCommunityToken(string,string,string,string,uint256)' "Mycelium PNTs v2" "PNTSV2" "Mycelium" "mycelium.eth" 1000000000000000000 --rpc-url $RPC --unlocked --sender $ANNI --broadcast
+check_stage1 A5-anni $?
+ANNI_V2=$(grep -oE "step 7a: v2 token 0x[0-9a-fA-F]{40}" "$OUT/I-A5-issue-anni.log" | awk '{print $NF}')
+[ -n "$ANNI_V2" ] || { echo "  !!! could not extract ANNI's v2 token address, see $OUT/I-A5-issue-anni.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; }
+echo "  OWNER v2 token=$OWNER_V2 creditPolicy=$(cast call $OWNER_V2 'creditPolicy()(uint8)' --rpc-url $RPC)  ANNI v2 token=$ANNI_V2 creditPolicy=$(cast call $ANNI_V2 'creditPolicy()(uint8)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I / A6 (runbook 7c): updatePrice -> configureOperatorV2 -> unpauseOperator for both communities (balance mode only; creditPolicy stays OFF)"
+refresh_oracle
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $OWNER_V2 $OWNER --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A6-configure-owner $?
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $ANNI_V2 $ANNI --rpc-url $RPC --unlocked --sender $ANNI --broadcast
+check_stage1 A6-configure-anni $?
+
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-unpause-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'unpauseOperator(address)' $OWNER --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A6-unpause-owner $?
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-unpause-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'unpauseOperator(address)' $ANNI --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A6-unpause-anni $?
+# unpauseOperator itself doesn't re-assert creditPolicy==OFF (only issueCommunityToken/configureOperatorV2 do,
+# per the whole-branch Codex review's runbook-entrypoints finding) -- the runbook's 7c row explicitly wants a
+# read-back AFTER unpause, so do it here rather than trusting the earlier checks still hold.
+for T in $OWNER_V2 $ANNI_V2; do
+  CP=$(cast call $T 'creditPolicy()(uint8)' --rpc-url $RPC)
+  if [ "$CP" != "0" ]; then echo "  !!! creditPolicy for $T is $CP, expected 0 (OFF) after unpause" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); fi
+done
+echo "  post-unpause creditPolicy: OWNER_V2=$(cast call $OWNER_V2 'creditPolicy()(uint8)' --rpc-url $RPC) ANNI_V2=$(cast call $ANNI_V2 'creditPolicy()(uint8)' --rpc-url $RPC); OWNER paused=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $OWNER --rpc-url $RPC | sed -n '3p') ANNI paused=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC | sed -n '3p')" | tee -a "$OUT/rehearsal.log"
+
+step "STAGE I / A7: real UserOp through EntryPoint (runbook 7c acceptance: one balance-mode op succeeds per community). Scoped to ANNI/Mycelium -- L4GaslessTest.s.sol is written specifically around the ANNI identity (PRIVATE_KEY_ANNI), not parameterized per-operator; extending it to cover OWNER/AAStar too is future work, not done here."
+DEPLOY_CFG="deployments/config.sepolia-fork.json"
+node -e '
+  const fs = require("fs");
+  const base = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+  base.pnts = process.argv[2];
+  fs.writeFileSync(process.argv[3], JSON.stringify(base, null, 2));
+' "$V55_CFG" "$ANNI_V2" "$DEPLOY_CFG"
+L4_USER_KEY=$(cast wallet new --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s)[0].private_key))')
+ANNI_PK="$(grep -E '^PRIVATE_KEY_ANNI=' "$ENVFILE" | head -1 | cut -d= -f2- | tr -d '"'"'"' ')"
+BUNDLER_PK="$(grep -E '^PRIVATE_KEY=' "$ENVFILE" | head -1 | cut -d= -f2- | tr -d '"'"'"' ')"
+if [ -z "$ANNI_PK" ] || [ -z "$BUNDLER_PK" ]; then
+  echo "  !!! STAGE I / A7 SKIPPED: PRIVATE_KEY_ANNI / PRIVATE_KEY missing from $ENVFILE (needed to sign the real UserOp's operator/bundler roles)" | tee -a "$OUT/rehearsal.log"
+  FAILURES=$((FAILURES+1))
+else
+  ENV=sepolia-fork PRIVATE_KEY="$BUNDLER_PK" PRIVATE_KEY_ANNI="$ANNI_PK" L4_USER_KEY="$L4_USER_KEY" \
+    $LOG "$OUT/I-A7-l4-gasless.log" forge script contracts/script/v3/L4GaslessTest.s.sol:L4GaslessTest --rpc-url $RPC --broadcast --slow --gas-estimate-multiplier 400
+  RC=$?
+  grep -E "AA account|settled|burned|Error|revert" "$OUT/I-A7-l4-gasless.log" || true
+  check_stage1 A7 $RC
+fi
 
 fi # stage I
 
-if [ "$STAGE" = "II" ] || [ "$STAGE" = "all" ]; then
+if stage_on II; then
 
 step "STAGE II / precondition: renounce the deployer's leftover DEFAULT_ADMIN_ROLE on the live TimelockController"
 echo "  BEFORE: admin(OWNER)=$(cast call $TL 'hasRole(bytes32,address)(bool)' 0x0000000000000000000000000000000000000000000000000000000000000000 $OWNER --rpc-url $RPC) admin(timelock itself)=$(cast call $TL 'hasRole(bytes32,address)(bool)' 0x0000000000000000000000000000000000000000000000000000000000000000 $TL --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
@@ -211,7 +531,7 @@ must_fail "execute-accept before 48h" fscript_tl UpgradeViaTimelock $OWNER TL_MO
 warp48h
 roles_check before-M1-execute
 fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT" | tee "$OUT/II-M1-execute.log" | grep -E "read-back|Error|revert" || true
-grep -q "M1/M2 read-back OK" "$OUT/II-M1-execute.log" && echo "  M1 read-back OK" | tee -a "$OUT/rehearsal.log" || echo "  !!! M1 read-back marker NOT found, see II-M1-execute.log" | tee -a "$OUT/rehearsal.log"
+grep -q "M1/M2 read-back OK" "$OUT/II-M1-execute.log" && echo "  M1 read-back OK" | tee -a "$OUT/rehearsal.log" || { echo "  !!! M1 read-back marker NOT found, see II-M1-execute.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); }
 must_fail "old EOA owner upgradeToAndCall after M1" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'upgradeToAndCall(address,bytes)' $SP 0x
 echo "  SP.owner=$(cast call $SP 'owner()(address)' --rpc-url $RPC) guardian=$(cast call $SP 'guardian()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  Registry.owner=$(cast call $REG 'owner()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
@@ -220,7 +540,7 @@ step "STAGE II / C: timelock-aware upgrade drill (SP then Registry) -- demo cycl
 for T in SP REGISTRY; do
   fscript_tl UpgradeViaTimelock $OWNER TL_MODE=deploy-impl TL_TARGET=$T | tee "$OUT/II-C-$T-deploy.log" | grep -E "ready|new implementation|Error|revert" || true
   NI=$(grep -oE "pass as TL_NEW_IMPL\): 0x[0-9a-fA-F]{40}" "$OUT/II-C-$T-deploy.log" | awk '{print $NF}')
-  [ -n "$NI" ] || { echo "  !!! could not extract new impl address for $T, see II-C-$T-deploy.log" | tee -a "$OUT/rehearsal.log"; continue; }
+  [ -n "$NI" ] || { echo "  !!! could not extract new impl address for $T, see II-C-$T-deploy.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); continue; }
   must_fail "schedule-upgrade $T WITHOUT a roles attestation" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T")
   roles_check "before-$T-upgrade"
   fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T") | tee "$OUT/II-C-$T-schedule.log" | grep -E "scheduled|Error|revert" || true
@@ -228,7 +548,7 @@ for T in SP REGISTRY; do
   warp48h
   roles_check "before-$T-execute"
   fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T") | tee "$OUT/II-C-$T-execute.log" | grep -E "read-back|BLS|raw slots|extension|Error|revert" || true
-  grep -q "read-back OK" "$OUT/II-C-$T-execute.log" && echo "  $T timelock-aware upgrade: read-back OK" | tee -a "$OUT/rehearsal.log" || echo "  !!! $T read-back marker NOT found, see II-C-$T-execute.log" | tee -a "$OUT/rehearsal.log"
+  grep -q "read-back OK" "$OUT/II-C-$T-execute.log" && echo "  $T timelock-aware upgrade: read-back OK" | tee -a "$OUT/rehearsal.log" || { echo "  !!! $T read-back marker NOT found, see II-C-$T-execute.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); }
 done
 
 step "STAGE II / M2: guardian (owner) pauses; guardian cannot unpause; timelock unpauses after 48h"
@@ -243,7 +563,7 @@ must_fail "execute-call (unpause) before 48h" fscript_tl UpgradeViaTimelock $OWN
 warp48h
 roles_check before-M2-unpause-execute
 fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$(cast keccak d5b-fork-m2-unpause) | tee "$OUT/II-M2-execute.log" | grep -E "roles attestation|executed|Error|revert" || true
-grep -q "governed call executed" "$OUT/II-M2-execute.log" && echo "  governed unpause executed" | tee -a "$OUT/rehearsal.log"
+grep -q "governed call executed" "$OUT/II-M2-execute.log" && echo "  governed unpause executed" | tee -a "$OUT/rehearsal.log" || { echo "  !!! governed unpause marker NOT found, see II-M2-execute.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); }
 echo "  paused() after the timelock's unpause = $(cast call $SP 'paused()(bool)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
 fi # stage II
@@ -251,4 +571,9 @@ fi # stage II
 step "final state"
 echo "  SP owner=$(cast call $SP 'owner()(address)' --rpc-url $RPC) guardian=$(cast call $SP 'guardian()(address)' --rpc-url $RPC) impl=$(impl_of $SP) version=$(cast call $SP 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  Registry owner=$(cast call $REG 'owner()(address)' --rpc-url $RPC) impl=$(impl_of $REG) version=$(cast call $REG 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
-echo "REHEARSAL OK ($STAGE)" | tee -a "$OUT/rehearsal.log"
+if [ "$FAILURES" -eq 0 ]; then
+  echo "REHEARSAL OK ($STAGE)" | tee -a "$OUT/rehearsal.log"
+else
+  echo "REHEARSAL FAILED ($STAGE): $FAILURES read-back marker(s) missing, see the !!! lines above" | tee -a "$OUT/rehearsal.log"
+  exit 1
+fi

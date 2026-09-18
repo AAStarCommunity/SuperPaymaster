@@ -68,8 +68,9 @@ interface ITimelockDeploy {
  *       --rpc-url http://127.0.0.1:8545 --broadcast --unlocked --sender <anvil acct>
  *   # Sepolia / mainnet: TIMELOCK=<GOV-1 timelock> [APNTS_CAP=<wei> on mainnet]
  *   # dry-run the acceptance in simulation: APNTS_SIMULATE_ACCEPT=true
- *   # after the timelock executed acceptOwnership():
- *   forge script ...:DeployAPNTsCapped --sig "verify(address,address)" <token> <deployer> --rpc-url ...
+ *   # after the timelock executed acceptOwnership() (TIMELOCK is required off anvil):
+ *   TIMELOCK=<GOV-1 timelock> forge script ...:DeployAPNTsCapped \
+ *       --sig "verify(address,address)" <token> <deployer> --rpc-url ...
  */
 contract DeployAPNTsCapped is DefaultArtifacts {
     address internal constant GOV_MULTISIG = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114;
@@ -145,7 +146,15 @@ contract DeployAPNTsCapped is DefaultArtifacts {
     /// @notice Final read-backs on real chain state, after the timelock executed acceptOwnership().
     function verify(address token, address deployer) external {
         (, uint256 cap_) = _modeAndCap();
-        address timelock = IAPNTsCappedDeploy(token).owner();
+        address actualOwner = IAPNTsCappedDeploy(token).owner();
+        address expectedTimelock = vm.envOr("TIMELOCK", address(0));
+        if (block.chainid != 31337) {
+            require(expectedTimelock != address(0), "verify: TIMELOCK is required off anvil");
+        }
+        if (expectedTimelock != address(0)) {
+            require(actualOwner == expectedTimelock, "verify: token owner != expected TIMELOCK");
+        }
+        address timelock = expectedTimelock == address(0) ? actualOwner : expectedTimelock;
         console.log("=== verify APNTsCapped ===", token);
         require(_codeEqArtifact(token, _apntsArtifact()), "APNTsCapped runtime != profile.default artifact (T-4)");
         console.log("  [artifact] default artifact OK: APNTsCapped", token, token.code.length);
@@ -173,8 +182,8 @@ contract DeployAPNTsCapped is DefaultArtifacts {
         revert("unsupported chain: expected 31337 (anvil), 11155111 (sepolia), 1 / 10 (mainnet)");
     }
 
-    /// @dev DefaultArtifacts checks runs + compilation target but not the EVM version; a prague
-    ///      build left in out/ would pass it. Refuse anything but the cancun default build.
+    /// @dev Defense in depth at the call site: DefaultArtifacts already resolves by full default
+    ///      metadata, including Cancun; keep this assertion beside the anvil timelock deployment.
     function _requireCancunArtifact(string memory rel) internal view {
         string memory j = vm.readFile(string.concat(vm.projectRoot(), "/", rel));
         require(
@@ -197,30 +206,95 @@ contract DeployAPNTsCapped is DefaultArtifacts {
         }
     }
 
-    /// @dev profile.default artifact of APNTsCapped, identified by its OWN metadata — compilation
-    ///      target == SRC, optimizer runs == 500, evmVersion == cancun, viaIR — never by file name
-    ///      alone. The unsuffixed out/<C>.sol/<C>.json is overwritten by whatever compiled last
-    ///      (e.g. `forge test --evm-version prague` leaves PRAGUE bytecode there), so an artifact
-    ///      from any other build is rejected: run a plain `forge build` first.
+    /// @dev profile.default artifact of APNTsCapped, identified by its OWN metadata — exact target,
+    ///      solc, optimizer, evmVersion and viaIR — never by file name alone. Every source in the
+    ///      artifact's compilation closure must still match disk, and conflicting matching candidates
+    ///      fail instead of silently picking the first one.
     function _apntsArtifact() internal returns (string memory) {
         if (bytes(_artifactPath).length != 0) return _artifactPath;
         string[2] memory c = ["out/APNTsCapped.sol/APNTsCapped.json", "out/APNTsCapped.sol/APNTsCapped.default.json"];
-        string memory key = string.concat("$.metadata.settings.compilationTarget['", SRC, "']");
+        uint256 found;
+        bytes32 selectedCreationCode;
         for (uint256 i; i < c.length; ++i) {
             try vm.readFile(string.concat(vm.projectRoot(), "/", c[i])) returns (string memory j) {
-                if (
-                    vm.parseJsonUint(j, ".metadata.settings.optimizer.runs") == DEFAULT_RUNS
-                        && vm.keyExistsJson(j, key)
-                        && keccak256(bytes(vm.parseJsonString(j, ".metadata.settings.evmVersion"))) == keccak256("cancun")
-                        && vm.parseJsonBool(j, ".metadata.settings.viaIR")
-                ) {
+                if (_isCurrentDefaultAPNTsArtifact(j)) {
+                    bytes32 creationCode = keccak256(vm.parseJsonBytes(j, ".bytecode.object"));
+                    if (found != 0) {
+                        require(
+                            creationCode == selectedCreationCode,
+                            "ambiguous profile.default APNTsCapped artifacts - run a clean plain `forge build`"
+                        );
+                    } else {
+                        selectedCreationCode = creationCode;
+                    }
                     _artifactPath = c[i];
-                    console.log("  [artifact] APNTsCapped default profile (cancun, runs 500, via_ir):", c[i]);
-                    return c[i];
+                    found++;
                 }
             } catch { }
         }
+        if (found != 0) {
+            console.log("  [artifact] APNTsCapped current default profile (cancun, solc 0.8.33, runs 500, via_ir):", _artifactPath);
+            return _artifactPath;
+        }
         revert("no profile.default (cancun/runs 500/via_ir) artifact of APNTsCapped - run a plain `forge build`");
+    }
+
+    function _isCurrentDefaultAPNTsArtifact(string memory j) internal view returns (bool) {
+        string memory targetKey = string.concat("$.metadata.settings.compilationTarget['", SRC, "']");
+        if (!vm.keyExistsJson(j, targetKey)) return false;
+        try vm.parseJsonString(j, targetKey) returns (string memory target) {
+            if (keccak256(bytes(target)) != keccak256("APNTsCapped")) return false;
+        } catch { return false; }
+        try vm.parseJsonString(j, ".metadata.compiler.version") returns (string memory compilerVersion) {
+            if (!_startsWithAPNTs(compilerVersion, "0.8.33+")) return false;
+        } catch { return false; }
+        try vm.parseJsonBool(j, ".metadata.settings.optimizer.enabled") returns (bool enabled) {
+            if (!enabled) return false;
+        } catch { return false; }
+        try vm.parseJsonUint(j, ".metadata.settings.optimizer.runs") returns (uint256 runs) {
+            if (runs != DEFAULT_RUNS) return false;
+        } catch { return false; }
+        try vm.parseJsonString(j, ".metadata.settings.evmVersion") returns (string memory evmVersion) {
+            if (keccak256(bytes(evmVersion)) != keccak256("cancun")) return false;
+        } catch { return false; }
+        try vm.parseJsonBool(j, ".metadata.settings.viaIR") returns (bool viaIR) {
+            if (!viaIR) return false;
+        } catch { return false; }
+        try vm.parseJsonString(j, ".metadata.settings.metadata.bytecodeHash") returns (string memory bytecodeHash) {
+            if (keccak256(bytes(bytecodeHash)) != keccak256("none")) return false;
+        } catch { return false; }
+        return _allArtifactSourcesFresh(j);
+    }
+
+    function _allArtifactSourcesFresh(string memory j) internal view returns (bool) {
+        string[] memory sources;
+        try vm.parseJsonKeys(j, "$.metadata.sources") returns (string[] memory keys) {
+            sources = keys;
+        } catch {
+            return false;
+        }
+        for (uint256 i; i < sources.length; ++i) {
+            string memory body;
+            try vm.readFile(string.concat(vm.projectRoot(), "/", sources[i])) returns (string memory sourceBody) {
+                body = sourceBody;
+            } catch {
+                return false;
+            }
+            try vm.parseJsonBytes32(j, string.concat("$.metadata.sources['", sources[i], "'].keccak256")) returns (bytes32 sourceHash) {
+                if (sourceHash != keccak256(bytes(body))) return false;
+            } catch {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function _startsWithAPNTs(string memory value, string memory prefix) internal pure returns (bool) {
+        bytes memory a = bytes(value);
+        bytes memory b = bytes(prefix);
+        if (a.length < b.length) return false;
+        for (uint256 i; i < b.length; ++i) if (a[i] != b[i]) return false;
+        return true;
     }
 
     // ------------------------------------------------------------------
@@ -233,12 +307,17 @@ contract DeployAPNTsCapped is DefaultArtifacts {
         require(t.getMinDelay() == GOV_DELAY, "timelock getMinDelay() != 172800 (GOV-1 48h)");
         require(t.hasRole(t.PROPOSER_ROLE(), GOV_MULTISIG), "timelock: governance multisig is not PROPOSER");
         require(t.hasRole(t.CANCELLER_ROLE(), GOV_MULTISIG), "timelock: governance multisig is not CANCELLER");
+        require(t.hasRole(t.DEFAULT_ADMIN_ROLE(), timelock), "timelock: not self-administered");
+        require(!t.hasRole(t.DEFAULT_ADMIN_ROLE(), GOV_MULTISIG), "timelock: governance multisig still holds DEFAULT_ADMIN_ROLE");
         require(!t.hasRole(t.DEFAULT_ADMIN_ROLE(), deployer), "timelock: deployer still holds DEFAULT_ADMIN_ROLE");
+        require(!t.hasRole(t.PROPOSER_ROLE(), deployer), "timelock: deployer still holds PROPOSER_ROLE");
+        require(!t.hasRole(t.CANCELLER_ROLE(), deployer), "timelock: deployer still holds CANCELLER_ROLE");
+        require(!t.hasRole(t.EXECUTOR_ROLE(), deployer), "timelock: deployer still holds EXECUTOR_ROLE");
         bool execMs = t.hasRole(t.EXECUTOR_ROLE(), GOV_MULTISIG);
         bool execOpen = t.hasRole(t.EXECUTOR_ROLE(), address(0));
-        require(execMs || execOpen, "timelock: nobody can execute (neither multisig nor open executor)");
+        require(execMs && !execOpen, "timelock: executor policy must be multisig-only (not open)");
         console.log("  [timelock] OK", timelock);
-        console.log("    minDelay 172800; multisig proposer+canceller; executor multisig/open:", execMs, execOpen);
+        console.log("    minDelay 172800; multisig proposer+canceller+executor; executor open:", execOpen);
     }
 
     function _checkPhaseA(address token, address timelock, uint256 cap_, address deployer) internal view {
