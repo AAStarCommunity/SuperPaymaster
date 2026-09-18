@@ -52,6 +52,7 @@ REG=0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
 TL=0x86C86c789EDc099801cc6a5F48334F1D67dC9564
 EP=0x0000000071727De22E5E9d8BAf0edAc6f37da032
 OLD_APNTS=0x696A73701b104c6cCBbAadDD2216788ea08EaB89   # SP.APNTS_TOKEN() pre-switch (OWNER's balance is in this)
+PRICE_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306   # ETH/USD Chainlink proxy (deployments/config.sepolia.json .priceFeed)
 ENVNAME=sepolia
 LOG=script/evidence/run-logged.sh
 # MANIFEST is a REAL, non-negotiable path: UpgradeViaTimelock.s.sol's _cfg()/_manifest() build it from
@@ -101,32 +102,97 @@ must_fail() { local what="$1"; shift; if "$@" >"$OUT/neg.log" 2>&1; then echo "N
 txhash() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).transactionHash))'; }
 warp48h() { cast rpc evm_increaseTime 172800 --rpc-url "$RPC" >/dev/null; cast rpc evm_mine --rpc-url "$RPC" >/dev/null; }
 impl_of() { cast storage "$1" 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$RPC" | sed 's/0x000000000000000000000000/0x/'; }
+# refresh_oracle: a REAL, EXPECTED consequence of this rehearsal's own methodology, not a forge
+# bug -- warping the fork's clock 7 real days forward (APNTS_TOKEN_TIMELOCK, see warp48h/the A1e
+# fast-forward) leaves the forked Chainlink ETH/USD feed's `latestRoundData().updatedAt` exactly
+# as stale as it was at the fork block, since no new oracle round ever arrives on a frozen fork.
+# By the time SP.updatePrice() runs (step 7c), that staleness is ~9 days, past the ~4200s
+# priceStalenessThreshold recorded for Sepolia in 03-final-spec.md §6 step 5, so it reverts
+# OracleError() -- confirmed against real Sepolia state (round 36140, answer 248734837246,
+# updatedAt 1789715436 unchanged since the fork block; the fork's block.timestamp had moved to
+# 1790493075+). Fix: overwrite ONLY the round's packed timestamp field, in place, on the FORK
+# (anvil_setStorageAt -- never valid off a fork), leaving the price answer itself untouched.
+# Chainlink's OffchainAggregator packs `struct Transmission { int192 answer; uint64 timestamp; }`
+# into one slot of `mapping(uint32 => Transmission) s_transmissions` at a base slot that is fixed
+# for a given aggregator's bytecode but not published as part of its ABI, so this brute-forces the
+# base slot (0..80) by matching the CURRENTLY-known answer+timestamp against candidate
+# keccak256(roundId . baseSlot) reads, rather than hardcoding a slot index that could silently go
+# stale if Chainlink ever redeploys the underlying aggregator behind the (stable) proxy address.
+# Confirmed empirically on a Sepolia fork of block 11729160: base slot 44, roundId 36140.
+refresh_oracle() {
+  local agg roundid answer started updated answered_in nowts base found_base slot val intval expect keyhex slothex newval
+  agg=$(cast call "$PRICE_FEED" 'aggregator()(address)' --rpc-url "$RPC")
+  read -r roundid answer started updated answered_in <<< "$(cast call "$agg" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' --rpc-url "$RPC" | tr '\n' ' ' | sed 's/\[[^]]*\]//g')"
+  nowts=$(cast block latest --rpc-url "$RPC" --field timestamp)
+  expect=$(python3 -c "print(int('$answer') + (int('$updated') << 192))")
+  found_base=""
+  for base in $(seq 0 80); do
+    keyhex=$(printf '%064x' "$roundid")
+    slothex=$(printf '%064x' "$base")
+    slot=$(cast keccak "0x${keyhex}${slothex}")
+    val=$(cast storage "$agg" "$slot" --rpc-url "$RPC" 2>/dev/null)
+    intval=$(python3 -c "print(int('$val',16))" 2>/dev/null)
+    if [ "$intval" = "$expect" ]; then found_base=$base; found_slot=$slot; break; fi
+  done
+  if [ -z "$found_base" ]; then
+    echo "  !!! refresh_oracle: could not locate s_transmissions[$roundid] on $agg (base 0..80) -- oracle-dependent steps will fail" | tee -a "$OUT/rehearsal.log"
+    FAILURES=$((FAILURES+1))
+    return 1
+  fi
+  newval=$(python3 -c "print(format(int('$answer') + ($nowts << 192), '064x'))")
+  cast rpc anvil_setStorageAt "$agg" "$found_slot" "0x$newval" --rpc-url "$RPC" >/dev/null
+  cast rpc evm_mine --rpc-url "$RPC" >/dev/null
+  echo "  refresh_oracle: aggregator=$agg round=$roundid answer=$answer updatedAt $updated -> $nowts (base slot $found_base)" | tee -a "$OUT/rehearsal.log"
+}
 fscript_tl() { # <contract> <sender> [env...]
   local c="$1" s="$2"; shift 2
-  # UpgradeViaTimelock.s.sol (via UpgradeRegistryD5b/D5bUpgradeChecks) imports Registry.sol, so it's
-  # dual-compiled (foundry.toml's compilation_restrictions -> <Contract>.default.json +
-  # <Contract>.registry-size.json, no bare <Contract>.json). Two DISTINCT, both confirmed-real forge
-  # 1.7.1 quirks around this, that pull in opposite directions:
-  #   (a) plain `forge script <file>:<Contract>` (no --force) fails "Could not find target contract"
-  #       for THIS file even right after a from-scratch `rm -rf cache out && forge build` -- --force
-  #       on the forge-script call itself reliably fixes this.
-  #   (b) `forge script <file>:<Contract> --force` can (non-deterministically -- reproduced once,
-  #       did NOT reproduce on two immediate identical retries) fail a LATER runtime check
-  #       ("DefaultArtifacts: no profile.default build of ERC1967Proxy ...") because out/ez for a
-  #       library this file only vm.readFile()s at runtime (never `import`s) went missing, even
-  #       though a preceding project-wide `forge build --force` had just written it.
-  # Since (b) did not reproduce on a same-conditions retry, treat it as flaky and retry the whole
-  # (rebuild, force-script) sequence up to 3 times before giving up for real.
+  # ROOT-CAUSED (D5c-2 follow-up session, forge 1.7.1). UpgradeViaTimelock.s.sol (via
+  # UpgradeRegistryD5b/D5bUpgradeChecks) imports Registry.sol, so it's dual-compiled by
+  # foundry.toml's compilation_restrictions -> out/<File>.sol/<Contract>.default.json +
+  # <Contract>.registry-size.json, no bare <Contract>.json. Two DISTINCT, now fully
+  # mechanistic (not flaky) forge 1.7.1 bugs sit on opposite sides of this:
+  #   (a) `forge script <file>:<Contract>` target-contract resolution is broken specifically
+  #       on the "No files changed, compilation skipped" cache-hit fast path: whenever the
+  #       SolFilesCache reports the file unchanged, forge fails "Could not find target
+  #       contract" for any contract whose only artifacts are profile-suffixed. Reproduces
+  #       100/100 on that fast path (confirmed even immediately after a from-scratch
+  #       `rm -rf cache out && forge build`, since a fresh build IS "unchanged" on the very
+  #       next invocation); resolves 100/100 the moment forge is forced through a REAL
+  #       recompile of that file instead of the fast path.
+  #   (b) `--force` "fixes" (a) by forcing a real recompile, but --force has its own bug: it
+  #       scopes out/ artifact RETENTION to only the invoked script's actual `import` closure
+  #       and prunes everything else -- reproduced 100/100 here, not the "non-deterministic"
+  #       behavior an earlier session reported (that earlier read was confounded by which
+  #       TL_MODE ran last). DefaultArtifacts.sol's _requireDefaultProxy() reads
+  #       out/ERC1967Proxy.sol/* via vm.readFile (deliberately not `import`ed -- it needs the
+  #       profile.default build regardless of which profile the CURRENT invocation compiled
+  #       under), so --force reliably evicts it even when a preceding project-wide
+  #       `forge build --force` had just written it.
+  # Fix: get a real recompile WITHOUT --force's over-pruning by deleting only
+  # cache/solidity-files-cache.json (forge's actual SolFilesCache index -- NOT the whole
+  # cache/ dir: this repo's own scripts use cache/evidence-d5b-fork/ as a writable scratch
+  # dir for run()'s V55_OUT_CONFIG output, unrelated to forge's build cache but sharing the
+  # cache/ prefix by fs_permissions convention -- `rm -rf cache` here silently destroyed A3's
+  # freshly-written config.sepolia-fork.json before A5 could read it, a real regression caught
+  # by actually running the rehearsal, not just isolated forge-only testing), and dropping
+  # --force from the forge-script invocation entirely. Deleting solidity-files-cache.json
+  # invalidates the cache entry so the buggy "unchanged" fast path in (a) can never trigger;
+  # forge then goes through its normal incremental build (which only adds/updates artifacts --
+  # the same as any genuine edit-and-rebuild), never triggering (b)'s prune-to-import-closure
+  # behavior. Confirmed reliable across repeated back-to-back calls in isolation (target
+  # resolved + out/ERC1967Proxy.sol/* survived + cache/evidence-d5b-fork/* survived every time,
+  # 3/3) before wiring this into the rehearsal. The retry below is now a pure safety net, not
+  # the primary mechanism.
   local attempt out rc
   for attempt in 1 2 3; do
-    forge build --force > /dev/null 2>&1
+    rm -f cache/solidity-files-cache.json
     out="$(env ENV="$ENVNAME" "$@" forge script "contracts/script/v3/UpgradeViaTimelock.s.sol:$c" \
-      --rpc-url "$RPC" --unlocked --sender "$s" --broadcast --slow --force 2>&1)"
+      --rpc-url "$RPC" --unlocked --sender "$s" --broadcast --slow 2>&1)"
     rc=$?
     echo "$out"
     if [ $rc -eq 0 ]; then return 0; fi
-    if ! echo "$out" | grep -q "DefaultArtifacts: no profile.default build"; then return $rc; fi
-    echo "  (fscript_tl attempt $attempt/3: transient DefaultArtifacts artifact-pruning quirk, retrying with a fresh rebuild)" >&2
+    if ! echo "$out" | grep -qE "Could not find target contract|DefaultArtifacts: no profile.default build"; then return $rc; fi
+    echo "  (fscript_tl attempt $attempt/3: retrying with a fresh cache wipe)" >&2
   done
   return $rc
 }
@@ -153,8 +219,11 @@ step "forge build --force (once, up front)"
 # these dual-profile files reports "No files changed, compilation skipped" and then "Error: Could
 # not find target contract" -- confirmed reproducible here even after a full `forge clean && forge
 # build`; only `--force` (bypassing the cache, not just cleaning it) resolved it. One `--force`
-# build up front, before anything else runs, avoids paying that cost on every later forge-script
-# call in this script while still guaranteeing every artifact (both profiles) is freshly resolved.
+# build up front, before anything else runs, gives every artifact (both profiles) a known-fresh
+# baseline. It is NOT what makes the later fscript_tl() calls correct, though -- root-caused below
+# (see fscript_tl()'s own comment): the per-call fix is deleting only
+# cache/solidity-files-cache.json (not the whole cache/ dir, and not out/) right before
+# each dual-profile forge-script invocation, never passing --force to the script call itself.
 export PATH="$HOME/.foundry/bin:$PATH"
 forge build --force > "$OUT/00-forge-build-force.log" 2>&1
 RC=$?
@@ -341,6 +410,7 @@ ANNI_V2=$(grep -oE "step 7a: v2 token 0x[0-9a-fA-F]{40}" "$OUT/I-A5-issue-anni.l
 echo "  OWNER v2 token=$OWNER_V2 creditPolicy=$(cast call $OWNER_V2 'creditPolicy()(uint8)' --rpc-url $RPC)  ANNI v2 token=$ANNI_V2 creditPolicy=$(cast call $ANNI_V2 'creditPolicy()(uint8)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
 step "STAGE I / A6 (runbook 7c): updatePrice -> configureOperatorV2 -> unpauseOperator for both communities (balance mode only; creditPolicy stays OFF)"
+refresh_oracle
 ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $OWNER_V2 $OWNER --rpc-url $RPC --unlocked --sender $OWNER --broadcast
 check_stage1 A6-configure-owner $?
 ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $ANNI_V2 $ANNI --rpc-url $RPC --unlocked --sender $ANNI --broadcast
