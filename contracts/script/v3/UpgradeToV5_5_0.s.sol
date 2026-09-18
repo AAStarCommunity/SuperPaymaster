@@ -46,10 +46,13 @@ interface IBLSPtr {
  * Entry points (all read back and `require` the state they claim; all idempotent):
  *   inventory(address[] operators)                     step 0 (view)
  *   inventoryDebts(address[] tokens, address[] users)  step 0 (view, pendingDebts on 5.4.2)
- *   executePendingAPNTs(address[] ops)  step 1, branch A (full drain -> switch -> re-deposit)
+ *   queueAPNTs(address newToken)        step 1③ (queue the switch; run AFTER cancelPendingAPNTs,
+ *                                       BEFORE executePendingAPNTs)  ── AUTHOR DECISION REQUIRED
+ *   executePendingAPNTs(address[] ops)  step 1④, branch A (full drain -> switch -> re-deposit)
  *                                       ── AUTHOR DECISION REQUIRED
- *   cancelPendingAPNTs()    step 1, branch B  ── AUTHOR DECISION REQUIRED
- *                           Both refuse to run unless V55_APNTS_DECISION=execute|cancel matches.
+ *   cancelPendingAPNTs()    step 1①, branch B  ── AUTHOR DECISION REQUIRED
+ *                           All three refuse to run unless V55_APNTS_DECISION=execute|cancel|queue
+ *                           matches.
  *   clearPendingDebts(address[] tokens, address[] users)  step 2 (D-21 write-off, 5.4.2 only)
  *   pauseOperators(address[] ops)                      step 3
  *   run()                   steps 4 → 5 → 5b → 6 (SP owner broadcasts)
@@ -61,10 +64,9 @@ interface IBLSPtr {
  *                                                      updatePrice + read-back FIRST)
  *   unpauseOperator(address op)                        step 7c-2 (SP owner broadcasts)
  *
- * Preconditions checked by run() (runbook 1 and 3): pendingAPNTsToken == 0 and every operator
- * listed in V55_OPERATORS (comma-separated) paused. V55_REHEARSAL_SKIP_PRECONDITIONS=true lets a
- * FORK rehearsal proceed without having taken the step-1 decision; it is logged loudly and must
- * never be set for a real network.
+ * Preconditions checked by run() (runbook 1 and 3): pendingAPNTsToken == 0 and every configured
+ * operator supplied in the mandatory V55_OPERATORS comma-separated inventory is paused. There is
+ * deliberately no rehearsal bypass in this release script.
  *
  * Config: reads deployments/config.<ENV>.json (ENV default "sepolia"). New keys
  * (aoaProtocolRegistry, globalTierSource, xPNTsTokenV2Ext, xPNTsTokenV2Impl, xPNTsFactoryV2,
@@ -262,6 +264,7 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
         address owner = sp.owner();
         address oldToken = sp.APNTS_TOKEN();
         uint256 ratio = vm.envOr("V55_APNTS_RATIO_WAD", uint256(1e18));
+        require(ratio != 0, "V55 step1: V55_APNTS_RATIO_WAD must be non-zero");
 
         // (1) snapshot
         uint256[] memory snap = new uint256[](ops.length);
@@ -298,6 +301,13 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
         uint256 tracked = sp.totalTrackedBalance();
         rev = sp.protocolRevenue();
         require(tracked == rev && rev <= PROTOCOL_REVENUE_BUFFER, "V55 step1(4): operators not fully drained (missing from ops?)");
+        // `protocolRevenue` survives the token-address swap as accounting denominated in the NEW
+        // token. The old-token buffer left in SP does not collateralise that number afterwards, so
+        // require the replacement token to be pre-funded before the irreversible execute call.
+        require(
+            IERC20(pending).balanceOf(address(sp)) >= rev,
+            "V55 step1(4): SP lacks new-token collateral for retained protocolRevenue"
+        );
         console.log("  (4) totalTracked == protocolRevenue <= buffer:", tracked);
 
         // (5) execute
@@ -350,8 +360,40 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
             console.log("  (7) operator re-deposited", ops[i], uint256(bal));
         }
         require(sp.totalTrackedBalance() == sum + rev, "V55 step1(7) read-back: totalTracked != sum + protocolRevenue");
-        require(IERC20(newToken).balanceOf(address(sp)) >= sum, "V55 step1(7) read-back: SP does not hold the new aPNTs");
+        require(
+            IERC20(newToken).balanceOf(address(sp)) >= sum + rev,
+            "V55 step1(7) read-back: SP new-token balance < totalTracked"
+        );
         console.log("  (7) totalTracked == sum + protocolRevenue:", sp.totalTrackedBalance());
+    }
+
+    /// @notice Branch A, step ③ — queue the switch to `newToken` (e.g. the just-deployed
+    ///         `APNTsCapped`). Must run AFTER ① (`cancelPendingAPNTs`, so no stale pending
+    ///         survives) and BEFORE ④ (`executePendingAPNTs`, which requires the timelock
+    ///         elapsed). AUTHOR DECISION REQUIRED — refuses unless V55_APNTS_DECISION=queue.
+    ///         Runbook 03-final-spec.md §6 step 1③: "排队区块时间 ≤ T − 7d" — this only queues
+    ///         and reads back; waiting out `APNTS_TOKEN_TIMELOCK` (7 days) is the caller's job
+    ///         (fork rehearsal: `evm_increaseTime`).
+    function queueAPNTs(address newToken) external {
+        require(_strEq(vm.envOr("V55_APNTS_DECISION", string("")), "queue"), "V55: AUTHOR DECISION REQUIRED (V55_APNTS_DECISION=queue)");
+        require(newToken != address(0), "V55 step1(3): newToken is zero");
+        require(newToken.code.length != 0, "V55 step1(3): newToken has no code");
+        SuperPaymaster sp = SuperPaymaster(payable(_addrs().sp));
+        require(_strEq(sp.version(), FROM_VERSION), "V55 step1(3): run BEFORE the 5.5.0 upgrade (runbook order)");
+        require(newToken != sp.APNTS_TOKEN(), "V55 step1(3): newToken is already APNTS_TOKEN");
+        require(sp.pendingAPNTsToken() == address(0), "V55 step1(3): a switch is already pending (cancel it first, step 1(1))");
+        require(sp.pendingAPNTsTokenEta() == 0, "V55 step1(3): stale pending ETA (cancel/repair it first)");
+        uint256 timelock = sp.APNTS_TOKEN_TIMELOCK();
+        vm.startBroadcast(sp.owner());
+        sp.setAPNTsToken(newToken);
+        vm.stopBroadcast();
+        // Read the timestamp after the broadcasted call: the contract derives ETA from the
+        // transaction's block, which may be later than the pre-broadcast simulation block.
+        uint256 queuedAt = block.timestamp;
+        require(sp.pendingAPNTsToken() == newToken, "V55 step1(3) read-back: pendingAPNTsToken != newToken");
+        require(sp.pendingAPNTsTokenEta() == queuedAt + timelock, "V55 step1(3) read-back: pendingAPNTsTokenEta != queuedAt + timelock");
+        console.log("  step 1 (queue): pendingAPNTsToken =", newToken);
+        console.log("  step 1 (queue): queued at / eta   =", queuedAt, sp.pendingAPNTsTokenEta());
     }
 
     /// @notice Branch B. AUTHOR DECISION REQUIRED — refuses unless V55_APNTS_DECISION=cancel.
@@ -399,7 +441,8 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
         SuperPaymaster sp = SuperPaymaster(payable(_addrs().sp));
         vm.startBroadcast(sp.owner());
         for (uint256 i; i < ops.length; ++i) {
-            (, , bool paused, , , , , ,) = sp.operators(ops[i]);
+            (, bool cfg, bool paused, , , , , ,) = sp.operators(ops[i]);
+            require(cfg, "V55 step3: listed operator is not configured");
             if (!paused) sp.setOperatorPaused(ops[i], true);
         }
         vm.stopBroadcast();
@@ -460,25 +503,23 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
     }
 
     function _checkPreconditions(SuperPaymaster sp) internal view {
-        bool skip = vm.envOr("V55_REHEARSAL_SKIP_PRECONDITIONS", false);
         address pending = sp.pendingAPNTsToken();
         if (pending != address(0)) {
-            if (!skip) revert("V55 precondition (runbook 1): pendingAPNTsToken != 0 - execute or cancel first (author decision)");
-            console.log("  !!! REHEARSAL: runbook step 1 NOT done - pendingAPNTsToken =", pending);
-            console.log("  !!! its ETA survives the upgrade and stays executable (spec 03 section 3.1)");
+            revert("V55 precondition (runbook 1): pendingAPNTsToken != 0 - execute or cancel first (author decision)");
         }
+        require(sp.pendingAPNTsTokenEta() == 0, "V55 precondition (runbook 1): pendingAPNTsTokenEta != 0");
         string memory opsCsv = vm.envOr("V55_OPERATORS", string(""));
-        if (bytes(opsCsv).length != 0) {
-            address[] memory ops = vm.envAddress("V55_OPERATORS", ",");
-            for (uint256 i; i < ops.length; ++i) {
-                (, bool cfg, bool paused, , , , , ,) = sp.operators(ops[i]);
-                if (cfg && !paused) {
-                    if (!skip) revert("V55 precondition (runbook 3): a legacy operator is not paused");
-                    console.log("  !!! REHEARSAL: operator not paused:", ops[i]);
-                }
+        require(bytes(opsCsv).length != 0, "V55 precondition (runbook 3): V55_OPERATORS is required");
+        address[] memory ops = vm.envAddress("V55_OPERATORS", ",");
+        require(ops.length != 0, "V55 precondition (runbook 3): V55_OPERATORS is empty");
+        for (uint256 i; i < ops.length; ++i) {
+            require(ops[i] != address(0), "V55 precondition (runbook 3): zero operator");
+            for (uint256 k = i + 1; k < ops.length; ++k) {
+                require(ops[i] != ops[k], "V55 precondition (runbook 3): duplicate operator");
             }
-        } else {
-            console.log("  WARN: V55_OPERATORS not set - runbook step 3 (all operators paused) NOT checked");
+            (, bool cfg, bool paused, , , , , ,) = sp.operators(ops[i]);
+            require(cfg, "V55 precondition (runbook 3): listed operator is not configured");
+            require(paused, "V55 precondition (runbook 3): a legacy operator is not paused");
         }
     }
 
@@ -570,7 +611,7 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
         require(address(sp.entryPoint()) == pre.entryPointImm, "V55 step5 read-back: entryPoint changed");
         // D5b: the implementation's extension is the default SuperPaymasterAdmin build bound to the
         // same immutables (the runtime comparison masks the EXTENSION immutable), and GOV-2 starts clean.
-        _requireSPExtensionBinding(newImpl);
+        _requireDefaultArtifact(newImpl, "SuperPaymaster");
         require(sp.pendingOwner() == address(0), "V55 step5 read-back: pendingOwner != 0");
         require(sp.guardian() == address(0) && !sp.paused(), "V55 step5 read-back: guardian/paused not zero");
         // BLS three legs unchanged

@@ -12,7 +12,9 @@ interface IRegistryCreditLimit {
 /**
  * @title GlobalTierSource
  * @notice 5.5.0's only credit tier source: the protocol-wide reputation tier from Registry.
- * @dev    Spec §8.7 / §0. Non-upgradeable and stateless so its codehash binds its behaviour.
+ * @dev    Spec §8.7 / §0. Non-upgradeable and stateless: its codehash binds the dispatch
+ *         logic and the immutable Registry address. Registry is itself upgradeable, so its
+ *         upgrade governance remains able to change the returned credit limits.
  *         Invoked by xPNTs v2 inside SuperPaymaster's validation frame via STATICCALL:
  *         `Registry.getCreditLimit` reads `globalReputation[user]` (sender-associated) and the
  *         global `creditTierConfig` table (read-only, allowed for a staked paymaster, STO-033).

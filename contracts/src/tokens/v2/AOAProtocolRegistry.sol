@@ -13,11 +13,15 @@ import { IVersioned } from "src/interfaces/IVersioned.sol";
  *         - KIND_SP: keyed by the proxy ADDRESS. SP is a UUPS proxy, so a codehash says
  *           nothing about its implementation; the implementation risk belongs to SP's
  *           upgrade governance (§10.5), not to this list.
- *         - KIND_SPENDER / KIND_TIER_SOURCE: keyed by the IMPLEMENTATION codehash. Upgradeable
- *           proxies can therefore never match; an EIP-1167 minimal proxy is resolved to its
- *           embedded implementation, because it cannot be upgraded (§9).
- *         Approval is only a NECESSARY condition: a token still requires its own 48 h
- *         propose/activate, and checks membership at activation time only.
+ *         - KIND_SPENDER / KIND_TIER_SOURCE: governance must approve reviewed IMPLEMENTATION
+ *           codehashes. A canonical EIP-1167 minimal proxy is resolved to its embedded
+ *           implementation, because it cannot be upgraded (§9). Other targets are matched by
+ *           their own runtime codehash, so governance MUST NOT approve an upgradeable proxy's
+ *           runtime codehash: the registry accepts raw keys and cannot infer what bytecode a
+ *           hash represents.
+ *         Approval is only a NECESSARY condition. Genesis configuration checks it during token
+ *         initialization; subsequent token changes also require their own 48 h propose/activate
+ *         and re-check membership at activation time.
  *         Additions are time-locked after `seal()`; revocation is always immediate.
  */
 contract AOAProtocolRegistry is Ownable, IVersioned {
@@ -25,6 +29,7 @@ contract AOAProtocolRegistry is Ownable, IVersioned {
     uint8 public constant KIND_SPENDER = 1;
     uint8 public constant KIND_TIER_SOURCE = 2;
     uint256 public constant TIMELOCK = 48 hours;
+    bytes32 private constant _EMPTY_CODE_HASH = keccak256("");
 
     /// @notice kind => key => approved
     mapping(uint8 => mapping(bytes32 => bool)) public approved;
@@ -39,9 +44,11 @@ contract AOAProtocolRegistry is Ownable, IVersioned {
     event Sealed();
 
     error InvalidKind();
+    error InvalidKey();
     error AlreadySealed();
     error NotPending();
     error TimelockActive(uint64 eta);
+    error TimelockTimestampOverflow(uint256 timestamp);
 
     constructor(address owner_) Ownable(owner_) {}
 
@@ -53,6 +60,7 @@ contract AOAProtocolRegistry is Ownable, IVersioned {
     function bootstrapApprove(uint8 kind, bytes32 key) external onlyOwner {
         if (sealed_) revert AlreadySealed();
         _checkKind(kind);
+        _checkApprovalKey(kind, key);
         approved[kind][key] = true;
         emit ApprovalExecuted(kind, key);
     }
@@ -65,6 +73,12 @@ contract AOAProtocolRegistry is Ownable, IVersioned {
 
     function proposeApproval(uint8 kind, bytes32 key) external onlyOwner {
         _checkKind(kind);
+        _checkApprovalKey(kind, key);
+        // `pendingAt` is uint64. Reject rather than truncate: wrapping the ETA would make a
+        // nominally time-locked approval immediately executable at sufficiently large timestamps.
+        if (block.timestamp > type(uint64).max - TIMELOCK) {
+            revert TimelockTimestampOverflow(block.timestamp);
+        }
         uint64 eta = uint64(block.timestamp + TIMELOCK);
         pendingAt[kind][key] = eta;
         emit ApprovalProposed(kind, key, eta);
@@ -98,15 +112,16 @@ contract AOAProtocolRegistry is Ownable, IVersioned {
         return approved[KIND_SP][spKey(sp)];
     }
 
-    /// @notice True when `target`'s implementation codehash is approved for `kind`.
+    /// @notice True when the codehash resolved by `implCodehash(target)` is approved for `kind`.
     function isApprovedImpl(uint8 kind, address target) external view returns (bool) {
         if (kind == KIND_SP) return false; // SP is address-keyed, never codehash-keyed
         return approved[kind][implCodehash(target)];
     }
 
     /// @notice Codehash of `target`, resolving a canonical EIP-1167 minimal proxy to the
-    ///         codehash of its embedded implementation. Any other proxy is NOT resolved —
-    ///         its own codehash will simply never be on the list.
+    ///         codehash of its embedded implementation. Any other target, including any other
+    ///         proxy form, is NOT resolved and is checked by its own runtime codehash. Governance
+    ///         must therefore never approve an upgradeable proxy's runtime codehash.
     function implCodehash(address target) public view returns (bytes32) {
         bytes memory c = target.code;
         if (c.length == 45) {
@@ -131,5 +146,16 @@ contract AOAProtocolRegistry is Ownable, IVersioned {
 
     function _checkKind(uint8 kind) private pure {
         if (kind > KIND_TIER_SOURCE) revert InvalidKind();
+    }
+
+    function _checkApprovalKey(uint8 kind, bytes32 key) private pure {
+        // A zero implementation hash authorizes every not-yet-created account. The empty-code
+        // hash authorizes every existing EOA and empty-runtime contract. Either can become a
+        // malicious contract after activation at a deterministic address, so reject both.
+        if (key == bytes32(0) || (kind != KIND_SP && key == _EMPTY_CODE_HASH)) revert InvalidKey();
+
+        // SP keys are canonical left-zero-padded addresses. Reject unreachable/non-canonical
+        // values so an approval cannot look populated while no address can actually match it.
+        if (kind == KIND_SP && uint256(key) > type(uint160).max) revert InvalidKey();
     }
 }

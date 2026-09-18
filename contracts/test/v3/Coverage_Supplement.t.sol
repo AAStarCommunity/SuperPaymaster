@@ -531,10 +531,13 @@ contract CoverageSupplementTest is Test {
         (uint128 opAfter,,,,,,,,) = paymaster.operators(operator);
         assertEq(uint256(opAfter) - uint256(opMid), c.a0 - charge, "operator refunded a0 - charge");
 
-        // (b) legacy V3.3 layout (token, estimatedXPNTs, user, initialAPNTs, userOpHash, operator)
+        // (b) legacy V3.3 layout (token, estimatedXPNTs, user, initialAPNTs, userOpHash, operator):
+        // a 6-word (192 B) blob, neither of the two lengths a legitimately reserved op can ever
+        // produce (352 or 384, see OpCtxOut). Rejected explicitly now instead of falling through
+        // to abi.decode's opaque empty-data revert (Codex whole-branch review, block 1 informational).
         bytes memory legacy = abi.encode(address(xpnts), uint256(100), user, uint256(100), bytes32(0), operator);
         vm.prank(address(entryPoint));
-        vm.expectRevert(bytes("")); // abi.decode of a 6-word blob as the 11-word OpCtx: empty revert data
+        vm.expectRevert(SuperPaymasterStorage.InvalidContextLength.selector);
         paymaster.postOp(IPaymaster.PostOpMode(uint8(PostOpMode.opReverted)), legacy, 1000, 1000);
 
         // (c) Call with empty context (should return)

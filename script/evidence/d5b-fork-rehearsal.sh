@@ -64,6 +64,12 @@ if [ -f "$W/$MANIFEST" ]; then
   cp "$W/$MANIFEST" "$MANIFEST_BACKUP"
   echo "NOTE: $MANIFEST already exists (real committed manifest?) -- backed up to $MANIFEST_BACKUP, will be restored on exit, never deleted." | tee -a "$OUT/rehearsal.log" 2>/dev/null || true
 fi
+# FAILURES: read-back markers below are checked with `grep -q ... && ok || warn`, which by design
+# never aborts the script mid-run (so every stage still gets attempted and logged). Without this
+# counter that pattern degenerates into a false-positive gate: every warning was previously just an
+# echoed "!!!" line, and the script printed "REHEARSAL OK" unconditionally at the bottom regardless
+# of how many read-backs actually failed. Every soft-failure site below must increment this.
+FAILURES=0
 PIDS=()
 cleanup() {
   for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null; done
@@ -113,22 +119,49 @@ echo "  pre-fork inventory: SP=$(cast call $SP 'version()(string)' --rpc-url $RP
 
 if [ "$STAGE" = "I" ] || [ "$STAGE" = "all" ]; then
 
+# check_stage1() name FAILED action, exit code -> on failure: log loudly, count it, and STOP.
+# Unlike the Stage II read-back markers (which are independent checks that can all be attempted
+# even if one is missing), A1-A4 are a strict dependency chain: A2 assumes A1 actually cancelled,
+# A3's run() asserts pendingAPNTsToken==0 (A1's effect) and every V55_OPERATORS entry paused (A2's
+# effect), A4 assumes A3 landed SP first. Continuing past a real forge-script failure here doesn't
+# produce useful additional evidence, it produces a cascade of confusing downstream errors -- so
+# stop immediately, exactly like must_fail() already does for an unexpected negative-control result.
+check_stage1() {
+  local name="$1" rc="$2"
+  if [ "$rc" -ne 0 ]; then
+    echo "  !!! STAGE I / $name FAILED (exit $rc) -- stopping, see the matching log in $OUT" | tee -a "$OUT/rehearsal.log"
+    FAILURES=$((FAILURES+1))
+    exit 1
+  fi
+}
+
 step "STAGE I / A1: cancel the pending APNTsCapped switch (0xBb46...), orthogonal to D5b"
 ENV=$ENVNAME V55_APNTS_DECISION=cancel $LOG "$OUT/I-A1-cancel.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'cancelPendingAPNTs()' --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A1 $?
 echo "  pendingAPNTsToken after cancel: $(cast call $SP 'pendingAPNTsToken()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
 step "STAGE I / A2: pauseOperators([Owner,Anni]) (runbook step 3 precondition for run())"
 ENV=$ENVNAME $LOG "$OUT/I-A2-pause.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'pauseOperators(address[])' "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A2 $?
 
 step "STAGE I / A3: run() -- land CURRENT HEAD SuperPaymaster (5.5.0 AOA balance mode, D5b core+extension split already included) via a plain EOA upgradeToAndCall"
 mkdir -p cache/evidence-d5b-fork
 ENV=$ENVNAME V55_OUT_CONFIG=cache/evidence-d5b-fork/config.sepolia-fork.json V55_OPERATORS=$OWNER,$ANNI \
   $LOG "$OUT/I-A3-run.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+check_stage1 A3 $?
 echo "  SP version after run(): $(cast call $SP 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  SP EXTENSION (D5b core/ext split marker): $(cast call $SP 'EXTENSION()(address)' --rpc-url $RPC 2>&1)" | tee -a "$OUT/rehearsal.log"
 
 step "STAGE I / A4: UpgradeRegistryD5b -- land CURRENT HEAD Registry (5.9.0, GOV-2 two-step ownership) via a plain EOA upgradeToAndCall"
-fscript_tl UpgradeRegistryD5b $OWNER | tee "$OUT/I-A4-registry.log" | grep -E "read-back|BLS|raw slots|5c|Error|revert" || true
+# NOTE: the previous form of this line piped through `tee | grep ... || true`, which (with
+# pipefail) forced the WHOLE pipeline's reported exit status to 0 regardless of whether forge
+# script itself failed -- exactly the "reports success after a real failure" bug this fixes.
+# Redirect to the log file first (fscript_tl already merges stderr internally) so $? is forge
+# script's own exit code, unaffected by the display grep that follows.
+fscript_tl UpgradeRegistryD5b $OWNER > "$OUT/I-A4-registry.log" 2>&1
+RC=$?
+grep -E "read-back|BLS|raw slots|5c|Error|revert" "$OUT/I-A4-registry.log" || true
+check_stage1 A4 $RC
 echo "  Registry version after UpgradeRegistryD5b: $(cast call $REG 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
 fi # stage I
@@ -211,7 +244,7 @@ must_fail "execute-accept before 48h" fscript_tl UpgradeViaTimelock $OWNER TL_MO
 warp48h
 roles_check before-M1-execute
 fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT" | tee "$OUT/II-M1-execute.log" | grep -E "read-back|Error|revert" || true
-grep -q "M1/M2 read-back OK" "$OUT/II-M1-execute.log" && echo "  M1 read-back OK" | tee -a "$OUT/rehearsal.log" || echo "  !!! M1 read-back marker NOT found, see II-M1-execute.log" | tee -a "$OUT/rehearsal.log"
+grep -q "M1/M2 read-back OK" "$OUT/II-M1-execute.log" && echo "  M1 read-back OK" | tee -a "$OUT/rehearsal.log" || { echo "  !!! M1 read-back marker NOT found, see II-M1-execute.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); }
 must_fail "old EOA owner upgradeToAndCall after M1" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'upgradeToAndCall(address,bytes)' $SP 0x
 echo "  SP.owner=$(cast call $SP 'owner()(address)' --rpc-url $RPC) guardian=$(cast call $SP 'guardian()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  Registry.owner=$(cast call $REG 'owner()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
@@ -220,7 +253,7 @@ step "STAGE II / C: timelock-aware upgrade drill (SP then Registry) -- demo cycl
 for T in SP REGISTRY; do
   fscript_tl UpgradeViaTimelock $OWNER TL_MODE=deploy-impl TL_TARGET=$T | tee "$OUT/II-C-$T-deploy.log" | grep -E "ready|new implementation|Error|revert" || true
   NI=$(grep -oE "pass as TL_NEW_IMPL\): 0x[0-9a-fA-F]{40}" "$OUT/II-C-$T-deploy.log" | awk '{print $NF}')
-  [ -n "$NI" ] || { echo "  !!! could not extract new impl address for $T, see II-C-$T-deploy.log" | tee -a "$OUT/rehearsal.log"; continue; }
+  [ -n "$NI" ] || { echo "  !!! could not extract new impl address for $T, see II-C-$T-deploy.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); continue; }
   must_fail "schedule-upgrade $T WITHOUT a roles attestation" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T")
   roles_check "before-$T-upgrade"
   fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T") | tee "$OUT/II-C-$T-schedule.log" | grep -E "scheduled|Error|revert" || true
@@ -228,7 +261,7 @@ for T in SP REGISTRY; do
   warp48h
   roles_check "before-$T-execute"
   fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T") | tee "$OUT/II-C-$T-execute.log" | grep -E "read-back|BLS|raw slots|extension|Error|revert" || true
-  grep -q "read-back OK" "$OUT/II-C-$T-execute.log" && echo "  $T timelock-aware upgrade: read-back OK" | tee -a "$OUT/rehearsal.log" || echo "  !!! $T read-back marker NOT found, see II-C-$T-execute.log" | tee -a "$OUT/rehearsal.log"
+  grep -q "read-back OK" "$OUT/II-C-$T-execute.log" && echo "  $T timelock-aware upgrade: read-back OK" | tee -a "$OUT/rehearsal.log" || { echo "  !!! $T read-back marker NOT found, see II-C-$T-execute.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); }
 done
 
 step "STAGE II / M2: guardian (owner) pauses; guardian cannot unpause; timelock unpauses after 48h"
@@ -243,7 +276,7 @@ must_fail "execute-call (unpause) before 48h" fscript_tl UpgradeViaTimelock $OWN
 warp48h
 roles_check before-M2-unpause-execute
 fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$(cast keccak d5b-fork-m2-unpause) | tee "$OUT/II-M2-execute.log" | grep -E "roles attestation|executed|Error|revert" || true
-grep -q "governed call executed" "$OUT/II-M2-execute.log" && echo "  governed unpause executed" | tee -a "$OUT/rehearsal.log"
+grep -q "governed call executed" "$OUT/II-M2-execute.log" && echo "  governed unpause executed" | tee -a "$OUT/rehearsal.log" || { echo "  !!! governed unpause marker NOT found, see II-M2-execute.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); }
 echo "  paused() after the timelock's unpause = $(cast call $SP 'paused()(bool)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
 fi # stage II
@@ -251,4 +284,9 @@ fi # stage II
 step "final state"
 echo "  SP owner=$(cast call $SP 'owner()(address)' --rpc-url $RPC) guardian=$(cast call $SP 'guardian()(address)' --rpc-url $RPC) impl=$(impl_of $SP) version=$(cast call $SP 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  Registry owner=$(cast call $REG 'owner()(address)' --rpc-url $RPC) impl=$(impl_of $REG) version=$(cast call $REG 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
-echo "REHEARSAL OK ($STAGE)" | tee -a "$OUT/rehearsal.log"
+if [ "$FAILURES" -eq 0 ]; then
+  echo "REHEARSAL OK ($STAGE)" | tee -a "$OUT/rehearsal.log"
+else
+  echo "REHEARSAL FAILED ($STAGE): $FAILURES read-back marker(s) missing, see the !!! lines above" | tee -a "$OUT/rehearsal.log"
+  exit 1
+fi

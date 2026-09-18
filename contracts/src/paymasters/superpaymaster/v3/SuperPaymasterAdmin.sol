@@ -356,12 +356,9 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         return uint48(cachedPrice.updatedAt + priceStalenessThreshold);
     }
 
-    /// @notice Queue an emergency price update. Only honored when Chainlink is stale and the new
-    ///         price stays within ±20% of the last cached price; executable after EMERGENCY_TIMELOCK.
-    function emergencySetPrice(int256 newPrice) external onlyOwner {
+    function _checkEmergencyPrice(int256 newPrice) private view {
         if (newPrice <= 0) revert OracleError();
         if (!_isChainlinkStale()) revert ChainlinkNotStale();
-        // Prevent indefinite EMERGENCY regime: once activated, expires after 7 days.
         if (emergencyActivatedAt != 0 && block.timestamp > emergencyActivatedAt + EMERGENCY_EXPIRY) {
             revert EmergencyExpired();
         }
@@ -372,6 +369,12 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         int256 lower = (ref * int256(int256(uint256(BPS_DENOMINATOR - EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
         int256 upper = (ref * int256(int256(uint256(BPS_DENOMINATOR + EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
         if (newPrice < lower || newPrice > upper) revert EmergencyPriceOutOfRange();
+    }
+
+    /// @notice Queue an emergency price update. Only honored when Chainlink is stale and the new
+    ///         price stays within ±20% of the last cached price; executable after EMERGENCY_TIMELOCK.
+    function emergencySetPrice(int256 newPrice) external onlyOwner {
+        _checkEmergencyPrice(newPrice);
 
         emergencyPendingPrice = newPrice;
         emergencyQueuedAt = block.timestamp;
@@ -387,8 +390,8 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         emit EmergencyPriceCancelled(cancelled);
     }
 
-    /// @notice Apply a previously queued emergency price. Permissionless after the timelock
-    ///         (the protective gates already ran in `emergencySetPrice`).
+    /// @notice Apply a previously queued emergency price. Permissionless after the timelock, but
+    ///         the stale-oracle, expiry and deviation gates are re-checked against execution-time state.
     function executeEmergencyPrice() external {
         if (emergencyQueuedAt == 0) revert NoEmergencyPending();
         if (block.timestamp < emergencyQueuedAt + EMERGENCY_TIMELOCK) {
@@ -396,6 +399,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         }
 
         int256 newPrice = emergencyPendingPrice;
+        _checkEmergencyPrice(newPrice);
         cachedPrice.price = newPrice;
         cachedPrice.updatedAt = block.timestamp;
         cachedPrice.roundId = 0;

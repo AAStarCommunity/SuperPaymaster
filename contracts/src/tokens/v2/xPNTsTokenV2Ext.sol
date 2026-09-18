@@ -105,7 +105,9 @@ contract xPNTsTokenV2Ext is xPNTsV2Base {
         return _hashTypedDataV4(keccak256(abi.encode(ACTION_TYPEHASH, user, kind, keccak256(params), nonce, deadline)));
     }
 
-    /// @dev A-8: the SP cap cannot go below the floor (emergency disable is a separate switch).
+    /// @dev A-8: while `spender` is the current SP, this setter rejects a cap below the floor.
+    ///      A cap set before an address becomes SP is retained across rotation; fixing that
+    ///      requires an enumerable-user or cap-epoch design rather than a local setter check.
     function _setAllowance(address user, address spender, uint256 cap) internal {
         if (spender == address(0)) revert InvalidAddress(address(0));
         if (cap > PROTOCOL_MAX_CAP) revert AboveCeiling();
@@ -319,6 +321,10 @@ contract xPNTsTokenV2Ext is xPNTsV2Base {
         address old = SUPERPAYMASTER_ADDRESS;
         SUPERPAYMASTER_ADDRESS = sp;
         historicalSP[sp] = true;
+        if (autoApprovedSpenders[sp]) {
+            autoApprovedSpenders[sp] = false;
+            emit AutoApprovedSpenderRemoved(sp);
+        }
         pendingSP = address(0);
         emit SuperPaymasterAddressUpdated(old, sp);
     }
