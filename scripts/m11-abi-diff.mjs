@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // M-11 downstream change list: OLD (what is deployed today) vs NEW (5.5.0 candidate).
 // Compares ABIs by FULL shape (functions keyed by selector, events by topic0, errors by selector),
-// and checks that each OLD artifact is really the code on chain (immutable ranges masked).
+// and, for rows that name an on-chain address and do not set verify:false (BLSAggregator, the v1
+// token and the brand-new contracts do), checks the OLD artifact against the chain code with
+// immutable ranges masked.
 //
 // Usage:
 //   node scripts/m11-abi-diff.mjs <oldOutDir> <newOutDir> <onchainJson> > m11-abi-diff.json
