@@ -46,6 +46,6 @@
   }
  ],
  "baseFeePerGasAtPin": "938165027",
- "gasPriceNow": "1103891277",
+ "gasPriceNow": "959686833",
  "note": "safeTxHash depends on the Safe nonce and on the timelock/APNTsCapped addresses, which depend on the deployer nonce at real execution; recompute both before signing."
 }

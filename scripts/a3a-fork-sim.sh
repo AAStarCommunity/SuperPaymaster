@@ -105,7 +105,9 @@ rcpt S6-safe-execute "$H"
 [ "$(cast call $CAPPED 'owner()(address)' --rpc-url $RPC)" = "$NEW_TL" ] || fail "S6 owner != NEW_TL"
 [ "$(cast call $CAPPED 'pendingOwner()(address)' --rpc-url $RPC)" = "0x0000000000000000000000000000000000000000" ] || fail "S6 pendingOwner != 0"
 say "  S6 read-back OK: APNTsCapped owner=$NEW_TL pendingOwner=0"
-ENV=sepolia TIMELOCK=$NEW_TL APNTS_TOKEN_ADDR=$CAPPED forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $CAPPED $OWNER --rpc-url $RPC > "$OUT/S6-verify.log" 2>&1 && say "  S6 DeployAPNTsCapped.verify: $(grep -oE '=== verify: ALL PASS ===' "$OUT/S6-verify.log" | head -1)" || say "  (DeployAPNTsCapped.verify signature differs; see $OUT/S6-verify.log — read-backs above are authoritative)"
+ENV=sepolia TIMELOCK=$NEW_TL forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $CAPPED $OWNER --rpc-url $RPC > "$OUT/S6-verify.log" 2>&1 || fail "S6 DeployAPNTsCapped.verify failed, see $OUT/S6-verify.log"
+grep -q '=== verify: ALL PASS ===' "$OUT/S6-verify.log" || fail "S6 DeployAPNTsCapped.verify did not print ALL PASS"
+say "  S6 DeployAPNTsCapped.verify: ALL PASS"
 
 # ---- S7 (runbook 1③): queue SP.setAPNTsToken(APNTsCapped), ETA = block ts + 7d ------------------
 ENV=sepolia V55_APNTS_DECISION=queue forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'queueAPNTs(address)' $CAPPED \

@@ -16,7 +16,7 @@ const addrs = rd(`${SIM}/addresses.json`);
 const abis = [];
 for (const f of ['out/SuperPaymaster.sol/SuperPaymaster.json', 'out/SuperPaymasterAdmin.sol/SuperPaymasterAdmin.json',
   'out/APNTsCapped.sol/APNTsCapped.json', 'out/TimelockController.sol/TimelockController.default.json']) {
-  try { abis.push(...rd(f).abi.filter((x) => x.type === 'event')); } catch {}
+  abis.push(...rd(f).abi.filter((x) => x.type === 'event')); // missing artifact = hard error (run forge build first)
 }
 // The live SP is 5.4.2; its events come from main's source. Add the 5.4.2 APNTs events explicitly.
 abis.push(
@@ -27,11 +27,11 @@ const byTopic = {};
 for (const e of abis) { try { byTopic[toEventSelector(e)] ??= e; } catch {} }
 const decode = (log) => {
   const e = byTopic[log.topics[0]];
-  if (!e) return { emitter: log.address, topic0: log.topics[0], name: 'UNKNOWN' };
+  if (!e) throw new Error(`undecodable event topic0 ${log.topics[0]} from ${log.address}: add its ABI before publishing the packet`);
   try {
     const d = decodeEventLog({ abi: [e], data: log.data, topics: log.topics });
     return { emitter: log.address, topic0: log.topics[0], name: e.name, args: JSON.parse(JSON.stringify(d.args, (_, v) => (typeof v === 'bigint' ? v.toString() : v))) };
-  } catch { return { emitter: log.address, topic0: log.topics[0], name: e.name, args: 'undecodable' }; }
+  } catch (err) { throw new Error(`event ${e.name} from ${log.address} failed to decode: ${err.message}`); }
 };
 
 const S = snap.snapshot;
