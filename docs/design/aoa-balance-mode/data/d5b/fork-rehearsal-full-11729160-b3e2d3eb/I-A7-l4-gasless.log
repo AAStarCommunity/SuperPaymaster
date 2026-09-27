@@ -1,0 +1,43 @@
+# command: forge script contracts/script/v3/L4GaslessTest.s.sol:L4GaslessTest --rpc-url http://127.0.0.1:28571 --broadcast --slow --gas-estimate-multiplier 400
+# git HEAD: b3e2d3eba32016ea7f3d2f101e22112a7e283749
+# forge: forge Version: 1.7.1
+# utc: 2026-09-27T05:33:30Z
+# exit code: 0
+# (compiler output before line 5 omitted)
+Script ran successfully.
+
+== Logs ==
+  -----------------------------------------
+  L4 Gasless (balance mode) on sepolia-fork
+  -----------------------------------------
+    AA account: 0xB7ECd71c543282375736ccEA5Bf850cc0263792E
+    lens.dryRunValidation ok: true
+    user xPNTs burned      : 65857295918029683369
+    lockedOf(user) after   : 0
+    operator aPNTs decrease: 65857295918029683369
+    protocolRevenue delta  : 65857295918029683369
+    snapshot written: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73755366ec7cff8f/cache/l4-gasless.sepolia-fork.json
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.005673734 gwei
+
+Estimated total gas used for script: 5852568
+
+Estimated amount required: 0.000033205914048912 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73755366ec7cff8f/broadcast/L4GaslessTest.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73755366ec7cff8f/cache/L4GaslessTest.s.sol/11155111/run-latest.json
+

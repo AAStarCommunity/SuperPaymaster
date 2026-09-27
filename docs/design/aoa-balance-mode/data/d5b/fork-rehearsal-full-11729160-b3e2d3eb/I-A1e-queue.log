@@ -1,0 +1,35 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig queueAPNTs(address) 0x2151878c43d37Aa2dc8b15b5E4173ad5e1920f1F --rpc-url http://127.0.0.1:28571 --unlocked --sender 0xb5600060e6de5E11D3636731964218E53caadf0E --broadcast --slow
+# git HEAD: b3e2d3eba32016ea7f3d2f101e22112a7e283749
+# forge: forge Version: 1.7.1
+# utc: 2026-09-27T05:32:30Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    step 1 (queue): pendingAPNTsToken = 0x2151878c43d37Aa2dc8b15b5E4173ad5e1920f1F
+    step 1 (queue): queued at / eta   = 1789888270 1790493070
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.973353892 gwei
+
+Estimated total gas used for script: 111046
+
+Estimated amount required: 0.000108087056291032 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73755366ec7cff8f/broadcast/UpgradeToV5_5_0.s.sol/11155111/queueAPNTs-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73755366ec7cff8f/cache/UpgradeToV5_5_0.s.sol/11155111/queueAPNTs-latest.json
+
