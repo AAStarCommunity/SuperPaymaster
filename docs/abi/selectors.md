@@ -109,6 +109,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x0ad026dd` | `tokenCategory(address)` | xPNTsFactory |
 | `0x0ad026dd` | `tokenCategory(address)` | IxPNTsFactoryCap |
 | `0x0b3167cd` | `receiveWithAuthorization(address,address,uint256,uint256,uint256,bytes32,address,bytes)` | GTokenAuthorization |
+| `0x0bb8bcaf` | `extensionCodehash()` | xPNTsFactoryV2 |
 | `0x0c2fd48b` | `cancelSP()` | xPNTsTokenV2Ext |
 | `0x0c883112` | `cancelEmergencyPrice()` | SuperPaymasterAdmin |
 | `0x0cfb14b0` | `totalDeployed()` | PaymasterFactory |
@@ -1406,6 +1407,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xf0f44260` | `setTreasury(address)` | SuperPaymasterAdmin |
 | `0xf0f44260` | `setTreasury(address)` | Paymaster |
 | `0xf0f44260` | `setTreasury(address)` | PaymasterBase |
+| `0xf142fe44` | `implementationCodehash()` | xPNTsFactoryV2 |
 | `0xf1d85d55` | `autoApprovedSpenders(address)` | xPNTsTokenV2 |
 | `0xf1d85d55` | `autoApprovedSpenders(address)` | xPNTsTokenV2Ext |
 | `0xf1d85d55` | `autoApprovedSpenders(address)` | xPNTsV2Base |
@@ -1525,6 +1527,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x18bc406e` | `AboveCeiling()` | xPNTsTokenV2 |
 | `0x18cc3e32` | `VerifierNotContract(address)` | BLSAggregator |
 | `0x192dbd6a` | `Paymaster__RegistryNotSet()` | Paymaster |
+| `0x19b991a8` | `InitializationFailed()` | xPNTsFactoryV2 |
 | `0x1ba9efb6` | `StillLive()` | xPNTsTokenV2 |
 | `0x1e07dd94` | `ChannelNotFound()` | MicroPaymentChannel |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` | GTokenStaking |
@@ -1552,6 +1555,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x2fb24c72` | `GuardianExitBlockedBySlash(address,uint256)` | BLSAggregator |
 | `0x2fd6c425` | `SlotValidatorStakeBelowMinimum(uint8,address,uint256,uint256)` | BLSAggregator |
 | `0x305a27a9` | `StringTooLong(string)` | APNTsCapped |
+| `0x31e3bee5` | `TimelockTimestampOverflow(uint256)` | AOAProtocolRegistry |
 | `0x3294781e` | `TooManyLevels()` | Registry |
 | `0x34607448` | `ExchangeRateOutOfRange(uint256,uint256,uint256)` | xPNTsTokenV2 |
 | `0x361c31f2` | `NotMinter(address)` | APNTsCapped |
@@ -1638,6 +1642,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x75ae9c29` | `SenderIsFrozen()` | PolicyRegistry |
 | `0x760a602d` | `X402AmountMismatch()` | X402Facilitator |
 | `0x765c7d16` | `FraudProofVerifierNotSet()` | BLSAggregator |
+| `0x76d4e1e8` | `InvalidKey()` | AOAProtocolRegistry |
 | `0x770d1ccb` | `SettlementExceedsDeposit()` | MicroPaymentChannel |
 | `0x77eb0977` | `InvalidCapRatio()` | xPNTsFactoryV2 |
 | `0x77fc5689` | `Paymaster__InvalidGasCostCap()` | Paymaster |
@@ -1730,9 +1735,11 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xc7e8b9c1` | `GuardianSlashCaseNotExpired(uint256,uint256)` | BLSAggregator |
 | `0xc8922921` | `NotStrictlyTighter()` | PolicyRegistry |
 | `0xc89b5c83` | `RenewBlocked()` | xPNTsTokenV2 |
+| `0xc9b22e00` | `TemplateCodehashChanged()` | xPNTsFactoryV2 |
 | `0xc9f3b559` | `ChannelFinalized()` | MicroPaymentChannel |
 | `0xcad4da2a` | `NotTimelock()` | PolicyRegistry |
 | `0xcaf25535` | `ReceiverRejected(address,bytes4)` | APNTsCapped |
+| `0xcbbf5bce` | `InvalidContextLength()` | SuperPaymaster |
 | `0xcbea1001` | `AuthorizationUsedOrCanceled()` | GTokenAuthorization |
 | `0xcd4e6167` | `FeeTooHigh()` | GTokenStaking |
 | `0xcd786059` | `AddressInsufficientBalance(address)` | GTokenStaking |
@@ -1776,6 +1783,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xea8e4eb5` | `NotAuthorized()` | ReputationSystem |
 | `0xec18aced` | `ReceiverNotContract(address)` | APNTsCapped |
 | `0xec442f05` | `ERC20InvalidReceiver(address)` | MockUSDT |
+| `0xec55b8cd` | `InvalidTemplate()` | xPNTsFactoryV2 |
 | `0xed4fac37` | `ImplementationNotFound(string)` | PaymasterFactory |
 | `0xedeb5f3e` | `SelfChannel()` | MicroPaymentChannel |
 | `0xeeee2fe1` | `BLSFailed()` | Registry |
