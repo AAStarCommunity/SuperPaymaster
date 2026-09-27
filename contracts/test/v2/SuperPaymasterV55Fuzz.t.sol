@@ -1124,7 +1124,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         assertEq(uint32(o.ctxSnap >> 32), _settle, "exp/params: context carries the validation-time SETTLE_GAS_BOUND");
         assertEq(uint32(o.ctxSnap >> 64), _cWrap, "exp/params: context carries the validation-time C_WRAP");
         assertEq(uint32(o.ctxSnap >> 96), _cPostop, "exp/params: context carries the validation-time C_POSTOP");
-        assertEq(o.ctxSnap >> 128, 0, "exp/params: no stray bits in the snapshot word");
+        assertEq(o.ctxSnap >> 128, x.feeBps + 1, "fee snapshot: bits 128-255 = validation-time protocolFeeBPS + 1");
         assertEq(c.a0, o.a0, "context a0");
         assertEq(c.mode, o.mode, "context mode");
         assertEq(c.callGas, o.callGas, "context callGasLimit");

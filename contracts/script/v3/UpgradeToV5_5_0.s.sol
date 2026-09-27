@@ -632,6 +632,10 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
         // initialize enforces [60, 86400] only on fresh proxies; an upgraded proxy keeps its old value
         // and 5.5.0 has no setter, so assert the range here (Sepolia 2026-09-13: 4200).
         require(pre.staleness >= 60 && pre.staleness <= 86400, "V55 step5 read-back: staleness outside [60, 86400]");
+        // Same reasoning for the fee: an early UUPS lineage had an uncapped setProtocolFee, and 5.5.0
+        // snapshots (fee + 1) << 128 into postOp context word 12, which only round-trips below 2**128.
+        // setProtocolFee caps new writes at MAX_PROTOCOL_FEE (2000); assert the inherited value does too.
+        require(pre.fee <= 2000, "V55 step5 read-back: protocolFeeBPS above MAX_PROTOCOL_FEE (2000)");
         require(sp.totalTrackedBalance() == pre.tracked, "V55 step5 read-back: totalTrackedBalance drifted");
         require(sp.protocolRevenue() == pre.revenue, "V55 step5 read-back: protocolRevenue drifted");
         require(sp.pendingAPNTsToken() == pre.pendingAPNTs, "V55 step5 read-back: pendingAPNTsToken drifted");

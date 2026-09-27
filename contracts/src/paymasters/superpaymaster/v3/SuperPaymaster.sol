@@ -55,10 +55,14 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
     // a narrow-typed word: 5.5.0's decoder reverts on dirty bits).
     //   emitted : abi.encode(OpCtx) (the 11 5.5.0 words, 352 B) ‖ one trailing word (384 B total):
     //             the GasParams slot as validation saw it (minPostOpGas | settleGasBound << 32 |
-    //             cWrap << 64 | cPostop << 96; never zero — defaults substituted).
-    //             5.5.0's `abi.decode(context, (OpCtx))` ignores the trailing word (rollback).
+    //             cWrap << 64 | cPostop << 96; never zero — defaults substituted) in bits 0-127, and
+    //             (protocolFeeBPS + 1) << 128 in bits 128-255 (0 there = no fee snapshot).
+    //             5.5.0's `abi.decode(context, (OpCtx))` ignores the trailing word, and every earlier
+    //             reader of word 12 takes uint32 slices below bit 128, so the fee bits are invisible
+    //             to a rolled-back implementation (it charges at the live fee, as it always did).
     //   accepted: 384 B → snapshot; 352 B (a 5.5.0 context, forward upgrade) → LEGACY rules;
-    //             word 12 is read ONLY when the length is exactly 384.
+    //             word 12 is read ONLY when the length is exactly 384; a 384 B context whose fee bits
+    //             are 0 (emitted before the fee snapshot existed) is charged at the live fee.
     /// @dev Emit-only layout: OpCtx's 11 words + the trailing snapshot word.
     struct OpCtxOut {
         address token;
@@ -75,6 +79,7 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
         uint256 gasSnap;
     }
     uint256 internal constant CTX_LEN = 384;
+    uint256 internal constant FEE_SNAP_SHIFT = 128;
     /// @dev 5.5.0 values, applied ONLY to a context produced by the 5.5.0 implementation (no
     ///      snapshot) that is settled by this implementation after a mid-bundle upgrade.
     uint256 internal constant LEGACY_SETTLE_GAS_BOUND = 160_000;
@@ -298,7 +303,10 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
 
         // 3. Reservation a0 (spec §10.3): full maxCost at the cached price, + fee + validation buffer
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
-        uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
+        // The fee a0 was quoted at is also the fee postOp charges (snapshotted into word 12), so a
+        // setProtocolFee landing mid-bundle cannot re-price an already-admitted op.
+        uint256 feeBps = protocolFeeBPS;
+        uint256 totalRate = BPS_DENOMINATOR + feeBps + VALIDATION_BUFFER_BPS;
         aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
 
         // 4. Operator solvency — checked BEFORE touching the token
@@ -329,7 +337,7 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
             price: pc.price,
             decimals: pc.decimals,
             aPriceUSD: aPNTsPriceUSD,
-            gasSnap: gpRaw
+            gasSnap: gpRaw | ((feeBps + 1) << FEE_SNAP_SHIFT)
         }));
         return (context, _packValidationData(false, validUntil, validAfter));
     }
@@ -418,7 +426,11 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
         uint256 aGas = Math.mulDiv(
             (actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil
         );
-        uint256 charge = Math.mulDiv(aGas, BPS_DENOMINATOR + protocolFeeBPS, BPS_DENOMINATOR, Math.Rounding.Ceil);
+        // Fee: the validation-time fee when the context carries one; otherwise (352 B, or 384 B
+        // emitted before the fee snapshot) the live fee, which is what that emitter charged.
+        uint256 feeSnap = snap >> FEE_SNAP_SHIFT;
+        uint256 feeBps = feeSnap == 0 ? protocolFeeBPS : feeSnap - 1;
+        uint256 charge = Math.mulDiv(aGas, BPS_DENOMINATOR + feeBps, BPS_DENOMINATOR, Math.Rounding.Ceil);
         if (charge > c.a0) charge = c.a0;
 
         // B-1 §10.1 ①: NO try/catch. A failed settlement reverts postOp → EntryPoint rolls back
