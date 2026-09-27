@@ -378,9 +378,10 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
         // Codex whole-branch review (block 1, informational): abi.decode below tolerates any
         // length >= 352 and silently treats everything except exactly 384 as the legacy (352 B,
         // no gas-param snapshot) format — including malformed lengths that were never actually
-        // emitted by _reserveForOp. A legitimately reserved op can only ever produce exactly 352
-        // or 384 (see OpCtxOut, the sole encode site), so any other length is definitionally
-        // corrupt; reject it explicitly rather than silently decoding it under legacy rules.
+        // emitted by _reserveForOp. This implementation's only encode site (OpCtxOut) always emits
+        // 384; 352 can only be a context left mid-bundle by the prior 5.5.0 implementation across
+        // an upgrade. Any other length is definitionally corrupt; reject it explicitly rather than
+        // silently decoding it under legacy rules.
         if (context.length != 352 && context.length != CTX_LEN) revert InvalidContextLength();
         // B-1 §10.1 ③: never START a settlement that could run out of gas half-way. Reverting here
         // rolls back the user's execution (EntryPoint v0.7 innerHandleOp), so nothing is kept unpaid.
