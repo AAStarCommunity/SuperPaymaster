@@ -162,3 +162,39 @@ node --env-file=.env.sepolia scripts/m11-abi-diff.mjs /tmp/m11-old/out out \
 # 存储布局
 python3 scripts/check_storage_layout.py
 ```
+
+---
+
+## 补遗 1（2026-09-27）：repo:dvt 从其外部依赖面反查出的遗漏（CC-122 `a3b0a92e`）
+
+以下均为源码与 Sepolia 链上读回（块 11,791,550）。**「签名不变」≠「语义不变」**，本节按语义给结论。
+
+### A. 价格面：`updatePrice()` / `cachedPrice()` / `priceStalenessThreshold()`
+- **M1 之后不会被 timelock 门控**：5.5.0 的 `updatePrice()`（`SuperPaymasterAdmin.sol:477`）与 5.4.2（`SuperPaymaster.sol:1079`，main）一样没有任何权限检查，任何人都可调用；M1 只影响 `onlyOwner` 路径。
+- `priceStalenessThreshold` 语义不变：5.5.0 没有 setter，原地升级保留旧值（Sepolia 现值 4200）；`cbcb7045` 只给**全新部署**的 `initialize` 加了 [60, 86400] 边界，升级读回在 runbook 第 5 步断言该区间。
+- ⚠️ **运维事实（与 M-11 无关、但影响上线）**：DVT 侧独立运行的 price-keeper 的目标是 `0x030025f4…82b7`（链上 `version()` = **SuperPaymaster-5.4.0**，v5.4.0-beta1 的旧代理）与 `0x95785225…72eE`（`PMV4-Deposit-4.5.0`），**不是**现役 SP `0x09DF0d2e…4DE9`。而且：
+  - 旧代理 `0x030025f4` 的 `cachedPrice.updatedAt` = 1,788,619,980，距读取时约 **21.6 天**，说明这个 keeper 并没有在成功更新它；
+  - 现役 SP `0x09DF` 的 `cachedPrice.updatedAt` = 1,788,255,708，距读取时约 **25.8 天**，远超 4200 s。5.4.2 的验证用 `cachedPrice.updatedAt + priceStalenessThreshold` 作为 `validUntil`，因此**现役 SP 当前签出的 validUntil 已过期**。
+  - 结论：5.5.0 升级窗口（第 7c 步先 `updatePrice()`）以及之后的正常运行，都需要一个**指向 `0x09DF…` 的** keeper。这是 A3b 之前的运维前置项。
+
+### B. x402：`settleX402Payment*` / `facilitatorFeeBPS()` / `x402NonceKey` / `x402SettlementNonces`
+- `X402Facilitator.sol`（`0xfe1DB01e…92aF`）在 main → feat 之间**源码无任何改动**。
+- PR #442 的 fee snapshot 只改 SP 自己 postOp 使用的 `protocolFeeBPS`，**不涉及 `facilitatorFeeBPS`**。SP 存储里仍有同名槽（`SuperPaymasterStorage.sol`），是 x402 抽离前的遗留，不被 5.5.0 的 SP 逻辑读取。
+
+### C. 信用面：语义变了
+| 调用 | OLD（5.4.2 / v1 代币） | NEW（5.5.0 / v2 代币） | 同一输入是否同一含义 |
+|---|---|---|---|
+| `SP.getAvailableCredit(user, token)` | `Registry.getCreditLimit(user) − token.getDebt(user)` | `token.effectiveCreditCap(user) − (token.debts(user) + token.creditReservedOf(user))`（`SuperPaymasterAdmin.sol`） | **否**。`creditPolicy` 默认 OFF 时 `effectiveCreditCap = 0` → NEW 返回 0，而 OLD 返回「档位额度 − 债」（Sepolia 当前档位 300 aPNTs）。传 v1 代币会 revert（v1 没有 `effectiveCreditCap`） |
+| `Registry.getCreditLimit(user)` | `creditTierConfig[level(globalReputation)]` | **同左，函数本身不变** | 函数含义不变，但**角色变了**：NEW 里它只是 `effectiveCreditCap` 的一个上界输入（经 `GlobalTierSource`），不再是用户实际可用额度。另注意全局声誉从未被写入（CC-121），所有人都落在 level 1 |
+| `token.getDebt(user)` | v1 代币有 | **v2 没有**（改为 `debts(user)`；在途预留另见 `creditReservedOf`） | 对 v2 代币调用 `getDebt` 会 revert |
+
+### D. `Registry.getRoleMembers(bytes32)`
+OLD、NEW **都不存在**。DVT 的 `roleUseGetter` 默认关闭是正确的，不需要改。
+
+### E / F. `PolicyRegistry.checkPolicy` / `RelayBuyHelper.executeBuy`
+- `PolicyRegistry.sol`：main → feat 源码无改动，不在 5.5.0 范围内。
+- `RelayBuyHelper`（`0x8d08fBD8…`）不在本仓库，不属于 SP 5.5.0 的发布范围。
+
+### 对 repo:dvt 行动项的修正
+- `getDebt(address)`：由「DVT 不受影响」改为 **「DVT 需要改代码」**。今天调用者为 0，但声明是按 v1 签名写的，将来一旦接通，打到 v2 代币就会 revert。
+- price-keeper：需要改指向现役 SP `0x09DF…`（以及确认它为何对旧目标也没有成功更新）。这属于运维，不是 ABI 变化。
