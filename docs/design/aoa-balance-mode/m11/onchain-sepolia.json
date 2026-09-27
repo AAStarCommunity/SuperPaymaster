@@ -1,0 +1,214 @@
+{
+ "network": "deployments/config.sepolia.json",
+ "chainId": 11155111,
+ "block": "11791473",
+ "contracts": {
+  "aPNTs": {
+   "address": "0x696A73701b104c6cCBbAadDD2216788ea08EaB89",
+   "codeSize": 45,
+   "runtimeCodehash": "0x15f1b4b625c382410612c75252997218c927fc8fe5060a7e76a1df8461bc3993",
+   "version": "XPNTs-3.4.0"
+  },
+  "agentIdentityRegistry": {
+   "address": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+   "codeSize": 130,
+   "runtimeCodehash": "0xd0e45b1d89fa9b6cc7e97c1f155d64180e5c232aaccf9900ef9d4fd738c02b41",
+   "version": null,
+   "erc1967Impl": "0x7274e874ca62410a93bd8bf61c69d8045e399c02",
+   "implCodehash": "0xa5f9624ea85e45b3f4b8558581f03bfb3e6cefab278d7bf0500ec9bd065dc16f",
+   "implCodeSize": 14474
+  },
+  "agentReputationRegistry": {
+   "address": "0x8004B663056A597Dffe9eCcC1965A193B7388713",
+   "codeSize": 130,
+   "runtimeCodehash": "0xd0e45b1d89fa9b6cc7e97c1f155d64180e5c232aaccf9900ef9d4fd738c02b41",
+   "version": null,
+   "erc1967Impl": "0x16e0fa7f7c56b9a767e34b192b51f921be31da34",
+   "implCodehash": "0x38602de97f1bd86f0a4729f7f3c0a78b1d27892e6eb581272cce5504a68fd00b",
+   "implCodeSize": 10491
+  },
+  "agentValidationRegistry": {
+   "address": "0x8004Cb1BF31DAf7788923b405b754f57acEB4272",
+   "codeSize": 130,
+   "runtimeCodehash": "0xd0e45b1d89fa9b6cc7e97c1f155d64180e5c232aaccf9900ef9d4fd738c02b41",
+   "version": null,
+   "erc1967Impl": "0xdb31f5d9167f8ebc8b30fbbf814c4d297c2d7f99",
+   "implCodehash": "0x14ffccec8b46c9175bb80327a5471b0333596aed02e2ff500d772bd505a303c6",
+   "implCodeSize": 5876
+  },
+  "blsAggregator": {
+   "address": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D",
+   "codeSize": 23667,
+   "runtimeCodehash": "0xa47bcf01babb782960fab93f8b5d5a9ca6e27c1aa96c0aa8648386b4a75bde4c",
+   "version": "BLSAggregator-4.11.0"
+  },
+  "blsAggregatorPrev": {
+   "address": "0x174b60bB462b00550F0EC7Bc35Fe39dDB6310158",
+   "codeSize": 15857,
+   "runtimeCodehash": "0x57728443c607842ba8c2d0576004afa7ad51cb021d2ebffcde1e34381ac043e8",
+   "version": "BLSAggregator-4.3.0"
+  },
+  "blsFraudProofVerifierPrev": {
+   "address": "0x128847cFD6e0C8247ED297Fb27a1302f2ad66D51",
+   "codeSize": 2855,
+   "runtimeCodehash": "0xdc59bed00a4522896b738d72f0345e1d4ad1b1c223cb89d824491d7e98550ecc",
+   "version": null
+  },
+  "dvtValidator": {
+   "address": "0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e",
+   "codeSize": 6326,
+   "runtimeCodehash": "0x945bf1df04a0894f57b0da0d62661f123a8ccec7e1c9e748610d0663e71b863c",
+   "version": "DVTValidator-0.6.0"
+  },
+  "entryPoint": {
+   "address": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+   "codeSize": 16035,
+   "runtimeCodehash": "0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58",
+   "version": null
+  },
+  "gToken": {
+   "address": "0x4c09aE57503Aa1E2A43b05621A38DbdD43b0Aa08",
+   "codeSize": 6113,
+   "runtimeCodehash": "0xff0469bd525a1724f4212e46861a2a84ed3a3fe5a585d28c6e18264b70f05b08",
+   "version": "GToken-2.2.0"
+  },
+  "microPaymentChannel": {
+   "address": "0x37578b70B231CC0Eda5991CA633ae99eb35f3818",
+   "codeSize": 6117,
+   "runtimeCodehash": "0xb981eb0c79a28e3fd68c813538adf9ebcf1d30d73873e1cecfaac4e64a2803d7",
+   "version": "MicroPaymentChannel-1.3.0"
+  },
+  "paymasterFactory": {
+   "address": "0xA936F8e3d682B0eCf280E6f5c05fF4204ee87180",
+   "codeSize": 6093,
+   "runtimeCodehash": "0xc54e87ae154134fd1f69f38118fd6d5e59d546882b21cdcd5f78258d0a187959",
+   "version": "PaymasterFactory-1.0.2"
+  },
+  "paymasterV4Impl": {
+   "address": "0xa4683e383af87069a2782A72031C329807F2E5A9",
+   "codeSize": 10492,
+   "runtimeCodehash": "0xf429aac5966b48685d0f6bc4f0357e4536f3d75396703dc86e10a2f6e8c4bbbb",
+   "version": "PMV4-Deposit-4.5.1"
+  },
+  "pnts": {
+   "address": "0xE6579A90dc498a710008de12119812D0FB7aA224",
+   "codeSize": 45,
+   "runtimeCodehash": "0x15f1b4b625c382410612c75252997218c927fc8fe5060a7e76a1df8461bc3993",
+   "version": "XPNTs-3.4.0"
+  },
+  "policyRegistry": {
+   "address": "0x29253bF61310B63866dfb9E9f464B6d95E09f2C1",
+   "codeSize": 6349,
+   "runtimeCodehash": "0x044e21f50a0c3228528c7241cf96cefaedb4adde0ac6e25ed160e9a755cec386",
+   "version": "PolicyRegistry-1.0.0"
+  },
+  "priceFeed": {
+   "address": "0x694AA1769357215DE4FAC081bf1f309aDC325306",
+   "codeSize": 6992,
+   "runtimeCodehash": "0x9190afba2a699a9627d64ed68c7cc60e4005a8830b33183c4413b4e1a93b9ccd",
+   "version": null
+  },
+  "registry": {
+   "address": "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71",
+   "codeSize": 100,
+   "runtimeCodehash": "0xbfa8a49f3061225d6e1298934a59b43ee6ab3c042b13fc572712709ff6cc7ec0",
+   "version": "Registry-5.8.0",
+   "erc1967Impl": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
+   "implCodehash": "0xa43e76a74928389398d096f3a877828b84b21cd7b0294c1cfd56a888431ad5a8",
+   "implCodeSize": 23038
+  },
+  "registryImpl": {
+   "address": "0x9beD0F58d6001B0006923eb8c4b1Cc548D42ccEe",
+   "codeSize": 23038,
+   "runtimeCodehash": "0xa43e76a74928389398d096f3a877828b84b21cd7b0294c1cfd56a888431ad5a8",
+   "version": "Registry-5.8.0"
+  },
+  "reputationSystem": {
+   "address": "0x4Ec2D49D75D5D4206B64387A7d6a6C3c5c90fB5A",
+   "codeSize": 7044,
+   "runtimeCodehash": "0x6d712dae9628ea0788b9ace4c3c1f4d981c2add68f3e9d0ac28eb189c01deaa3",
+   "version": "Reputation-0.3.2"
+  },
+  "sbt": {
+   "address": "0x4867B4302bf4C7818b71F55E53A3520Ee1855Aa7",
+   "codeSize": 12111,
+   "runtimeCodehash": "0x503406268c12a8cfefd01d07289e51915f4869c71e5024b77ec603f67408a303",
+   "version": "MySBT-3.2.0"
+  },
+  "simpleAccountFactory": {
+   "address": "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985",
+   "codeSize": 2288,
+   "runtimeCodehash": "0xef864ebcb05608afdd25888b657deb36cdee118a2b4e0adbbe47e26f938ded45",
+   "version": null
+  },
+  "spImpl": {
+   "address": "0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27",
+   "codeSize": 23569,
+   "runtimeCodehash": "0x63a66dc03dfe0a16788f2f14625d661affac311f7b11e3a7a4acffd5b4435135",
+   "version": "SuperPaymaster-5.4.2"
+  },
+  "staking": {
+   "address": "0x472297B557c1d0F030f281a5Bb8A535f6c5AB65e",
+   "codeSize": 9061,
+   "runtimeCodehash": "0xc1e3c59b8e950853ed9f322df99c1ec10ea3961dbb6d12693e933f4dd3b0e0ae",
+   "version": "Staking-4.2.0"
+  },
+  "superPaymaster": {
+   "address": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+   "codeSize": 100,
+   "runtimeCodehash": "0xbfa8a49f3061225d6e1298934a59b43ee6ab3c042b13fc572712709ff6cc7ec0",
+   "version": "SuperPaymaster-5.4.2",
+   "erc1967Impl": "0xe25f88dbeafc64200270a948df8e9dd2f9b22c27",
+   "implCodehash": "0x63a66dc03dfe0a16788f2f14625d661affac311f7b11e3a7a4acffd5b4435135",
+   "implCodeSize": 23569
+  },
+  "timelockController": {
+   "address": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+   "codeSize": 5458,
+   "runtimeCodehash": "0x41aec1b7c7ca0a08113cd691258bd8e41aa99ed54e1fd2b668807b86f04d8ff6",
+   "version": null
+  },
+  "x402Facilitator": {
+   "address": "0xfe1DB01e1d6622e722B92ed5993af61325DB92aF",
+   "codeSize": 4332,
+   "runtimeCodehash": "0x2b9ca89e1716bf78ed818644d61eb792169a8819c78a4ffb36690ff571805650",
+   "version": "X402Facilitator-1.0.0"
+  },
+  "xPNTsFactory": {
+   "address": "0x67422d2e44a33c8dA99b3b776841bF316bD209a2",
+   "codeSize": 5221,
+   "runtimeCodehash": "0x984d165dc900df30b3d6a1c9746b67b2fc406a5c244cdec7b7f67fe39d0fda5d",
+   "version": "xPNTsFactory-2.3.0-clone-optimized"
+  },
+  "aPNTsPaymasterV4": {
+   "address": "0xf3948753ff21D33f6A5f516621FFF245B23efa0e",
+   "codeSize": 45,
+   "runtimeCodehash": "0x4126e8e2c2db9726bbe9698862ab6fc57a3f80d62fd3ab5b9f979bab1c2fe154",
+   "version": "PMV4-Deposit-4.5.0"
+  },
+  "pNTsPaymasterV4": {
+   "address": "0xC827747674ab6397c319e284f650D07d8c2a4a46",
+   "codeSize": 45,
+   "runtimeCodehash": "0x4126e8e2c2db9726bbe9698862ab6fc57a3f80d62fd3ab5b9f979bab1c2fe154",
+   "version": "PMV4-Deposit-4.5.0"
+  },
+  "xPNTsFactoryCC28": {
+   "address": "0x9f426568f16e81144F3eBf6F07e497fB9f160d11",
+   "codeSize": 6802,
+   "runtimeCodehash": "0x2884b4d7a20a77d6fdb5e7d70249e07720377891f3113fb5093f338db40cf819",
+   "version": "xPNTsFactory-2.3.0-clone-optimized"
+  },
+  "xPNTsTokenCC28Test": {
+   "address": "0x4680Bf1A4c72814aBF090E7Fa2b17c07C2407714",
+   "codeSize": 45,
+   "runtimeCodehash": "0x2b2bd2325ab2e869b1e7d18f31973c868b9eb039239ab104515ea486c8359046",
+   "version": "XPNTs-3.5.0"
+  },
+  "livenessRegistry": {
+   "address": "0x02d841F7905aFb4424DBA71680D27C0F75d36BE7",
+   "codeSize": 1533,
+   "runtimeCodehash": "0x22536f866a4a7269495db93a4c6d79e9008b05507b207782a9d13b5c74c56612",
+   "version": "LivenessRegistry-1.0.0"
+  }
+ }
+}
