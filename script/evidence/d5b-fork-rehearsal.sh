@@ -55,6 +55,17 @@ OLD_APNTS=0x696A73701b104c6cCBbAadDD2216788ea08EaB89   # SP.APNTS_TOKEN() pre-sw
 PRICE_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306   # ETH/USD Chainlink proxy (deployments/config.sepolia.json .priceFeed)
 ENVNAME=sepolia
 LOG=script/evidence/run-logged.sh
+# Every broadcasting `forge script` below runs with --slow (one tx at a time, each receipt awaited
+# before the next is sent). Reason (2026-09-27): on anvil 1.7.1 a multi-tx broadcast WITHOUT --slow
+# stalled at Stage I/A3 -- the owner's six txs (nonces 11283-11288) sat in the txpool as *queued*
+# for 45 min although the account nonce was 11283, basefee < maxFee, balance and gasLimit were fine,
+# and `anvil_mine` did not include them. That matches the admission race fixed upstream in
+# foundry-rs/foundry#17021 (merged 2026-09-24, after 1.7.1; only in nightlies so far): pool
+# dependency markers were derived from a nonce that concurrent mining could change, so a sequential
+# tx could wait forever on a marker that is never provided again. --slow removes the concurrency
+# (no admission while an earlier tx of the same batch is being mined). This is a MITIGATION matched
+# to that mechanism, not a proof: the stall is intermittent (a later identical run passed A3 without
+# --slow) and could not be reproduced on demand, so its absence is only observed, not guaranteed.
 # MANIFEST is a REAL, non-negotiable path: UpgradeViaTimelock.s.sol's _cfg()/_manifest() build it from
 # the SAME `ENV` value used to find the real deployments/config.sepolia.json, so it MUST be
 # "deployments/timelock-roles.sepolia.json" -- the exact path a real, committed GOV-1 manifest lives at
@@ -279,7 +290,7 @@ check_stage1() {
 }
 
 step "STAGE I / A1: cancel the pending APNTsCapped switch (0xBb46...), orthogonal to D5b"
-ENV=$ENVNAME V55_APNTS_DECISION=cancel $LOG "$OUT/I-A1-cancel.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'cancelPendingAPNTs()' --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME V55_APNTS_DECISION=cancel $LOG "$OUT/I-A1-cancel.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'cancelPendingAPNTs()' --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A1 $?
 echo "  pendingAPNTsToken after cancel: $(cast call $SP 'pendingAPNTsToken()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
@@ -299,7 +310,7 @@ if [ -z "$FRESH_TL" ] || [ "$FRESH_TL" = "null" ]; then echo "  !!! STAGE I / A1
 echo "  fresh GOV-1-shaped TimelockController: $FRESH_TL" | tee -a "$OUT/rehearsal.log"
 
 step "STAGE I / A1c (runbook 1②): deploy APNTsCapped, start the Ownable2Step handover to the fresh TimelockController"
-ENV=$ENVNAME TIMELOCK=$FRESH_TL $LOG "$OUT/I-A1c-deploy-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME TIMELOCK=$FRESH_TL $LOG "$OUT/I-A1c-deploy-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A1c $?
 CAPPED=$(grep -oE "\[artifact\] default artifact OK: APNTsCapped 0x[0-9a-fA-F]{40}" "$OUT/I-A1c-deploy-apnts-capped.log" | awk '{print $NF}')
 if [ -z "$CAPPED" ]; then echo "  !!! STAGE I / A1c could not extract the deployed APNTsCapped address, see $OUT/I-A1c-deploy-apnts-capped.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; fi
@@ -318,7 +329,7 @@ check_stage1 A1d-execute $?
 echo "  APNTsCapped after accept: owner=$(cast call $CAPPED 'owner()(address)' --rpc-url $RPC) pendingOwner=$(cast call $CAPPED 'pendingOwner()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
 step "STAGE I / A1e (runbook 1③): queue the aPNTs switch to APNTsCapped"
-ENV=$ENVNAME V55_APNTS_DECISION=queue $LOG "$OUT/I-A1e-queue.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'queueAPNTs(address)' $CAPPED --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME V55_APNTS_DECISION=queue $LOG "$OUT/I-A1e-queue.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'queueAPNTs(address)' $CAPPED --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A1e $?
 echo "  pendingAPNTsToken=$(cast call $SP 'pendingAPNTsToken()(address)' --rpc-url $RPC) eta=$(cast call $SP 'pendingAPNTsTokenEta()(uint256)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
@@ -362,23 +373,23 @@ check_stage1 A1f-sp-buffer $?
 echo "  minted for 1:1 redeposit: OWNER $OWNER_OLD_BAL, ANNI $ANNI_OLD_BAL, SP buffer 0.1e18; APNTsCapped balances now OWNER=$(cast call $CAPPED 'balanceOf(address)(uint256)' $OWNER --rpc-url $RPC) ANNI=$(cast call $CAPPED 'balanceOf(address)(uint256)' $ANNI --rpc-url $RPC) SP=$(cast call $CAPPED 'balanceOf(address)(uint256)' $SP --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
 step "STAGE I / A1g (runbook 1④): execute the full aPNTs migration -- drain EVERY operator's balance in its OLD token (not just aPNTs holders, see A1f's finding), executeAPNTsTokenChange, redeposit 1:1 in APNTsCapped"
-ENV=$ENVNAME V55_APNTS_DECISION=execute V55_APNTS_RATIO_WAD=1000000000000000000 $LOG "$OUT/I-A1g-execute.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'executePendingAPNTs(address[])' "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME V55_APNTS_DECISION=execute V55_APNTS_RATIO_WAD=1000000000000000000 $LOG "$OUT/I-A1g-execute.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'executePendingAPNTs(address[])' "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A1g $?
 echo "  APNTS_TOKEN=$(cast call $SP 'APNTS_TOKEN()(address)' --rpc-url $RPC) pendingAPNTsToken=$(cast call $SP 'pendingAPNTsToken()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
 step "STAGE I / A1h (runbook step 2): clearPendingDebts (D-21 write-off; confirmed 0 for both known token/user pairs at Stage 0 -- this call is a no-op read-back, not a real write-off, since inventoryDebts already found nothing pending)"
 ANNI_TOKEN=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC | sed -n '4p')
-ENV=$ENVNAME $LOG "$OUT/I-A1h-clear-debts.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'clearPendingDebts(address[],address[])' "[$OLD_APNTS,$ANNI_TOKEN]" "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME $LOG "$OUT/I-A1h-clear-debts.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'clearPendingDebts(address[],address[])' "[$OLD_APNTS,$ANNI_TOKEN]" "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A1h $?
 
 step "STAGE I / A2: pauseOperators([Owner,Anni]) (runbook step 3 precondition for run())"
-ENV=$ENVNAME $LOG "$OUT/I-A2-pause.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'pauseOperators(address[])' "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME $LOG "$OUT/I-A2-pause.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'pauseOperators(address[])' "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A2 $?
 
 step "STAGE I / A3: run() -- land CURRENT HEAD SuperPaymaster (5.5.0 AOA balance mode, D5b core+extension split already included) via a plain EOA upgradeToAndCall"
 mkdir -p cache/evidence-d5b-fork
 ENV=$ENVNAME V55_OUT_CONFIG=cache/evidence-d5b-fork/config.sepolia-fork.json V55_OPERATORS=$OWNER,$ANNI \
-  $LOG "$OUT/I-A3-run.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+  $LOG "$OUT/I-A3-run.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A3 $?
 echo "  SP version after run(): $(cast call $SP 'version()(string)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  SP EXTENSION (D5b core/ext split marker): $(cast call $SP 'EXTENSION()(address)' --rpc-url $RPC 2>&1)" | tee -a "$OUT/rehearsal.log"
@@ -398,12 +409,12 @@ echo "  Registry version after UpgradeRegistryD5b: $(cast call $REG 'version()(s
 V55_CFG=cache/evidence-d5b-fork/config.sepolia-fork.json
 
 step "STAGE I / A5 (runbook 7a): each community issues its own v2 token; operator stays paused (creditPolicy starts OFF)"
-ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A5-issue-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'issueCommunityToken(string,string,string,string,uint256)' "AAStar PNTs v2" "aPNTsV2" "AAStar" "aastar.eth" 1000000000000000000 --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A5-issue-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'issueCommunityToken(string,string,string,string,uint256)' "AAStar PNTs v2" "aPNTsV2" "AAStar" "aastar.eth" 1000000000000000000 --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A5-owner $?
 OWNER_V2=$(grep -oE "step 7a: v2 token 0x[0-9a-fA-F]{40}" "$OUT/I-A5-issue-owner.log" | awk '{print $NF}')
 [ -n "$OWNER_V2" ] || { echo "  !!! could not extract OWNER's v2 token address, see $OUT/I-A5-issue-owner.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; }
 
-ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A5-issue-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'issueCommunityToken(string,string,string,string,uint256)' "Mycelium PNTs v2" "PNTSV2" "Mycelium" "mycelium.eth" 1000000000000000000 --rpc-url $RPC --unlocked --sender $ANNI --broadcast
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A5-issue-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'issueCommunityToken(string,string,string,string,uint256)' "Mycelium PNTs v2" "PNTSV2" "Mycelium" "mycelium.eth" 1000000000000000000 --rpc-url $RPC --unlocked --sender $ANNI --broadcast --slow
 check_stage1 A5-anni $?
 ANNI_V2=$(grep -oE "step 7a: v2 token 0x[0-9a-fA-F]{40}" "$OUT/I-A5-issue-anni.log" | awk '{print $NF}')
 [ -n "$ANNI_V2" ] || { echo "  !!! could not extract ANNI's v2 token address, see $OUT/I-A5-issue-anni.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; }
@@ -411,14 +422,14 @@ echo "  OWNER v2 token=$OWNER_V2 creditPolicy=$(cast call $OWNER_V2 'creditPolic
 
 step "STAGE I / A6 (runbook 7c): updatePrice -> configureOperatorV2 -> unpauseOperator for both communities (balance mode only; creditPolicy stays OFF)"
 refresh_oracle
-ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $OWNER_V2 $OWNER --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $OWNER_V2 $OWNER --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A6-configure-owner $?
-ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $ANNI_V2 $ANNI --rpc-url $RPC --unlocked --sender $ANNI --broadcast
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $ANNI_V2 $ANNI --rpc-url $RPC --unlocked --sender $ANNI --broadcast --slow
 check_stage1 A6-configure-anni $?
 
-ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-unpause-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'unpauseOperator(address)' $OWNER --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-unpause-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'unpauseOperator(address)' $OWNER --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A6-unpause-owner $?
-ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-unpause-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'unpauseOperator(address)' $ANNI --rpc-url $RPC --unlocked --sender $OWNER --broadcast
+ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-unpause-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'unpauseOperator(address)' $ANNI --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A6-unpause-anni $?
 # unpauseOperator itself doesn't re-assert creditPolicy==OFF (only issueCommunityToken/configureOperatorV2 do,
 # per the whole-branch Codex review's runbook-entrypoints finding) -- the runbook's 7c row explicitly wants a
