@@ -59,10 +59,11 @@ LOG=script/evidence/run-logged.sh
 # before the next is sent). Reason (2026-09-27): on anvil 1.7.1 a multi-tx broadcast WITHOUT --slow
 # stalled at Stage I/A3 -- the owner's six txs (nonces 11283-11288) sat in the txpool as *queued*
 # for 45 min although the account nonce was 11283, basefee < maxFee, balance and gasLimit were fine,
-# and `anvil_mine` did not include them. That matches the admission race fixed upstream in
-# foundry-rs/foundry#17021 (merged 2026-09-24, after 1.7.1; only in nightlies so far): pool
-# dependency markers were derived from a nonce that concurrent mining could change, so a sequential
-# tx could wait forever on a marker that is never provided again. --slow removes the concurrency
+# and `anvil_mine` did not include them. The likely (INFERRED, not confirmed) cause is the pool-admission
+# mechanism changed upstream in foundry-rs/foundry#17021 (merged 2026-09-24, after 1.7.1; nightlies
+# only): dependency markers were derived from the pending nonce while mining could change it. That PR's
+# own stated symptom is different (`anvil_dropTransaction` leaving nonce-dependent txs), so the link to
+# a queued-forever stall is our inference from the shared mechanism. --slow removes the concurrency
 # (no admission while an earlier tx of the same batch is being mined). This is a MITIGATION matched
 # to that mechanism, not a proof: the stall is intermittent (a later identical run passed A3 without
 # --slow) and could not be reproduced on demand, so its absence is only observed, not guaranteed.
