@@ -100,7 +100,7 @@ APNTsCapped（32 函数）、SuperPaymasterLens（18）、AOAProtocolRegistry（
 
 ## 4. ABI 不变、但下游必须知道的行为变化
 
-1. **`paymasterAndData` 新格式**（`03-final-spec.md` §3.2；`SuperPaymasterStorage.sol:176-182`）：`[paymaster 20][verifGas 16][postOpGas 16][operator 20][maxRate 32][token 20][flags 1]`，共 125 字节。OLD 到 `maxRate` 为止（104 字节）。NEW 中长度不足 124，或 `token` 不等于该 operator 配置的 `xPNTsToken`，都会 **sigFail**（`SuperPaymaster.sol:292-294`）。`flags` bit0 = `SP_RENEW`，bit1 = `ACCOUNT_RENEW`，两位同时为 1 也是 sigFail。**旧 SDK 构造的 `paymasterAndData` 在 5.5.0 上一律被拒**。
+1. **`paymasterAndData` 新格式**（`03-final-spec.md` §3.2；`SuperPaymasterStorage.sol:176-182`）：`[paymaster 20][verifGas 16][postOpGas 16][operator 20][maxRate 32][token 20][flags 1]`，共 125 字节。其中 `flags` 这 1 字节**可选**：长度正好 124 字节时合约按 `flags = 0` 处理（`SuperPaymaster.sol:295`，`pmd.length > FLAGS_OFFSET ? … : 0`）；需要 `FLAG_SP_RENEW` 等标志时才必须带上。长度不足 124 字节（缺 `token`）直接 sigFail（`:292`）。OLD 到 `maxRate` 为止（104 字节）。NEW 中长度不足 124，或 `token` 不等于该 operator 配置的 `xPNTsToken`，都会 **sigFail**（`SuperPaymaster.sol:292-294`）。`flags` bit0 = `SP_RENEW`，bit1 = `ACCOUNT_RENEW`，两位同时为 1 也是 sigFail。**旧 SDK 构造的 `paymasterAndData` 在 5.5.0 上一律被拒**。
 2. **验证失败返回 sigFail，而不是 revert**：暂停、operator 未配置或已暂停、token 不匹配、汇率超出 `maxRate`、余额不足、锁定或信用被拒等，全都返回 `_packValidationData(true, 0, 0)`（`SuperPaymaster.sol:233-319`），bundler 看到的是 **AA34**，而不是带 revert 数据的 **AA33**。SDK 如果依赖 revert 原因来区分失败，需要改用 **Lens `dryRunValidation` 的原因码**（`DRYRUN_*` 常量）。
 3. **`paymasterPostOpGasLimit` 下限**：低于当前 `GasParams.minPostOpGas`（默认 `MIN_POST_OP_GAS = 200_000`，`SuperPaymasterStorage.sol:193`）就 sigFail（`SuperPaymaster.sol:266-269`）。§3.2 规定 SDK **写死 ≥ 200,000**，不能使用 bundler 的估算值；`paymasterVerificationGasLimit` 也要设下限（实测 198k–238k）。gas 参数以后可以由治理修改（`queueGasParams` → `executeGasParams`，要求 ≥ 48h；M1 之后再加上 timelock 的 48h）。**SDK 应该读取 `gasParams()`，不要写死**。
 4. **结算模型**：验证期「锁定余额 / 预留信用」，postOp 按实际用量结算，多出来的退回。用户的 xPNTs 在验证期被锁定（`lockedOf`），在途期间**不能转走**。交易失败后，由 `releaseStaleSponsorship(opHash)`（SP，`SuperPaymaster.sol:457`）或代币侧的 `releaseStaleLock` / `releaseStaleCredit` 释放。
@@ -118,7 +118,7 @@ APNTsCapped（32 函数）、SuperPaymasterLens（18）、AOAProtocolRegistry（
 扫描依据：`aastar-sdk/packages`，扫描时检出的是 `fix/cc103-slotcleared` 分支，排除测试、dist 和 abis 目录。当前仍在使用、到 5.5.0 会失效的引用：`dryRunValidation` 6 处、`pendingDebts` / `retryPendingDebt` / `clearPendingDebt` 各 4 处（`core/src/actions/superPaymaster.ts`）；`recordDebt` 6、`recordDebtWithOpHash` 5、`getDebt` 5、`usedDebtHashes` 3、`burnFromWithOpHash` 7、`needsApproval` 3、`addAutoApprovedSpender` 4、`setSuperPaymasterAddress` 9、`credibilityScore` 8（`core/src/actions/tokens.ts` 等）；`DebtRecorded` 3（analytics 脚本）。
 
 最重要的五件事：
-1. **`paymasterAndData` 编码**改成 125 字节的新格式（加 `token`、`flags`），`paymasterPostOpGasLimit ≥ gasParams().minPostOpGas`（默认 200k），并给 `paymasterVerificationGasLimit` 设下限。
+1. **`paymasterAndData` 编码**改成新格式（加 `token`，124 字节起；`flags` 为可选的第 125 字节），`paymasterPostOpGasLimit ≥ gasParams().minPostOpGas`（默认 200k），并给 `paymasterVerificationGasLimit` 设下限。
 2. **dryRun 改走 Lens**：`SuperPaymasterLens.dryRunValidation(sp, userOp, maxCost)`，按 `DRYRUN_*` 原因码给出提示；删掉对 SP 上 `dryRunValidation` 的调用。
 3. **代币 API 迁移到 v2**：删掉 debt、approval 相关调用，改成 `lockedOf` / `debts` / `effectiveCreditCap` / `autoAllowance` / `setAutoAllowance` / `renewForSelf` / `executeBySig`；`credibilityScore` 改为用 `backingValueUSD`、`issuedValueUSD` 自己计算；事件订阅按新签名重生（注意 `SuperPaymasterAddressUpdated` 的 topic 变了）。
 4. **ABI 重生成**：SP 要用「核心 ∪ Admin」的合并 ABI；新增 Lens、xPNTsTokenV2 ∪ Ext、xPNTsFactoryV2、AOAProtocolRegistry、GlobalTierSource、APNTsCapped。**ABI 比对要比较完整形状（含 outputs）**，SDK 的 #366 已补。
