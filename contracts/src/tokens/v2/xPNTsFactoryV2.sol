@@ -2,6 +2,7 @@
 // AAStar.io contribution with love from 2023
 pragma solidity 0.8.33;
 import { xPNTsTokenV2 } from "./xPNTsTokenV2.sol";
+import { AOAProtocolRegistry } from "./AOAProtocolRegistry.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import {IVersioned} from "src/interfaces/IVersioned.sol";
@@ -64,6 +65,11 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
 
     /// @notice The xPNTsTokenV2 (core) implementation cloned for every community.
     address public immutable implementation;
+
+    /// @notice Runtime hashes pinned when the factory is deployed. Product deployment fails
+    ///         closed if either the core template or its delegated extension changes.
+    bytes32 public immutable implementationCodehash;
+    bytes32 public immutable extensionCodehash;
 
     /// @notice Credit tier source handed to each newly deployed token (R4-H5). Owner-settable
     ///         for FUTURE tokens only; an existing token changes its source via its own 48 h queue.
@@ -177,6 +183,9 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
     error NotFactoryToken();
     /// @notice CC-28 L-2: thrown when assigning a non-empty category that has no seeded baseline.
     error CategoryNotSeeded();
+    error InvalidTemplate();
+    error TemplateCodehashChanged();
+    error InitializationFailed();
 
     // ====================================
     // Constructor
@@ -190,11 +199,46 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
     constructor(address _superPaymaster, address _registry, address _implementation, address _defaultTierSource)
         Ownable(msg.sender)
     {
-        if (_registry == address(0) || _implementation == address(0)) {
+        if (_registry == address(0) || _implementation == address(0) || _implementation.code.length == 0) {
             revert InvalidAddress(address(0));
         }
 
+        address extension;
+        AOAProtocolRegistry protocolRegistry;
+        try xPNTsTokenV2(_implementation).BALANCE_MODE_VERSION() returns (uint16 v) {
+            if (v != 1) revert InvalidTemplate();
+        } catch {
+            revert InvalidTemplate();
+        }
+        try xPNTsTokenV2(_implementation).version() returns (string memory v) {
+            if (keccak256(bytes(v)) != keccak256("XPNTs-4.0.0")) revert InvalidTemplate();
+        } catch {
+            revert InvalidTemplate();
+        }
+        try xPNTsTokenV2(_implementation).EXTENSION() returns (address e) {
+            extension = e;
+        } catch {
+            revert InvalidTemplate();
+        }
+        try xPNTsTokenV2(_implementation).PROTOCOL_REGISTRY() returns (AOAProtocolRegistry r) {
+            protocolRegistry = r;
+        } catch {
+            revert InvalidTemplate();
+        }
+        if (extension.code.length == 0 || address(protocolRegistry) == address(0)) revert InvalidTemplate();
+        try xPNTsTokenV2(extension).PROTOCOL_REGISTRY() returns (AOAProtocolRegistry r) {
+            if (address(r) != address(protocolRegistry)) revert InvalidTemplate();
+        } catch {
+            revert InvalidTemplate();
+        }
+        if (_defaultTierSource == address(0)
+            || !protocolRegistry.isApprovedImpl(protocolRegistry.KIND_TIER_SOURCE(), _defaultTierSource)) {
+            revert InvalidAddress(_defaultTierSource);
+        }
+
         implementation = _implementation;
+        implementationCodehash = _implementation.codehash;
+        extensionCodehash = extension.codehash;
         defaultTierSource = _defaultTierSource;
 
         SUPERPAYMASTER = _superPaymaster; // Can be address(0) initially
@@ -249,6 +293,10 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
         uint256 exchangeRate,
         address paymasterAOA
     ) external returns (address token) {
+        if (implementation.codehash != implementationCodehash
+            || xPNTsTokenV2(implementation).EXTENSION().codehash != extensionCodehash) {
+            revert TemplateCodehashChanged();
+        }
         if (!IRegistry(REGISTRY).hasRole(keccak256("COMMUNITY"), msg.sender)) {
             revert CallerNotCommunity();
         }
@@ -260,7 +308,8 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
         // Deploy new xPNTs token proxy using clone pattern
         address newTokenAddress = implementation.clone();
         token = newTokenAddress;
-        xPNTsTokenV2(newTokenAddress).initialize(xPNTsTokenV2.InitConfig({
+        xPNTsTokenV2 configuredToken = xPNTsTokenV2(newTokenAddress);
+        configuredToken.initialize(xPNTsTokenV2.InitConfig({
             name: name,
             symbol: symbol,
             communityOwner: msg.sender,
@@ -272,6 +321,16 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
             genesisSpender: paymasterAOA,     // A-10 ②: per-user default cap 0
             tierSource: defaultTierSource     // R4-H5
         }));
+        if (configuredToken.FACTORY() != address(this)
+            || configuredToken.communityOwner() != msg.sender
+            || configuredToken.community() != msg.sender
+            || configuredToken.exchangeRate() != exchangeRate
+            || configuredToken.SUPERPAYMASTER_ADDRESS() != SUPERPAYMASTER
+            || configuredToken.creditTierSource() != defaultTierSource
+            || configuredToken.creditPolicy() != 0
+            || (paymasterAOA != address(0) && !configuredToken.autoApprovedSpenders(paymasterAOA))) {
+            revert InitializationFailed();
+        }
 
         // Record deployment
         communityToToken[msg.sender] = token;
@@ -385,6 +444,11 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
      */
     /// @notice Owner: set the tier source handed to FUTURE tokens.
     function setDefaultTierSource(address source) external onlyOwner {
+        AOAProtocolRegistry protocolRegistry = xPNTsTokenV2(implementation).PROTOCOL_REGISTRY();
+        if (source == address(0)
+            || !protocolRegistry.isApprovedImpl(protocolRegistry.KIND_TIER_SOURCE(), source)) {
+            revert InvalidAddress(source);
+        }
         defaultTierSource = source;
     }
 

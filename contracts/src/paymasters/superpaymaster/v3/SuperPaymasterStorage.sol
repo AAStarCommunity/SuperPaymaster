@@ -268,6 +268,7 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
 
     error Unauthorized();
     error InvalidAddress();
+    error InvalidContextLength();
     error InvalidConfiguration();
     error PostOpGasTooLow();
     error GasParamsTimelock();

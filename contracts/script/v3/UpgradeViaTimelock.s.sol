@@ -164,7 +164,8 @@ contract UpgradeRegistryD5b is D5bUpgradeChecks {
         require(owner == msg.sender, "5c: Registry owner is not the broadcaster (after M1 use UpgradeViaTimelock)");
         string memory v = ID5bOwned(c.registry).version();
         if (_strEq(v, REGISTRY_VERSION) && _codeEqArtifact(_implOf(c.registry), _defaultArtifact("Registry"))) {
-            console.log("  5c: Registry already at the D5b build - nothing to do");
+            _requireProxyReadBack(c.registry, "Registry", _implOf(c.registry), owner, REGISTRY_VERSION);
+            console.log("  5c: Registry already at the D5b build - verified, nothing to do");
             return;
         }
         require(_strEq(v, REGISTRY_FROM_VERSION), "5c: Registry is neither 5.8.0 nor the D5b build");
@@ -643,6 +644,11 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         bytes32 id = tl.hashOperation(proxy, 0, data, bytes32(0), salt);
         require(tl.isOperationReady(id), "execute: operation not ready (not scheduled, or minDelay not elapsed)");
         require(vm.load(proxy, OWNERSHIP_2STEP_SLOT) == bytes32(0), "pending ownership nomination: cancel it first (_authorizeUpgrade refuses)");
+        // Re-validate at execution time as well as scheduling time. An operation may have been
+        // scheduled outside this script, and the non-Safe path below only prints calldata (so its
+        // post-execution read-backs cannot protect the signers).
+        if (isSP) _requireSPImplReady(impl, c);
+        else _requireRegistryImplReady(impl);
         address owner = ID5bOwned(proxy).owner();
         Bls3 memory bls = _bls(c);
         bytes32[] memory before = _slots(proxy, isSP ? SP_LAYOUT_END : REGISTRY_LAYOUT_END);

@@ -92,6 +92,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
             emit SuperPaymasterAddressUpdated(address(0), c.superPaymaster);
         }
         if (c.genesisSpender != address(0)) {
+            if (c.genesisSpender == c.superPaymaster) revert InvalidAddress(c.genesisSpender);
             if (!PROTOCOL_REGISTRY.isApprovedImpl(PROTOCOL_REGISTRY.KIND_SPENDER(), c.genesisSpender)) {
                 revert NotApproved(c.genesisSpender);
             }

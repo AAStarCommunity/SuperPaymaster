@@ -90,6 +90,18 @@ contract SuperPaymasterLens is IVersioned {
         return g.minPostOpGas;
     }
 
+    /// @dev Mirror the core's fail-closed token probing: a revert, short return or return bomb is a
+    ///      rejection, not a Lens revert. Only the first word is needed, and at most 32 B is copied.
+    function _staticWord(address target, bytes memory data, uint256 minLen)
+        private view returns (bool success, uint256 word)
+    {
+        assembly ("memory-safe") {
+            success := staticcall(gas(), target, add(data, 32), mload(data), 0, 32)
+            if lt(returndatasize(), minLen) { success := 0 }
+            word := mload(0)
+        }
+    }
+
     /// @notice Would `sp.validatePaymasterUserOp(userOp, hash, maxCost)` sponsor this op, and if
     ///         not, why. Hard failures take precedence over the soft rate limit.
     function dryRunValidation(address sp, PackedUserOperation calldata userOp, uint256 maxCost)
@@ -120,7 +132,8 @@ contract SuperPaymasterLens is IVersioned {
         if (flags & (FLAG_SP_RENEW | FLAG_ACCOUNT_RENEW) == (FLAG_SP_RENEW | FLAG_ACCOUNT_RENEW)) {
             return (false, DRYRUN_TOKEN_MISMATCH);
         }
-        if (IxPNTsTokenV2(xToken).exchangeRate() > abi.decode(pmd[RATE_OFFSET:RATE_OFFSET + 32], (uint256))) {
+        (bool tokenOk, uint256 rate) = _staticWord(xToken, abi.encodeCall(IxPNTsTokenV2.exchangeRate, ()), 32);
+        if (!tokenOk || rate > abi.decode(pmd[RATE_OFFSET:RATE_OFFSET + 32], (uint256))) {
             return (false, DRYRUN_RATE_COMMITMENT_VIOLATED);
         }
 
@@ -133,14 +146,26 @@ contract SuperPaymasterLens is IVersioned {
         if (uint256(opBalance) < a0) return (false, DRYRUN_INSUFFICIENT_BALANCE);
 
         bytes32 opHash = s.entryPoint().getUserOpHash(userOp);
-        (IxPNTsTokenV2.LockResult lr, ) = IxPNTsTokenV2(xToken).previewLock(sp, userOp.sender, opHash, a0, flags & FLAG_SP_RENEW != 0);
-        if (lr != IxPNTsTokenV2.LockResult.OK) {
-            if (lr != IxPNTsTokenV2.LockResult.INSUFFICIENT) {
-                return (false, DRYRUN_LOCK_REJECTED | bytes32(uint256(uint8(lr))));
+        uint256 lr;
+        (tokenOk, lr) = _staticWord(xToken, abi.encodeCall(
+            IxPNTsTokenV2.previewLock, (sp, userOp.sender, opHash, a0, flags & FLAG_SP_RENEW != 0)
+        ), 64);
+        if (!tokenOk || lr > uint256(IxPNTsTokenV2.LockResult.DISABLED)) {
+            return (false, DRYRUN_LOCK_REJECTED);
+        }
+        if (lr != uint256(IxPNTsTokenV2.LockResult.OK)) {
+            if (lr != uint256(IxPNTsTokenV2.LockResult.INSUFFICIENT)) {
+                return (false, DRYRUN_LOCK_REJECTED | bytes32(lr));
             }
-            IxPNTsTokenV2.CreditResult cr = IxPNTsTokenV2(xToken).previewCredit(sp, userOp.sender, opHash, a0);
-            if (cr != IxPNTsTokenV2.CreditResult.OK) {
-                return (false, DRYRUN_CREDIT_REJECTED | bytes32(uint256(uint8(cr))));
+            uint256 cr;
+            (tokenOk, cr) = _staticWord(
+                xToken, abi.encodeCall(IxPNTsTokenV2.previewCredit, (sp, userOp.sender, opHash, a0)), 32
+            );
+            if (!tokenOk || cr > uint256(IxPNTsTokenV2.CreditResult.DISABLED)) {
+                return (false, DRYRUN_CREDIT_REJECTED);
+            }
+            if (cr != uint256(IxPNTsTokenV2.CreditResult.OK)) {
+                return (false, DRYRUN_CREDIT_REJECTED | bytes32(cr));
             }
         }
 

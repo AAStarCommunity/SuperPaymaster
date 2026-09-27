@@ -300,6 +300,7 @@ abstract contract V55Bootstrap is DefaultArtifacts {
         (int256 price, uint256 updatedAt,,) = ISPV55Script(sp).cachedPrice();
         require(price > 0, "V55 readback: cachedPrice.price == 0");
         require(updatedAt > 0, "V55 readback: cachedPrice.updatedAt == 0");
+        require(updatedAt <= block.timestamp, "V55 readback: cachedPrice.updatedAt is in the future");
         require(
             updatedAt + ISPV55Script(sp).priceStalenessThreshold() > block.timestamp,
             "V55 readback: cachedPrice expired"

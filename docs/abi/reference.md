@@ -7505,7 +7505,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymaster
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
-- **Functions:** 56 · **Events:** 45 · **Errors:** 39
+- **Functions:** 56 · **Events:** 45 · **Errors:** 40
 - **Title:** SuperPaymaster (CORE)
 - SuperPaymaster - Unified Registry based Multi-Operator Paymaster
 
@@ -8208,6 +8208,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb4aa8063` | `InsufficientRevenue()` |
 | `0xe6c4247b` | `InvalidAddress()` |
 | `0xc52a9bd3` | `InvalidConfiguration()` |
+| `0xcbbf5bce` | `InvalidContextLength()` |
 | `0xf92ee8a9` | `InvalidInitialization()` |
 | `0x49e27cff` | `InvalidOwner()` |
 | `0x67cc8b75` | `InvalidXPNTsToken()` |
@@ -8235,7 +8236,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymasterAdmin
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol`
-- **Functions:** 88 · **Events:** 45 · **Errors:** 38
+- **Functions:** 88 · **Events:** 45 · **Errors:** 39
 - **Title:** SuperPaymasterAdmin (EXTENSION)
 - Governance, administration and non-hot-path views of SuperPaymaster 5.5.0 (D5b).
 
@@ -8267,7 +8268,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb0d691fe` | `entryPoint()` | view | — | The EntryPoint contract (immutable for gas savings on hot path) |
 | `0xb0f0abe9` | `ETH_USD_PRICE_FEED()` | view | — |  |
 | `0x84450c3d` | `executeAPNTsTokenChange()` | nonpayable | onlyOwner | Apply a previously queued APNTS_TOKEN swap. Owner only; requires the timelock to         have elapsed AND every operator balance drained (totalTrackedBalance ==         protocolRevenue <= PROTOCOL_REVENUE_BUFFER). |
-| `0xdc61ae90` | `executeEmergencyPrice()` | nonpayable | — | Apply a previously queued emergency price. Permissionless after the timelock         (the protective gates already ran in `emergencySetPrice`). |
+| `0xdc61ae90` | `executeEmergencyPrice()` | nonpayable | — | Apply a previously queued emergency price. Permissionless after the timelock, but         the stale-oracle, expiry and deviation gates are re-checked against execution-time state. |
 | `0x5848bb03` | `executeGasParams()` | nonpayable | onlyOwner | Owner-only. NOT relied upon for mid-bundle safety: an owner such as a         TimelockController with an open executor role can be driven from inside a user op.         Safety comes from the OpCtx snapshot (settleGasBound, cPostop, cWrap). |
 | `0x079d2d42` | `executeSlashWithBLS(address,uint8,bytes)` | nonpayable | — | Execute slash triggered by BLS consensus (DVT Module only) |
 | `0xbe875cf3` | `gasParams()` | view | — | Effective parameters (defaults when never set) and the pending proposal. |
@@ -8530,7 +8531,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xdc61ae90` · nonpayable · access: —
 
-> Apply a previously queued emergency price. Permissionless after the timelock         (the protective gates already ran in `emergencySetPrice`).
+> Apply a previously queued emergency price. Permissionless after the timelock, but         the stale-oracle, expiry and deviation gates are re-checked against execution-time state.
 
 #### `executeGasParams()`
 
@@ -9255,6 +9256,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb4aa8063` | `InsufficientRevenue()` |
 | `0xe6c4247b` | `InvalidAddress()` |
 | `0xc52a9bd3` | `InvalidConfiguration()` |
+| `0xcbbf5bce` | `InvalidContextLength()` |
 | `0xf92ee8a9` | `InvalidInitialization()` |
 | `0x49e27cff` | `InvalidOwner()` |
 | `0x67cc8b75` | `InvalidXPNTsToken()` |
@@ -9609,7 +9611,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymasterStorage
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol`
-- **Functions:** 45 · **Events:** 42 · **Errors:** 36
+- **Functions:** 45 · **Events:** 42 · **Errors:** 37
 - **Title:** SuperPaymasterStorage
 - D5b: the ONE storage/inheritance chain shared by the SuperPaymaster core and its         SuperPaymasterAdmin extension (reached from the core's fallback via DELEGATECALL).
 
@@ -10161,6 +10163,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb4aa8063` | `InsufficientRevenue()` |
 | `0xe6c4247b` | `InvalidAddress()` |
 | `0xc52a9bd3` | `InvalidConfiguration()` |
+| `0xcbbf5bce` | `InvalidContextLength()` |
 | `0xf92ee8a9` | `InvalidInitialization()` |
 | `0x49e27cff` | `InvalidOwner()` |
 | `0x67cc8b75` | `InvalidXPNTsToken()` |
@@ -12162,7 +12165,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0xe30c3978` | `pendingOwner()` | view | — |  |
 | `0xd505accf` | `permit(address,address,uint256,uint256,uint8,bytes32,bytes32)` | nonpayable | — |  |
-| `0x5410ac50` | `raiseCap(uint256)` | nonpayable | onlyOwner | Raise the cap. Owner only (the 48h timelock), strictly upwards. |
+| `0x5410ac50` | `raiseCap(uint256)` | nonpayable | onlyOwner | Raise the cap. Owner only (intended to be the verified 48h timelock), strictly upwards. |
 | `0x715018a6` | `renounceOwnership()` | pure | — | Disabled: an ownerless token could never have its roles rotated. |
 | `0xbe5c920c` | `setCapGuardian(address)` | nonpayable | onlyOwner |  |
 | `0xfca3b5aa` | `setMinter(address)` | nonpayable | onlyOwner |  |
@@ -12408,7 +12411,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x5410ac50` · nonpayable · access: onlyOwner
 
-> Raise the cap. Owner only (the 48h timelock), strictly upwards.
+> Raise the cap. Owner only (intended to be the verified 48h timelock), strictly upwards.
 
 | param | type | description |
 |---|---|---|
@@ -13913,7 +13916,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## AOAProtocolRegistry
 
 - **Source:** `contracts/src/tokens/v2/AOAProtocolRegistry.sol`
-- **Functions:** 20 · **Events:** 5 · **Errors:** 6
+- **Functions:** 20 · **Events:** 5 · **Errors:** 8
 - **Title:** AOAProtocolRegistry
 - Protocol-governed allowlists consulted by xPNTs v2 tokens when a community         activates a SuperPaymaster, an auto-approved spender, or a credit tier source.
 
@@ -13924,8 +13927,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x274b4a11` | `approved(uint8,bytes32)` | view | — | kind => key => approved |
 | `0x711ab3f3` | `bootstrapApprove(uint8,bytes32)` | nonpayable | onlyOwner | Bootstrap-only instant approval; unavailable once sealed. |
 | `0xee590301` | `executeApproval(uint8,bytes32)` | nonpayable | — |  |
-| `0xd52c6e82` | `implCodehash(address)` | view | — | Codehash of `target`, resolving a canonical EIP-1167 minimal proxy to the         codehash of its embedded implementation. Any other proxy is NOT resolved —         its own codehash will simply never be on the list. |
-| `0xfadec6be` | `isApprovedImpl(uint8,address)` | view | — | True when `target`'s implementation codehash is approved for `kind`. |
+| `0xd52c6e82` | `implCodehash(address)` | view | — | Codehash of `target`, resolving a canonical EIP-1167 minimal proxy to the         codehash of its embedded implementation. Any other target, including any other         proxy form, is NOT resolved and is checked by its own runtime codehash. Governance         must therefore never approve an upgradeable proxy's runtime codehash. |
+| `0xfadec6be` | `isApprovedImpl(uint8,address)` | view | — | True when the codehash resolved by `implCodehash(target)` is approved for `kind`. |
 | `0xd9114c1e` | `isApprovedSP(address)` | view | — |  |
 | `0xfbdc3d59` | `KIND_SP()` | view | — |  |
 | `0x027d7926` | `KIND_SPENDER()` | view | — |  |
@@ -13983,7 +13986,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xd52c6e82` · view · access: —
 
-> Codehash of `target`, resolving a canonical EIP-1167 minimal proxy to the         codehash of its embedded implementation. Any other proxy is NOT resolved —         its own codehash will simply never be on the list.
+> Codehash of `target`, resolving a canonical EIP-1167 minimal proxy to the         codehash of its embedded implementation. Any other target, including any other         proxy form, is NOT resolved and is checked by its own runtime codehash. Governance         must therefore never approve an upgradeable proxy's runtime codehash.
 
 | param | type | description |
 |---|---|---|
@@ -13997,7 +14000,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xfadec6be` · view · access: —
 
-> True when `target`'s implementation codehash is approved for `kind`.
+> True when the codehash resolved by `implCodehash(target)` is approved for `kind`.
 
 | param | type | description |
 |---|---|---|
@@ -14164,11 +14167,13 @@ Authoritative, auto-generated reference for every external/public function, even
 | selector | error |
 |---|---|
 | `0x423311c0` | `AlreadySealed()` |
+| `0x76d4e1e8` | `InvalidKey()` |
 | `0x2b79ed30` | `InvalidKind()` |
 | `0x7dc6505a` | `NotPending()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0xddffe20e` | `TimelockActive(uint64)` |
+| `0x31e3bee5` | `TimelockTimestampOverflow(uint256)` |
 
 ## GlobalTierSource
 
@@ -14448,7 +14453,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## xPNTsFactoryV2
 
 - **Source:** `contracts/src/tokens/v2/xPNTsFactoryV2.sol`
-- **Functions:** 44 · **Events:** 11 · **Errors:** 12
+- **Functions:** 46 · **Events:** 11 · **Errors:** 15
 - **Title:** xPNTsFactoryV2
 - xPNTs v2 (XPNTs-4.0.0) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
 
@@ -14467,6 +14472,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x4a3cbc55` | `defaultTierSource()` | view | — | Credit tier source handed to each newly deployed token (R4-H5). Owner-settable         for FUTURE tokens only; an existing token changes its source via its own 48 h queue. |
 | `0xec81aadb` | `deployedTokens(uint256)` | view | — | List of all deployed tokens |
 | `0x954ebd3b` | `deployxPNTsToken(string,string,string,string,uint256,address)` | nonpayable | — | Deploy new xPNTs token |
+| `0x0bb8bcaf` | `extensionCodehash()` | view | — |  |
 | `0x2a5c792a` | `getAllTokens()` | view | — | Get all deployed tokens |
 | `0x59734e1a` | `getAPNTsPrice()` | view | — | Get current aPNTs USD price |
 | `0x0ff65414` | `getDeployedCount()` | view | — | Get total deployed tokens count |
@@ -14476,6 +14482,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb8d7b669` | `getTokenAddress(address)` | view | — | Get xPNTs token address for community |
 | `0x9bb0f599` | `hasToken(address)` | view | — | Check if community has deployed token |
 | `0x5c60da1b` | `implementation()` | view | — | The xPNTsTokenV2 (core) implementation cloned for every community. |
+| `0xf142fe44` | `implementationCodehash()` | view | — | Runtime hashes pinned when the factory is deployed. Product deployment fails         closed if either the core template or its delegated extension changes. |
 | `0xab798449` | `industryMultipliers(string)` | view | — | Industry multipliers (name => value in 1e18) |
 | `0x68894411` | `industryScaleUSD(string)` | view | — | CC-28 over-issue model: baseline issuance ceiling per industry category         (USD, 18 decimals). The non-staked credit floor a category is trusted with.         Governance-set. 0 => the category has no baseline (a community in it must back         its issuance entirely with staked aPNTs). Read by xPNTsToken.effectiveCapUSD(). |
 | `0x96e28d28` | `isXPNTs(address)` | view | — | Whitelist of tokens this factory has deployed. |
@@ -14628,6 +14635,14 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `token` | `address` | Deployed token address |
 
+#### `extensionCodehash()`
+
+`0x0bb8bcaf` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
 #### `getAllTokens()`
 
 `0x2a5c792a` · view · access: —
@@ -14743,6 +14758,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `address` |  |
+
+#### `implementationCodehash()`
+
+`0xf142fe44` · view · access: —
+
+> Runtime hashes pinned when the factory is deployed. Product deployment fails         closed if either the core template or its delegated extension changes.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
 
 #### `industryMultipliers(string arg0)`
 
@@ -15049,14 +15074,17 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1e82e519` | `CallerNotCommunity()` |
 | `0xf7566e2a` | `CategoryNotSeeded()` |
 | `0xc2f868f4` | `ERC1167FailedCreateClone()` |
+| `0x19b991a8` | `InitializationFailed()` |
 | `0x8e4c8aa6` | `InvalidAddress(address)` |
 | `0x77eb0977` | `InvalidCapRatio()` |
 | `0x6f12f3dc` | `InvalidMultiplier()` |
 | `0xe5239090` | `InvalidParameters()` |
 | `0x00bfc921` | `InvalidPrice()` |
+| `0xec55b8cd` | `InvalidTemplate()` |
 | `0xfefa4dc9` | `NotFactoryToken()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0xc9b22e00` | `TemplateCodehashChanged()` |
 
 ## xPNTsTokenV2
 
