@@ -13,14 +13,14 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
-    "hono": "^4.13.7",
-    "viem": "^2.56.3"
+    "hono": "^4.13.9",
+    "viem": "^2.56.9"
   },
   "devDependencies": {
-    "@types/node": "^26.5.1",
-    "tsx": "^4.23.13",
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.2"
   },
   "engines": {
     "node": ">=18"
