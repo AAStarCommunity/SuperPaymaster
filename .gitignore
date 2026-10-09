@@ -157,3 +157,7 @@ slither_results.json
 scripts/local_env.json
 deployments/.audit.*.stamp
 script/gasless-tests/results/
+
+# A3a precheck packets: fork-sim logs are listed in EVIDENCE.sha256 and must be committed
+!docs/release/a3a-precheck/fork-sim/*.log
+!docs/release/a3a-precheck-v2/fork-sim/*.log

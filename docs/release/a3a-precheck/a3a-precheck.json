@@ -1,5 +1,6 @@
 {
- "status": "DELIVERED, NOT EXECUTED — nothing in this packet has been broadcast to any public network",
+ "status": "OBSOLETE SNAPSHOT — DO NOT EXECUTE (superseded by docs/release/a3a-precheck-v2/; deployer nonce moved 12130→12131 after the pinned block, so every predicted address / calldata / operation id / safeTxHash here is invalid; S5/S6 impersonated the Safe instead of Safe.execTransaction). Historical rehearsal only; never broadcast.",
+ "previousStatus": "DELIVERED, NOT EXECUTED — nothing in this packet has been broadcast to any public network",
  "scope": "A3a only = 03-final-spec §6 step 1 ①–③ + GOV-1 timelock for APNTsCapped. EXCLUDES A3b (step 1④ executeAPNTsTokenChange / withdraw / redeposit, step 2–7c, SP/Registry upgrades, stake top-up).",
  "sourceCommit": "feat/aoa-balance-mode-5.5.0 @ a81e659d (contracts == v5.5.0-rc.2 @ 1ac0e1c5)",
  "pinnedBlock": "11794003",

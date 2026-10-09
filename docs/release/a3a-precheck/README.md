@@ -1,4 +1,21 @@
-# A3a 逐笔预检包（Sepolia）
+# OBSOLETE SNAPSHOT — DO NOT EXECUTE
+
+> **本包已作废，仅作历史演练记录保留。** 执行请用 [`../a3a-precheck-v2/`](../a3a-precheck-v2/README.md)。
+>
+> 作废原因（DSR 评审 REQUEST CHANGES，CC-122 directive v4 + audit finding #7）：
+> 1. 部署者 EOA 的 nonce 在快照之后已从 12130 变为 12131，本包里 S2/S3 的 CREATE 地址、S5/S6 calldata、timelock operation id、safeTxHash **全部失效**。
+> 2. S5/S6 在 fork 上直接冒充了 Safe 地址，没有经过 `Safe.execTransaction`：2-of-3 签名顺序、Safe nonce 1→2→3、包装层 revert 与 gas 都没有验证。
+> 3. timelock 角色只做了 `hasRole` 点查，没有证明成员集合恰好是 ADMIN = [timelock 自身]、PROPOSER/CANCELLER/EXECUTOR = [Safe]。
+> 4. §3 时间线写的「≈ T0 + 9 天」是对的，但 §3 的「并行方案 ≈ T0 + 7 天」容易被误读为默认；默认顺序是 **T−9d**。
+> 5. 原 `EVIDENCE.sha256` 列了 32 个文件，其中 5 个 `fork-sim/*.log` 被 `.gitignore` 的 `*.log` 排除，fresh checkout 只能校验 27/32。
+>
+> 本次处理：5 个日志已从生成它们的原始工作区原样补交（逐字节与原清单哈希一致），`.gitignore` 增加了这两个目录的 `*.log` 例外；
+> 因为本 README 与 `a3a-precheck.json` 加了作废标记，清单中**只有这两行**的哈希被重算，其余 30 行未改。
+> 日志里的 `ONCHAIN EXECUTION COMPLETE` / `Chain 11155111` 是 forge 对本地 anvil fork（chainId 沿用 Sepolia）的固定输出，不代表上链。
+
+---
+
+# A3a 逐笔预检包（Sepolia）— 历史版本
 
 > ## ✅ delivered, NOT EXECUTED — nothing in this packet has been broadcast
 > 本包里的所有交易只在**本地 anvil fork**（`127.0.0.1:28591`，fork 自 Sepolia 块 11,794,003）上执行过。
