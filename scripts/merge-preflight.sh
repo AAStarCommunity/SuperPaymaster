@@ -514,6 +514,19 @@ else
         echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported"
       fi
       fi
+    elif [ "$(gh api "repos/$REPO/branches/$base_for_req" --jq '.protected' 2>/dev/null)" = "false" ] \
+         && rules=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$base_for_req" 2>/dev/null) \
+         && [ "$(printf '%s' "$rules" | jq -r 'if type=="array" and all(.[]; type=="array") then ([add // [] | .[] | select(.type=="required_status_checks")] | length) else "unread" end' 2>/dev/null)" = "0" ]; then
+      # An unprotected base answers the protection endpoint with 404 "Branch not
+      # protected" - the same failure shape as "no permission", so the leg above
+      # cannot tell them apart and every PR into a long-lived feature branch read
+      # FAIL here. Accept "requires nothing" only on two positive reads: the
+      # branch object says protected == false (a missing field prints "null" and
+      # falls through), AND the rulesets endpoint returns an array of pages with
+      # no required_status_checks rule (rulesets can require checks on a branch
+      # that has no classic protection). Anything else stays an unread value.
+      echo "INFO  $base_for_req is unprotected and no ruleset requires status checks;"
+      echo "      nothing to verify reported"
     else
       echo "FAIL  could not read $base_for_req's required contexts."
       echo "      Not proceeding on an unread value: whether every required check"
