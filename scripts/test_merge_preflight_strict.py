@@ -278,7 +278,13 @@ def main():
             e = dict(os.environ, FAKE_GH_FIXTURE=fpath, FAKE_GH_LOG=os.path.join(tmp, "calls.log"),
                      FAKE_REAL_PATH=os.environ["PATH"], PATH=bindir + os.pathsep + os.environ["PATH"],
                      REPO=REPO, GH_TOKEN="offline")
-            e.pop("GITHUB_RUN_ID", None)
+            # The script derives SELF_NAME from GITHUB_JOB / GITHUB_RUN_ID; inside
+            # Actions those name THIS test job, not the fixture's run. Strip every
+            # GITHUB_* and pin SELF_NAME so local and CI runs see the same input
+            # (the first CI run failed all 7 positive controls on exactly this).
+            for k in [k for k in e if k.startswith("GITHUB_")]:
+                e.pop(k)
+            e["SELF_NAME"] = "preflight-report"
             e.update(env)
             p = subprocess.run(["bash", SCRIPT, PR], capture_output=True, text=True, env=e, timeout=120)
             out = p.stdout + p.stderr
