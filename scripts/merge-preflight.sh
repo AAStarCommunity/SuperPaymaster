@@ -208,9 +208,21 @@ print("\n".join(out))' 2>/dev/null) || latefp="__PARSE_FAILED__"
       fail=1
     fi
   else
-    echo "WARN  the approval body names no SHA - falling back to timestamps, which a"
-    echo "      backdated committer date defeats silently. This leg does not"
-    echo "      establish that the approval covers this head."
+    # Strict mode refuses: without a full SHA written by the approver, only the
+    # timestamp legs below speak for "this approval covers this head", and a
+    # backdated committer date defeats them silently. DSR measured on #452 that
+    # an APPROVE body with no SHA exited 0 here. --ci keeps the WARN: it is a
+    # report, not the gate, and every fresh approval starts there.
+    if [ "$CI_MODE" -eq 1 ]; then
+      echo "WARN  the approval body names no SHA - falling back to timestamps, which a"
+      echo "      backdated committer date defeats silently. This leg does not"
+      echo "      establish that the approval covers this head."
+    else
+      echo "FAIL  the approval body names no full 40-hex SHA. The approver must write"
+      echo "      the exact head ($head) in the APPROVE body; timestamps alone"
+      echo "      cannot establish that the approval covers this head."
+      fail=1
+    fi
   fi
   api cdates '[.[].commit.committer.date]|join("\n")' \
       "repos/$REPO/pulls/$PR/commits" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
