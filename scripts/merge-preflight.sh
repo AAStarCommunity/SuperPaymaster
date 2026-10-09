@@ -338,7 +338,8 @@ else
   api allcheck '[.check_runs[].name]|join("\n")' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
-  base_for_req=$(gh pr view "$PR" --repo "$REPO" --json baseRefName -q '.baseRefName' 2>/dev/null | tr -d ' \n')
+  base_for_req=$(gh pr view "$PR" --repo "$REPO" --json baseRefName -q '.baseRefName' 2>/dev/null | tr -d ' \n') \
+      || base_for_req=""   # a failed lookup that printed something is still unread
 
   api bad '[.check_runs[]|select(.conclusion=="failure" or .conclusion=="timed_out" or .conclusion=="cancelled" or .conclusion=="action_required")|.name]|join("\n")' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
@@ -470,9 +471,12 @@ else
     # URL-encoded: `feat/x#y` is a legal ref, and unencoded the request goes to
     # `feat/x` (the fragment is dropped) - a different branch whose protection
     # would then be reported as this PR's. Found by Codex. Encoding failure
-    # leaves base_enc empty, which the first branch below refuses.
+    # leaves base_enc empty, which the first branch below refuses - including a
+    # jq that printed the value and then exited non-zero (Codex round 2).
     base_enc=""
-    [ -n "$base_for_req" ] && base_enc=$(jq -rn --arg b "$base_for_req" '$b|@uri' 2>/dev/null)
+    if [ -n "$base_for_req" ]; then
+      base_enc=$(jq -rn --arg b "$base_for_req" '$b|@uri' 2>/dev/null) || base_enc=""
+    fi
     if [ -z "$base_for_req" ] || [ -z "$base_enc" ]; then
       # No `:-main` fallback. That silent substitution was removed three commits
       # ago and the reasoning is still on line ~143 of this file; reinstating it
@@ -484,7 +488,8 @@ else
       echo "FAIL  base branch unreadable; cannot check required contexts"
       fail=1
     elif prot=$(gh api "repos/$REPO/branches/$base_enc/protection" 2>/dev/null) \
-         && [ "$(printf '%s' "$prot" | jq -r 'has("enforce_admins")' 2>/dev/null)" = "true" ]; then
+         && guard=$(printf '%s' "$prot" | jq -er 'if type=="object" and has("enforce_admins") then "real" else error("unread") end' 2>/dev/null) \
+         && [ "$guard" = "real" ]; then
       # TWO steps, because `// []` alone cannot tell "this branch requires
       # nothing" from "I could not see what it requires". A partial response, a
       # permission problem, or an error object all leave the field absent, and
@@ -497,21 +502,36 @@ else
       # NOT work — the required_signatures sub-endpoint returns {url, enabled} and
       # sailed straight through the guard), and only
       # then treat a missing required_status_checks as a genuine zero.
-      reqctx=$(printf '%s' "$prot" | jq -r '(.required_status_checks.contexts // [])|join("\n")' 2>/dev/null)
+      # Parse status is checked (Codex round 2): `contexts: 42` made jq exit 5
+      # with empty output, which read exactly like "requires nothing" below.
+      reqctx_ok=1
+      reqctx=$(printf '%s' "$prot" | jq -er '(.required_status_checks.contexts // []) | if type=="array" and all(.[]; type=="string") then join("\n") else error("unread") end' 2>/dev/null) \
+        || reqctx_ok=0
       # `// []` above matters. Without it, a branch WITH protection but NO required
       # status checks makes jq error on null ("Cannot iterate over null", rc 5), gh
       # returns 1, and this lands in the unreadable branch — reporting "could not
       # read" for a branch that simply requires nothing, so strict could never pass
       # there. Verified with jq directly, both ways. Raised by pr-daemon.
-      if [ -z "$reqctx" ]; then
+      if [ "$reqctx_ok" -ne 1 ]; then
+        echo "FAIL  could not parse $base_for_req's required contexts; refusing on an unread value"
+        fail=1
+      elif [ -z "$reqctx" ]; then
         echo "INFO  $base_for_req requires no status checks; nothing to verify reported"
       else
       missing=""
+      # If the here-string cannot be created (bash 3.2 writes it to a temp file)
+      # the loop body never runs, `missing` stays empty and this read "all
+      # reported". The body's last command always succeeds, so a non-zero loop
+      # status can only be the redirection. Found by Codex round 2.
+      loop_ok=1
       while IFS= read -r c; do
         [ -z "$c" ] && continue
         printf '%s\n' "$allcheck" | grep -qxF "$c" || missing="${missing:+$missing, }$c"
-      done <<< "$reqctx"
-      if [ -n "$missing" ]; then
+      done <<< "$reqctx" || loop_ok=0
+      if [ "$loop_ok" -ne 1 ]; then
+        echo "FAIL  could not iterate $base_for_req's required contexts; refusing"
+        fail=1
+      elif [ -n "$missing" ]; then
         echo "FAIL  required context(s) never reported on this head: $missing"
         echo "      A required check that did not run is ABSENT, not passing."
         echo "      Usually a paths filter: the workflow was not triggered by these"
