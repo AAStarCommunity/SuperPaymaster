@@ -833,12 +833,20 @@ if stage_on II; then
 fi
 step "fork tx ledger: EVERY transaction mined on the fork after block $FORK_BLOCK (from, to, selector, status)"
 HEADB=$(bn)
-for b in $(seq $((FORK_BLOCK+1)) $HEADB); do
-  for h in $(cast block $b --json --rpc-url $RPC | jq -r '.transactions[]'); do
-    cast tx $h --json --rpc-url $RPC | jq -c --arg st "$(cast receipt $h status --rpc-url $RPC)" --arg ca "$(cast receipt $h contractAddress --rpc-url $RPC)" \
+# NOTE: an integer loop, not `seq`: BSD seq prints 8-digit block numbers as 1.18779e+07 (the first full
+# run, fork block 11877866, produced an EMPTY ledger that way; its positive control caught it).
+LEDGER_BLOCKS=0
+for ((b = FORK_BLOCK + 1; b <= HEADB; b++)); do
+  LEDGER_BLOCKS=$((LEDGER_BLOCKS+1))
+  BJ=$(cast block $b --json --rpc-url $RPC) || { fail "ledger: cast block $b failed"; continue; }
+  for h in $(echo "$BJ" | jq -r '.transactions[] | if type=="object" then .hash else . end'); do
+    RJ=$(cast receipt $h --json --rpc-url $RPC) || { fail "ledger: receipt $h failed"; continue; }
+    cast tx $h --json --rpc-url $RPC | jq -c --arg st "$(echo "$RJ" | jq -r .status)" --arg ca "$(echo "$RJ" | jq -r '.contractAddress // ""')" \
       '{block:(.blockNumber), hash, from, to, contractAddress:$ca, selector:(.input[0:10]), status:$st}'
   done
 done > "$OUT/fork-tx-ledger.jsonl"
+check "ledger walked every block after the fork block" "$LEDGER_BLOCKS" "$((HEADB - FORK_BLOCK))"
+check "ledger contains EVERY tx hash recorded in receipts.jsonl" "$(jq -r '.transactionHash|ascii_downcase' "$OUT/receipts.jsonl" | sort -u | while read -r x; do grep -qi "$x" "$OUT/fork-tx-ledger.jsonl" || echo "$x"; done | wc -l | tr -d ' ')" 0
 NTX=$(wc -l < "$OUT/fork-tx-ledger.jsonl" | tr -d ' ')
 rlog "  ledger: $NTX txs in blocks $((FORK_BLOCK+1))..$HEADB (fork-tx-ledger.jsonl)"
 check "ledger non-empty and every block accounted for (positive control: G0 deploy tx present)" "$(grep -c "$(lc $(jq -r 'select(.label=="G0 deploy canonical TimelockController")|.transactionHash' "$OUT/receipts.jsonl"))" "$OUT/fork-tx-ledger.jsonl")" 1
