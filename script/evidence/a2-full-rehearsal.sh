@@ -43,6 +43,7 @@ export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH"
 W="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$W"
 mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd)"   # absolute: node require() / forge cwd-independent
 envval() { grep -E "^$1=" "$ENVFILE" | head -1 | cut -d= -f2- | tr -d '"'"'"' '; }
 RPC_URL_FORK="$(envval RPC_URL)"
 [ -n "$RPC_URL_FORK" ] || { echo "no RPC_URL in env file"; exit 2; }
