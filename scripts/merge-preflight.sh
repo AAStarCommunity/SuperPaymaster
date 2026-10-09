@@ -335,7 +335,9 @@ api total '.total_count' "repos/$REPO/commits/$head/check-runs" \
 if [ "${total:-0}" -eq 0 ]; then
   echo "FAIL  no check runs for $head — 'all green' and 'never ran' are not the same reading"; fail=1
 else
-  api allcheck '[.check_runs[].name]|join("\n")' \
+  # A name containing a newline would forge a boundary in the newline-joined
+  # set the required-contexts leg compares against (Codex round 3): refuse it.
+  api allcheck '[.check_runs[].name]|if any(.[]; test("\n")) then error("newline in check name") else join("\n") end' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
   base_for_req=$(gh pr view "$PR" --repo "$REPO" --json baseRefName -q '.baseRefName' 2>/dev/null | tr -d ' \n') \
@@ -487,86 +489,90 @@ else
       # strictest. Found by Codex.
       echo "FAIL  base branch unreadable; cannot check required contexts"
       fail=1
-    elif prot=$(gh api "repos/$REPO/branches/$base_enc/protection" 2>/dev/null) \
-         && guard=$(printf '%s' "$prot" | jq -er 'if type=="object" and has("enforce_admins") then "real" else error("unread") end' 2>/dev/null) \
-         && [ "$guard" = "real" ]; then
-      # TWO steps, because `// []` alone cannot tell "this branch requires
-      # nothing" from "I could not see what it requires". A partial response, a
-      # permission problem, or an error object all leave the field absent, and
-      # `// []` turned every one of them into "requires nothing" — which PASSES.
-      # That silently converted a fail-closed path into a fail-open one, in the
-      # commit that was fixing a misdiagnosis. Found by Codex.
-      #
-      # So: first prove a real protection object was read (`enforce_admins` is present on every
-      # protection object and on nothing else; `.url` was the first choice and did
-      # NOT work — the required_signatures sub-endpoint returns {url, enabled} and
-      # sailed straight through the guard), and only
-      # then treat a missing required_status_checks as a genuine zero.
-      # Parse status is checked (Codex round 2): `contexts: 42` made jq exit 5
-      # with empty output, which read exactly like "requires nothing" below.
-      reqctx_ok=1
-      reqctx=$(printf '%s' "$prot" | jq -er '(.required_status_checks.contexts // []) | if type=="array" and all(.[]; type=="string") then join("\n") else error("unread") end' 2>/dev/null) \
-        || reqctx_ok=0
-      # `// []` above matters. Without it, a branch WITH protection but NO required
-      # status checks makes jq error on null ("Cannot iterate over null", rc 5), gh
-      # returns 1, and this lands in the unreadable branch — reporting "could not
-      # read" for a branch that simply requires nothing, so strict could never pass
-      # there. Verified with jq directly, both ways. Raised by pr-daemon.
-      if [ "$reqctx_ok" -ne 1 ]; then
-        echo "FAIL  could not parse $base_for_req's required contexts; refusing on an unread value"
-        fail=1
-      elif [ -z "$reqctx" ]; then
-        echo "INFO  $base_for_req requires no status checks; nothing to verify reported"
-      else
-      missing=""
-      # If the here-string cannot be created (bash 3.2 writes it to a temp file)
-      # the loop body never runs, `missing` stays empty and this read "all
-      # reported". The body's last command always succeeds, so a non-zero loop
-      # status can only be the redirection. Found by Codex round 2.
-      loop_ok=1
-      while IFS= read -r c; do
-        [ -z "$c" ] && continue
-        printf '%s\n' "$allcheck" | grep -qxF "$c" || missing="${missing:+$missing, }$c"
-      done <<< "$reqctx" || loop_ok=0
-      if [ "$loop_ok" -ne 1 ]; then
-        echo "FAIL  could not iterate $base_for_req's required contexts; refusing"
-        fail=1
-      elif [ -n "$missing" ]; then
-        echo "FAIL  required context(s) never reported on this head: $missing"
-        echo "      A required check that did not run is ABSENT, not passing."
-        echo "      Usually a paths filter: the workflow was not triggered by these"
-        echo "      files. GitHub blocks on it; re-push or widen the filter."
-        fail=1
-      else
-        echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported"
-      fi
-      fi
-    elif unprot=$(gh api "repos/$REPO/branches/$base_enc" 2>/dev/null) \
-         && unprot=$(printf '%s' "$unprot" | jq -er 'if type=="object" and (.protected|type)=="boolean" then (.protected|tostring) else error("unread") end' 2>/dev/null) \
-         && [ "$unprot" = "false" ] \
-         && rules=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$base_enc" 2>/dev/null) \
-         && nreq=$(printf '%s' "$rules" | jq -er 'if type=="array" and all(.[]; type=="array") then ([add // [] | .[] | select(.type=="required_status_checks")] | length) else error("unread") end' 2>/dev/null) \
-         && [ "$nreq" = "0" ]; then
-      # An unprotected base answers the protection endpoint with 404 "Branch not
-      # protected" - the same failure shape as "no permission", so the leg above
-      # cannot tell them apart and every PR into a long-lived feature branch read
-      # FAIL here. Accept "requires nothing" only on two positive reads: the
-      # branch object carries a boolean protected == false, AND the rulesets
-      # endpoint returns an array of pages with no required_status_checks rule
-      # (rulesets can require checks on a branch that has no classic protection).
-      # Every gh call and every jq parse is status-checked (jq -e + error() on an
-      # unexpected shape): a failed query or an unparseable body must not be able
-      # to print the accepting value. `.protected` is emitted via tostring because
-      # jq -e exits 1 when the result IS false - the one value this branch wants -
-      # so without it the leg could never accept (caught by the positive controls).
-      # Anything else stays an unread value.
-      echo "INFO  $base_for_req is unprotected and no ruleset requires status checks;"
-      echo "      nothing to verify reported"
     else
-      echo "FAIL  could not read $base_for_req's required contexts."
-      echo "      Not proceeding on an unread value: whether every required check"
-      echo "      reported is exactly what this leg exists to establish."
-      fail=1
+      # The required set is the UNION of what classic branch protection and
+      # repository rulesets require; either can require checks without the
+      # other (Codex round 3: a protected base used to skip rulesets entirely).
+      # Each source is read fail-closed and VALIDATED, not normalized: `// []`
+      # on a malformed field reads exactly like "requires nothing".
+      #
+      # Names must be non-empty strings with no newline. The set is carried as
+      # newline-joined text, so a newline inside one name would forge a boundary
+      # (Codex round 3); the check-run list above refuses the same.
+      JQ_NAMES='def names: if type=="array" and all(.[]; type=="string" and length>0 and (test("\n")|not)) then . else error("unread") end;'
+      src_ok=1; classic=""; classic_desc=""; rsets=""
+      if prot=$(gh api "repos/$REPO/branches/$base_enc/protection" 2>/dev/null); then
+        # A real protection object carries enforce_admins (`.url` alone is not
+        # enough: the required_signatures sub-endpoint returns {url, enabled}).
+        # required_status_checks absent/null on a REAL protection object is a
+        # genuine zero; present but malformed - contexts missing, null, false,
+        # a non-array `checks`, an empty name - is unread.
+        classic=$(printf '%s' "$prot" | jq -er "$JQ_NAMES"'
+          if type!="object" or (has("enforce_admins")|not) then error("unread") else
+          .required_status_checks as $r
+          | if $r == null then []
+            elif ($r|type)!="object" or ($r.contexts|type)!="array" then error("unread")
+            else ($r.contexts|names) + (($r.checks // [])
+                 | if type=="array" and all(.[]; type=="object") then map(.context)|names else error("unread") end)
+            end end | unique | join("\n")' 2>/dev/null) && classic_desc="protected" || src_ok=0
+      else
+        # 404 "Branch not protected" has the same shape as "no permission".
+        # Accept "no classic protection" only on a positive read of the branch
+        # object: a boolean protected == false. tostring because jq -e exits 1
+        # when the result IS false (caught by the positive controls).
+        unprot=$(gh api "repos/$REPO/branches/$base_enc" 2>/dev/null) \
+          && unprot=$(printf '%s' "$unprot" | jq -er 'if type=="object" and (.protected|type)=="boolean" then (.protected|tostring) else error("unread") end' 2>/dev/null) \
+          && [ "$unprot" = "false" ] && classic_desc="unprotected" || src_ok=0
+      fi
+      if [ "$src_ok" -eq 1 ]; then
+        # Rulesets, every page. Each rule must be an object with a string type
+        # (an unreadable entry cannot establish "no required-check rule"), and
+        # each required_status_checks rule must carry a readable context list.
+        rsets=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$base_enc" 2>/dev/null) \
+          && rsets=$(printf '%s' "$rsets" | jq -er "$JQ_NAMES"'
+            if type=="array" and all(.[]; type=="array") then (add // []) else error("unread") end
+            | if all(.[]; type=="object" and (.type|type)=="string") then . else error("unread") end
+            | [ .[] | select(.type=="required_status_checks")
+                | .parameters.required_status_checks
+                | if type=="array" and all(.[]; type=="object") then map(.context)|names else error("unread") end ]
+            | (add // []) | unique | join("\n")' 2>/dev/null) || src_ok=0
+      fi
+      if [ "$src_ok" -ne 1 ]; then
+        echo "FAIL  could not read $base_for_req's required contexts (classic protection or rulesets)."
+        echo "      Not proceeding on an unread value: whether every required check"
+        echo "      reported is exactly what this leg exists to establish."
+        fail=1
+      else
+        reqctx=$(printf '%s\n%s\n' "$classic" "$rsets" | awk 'NF && !seen[$0]++')
+        if [ -z "$reqctx" ]; then
+          echo "INFO  $base_for_req ($classic_desc, no ruleset check rule) requires no status checks;"
+          echo "      nothing to verify reported"
+        else
+          missing=""
+          # If the here-string cannot be created (bash 3.2 writes it to a temp
+          # file) the loop body never runs and `missing` stays empty. The body's
+          # last command always succeeds, so a non-zero loop status can only be
+          # the redirection. `-e` keeps a name like `-ebuild` from being parsed
+          # as a grep option (Codex round 3).
+          loop_ok=1
+          while IFS= read -r c; do
+            [ -z "$c" ] && continue
+            printf '%s\n' "$allcheck" | grep -qxF -e "$c" || missing="${missing:+$missing, }$c"
+          done <<< "$reqctx" || loop_ok=0
+          if [ "$loop_ok" -ne 1 ]; then
+            echo "FAIL  could not iterate $base_for_req's required contexts; refusing"
+            fail=1
+          elif [ -n "$missing" ]; then
+            echo "FAIL  required context(s) never reported on this head: $missing"
+            echo "      A required check that did not run is ABSENT, not passing."
+            echo "      Usually a paths filter: the workflow was not triggered by these"
+            echo "      files. GitHub blocks on it; re-push or widen the filter."
+            fail=1
+          else
+            echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported ($classic_desc + rulesets)"
+          fi
+        fi
+      fi
     fi
   fi
 fi
