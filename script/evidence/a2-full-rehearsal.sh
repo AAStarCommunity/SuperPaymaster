@@ -786,6 +786,21 @@ if stage_on II; then
     --target xPNTsTokenV2=$V2IMPL --target xPNTsFactoryV2=$FACT --target APNTsCapped=$CAPPED \
     --clone AAStarV2=$OWNER_V2:$V2IMPL --clone MyceliumV2=$ANNI_V2:$V2IMPL --expect-mismatch Registry=$(impl_of $SP)
 fi
+step "fork tx ledger: EVERY transaction mined on the fork after block $FORK_BLOCK (from, to, selector, status)"
+HEADB=$(bn)
+for b in $(seq $((FORK_BLOCK+1)) $HEADB); do
+  for h in $(cast block $b --json --rpc-url $RPC | jq -r '.transactions[]'); do
+    cast tx $h --json --rpc-url $RPC | jq -c --arg st "$(cast receipt $h status --rpc-url $RPC)" --arg ca "$(cast receipt $h contractAddress --rpc-url $RPC)" \
+      '{block:(.blockNumber), hash, from, to, contractAddress:$ca, selector:(.input[0:10]), status:$st}'
+  done
+done > "$OUT/fork-tx-ledger.jsonl"
+NTX=$(wc -l < "$OUT/fork-tx-ledger.jsonl" | tr -d ' ')
+rlog "  ledger: $NTX txs in blocks $((FORK_BLOCK+1))..$HEADB (fork-tx-ledger.jsonl)"
+check "ledger non-empty and every block accounted for (positive control: G0 deploy tx present)" "$(grep -c "$(lc $(jq -r 'select(.label=="G0 deploy canonical TimelockController")|.transactionHash' "$OUT/receipts.jsonl"))" "$OUT/fork-tx-ledger.jsonl")" 1
+check "ledger: NO tx sent FROM the Safe address (the Safe was never impersonated)" "$(jq -r 'select((.from|ascii_downcase)=="'"$(lc $SAFE)"'")|.hash' "$OUT/fork-tx-ledger.jsonl" | wc -l | tr -d ' ')" 0
+check "ledger: every Safe-targeted tx was sent by a Safe OWNER EOA (approveHash / execTransaction)" "$(jq -r 'select((.to//""|ascii_downcase)=="'"$(lc $SAFE)"'") | .from|ascii_downcase' "$OUT/fork-tx-ledger.jsonl" | sort -u | paste -sd, -)" "$(printf '%s\n' "$(lc $SAFE_O1)" "$(lc $SAFE_O2)" | sort -u | paste -sd, -)"
+check "ledger: no mined tx reverted (negative controls never reach the chain)" "$(jq -r 'select(.status!="true" and .status!="1" and .status!="0x1")|.hash' "$OUT/fork-tx-ledger.jsonl" | wc -l | tr -d ' ')" 0
+check "ledger: no mined tx was sent directly to the canonical timelock (every schedule/execute is an internal call from the Safe)" "$(jq -r 'select((.to//""|ascii_downcase)=="'"$(lc $TL)"'")|.from|ascii_downcase' "$OUT/fork-tx-ledger.jsonl" | sort -u | paste -sd, -)" ""
 rlog "  SP owner=$(cast call $SP 'owner()(address)' --rpc-url $RPC) guardian=$(cast call $SP 'guardian()(address)' --rpc-url $RPC) impl=$(impl_of $SP) version=$(cast call $SP 'version()(string)' --rpc-url $RPC) @block $(bn)"
 rlog "  Registry owner=$(cast call $REG 'owner()(address)' --rpc-url $RPC) impl=$(impl_of $REG) version=$(cast call $REG 'version()(string)' --rpc-url $RPC) @block $(bn)"
 rlog "  negative controls executed: $NEG_N (all reverted; neg-controls.jsonl)"
