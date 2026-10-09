@@ -122,21 +122,28 @@ sendtx() {
   if [ "$st" = "0x1" ]; then rlog "  TX [$label] hash=$LAST_TX block=$LAST_BLOCK status=0x1 from=$from"
   else fail "TX [$label] hash=$LAST_TX block=$LAST_BLOCK status=$st (REVERTED on chain)"; return 1; fi
 }
-# must_fail <what> <cmd...>: negative control; the full output goes to neg.log with the head block.
+# must_fail <what> <expect-regex> <cmd...>: negative control. PASSES only if the command fails AND its
+# output matches <expect-regex> (the expected revert reason / selector). A failure for any other reason
+# (wrong revert, bash/tooling error, unbound variable, ...) is counted as a FAILURE, not a pass.
+# The full output goes to neg.log with the head block before/after (a revert sends no tx).
 NEG_N=0
 must_fail() {
-  local what="$1"; shift
+  local what="$1" expect="$2"; shift 2
   local b0 b1 rc reason; b0=$(bn)
   "$@" >"$OUT/.neg.tmp" 2>&1; rc=$?
   b1=$(bn)
   NEG_N=$((NEG_N+1))
-  { echo "### NEG-$NEG_N [$what] head block before=$b0 after=$b1 exit=$rc"; sed -E 's#https?://[^ ]*@?[^ ]*(alchemy|infura|publicnode)[^ ]*#<redacted-rpc>#g' "$OUT/.neg.tmp"; echo; } >> "$OUT/neg.log"
+  { echo "### NEG-$NEG_N [$what] expect=/$expect/ head block before=$b0 after=$b1 exit=$rc"; sed -E 's#https?://[^ ]*(alchemy|infura)[^ ]*#<redacted-rpc>#g' "$OUT/.neg.tmp"; echo; } >> "$OUT/neg.log"
   if [ $rc -eq 0 ]; then
     rlog "NEGATIVE CONTROL FAILED: NEG-$NEG_N [$what] succeeded @block $b1"; FAILURES=$((FAILURES+1)); exit 1
   fi
-  reason=$(grep -oE 'GS[0-9]{3}|AccessControl[A-Za-z]+|Ownable[A-Za-z]+|TimelockUnexpectedOperationState|TimelockInsufficientDelay|Unauthorized|execution reverted[^,]{0,120}|Error: [^,]{0,160}|revert[^,]{0,120}' "$OUT/.neg.tmp" | head -1)
-  rlog "  negative ok NEG-$NEG_N [$what]: reverted @block $b0 (head after $b1) ($reason)"
-  jq -nc --arg id "NEG-$NEG_N" --arg what "$what" --arg b "$b0" --arg reason "$reason" '{id:$id,what:$what,headBlock:($b|tonumber),reason:$reason}' >> "$OUT/neg-controls.jsonl"
+  reason=$(grep -oE "$expect" "$OUT/.neg.tmp" | head -1)
+  if [ -z "$reason" ]; then
+    fail "NEGATIVE CONTROL NEG-$NEG_N [$what] failed for an UNEXPECTED reason (wanted /$expect/): $(grep -m1 -iE 'error|revert' "$OUT/.neg.tmp" | head -c 300)"
+    return 1
+  fi
+  rlog "  negative ok NEG-$NEG_N [$what]: reverted @block $b0 (head after $b1); expected /$expect/ matched '$reason'"
+  jq -nc --arg id "NEG-$NEG_N" --arg what "$what" --arg b "$b0" --arg expect "$expect" --arg reason "$reason" '{id:$id,what:$what,headBlock:($b|tonumber),expect:$expect,matched:$reason}' >> "$OUT/neg-controls.jsonl"
 }
 warp() { cast rpc evm_increaseTime "$1" --rpc-url "$RPC" >/dev/null; cast rpc evm_mine --rpc-url "$RPC" >/dev/null; rlog "  warp +$1 s -> block $(bn) ts $(cast block latest --field timestamp --rpc-url "$RPC")"; }
 impl_of() { cast storage "$1" 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$RPC" | sed 's/0x000000000000000000000000/0x/'; }
@@ -162,13 +169,17 @@ safe_exec() {
   check "$label: Safe.nonce incremented" "$n2" "$((n+1))"
   SAFE_LAST_TX=$LAST_TX
 }
-# safe_exec_must_fail <label> <to> <data>: approveHash (real tx) then the exec must revert (inner call fails -> GS013)
+# safe_exec_must_fail <label> <to> <data> [inner-regex]: approveHash (real tx), then the 2-of-3 exec must
+# revert with GS013 (Safe: inner call failed). The Safe hides the inner reason, so the inner call is ALSO
+# replayed as a read-only eth_call with from = Safe (no tx, no impersonation) and its revert must match
+# [inner-regex] (default: any revert) — both are logged.
 safe_exec_must_fail() {
-  local label="$1" to="$2" data="$3" n h
+  local label="$1" to="$2" data="$3" inner="${4:-execution reverted}" n h ir
   n=$(rb "$label: Safe.nonce" $SAFE 'nonce()(uint256)')
   h=$(safe_hash "$to" "$data" "$n")
   sendtx "$label: approveHash by owner $SAFE_O1 (for a negative control)" $SAFE_O1 $SAFE 'approveHash(bytes32)' "$h" || return 1
-  must_fail "$label" cast send $SAFE "$EXEC_SIG" "$to" 0 "$data" 0 0 0 0 0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 "$SIGS2" --unlocked --from $SAFE_O2 --rpc-url "$RPC"
+  must_fail "$label [inner call replayed as eth_call from the Safe]" "$inner" cast call "$to" "$data" --from $SAFE --rpc-url "$RPC"
+  must_fail "$label" "GS013" cast send $SAFE "$EXEC_SIG" "$to" 0 "$data" 0 0 0 0 0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 "$SIGS2" --unlocked --from $SAFE_O2 --rpc-url "$RPC"
   check "$label: Safe.nonce unchanged after the failed exec" "$(rb "$label: Safe.nonce after" $SAFE 'nonce()(uint256)')" "$n"
 }
 # timelock helpers (target, data, salt) -> calldata for the Safe
@@ -186,7 +197,7 @@ fscript_tl() { # <contract> <sender> <broadcast:yes|no> [env...]
   for attempt in 1 2 3; do
     rm -f cache/solidity-files-cache.json
     out="$(env ENV="$ENVNAME" TIMELOCK="$TL" "$@" forge script "contracts/script/v3/UpgradeViaTimelock.s.sol:$c" \
-      --rpc-url "$RPC" --sender "$s" "${extra[@]}" 2>&1)"
+      --rpc-url "$RPC" --sender "$s" ${extra[@]+"${extra[@]}"} 2>&1)"
     rc=$?
     echo "$out"
     if [ $rc -eq 0 ]; then return 0; fi
@@ -381,15 +392,15 @@ attest_runtime A1c-APNTsCapped --target APNTsCapped=$CAPPED
 step "STAGE I / A1d (GOV-1 accept): Safe -> TL.schedule(APNTsCapped.acceptOwnership) -> 48h -> Safe -> TL.execute"
 ACC=$(cast calldata "acceptOwnership()"); ACC_SALT=$(cast keccak "a2/APNTsCapped/acceptOwnership")
 ACC_ID=$(tl_id $CAPPED $ACC $ACC_SALT)
-must_fail "A1d: deployer EOA cannot schedule on the canonical TL (not PROPOSER)" cast send $TL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $CAPPED 0 $ACC $ZERO32 $ACC_SALT 172800 --unlocked --from $OWNER --rpc-url $RPC
-must_fail "A1d: a Safe OWNER EOA acting directly (not through the Safe) cannot schedule" cast send $TL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $CAPPED 0 $ACC $ZERO32 $ACC_SALT 172800 --unlocked --from $SAFE_O1 --rpc-url $RPC
-must_fail "A1d: Safe exec with ONE owner signature (threshold 2) -> GS020" cast send $SAFE "$EXEC_SIG" $TL 0 "$(tl_schedule_data $CAPPED $ACC $ACC_SALT)" 0 0 0 0 0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 "$SIG1" --unlocked --from $SAFE_O2 --rpc-url $RPC
+must_fail "A1d: deployer EOA cannot schedule on the canonical TL (not PROPOSER)" "e2517d3f" cast send $TL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $CAPPED 0 $ACC $ZERO32 $ACC_SALT 172800 --unlocked --from $OWNER --rpc-url $RPC
+must_fail "A1d: a Safe OWNER EOA acting directly (not through the Safe) cannot schedule" "e2517d3f" cast send $TL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $CAPPED 0 $ACC $ZERO32 $ACC_SALT 172800 --unlocked --from $SAFE_O1 --rpc-url $RPC
+must_fail "A1d: Safe exec with ONE owner signature (threshold 2) -> GS020" "GS020" cast send $SAFE "$EXEC_SIG" $TL 0 "$(tl_schedule_data $CAPPED $ACC $ACC_SALT)" 0 0 0 0 0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 "$SIG1" --unlocked --from $SAFE_O2 --rpc-url $RPC
 safe_exec "A1d schedule acceptOwnership" $TL "$(tl_schedule_data $CAPPED $ACC $ACC_SALT)" || { fail "A1d schedule"; exit 1; }
 check "A1d op pending" "$(rb 'TL.isOperationPending(acc)' $TL 'isOperationPending(bytes32)(bool)' $ACC_ID)" true
 rlog "  op $ACC_ID ready at $(rb 'TL.getTimestamp(acc)' $TL 'getTimestamp(bytes32)(uint256)' $ACC_ID)"
-safe_exec_must_fail "A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState)" $TL "$(tl_execute_data $CAPPED $ACC $ACC_SALT)"
+safe_exec_must_fail "A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState)" $TL "$(tl_execute_data $CAPPED $ACC $ACC_SALT)" "5ead8eb5"
 warp 172800
-must_fail "A1d: deployer EOA cannot execute (not EXECUTOR)" cast send $TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC $ZERO32 $ACC_SALT --unlocked --from $OWNER --rpc-url $RPC
+must_fail "A1d: deployer EOA cannot execute (not EXECUTOR)" "e2517d3f" cast send $TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC $ZERO32 $ACC_SALT --unlocked --from $OWNER --rpc-url $RPC
 safe_exec "A1d execute acceptOwnership" $TL "$(tl_execute_data $CAPPED $ACC $ACC_SALT)" || { fail "A1d execute"; exit 1; }
 check "A1d op done" "$(rb 'TL.isOperationDone(acc)' $TL 'isOperationDone(bytes32)(bool)' $ACC_ID)" true
 check "A1d APNTsCapped.owner == canonical TL" "$(rb 'APNTsCapped.owner' $CAPPED 'owner()(address)')" $TL
@@ -403,14 +414,14 @@ stop1 A1e $?
 QB=$(bn); QTS=$(cast block $QB --field timestamp --rpc-url $RPC)
 check "A1e pendingAPNTsToken == APNTsCapped" "$(rb 'SP.pendingAPNTsToken' $SP 'pendingAPNTsToken()(address)')" $CAPPED
 check "A1e pendingAPNTsTokenEta == queue block ts + 7d" "$(rb 'SP.pendingAPNTsTokenEta' $SP 'pendingAPNTsTokenEta()(uint256)')" $((QTS+604800))
-must_fail "A1e: executeAPNTsTokenChange before the 7-day ETA" cast send $SP 'executeAPNTsTokenChange()' --unlocked --from $OWNER --rpc-url $RPC
+must_fail "A1e: executeAPNTsTokenChange before the 7-day ETA" "execution reverted" cast send $SP 'executeAPNTsTokenChange()' --unlocked --from $OWNER --rpc-url $RPC
 warp 604800
 
 step "STAGE I / A1f: Safe (minter) mints APNTsCapped for the 1:1 redeposit — real Safe.execTransaction"
 OWNER_OLD_BAL=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $OWNER --rpc-url $RPC | head -1 | awk '{print $1}')
 ANNI_OLD_BAL=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC | head -1 | awk '{print $1}')
 rlog "  snapshot: OWNER aPNTsBalance=$OWNER_OLD_BAL ANNI aPNTsBalance=$ANNI_OLD_BAL @block $(bn)"
-must_fail "A1f: deployer EOA cannot mint APNTsCapped (minter = Safe)" cast send $CAPPED 'mint(address,uint256)' $OWNER 1 --unlocked --from $OWNER --rpc-url $RPC
+must_fail "A1f: deployer EOA cannot mint APNTsCapped (minter = Safe)" "execution reverted" cast send $CAPPED 'mint(address,uint256)' $OWNER 1 --unlocked --from $OWNER --rpc-url $RPC
 safe_exec "A1f mint OWNER" $CAPPED "$(cast calldata 'mint(address,uint256)' $OWNER $OWNER_OLD_BAL)" || { fail A1f; exit 1; }
 safe_exec "A1f mint ANNI" $CAPPED "$(cast calldata 'mint(address,uint256)' $ANNI $ANNI_OLD_BAL)" || { fail A1f; exit 1; }
 safe_exec "A1f mint SP buffer 0.1" $CAPPED "$(cast calldata 'mint(address,uint256)' $SP 100000000000000000)" || { fail A1f; exit 1; }
@@ -460,7 +471,12 @@ check "A3 factoryV2.SUPERPAYMASTER == SP" "$(rb 'factoryV2.SUPERPAYMASTER' $FACT
 check "A3 AOAProtocolRegistry.owner == deployer (pre-M1)" "$(rb 'AOAProtocolRegistry.owner' $AOAREG 'owner()(address)')" $OWNER
 check "A3 xPNTsFactoryV2.owner == deployer (pre-M1)" "$(rb 'xPNTsFactoryV2.owner' $FACT 'owner()(address)')" $OWNER
 EPI=$(rb 'EP.getDepositInfo(SP)' $EP 'getDepositInfo(address)((uint256,bool,uint112,uint32,uint48))' $SP)
-rlog "  5b stake read-back: $EPI"
+rlog "  5b stake read-back (deposit, staked, stake, unstakeDelaySec, withdrawTime): $EPI"
+read -r _dep EP_STAKED EP_STAKE EP_DELAY EP_WT <<< "$(echo "$EPI" | tr -d '(),')"
+check "A3/5b EntryPoint staked" "$EP_STAKED" true
+check "A3/5b stake >= 1 ETH" "$(python3 -c "print($EP_STAKE >= 10**18)")" True
+check "A3/5b unstakeDelaySec >= 86400" "$(python3 -c "print($EP_DELAY >= 86400)")" True
+check "A3/5b withdrawTime == 0" "$EP_WT" 0
 STALE=$(rb 'SP.priceStalenessThreshold' $SP 'priceStalenessThreshold()(uint256)' | awk '{print $1}')
 check "A3 priceStalenessThreshold in [60,86400]" "$(python3 -c "print(60 <= $STALE <= 86400)")" True
 attest_runtime A3-v55-stack --target SuperPaymaster=$SPIMPL --target SuperPaymasterAdmin=$SPEXT --target SuperPaymasterLens=$LENS \
@@ -516,7 +532,10 @@ refresh_oracle() {
 }
 refresh_oracle
 sendtx "A6 SP.updatePrice" $OWNER $SP 'updatePrice()' || fail "updatePrice"
-check "A6 cachedPrice.updatedAt == updatePrice block ts" "$(rb 'SP.cachedPrice' $SP 'cachedPrice()(int256,uint256,uint80,uint8)' | awk '{print $2}')" "$(cast block $LAST_BLOCK --field timestamp --rpc-url $RPC)"
+ORACLE_TS=$(cast call $(cast call $PRICE_FEED 'aggregator()(address)' --rpc-url $RPC) 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' --rpc-url $RPC | sed -n '4p' | awk '{print $1}')
+CP_TS=$(rb 'SP.cachedPrice' $SP 'cachedPrice()(int256,uint256,uint80,uint8)' | awk '{print $2}')
+check "A6 cachedPrice.updatedAt == oracle latestRoundData.updatedAt (> 0)" "$CP_TS" "$ORACLE_TS"
+check "A6 cachedPrice fresh: updatePrice block ts - updatedAt <= priceStalenessThreshold" "$(python3 -c "print(0 < $CP_TS and $(cast block $LAST_BLOCK --field timestamp --rpc-url $RPC) - $CP_TS <= $(cast call $SP 'priceStalenessThreshold()(uint256)' --rpc-url $RPC | awk '{print $1}'))")" True
 ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $OWNER_V2 $OWNER --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 stop1 A6-configure-owner $?
 ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $ANNI_V2 $ANNI --rpc-url $RPC --unlocked --sender $ANNI --broadcast --slow
@@ -591,8 +610,8 @@ sendtx "M1 AOAProtocolRegistry.transferOwnership(TL)" $OWNER $AOAREG 'transferOw
 check "M1 AOAProtocolRegistry.owner == TL" "$(rb 'AOAProtocolRegistry.owner' $AOAREG 'owner()(address)')" $TL
 sendtx "M1 xPNTsFactoryV2.transferOwnership(TL)" $OWNER $FACT 'transferOwnership(address)' $TL || exit 1
 check "M1 xPNTsFactoryV2.owner == TL" "$(rb 'xPNTsFactoryV2.owner' $FACT 'owner()(address)')" $TL
-must_fail "M1: deployer EOA AOAProtocolRegistry.revokeApproval after transfer" cast send $AOAREG 'revokeApproval(uint8,bytes32)' 0 $ZERO32 --unlocked --from $OWNER --rpc-url $RPC
-must_fail "M1: deployer EOA xPNTsFactoryV2.setSuperPaymasterAddress after transfer" cast send $FACT 'setSuperPaymasterAddress(address)' $SP --unlocked --from $OWNER --rpc-url $RPC
+must_fail "M1: deployer EOA AOAProtocolRegistry.revokeApproval after transfer" "118cdaa7" cast send $AOAREG 'revokeApproval(uint8,bytes32)' 0 $ZERO32 --unlocked --from $OWNER --rpc-url $RPC
+must_fail "M1: deployer EOA xPNTsFactoryV2.setSuperPaymasterAddress after transfer" "118cdaa7" cast send $FACT 'setSuperPaymasterAddress(address)' $SP --unlocked --from $OWNER --rpc-url $RPC
 
 step "STAGE II / M1 negative: a MISCONFIGURED timelock cannot accept (wrong timelock: minDelay 0, deployer as proposer/executor)"
 BADARGS="$(cast abi-encode 'c(uint256,address[],address[],address)' 0 "[$OWNER]" "[$OWNER]" 0x0000000000000000000000000000000000000000)"
@@ -600,11 +619,11 @@ sendtx "M1-neg deploy misconfigured timelock" $OWNER --create "$TLBC${BADARGS#0x
 BADTL=$(cast receipt "$LAST_TX" contractAddress --rpc-url $RPC)
 rlog "  misconfigured timelock $BADTL (minDelay $(rb 'BADTL.getMinDelay' $BADTL 'getMinDelay()(uint256)'))"
 sendtx "M1-neg BADTL.schedule(SP.acceptOwnership)" $OWNER $BADTL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $SP 0 $ACC $ZERO32 $ZERO32 0 || true
-must_fail "M1: misconfigured timelock executes SP.acceptOwnership (pendingOwner is the canonical TL)" cast send $BADTL 'execute(address,uint256,bytes,bytes32,bytes32)' $SP 0 $ACC $ZERO32 $ZERO32 --unlocked --from $OWNER --rpc-url $RPC
+must_fail "M1: misconfigured timelock executes SP.acceptOwnership (pendingOwner is the canonical TL)" "118cdaa7" cast send $BADTL 'execute(address,uint256,bytes,bytes32,bytes32)' $SP 0 $ACC $ZERO32 $ZERO32 --unlocked --from $OWNER --rpc-url $RPC
 check "M1-neg SP.owner unchanged" "$(rb 'SP.owner' $SP 'owner()(address)')" $OWNER
 
 step "STAGE II / M1 ② : Safe -> TL.scheduleBatch[SP.acceptOwnership, Registry.acceptOwnership, SP.setGuardian(Safe)] (calldata printed by UpgradeViaTimelock after its operator preflight)"
-must_fail "M1: UpgradeViaTimelock schedule-accept WITHOUT a roles attestation" fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=schedule-accept TL_SALT=$(cast keccak a2/M1)
+must_fail "M1: UpgradeViaTimelock schedule-accept WITHOUT a roles attestation" "roles attestation: missing" fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=schedule-accept TL_SALT=$(cast keccak a2/M1)
 roles_check before-M1-schedule
 fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=schedule-accept TL_SALT=$(cast keccak a2/M1) TL_ROLES_ATTESTATION="$ATT" > "$OUT/II-M1-schedule-print.log" 2>&1 || fail "M1 schedule-accept print"
 M1_SCHED=$(payload_after "$OUT/II-M1-schedule-print.log" "submit this scheduleBatch from the Safe")
@@ -615,14 +634,14 @@ M1_T="[$SP,$REG,$SP]"; M1_V="[0,0,0]"; M1_P="[$ACC,$ACC,$(cast calldata 'setGuar
 M1_EXPECT=$(cast calldata 'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)' "$M1_T" "$M1_V" "$M1_P" $ZERO32 $(cast keccak a2/M1) 172800)
 check "M1 printed scheduleBatch calldata == independently encoded" "$M1_SCHED" "$M1_EXPECT"
 M1_ID=$(cast call $TL 'hashOperationBatch(address[],uint256[],bytes[],bytes32,bytes32)(bytes32)' "$M1_T" "$M1_V" "$M1_P" $ZERO32 $(cast keccak a2/M1) --rpc-url $RPC)
-must_fail "M1: deployer EOA scheduleBatch directly (not PROPOSER)" cast send $TL "$M1_SCHED" --unlocked --from $OWNER --rpc-url $RPC
+must_fail "M1: deployer EOA scheduleBatch directly (not PROPOSER)" "e2517d3f" cast send $TL "$M1_SCHED" --unlocked --from $OWNER --rpc-url $RPC
 safe_exec "M1② scheduleBatch" $TL "$M1_SCHED" || { fail "M1 schedule"; exit 1; }
 check "M1② batch pending" "$(rb 'TL.isOperationPending(M1)' $TL 'isOperationPending(bytes32)(bool)' $M1_ID)" true
 M1_EXEC=$(cast calldata 'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)' "$M1_T" "$M1_V" "$M1_P" $ZERO32 $(cast keccak a2/M1))
-safe_exec_must_fail "M1: Safe executeBatch BEFORE 48h" $TL "$M1_EXEC"
+safe_exec_must_fail "M1: Safe executeBatch BEFORE 48h" $TL "$M1_EXEC" "5ead8eb5"
 warp 172800
-must_fail "M1: non-multisig (deployer EOA) executeBatch after 48h (not EXECUTOR)" cast send $TL "$M1_EXEC" --unlocked --from $OWNER --rpc-url $RPC
-must_fail "M1: non-multisig (Safe owner EOA directly) executeBatch after 48h" cast send $TL "$M1_EXEC" --unlocked --from $SAFE_O2 --rpc-url $RPC
+must_fail "M1: non-multisig (deployer EOA) executeBatch after 48h (not EXECUTOR)" "e2517d3f" cast send $TL "$M1_EXEC" --unlocked --from $OWNER --rpc-url $RPC
+must_fail "M1: non-multisig (Safe owner EOA directly) executeBatch after 48h" "e2517d3f" cast send $TL "$M1_EXEC" --unlocked --from $SAFE_O2 --rpc-url $RPC
 roles_check before-M1-execute
 fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=execute-accept TL_SALT=$(cast keccak a2/M1) TL_ROLES_ATTESTATION="$ATT" > "$OUT/II-M1-execute-print.log" 2>&1 || fail "M1 execute-accept print"
 check "M1 printed executeBatch calldata == independently encoded" "$(payload_after "$OUT/II-M1-execute-print.log" "submit this executeBatch from the Safe")" "$M1_EXEC"
@@ -640,8 +659,8 @@ check "M1 TL.getMinDelay" "$(rb 'TL.getMinDelay' $TL 'getMinDelay()(uint256)')" 
 check "M1 executor not open (hasRole(EXECUTOR, 0))" "$(rb 'TL.hasRole(EXECUTOR,0)' $TL 'hasRole(bytes32,address)(bool)' $EXECUTOR_ROLE 0x0000000000000000000000000000000000000000)" false
 roles_check after-M1
 role_events_dump after-M1
-must_fail "M1: old EOA owner SP.upgradeToAndCall after M1" cast send $SP 'upgradeToAndCall(address,bytes)' $SPIMPL 0x --unlocked --from $OWNER --rpc-url $RPC
-must_fail "M1: old EOA owner Registry.upgradeToAndCall after M1" cast send $REG 'upgradeToAndCall(address,bytes)' $REGIMPL 0x --unlocked --from $OWNER --rpc-url $RPC
+must_fail "M1: old EOA owner SP.upgradeToAndCall after M1" "execution reverted" cast send $SP 'upgradeToAndCall(address,bytes)' $SPIMPL 0x --unlocked --from $OWNER --rpc-url $RPC
+must_fail "M1: old EOA owner Registry.upgradeToAndCall after M1" "execution reverted" cast send $REG 'upgradeToAndCall(address,bytes)' $REGIMPL 0x --unlocked --from $OWNER --rpc-url $RPC
 
 step "STAGE II / C (§10.7b C): timelock-aware upgrade drill, SP then Registry (re-deploys the SAME rc.2 bytecode: no rc1' dummy-bump impl exists; see README)"
 for T in SP REGISTRY; do
@@ -652,7 +671,7 @@ for T in SP REGISTRY; do
   rlog "  $T new impl $NI"
   attest_runtime "C-$T-impl" --target $([ $T = SP ] && echo SuperPaymaster || echo Registry)=$NI
   SALT=$(cast keccak "a2/C/$T")
-  must_fail "C $T: schedule-upgrade WITHOUT a roles attestation" fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL=$NI TL_SALT=$SALT
+  must_fail "C $T: schedule-upgrade WITHOUT a roles attestation" "roles attestation: missing" fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL=$NI TL_SALT=$SALT
   roles_check "before-C-$T-schedule"
   fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL=$NI TL_SALT=$SALT TL_ROLES_ATTESTATION="$ATT" > "$OUT/II-C-$T-schedule-print.log" 2>&1 || fail "C $T schedule print"
   UPD=$(cast calldata 'upgradeToAndCall(address,bytes)' $NI 0x)
@@ -661,7 +680,7 @@ for T in SP REGISTRY; do
   safe_exec "C $T schedule(upgradeToAndCall)" $TL "$SCHED" || continue
   CID=$(tl_id $PROXY $UPD $SALT)
   check "C $T op pending" "$(rb "TL.isOperationPending(C-$T)" $TL 'isOperationPending(bytes32)(bool)' $CID)" true
-  safe_exec_must_fail "C $T: Safe execute BEFORE 48h" $TL "$(tl_execute_data $PROXY $UPD $SALT)"
+  safe_exec_must_fail "C $T: Safe execute BEFORE 48h" $TL "$(tl_execute_data $PROXY $UPD $SALT)" "5ead8eb5"
   warp 172800
   roles_check "before-C-$T-execute"
   fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=execute-upgrade TL_TARGET=$T TL_NEW_IMPL=$NI TL_SALT=$SALT TL_ROLES_ATTESTATION="$ATT" > "$OUT/II-C-$T-execute-print.log" 2>&1 || fail "C $T execute print"
@@ -689,17 +708,17 @@ safe_exec "M2 guardian setGlobalPaused(true)" $SP "$(cast calldata 'setGlobalPau
 check "M2 paused() == true" "$(rb 'SP.paused' $SP 'paused()(bool)')" true
 VP=$(probe_validate); rlog "  probe validatePaymasterUserOp(dummy op) WHILE paused @block $(bn): $VP"
 check "M2 validate returns SIG_VALIDATION_FAILED (validationData == 1) while paused" "$(echo "$VP" | awk '{print $NF}')" 1
-safe_exec_must_fail "M2: guardian (Safe) unpause setGlobalPaused(false)" $SP "$(cast calldata 'setGlobalPaused(bool)' false)"
+safe_exec_must_fail "M2: guardian (Safe) unpause setGlobalPaused(false)" $SP "$(cast calldata 'setGlobalPaused(bool)' false)" "82b42900"
 safe_exec_must_fail "M2: guardian (Safe) SP.upgradeToAndCall" $SP "$(cast calldata 'upgradeToAndCall(address,bytes)' $SPIMPL 0x)"
 safe_exec_must_fail "M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds)" $SP "$(cast calldata 'withdrawProtocolRevenue(address,uint256)' $SAFE 1)"
-safe_exec_must_fail "M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false)" $SP "$(cast calldata 'setOperatorPaused(address,bool)' $OWNER false)"
-must_fail "M2: old EOA unpause" cast send $SP 'setGlobalPaused(bool)' false --unlocked --from $OWNER --rpc-url $RPC
+safe_exec_must_fail "M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false)" $SP "$(cast calldata 'setOperatorPaused(address,bool)' $OWNER false)" "82b42900"
+must_fail "M2: old EOA unpause" "execution reverted" cast send $SP 'setGlobalPaused(bool)' false --unlocked --from $OWNER --rpc-url $RPC
 UNP=$(cast calldata 'setGlobalPaused(bool)' false); USALT=$(cast keccak a2/M2/unpause)
 roles_check before-M2-schedule
 fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=schedule-call TL_TARGET=SP TL_CALLDATA=$UNP TL_SALT=$USALT TL_ROLES_ATTESTATION="$ATT" > "$OUT/II-M2-schedule-print.log" 2>&1 || fail "M2 schedule print"
 check "M2 printed schedule calldata == independently encoded" "$(payload_after "$OUT/II-M2-schedule-print.log" "submit this from the Safe")" "$(tl_schedule_data $SP $UNP $USALT)"
 safe_exec "M2 schedule(unpause)" $TL "$(tl_schedule_data $SP $UNP $USALT)" || fail "M2 schedule"
-safe_exec_must_fail "M2: Safe execute(unpause) BEFORE 48h" $TL "$(tl_execute_data $SP $UNP $USALT)"
+safe_exec_must_fail "M2: Safe execute(unpause) BEFORE 48h" $TL "$(tl_execute_data $SP $UNP $USALT)" "5ead8eb5"
 warp 172800
 safe_exec "M2 execute(unpause)" $TL "$(tl_execute_data $SP $UNP $USALT)" || fail "M2 execute"
 check "M2 paused() == false after the timelock's unpause" "$(rb 'SP.paused' $SP 'paused()(bool)')" false
@@ -709,7 +728,7 @@ step "STAGE II / M3 (GOV-3): setAPNTSPrice only via the timelock"
 P0=$(rb 'SP.aPNTsPriceUSD' $SP 'aPNTsPriceUSD()(uint256)' | awk '{print $1}')
 P1=$(python3 -c "print($P0 * 105 // 100)")
 rlog "  aPNTsPriceUSD $P0 -> $P1 (+5%, inside the ±10% per-update band)"
-must_fail "M3: old EOA setAPNTSPrice" cast send $SP 'setAPNTSPrice(uint256)' $P1 --unlocked --from $OWNER --rpc-url $RPC
+must_fail "M3: old EOA setAPNTSPrice" "execution reverted" cast send $SP 'setAPNTSPrice(uint256)' $P1 --unlocked --from $OWNER --rpc-url $RPC
 safe_exec_must_fail "M3: Safe (guardian, not owner) setAPNTSPrice directly" $SP "$(cast calldata 'setAPNTSPrice(uint256)' $P1)"
 SETP=$(cast calldata 'setAPNTSPrice(uint256)' $P1); PSALT=$(cast keccak a2/M3/setAPNTSPrice)
 roles_check before-M3-schedule
@@ -718,10 +737,10 @@ check "M3 printed schedule calldata == independently encoded" "$(payload_after "
 safe_exec "M3 schedule(setAPNTSPrice)" $TL "$(tl_schedule_data $SP $SETP $PSALT)" || fail "M3 schedule"
 PID=$(tl_id $SP $SETP $PSALT)
 check "M3 op pending" "$(rb 'TL.isOperationPending(M3)' $TL 'isOperationPending(bytes32)(bool)' $PID)" true
-safe_exec_must_fail "M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute)" $TL "$(tl_execute_data $SP $SETP $PSALT)"
+safe_exec_must_fail "M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute)" $TL "$(tl_execute_data $SP $SETP $PSALT)" "5ead8eb5"
 check "M3 price unchanged after the early execute" "$(rb 'SP.aPNTsPriceUSD' $SP 'aPNTsPriceUSD()(uint256)' | awk '{print $1}')" $P0
 warp 172800
-must_fail "M3: deployer EOA execute after 48h (not EXECUTOR)" cast send $TL 'execute(address,uint256,bytes,bytes32,bytes32)' $SP 0 $SETP $ZERO32 $PSALT --unlocked --from $OWNER --rpc-url $RPC
+must_fail "M3: deployer EOA execute after 48h (not EXECUTOR)" "e2517d3f" cast send $TL 'execute(address,uint256,bytes,bytes32,bytes32)' $SP 0 $SETP $ZERO32 $PSALT --unlocked --from $OWNER --rpc-url $RPC
 roles_check before-M3-execute
 fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=execute-call TL_TARGET=SP TL_CALLDATA=$SETP TL_SALT=$PSALT TL_ROLES_ATTESTATION="$ATT" > "$OUT/II-M3-execute-print.log" 2>&1 || fail "M3 execute print"
 check "M3 printed execute calldata == independently encoded" "$(payload_after "$OUT/II-M3-execute-print.log" "submit this from the Safe")" "$(tl_execute_data $SP $SETP $PSALT)"
