@@ -1,0 +1,29 @@
+# Offline self-test for the STRICT mode of scripts/merge-preflight.sh.
+#
+# merge-preflight.yml only ever runs the script with --ci, and the
+# required-checks leg runs only in strict mode, so before this job CI had zero
+# coverage of the code that decides whether a merge is safe (DSR on #452).
+# The suite replaces `gh` with a fixture server and never touches the network.
+#
+# No paths filter on purpose: a filtered workflow does not appear at all on PRs
+# it skips, and "did not run" must not be mistaken for "passed".
+name: preflight-selftest
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  preflight-strict-fixtures:
+    name: preflight strict-mode fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Strict-mode fixture suite (offline)
+        run: |
+          jq --version
+          python3 scripts/test_merge_preflight_strict.py
