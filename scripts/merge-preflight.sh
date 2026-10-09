@@ -466,7 +466,14 @@ else
     # return value and not the side effect, so an unreadable base still failed the
     # run while printing "not claiming". Same shape as every other mismatch today:
     # the verdict arriving by a path other than the one being read.
-    if [ -z "$base_for_req" ]; then
+    # Branch names are path segments in every endpoint below and must be
+    # URL-encoded: `feat/x#y` is a legal ref, and unencoded the request goes to
+    # `feat/x` (the fragment is dropped) - a different branch whose protection
+    # would then be reported as this PR's. Found by Codex. Encoding failure
+    # leaves base_enc empty, which the first branch below refuses.
+    base_enc=""
+    [ -n "$base_for_req" ] && base_enc=$(jq -rn --arg b "$base_for_req" '$b|@uri' 2>/dev/null)
+    if [ -z "$base_for_req" ] || [ -z "$base_enc" ]; then
       # No `:-main` fallback. That silent substitution was removed three commits
       # ago and the reasoning is still on line ~143 of this file; reinstating it
       # here would report a different branch's configuration as this PR's.
@@ -476,7 +483,7 @@ else
       # strictest. Found by Codex.
       echo "FAIL  base branch unreadable; cannot check required contexts"
       fail=1
-    elif prot=$(gh api "repos/$REPO/branches/$base_for_req/protection" 2>/dev/null) \
+    elif prot=$(gh api "repos/$REPO/branches/$base_enc/protection" 2>/dev/null) \
          && [ "$(printf '%s' "$prot" | jq -r 'has("enforce_admins")' 2>/dev/null)" = "true" ]; then
       # TWO steps, because `// []` alone cannot tell "this branch requires
       # nothing" from "I could not see what it requires". A partial response, a
@@ -514,17 +521,25 @@ else
         echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported"
       fi
       fi
-    elif [ "$(gh api "repos/$REPO/branches/$base_for_req" --jq '.protected' 2>/dev/null)" = "false" ] \
-         && rules=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$base_for_req" 2>/dev/null) \
-         && [ "$(printf '%s' "$rules" | jq -r 'if type=="array" and all(.[]; type=="array") then ([add // [] | .[] | select(.type=="required_status_checks")] | length) else "unread" end' 2>/dev/null)" = "0" ]; then
+    elif unprot=$(gh api "repos/$REPO/branches/$base_enc" 2>/dev/null) \
+         && unprot=$(printf '%s' "$unprot" | jq -er 'if type=="object" and (.protected|type)=="boolean" then (.protected|tostring) else error("unread") end' 2>/dev/null) \
+         && [ "$unprot" = "false" ] \
+         && rules=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$base_enc" 2>/dev/null) \
+         && nreq=$(printf '%s' "$rules" | jq -er 'if type=="array" and all(.[]; type=="array") then ([add // [] | .[] | select(.type=="required_status_checks")] | length) else error("unread") end' 2>/dev/null) \
+         && [ "$nreq" = "0" ]; then
       # An unprotected base answers the protection endpoint with 404 "Branch not
       # protected" - the same failure shape as "no permission", so the leg above
       # cannot tell them apart and every PR into a long-lived feature branch read
       # FAIL here. Accept "requires nothing" only on two positive reads: the
-      # branch object says protected == false (a missing field prints "null" and
-      # falls through), AND the rulesets endpoint returns an array of pages with
-      # no required_status_checks rule (rulesets can require checks on a branch
-      # that has no classic protection). Anything else stays an unread value.
+      # branch object carries a boolean protected == false, AND the rulesets
+      # endpoint returns an array of pages with no required_status_checks rule
+      # (rulesets can require checks on a branch that has no classic protection).
+      # Every gh call and every jq parse is status-checked (jq -e + error() on an
+      # unexpected shape): a failed query or an unparseable body must not be able
+      # to print the accepting value. `.protected` is emitted via tostring because
+      # jq -e exits 1 when the result IS false - the one value this branch wants -
+      # so without it the leg could never accept (caught by the positive controls).
+      # Anything else stays an unread value.
       echo "INFO  $base_for_req is unprotected and no ruleset requires status checks;"
       echo "      nothing to verify reported"
     else
