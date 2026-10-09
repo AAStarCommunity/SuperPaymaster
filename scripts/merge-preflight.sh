@@ -337,7 +337,7 @@ if [ "${total:-0}" -eq 0 ]; then
 else
   # A name containing a newline would forge a boundary in the newline-joined
   # set the required-contexts leg compares against (Codex round 3): refuse it.
-  api allcheck '[.check_runs[].name]|if any(.[]; test("\n")) then error("newline in check name") else join("\n") end' \
+  api allcheck '[.check_runs[].name]|if any(.[]; type!="string" or test("[[:cntrl:]]")) then error("control character in check name") else join("\n") end' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
   base_for_req=$(gh pr view "$PR" --repo "$REPO" --json baseRefName -q '.baseRefName' 2>/dev/null | tr -d ' \n') \
@@ -499,7 +499,7 @@ else
       # Names must be non-empty strings with no newline. The set is carried as
       # newline-joined text, so a newline inside one name would forge a boundary
       # (Codex round 3); the check-run list above refuses the same.
-      JQ_NAMES='def names: if type=="array" and all(.[]; type=="string" and length>0 and (test("\n")|not)) then . else error("unread") end;'
+      JQ_NAMES='def names: if type=="array" and all(.[]; type=="string" and test("\\S") and (test("[[:cntrl:]]")|not)) then . else error("unread") end;'
       src_ok=1; classic=""; classic_desc=""; rsets=""
       if prot=$(gh api "repos/$REPO/branches/$base_enc/protection" 2>/dev/null); then
         # A real protection object carries enforce_admins (`.url` alone is not
@@ -508,13 +508,13 @@ else
         # genuine zero; present but malformed - contexts missing, null, false,
         # a non-array `checks`, an empty name - is unread.
         classic=$(printf '%s' "$prot" | jq -er "$JQ_NAMES"'
-          if type!="object" or (has("enforce_admins")|not) then error("unread") else
+          if type!="object" or (.enforce_admins|type)!="object" or (.url|type)!="string" then error("unread") else
           .required_status_checks as $r
           | if $r == null then []
             elif ($r|type)!="object" or ($r.contexts|type)!="array" then error("unread")
-            else ($r.contexts|names) + (($r.checks // [])
+            else ($r.contexts|names) + (if ($r|has("checks")) then $r.checks else [] end
                  | if type=="array" and all(.[]; type=="object") then map(.context)|names else error("unread") end)
-            end end | unique | join("\n")' 2>/dev/null) && classic_desc="protected" || src_ok=0
+            end end | unique | tojson' 2>/dev/null) && classic_desc="protected" || src_ok=0
       else
         # 404 "Branch not protected" has the same shape as "no permission".
         # Accept "no classic protection" only on a positive read of the branch
@@ -522,7 +522,7 @@ else
         # when the result IS false (caught by the positive controls).
         unprot=$(gh api "repos/$REPO/branches/$base_enc" 2>/dev/null) \
           && unprot=$(printf '%s' "$unprot" | jq -er 'if type=="object" and (.protected|type)=="boolean" then (.protected|tostring) else error("unread") end' 2>/dev/null) \
-          && [ "$unprot" = "false" ] && classic_desc="unprotected" || src_ok=0
+          && [ "$unprot" = "false" ] && classic="[]" && classic_desc="unprotected" || src_ok=0
       fi
       if [ "$src_ok" -eq 1 ]; then
         # Rulesets, every page. Each rule must be an object with a string type
@@ -530,12 +530,12 @@ else
         # each required_status_checks rule must carry a readable context list.
         rsets=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$base_enc" 2>/dev/null) \
           && rsets=$(printf '%s' "$rsets" | jq -er "$JQ_NAMES"'
-            if type=="array" and all(.[]; type=="array") then (add // []) else error("unread") end
-            | if all(.[]; type=="object" and (.type|type)=="string") then . else error("unread") end
+            if type=="array" and length>0 and all(.[]; type=="array") then add else error("unread") end
+            | if all(.[]; type=="object" and (.type|type)=="string" and (.type|length)>0) then . else error("unread") end
             | [ .[] | select(.type=="required_status_checks")
                 | .parameters.required_status_checks
                 | if type=="array" and all(.[]; type=="object") then map(.context)|names else error("unread") end ]
-            | (add // []) | unique | join("\n")' 2>/dev/null) || src_ok=0
+            | (add // []) | unique | tojson' 2>/dev/null) || src_ok=0
       fi
       if [ "$src_ok" -ne 1 ]; then
         echo "FAIL  could not read $base_for_req's required contexts (classic protection or rulesets)."
@@ -543,8 +543,13 @@ else
         echo "      reported is exactly what this leg exists to establish."
         fail=1
       else
-        reqctx=$(printf '%s\n%s\n' "$classic" "$rsets" | awk 'NF && !seen[$0]++')
-        if [ -z "$reqctx" ]; then
+        # Both sources are validated JSON arrays; the union is taken in jq and
+        # its status is checked (Codex round 4: an unchecked awk union that
+        # failed read as "requires nothing").
+        if ! reqctx=$(jq -ern --argjson a "$classic" --argjson b "$rsets" '($a + $b) | unique | join("\n")' 2>/dev/null); then
+          echo "FAIL  could not form $base_for_req's required set; refusing on an unread value"
+          fail=1
+        elif [ -z "$reqctx" ]; then
           echo "INFO  $base_for_req ($classic_desc, no ruleset check rule) requires no status checks;"
           echo "      nothing to verify reported"
         else
