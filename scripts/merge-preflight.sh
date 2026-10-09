@@ -343,7 +343,13 @@ else
   base_for_req=$(gh pr view "$PR" --repo "$REPO" --json baseRefName -q '.baseRefName' 2>/dev/null | tr -d ' \n') \
       || base_for_req=""   # a failed lookup that printed something is still unread
 
-  api bad '[.check_runs[]|select(.conclusion=="failure" or .conclusion=="timed_out" or .conclusion=="cancelled" or .conclusion=="action_required")|.name]|join("\n")' \
+  # Run records for the required-checks allowlist (strict leg below).
+  api runsj '[.check_runs[]|{n:.name,a:.app.id,s:.status,c:.conclusion,i:.id}]|tojson' \
+      "repos/$REPO/commits/$head/check-runs" --paginate \
+      || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  # `stale` is a legal GitHub conclusion for a run abandoned before completing;
+  # it is not success and must not read as quiet (DSR on #452).
+  api bad '[.check_runs[]|select(.conclusion=="failure" or .conclusion=="timed_out" or .conclusion=="cancelled" or .conclusion=="action_required" or .conclusion=="stale")|.name]|join("\n")' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
   api pend '[.check_runs[]|select(.status!="completed")|.name]|join("\n")' \
@@ -492,29 +498,39 @@ else
     else
       # The required set is the UNION of what classic branch protection and
       # repository rulesets require; either can require checks without the
-      # other (Codex round 3: a protected base used to skip rulesets entirely).
-      # Each source is read fail-closed and VALIDATED, not normalized: `// []`
-      # on a malformed field reads exactly like "requires nothing".
+      # other (Codex round 3). Each source is read fail-closed and VALIDATED,
+      # not normalized: `// []` on a malformed field reads exactly like
+      # "requires nothing".
       #
-      # Names must be non-empty strings with no newline. The set is carried as
-      # newline-joined text, so a newline inside one name would forge a boundary
-      # (Codex round 3); the check-run list above refuses the same.
-      JQ_NAMES='def names: if type=="array" and all(.[]; type=="string" and test("\\S") and (test("[[:cntrl:]]")|not)) then . else error("unread") end;'
-      src_ok=1; classic=""; classic_desc=""; rsets=""
+      # A requirement is {context, app_id}; app_id null = any source. A
+      # requirement is satisfied only by the LATEST run with that name (and,
+      # when app_id is set, from that App) being completed with conclusion
+      # "success" - an allowlist, not a failure blacklist. Presence by name
+      # alone let skipped/neutral/stale runs and same-named runs from another
+      # App count as "reported" (DSR + pr-daemon on #452, rounds 2-4).
+      #
+      # Names must contain a non-space and no control character: a NUL is
+      # stripped by bash command substitution, and the old newline-joined
+      # comparison let a newline forge a boundary (Codex rounds 3-4).
+      JQ_DEFS='def name_ok: type=="string" and test("\\S") and (test("[[:cntrl:]]")|not);
+        def app_ok: . == null or (type=="number" and . > 0 and . == floor);
+        def req($c; $a): if ($c|name_ok) and ($a|app_ok) then {context:$c, app_id:$a} else error("unread") end;'
+      src_ok=1; classic="[]"; classic_desc=""; rsets="[]"
       if prot=$(gh api "repos/$REPO/branches/$base_enc/protection" 2>/dev/null); then
-        # A real protection object carries enforce_admins (`.url` alone is not
-        # enough: the required_signatures sub-endpoint returns {url, enabled}).
-        # required_status_checks absent/null on a REAL protection object is a
-        # genuine zero; present but malformed - contexts missing, null, false,
-        # a non-array `checks`, an empty name - is unread.
-        classic=$(printf '%s' "$prot" | jq -er "$JQ_NAMES"'
+        # A real protection object: enforce_admins is an object and url a
+        # string (`.url` alone is not enough - the required_signatures
+        # sub-endpoint returns {url, enabled}). required_status_checks null is
+        # a genuine zero; present but malformed - contexts missing/null/false,
+        # checks not an array of objects, a bad name or app_id - is unread.
+        classic=$(printf '%s' "$prot" | jq -ec "$JQ_DEFS"'
           if type!="object" or (.enforce_admins|type)!="object" or (.url|type)!="string" then error("unread") else
           .required_status_checks as $r
           | if $r == null then []
             elif ($r|type)!="object" or ($r.contexts|type)!="array" then error("unread")
-            else ($r.contexts|names) + (if ($r|has("checks")) then $r.checks else [] end
-                 | if type=="array" and all(.[]; type=="object") then map(.context)|names else error("unread") end)
-            end end | unique | tojson' 2>/dev/null) && classic_desc="protected" || src_ok=0
+            else [ $r.contexts[] | req(.; null) ]
+                 + ( if ($r|has("checks")) then $r.checks else [] end
+                     | if type=="array" and all(.[]; type=="object") then [ .[] | req(.context; .app_id) ] else error("unread") end )
+            end end' 2>/dev/null) && classic_desc="protected" || src_ok=0
       else
         # 404 "Branch not protected" has the same shape as "no permission".
         # Accept "no classic protection" only on a positive read of the branch
@@ -522,60 +538,63 @@ else
         # when the result IS false (caught by the positive controls).
         unprot=$(gh api "repos/$REPO/branches/$base_enc" 2>/dev/null) \
           && unprot=$(printf '%s' "$unprot" | jq -er 'if type=="object" and (.protected|type)=="boolean" then (.protected|tostring) else error("unread") end' 2>/dev/null) \
-          && [ "$unprot" = "false" ] && classic="[]" && classic_desc="unprotected" || src_ok=0
+          && [ "$unprot" = "false" ] && classic_desc="unprotected" || src_ok=0
       fi
       if [ "$src_ok" -eq 1 ]; then
-        # Rulesets, every page. Each rule must be an object with a string type
-        # (an unreadable entry cannot establish "no required-check rule"), and
-        # each required_status_checks rule must carry a readable context list.
+        # Rulesets, every page (>= 1). Each rule must be an object with a
+        # non-empty string type; each required_status_checks rule must carry a
+        # readable list of {context, integration_id?}.
         rsets=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$base_enc" 2>/dev/null) \
-          && rsets=$(printf '%s' "$rsets" | jq -er "$JQ_NAMES"'
+          && rsets=$(printf '%s' "$rsets" | jq -ec "$JQ_DEFS"'
             if type=="array" and length>0 and all(.[]; type=="array") then add else error("unread") end
             | if all(.[]; type=="object" and (.type|type)=="string" and (.type|length)>0) then . else error("unread") end
             | [ .[] | select(.type=="required_status_checks")
                 | .parameters.required_status_checks
-                | if type=="array" and all(.[]; type=="object") then map(.context)|names else error("unread") end ]
-            | (add // []) | unique | tojson' 2>/dev/null) || src_ok=0
+                | if type=="array" and all(.[]; type=="object") then .[] else error("unread") end
+                | req(.context; .integration_id) ]' 2>/dev/null) || src_ok=0
+      fi
+      # Every check run on this head, for the allowlist below. Pages arrive
+      # as one JSON array per line; each record must be well-formed.
+      if [ "$src_ok" -eq 1 ]; then
+        runs=$(printf '%s\n' "$runsj" | jq -ecs '
+          if all(.[]; type=="array") then add // [] else error("unread") end
+          | if all(.[]; type=="object" and (.n|type)=="string" and (.i|type)=="number" and (.s|type)=="string"
+                       and ((.a|type)=="number" or .a==null) and ((.c|type)=="string" or .c==null))
+            then . else error("unread") end' 2>/dev/null) || src_ok=0
       fi
       if [ "$src_ok" -ne 1 ]; then
-        echo "FAIL  could not read $base_for_req's required contexts (classic protection or rulesets)."
+        echo "FAIL  could not read $base_for_req's required checks (classic protection, rulesets or check runs)."
         echo "      Not proceeding on an unread value: whether every required check"
-        echo "      reported is exactly what this leg exists to establish."
+        echo "      succeeded is exactly what this leg exists to establish."
+        fail=1
+      elif ! verdict=$(jq -ern --argjson a "$classic" --argjson b "$rsets" --argjson runs "$runs" '
+          # union; a specific-App requirement supersedes an any-App one for the same context
+          ($a + $b | unique) as $all
+          | [ $all[] as $r
+              | select($r.app_id != null or ([ $all[] | select(.context == $r.context and .app_id != null) ] | length) == 0)
+              | $r ] as $req
+          | [ $req[] as $r
+              | ([ $runs[] | select(.n == $r.context and ($r.app_id == null or .a == $r.app_id)) ] | max_by(.i)) as $l
+              | if $l == null then "\($r.context) [absent\(if $r.app_id != null then " from app \($r.app_id)" else "" end)]"
+                elif $l.s != "completed" then "\($r.context) [status=\($l.s)]"
+                elif $l.c != "success" then "\($r.context) [conclusion=\($l.c)]"
+                else empty end ] as $bad
+          | "\($req|length)\t\($bad|join("; "))"' 2>/dev/null); then
+        echo "FAIL  could not evaluate $base_for_req's required checks; refusing on an unread value"
         fail=1
       else
-        # Both sources are validated JSON arrays; the union is taken in jq and
-        # its status is checked (Codex round 4: an unchecked awk union that
-        # failed read as "requires nothing").
-        if ! reqctx=$(jq -ern --argjson a "$classic" --argjson b "$rsets" '($a + $b) | unique | join("\n")' 2>/dev/null); then
-          echo "FAIL  could not form $base_for_req's required set; refusing on an unread value"
-          fail=1
-        elif [ -z "$reqctx" ]; then
+        nreq=${verdict%%	*}; unmet=${verdict#*	}
+        if [ "$nreq" = "0" ]; then
           echo "INFO  $base_for_req ($classic_desc, no ruleset check rule) requires no status checks;"
           echo "      nothing to verify reported"
+        elif [ -n "$unmet" ]; then
+          echo "FAIL  required check(s) not satisfied on this head: $unmet"
+          echo "      Only the latest run of a required check, from the required App,"
+          echo "      completed with conclusion=success counts. A required check that"
+          echo "      did not run is ABSENT, not passing; skipped/neutral/stale are not success."
+          fail=1
         else
-          missing=""
-          # If the here-string cannot be created (bash 3.2 writes it to a temp
-          # file) the loop body never runs and `missing` stays empty. The body's
-          # last command always succeeds, so a non-zero loop status can only be
-          # the redirection. `-e` keeps a name like `-ebuild` from being parsed
-          # as a grep option (Codex round 3).
-          loop_ok=1
-          while IFS= read -r c; do
-            [ -z "$c" ] && continue
-            printf '%s\n' "$allcheck" | grep -qxF -e "$c" || missing="${missing:+$missing, }$c"
-          done <<< "$reqctx" || loop_ok=0
-          if [ "$loop_ok" -ne 1 ]; then
-            echo "FAIL  could not iterate $base_for_req's required contexts; refusing"
-            fail=1
-          elif [ -n "$missing" ]; then
-            echo "FAIL  required context(s) never reported on this head: $missing"
-            echo "      A required check that did not run is ABSENT, not passing."
-            echo "      Usually a paths filter: the workflow was not triggered by these"
-            echo "      files. GitHub blocks on it; re-push or widen the filter."
-            fail=1
-          else
-            echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported ($classic_desc + rulesets)"
-          fi
+          echo "OK    all $nreq required checks succeeded ($classic_desc + rulesets)"
         fi
       fi
     fi
