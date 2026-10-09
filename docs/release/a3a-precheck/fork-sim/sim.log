@@ -1,0 +1,21 @@
+fork: block 11794003 chainId 11155111 (local anvil, pinned 11794003)
+== pre: SP pendingAPNTsToken=0xBb46321545a91DB2F3B5c3e694F2f23aBe259883 eta=1789099908 [1.789e9] APNTS_TOKEN=0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+   deployer nonce 12130
+  S1-cancel: tx 0x88d60ef59eb3fc47935e439a8b1d54d2cc51972632a2a773605406feed97b229 gasUsed 31622
+  S1 read-back OK: pending cleared, APNTS_TOKEN=0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  S2-deploy-timelock: tx 0x0692dcffcdd097c596f6cea98d67f6abaa9c5434652198607756f86c31d83435 gasUsed 1378624
+  S2 read-back OK: TimelockController 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c (predicted 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c) minDelay 172800, SAFE=proposer/canceller/executor, EOA no role, no admin
+  S3-deploy-apnts-capped: tx 0xc46a21549c7067c90c44254a7875c07d5e873204affabe787c2ad5f1d96dac44 gasUsed 1389741
+  S4-transfer-ownership: tx 0x906879d403fde2ca116432c9e213f956e2071468dd1bd54ae31e5d1019f04d21 gasUsed 48238
+  S3/S4 read-back: APNTsCapped 0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B owner=0xb5600060e6de5E11D3636731964218E53caadf0E pendingOwner=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c minter=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 capGuardian=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 cap=10000000000000000000000000 totalSupply=0 version="APNTsCapped-1.0.0"
+  S5-safe-schedule: tx 0x4b3399ba83351fabac9f9cf73db0cc61d7ae4c0ab83436ab5dedb9b7eba240b6 gasUsed 55529
+  S5 read-back OK: operation 0x2772187be6e34a32eefab1991d5d16691b43c2b05088bae97e366bddb7ed4ca6 pending, readyAt=1790692998 (= schedule block ts 1790520198 + 172800)
+  negative OK: execute before 48h reverted (reverted: custom error 0x5ead8eb5: 2772187be6e34a32eefab1991d5d16691b43c2b05088bae97e3)
+  negative OK: EOA schedule reverted (reverted: custom error 0xe2517d3f: 000000000000000000000000b5600060e6de5e11d3636731964)
+  S6-safe-execute: tx 0x781555c6b9561f52393dbd8ba325cb1e8e92b58a8cf9513e071fb18b8ac982c7 gasUsed 47048
+  S6 read-back OK: APNTsCapped owner=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c pendingOwner=0
+  S6 DeployAPNTsCapped.verify: ALL PASS
+  S7-queue: tx 0xc169a9a5f2633ae2382487ec6a1b509029d4406e40c7bdcc14d83ada854e49ac gasUsed 75929
+  S7 read-back OK: pendingAPNTsToken=0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B eta=1791297802 (= queue block ts 1790693002 + 604800); APNTS_TOKEN unchanged=0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  negative OK: executeAPNTsTokenChange before ETA reverted (A3b is out of scope)
+A3a FORK SIMULATION OK (local only; nothing broadcast to a public network)

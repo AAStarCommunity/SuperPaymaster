@@ -1,0 +1,1 @@
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0xc52a9bd3, data: "0xc52a9bd3": InvalidConfiguration
