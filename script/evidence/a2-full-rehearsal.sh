@@ -80,7 +80,7 @@ cleanup() {
   for p in "${PIDS[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null; done
   if [ "$MANIFEST_PREEXISTED" = "1" ]; then cp "$OUT/.REAL-manifest-backup.json" "$W/$MANIFEST"; rm -f "$OUT/.REAL-manifest-backup.json"; else rm -f "$W/$MANIFEST"; fi
   rm -f "$W"/deployments/attestations/timelock-roles."$ENVNAME".a2-rehearsal-*.json
-  rm -f "$W/deployments/config.sepolia-fork-anni.json" "$W/deployments/config.sepolia-fork-aastar.json"
+  rm -f "$W/deployments/config.sepolia-fork-mycelium.json" "$W/deployments/config.sepolia-fork-aastar.json"
   rm -f "$OUT/.sendtx.err" "$OUT/.neg.tmp"
 }
 trap cleanup EXIT
@@ -686,28 +686,47 @@ for T in SP REGISTRY; do
   fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=execute-upgrade TL_TARGET=$T TL_NEW_IMPL=$NI TL_SALT=$SALT TL_ROLES_ATTESTATION="$ATT" > "$OUT/II-C-$T-execute-print.log" 2>&1 || fail "C $T execute print"
   check "C $T printed execute calldata == independently encoded" "$(payload_after "$OUT/II-C-$T-execute-print.log" "submit this from the Safe")" "$(tl_execute_data $PROXY $UPD $SALT)"
   # pre-execute snapshot for the read-backs the forge script cannot do on the Safe path
-  OWN0=$(cast call $PROXY 'owner()(address)' --rpc-url $RPC); B_SP=$(cast call $SP 'BLS_AGGREGATOR()(address)' --rpc-url $RPC); B_REG=$(cast call $REG 'blsAggregator()(address)' --rpc-url $RPC)
+  IMPL0=$(impl_of $PROXY); OWN0=$(cast call $PROXY 'owner()(address)' --rpc-url $RPC); B_SP=$(cast call $SP 'BLS_AGGREGATOR()(address)' --rpc-url $RPC); B_REG=$(cast call $REG 'blsAggregator()(address)' --rpc-url $RPC)
   SB=$(bn); for i in $(seq 0 $((NEND-1))); do cast storage $PROXY $i --rpc-url $RPC --block $SB; done > "$OUT/II-C-$T-slots-before.txt"
   safe_exec "C $T execute(upgradeToAndCall)" $TL "$(tl_execute_data $PROXY $UPD $SALT)" || continue
   SA=$(bn); for i in $(seq 0 $((NEND-1))); do cast storage $PROXY $i --rpc-url $RPC --block $SA; done > "$OUT/II-C-$T-slots-after.txt"
   check "C $T op done" "$(rb "TL.isOperationDone(C-$T)" $TL 'isOperationDone(bytes32)(bool)' $CID)" true
   check "C $T ERC-1967 impl slot == new impl" "$(impl_of $PROXY)" "$NI"
+  check "C $T impl actually changed (old impl $IMPL0 != new impl)" "$( [ "$(lc $IMPL0)" != "$(lc $NI)" ] && echo changed || echo SAME)" changed
   check "C $T version" "$(rb "$T.version" $PROXY 'version()(string)')" "$([ $T = SP ] && echo '"SuperPaymaster-5.5.0"' || echo '"Registry-5.9.0"')"
-  check "C $T owner == TL (unchanged)" "$(rb "$T.owner" $PROXY 'owner()(address)')" "$OWN0"
+  check "C $T owner == TL (unchanged across execute)" "$(rb "$T.owner" $PROXY 'owner()(address)')" "$TL"
+  check "C $T owner before execute was TL" "$OWN0" "$TL"
   check "C $T pendingOwner == 0" "$(rb "$T.pendingOwner" $PROXY 'pendingOwner()(address)')" 0x0000000000000000000000000000000000000000
   check "C $T BLS leg SP" "$(rb 'SP.BLS_AGGREGATOR' $SP 'BLS_AGGREGATOR()(address)')" "$B_SP"
   check "C $T BLS leg Registry" "$(rb 'Registry.blsAggregator' $REG 'blsAggregator()(address)')" "$B_REG"
+  check "C $T slot dumps well-formed ($NEND words each, >= 1 non-zero)" "$(grep -c '^0x[0-9a-f]\{64\}$' "$OUT/II-C-$T-slots-before.txt"):$(grep -c '^0x[0-9a-f]\{64\}$' "$OUT/II-C-$T-slots-after.txt"):$(grep -vc '^0x0\{64\}$' "$OUT/II-C-$T-slots-before.txt" | awk '{print ($1>0)}')" "$NEND:$NEND:1"
   check "C $T raw slots 0..$((NEND-1)) byte-identical across execute (blocks $SB -> $SA)" "$(shasum -a 256 < "$OUT/II-C-$T-slots-after.txt" | awk '{print $1}')" "$(shasum -a 256 < "$OUT/II-C-$T-slots-before.txt" | awk '{print $1}')"
 done
 
 step "STAGE II / M2 (GOV-2): guardian (= Safe) pauses via Safe.execTransaction; validate -> sigFail; guardian cannot unpause / upgrade / move funds; timelock unpauses"
-DUMMY_OP="($SP,0,0x,0x,$ZERO32,0,$ZERO32,0x,0x)"
-probe_validate() { cast call $SP 'validatePaymasterUserOp((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),bytes32,uint256)(bytes,uint256)' "$DUMMY_OP" $ZERO32 1 --from $EP --rpc-url $RPC --block "$(bn)" 2>&1 | tr '\n' ' ' | head -c 300; }
-rlog "  probe validatePaymasterUserOp(dummy op) BEFORE pause @block $(bn): $(probe_validate)"
+# validate probe with a REAL op: the AAStar AA account from A7 (SBT holder, holds AAStar v2 xPNTs), operator
+# OWNER, token OWNER_V2, the 5.5.0 paymasterAndData layout. Replayed as eth_call from the EntryPoint (no tx).
+# Its validationData sigFail bit (low 160 bits) must be 0 before the pause (positive control: the probe CAN
+# say "ok"), 1 while paused, 0 again after the timelock unpause. (A first draft used a malformed dummy op:
+# it returned sigFail=1 in every state, i.e. could not tell paused from unpaused -- not used.)
+PROBE_ACCT=$(jq -r .account "$OUT/I-A7-l4-aastar.snapshot.json")
+probe_validate() { # <label> -> prints the sigFail bit; logs the raw result with its block
+  local b nonce rate pmd agl gf res vd
+  b=$(bn)
+  nonce=$(cast call $EP 'getNonce(address,uint192)(uint256)' $PROBE_ACCT 0 --rpc-url $RPC --block $b | awk '{print $1}')
+  rate=$(cast call $OWNER_V2 'exchangeRate()(uint256)' --rpc-url $RPC --block $b | awk '{print $1}')
+  agl=0x$(printf '%032x%032x' 300000 100000); gf=0x$(printf '%032x%032x' 1000000000 3000000000)
+  pmd=0x$(lc ${SP#0x})$(printf '%032x%032x' 300000 300000)$(lc ${OWNER#0x})$(python3 -c "print(format($rate,'064x'))")$(lc ${OWNER_V2#0x})00
+  res=$(cast call $SP 'validatePaymasterUserOp((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),bytes32,uint256)(bytes,uint256)' \
+    "($PROBE_ACCT,$nonce,0x,0x,$agl,60000,$gf,$pmd,0x)" "$(cast keccak "a2/M2/probe/$1")" 3180000000000000 --from $EP --rpc-url $RPC --block $b 2>&1 | tr '\n' ' ')
+  vd=$(echo "$res" | awk '{print $2}')
+  echo "  probe validatePaymasterUserOp(real AAStar op, sender $PROBE_ACCT) [$1] @block $b: validationData=$vd (raw: ${res:0:160})" | tee -a "$OUT/rehearsal.log" >&2
+  python3 -c "print(int('$vd') & ((1<<160)-1))" 2>/dev/null || echo "ERR"
+}
+check "M2 probe BEFORE pause: sigFail bit == 0 (positive control)" "$(probe_validate before-pause)" 0
 safe_exec "M2 guardian setGlobalPaused(true)" $SP "$(cast calldata 'setGlobalPaused(bool)' true)" || fail "M2 pause"
 check "M2 paused() == true" "$(rb 'SP.paused' $SP 'paused()(bool)')" true
-VP=$(probe_validate); rlog "  probe validatePaymasterUserOp(dummy op) WHILE paused @block $(bn): $VP"
-check "M2 validate returns SIG_VALIDATION_FAILED (validationData == 1) while paused" "$(echo "$VP" | awk '{print $NF}')" 1
+check "M2 probe WHILE paused: sigFail bit == 1 (SIG_VALIDATION_FAILED)" "$(probe_validate while-paused)" 1
 safe_exec_must_fail "M2: guardian (Safe) unpause setGlobalPaused(false)" $SP "$(cast calldata 'setGlobalPaused(bool)' false)" "82b42900"
 safe_exec_must_fail "M2: guardian (Safe) SP.upgradeToAndCall" $SP "$(cast calldata 'upgradeToAndCall(address,bytes)' $SPIMPL 0x)"
 safe_exec_must_fail "M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds)" $SP "$(cast calldata 'withdrawProtocolRevenue(address,uint256)' $SAFE 1)"
@@ -722,7 +741,7 @@ safe_exec_must_fail "M2: Safe execute(unpause) BEFORE 48h" $TL "$(tl_execute_dat
 warp 172800
 safe_exec "M2 execute(unpause)" $TL "$(tl_execute_data $SP $UNP $USALT)" || fail "M2 execute"
 check "M2 paused() == false after the timelock's unpause" "$(rb 'SP.paused' $SP 'paused()(bool)')" false
-rlog "  probe validatePaymasterUserOp(dummy op) AFTER unpause @block $(bn): $(probe_validate)"
+check "M2 probe AFTER timelock unpause: sigFail bit == 0" "$(probe_validate after-unpause)" 0
 
 step "STAGE II / M3 (GOV-3): setAPNTSPrice only via the timelock"
 P0=$(rb 'SP.aPNTsPriceUSD' $SP 'aPNTsPriceUSD()(uint256)' | awk '{print $1}')
