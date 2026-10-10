@@ -972,24 +972,76 @@ sed -E '6s/ 0x[0-9a-f]{64}$/ /' "$OUT/.slots-control.txt" > "$OUT/.slots-corrupt
 check "D0: a snapshot with ONE empty word (the old swallowed-error shape 'slot 4 ') is rejected" "$(slots_valid "$OUT/.slots-corrupt.txt" | cut -c1-7)" INVALID
 rm -f "$OUT/.slots-injected-failure.txt" "$OUT/.slots-control.txt" "$OUT/.slots-corrupt.txt"
 OPSIG='operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)'
-sp_state() { # <file>: key getters THROUGH the proxy (i.e. decoded by the CURRENT implementation) at ONE block
-  local b; b=$(bn)
-  { echo "# SP getters via proxy @block $b"
-    for g in 'owner()(address)' 'pendingOwner()(address)' 'guardian()(address)' 'paused()(bool)' 'APNTS_TOKEN()(address)' \
-      'pendingAPNTsToken()(address)' 'pendingAPNTsTokenEta()(uint256)' 'xpntsFactory()(address)' 'treasury()(address)' \
-      'aPNTsPriceUSD()(uint256)' 'cachedPrice()(int256,uint256,uint80,uint8)' 'protocolFeeBPS()(uint256)' 'BLS_AGGREGATOR()(address)' \
-      'totalTrackedBalance()(uint256)' 'protocolRevenue()(uint256)' 'priceStalenessThreshold()(uint256)' 'priceMode()(uint8)' \
-      'entryPoint()(address)' 'REGISTRY()(address)' 'ETH_USD_PRICE_FEED()(address)'; do
-      echo "$g = $(cast call $SP "$g" --rpc-url $RPC --block $b 2>&1 | tr '\n' ' ' | sed -E 's/ +$//')"
-    done
-    echo "operators(OWNER) = $(cast call $SP "$OPSIG" $OWNER --rpc-url $RPC --block $b 2>&1 | tr '\n' ' ')"
-    echo "operators(ANNI) = $(cast call $SP "$OPSIG" $ANNI --rpc-url $RPC --block $b 2>&1 | tr '\n' ' ')"
-    echo "EP.getDepositInfo(SP) = $(cast call $EP 'getDepositInfo(address)((uint256,bool,uint112,uint32,uint48))' $SP --rpc-url $RPC --block $b 2>&1)"
-    echo "APNTsCapped.balanceOf(SP) = $(cast call $CAPPED 'balanceOf(address)(uint256)' $SP --rpc-url $RPC --block $b 2>&1)"; } > "$1"
+# sp_state <file>: key getters THROUGH the proxy (i.e. decoded by the CURRENT implementation) at ONE block.
+# Codex #462 round 2: every `cast call` is checked — a non-zero exit or an empty value writes "<getter> = FAILED",
+# prints "sp_state: FAILED ..." and returns 1 (the caller fails the run); state_ok then requires EXACTLY
+# SP_STATE_N lines "<getter> = <non-empty value>" and no FAILED / error / revert, so a getter that came back
+# blank (or failed) in BOTH snapshots can no longer make the before/after diff say "identical".
+SP_STATE_N=24
+sp_state() {
+  local b v rc=0 q
+  if ! b=$(bn) || ! [[ "$b" =~ ^[0-9]+$ ]]; then echo "sp_state: FAILED block number" >&2; echo "# FAILED block number" > "$1"; return 1; fi
+  echo "# SP getters via proxy @block $b" > "$1"
+  for q in 'owner()(address)' 'pendingOwner()(address)' 'guardian()(address)' 'paused()(bool)' 'APNTS_TOKEN()(address)' \
+    'pendingAPNTsToken()(address)' 'pendingAPNTsTokenEta()(uint256)' 'xpntsFactory()(address)' 'treasury()(address)' \
+    'aPNTsPriceUSD()(uint256)' 'cachedPrice()(int256,uint256,uint80,uint8)' 'protocolFeeBPS()(uint256)' 'BLS_AGGREGATOR()(address)' \
+    'totalTrackedBalance()(uint256)' 'protocolRevenue()(uint256)' 'priceStalenessThreshold()(uint256)' 'priceMode()(uint8)' \
+    'entryPoint()(address)' 'REGISTRY()(address)' 'ETH_USD_PRICE_FEED()(address)'; do
+    sp_getter "$1" "$q" "$b" $SP "$q" || rc=1
+  done
+  sp_getter "$1" "operators(OWNER)" "$b" $SP "$OPSIG" $OWNER || rc=1
+  sp_getter "$1" "operators(ANNI)" "$b" $SP "$OPSIG" $ANNI || rc=1
+  sp_getter "$1" "EP.getDepositInfo(SP)" "$b" $EP 'getDepositInfo(address)((uint256,bool,uint112,uint32,uint48))' $SP || rc=1
+  sp_getter "$1" "APNTsCapped.balanceOf(SP)" "$b" $CAPPED 'balanceOf(address)(uint256)' $SP || rc=1
+  return $rc
 }
-state_ok() { ! grep -qiE 'error|revert' "$1" && [ "$(grep -c ' = ' "$1")" -ge 24 ]; }
+sp_getter() { # <file> <label> <block> <cast call args...>: one checked getter line
+  local f="$1" label="$2" b="$3" v; shift 3
+  if v=$(cast call "$@" --rpc-url $RPC --block "$b" 2>&1); then v=$(echo "$v" | tr '\n' ' ' | sed -E 's/ +$//'); else
+    echo "$label = FAILED" >> "$f"; echo "sp_state: FAILED $label @block $b: $(echo "$v" | head -c 160)" >&2; return 1; fi
+  if [ -z "$v" ]; then echo "$label = FAILED" >> "$f"; echo "sp_state: FAILED $label @block $b: empty value" >&2; return 1; fi
+  echo "$label = $v" >> "$f"
+}
+state_ok() { # <file>: "valid" iff exactly SP_STATE_N lines "<label> = <non-empty>", none FAILED / error / revert
+  local n bad; n=$(grep -cE '^[^#].* = [^ ]' "$1"); bad=$(grep -v '^#' "$1" | grep -cvE '^.+ = [^ ]')
+  if [ "$n" = "$SP_STATE_N" ] && [ "$bad" = 0 ] && ! grep -qiE ' = FAILED$|error|revert' "$1" && head -1 "$1" | grep -qE '@block [0-9]+$'; then echo valid
+  else echo "INVALID($n non-empty values, $bad bad lines$(grep -qiE ' = FAILED$|error|revert' "$1" && echo ', FAILED/error/revert present'))"; fi
+}
+sp_state_checked() { # <file> <label>
+  sp_state "$1" || fail "$2: getter snapshot had failed or empty reads ($1)"
+  check "$2: getter snapshot well-formed (exactly $SP_STATE_N non-empty values, no FAILED/error/revert)" "$(state_ok "$1")" valid
+}
+# Negative controls for the getter snapshot (Codex #462 round 2), run once here against the live fork.
+sp_state_inject_blank() { # shadow `cast` for ONE getter: operators(OWNER) returns exit 0 with an EMPTY value
+  cast() { if [ "$1" = call ] && [ "$3" = "$OPSIG" ] && [ "$(lc "$4")" = "$(lc $OWNER)" ]; then return 0; fi; command cast "$@"; }
+  sp_state "$1"; local rc=$?; unset -f cast; return $rc
+}
+sp_state_inject_fail() { # shadow `cast` for ONE getter: operators(OWNER) exits non-zero like an RPC error
+  cast() { if [ "$1" = call ] && [ "$3" = "$OPSIG" ] && [ "$(lc "$4")" = "$(lc $OWNER)" ]; then echo "Error: injected read failure" >&2; return 1; fi; command cast "$@"; }
+  sp_state "$1"; local rc=$?; unset -f cast; return $rc
+}
+state_neg_controls() { # <tag>: logs to $OUT/D0-state-guard-controls.log
+  local L="$OUT/D0-state-guard-controls.log" T="$OUT/.st"
+  must_fail "D0: sp_state with an injected EMPTY getter (operators(OWNER) exit 0, blank) returns failure" "FAILED operators\(OWNER\) @block [0-9]+: empty value" sp_state_inject_blank "$T-blank.txt"
+  must_fail "D0: sp_state with an injected FAILED getter (operators(OWNER) exit 1) returns failure" "FAILED operators\(OWNER\) @block [0-9]+: Error: injected read failure" sp_state_inject_fail "$T-fail.txt"
+  check "D0: injection was scoped (cast is no longer shadowed)" "$(type -t cast)" file
+  sp_state "$T-ok.txt" || fail "D0 healthy getter snapshot failed"
+  check "D0: healthy getter snapshot accepted by state_ok (positive control)" "$(state_ok "$T-ok.txt")" valid
+  check "D0: snapshot with the injected failed getter rejected" "$(state_ok "$T-fail.txt" | cut -c1-7)" INVALID
+  check "D0: snapshot with the injected empty getter rejected" "$(state_ok "$T-blank.txt" | cut -c1-7)" INVALID
+  # the Codex reproduction: the SAME getter blank in BOTH snapshots (old state_ok accepted it, diff said identical)
+  sed -E 's/^(operators\(OWNER\)) = .*/\1 = /' "$T-ok.txt" > "$T-blankA.txt"; cp "$T-blankA.txt" "$T-blankB.txt"
+  check "D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot A rejected" "$(state_ok "$T-blankA.txt")" "INVALID($((SP_STATE_N-1)) non-empty values, 1 bad lines)"
+  check "D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot B rejected" "$(state_ok "$T-blankB.txt")" "INVALID($((SP_STATE_N-1)) non-empty values, 1 bad lines)"
+  check "D0: Codex repro — the OLD rule would have accepted it (documents the gap)" "$( ! grep -qiE 'error|revert' "$T-blankA.txt" && [ "$(grep -c ' = ' "$T-blankA.txt")" -ge 24 ] && echo old-accepts || echo old-rejects)" old-accepts
+  { echo "# getter-snapshot guard controls @block $(bn) (sp_state / state_ok, Codex #462 round 2)"
+    for f in ok blank fail blankA; do echo "## $f: state_ok -> $(state_ok "$T-$f.txt")"; sed 's/^/  /' "$T-$f.txt"; done; } > "$L"
+  rm -f "$T"-*.txt
+}
 fresh_price() { refresh_oracle; sendtx "D updatePrice before probe ($1)" $OWNER $SP 'updatePrice()' || fail "D updatePrice ($1)"; }
 codehash_at() { cast keccak "$(cast code "$1" --rpc-url $RPC)"; }
+
+state_neg_controls
 
 step "STAGE D / D1: deploy the TEST dummy implementation (deployer EOA; constructor = the live SP proxy's three immutables)"
 D_EP=$(rb 'SP.entryPoint' $SP 'entryPoint()(address)'); D_REGI=$(rb 'SP.REGISTRY' $SP 'REGISTRY()(address)'); D_FEED=$(rb 'SP.ETH_USD_PRICE_FEED' $SP 'ETH_USD_PRICE_FEED()(address)')
@@ -1055,10 +1107,10 @@ check "D4 op ready after 48h" "$(rb 'TL.isOperationReady(D-fwd)' $TL 'isOperatio
 must_fail "D4: deployer EOA execute after 48h (not EXECUTOR)" "$(errdata "$E_ACL" $OWNER $EXECUTOR_ROLE)" cast send $TL 'execute(address,uint256,bytes,bytes32,bytes32)' $SP 0 $DUPD $ZERO32 $DSALT --unlocked --from $OWNER --rpc-url $RPC
 
 step "STAGE D / D5: Safe -> TL.execute(SP.upgradeToAndCall(dummy)) + read-backs"
-dump_slots_checked "$OUT/D5-slots-before.txt" "D5-slots-before"; sp_state "$OUT/D5-state-before.txt"
+dump_slots_checked "$OUT/D5-slots-before.txt" "D5-slots-before"; sp_state_checked "$OUT/D5-state-before.txt" "D5-state-before"
 safe_exec "D5 execute(upgradeToAndCall(dummy))" $TL "$(tl_execute_data $SP $DUPD $DSALT)" || { fail "D5 execute"; exit 1; }
 D5_TX=$SAFE_LAST_TX; D5_BLOCK=$LAST_BLOCK
-dump_slots_checked "$OUT/D5-slots-after.txt" "D5-slots-after"; sp_state "$OUT/D5-state-after.txt"
+dump_slots_checked "$OUT/D5-slots-after.txt" "D5-slots-after"; sp_state_checked "$OUT/D5-state-after.txt" "D5-state-after"
 check "D5 Upgraded(dummy) event in the execute tx" "$(cast receipt $D5_TX --rpc-url $RPC --json | jq -r --arg s "$(lc $SP)" --arg t "$(cast keccak 'Upgraded(address)')" --arg i "0x000000000000000000000000$(lc ${DUMMY#0x})" '[.logs[] | select((.address|ascii_downcase)==$s and .topics[0]==$t and .topics[1]==$i)] | length')" 1
 check "D5 op done" "$(rb 'TL.isOperationDone(D-fwd)' $TL 'isOperationDone(bytes32)(bool)' $DID)" true
 check "D5 ERC-1967 implementation slot == dummy" "$(rbs 'SP ERC-1967 impl slot' $SP $IMPL_SLOT | sed 's/0x000000000000000000000000/0x/')" "$DUMMY"
@@ -1074,7 +1126,7 @@ check "D5 SP.EXTENSION via proxy == dummy's extension (new extension instance, r
 check "D5 SP.owner == TL (unchanged)" "$(rb 'SP.owner' $SP 'owner()(address)')" $TL
 check "D5 SP.pendingOwner == 0" "$(rb 'SP.pendingOwner' $SP 'pendingOwner()(address)')" 0x0000000000000000000000000000000000000000
 check "D5 SP.guardian == Safe (unchanged)" "$(rb 'SP.guardian' $SP 'guardian()(address)')" $SAFE
-check "D5 getter snapshots well-formed (no error, >= 24 values)" "$(state_ok "$OUT/D5-state-before.txt" && state_ok "$OUT/D5-state-after.txt" && echo ok || echo BAD)" ok
+check "D5 getter snapshots well-formed (exactly $SP_STATE_N non-empty values each)" "$(state_ok "$OUT/D5-state-before.txt"):$(state_ok "$OUT/D5-state-after.txt")" valid:valid
 check "D5 getters via proxy identical before/after (rc.2 decode vs dummy decode)" "$(diff <(tail -n +2 "$OUT/D5-state-before.txt") <(tail -n +2 "$OUT/D5-state-after.txt") >/dev/null && echo identical || echo DIFFERENT)" identical
 check "D5 slot snapshot not all-zero (>= 1 non-zero word)" "$(grep '^slot ' "$OUT/D5-slots-before.txt" | grep -vc ' 0x0\{64\}$' | awk '{print ($1>0)}')" 1
 check "D5 raw storage (slots 0..$SP_MAXSLOT + ERC-7201) byte-identical across the dummy upgrade" "$(diff <(tail -n +2 "$OUT/D5-slots-before.txt") <(tail -n +2 "$OUT/D5-slots-after.txt") >/dev/null && echo identical || echo DIFFERENT)" identical
@@ -1099,10 +1151,10 @@ must_fail "D6: deployer EOA execute rollback after 48h (not EXECUTOR)" "$(errdat
 roles_check before-D-rollback-execute
 fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=execute-upgrade TL_TARGET=SP TL_NEW_IMPL=$IMPL0 TL_SALT=$RSALT TL_ROLES_ATTESTATION="$ATT" > "$OUT/D6-rollback-execute-print.log" 2>&1 || fail "D6 execute print"
 check "D6 release printer execute calldata == independently encoded" "$(payload_after "$OUT/D6-rollback-execute-print.log" "submit this from the Safe")" "$(tl_execute_data $SP $RUPD $RSALT)"
-dump_slots_checked "$OUT/D6-slots-before.txt" "D6-slots-before"; sp_state "$OUT/D6-state-before.txt"
+dump_slots_checked "$OUT/D6-slots-before.txt" "D6-slots-before"; sp_state_checked "$OUT/D6-state-before.txt" "D6-state-before"
 safe_exec "D6 execute(upgradeToAndCall(rc.2 impl))" $TL "$(tl_execute_data $SP $RUPD $RSALT)" || { fail "D6 execute"; exit 1; }
 D6_TX=$SAFE_LAST_TX
-dump_slots_checked "$OUT/D6-slots-after.txt" "D6-slots-after"; sp_state "$OUT/D6-state-after.txt"
+dump_slots_checked "$OUT/D6-slots-after.txt" "D6-slots-after"; sp_state_checked "$OUT/D6-state-after.txt" "D6-state-after"
 check "D6 Upgraded(rc.2 impl) event in the execute tx" "$(cast receipt $D6_TX --rpc-url $RPC --json | jq -r --arg s "$(lc $SP)" --arg t "$(cast keccak 'Upgraded(address)')" --arg i "0x000000000000000000000000$(lc ${IMPL0#0x})" '[.logs[] | select((.address|ascii_downcase)==$s and .topics[0]==$t and .topics[1]==$i)] | length')" 1
 check "D6 op done" "$(rb 'TL.isOperationDone(D-rb)' $TL 'isOperationDone(bytes32)(bool)' $RID)" true
 check "D6 ERC-1967 implementation slot == rc.2 impl" "$(rbs 'SP ERC-1967 impl slot' $SP $IMPL_SLOT | sed 's/0x000000000000000000000000/0x/')" "$IMPL0"
@@ -1114,7 +1166,7 @@ attest_runtime D6-proxy-impl-is-rc2-again --target SuperPaymaster=$(impl_of $SP)
 check "D6 the proxy's implementation runtime == rc.2 attested SuperPaymaster again" "$(grep -c "^MATCH    SuperPaymaster @ $(impl_of $SP)" "$OUT/codehash-D6-proxy-impl-is-rc2-again.log")" 1
 check "D6 SP.EXTENSION == original rc.2 extension" "$(rb 'SP.EXTENSION' $SP 'EXTENSION()(address)')" "$EXT0"
 check "D6 SP.owner == TL; pendingOwner == 0; guardian == Safe" "$(rb 'SP.owner' $SP 'owner()(address)'):$(rb 'SP.pendingOwner' $SP 'pendingOwner()(address)'):$(rb 'SP.guardian' $SP 'guardian()(address)')" "$TL:0x0000000000000000000000000000000000000000:$SAFE"
-check "D6 getter snapshots well-formed" "$(state_ok "$OUT/D6-state-before.txt" && state_ok "$OUT/D6-state-after.txt" && echo ok || echo BAD)" ok
+check "D6 getter snapshots well-formed (exactly $SP_STATE_N non-empty values each)" "$(state_ok "$OUT/D6-state-before.txt"):$(state_ok "$OUT/D6-state-after.txt")" valid:valid
 check "D6 getters via proxy identical before/after the rollback" "$(diff <(tail -n +2 "$OUT/D6-state-before.txt") <(tail -n +2 "$OUT/D6-state-after.txt") >/dev/null && echo identical || echo DIFFERENT)" identical
 check "D6 raw storage byte-identical across the rollback" "$(diff <(tail -n +2 "$OUT/D6-slots-before.txt") <(tail -n +2 "$OUT/D6-slots-after.txt") >/dev/null && echo identical || echo DIFFERENT)" identical
 fresh_price after-rollback
