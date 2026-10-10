@@ -1,0 +1,15 @@
+# must_fail self-test; script 0c21a8fe6da29027ed31951e9125889c40ab8f41 sha256 64b6412dc83553deb27566682525576e4778ea000be61cea9d3b512e95b20368
+probe [exact AccessControlUnauthorizedAccount(B, PROPOSER)]: must_fail verdict=PASS wanted=PASS -> OK
+probe [same selector, wrong account (A instead of B)]: must_fail verdict=FAIL(exit 1) wanted=FAIL -> OK
+probe [same selector, wrong role (EXECUTOR)]: must_fail verdict=FAIL(exit 1) wanted=FAIL -> OK
+probe [different selector (OwnableUnauthorizedAccount(B))]: must_fail verdict=FAIL(exit 1) wanted=FAIL -> OK
+probe [bare selector prefix only (0xe2517d3f)]: must_fail verdict=FAIL(exit 1) wanted=FAIL -> OK
+probe [command that SUCCEEDS (A is proposer)]: must_fail verdict=FAIL(exit 1) wanted=FAIL -> OK
+probe [tooling error, no revert data (bad signature)]: must_fail verdict=FAIL(exit 1) wanted=FAIL -> OK
+--- neg-controls.jsonl rows written by the extracted must_fail:
+{"id":"NEG-1","what":"exact AccessControlUnauthorizedAccount(B, PROPOSER)","headBlock":1,"mode":"exact-revert-data","expected":"0xe2517d3f00000000000000000000000070997970c51812dc3ae63dc8c504c9e07b5c8e8bb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1","actual":"0xe2517d3f00000000000000000000000070997970c51812dc3ae63dc8c504c9e07b5c8e8bb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1","result":"PASS"}
+{"id":"NEG-1","what":"same selector, wrong account (A instead of B)","headBlock":1,"mode":"exact-revert-data","expected":"0xe2517d3f000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266b09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1","actual":"0xe2517d3f00000000000000000000000070997970c51812dc3ae63dc8c504c9e07b5c8e8bb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1","result":"FAIL"}
+{"id":"NEG-1","what":"same selector, wrong role (EXECUTOR)","headBlock":1,"mode":"exact-revert-data","expected":"0xe2517d3f00000000000000000000000070997970c51812dc3ae63dc8c504c9e07b5c8e8bd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63","actual":"0xe2517d3f00000000000000000000000070997970c51812dc3ae63dc8c504c9e07b5c8e8bb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1","result":"FAIL"}
+{"id":"NEG-1","what":"different selector (OwnableUnauthorizedAccount(B))","headBlock":1,"mode":"exact-revert-data","expected":"0x118cdaa700000000000000000000000070997970c51812dc3ae63dc8c504c9e07b5c8e8b","actual":"0xe2517d3f00000000000000000000000070997970c51812dc3ae63dc8c504c9e07b5c8e8bb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1","result":"FAIL"}
+{"id":"NEG-1","what":"bare selector prefix only (0xe2517d3f)","headBlock":1,"mode":"exact-revert-data","expected":"0xe2517d3f","actual":"0xe2517d3f00000000000000000000000070997970c51812dc3ae63dc8c504c9e07b5c8e8bb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1","result":"FAIL"}
+{"id":"NEG-1","what":"tooling error, no revert data (bad signature)","headBlock":2,"mode":"exact-revert-data","expected":"0xe2517d3f00000000000000000000000070997970c51812dc3ae63dc8c504c9e07b5c8e8bb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1","actual":"<none>","result":"FAIL"}
