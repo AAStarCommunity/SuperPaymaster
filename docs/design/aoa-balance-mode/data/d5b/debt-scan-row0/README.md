@@ -4,9 +4,21 @@ Responds to DSR CC-124 comment a6097e85 item (1) (`03-final-spec.md` §6 row 0, 
 inside the old tokens) is in the sibling directory `../legacy-debt-7b/` and was produced by the same run.
 
 **Run**: `python3 scripts/a2-row0-7b-debt-scan.py` (defaults: `--block 11881000`, output = this directory and
-`../legacy-debt-7b/`), script committed at `eb073e5aa8662782ef4d343a02c7fbb5b01a99dc`, clean
-(`scan.log` L2: `script differs from HEAD: no`, script sha256 `7f7d3970…4d93`). Exit code 0,
-`CHECK totals: OK=278 FAIL=0`, `RESULT OK` (last two lines of `scan.log`).
+`../legacy-debt-7b/`), script committed at **`c25a3fb16565d17b38c5f7f0ef6d8bc1d2b8c3a7`**, clean
+(`scan.log` L2: `script differs from HEAD: no`, script sha256 `82b56065…fe04b`). Exit code 0,
+`CHECK totals: OK=282 FAIL=0`, `RESULT OK` (last two lines of `scan.log`).
+
+**Revision 2 (Codex challenge on #460, head `6f4ab439`).** Two Medium findings fixed in `c25a3fb1`:
+(1) getter answers were decoded leniently (`"0x"` / `""` → 0), so an endpoint answering `"0x"` to every debt read
+passed; now every `pendingDebts` / `getDebt` / `getRoleUserCount` / `hasRole` / state-override / role-array-length
+read must be **exactly one 32-byte ABI word on each endpoint** (`word()`), anything else is a FAIL, and the
+`DebtRecordFailed` / `DebtRecorded` / `DebtRepaid` data lengths are checked; (2) the token-debt replay sorted
+by `(block, txHash, logIndex)`, which mis-orders same-block events — it now uses execution order
+`(blockNumber, logIndex)` (logIndex is block-global). The scan was re-run at the **same** fixed block 11,881,000
+with `c25a3fb1`: all 238 data files (`raw/`, `inventory.json`, `../legacy-debt-7b/raw/`, `legacy-debt.json`) are
+**byte-identical** to revision 1 (`6f4ab439`); only `scan.log` changed (+4 CHECK lines: the data-length checks of
+the four aPNTs debt events; every strict-word read replaced an existing "identical on A and B" line one for one).
+New negative controls NC4/NC5 and the offline self-test are below. Revision 1 was produced by `eb073e5a`.
 
 READ-ONLY: the script issues only `eth_chainId`, `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getCode`,
 `eth_getStorageAt`, `eth_call` (two of them with a state override — a local simulation, nothing is written)
@@ -84,9 +96,9 @@ topics in their bytecode. Hence a non-zero entry implies a `DebtRecordFailed` lo
 **Limits**: (a) the 5.4.0 / 5.4.1 bytecode was checked for the topics, not recompiled against source — the
 "every increase emits" property for those two is inferred from source history, not proven on their bytecode;
 (b) the result is as of block 11,881,000 — row 0 must be re-run at T (`--block <T-block>`), the script is
-reproducible: the NC3 control run (endpoint B through a pass-through proxy) produced all 238 `raw/`, `inventory.json`
-and `legacy-debt.json` files byte-identical to this archive once the B host string is normalised, and a
-`scan.log` that differs only in the two head-block lines (`negative-controls/nc3-…`).
+reproducible: the NC3 control run (endpoint B through a pass-through proxy, same script commit) produced all 238
+`raw/`, `inventory.json` and `legacy-debt.json` files byte-identical to this archive once the B host string is
+normalised (`negative-controls/nc3-…`).
 
 ## Operator full set (fixed block)
 
@@ -127,7 +139,13 @@ evidence; completeness rests on the three enumerations above.
 |---|---|---|---|
 | NC1 | `ethereum-sepolia-rpc.publicnode.com` (prunes history) | fail-closed | exit 1: `pruned history unavailable` on the first old-state read |
 | NC2 | Tenderly behind `scripts/d5b-rpc-tamper-proxy.mjs … drop` (drops the last log of every non-empty `eth_getLogs` answer — a *silent* partial answer) | fail-closed | exit 1, 22 `CHECK FAIL` (e.g. `sp-all-logs A=73 B=69`, `sp-logs-Upgraded A=3 B=2`) |
-| NC3 | Tenderly behind the same proxy in `pass` mode (control for NC2) | OK | exit 0, `OK=278 FAIL=0`, results identical to the archived run |
+| NC3 | Tenderly behind `scripts/a2-debt-scan-tamper-proxy.py … pass` (control for NC2/NC4/NC5) | OK | exit 0, `OK=282 FAIL=0`, all 238 data files identical to the archived run |
+| NC4 | Tenderly behind `scripts/a2-debt-scan-tamper-proxy.py … empty-once:0x9a78e72e` — answers `"0x"` to the first plain `getDebt` call (aPNTs, user `0xf7bf…642c`; real answer was a zero word) | fail-closed | exit 1: `CHECK FAIL token-0x696a7370-getDebt-0xf7bf79ac: B answer is exactly one 32-byte ABI word (… '0x')` |
+| NC5 | same proxy, `empty-once:0x7b707185` — answers `"0x"` to the first plain `pendingDebts` call (`(0x4680…, 0xecd9…)`; real answer a zero word) | fail-closed | exit 1: `CHECK FAIL sp-pendingDebts-0x4680bf1a-0xecd9c07f: B answer is exactly one 32-byte ABI word (… '0x')` |
+| self-test | offline, `python3 scripts/a2-row0-7b-debt-scan-selftest.py` (`selftest-offline.log`) | 19 PASS | exit 0. T1: `word()` rejects `0x`, `''`, 31/33 bytes, two words, non-hex, no prefix, revert object, None. T2: same-block `DebtRecorded` (logIndex 5, tx `0xff…`) → `DebtRepaid` (logIndex 9, tx `0x00…`) fed in reverse order reconciles (remaining 0 == replayed 0); discrimination: the old `(block, txHash, logIndex)` key puts the repay first and the check is red. T3: malformed event data rejected. |
+
+NC4/NC5 are exactly the Codex probe ("replace a getter answer with `0x`") applied end-to-end on the real run:
+revision 1 would have read that `"0x"` as 0 and passed.
 
 ## Files
 

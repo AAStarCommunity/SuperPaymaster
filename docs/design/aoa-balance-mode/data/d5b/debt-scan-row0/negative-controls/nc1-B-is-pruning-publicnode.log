@@ -1,9 +1,9 @@
 A2 row0/7b debt scan; fixed block 11881000 ; endpoints: A=eth-sepolia.g.alchemy.com, B=ethereum-sepolia-rpc.publicnode.com
-script scripts/a2-row0-7b-debt-scan.py sha256 7f7d397052db61ea5dd1f58447793d8ebe0617da0aa75e27376085b84f1b4d93 ; repo HEAD eb073e5aa8662782ef4d343a02c7fbb5b01a99dc ; script differs from HEAD: no
+script scripts/a2-row0-7b-debt-scan.py sha256 82b5606561ebc9c7fad844dcd97b38e2988e0730c67cd9601d2ac1c4277fe04b ; repo HEAD c25a3fb16565d17b38c5f7f0ef6d8bc1d2b8c3a7 ; script differs from HEAD: no
 CHECK OK   A chainId == 11155111
-CHECK OK   A fixed block 11881000 <= head 11881502 - 64
+CHECK OK   A fixed block 11881000 <= head 11881712 - 64
 CHECK OK   B chainId == 11155111
-CHECK OK   B fixed block 11881000 <= head 11881502 - 64
+CHECK OK   B fixed block 11881000 <= head 11881713 - 64
 CHECK OK   fixed block hash identical on A and B (0xf785a1efed005453e054f35adf4877eac985fafdd500407595fb4ff6640595af)
 CHECK OK   tag v5.4.2 -> 78364b12f42f1d3043ae992472ab6bdb6de82377
 CHECK OK   tag v5.5.0-rc.2 -> 1ac0e1c595dc84e684b540ca6a936168e922194f
@@ -34,7 +34,7 @@ CHECK OK   operator event SlashCancelled(address) is declared in tagged source
 CHECK OK   operator event SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256) is declared in tagged source
 CHECK OK   operator event ProtocolRevenueUnderflow(address,uint256,uint256) is declared in tagged source
 CHECK OK   sp-creation: A state served at creation boundary (code empty @11151015, present @11151016)
-EXCEPTION RuntimeError B rpc error {"code": 4444, "message": "pruned history unavailable: requested 5940500, earliest available 11871426"}
+EXCEPTION RuntimeError B rpc error {"code": 4444, "message": "pruned history unavailable: requested 5940500, earliest available 11871634"}
 CHECK totals: OK=32 FAIL=1
 RESULT FAIL (1) 
-  - exception: RuntimeError: B rpc error {"code": 4444, "message": "pruned history unavailable: requested 5940500, earliest available 11871426"}
+  - exception: RuntimeError: B rpc error {"code": 4444, "message": "pruned history unavailable: requested 5940500, earliest available 11871634"}

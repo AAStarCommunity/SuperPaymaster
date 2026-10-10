@@ -1,4 +1,4 @@
-A2 row0/7b debt scan; fixed block 11881000 ; endpoints: A=eth-sepolia.g.alchemy.com, B=127.0.0.1:28783
+A2 row0/7b debt scan; fixed block 11881000 ; endpoints: A=eth-sepolia.g.alchemy.com, B=127.0.0.1:28782
 script scripts/a2-row0-7b-debt-scan.py sha256 82b5606561ebc9c7fad844dcd97b38e2988e0730c67cd9601d2ac1c4277fe04b ; repo HEAD c25a3fb16565d17b38c5f7f0ef6d8bc1d2b8c3a7 ; script differs from HEAD: no
 CHECK OK   A chainId == 11155111
 CHECK OK   A fixed block 11881000 <= head 11881712 - 64
@@ -272,25 +272,9 @@ CHECK OK   POSITIVE CONTROL (token 0xe6579a90dc498a710008de12119812d0fb7aa224, s
 CHECK OK   pc-getDebt-override-0xe6579a90: identical on A and B (strict 1-word answers)
 CHECK OK   pc-getDebt-override-0xe6579a90: getter returns a planted value -> mapping declared at slot 22
 token 0xe6579a90dc498a710008de12119812d0fb7aa224 PNTs XPNTs-3.4.0: DebtRecorded A=0 B=0, DebtRepaid A=0 B=0, Transfer(PC) A=23 B=23, outstanding=0
-CHECK OK   sp-pendingDebts-0x4680bf1a-0xecd9c07f: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0x4680bf1a4c72814abf090e7fa2b17c07c2407714,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x4680bf1a-0xf7bf79ac: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0x4680bf1a4c72814abf090e7fa2b17c07c2407714,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x696a7370-0xecd9c07f: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0x696a73701b104c6ccbbaaddd2216788ea08eab89,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x696a7370-0xf7bf79ac: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0x696a73701b104c6ccbbaaddd2216788ea08eab89,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x948c9d1b-0xecd9c07f: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0x948c9d1bd99b39dee482c23d6a3bd26210b56040,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x948c9d1b-0xf7bf79ac: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0x948c9d1bd99b39dee482c23d6a3bd26210b56040,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0xbb463215-0xecd9c07f: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0xbb46321545a91db2f3b5c3e694f2f23abe259883,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0xbb463215-0xf7bf79ac: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0xbb46321545a91db2f3b5c3e694f2f23abe259883,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0xe6579a90-0xecd9c07f: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0xe6579a90dc498a710008de12119812d0fb7aa224,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0xe6579a90-0xf7bf79ac: identical on A and B (strict 1-word answers)
-CHECK OK   pendingDebts(0xe6579a90dc498a710008de12119812d0fb7aa224,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK totals: OK=282 FAIL=0
-RESULT OK
+CHECK FAIL sp-pendingDebts-0x4680bf1a-0xecd9c07f: B answer is exactly one 32-byte ABI word (not exactly one 32-byte ABI word: '0x')
+EXCEPTION ValueError not exactly one 32-byte ABI word: '0x'
+CHECK totals: OK=262 FAIL=2
+RESULT FAIL (2) 
+  - sp-pendingDebts-0x4680bf1a-0xecd9c07f: B answer is exactly one 32-byte ABI word (not exactly one 32-byte ABI word: '0x') 
+  - exception: ValueError: not exactly one 32-byte ABI word: '0x'

@@ -13,7 +13,9 @@ Responds to DSR CC-124 comment a6097e85 item (2) (`03-final-spec.md` §6 row 7b,
 ## Method
 
 Produced by the same run as `../debt-scan-row0/` (script `scripts/a2-row0-7b-debt-scan.py` at
-`eb073e5a`, exit 0, `OK=278 FAIL=0`; full log `../debt-scan-row0/scan.log`). Two independently operated
+`c25a3fb1`, exit 0, `OK=282 FAIL=0`; full log `../debt-scan-row0/scan.log`; revision 2 after the Codex challenge
+on #460 — see `../debt-scan-row0/README.md` "Revision 2": the data files of this directory are byte-identical to
+revision 1 (`eb073e5a`)). Two independently operated
 archive endpoints — A = Alchemy `eth-sepolia.g.alchemy.com`, B = Tenderly `sepolia.gateway.tenderly.co` — every
 read and every log set compared; raw responses in `raw/{A,B}/`, structured result in `legacy-debt.json`.
 
@@ -32,8 +34,10 @@ Per token, over [token creation block, 11,881,000]:
 3. `eth_getLogs` `topics=[DebtRecorded]` and `[DebtRepaid]` — **positive control** of the same shape:
    `topics=[Transfer]` on the same token and range must be > 0; plus the unfiltered log dump of the token,
    whose per-topic counts must equal the filtered counts;
-4. `getDebt(user)` at the fixed block on both endpoints for every user in those events must equal
-   Σ`DebtRecorded` − Σ`DebtRepaid`; each `DebtRepaid.remainingDebt` must equal the replayed running balance;
+4. `getDebt(user)` at the fixed block on both endpoints — each answer must be exactly one 32-byte ABI word (a
+   `"0x"` answer is a FAIL, not a zero) — for every user in those events must equal Σ`DebtRecorded` −
+   Σ`DebtRepaid`; the events are replayed in execution order `(blockNumber, logIndex)` and each
+   `DebtRepaid.remainingDebt` must equal the replayed running balance (event data lengths checked);
 5. getter positive control: `eth_call` state override plants distinct values at the `debts[user]` slot for every
    candidate slot 0..299; `getDebt` returns the value planted at slot 22 on both endpoints for every token.
 

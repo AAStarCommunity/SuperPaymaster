@@ -1,9 +1,9 @@
 A2 row0/7b debt scan; fixed block 11881000 ; endpoints: A=eth-sepolia.g.alchemy.com, B=sepolia.gateway.tenderly.co
-script scripts/a2-row0-7b-debt-scan.py sha256 7f7d397052db61ea5dd1f58447793d8ebe0617da0aa75e27376085b84f1b4d93 ; repo HEAD eb073e5aa8662782ef4d343a02c7fbb5b01a99dc ; script differs from HEAD: no
+script scripts/a2-row0-7b-debt-scan.py sha256 82b5606561ebc9c7fad844dcd97b38e2988e0730c67cd9601d2ac1c4277fe04b ; repo HEAD c25a3fb16565d17b38c5f7f0ef6d8bc1d2b8c3a7 ; script differs from HEAD: no
 CHECK OK   A chainId == 11155111
-CHECK OK   A fixed block 11881000 <= head 11881467 - 64
+CHECK OK   A fixed block 11881000 <= head 11881712 - 64
 CHECK OK   B chainId == 11155111
-CHECK OK   B fixed block 11881000 <= head 11881468 - 64
+CHECK OK   B fixed block 11881000 <= head 11881713 - 64
 CHECK OK   fixed block hash identical on A and B (0xf785a1efed005453e054f35adf4877eac985fafdd500407595fb4ff6640595af)
 CHECK OK   tag v5.4.2 -> 78364b12f42f1d3043ae992472ab6bdb6de82377
 CHECK OK   tag v5.5.0-rc.2 -> 1ac0e1c595dc84e684b540ca6a936168e922194f
@@ -97,42 +97,42 @@ CHECK OK   registry-RoleExited-COMMUNITY: endpoint A and B return identical (blo
 CHECK OK   registry-RoleRevoked-PAYMASTER_SUPER: endpoint A and B return identical (block,tx,logIndex,topics,data,blockHash) sets (A=0 B=0) over [11151002,11881000]
 CHECK OK   registry-RoleRevoked-COMMUNITY: endpoint A and B return identical (block,tx,logIndex,topics,data,blockHash) sets (A=0 B=0) over [11151002,11881000]
 CHECK OK   POSITIVE CONTROL 3 (same shape: address=Registry, topics=[RoleRegistered, PAYMASTER_SUPER]): >0
-CHECK OK   registry-getRoleUserCount-PAYMASTER_SUPER: identical on A and B
+CHECK OK   registry-getRoleUserCount-PAYMASTER_SUPER: identical on A and B (strict 1-word answers)
 CHECK OK   registry-roleMembers-len: identical on A and B
 CHECK OK   POSITIVE CONTROL 4: roleMembers[PAYMASTER_SUPER].length read from raw storage (slot 9) == getRoleUserCount == 5
 CHECK OK   registry-roleMembers-0: identical on A and B
-CHECK OK   registry-hasRole-PAYMASTER_SUPER-0: identical on A and B
+CHECK OK   registry-hasRole-PAYMASTER_SUPER-0: identical on A and B (strict 1-word answers)
 CHECK OK   roleMembers[PAYMASTER_SUPER][0] = 0xecaacb915f7d92e9916f449f7ad42bd0408733c9 has hasRole == true
 CHECK OK   registry-roleMembers-1: identical on A and B
-CHECK OK   registry-hasRole-PAYMASTER_SUPER-1: identical on A and B
+CHECK OK   registry-hasRole-PAYMASTER_SUPER-1: identical on A and B (strict 1-word answers)
 CHECK OK   roleMembers[PAYMASTER_SUPER][1] = 0xb5600060e6de5e11d3636731964218e53caadf0e has hasRole == true
 CHECK OK   registry-roleMembers-2: identical on A and B
-CHECK OK   registry-hasRole-PAYMASTER_SUPER-2: identical on A and B
+CHECK OK   registry-hasRole-PAYMASTER_SUPER-2: identical on A and B (strict 1-word answers)
 CHECK OK   roleMembers[PAYMASTER_SUPER][2] = 0xf92dc383c74ea30d7791b929d5872dad18679516 has hasRole == true
 CHECK OK   registry-roleMembers-3: identical on A and B
-CHECK OK   registry-hasRole-PAYMASTER_SUPER-3: identical on A and B
+CHECK OK   registry-hasRole-PAYMASTER_SUPER-3: identical on A and B (strict 1-word answers)
 CHECK OK   roleMembers[PAYMASTER_SUPER][3] = 0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00 has hasRole == true
 CHECK OK   registry-roleMembers-4: identical on A and B
-CHECK OK   registry-hasRole-PAYMASTER_SUPER-4: identical on A and B
+CHECK OK   registry-hasRole-PAYMASTER_SUPER-4: identical on A and B (strict 1-word answers)
 CHECK OK   roleMembers[PAYMASTER_SUPER][4] = 0x368f8cb8cca42174b03156cea761bae31cee5c94 has hasRole == true
 CHECK OK   sp-operators-0x2e72a258: identical on A and B
 CHECK OK   operators(0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00) returns the 9-word 5.4.2 OperatorConfig tuple
-CHECK OK   registry-hasRole-op-0x2e72a258: identical on A and B
+CHECK OK   registry-hasRole-op-0x2e72a258: identical on A and B (strict 1-word answers)
 CHECK OK   sp-operators-0x368f8cb8: identical on A and B
 CHECK OK   operators(0x368f8cb8cca42174b03156cea761bae31cee5c94) returns the 9-word 5.4.2 OperatorConfig tuple
-CHECK OK   registry-hasRole-op-0x368f8cb8: identical on A and B
+CHECK OK   registry-hasRole-op-0x368f8cb8: identical on A and B (strict 1-word answers)
 CHECK OK   sp-operators-0xb5600060: identical on A and B
 CHECK OK   operators(0xb5600060e6de5e11d3636731964218e53caadf0e) returns the 9-word 5.4.2 OperatorConfig tuple
-CHECK OK   registry-hasRole-op-0xb5600060: identical on A and B
+CHECK OK   registry-hasRole-op-0xb5600060: identical on A and B (strict 1-word answers)
 CHECK OK   sp-operators-0xecaacb91: identical on A and B
 CHECK OK   operators(0xecaacb915f7d92e9916f449f7ad42bd0408733c9) returns the 9-word 5.4.2 OperatorConfig tuple
-CHECK OK   registry-hasRole-op-0xecaacb91: identical on A and B
+CHECK OK   registry-hasRole-op-0xecaacb91: identical on A and B (strict 1-word answers)
 CHECK OK   sp-operators-0xf7bf79ac: identical on A and B
 CHECK OK   operators(0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c) returns the 9-word 5.4.2 OperatorConfig tuple
-CHECK OK   registry-hasRole-op-0xf7bf79ac: identical on A and B
+CHECK OK   registry-hasRole-op-0xf7bf79ac: identical on A and B (strict 1-word answers)
 CHECK OK   sp-operators-0xf92dc383: identical on A and B
 CHECK OK   operators(0xf92dc383c74ea30d7791b929d5872dad18679516) returns the 9-word 5.4.2 OperatorConfig tuple
-CHECK OK   registry-hasRole-op-0xf92dc383: identical on A and B
+CHECK OK   registry-hasRole-op-0xf92dc383: identical on A and B (strict 1-word answers)
 CHECK OK   every operator with isConfigured==true at the fixed block emitted OperatorConfigured (completeness cross-check)
 operator set: [["0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00", false, "0x0000000000000000000000000000000000000000"], ["0x368f8cb8cca42174b03156cea761bae31cee5c94", false, "0x0000000000000000000000000000000000000000"], ["0xb5600060e6de5e11d3636731964218e53caadf0e", true, "0x696a73701b104c6ccbbaaddd2216788ea08eab89"], ["0xecaacb915f7d92e9916f449f7ad42bd0408733c9", true, "0xe6579a90dc498a710008de12119812d0fb7aa224"], ["0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c", false, "0x0000000000000000000000000000000000000000"], ["0xf92dc383c74ea30d7791b929d5872dad18679516", false, "0x0000000000000000000000000000000000000000"]]
 CHECK OK   factory-creation-0x0e54b9e2: A state served at creation boundary (code empty @11631078, present @11631079)
@@ -150,7 +150,7 @@ CHECK OK   factory-creation-0x9f426568: B state served at creation boundary (cod
 CHECK OK   factory-creation-0x9f426568: creation block identical on A and B ([11230569, 11230569])
 CHECK OK   factory-0x9f426568-xPNTsTokenDeployed: endpoint A and B return identical (block,tx,logIndex,topics,data,blockHash) sets (A=1 B=1) over [11230569,11881000]
 CHECK OK   POSITIVE CONTROL (factory 0x9f426568f16e81144f3ebf6f07e497fb9f160d11): xPNTsTokenDeployed count 1 > 0
-CHECK OK   pc-pendingDebts-override: identical on A and B
+CHECK OK   pc-pendingDebts-override: identical on A and B (strict 1-word answers)
 CHECK OK   pc-pendingDebts-override: getter returns a planted value -> mapping declared at slot 17
 CHECK OK   nc-sp-unknown-selector: identical on A and B
 CHECK OK   NEGATIVE CONTROL: unknown selector 0xdeadbeef on SP reverts (a 32-byte answer therefore means the selector dispatched)
@@ -173,7 +173,7 @@ CHECK OK   token 0x4680bf1a4c72814abf090e7fa2b17c07c2407714 DebtRepaid filtered 
 CHECK OK   token-0x4680bf1a-Transfer: endpoint A and B return identical (block,tx,logIndex,topics,data,blockHash) sets (A=1 B=1) over [11230570,11881000]
 CHECK OK   token 0x4680bf1a4c72814abf090e7fa2b17c07c2407714 Transfer filtered count 1 == unfiltered dump count 1
 CHECK OK   POSITIVE CONTROL (token 0x4680bf1a4c72814abf090e7fa2b17c07c2407714, same shape: address=token, topics=[Transfer], same range): 1 > 0
-CHECK OK   pc-getDebt-override-0x4680bf1a: identical on A and B
+CHECK OK   pc-getDebt-override-0x4680bf1a: identical on A and B (strict 1-word answers)
 CHECK OK   pc-getDebt-override-0x4680bf1a: getter returns a planted value -> mapping declared at slot 22
 token 0x4680bf1a4c72814abf090e7fa2b17c07c2407714 cc28PNT XPNTs-3.5.0: DebtRecorded A=0 B=0, DebtRepaid A=0 B=0, Transfer(PC) A=1 B=1, outstanding=0
 CHECK OK   token-creation-0x696a7370: A state served at creation boundary (code empty @11151013, present @11151014)
@@ -195,11 +195,15 @@ CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 DebtRepaid filtered 
 CHECK OK   token-0x696a7370-Transfer: endpoint A and B return identical (block,tx,logIndex,topics,data,blockHash) sets (A=100 B=100) over [11151014,11881000]
 CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 Transfer filtered count 100 == unfiltered dump count 100
 CHECK OK   POSITIVE CONTROL (token 0x696a73701b104c6ccbbaaddd2216788ea08eab89, same shape: address=token, topics=[Transfer], same range): 100 > 0
-CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 user 0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c DebtRepaid@11223367 remainingDebt 0 == replayed balance 0
-CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 user 0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c DebtRepaid@11228500 remainingDebt 0 == replayed balance 0
-CHECK OK   pc-getDebt-override-0x696a7370: identical on A and B
+CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 DebtRecorded@block 11222201 logIndex 698 data is exactly 1 word
+CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 DebtRepaid@block 11223367 logIndex 465 data is exactly 2 words
+CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 user 0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c DebtRepaid@block 11223367 logIndex 465 remainingDebt 0 == replayed balance 0
+CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 DebtRecorded@block 11228400 logIndex 853 data is exactly 1 word
+CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 DebtRepaid@block 11228500 logIndex 1228 data is exactly 2 words
+CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 user 0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c DebtRepaid@block 11228500 logIndex 1228 remainingDebt 0 == replayed balance 0
+CHECK OK   pc-getDebt-override-0x696a7370: identical on A and B (strict 1-word answers)
 CHECK OK   pc-getDebt-override-0x696a7370: getter returns a planted value -> mapping declared at slot 22
-CHECK OK   token-0x696a7370-getDebt-0xf7bf79ac: identical on A and B
+CHECK OK   token-0x696a7370-getDebt-0xf7bf79ac: identical on A and B (strict 1-word answers)
 CHECK OK   token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 user 0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c: getDebt@fixed 0 == sum(DebtRecorded) - sum(DebtRepaid) 0
 token 0x696a73701b104c6ccbbaaddd2216788ea08eab89 aPNTs XPNTs-3.4.0: DebtRecorded A=2 B=2, DebtRepaid A=2 B=2, Transfer(PC) A=100 B=100, outstanding=0
 CHECK OK   token-creation-0x948c9d1b: A state served at creation boundary (code empty @11611634, present @11611635)
@@ -221,7 +225,7 @@ CHECK OK   token 0x948c9d1bd99b39dee482c23d6a3bd26210b56040 DebtRepaid filtered 
 CHECK OK   token-0x948c9d1b-Transfer: endpoint A and B return identical (block,tx,logIndex,topics,data,blockHash) sets (A=1 B=1) over [11611635,11881000]
 CHECK OK   token 0x948c9d1bd99b39dee482c23d6a3bd26210b56040 Transfer filtered count 1 == unfiltered dump count 1
 CHECK OK   POSITIVE CONTROL (token 0x948c9d1bd99b39dee482c23d6a3bd26210b56040, same shape: address=token, topics=[Transfer], same range): 1 > 0
-CHECK OK   pc-getDebt-override-0x948c9d1b: identical on A and B
+CHECK OK   pc-getDebt-override-0x948c9d1b: identical on A and B (strict 1-word answers)
 CHECK OK   pc-getDebt-override-0x948c9d1b: getter returns a planted value -> mapping declared at slot 22
 token 0x948c9d1bd99b39dee482c23d6a3bd26210b56040 aPNTs XPNTs-3.5.0: DebtRecorded A=0 B=0, DebtRepaid A=0 B=0, Transfer(PC) A=1 B=1, outstanding=0
 CHECK OK   token-creation-0xbb463215: A state served at creation boundary (code empty @11631078, present @11631079)
@@ -243,7 +247,7 @@ CHECK OK   token 0xbb46321545a91db2f3b5c3e694f2f23abe259883 DebtRepaid filtered 
 CHECK OK   token-0xbb463215-Transfer: endpoint A and B return identical (block,tx,logIndex,topics,data,blockHash) sets (A=1 B=1) over [11631079,11881000]
 CHECK OK   token 0xbb46321545a91db2f3b5c3e694f2f23abe259883 Transfer filtered count 1 == unfiltered dump count 1
 CHECK OK   POSITIVE CONTROL (token 0xbb46321545a91db2f3b5c3e694f2f23abe259883, same shape: address=token, topics=[Transfer], same range): 1 > 0
-CHECK OK   pc-getDebt-override-0xbb463215: identical on A and B
+CHECK OK   pc-getDebt-override-0xbb463215: identical on A and B (strict 1-word answers)
 CHECK OK   pc-getDebt-override-0xbb463215: getter returns a planted value -> mapping declared at slot 22
 token 0xbb46321545a91db2f3b5c3e694f2f23abe259883 aPNTs XPNTs-3.5.0: DebtRecorded A=0 B=0, DebtRepaid A=0 B=0, Transfer(PC) A=1 B=1, outstanding=0
 CHECK OK   token-creation-0xe6579a90: A state served at creation boundary (code empty @11151050, present @11151051)
@@ -265,28 +269,28 @@ CHECK OK   token 0xe6579a90dc498a710008de12119812d0fb7aa224 DebtRepaid filtered 
 CHECK OK   token-0xe6579a90-Transfer: endpoint A and B return identical (block,tx,logIndex,topics,data,blockHash) sets (A=23 B=23) over [11151051,11881000]
 CHECK OK   token 0xe6579a90dc498a710008de12119812d0fb7aa224 Transfer filtered count 23 == unfiltered dump count 23
 CHECK OK   POSITIVE CONTROL (token 0xe6579a90dc498a710008de12119812d0fb7aa224, same shape: address=token, topics=[Transfer], same range): 23 > 0
-CHECK OK   pc-getDebt-override-0xe6579a90: identical on A and B
+CHECK OK   pc-getDebt-override-0xe6579a90: identical on A and B (strict 1-word answers)
 CHECK OK   pc-getDebt-override-0xe6579a90: getter returns a planted value -> mapping declared at slot 22
 token 0xe6579a90dc498a710008de12119812d0fb7aa224 PNTs XPNTs-3.4.0: DebtRecorded A=0 B=0, DebtRepaid A=0 B=0, Transfer(PC) A=23 B=23, outstanding=0
-CHECK OK   sp-pendingDebts-0x4680bf1a-0xecd9c07f: identical on A and B
+CHECK OK   sp-pendingDebts-0x4680bf1a-0xecd9c07f: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0x4680bf1a4c72814abf090e7fa2b17c07c2407714,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x4680bf1a-0xf7bf79ac: identical on A and B
+CHECK OK   sp-pendingDebts-0x4680bf1a-0xf7bf79ac: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0x4680bf1a4c72814abf090e7fa2b17c07c2407714,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x696a7370-0xecd9c07f: identical on A and B
+CHECK OK   sp-pendingDebts-0x696a7370-0xecd9c07f: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0x696a73701b104c6ccbbaaddd2216788ea08eab89,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x696a7370-0xf7bf79ac: identical on A and B
+CHECK OK   sp-pendingDebts-0x696a7370-0xf7bf79ac: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0x696a73701b104c6ccbbaaddd2216788ea08eab89,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x948c9d1b-0xecd9c07f: identical on A and B
+CHECK OK   sp-pendingDebts-0x948c9d1b-0xecd9c07f: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0x948c9d1bd99b39dee482c23d6a3bd26210b56040,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0x948c9d1b-0xf7bf79ac: identical on A and B
+CHECK OK   sp-pendingDebts-0x948c9d1b-0xf7bf79ac: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0x948c9d1bd99b39dee482c23d6a3bd26210b56040,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0xbb463215-0xecd9c07f: identical on A and B
+CHECK OK   sp-pendingDebts-0xbb463215-0xecd9c07f: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0xbb46321545a91db2f3b5c3e694f2f23abe259883,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0xbb463215-0xf7bf79ac: identical on A and B
+CHECK OK   sp-pendingDebts-0xbb463215-0xf7bf79ac: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0xbb46321545a91db2f3b5c3e694f2f23abe259883,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0xe6579a90-0xecd9c07f: identical on A and B
+CHECK OK   sp-pendingDebts-0xe6579a90-0xecd9c07f: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0xe6579a90dc498a710008de12119812d0fb7aa224,0xecd9c07f648b09cfb78906302822ec52ab87dd70)@fixed 0 == event-derived 0
-CHECK OK   sp-pendingDebts-0xe6579a90-0xf7bf79ac: identical on A and B
+CHECK OK   sp-pendingDebts-0xe6579a90-0xf7bf79ac: identical on A and B (strict 1-word answers)
 CHECK OK   pendingDebts(0xe6579a90dc498a710008de12119812d0fb7aa224,0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c)@fixed 0 == event-derived 0
-CHECK totals: OK=278 FAIL=0
+CHECK totals: OK=282 FAIL=0
 RESULT OK
