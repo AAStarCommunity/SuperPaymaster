@@ -89,21 +89,64 @@ trap cleanup EXIT
 PORT="${A2_PORT:-28613}"; RPC="http://127.0.0.1:$PORT"
 rlog() { echo "$*" | tee -a "$OUT/rehearsal.log"; }
 step() { echo; echo "=== $* ===" | tee -a "$OUT/rehearsal.log"; }
-bn() { cast block-number --rpc-url "$RPC"; }
 lc() { echo "$1" | tr 'A-F' 'a-f'; }
+# fail(): also callable from inside $(...) (a subshell): the "!!!" line it writes to rehearsal.log is what the
+# final verdict counts (FAILURES alone would lose increments made in subshells). Callers inside $(...) send it
+# to stderr (fail ... >&2) so the message never becomes part of a captured value.
 fail() { rlog "  !!! $*"; FAILURES=$((FAILURES+1)); }
+# ---- fail-closed reads (DSR CC-125 466d42d1 ①) ------------------------------------------------------------
+# rtype <type> <value>: 0 iff <value> is a well-formed rendering of <type>. Types: address, bytes32 / word /
+# hash (32 bytes), uint* / blocknum, int*, bool, string (cast prints it quoted, must be non-empty), address[];
+# anything else (tuples, multi-returns) must at least be non-empty and contain no "Error".
+rtype() {
+  case "$1" in
+    address) [[ "$2" =~ ^0x[0-9a-fA-F]{40}$ ]] ;;
+    bytes32|word|hash) [[ "$2" =~ ^0x[0-9a-fA-F]{64}$ ]] ;;
+    uint*|blocknum) [[ "$2" =~ ^[0-9]+$ ]] ;;
+    int*) [[ "$2" =~ ^-?[0-9]+$ ]] ;;
+    bool) [ "$2" = true ] || [ "$2" = false ] ;;
+    string) [[ "$2" =~ ^\".+\"$ ]] ;;
+    code) [[ "$2" =~ ^0x([0-9a-fA-F]{2})+$ ]] ;;
+    'address[]') [[ "$2" =~ ^\[(0x[0-9a-fA-F]{40}(,\ 0x[0-9a-fA-F]{40})*)?\]$ ]] ;;
+    *) [ -n "$2" ] && ! [[ "$2" =~ [Ee]rror ]] ;;
+  esac
+}
+# rtype_of_sig '<fn>(<args>)(<ret>)': the single return type, or "other" (tuple / multi-return)
+rtype_of_sig() { local r="${1#*)(}"; r="${r%)}"; [[ "$r" =~ ^[a-z0-9]+(\[\])?$ ]] && echo "$r" || echo other; }
+# rv <type> <label> <filter|-> <command...>: run a read command, apply an optional filter (one shell pipeline
+# stage, e.g. 'sed -n 4p'), strip cast's "[1e18]" hints, and require exit 0 AND a well-formed <type> value.
+# On failure: a "!!! READ FAILED" line (counted by the final verdict), the sentinel READ-FAILED, return 1.
+rv() {
+  local ty="$1" label="$2" flt="$3" v rc; shift 3
+  v=$("$@" 2>"$OUT/.rv.err"); rc=$?
+  if [ $rc -eq 0 ] && [ "$flt" != - ]; then v=$(printf '%s\n' "$v" | eval "$flt"); rc=$?; fi
+  v=$(printf '%s' "$v" | sed -E 's/ \[-?[0-9.e+-]+\]//g')
+  if [ $rc -ne 0 ] || ! rtype "$ty" "$v"; then
+    fail "READ FAILED [$label] (expected $ty): exit $rc, value '${v:0:90}' $(head -c 200 "$OUT/.rv.err" | tr '\n' ' ')" >&2
+    echo READ-FAILED; return 1
+  fi
+  printf '%s\n' "$v"
+}
+bn_raw() { cast block-number --rpc-url "$RPC"; }   # unchecked: ONLY for code that checks the result itself
+bn() { rv blocknum "block-number" - cast block-number --rpc-url "$RPC"; }
 # rb <label> <cast call args...>: read at an explicit block, log "readback [label] = v @block N", print v.
+# Fail-closed: the exit status is checked and the value must match the signature's return type.
 rb() {
   local label="$1"; shift
-  local b v; b=$(bn)
-  v=$(cast call "$@" --rpc-url "$RPC" --block "$b" 2>&1 | tr '\n' ' ' | sed -E 's/ +$//; s/ \[[0-9.e+]+\]//g')
+  local b v rc ty; b=$(bn) || { echo READ-FAILED; return 1; }
+  ty=$(rtype_of_sig "$2")
+  v=$(cast call "$@" --rpc-url "$RPC" --block "$b" 2>"$OUT/.rb.err" | tr '\n' ' ' | sed -E 's/ +$//; s/ \[-?[0-9.e+-]+\]//g'); rc=$?
+  if [ $rc -ne 0 ] || ! rtype "$ty" "$v"; then
+    fail "READ FAILED [readback $label] (expected $ty): exit $rc, value '${v:0:90}' $(head -c 200 "$OUT/.rb.err" | tr '\n' ' ') @block $b" >&2
+    echo READ-FAILED; return 1
+  fi
   echo "  readback [$label] = $v @block $b" | tee -a "$OUT/rehearsal.log" >&2
   echo "$v"
 }
-# rbs <label> <address> <slot>: raw storage read-back
+# rbs <label> <address> <slot>: raw storage read-back (must be a 32-byte word)
 rbs() {
-  local label="$1" b v; b=$(bn)
-  v=$(cast storage "$2" "$3" --rpc-url "$RPC" --block "$b")
+  local label="$1" b v; b=$(bn) || { echo READ-FAILED; return 1; }
+  v=$(rv word "storage $label" - cast storage "$2" "$3" --rpc-url "$RPC" --block "$b") || { echo READ-FAILED; return 1; }
   echo "  readback [$label] = $v @block $b" | tee -a "$OUT/rehearsal.log" >&2
   echo "$v"
 }
@@ -172,14 +215,17 @@ E_TLSTATE='TimelockUnexpectedOperationState(bytes32,bytes32)' # 0x5ead8eb5 OZ Ti
 READY_BITMAP=0x0000000000000000000000000000000000000000000000000000000000000004  # _encodeStateBitmap(Ready) = 1 << 2
 E_INVALID_CFG=$(cast sig 'InvalidConfiguration()')            # 0xc52a9bd3 SuperPaymaster(Admin) InvalidConfiguration()
 E_UNAUTH=$(cast sig 'Unauthorized()')                         # 0x82b42900 SuperPaymasterAdmin._requirePauseAuthority
-warp() { cast rpc evm_increaseTime "$1" --rpc-url "$RPC" >/dev/null; cast rpc evm_mine --rpc-url "$RPC" >/dev/null; rlog "  warp +$1 s -> block $(bn) ts $(cast block latest --field timestamp --rpc-url "$RPC")"; }
-impl_of() { cast storage "$1" 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$RPC" | sed 's/0x000000000000000000000000/0x/'; }
+warp() { cast rpc evm_increaseTime "$1" --rpc-url "$RPC" >/dev/null; cast rpc evm_mine --rpc-url "$RPC" >/dev/null; rlog "  warp +$1 s -> block $(bn) ts $(rv uint "latest block timestamp" - cast block latest --field timestamp --rpc-url "$RPC")"; }
+impl_of() { # ERC-1967 implementation of a proxy: the slot must read as a 32-byte word whose top 12 bytes are 0
+  rv address "ERC-1967 impl of $1" 'sed -n "s/^0x000000000000000000000000\([0-9a-fA-F]\{40\}\)$/0x\1/p"' \
+    cast storage "$1" 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$RPC"
+}
 
 # ---------------------------------------------------------------- Safe (real execTransaction, 2-of-3)
 safe_sig() { printf '000000000000000000000000%s%064d01' "$(lc "${1#0x}")" 0; }
 SIGS2="0x$(safe_sig $SAFE_O1)$(safe_sig $SAFE_O2)"   # sorted ascending: O1 < O2
 SIG1="0x$(safe_sig $SAFE_O2)"                        # single owner (threshold negative control)
-safe_hash() { cast call $SAFE 'getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)(bytes32)' "$1" 0 "$2" 0 0 0 0 0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 "$3" --rpc-url "$RPC"; }
+safe_hash() { rv bytes32 "Safe.getTransactionHash" - cast call $SAFE 'getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)(bytes32)' "$1" 0 "$2" 0 0 0 0 0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 "$3" --rpc-url "$RPC"; }
 EXEC_SIG='execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)'
 # safe_exec <label> <to> <data>: owner O1 approveHash(h) -> owner O2 execTransaction([O1,O2] approved-hash sigs)
 safe_exec() {
@@ -213,7 +259,7 @@ safe_exec_must_fail() {
 # timelock helpers (target, data, salt) -> calldata for the Safe
 tl_schedule_data() { cast calldata 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' "$1" 0 "$2" $ZERO32 "$3" 172800; }
 tl_execute_data() { cast calldata 'execute(address,uint256,bytes,bytes32,bytes32)' "$1" 0 "$2" $ZERO32 "$3"; }
-tl_id() { cast call $TL 'hashOperation(address,uint256,bytes,bytes32,bytes32)(bytes32)' "$1" 0 "$2" $ZERO32 "$3" --rpc-url "$RPC"; }
+tl_id() { rv bytes32 "TL.hashOperation" - cast call $TL 'hashOperation(address,uint256,bytes,bytes32,bytes32)(bytes32)' "$1" 0 "$2" $ZERO32 "$3" --rpc-url "$RPC"; }
 
 # forge helpers ------------------------------------------------------------------------------
 # fscript_tl: see d5b-fork-rehearsal.sh (forge 1.7.1 dual-profile target-resolution bug, root-caused in
@@ -286,40 +332,58 @@ RC=$?; sed 's/^/    /' "$OUT/00-build-vs-attestation.log" | tee -a "$OUT/rehears
 [ $RC -eq 0 ] && rlog "  CHECK [local build == rc.2 attestation] PASS" || { fail "local build != rc.2 attestation"; exit 1; }
 
 step "pre-state cross-check at Sepolia block $FORK_BLOCK on two independent endpoints (read-only)"
-xread() { # <url> -> key=value lines
-  local u="$1" B="$FORK_BLOCK"
-  echo "blockHash=$(cast block $B --field hash --rpc-url "$u")"
-  echo "SP.version=$(cast call $SP 'version()(string)' --rpc-url "$u" --block $B)"
-  echo "SP.owner=$(cast call $SP 'owner()(address)' --rpc-url "$u" --block $B)"
-  echo "SP.implSlot=$(cast storage $SP 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$u" --block $B)"
-  echo "SP.APNTS_TOKEN=$(cast call $SP 'APNTS_TOKEN()(address)' --rpc-url "$u" --block $B)"
-  echo "SP.pendingAPNTsToken=$(cast call $SP 'pendingAPNTsToken()(address)' --rpc-url "$u" --block $B)"
-  echo "SP.pendingAPNTsTokenEta=$(cast call $SP 'pendingAPNTsTokenEta()(uint256)' --rpc-url "$u" --block $B)"
-  echo "SP.totalTrackedBalance=$(cast call $SP 'totalTrackedBalance()(uint256)' --rpc-url "$u" --block $B | awk '{print $1}')"
-  echo "SP.operators(OWNER)=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $OWNER --rpc-url "$u" --block $B | awk '{print $1}' | tr '\n' ',')"
-  echo "SP.operators(ANNI)=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url "$u" --block $B | awk '{print $1}' | tr '\n' ',')"
-  echo "EP.depositInfo(SP)=$(cast call $EP 'getDepositInfo(address)((uint256,bool,uint112,uint32,uint48))' $SP --rpc-url "$u" --block $B)"
-  echo "Registry.version=$(cast call $REG 'version()(string)' --rpc-url "$u" --block $B)"
-  echo "Registry.owner=$(cast call $REG 'owner()(address)' --rpc-url "$u" --block $B)"
-  echo "Registry.implSlot=$(cast storage $REG 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$u" --block $B)"
-  echo "Safe.VERSION=$(cast call $SAFE 'VERSION()(string)' --rpc-url "$u" --block $B)"
-  echo "Safe.owners=$(cast call $SAFE 'getOwners()(address[])' --rpc-url "$u" --block $B)"
-  echo "Safe.threshold=$(cast call $SAFE 'getThreshold()(uint256)' --rpc-url "$u" --block $B)"
-  echo "Safe.nonce=$(cast call $SAFE 'nonce()(uint256)' --rpc-url "$u" --block $B)"
-  echo "Safe.guardSlot=$(cast storage $SAFE 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8 --rpc-url "$u" --block $B)"
-  echo "Safe.modules=$(cast call $SAFE 'getModulesPaginated(address,uint256)(address[],address)' 0x0000000000000000000000000000000000000001 10 --rpc-url "$u" --block $B | tr '\n' ' ')"
-  echo "OLD_TL.minDelay=$(cast call $OLD_TL 'getMinDelay()(uint256)' --rpc-url "$u" --block $B | awk '{print $1}')"
-  echo "OLD_TL.proposer(Safe)=$(cast call $OLD_TL 'hasRole(bytes32,address)(bool)' $PROPOSER_ROLE $SAFE --rpc-url "$u" --block $B)"
-  echo "OLD_TL.admin(OWNER)=$(cast call $OLD_TL 'hasRole(bytes32,address)(bool)' $ADMIN_ROLE $OWNER --rpc-url "$u" --block $B)"
+xread() { # <url> <label> -> key=value lines; every read is exit-checked and type-checked (DSR CC-125 ①)
+  local u="$1" B="$FORK_BLOCK"; XBAD=0
+  xr() { # <key> <type> <filter|-> <cast args...>
+    local key="$1" ty="$2" flt="$3" v rc; shift 3
+    v=$(cast "$@" --rpc-url "$u" 2>"$OUT/.xr.err"); rc=$?
+    if [ $rc -eq 0 ] && [ "$flt" != - ]; then v=$(printf '%s\n' "$v" | eval "$flt"); rc=$?; fi
+    v=$(printf '%s' "$v" | sed -E 's/ \[-?[0-9.e+-]+\]//g')
+    if [ $rc -ne 0 ] || ! rtype "$ty" "$v"; then
+      echo "$key=READ-FAILED"; XBAD=$((XBAD+1))
+      echo "xread: READ-FAILED $key (expected $ty): exit $rc, value '${v:0:90}' $(head -c 160 "$OUT/.xr.err" | tr '\n' ' ')" >> "$OUT/0-prestate-read-failures.log"
+    else echo "$key=$v"; fi
+  }
+  xr blockHash hash - block $B --field hash
+  xr SP.version string - call $SP 'version()(string)' --block $B
+  xr SP.owner address - call $SP 'owner()(address)' --block $B
+  xr SP.implSlot word - storage $SP 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --block $B
+  xr SP.APNTS_TOKEN address - call $SP 'APNTS_TOKEN()(address)' --block $B
+  xr SP.pendingAPNTsToken address - call $SP 'pendingAPNTsToken()(address)' --block $B
+  xr SP.pendingAPNTsTokenEta uint - call $SP 'pendingAPNTsTokenEta()(uint256)' --block $B
+  xr SP.totalTrackedBalance uint "awk '{print \$1}'" call $SP 'totalTrackedBalance()(uint256)' --block $B
+  xr 'SP.operators(OWNER)' other "awk '{print \$1}' | tr '\n' ','" call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $OWNER --block $B
+  xr 'SP.operators(ANNI)' other "awk '{print \$1}' | tr '\n' ','" call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --block $B
+  xr 'EP.depositInfo(SP)' other - call $EP 'getDepositInfo(address)((uint256,bool,uint112,uint32,uint48))' $SP --block $B
+  xr Registry.version string - call $REG 'version()(string)' --block $B
+  xr Registry.owner address - call $REG 'owner()(address)' --block $B
+  xr Registry.implSlot word - storage $REG 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --block $B
+  xr Safe.VERSION string - call $SAFE 'VERSION()(string)' --block $B
+  xr Safe.owners 'address[]' - call $SAFE 'getOwners()(address[])' --block $B
+  xr Safe.threshold uint - call $SAFE 'getThreshold()(uint256)' --block $B
+  xr Safe.nonce uint - call $SAFE 'nonce()(uint256)' --block $B
+  xr Safe.guardSlot word - storage $SAFE 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8 --block $B
+  xr Safe.modules other "tr '\n' ' '" call $SAFE 'getModulesPaginated(address,uint256)(address[],address)' 0x0000000000000000000000000000000000000001 10 --block $B
+  xr OLD_TL.minDelay uint "awk '{print \$1}'" call $OLD_TL 'getMinDelay()(uint256)' --block $B
+  xr 'OLD_TL.proposer(Safe)' bool - call $OLD_TL 'hasRole(bytes32,address)(bool)' $PROPOSER_ROLE $SAFE --block $B
+  xr 'OLD_TL.admin(OWNER)' bool - call $OLD_TL 'hasRole(bytes32,address)(bool)' $ADMIN_ROLE $OWNER --block $B
 }
-xread "$RPC_URL_FORK" > "$OUT/0-prestate-endpointA.txt" 2>&1
-xread "$RPC_URL_X" > "$OUT/0-prestate-endpointB.txt" 2>&1
+XREAD_N=23
+: > "$OUT/0-prestate-read-failures.log"
+xread "$RPC_URL_FORK" > "$OUT/0-prestate-endpointA.txt"; XBAD_A=$XBAD
+xread "$RPC_URL_X" > "$OUT/0-prestate-endpointB.txt"; XBAD_B=$XBAD
 { echo "# endpoint A = the anvil --fork-url provider (key-bearing URL, not written); endpoint B = $RPC_URL_X"
   echo "# block $FORK_BLOCK; identical lines below are equal on both endpoints"
   diff "$OUT/0-prestate-endpointA.txt" "$OUT/0-prestate-endpointB.txt" && echo "IDENTICAL ($(wc -l < "$OUT/0-prestate-endpointA.txt" | tr -d ' ') values)"; } > "$OUT/0-prestate-crosscheck.log" 2>&1
-if grep -q '^IDENTICAL' "$OUT/0-prestate-crosscheck.log" && ! grep -qiE 'error|revert' "$OUT/0-prestate-endpointA.txt"; then
+# Fail-closed: EACH endpoint must deliver all XREAD_N values, every one exit-0 and well-typed (a failed or
+# empty read is READ-FAILED, never an empty string that could compare equal on both sides); only then is
+# "identical" meaningful.
+check "pre-state endpoint A: $XREAD_N reads, 0 failed / empty / ill-typed" "$(grep -c '=' "$OUT/0-prestate-endpointA.txt"):$XBAD_A" "$XREAD_N:0"
+check "pre-state endpoint B: $XREAD_N reads, 0 failed / empty / ill-typed" "$(grep -c '=' "$OUT/0-prestate-endpointB.txt"):$XBAD_B" "$XREAD_N:0"
+if [ "$XBAD_A" = 0 ] && [ "$XBAD_B" = 0 ] && grep -q '^IDENTICAL' "$OUT/0-prestate-crosscheck.log" && ! grep -qiE 'READ-FAILED|error|revert' "$OUT/0-prestate-endpointA.txt"; then
   rlog "  CHECK [pre-state @$FORK_BLOCK identical on two endpoints] PASS ($(tail -1 "$OUT/0-prestate-crosscheck.log"))"
-else fail "pre-state cross-check differs or errored (0-prestate-crosscheck.log)"; fi
+else fail "pre-state cross-check differs, errored or had failed reads (0-prestate-crosscheck.log, 0-prestate-read-failures.log)"; fi
+sed 's/^/    /' "$OUT/0-prestate-read-failures.log" | tee -a "$OUT/rehearsal.log" >/dev/null
 sed 's/^/    /' "$OUT/0-prestate-endpointA.txt" | tee -a "$OUT/rehearsal.log" >/dev/null
 
 step "fork Sepolia at block $FORK_BLOCK (local anvil :$PORT)"
@@ -331,8 +395,16 @@ for a in $OWNER $ANNI $SAFE_O1 $SAFE_O2; do
   cast rpc anvil_impersonateAccount $a --rpc-url "$RPC" >/dev/null
   cast rpc anvil_setBalance $a 0x56BC75E2D63100000 --rpc-url "$RPC" >/dev/null
 done
-rlog "  chainId $(cast chain-id --rpc-url $RPC) head $(bn) forkBlockHash $(cast block $FORK_BLOCK --field hash --rpc-url $RPC)"
-check "fork block hash == endpoint A" "$(cast block $FORK_BLOCK --field hash --rpc-url $RPC)" "$(grep '^blockHash=' "$OUT/0-prestate-endpointA.txt" | cut -d= -f2)"
+FORK_HASH=$(rv hash "fork block $FORK_BLOCK hash (local fork)" - cast block $FORK_BLOCK --field hash --rpc-url $RPC)
+rlog "  chainId $(rv uint chain-id - cast chain-id --rpc-url $RPC) head $(bn) forkBlockHash $FORK_HASH"
+# Fork-block hash (DSR CC-125 ①): endpoint A, endpoint B and the local fork must EACH be a non-empty 32-byte
+# hash AND all equal (two empty / failed reads must never compare "equal").
+HASH_A=$(grep '^blockHash=' "$OUT/0-prestate-endpointA.txt" | cut -d= -f2); HASH_B=$(grep '^blockHash=' "$OUT/0-prestate-endpointB.txt" | cut -d= -f2)
+for h in A:$HASH_A B:$HASH_B fork:$FORK_HASH; do
+  check "fork block hash well-formed: ${h%%:*} is a 32-byte hash" "$(rtype hash "${h#*:}" && echo hash32 || echo "ILL-TYPED('${h#*:}')")" hash32
+done
+check "fork block hash: endpoint A == endpoint B" "$(rtype hash "$HASH_A" && echo "$HASH_A" || echo A-INVALID)" "$(rtype hash "$HASH_B" && echo "$HASH_B" || echo B-INVALID)"
+check "fork block hash: local fork == endpoint A" "$(rtype hash "$FORK_HASH" && echo "$FORK_HASH" || echo FORK-INVALID)" "$(rtype hash "$HASH_A" && echo "$HASH_A" || echo A-INVALID)"
 rlog "  impersonated on the fork: OWNER, ANNI, Safe owners O1/O2 (EOAs). The Safe $SAFE is NOT impersonated."
 check "Safe threshold (fork)" "$(rb 'Safe.getThreshold' $SAFE 'getThreshold()(uint256)')" 2
 check "Safe owners (fork)" "$(rb 'Safe.getOwners' $SAFE 'getOwners()(address[])')" "[$SAFE_O1, $SAFE_O3, $SAFE_O2]"
@@ -344,7 +416,7 @@ node script/evidence/fork-level-probes.mjs "$OUT/0-fork-level-probes.json" > "$O
 rlog "  eth_config: $(grep -o '"next":[^,}]*' "$OUT/0-fork-level-probes.json" | head -1)"
 ENV=$ENVNAME $LOG "$OUT/0-inventory.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'inventory(address[])' "[$OWNER,$ANNI]" --rpc-url $RPC || fail "inventory"
 grep -E "pendingAPNTsToken|operator " "$OUT/0-inventory.log" | sed 's/^/    /' | tee -a "$OUT/rehearsal.log" >/dev/null
-ANNI_TOKEN=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC | sed -n '4p')
+ANNI_TOKEN=$(rv address "SP.operators(ANNI).xPNTsToken" 'sed -n 4p' cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC)
 ENV=$ENVNAME $LOG "$OUT/0-inventory-debts.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'inventoryDebts(address[],address[])' "[$OLD_APNTS,$ANNI_TOKEN]" "[$OWNER,$ANNI]" --rpc-url $RPC || fail "inventoryDebts"
 grep -E "pendingDebts|total" "$OUT/0-inventory-debts.log" | sed 's/^/    /' | tee -a "$OUT/rehearsal.log" >/dev/null
 fi
@@ -359,9 +431,9 @@ TLBC="$(node -e 'const j=require(process.argv[1]);const m=j.metadata;if(m.settin
 TLARGS="$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 "[$SAFE]" "[$SAFE]" 0x0000000000000000000000000000000000000000)"
 rlog "  constructor args: minDelay=172800 proposers=[$SAFE] executors=[$SAFE] admin=0x0 (artifact $TLART)"
 sendtx "G0 deploy canonical TimelockController" $OWNER --create "$TLBC${TLARGS#0x}"; stop1 G0 $?
-TL=$(cast receipt "$LAST_TX" contractAddress --rpc-url $RPC); TL_DEPLOY_BLOCK=$LAST_BLOCK
+TL=$(rv address "G0 TimelockController contractAddress" - cast receipt "$LAST_TX" contractAddress --rpc-url $RPC); TL_DEPLOY_BLOCK=$LAST_BLOCK
 rlog "  CANONICAL GOV-1 TIMELOCK = $TL (deployed in block $TL_DEPLOY_BLOCK, tx $LAST_TX)"
-rlog "  runtime codehash $(cast keccak "$(cast code $TL --rpc-url $RPC)") ($( (cast code $TL --rpc-url $RPC | wc -c) | awk '{print ($1-3)/2}') B)"
+rlog "  runtime codehash $(codehash_at $TL) ($(codesize_at $TL) B)"
 check "G0 getMinDelay" "$(rb 'TL.getMinDelay' $TL 'getMinDelay()(uint256)')" 172800
 for who in TL:$TL SAFE:$SAFE OWNER:$OWNER SAFE_O1:$SAFE_O1 SAFE_O2:$SAFE_O2 SAFE_O3:$SAFE_O3 ZERO:0x0000000000000000000000000000000000000000; do
   n=${who%%:*}; a=${who#*:}
@@ -439,7 +511,7 @@ ENV=$ENVNAME TIMELOCK=$TL $LOG "$OUT/I-A1d-verify-apnts-capped.log" forge script
 step "STAGE I / A1e (runbook 1③): queue setAPNTsToken(APNTsCapped)"
 ENV=$ENVNAME V55_APNTS_DECISION=queue $LOG "$OUT/I-A1e-queue.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'queueAPNTs(address)' $CAPPED --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 stop1 A1e $?
-QB=$(bn); QTS=$(cast block $QB --field timestamp --rpc-url $RPC)
+QB=$(bn); QTS=$(rv uint "block $QB timestamp" - cast block $QB --field timestamp --rpc-url $RPC)
 check "A1e pendingAPNTsToken == APNTsCapped" "$(rb 'SP.pendingAPNTsToken' $SP 'pendingAPNTsToken()(address)')" $CAPPED
 check "A1e pendingAPNTsTokenEta == queue block ts + 7d" "$(rb 'SP.pendingAPNTsTokenEta' $SP 'pendingAPNTsTokenEta()(uint256)')" $((QTS+604800))
 must_fail "A1e: executeAPNTsTokenChange before the 7-day ETA" "$E_INVALID_CFG" cast send $SP 'executeAPNTsTokenChange()' --unlocked --from $OWNER --rpc-url $RPC
@@ -455,7 +527,7 @@ must_fail "A1e: executeAPNTsTokenChange before the 7-day ETA" "$E_INVALID_CFG" c
 check "A1e slot 15 == totalTrackedBalance()" "$(cast to-dec "$(rbs 'SP slot 15' $SP 15)")" "$(rb 'SP.totalTrackedBalance' $SP 'totalTrackedBalance()(uint256)' | awk '{print $1}')"
 check "A1e slot 16 == protocolRevenue()" "$(cast to-dec "$(rbs 'SP slot 16' $SP 16)")" "$(rb 'SP.protocolRevenue' $SP 'protocolRevenue()(uint256)' | awk '{print $1}')"
 check "A1e slot 30 == pendingAPNTsTokenEta()" "$(cast to-dec "$(rbs 'SP slot 30' $SP 30)")" "$(rb 'SP.pendingAPNTsTokenEta' $SP 'pendingAPNTsTokenEta()(uint256)' | awk '{print $1}')"
-check "A1e drain branch is also live here (totalTrackedBalance != protocolRevenue)" "$(python3 -c "print($(cast call $SP 'totalTrackedBalance()(uint256)' --rpc-url $RPC | awk '{print $1}') != $(cast call $SP 'protocolRevenue()(uint256)' --rpc-url $RPC | awk '{print $1}'))")" True
+check "A1e drain branch is also live here (totalTrackedBalance != protocolRevenue)" "$(python3 -c "print($(rb 'SP.totalTrackedBalance' $SP 'totalTrackedBalance()(uint256)') != $(rb 'SP.protocolRevenue' $SP 'protocolRevenue()(uint256)'))")" True
 must_fail "A1e discriminator (a): drain neutralised by state override, ETA real -> still InvalidConfiguration (ETA branch)" "$E_INVALID_CFG" \
   cast call $SP 'executeAPNTsTokenChange()' --from $OWNER --rpc-url $RPC --override-state-diff "$SP:0xf:0x0,$SP:0x10:0x0"
 if A1E_PC=$(cast call $SP 'executeAPNTsTokenChange()' --from $OWNER --rpc-url $RPC --override-state-diff "$SP:0xf:0x0,$SP:0x10:0x0,$SP:0x1e:0x0" 2>&1); then
@@ -464,8 +536,8 @@ else fail "A1e discriminator (b) positive control did not succeed: $(echo "$A1E_
 warp 604800
 
 step "STAGE I / A1f: Safe (minter) mints APNTsCapped for the 1:1 redeposit — real Safe.execTransaction"
-OWNER_OLD_BAL=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $OWNER --rpc-url $RPC | head -1 | awk '{print $1}')
-ANNI_OLD_BAL=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC | head -1 | awk '{print $1}')
+OWNER_OLD_BAL=$(rv uint "SP.operators(OWNER).aPNTsBalance" "head -1 | awk '{print \$1}'" cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $OWNER --rpc-url $RPC)
+ANNI_OLD_BAL=$(rv uint "SP.operators(ANNI).aPNTsBalance" "head -1 | awk '{print \$1}'" cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC)
 rlog "  snapshot: OWNER aPNTsBalance=$OWNER_OLD_BAL ANNI aPNTsBalance=$ANNI_OLD_BAL @block $(bn)"
 must_fail "A1f: deployer EOA cannot mint APNTsCapped (minter = Safe)" "$(errdata 'NotMinter(address)' $OWNER)" cast send $CAPPED 'mint(address,uint256)' $OWNER 1 --unlocked --from $OWNER --rpc-url $RPC
 safe_exec "A1f mint OWNER" $CAPPED "$(cast calldata 'mint(address,uint256)' $OWNER $OWNER_OLD_BAL)" || { fail A1f; exit 1; }
@@ -488,7 +560,7 @@ CAPSUP=$(rb 'APNTsCapped.totalSupply' $CAPPED 'totalSupply()(uint256)' | awk '{p
 check "A1g totalSupply <= cap" "$(python3 -c "print($CAPSUP <= $CAP)")" True
 
 step "STAGE I / A1h (runbook 2): pendingDebts — inventory found none; clearPendingDebts is a read-back no-op"
-ANNI_TOKEN=$(cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC | sed -n '4p')
+ANNI_TOKEN=$(rv address "SP.operators(ANNI).xPNTsToken" 'sed -n 4p' cast call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --rpc-url $RPC)
 ENV=$ENVNAME $LOG "$OUT/I-A1h-clear-debts.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'clearPendingDebts(address[],address[])' "[$OLD_APNTS,$ANNI_TOKEN]" "[$OWNER,$ANNI]" --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 stop1 A1h $?
 check "A1h pendingDebts(OLD_APNTS,OWNER)" "$(rb 'SP.pendingDebts(OLD_APNTS,OWNER)' $SP 'pendingDebts(address,address)(uint256)' $OLD_APNTS $OWNER)" 0
@@ -560,9 +632,9 @@ step "STAGE I / A6 (runbook 7c): updatePrice (oracle refreshed on the frozen for
 # forked Chainlink aggregator (fork-only cheat; the answer is untouched). See d5b-fork-rehearsal.sh.
 refresh_oracle() {
   local agg roundid answer started updated answered_in nowts base found_base found_slot slot val intval expect
-  agg=$(cast call "$PRICE_FEED" 'aggregator()(address)' --rpc-url "$RPC")
-  read -r roundid answer started updated answered_in <<< "$(cast call "$agg" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' --rpc-url "$RPC" | tr '\n' ' ' | sed 's/\[[^]]*\]//g')"
-  nowts=$(cast block latest --rpc-url "$RPC" --field timestamp)
+  agg=$(rv address "price feed aggregator" - cast call "$PRICE_FEED" 'aggregator()(address)' --rpc-url "$RPC")
+  read -r roundid answer started updated answered_in <<< "$(rv other "aggregator latestRoundData" "tr '\n' ' ' | sed 's/\[[^]]*\]//g'" cast call "$agg" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' --rpc-url "$RPC")"
+  nowts=$(rv uint "latest block timestamp" - cast block latest --rpc-url "$RPC" --field timestamp)
   expect=$(python3 -c "print(int('$answer') + (int('$updated') << 192))")
   found_base=""
   for base in $(seq 0 80); do
@@ -578,10 +650,11 @@ refresh_oracle() {
 }
 refresh_oracle
 sendtx "A6 SP.updatePrice" $OWNER $SP 'updatePrice()' || fail "updatePrice"
-ORACLE_TS=$(cast call $(cast call $PRICE_FEED 'aggregator()(address)' --rpc-url $RPC) 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' --rpc-url $RPC | sed -n '4p' | awk '{print $1}')
+ORACLE_AGG=$(rv address "price feed aggregator" - cast call $PRICE_FEED 'aggregator()(address)' --rpc-url $RPC)
+ORACLE_TS=$(rv uint "aggregator latestRoundData.updatedAt" "sed -n 4p | awk '{print \$1}'" cast call $ORACLE_AGG 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' --rpc-url $RPC)
 CP_TS=$(rb 'SP.cachedPrice' $SP 'cachedPrice()(int256,uint256,uint80,uint8)' | awk '{print $2}')
 check "A6 cachedPrice.updatedAt == oracle latestRoundData.updatedAt (> 0)" "$CP_TS" "$ORACLE_TS"
-check "A6 cachedPrice fresh: updatePrice block ts - updatedAt <= priceStalenessThreshold" "$(python3 -c "print(0 < $CP_TS and $(cast block $LAST_BLOCK --field timestamp --rpc-url $RPC) - $CP_TS <= $(cast call $SP 'priceStalenessThreshold()(uint256)' --rpc-url $RPC | awk '{print $1}'))")" True
+check "A6 cachedPrice fresh: updatePrice block ts - updatedAt <= priceStalenessThreshold" "$(python3 -c "print(0 < $CP_TS and $(rv uint "block $LAST_BLOCK timestamp" - cast block $LAST_BLOCK --field timestamp --rpc-url $RPC) - $CP_TS <= $(cast call $SP 'priceStalenessThreshold()(uint256)' --rpc-url $RPC | awk '{print $1}'))")" True
 ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-owner.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $OWNER_V2 $OWNER --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 stop1 A6-configure-owner $?
 ENV=$ENVNAME V55_OUT_CONFIG=$V55_CFG $LOG "$OUT/I-A6-configure-anni.log" forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig 'configureOperatorV2(address,address)' $ANNI_V2 $ANNI --rpc-url $RPC --unlocked --sender $ANNI --broadcast --slow
@@ -662,7 +735,7 @@ must_fail "M1: deployer EOA xPNTsFactoryV2.setSuperPaymasterAddress after transf
 step "STAGE II / M1 negative: a MISCONFIGURED timelock cannot accept (wrong timelock: minDelay 0, deployer as proposer/executor)"
 BADARGS="$(cast abi-encode 'c(uint256,address[],address[],address)' 0 "[$OWNER]" "[$OWNER]" 0x0000000000000000000000000000000000000000)"
 sendtx "M1-neg deploy misconfigured timelock" $OWNER --create "$TLBC${BADARGS#0x}" || true
-BADTL=$(cast receipt "$LAST_TX" contractAddress --rpc-url $RPC)
+BADTL=$(rv address "misconfigured TL contractAddress" - cast receipt "$LAST_TX" contractAddress --rpc-url $RPC)
 rlog "  misconfigured timelock $BADTL (minDelay $(rb 'BADTL.getMinDelay' $BADTL 'getMinDelay()(uint256)'))"
 sendtx "M1-neg BADTL.schedule(SP.acceptOwnership)" $OWNER $BADTL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $SP 0 $ACC $ZERO32 $ZERO32 0 || true
 must_fail "M1: misconfigured timelock executes SP.acceptOwnership (pendingOwner is the canonical TL)" "$(errdata "$E_OWNABLE" $BADTL)" cast send $BADTL 'execute(address,uint256,bytes,bytes32,bytes32)' $SP 0 $ACC $ZERO32 $ZERO32 --unlocked --from $OWNER --rpc-url $RPC
@@ -679,7 +752,7 @@ grep -E "roles attestation|preflight" "$OUT/II-M1-schedule-print.log" | sed 's/^
 M1_T="[$SP,$REG,$SP]"; M1_V="[0,0,0]"; M1_P="[$ACC,$ACC,$(cast calldata 'setGuardian(address)' $SAFE)]"
 M1_EXPECT=$(cast calldata 'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)' "$M1_T" "$M1_V" "$M1_P" $ZERO32 $(cast keccak a2/M1) 172800)
 check "M1 printed scheduleBatch calldata == independently encoded" "$M1_SCHED" "$M1_EXPECT"
-M1_ID=$(cast call $TL 'hashOperationBatch(address[],uint256[],bytes[],bytes32,bytes32)(bytes32)' "$M1_T" "$M1_V" "$M1_P" $ZERO32 $(cast keccak a2/M1) --rpc-url $RPC)
+M1_ID=$(rv bytes32 "TL.hashOperationBatch(M1)" - cast call $TL 'hashOperationBatch(address[],uint256[],bytes[],bytes32,bytes32)(bytes32)' "$M1_T" "$M1_V" "$M1_P" $ZERO32 $(cast keccak a2/M1) --rpc-url $RPC)
 must_fail "M1: deployer EOA scheduleBatch directly (not PROPOSER)" "$(errdata "$E_ACL" $OWNER $PROPOSER_ROLE)" cast send $TL "$M1_SCHED" --unlocked --from $OWNER --rpc-url $RPC
 safe_exec "M1② scheduleBatch" $TL "$M1_SCHED" || { fail "M1 schedule"; exit 1; }
 check "M1② batch pending" "$(rb 'TL.isOperationPending(M1)' $TL 'isOperationPending(bytes32)(bool)' $M1_ID)" true
@@ -732,7 +805,7 @@ for T in SP REGISTRY; do
   fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=execute-upgrade TL_TARGET=$T TL_NEW_IMPL=$NI TL_SALT=$SALT TL_ROLES_ATTESTATION="$ATT" > "$OUT/II-C-$T-execute-print.log" 2>&1 || fail "C $T execute print"
   check "C $T printed execute calldata == independently encoded" "$(payload_after "$OUT/II-C-$T-execute-print.log" "submit this from the Safe")" "$(tl_execute_data $PROXY $UPD $SALT)"
   # pre-execute snapshot for the read-backs the forge script cannot do on the Safe path
-  IMPL0=$(impl_of $PROXY); OWN0=$(cast call $PROXY 'owner()(address)' --rpc-url $RPC); B_SP=$(cast call $SP 'BLS_AGGREGATOR()(address)' --rpc-url $RPC); B_REG=$(cast call $REG 'blsAggregator()(address)' --rpc-url $RPC)
+  IMPL0=$(impl_of $PROXY); OWN0=$(rv address "$T.owner before execute" - cast call $PROXY 'owner()(address)' --rpc-url $RPC); B_SP=$(rv address "SP.BLS_AGGREGATOR before execute" - cast call $SP 'BLS_AGGREGATOR()(address)' --rpc-url $RPC); B_REG=$(rv address "Registry.blsAggregator before execute" - cast call $REG 'blsAggregator()(address)' --rpc-url $RPC)
   SB=$(bn); for i in $(seq 0 $((NEND-1))); do cast storage $PROXY $i --rpc-url $RPC --block $SB; done > "$OUT/II-C-$T-slots-before.txt"
   safe_exec "C $T execute(upgradeToAndCall)" $TL "$(tl_execute_data $PROXY $UPD $SALT)" || continue
   SA=$(bn); for i in $(seq 0 $((NEND-1))); do cast storage $PROXY $i --rpc-url $RPC --block $SA; done > "$OUT/II-C-$T-slots-after.txt"
@@ -759,8 +832,8 @@ PROBE_ACCT=$(jq -r .account "$OUT/I-A7-l4-aastar.snapshot.json")
 probe_validate() { # <label> -> prints the sigFail bit; logs the raw result with its block
   local b nonce rate pmd agl gf res vd
   b=$(bn)
-  nonce=$(cast call $EP 'getNonce(address,uint192)(uint256)' $PROBE_ACCT 0 --rpc-url $RPC --block $b | awk '{print $1}')
-  rate=$(cast call $OWNER_V2 'exchangeRate()(uint256)' --rpc-url $RPC --block $b | awk '{print $1}')
+  nonce=$(rv uint "EP.getNonce(probe account)" "awk '{print \$1}'" cast call $EP 'getNonce(address,uint192)(uint256)' $PROBE_ACCT 0 --rpc-url $RPC --block $b)
+  rate=$(rv uint "AAStar v2 exchangeRate" "awk '{print \$1}'" cast call $OWNER_V2 'exchangeRate()(uint256)' --rpc-url $RPC --block $b)
   agl=0x$(printf '%032x%032x' 300000 100000); gf=0x$(printf '%032x%032x' 1000000000 3000000000)
   pmd=0x$(lc ${SP#0x})$(printf '%032x%032x' 300000 300000)$(lc ${OWNER#0x})$(python3 -c "print(format($rate,'064x'))")$(lc ${OWNER_V2#0x})00
   res=$(cast call $SP 'validatePaymasterUserOp((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),bytes32,uint256)(bytes,uint256)' \
@@ -937,7 +1010,7 @@ IMPL_SLOT=0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
 # failed identically in two snapshots can never compare "identical".
 dump_slots() {
   local b v i rc=0 id
-  if ! b=$(bn) ||! [[ "$b" =~ ^[0-9]+$ ]]; then echo "dump_slots: READ-FAILED block number" >&2; echo "# READ-FAILED block number" > "$1"; return 1; fi
+  if ! b=$(bn_raw) || ! [[ "$b" =~ ^[0-9]+$ ]]; then echo "dump_slots: READ-FAILED block number" >&2; echo "# READ-FAILED block number" > "$1"; return 1; fi
   echo "# SP proxy $SP raw storage @block $b" > "$1"
   for id in $(seq 0 $SP_MAXSLOT) "Initializable(ERC-7201)=$INIT_SLOT" "Ownable2Step.pending(ERC-7201)=$OWN2_SLOT"; do
     i=${id#*=}
@@ -980,7 +1053,7 @@ OPSIG='operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint25
 SP_STATE_N=24
 sp_state() {
   local b v rc=0 q
-  if ! b=$(bn) || ! [[ "$b" =~ ^[0-9]+$ ]]; then echo "sp_state: FAILED block number" >&2; echo "# FAILED block number" > "$1"; return 1; fi
+  if ! b=$(bn_raw) || ! [[ "$b" =~ ^[0-9]+$ ]]; then echo "sp_state: FAILED block number" >&2; echo "# FAILED block number" > "$1"; return 1; fi
   echo "# SP getters via proxy @block $b" > "$1"
   for q in 'owner()(address)' 'pendingOwner()(address)' 'guardian()(address)' 'paused()(bool)' 'APNTS_TOKEN()(address)' \
     'pendingAPNTsToken()(address)' 'pendingAPNTsTokenEta()(uint256)' 'xpntsFactory()(address)' 'treasury()(address)' \
@@ -1039,7 +1112,9 @@ state_neg_controls() { # <tag>: logs to $OUT/D0-state-guard-controls.log
   rm -f "$T"-*.txt
 }
 fresh_price() { refresh_oracle; sendtx "D updatePrice before probe ($1)" $OWNER $SP 'updatePrice()' || fail "D updatePrice ($1)"; }
-codehash_at() { cast keccak "$(cast code "$1" --rpc-url $RPC)"; }
+code_at() { rv code "runtime code of $1" - cast code "$1" --rpc-url $RPC; }
+codehash_at() { local c; c=$(code_at "$1") || { echo READ-FAILED; return 1; }; cast keccak "$c"; }
+codesize_at() { local c; c=$(code_at "$1") || { echo READ-FAILED; return 1; }; echo $(( (${#c} - 2) / 2 )); }
 
 state_neg_controls
 
@@ -1047,8 +1122,8 @@ step "STAGE D / D1: deploy the TEST dummy implementation (deployer EOA; construc
 D_EP=$(rb 'SP.entryPoint' $SP 'entryPoint()(address)'); D_REGI=$(rb 'SP.REGISTRY' $SP 'REGISTRY()(address)'); D_FEED=$(rb 'SP.ETH_USD_PRICE_FEED' $SP 'ETH_USD_PRICE_FEED()(address)')
 DBC="$(jq -r .bytecode.object "$DART")"; DARGS="$(cast abi-encode 'c(address,address,address)' $D_EP $D_REGI $D_FEED)"
 sendtx "D1 deploy TEST dummy impl SuperPaymasterA2DrillDummyBump" $OWNER --create "$DBC${DARGS#0x}" || { fail "D1 deploy"; exit 1; }
-DUMMY=$(cast receipt "$LAST_TX" contractAddress --rpc-url $RPC); DUMMY_TX=$LAST_TX
-rlog "  TEST DUMMY IMPL = $DUMMY (tx $DUMMY_TX block $LAST_BLOCK; $(( ($(cast code $DUMMY --rpc-url $RPC | wc -c) - 3) / 2 )) B runtime; codehash $(codehash_at $DUMMY))"
+DUMMY=$(rv address "D1 dummy contractAddress" - cast receipt "$LAST_TX" contractAddress --rpc-url $RPC); DUMMY_TX=$LAST_TX
+rlog "  TEST DUMMY IMPL = $DUMMY (tx $DUMMY_TX block $LAST_BLOCK; $(codesize_at $DUMMY) B runtime; codehash $(codehash_at $DUMMY))"
 check "D1 dummy.version() (impl, direct)" "$(rb 'DUMMY.version' $DUMMY 'version()(string)')" "\"$DRILL_VERSION\""
 check "D1 dummy.entryPoint == proxy's" "$(rb 'DUMMY.entryPoint' $DUMMY 'entryPoint()(address)')" "$D_EP"
 check "D1 dummy.REGISTRY == proxy's" "$(rb 'DUMMY.REGISTRY' $DUMMY 'REGISTRY()(address)')" "$D_REGI"
@@ -1093,13 +1168,13 @@ step "STAGE D / D4: Safe -> TL.schedule(SP.upgradeToAndCall(dummy)) (calldata en
 DID=$(tl_id $SP $DUPD $DSALT)
 roles_check before-D-forward-schedule
 safe_exec "D4 schedule(upgradeToAndCall(dummy))" $TL "$(tl_schedule_data $SP $DUPD $DSALT)" || { fail "D4 schedule"; exit 1; }
-DSCHED_TS=$(cast block $LAST_BLOCK --field timestamp --rpc-url $RPC)
+DSCHED_TS=$(rv uint "block $LAST_BLOCK timestamp" - cast block $LAST_BLOCK --field timestamp --rpc-url $RPC)
 check "D4 op pending" "$(rb 'TL.isOperationPending(D-fwd)' $TL 'isOperationPending(bytes32)(bool)' $DID)" true
 check "D4 op NOT ready" "$(rb 'TL.isOperationReady(D-fwd)' $TL 'isOperationReady(bytes32)(bool)' $DID)" false
 check "D4 getTimestamp == schedule block ts + 172800" "$(rb 'TL.getTimestamp(D-fwd)' $TL 'getTimestamp(bytes32)(uint256)' $DID | awk '{print $1}')" "$((DSCHED_TS+172800))"
 safe_exec_must_fail "D4: Safe execute IMMEDIATELY (TimelockUnexpectedOperationState)" $TL "$(tl_execute_data $SP $DUPD $DSALT)" "$(errdata "$E_TLSTATE" $DID $READY_BITMAP)"
 warp 172000
-rlog "  head ts $(cast block latest --field timestamp --rpc-url $RPC) < ready ts $((DSCHED_TS+172800)) (boundary probe ~800 s before readiness)"
+rlog "  head ts $(rv uint "latest block timestamp" - cast block latest --field timestamp --rpc-url $RPC) < ready ts $((DSCHED_TS+172800)) (boundary probe ~800 s before readiness)"
 safe_exec_must_fail "D4: Safe execute ~800 s BEFORE readiness (TimelockUnexpectedOperationState)" $TL "$(tl_execute_data $SP $DUPD $DSALT)" "$(errdata "$E_TLSTATE" $DID $READY_BITMAP)"
 check "D4 impl still rc.2 after the early executes" "$(impl_of $SP)" "$IMPL0"
 warp 800
@@ -1141,7 +1216,7 @@ roles_check before-D-rollback-schedule
 fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=schedule-upgrade TL_TARGET=SP TL_NEW_IMPL=$IMPL0 TL_SALT=$RSALT TL_ROLES_ATTESTATION="$ATT" > "$OUT/D6-rollback-schedule-print.log" 2>&1 || fail "D6 schedule print (release tool on the rc.2 impl)"
 check "D6 release printer accepted the rc.2 impl and its schedule calldata == independently encoded" "$(payload_after "$OUT/D6-rollback-schedule-print.log" "submit this from the Safe")" "$(tl_schedule_data $SP $RUPD $RSALT)"
 safe_exec "D6 schedule(upgradeToAndCall(rc.2 impl))" $TL "$(tl_schedule_data $SP $RUPD $RSALT)" || { fail "D6 schedule"; exit 1; }
-RSCHED_TS=$(cast block $LAST_BLOCK --field timestamp --rpc-url $RPC)
+RSCHED_TS=$(rv uint "block $LAST_BLOCK timestamp" - cast block $LAST_BLOCK --field timestamp --rpc-url $RPC)
 check "D6 op pending" "$(rb 'TL.isOperationPending(D-rb)' $TL 'isOperationPending(bytes32)(bool)' $RID)" true
 check "D6 getTimestamp == schedule block ts + 172800" "$(rb 'TL.getTimestamp(D-rb)' $TL 'getTimestamp(bytes32)(uint256)' $RID | awk '{print $1}')" "$((RSCHED_TS+172800))"
 safe_exec_must_fail "D6: Safe execute rollback BEFORE 48h (TimelockUnexpectedOperationState)" $TL "$(tl_execute_data $SP $RUPD $RSALT)" "$(errdata "$E_TLSTATE" $RID $READY_BITMAP)"
@@ -1186,7 +1261,7 @@ if stage_on II; then
   rlog "  role manifest (final, replayed): $(jq -c '{DEFAULT_ADMIN_ROLE,PROPOSER_ROLE,CANCELLER_ROLE,EXECUTOR_ROLE}' "$OUT/role-manifest-final.json")"
   check "final exact ADMIN set == [TL]" "$(jq -c .DEFAULT_ADMIN_ROLE "$OUT/role-manifest-final.json")" "[\"$(lc $TL)\"]"
   for r in PROPOSER CANCELLER EXECUTOR; do check "final exact $r set == [Safe]" "$(jq -c .${r}_ROLE "$OUT/role-manifest-final.json")" "[\"$(lc $SAFE)\"]"; done
-  attest_runtime final --target SuperPaymaster=$(impl_of $SP) --target SuperPaymasterAdmin=$(cast call $SP 'EXTENSION()(address)' --rpc-url $RPC) --target Registry=$(impl_of $REG) \
+  attest_runtime final --target SuperPaymaster=$(impl_of $SP) --target SuperPaymasterAdmin=$(rv address "SP.EXTENSION" - cast call $SP 'EXTENSION()(address)' --rpc-url $RPC) --target Registry=$(impl_of $REG) \
     --target SuperPaymasterLens=$LENS --target GlobalTierSource=$TIER --target AOAProtocolRegistry=$AOAREG --target xPNTsTokenV2Ext=$V2EXT \
     --target xPNTsTokenV2=$V2IMPL --target xPNTsFactoryV2=$FACT --target APNTsCapped=$CAPPED \
     --clone AAStarV2=$OWNER_V2:$V2IMPL --clone MyceliumV2=$ANNI_V2:$V2IMPL --expect-mismatch Registry=$(impl_of $SP)
@@ -1214,9 +1289,13 @@ check "ledger: NO tx sent FROM the Safe address (the Safe was never impersonated
 check "ledger: every Safe-targeted tx was sent by a Safe OWNER EOA (approveHash / execTransaction)" "$(jq -r 'select((.to//""|ascii_downcase)=="'"$(lc $SAFE)"'") | .from|ascii_downcase' "$OUT/fork-tx-ledger.jsonl" | sort -u | paste -sd, -)" "$(printf '%s\n' "$(lc $SAFE_O1)" "$(lc $SAFE_O2)" | sort -u | paste -sd, -)"
 check "ledger: no mined tx reverted (negative controls never reach the chain)" "$(jq -r 'select(.status!="true" and .status!="1" and .status!="0x1")|.hash' "$OUT/fork-tx-ledger.jsonl" | wc -l | tr -d ' ')" 0
 check "ledger: no mined tx was sent directly to the canonical timelock (every schedule/execute is an internal call from the Safe)" "$(jq -r 'select((.to//""|ascii_downcase)=="'"$(lc $TL)"'")|.from|ascii_downcase' "$OUT/fork-tx-ledger.jsonl" | sort -u | paste -sd, -)" ""
-rlog "  SP owner=$(cast call $SP 'owner()(address)' --rpc-url $RPC) guardian=$(cast call $SP 'guardian()(address)' --rpc-url $RPC) impl=$(impl_of $SP) version=$(cast call $SP 'version()(string)' --rpc-url $RPC) @block $(bn)"
-rlog "  Registry owner=$(cast call $REG 'owner()(address)' --rpc-url $RPC) impl=$(impl_of $REG) version=$(cast call $REG 'version()(string)' --rpc-url $RPC) @block $(bn)"
+rlog "  SP owner=$(rb 'final SP.owner' $SP 'owner()(address)') guardian=$(rb 'final SP.guardian' $SP 'guardian()(address)') impl=$(impl_of $SP) version=$(rb 'final SP.version' $SP 'version()(string)') @block $(bn)"
+rlog "  Registry owner=$(rb 'final Registry.owner' $REG 'owner()(address)') impl=$(impl_of $REG) version=$(rb 'final Registry.version' $REG 'version()(string)') @block $(bn)"
 rlog "  negative controls executed: $NEG_N (all reverted; neg-controls.jsonl)"
-rlog "  CHECK lines: $(grep -c 'CHECK \[.*\] PASS' "$OUT/rehearsal.log") PASS, $(grep -c 'CHECK \[.*\] FAIL' "$OUT/rehearsal.log") FAIL; !!! lines: $(grep -c '!!!' "$OUT/rehearsal.log")"
+NBANG=$(grep -c '!!!' "$OUT/rehearsal.log")
+rlog "  CHECK lines: $(grep -c 'CHECK \[.*\] PASS' "$OUT/rehearsal.log") PASS, $(grep -c 'CHECK \[.*\] FAIL' "$OUT/rehearsal.log") FAIL; !!! lines: $NBANG"
+# The verdict counts BOTH the in-shell FAILURES counter and the "!!!" lines: a fail() inside $(...) (e.g. a
+# READ FAILED from rv / rb) only survives as its "!!!" line.
+[ "$NBANG" -gt "$FAILURES" ] && FAILURES=$NBANG
 if [ "$FAILURES" -eq 0 ]; then rlog "RUN COMPLETED WITH 0 FAILURES ($STAGE) — this line is a tally, not evidence; see the per-step CHECK / TX / readback lines above"
 else rlog "RUN FAILED ($STAGE): $FAILURES failure(s), see the !!! lines"; exit 1; fi
