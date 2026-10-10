@@ -84,6 +84,17 @@ or an unrelated shell whose command line merely contains "halmos"), and a final 
   a log with more than one result line. Reverse negative controls are real-process tests
   (`test_reverse_control_*`); a mutant that ignores the expectation turns 4 tests red.
 
+### Runner correction after this archive
+
+Halmos 0.3.3 can print `[PASS]` with full statistics and exit 0 even when `--loop 2` cuts
+paths. Its `loop-bound` warning says `paths have not been fully explored due to the loop
+unrolling bound: 2`; the warning may appear after the result line. The runner now classifies
+such a PASS-expected result as **INCONCLUSIVE** (exit 2), never ACCEPT. FAIL-expected witness
+verdicts are unchanged. This correction does not change the five archived runs or their logs.
+The new judge fixture and fake-Halmos process test both turn red when the check is removed;
+see `runner-loop-bound-mutation.txt`. The archived `runner-unittests.log` records the earlier
+17/17 result; the corrected runner has 18 judge fixtures.
+
 ## Integrity
 
 `shasum -a 256 -c EVIDENCE.sha256` in this directory (covers every file except itself).

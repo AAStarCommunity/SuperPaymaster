@@ -36,6 +36,7 @@ FAKE_HALMOS = textwrap.dedent(f"""\
     #   fail       print a counterexample + [FAIL] line with statistics, leave a sleeping
     #              grandchild behind, exit 1
     #   pass       print a [PASS] line, leave a sleeping grandchild behind, exit 0
+    #   pass_loop_bound  print [PASS], then the Halmos 0.3.3 loop-bound warning, exit 0
     import os, signal, subprocess, sys, time
     if "--version" in sys.argv:
         print("halmos 0.0.0-fake"); sys.exit(0)
@@ -63,8 +64,11 @@ FAKE_HALMOS = textwrap.dedent(f"""\
         print("Counterexample: \\n    p_x = 0x00", flush=True)
         print(f"[FAIL] {{check}}(address) {STAT}", flush=True)
         sys.exit(1)
-    elif mode == "pass":
+    elif mode in ("pass", "pass_loop_bound"):
         print(f"[PASS] {{check}}(address) {STAT}", flush=True)
+        if mode == "pass_loop_bound":
+            print(f"WARNING: {{check}}(address): paths have not been fully explored "
+                  "due to the loop unrolling bound: 2", flush=True)
         sys.exit(0)
 """)
 
@@ -197,7 +201,8 @@ class RunnerIntegration(unittest.TestCase):
         self.assert_clean(pgid)
 
     def test_wall_cap(self):
-        r = self.start("hang", wall_cap=2)
+        # Leave time for the positive process checks before the cap expires on loaded hosts.
+        r = self.start("hang", wall_cap=10)
         pgid = self.control_alive(r)
         rc, trailer, out = self.finish(r)
         self.assertEqual(rc, 2, out)
@@ -244,6 +249,16 @@ class RunnerIntegration(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertTrue(trailer.startswith(f"# VERDICT: ACCEPT (expected [PASS] with statistics: "
                                            f"[PASS] {self.PASS_CHECK}(address)"), trailer)
+
+    def test_pass_expected_loop_bound_is_inconclusive(self):
+        rc, trailer, out = self._natural("pass_loop_bound", self.PASS_CHECK)
+        self.assertEqual(rc, 2, out)
+        self.assertEqual(trailer, "# VERDICT: INCONCLUSIVE ([PASS] with paths not fully explored "
+                                  "due to the loop unrolling bound)")
+        log = read(self.log)
+        self.assertIn(f"[PASS] {self.PASS_CHECK}(address) {STAT}", log)
+        self.assertIn("paths have not been fully explored due to the loop unrolling bound: 2", log)
+        self.assertIn("# exit_code: 0 ", log)
 
     def test_reverse_control_pass_expected_but_fails_is_reject(self):
         # negative control: a PASS-expected property that FAILs (with a counterexample, i.e. exactly
@@ -298,7 +313,7 @@ class RunnerIntegration(unittest.TestCase):
     def test_judge_fixtures(self):
         p = subprocess.run([sys.executable, RUNNER, "--self-test"], capture_output=True, text=True)
         self.assertEqual(p.returncode, 0, p.stdout)
-        self.assertEqual(p.stdout.count(" ok"), 17, p.stdout)
+        self.assertEqual(p.stdout.count(" ok"), 18, p.stdout)
         self.assertNotIn("MISMATCH", p.stdout)
 
 

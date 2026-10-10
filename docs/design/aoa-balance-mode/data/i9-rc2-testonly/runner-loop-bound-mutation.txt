@@ -1,0 +1,18 @@
+Runner loop-bound warning correction: mutation check
+
+Source checked: installed Halmos 0.3.3, halmos/__main__.py lines 435 and 1224.
+Warning text: paths have not been fully explored due to the loop unrolling bound: 2
+
+Mutation: copied run-i9-witness.py to a temporary path and removed only the new
+PASS-branch loop-bound warning check from that copy. The worktree runner stayed intact.
+
+Mutated runner, --self-test: exit 1. New case 9 reported
+  want INCONCLUSIVE got ACCEPT MISMATCH
+
+Mutated runner, fake-Halmos process test
+  test_pass_expected_loop_bound_is_inconclusive: exit 1 (test failure).
+  AssertionError: 0 != 2; runner reported ACCEPT for [PASS] plus the warning.
+
+The process test used a temporary ps shim because this sandbox denies ps execution.
+The shim reads only the fake Halmos PIDs written by the test and reports their
+process status and process group using psutil. It is not part of this repository.

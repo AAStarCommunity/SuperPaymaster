@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wall-capped, self-judging, EXPECTATION-AWARE runner for the D5c-2 I9 Halmos checks.
+r"""Wall-capped, self-judging, EXPECTATION-AWARE runner for the D5c-2 I9 Halmos checks.
 
 Default target: SuperPaymasterI9HalmosTest.check_witness_I9_freshBalanceSettlementReachable
 (EVIDENCE-INDEX H-06; archived run: data/halmos-i9/all-checks-final.log, 478 paths, 2881.59 s).
@@ -27,12 +27,14 @@ Verdict (printed as the last line `# VERDICT: ...`, also encoded in the exit cod
   ACCEPT        exit 0  expect FAIL: the `[FAIL] <check>(` result line, carrying the --statistics
                         breakdown `(paths: N, time: Xs (paths: Ys, models: Zs)`, AND at least
                         one valid `Counterexample:` block in the log.
-                        expect PASS: the `[PASS] <check>(` line with the same full statistics.
+                        expect PASS: the `[PASS] <check>(` line with the same full statistics,
+                        and no loop-unrolling-bound warning anywhere in the log.
   REJECT        exit 1  the opposite outcome ([PASS] for a FAIL-expected witness: the state was
                         NOT reached; [FAIL] for a PASS-expected property: a counterexample), or
                         the expected outcome without statistics / without a counterexample, or
                         [ERROR], or more than one result line (selection was not exact).
-  INCONCLUSIVE  exit 2  wall cap hit, [TIMEOUT] result, no result line at all, or the run was
+  INCONCLUSIVE  exit 2  wall cap hit, [TIMEOUT] result, no result line at all, a PASS-expected
+                        result with paths cut by the loop-unrolling bound, or the run was
                         cancelled (SIGINT / SIGTERM / SIGHUP -> `cancelled: SIGINT` etc.) or
                         aborted by a runner exception. Never a PASS, never an ACCEPT: it says
                         nothing about the property.
@@ -77,6 +79,8 @@ EXPECTATIONS = {
 
 STATS_RE = r"\(paths: \d+, time: [0-9.]+s \(paths: [0-9.]+s, models: [0-9.]+s\)"
 RESULT_RE = r"\[(PASS|FAIL|TIMEOUT|ERROR)\]\S*\s*"
+# Halmos 0.3.3 emits this warning even after a [PASS] result (halmos/__main__.py).
+LOOP_BOUND_RE = r"paths\s+have\s+not\s+been\s+fully\s+explored\s+due\s+to\s+the\s+loop\s+unrolling\s+bound"
 
 
 def resolve_expect(check, expect):
@@ -120,6 +124,8 @@ def judge(text, check, walled, expect="FAIL"):
         return "REJECT", 1, "check FAILED: counterexample to a PASS-expected property (expected [PASS])"
     if not re.search(STATS_RE, line):
         return "REJECT", 1, "[PASS] line lacks the --statistics breakdown"
+    if re.search(LOOP_BOUND_RE, text, re.IGNORECASE):
+        return "INCONCLUSIVE", 2, "[PASS] with paths not fully explored due to the loop unrolling bound"
     return "ACCEPT", 0, "expected [PASS] with statistics: " + line.strip()
 
 
@@ -381,6 +387,8 @@ def self_test():
         (f"Counterexample: \n[FAIL] {c}_other(address) {stat}\n", False, c, "FAIL", "INCONCLUSIVE"),  # other check
         # PASS-expected property
         (f"[PASS] {p}(bool) {stat}\n", False, p, "PASS", "ACCEPT"),
+        (f"[PASS] {p}(bool) {stat}\nWARNING: {p}(bool): paths have not been fully explored "
+         "due to the loop unrolling bound: 2\n", False, p, "PASS", "INCONCLUSIVE"),
         (f"Counterexample: \n    p_x = 0x00\n[FAIL] {p}(bool) {stat}\n", False, p, "PASS", "REJECT"),  # reverse control
         (f"[FAIL] {p}(bool) {stat}\n", False, p, "PASS", "REJECT"),
         (f"[PASS] {p}(bool) (paths: 4, time: 1.00s, bounds: [])\n", False, p, "PASS", "REJECT"),  # no stats
