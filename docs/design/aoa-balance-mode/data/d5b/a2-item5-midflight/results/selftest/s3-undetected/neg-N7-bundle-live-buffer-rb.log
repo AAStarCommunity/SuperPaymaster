@@ -1,13 +1,13 @@
 No files changed, compilation skipped
 
 Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
-  revertTo(uint256): replaced by `revertToState`
   snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
 Ran 1 test for contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
 [FAIL: rollback rc.2->rc.1: gas buffer <= the validation-time snapshot: 1475302000000000 > 829769000000001] test_rc2_to_rc1_rollback_mid_bundle() (gas: 31576216)
-Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 5.79ms (4.19ms CPU time)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 11.01ms (5.16ms CPU time)
 
-Ran 1 test suite in 11.60ms (5.79ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+Ran 1 test suite in 17.56ms (11.01ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
 
 Failing tests:
 Encountered 1 failing test in contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest

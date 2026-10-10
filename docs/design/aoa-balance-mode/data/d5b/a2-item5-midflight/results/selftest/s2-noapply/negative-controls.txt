@@ -7,6 +7,10 @@ N6-bundle-live-buffer-fwd: RED as expected (exit 1; message: gas buffer)
 N7-bundle-live-buffer-rb: RED as expected (exit 1; message: gas buffer)
 N8-exact-live-fwd: RED as expected (exit 1; message: exact aGas under the validation-time gas snapshot)
 N9-exact-live-rb: RED as expected (exit 1; message: exact aGas under the validation-time gas snapshot)
+N10-v542-no-invalidlen: RED as expected (exit 1; message: revert reason is PostOpReverted(InvalidContextLength()))
+N11-v542-operator-refunded: RED as expected (exit 1; message: operator lost the full validation debit)
+N12-v542-control-upgrades: RED as expected (exit 1; message: precondition: still 5.4.2)
 X-noapply: MUTATION DID NOT APPLY
 restored: contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol sha256 c7333cd76f80e0f2abb741cb8b24837e3cbb0760e5e0a5287269b155741f9577
+restored: contracts/test/v2/SuperPaymasterV542ToRc2MidBundle.t.sol sha256 6f85a08bab44346448a002b830c44e0c94c3200aceb7f7c1ba4cc1f147b16f3e
 RESULT: FAILED

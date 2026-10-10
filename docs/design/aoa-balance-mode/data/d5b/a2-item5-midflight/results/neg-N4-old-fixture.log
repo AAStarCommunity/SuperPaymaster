@@ -1,27 +1,13 @@
-Compiling 18 files with Solc 0.8.33
-Compiling 146 files with Solc 0.8.33
-Solc 0.8.33 finished in 10.69s
-Solc 0.8.33 finished in 63.64s
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 13.27s
 Compiler run successful with warnings:
-Warning (2018): Function state mutability can be restricted to view
-   --> contracts/src/core/Registry.sol:526:5:
-    |
-526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
-    |     ^ (Relevant source part starts here and spans across multiple lines).
-
-Warning (2018): Function state mutability can be restricted to view
-   --> contracts/src/core/Registry.sol:973:5:
-    |
-973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
-    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
 Warning (4591): There are more than 256 warnings. Ignoring the rest.
 
 Ran 1 test for contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
 [FAIL: fixture identity: contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex: 0xd2a9e92ec7b318e3c01dc03387f53ee760fcb9b9a481eb90b0390819b9e05e5b != 0x7afad5dab61cff8ea1ac99d45527fff386fab4156e9f62d8fd579745262483cc] test_rc1_to_rc2_forward_mid_bundle() (gas: 757619)
-Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 8.46ms (402.62µs CPU time)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 1.95ms (359.08µs CPU time)
 
-Ran 1 test suite in 19.86ms (8.46ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+Ran 1 test suite in 21.46ms (1.95ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
 
 Failing tests:
 Encountered 1 failing test in contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest

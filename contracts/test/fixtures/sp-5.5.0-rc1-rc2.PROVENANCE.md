@@ -51,3 +51,15 @@ rc.1 was additionally rebuilt in a second independent extract with a sparse
 
 Both pre-date the D5b core/extension split (single contract, 4 immutables) and differ from rc.1
 (`0x7afad5da…`, 13,571 B core + 19,208 B extension).
+
+## SuperPaymaster 5.4.2 (live Sepolia implementation) — `superpaymaster-5.4.2-78364b12-impl.creation.hex`
+
+Used by `contracts/test/v2/SuperPaymasterV542ToRc2MidBundle.t.sol` (DSR CC-124 `e96d0111`: 5.4.2 → rc.2 forward).
+
+| Item | Value |
+|---|---|
+| Tag | `v5.4.2` (tag object `e1ddf9dd7d221bb47b597803b639ef0dac8ddb19`) → commit `78364b12f42f1d3043ae992472ab6bdb6de82377` |
+| Build | `git archive v5.4.2` + the same two submodule gitlinks; `rm -rf cache out && forge build` (forge 1.7.1, solc 0.8.33, profile.default: 500 runs, via_ir, cancun, bytecode_hash none) |
+| Creation | 24,291 B, keccak `0x1650ed800e099aeafe4353be14e7b4a4074c0cefdc2f14cdc0a0e8dc75f88033` (asserted by the test) |
+| Runtime (artifact, immutables zeroed) | 23,569 B, keccak `0xdd83d0f73f61abf13de7e3792f57e6c2af109345bf80eb8e904ca34ad7afd20b`; 4 immutables |
+| Live comparison | Sepolia impl `0xe25f88dbeafc64200270a948df8e9dd2f9b22c27` (the ERC-1967 impl of proxy `0x09DF…4DE9`, `version()` = `SuperPaymaster-5.4.2`), block 11,882,092. The code was fetched from two endpoints and is byte-identical. Its on-chain codehash is `0x63a66dc03dfe0a16788f2f14625d661affac311f7b11e3a7a4acffd5b4435135`. After zeroing the 4 immutable ranges it is **byte-identical** to the artifact runtime. Negative control: the `c30854f9` artifact is not equal. Details: `docs/design/aoa-balance-mode/data/d5b/a2-item5-midflight/live-5.4.2/`. |

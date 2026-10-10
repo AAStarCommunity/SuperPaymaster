@@ -20,8 +20,12 @@ check() { # name, exit code, log
 NEW="SuperPaymasterRc1Rc2MidBundleTest"
 "$FORGE" test --match-contract "$NEW" -vv > "$OUT/rc1rc2-cancun.log" 2>&1; check "rc1rc2 cancun" $? "$OUT/rc1rc2-cancun.log"
 "$FORGE" test --match-contract "$NEW" -vv --evm-version prague > "$OUT/rc1rc2-prague.log" 2>&1; check "rc1rc2 prague" $? "$OUT/rc1rc2-prague.log"
-# the existing mid-bundle / fee-snapshot suites together with the new one (regression)
-M='UpgradeRace|FeeSnapshot|Rc1Rc2MidBundle'
+# 5.4.2 (live Sepolia impl) -> rc.2 forward, verbose
+V="SuperPaymasterV542ToRc2MidBundleTest"
+"$FORGE" test --match-contract "$V" -vv > "$OUT/v542rc2-cancun.log" 2>&1; check "v542rc2 cancun" $? "$OUT/v542rc2-cancun.log"
+"$FORGE" test --match-contract "$V" -vv --evm-version prague > "$OUT/v542rc2-prague.log" 2>&1; check "v542rc2 prague" $? "$OUT/v542rc2-prague.log"
+# the existing mid-bundle / fee-snapshot suites together with the new ones (regression)
+M='UpgradeRace|FeeSnapshot|Rc1Rc2MidBundle|V542ToRc2MidBundle'
 "$FORGE" test --match-contract "$M" > "$OUT/related-cancun.log" 2>&1; check "related cancun" $? "$OUT/related-cancun.log"
 "$FORGE" test --match-contract "$M" --evm-version prague > "$OUT/related-prague.log" 2>&1; check "related prague" $? "$OUT/related-prague.log"
 

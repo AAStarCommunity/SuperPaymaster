@@ -6,7 +6,12 @@
 > (`SuperPaymasterV55UpgradeRace`) and a `c30854f9` / 23,568 B fixture (`SuperPaymasterD5bUpgradeRace`),
 > neither provably rc.1.
 >
-> Local Foundry evidence only. No transaction was sent to any network.
+> DSR follow-up (CC-124 `e96d0111`): rc.1 is VOID and was never deployed, so it cannot be the "previous
+> release" for A3b. The live proxy runs **SuperPaymaster-5.4.2**. §8 adds 5.4.2 → rc.2 FORWARD same-bundle
+> evidence. A 5.4.2 rollback direction is deliberately absent (spec P2).
+>
+> Local Foundry evidence plus read-only Sepolia reads (`eth_getCode` / `eth_call` / `eth_getStorageAt`).
+> No transaction was sent to any network.
 
 ## 1. What rc.1 and rc.2 are
 
@@ -84,8 +89,9 @@ Verbatim (`results/rc1rc2-cancun.log`; `results/rc1rc2-prague.log` identical res
 Suite result: ok. 6 passed; 0 failed; 0 skipped
 ```
 
-Regression (`results/related-{cancun,prague}.log`, `--match-contract 'UpgradeRace|FeeSnapshot|Rc1Rc2MidBundle'`):
-4 suites, **18 passed / 0 failed / 0 skipped** on both Cancun and Prague.
+Regression (`results/related-{cancun,prague}.log`, `--match-contract 'UpgradeRace|FeeSnapshot|Rc1Rc2MidBundle|V542ToRc2MidBundle'`):
+5 suites, **20 passed / 0 failed / 0 skipped** on both Cancun and Prague (V55UpgradeRace 2, D5bUpgradeRace 2,
+FeeSnapshot 8, Rc1Rc2MidBundle 6, V542ToRc2MidBundle 2).
 
 ## 4. Negative controls (`run-negative-controls.sh` → `results/negative-controls.txt`, `results/neg-*.log`)
 
@@ -103,6 +109,9 @@ re-checked.
 | N7 rollback bundle expects the **live-param** buffer | `gas buffer` | RED |
 | N8 exact forward expects the **live-param** aGas | `exact aGas under the validation-time gas snapshot` | RED |
 | N9 exact rollback expects the **live-param** aGas | `exact aGas under the validation-time gas snapshot` | RED |
+| N10 (5.4.2→rc.2) expects no `InvalidContextLength` rejection | `revert reason is PostOpReverted(InvalidContextLength())` | RED |
+| N11 (5.4.2→rc.2) expects the operator's validation debit to be refunded | `operator lost the full validation debit` | RED |
+| N12 (5.4.2 control) the control op actually upgrades | `precondition: still 5.4.2` | RED |
 
 ## 5. Fail-closed runners (Codex round 1, Medium 1)
 
@@ -127,6 +136,7 @@ bash docs/design/aoa-balance-mode/data/d5b/a2-item5-midflight/run-tests.sh      
 bash docs/design/aoa-balance-mode/data/d5b/a2-item5-midflight/run-negative-controls.sh  # results/neg-*
 bash docs/design/aoa-balance-mode/data/d5b/a2-item5-midflight/selftest-fail-closed.sh   # results/selftest/
 python3 docs/design/aoa-balance-mode/data/d5b/a2-item5-midflight/build-hashes.py rc.1=<out> rc.2=<out> ...
+python3 docs/design/aoa-balance-mode/data/d5b/a2-item5-midflight/live-compare.py <v5.4.2 artifact> live-5.4.2/impl-code-publicnode-11882092.hex <5.4.2 fixture>
 shasum -a 256 -c docs/design/aoa-balance-mode/data/d5b/a2-item5-midflight/EVIDENCE.sha256   # from the repo root
 ```
 
@@ -146,3 +156,54 @@ shasum -a 256 -c docs/design/aoa-balance-mode/data/d5b/a2-item5-midflight/EVIDEN
 - Submodule sources were copied from the main checkout at the recorded gitlink commits. HEAD was checked; the
   worktree status was not independently verified. SP's dependency closure uses only `AggregatorV3Interface.sol`
   from them.
+
+## 8. 5.4.2 (live) → rc.2 FORWARD, same bundle (DSR CC-124 `e96d0111`)
+
+**Fixture.** `contracts/test/fixtures/superpaymaster-5.4.2-78364b12-impl.creation.hex` is built from tag `v5.4.2`
+(tag object `e1ddf9dd…`, commit `78364b12f42f1d3043ae992472ab6bdb6de82377`) with the same method as above. Its
+creation keccak is `0x1650ed80…f88033` (24,291 B), and the runtime is 23,569 B. **The live comparison matches.**
+The Sepolia proxy `0x09DF…4DE9` has ERC-1967 impl `0xe25f88dbeafc64200270a948df8e9dd2f9b22c27`, whose `version()`
+is `SuperPaymaster-5.4.2`. Its code was read at block 11,882,092 from publicnode and 1rpc, and the two reads are
+byte-identical. The on-chain codehash is `0x63a66dc0…435135`. After zeroing the 4 immutable ranges, that code is
+**byte-identical** to the artifact runtime (`0xdd83d0f7…afd20b`). Negative control: the `c30854f9` artifact is
+not equal (`live-5.4.2/`, `fetch.txt`). This verifies 5.4.2 against the chain. rc.1 could never be verified this way.
+
+**What happens, from the sources.**
+1. 5.4.2 `validatePaymasterUserOp` debits the operator optimistically: `aPNTsBalance -= a0`,
+   `protocolRevenue += a0`. It then returns a **160-byte** context, `abi.encode(token, user, a0, opHash, operator)`.
+2. rc.2 `postOp` accepts only 352 or 384 bytes, so it reverts with `InvalidContextLength()`.
+3. EntryPoint v0.7 reports `PostOpReverted(InvalidContextLength())` via `PostOpRevertReason`, reverts
+   `innerHandleOp`, and rolls back the user's execution. It charges the paymaster's EntryPoint deposit for the
+   gas and does not call postOp again.
+
+**Result: this is a failure mode, not a pass.** Each in-flight 5.4.2 op is lost. The user's call does not
+happen and the user is not charged. SP's ETH deposit pays the gas. The operator's validation debit `a0` is
+**never refunded** and stays in `protocolRevenue`. No user debt is recorded.
+
+The spec does not rely on this path being safe. 03 §10.7b C2 (last bullet) says the 5.4.2 → 5.5.0 upgrade is a
+separate EOA transaction, so no bundle can straddle it. The live owner `0xb560…df0E` is an EOA
+(`eth_getCode` = `0x` at block 11,882,092). Runbook step 3 also pauses all operators and waits for the mempool to
+drain before step 5. In this test the owner is made a 4337 account only to **construct** the window.
+
+| Test (`SuperPaymasterV542ToRc2MidBundle.t.sol`) | Bundle | Asserted | Result |
+|---|---|---|---|
+| `test_v542_to_rc2_forward_mid_bundle_inflightOpsFail` | [owner op `upgradeToAndCall(rc.2)`, victim 1, victim 2], victims validated by 5.4.2 | probe: 5.4.2 context = 160 B, a0 > 0; impl == rc.2 after the bundle; upgrade op succeeded; `PostOpRevertReason` ×2, each `PostOpReverted(InvalidContextLength())`; victims' `success == false`, executions rolled back; 0 `TransactionSponsored`; operator Δ = −2·a0 (no refund); revenue Δ = +2·a0; user xPNTs unchanged, debt 0; SP EntryPoint deposit Δ = −(G1 + G2) | PASS |
+| `test_control_v542_stays_settlesNormally` | same, owner op calls `version()` (no upgrade) | still 5.4.2; 0 postOp reverts; both victims succeed and executions kept; `TransactionSponsored` ×2; Σcharge < 2·a0 (refund); operator Δ == revenue Δ == Σcharge == xPNTs burned | PASS |
+
+Negative controls N10–N12 are in §4. The 5.4.2 token is a minimal stub (`V542Token`) that implements exactly
+the five `IxPNTsToken` calls 5.4.2 makes, at rate 1:1. The real 5.4.2-era xPNTs token is not used, which does
+not matter here because postOp never reaches it in the upgrade case.
+
+Verbatim (`results/v542rc2-cancun.log`; Prague identical):
+
+```
+[PASS] test_control_v542_stays_settlesNormally() (gas: 14700525)
+[PASS] test_v542_to_rc2_forward_mid_bundle_inflightOpsFail() (gas: 14694258)
+Suite result: ok. 2 passed; 0 failed; 0 skipped
+```
+
+**Consequence for A3b.** Rc.2 cannot settle a 5.4.2 op validated in the same bundle as the upgrade.
+Forward compatibility from 5.4.2 therefore rests on the operational controls: pause operators, drain the
+mempool, then upgrade in a separate EOA transaction (no in-bundle owner). It does not rest on context
+compatibility. Making it safe in code would need rc.2 to accept 160-B contexts, which would be a `contracts/src`
+change and is out of scope here.
