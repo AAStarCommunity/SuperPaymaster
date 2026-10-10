@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Negative controls for SuperPaymasterRc1Rc2MidBundleTest: each mutant edits ONE expectation (or
-# fixture path) of the test and must turn the named test RED with the named assertion message.
-# The test file is restored byte-for-byte afterwards (sha256 checked). Run from the repo root.
+# Negative controls for SuperPaymasterRc1Rc2MidBundleTest: each mutant is one sed substitution on the
+# test file (an expected fee, a fixture path, or one batch entry); `run` reports "RED as expected" only if
+# forge exits non-zero AND its log contains the named assertion message, and "MUTATION DID NOT APPLY" if
+# sed left the file unchanged. Before each mutant and on exit the file is copied back from a backup; the
+# final sha256 is compared with the one taken at start (script exits 1 on mismatch). Run from the repo root.
 set -u
 FORGE=${FORGE:-$(command -v forge || echo "$HOME/.foundry/bin/forge")}
 T=contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol
