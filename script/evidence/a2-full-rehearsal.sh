@@ -82,7 +82,7 @@ cleanup() {
   if [ "$MANIFEST_PREEXISTED" = "1" ]; then cp "$OUT/.REAL-manifest-backup.json" "$W/$MANIFEST"; rm -f "$OUT/.REAL-manifest-backup.json"; else rm -f "$W/$MANIFEST"; fi
   rm -f "$W"/deployments/attestations/timelock-roles."$ENVNAME".a2-rehearsal-*.json
   rm -f "$W/deployments/config.sepolia-fork-mycelium.json" "$W/deployments/config.sepolia-fork-aastar.json"
-  rm -f "$OUT/.sendtx.err" "$OUT/.neg.tmp"
+  rm -f "$OUT/.sendtx.err" "$OUT/.neg.tmp" "$OUT/.rv.err" "$OUT/.rb.err" "$OUT/.xr.err"
 }
 trap cleanup EXIT
 
@@ -97,8 +97,10 @@ fail() { rlog "  !!! $*"; FAILURES=$((FAILURES+1)); }
 # ---- fail-closed reads (DSR CC-125 466d42d1 ①) ------------------------------------------------------------
 # rtype <type> <value>: 0 iff <value> is a well-formed rendering of <type>. Types: address, bytes32 / word /
 # hash (32 bytes), uint* / blocknum, int*, bool, string (cast prints it quoted, must be non-empty), address[];
-# anything else (tuples, multi-returns) must at least be non-empty and contain no "Error".
+# Compound return values are checked field by field below.
 rtype() {
+  local value="${2//, /,}" field i module_list module_next
+  local -a fields types
   case "$1" in
     address) [[ "$2" =~ ^0x[0-9a-fA-F]{40}$ ]] ;;
     bytes32|word|hash) [[ "$2" =~ ^0x[0-9a-fA-F]{64}$ ]] ;;
@@ -107,12 +109,28 @@ rtype() {
     bool) [ "$2" = true ] || [ "$2" = false ] ;;
     string) [[ "$2" =~ ^\".+\"$ ]] ;;
     code) [[ "$2" =~ ^0x([0-9a-fA-F]{2})+$ ]] ;;
-    'address[]') [[ "$2" =~ ^\[(0x[0-9a-fA-F]{40}(,\ 0x[0-9a-fA-F]{40})*)?\]$ ]] ;;
-    *) [ -n "$2" ] && ! [[ "$2" =~ [Ee]rror ]] ;;
+    'address[]') [[ "$2" =~ ^\[(0x[0-9a-fA-F]{40}(,\ ?0x[0-9a-fA-F]{40})*)?\]$ ]] ;;
+    operators-tuple|deposit-tuple|modules-tuple|cached-price-tuple|latest-round-tuple)
+      case "$1" in
+        operators-tuple) value="${value%,}"; [[ "$value" == *,* ]] || value="$(printf '%s' "$value" | sed -E 's/ +/,/g')"; IFS=, read -r -a fields <<< "$value"; types=(uint128 bool bool address uint32 uint48 address uint256 uint256) ;;
+        deposit-tuple) [[ "$value" == \(*\) ]] || return 1; value="${value:1:${#value}-2}"; IFS=, read -r -a fields <<< "$value"; types=(uint256 bool uint112 uint32 uint48) ;;
+        modules-tuple) [[ "$value" == *' '* ]] || return 1; module_list="${value%% *}"; module_next="${value#* }"; rtype 'address[]' "$module_list" && rtype address "$module_next"; return ;;
+        cached-price-tuple) read -r -a fields <<< "$value"; types=(int256 uint256 uint80 uint8) ;;
+        latest-round-tuple) read -r -a fields <<< "$value"; types=(uint80 int256 uint256 uint256 uint80) ;;
+      esac
+      [ "${#fields[@]}" -eq "${#types[@]}" ] || return 1
+      for ((i=0; i<${#types[@]}; i++)); do field="${fields[i]}"; field="${field# }"; field="${field% }"; rtype "${types[i]}" "$field" || return 1; done ;;
+    *) return 1 ;;
   esac
 }
-# rtype_of_sig '<fn>(<args>)(<ret>)': the single return type, or "other" (tuple / multi-return)
-rtype_of_sig() { local r="${1#*)(}"; r="${r%)}"; [[ "$r" =~ ^[a-z0-9]+(\[\])?$ ]] && echo "$r" || echo other; }
+# rtype_of_sig '<fn>(<args>)(<ret>)': known compound values have explicit schemas.
+rtype_of_sig() { local r="${1#*)(}"; r="${r%)}"; case "$r" in
+  'uint128,bool,bool,address,uint32,uint48,address,uint256,uint256') echo operators-tuple ;;
+  '(uint256,bool,uint112,uint32,uint48)') echo deposit-tuple ;;
+  'address[],address') echo modules-tuple ;;
+  'int256,uint256,uint80,uint8') echo cached-price-tuple ;;
+  *) [[ "$r" =~ ^(address|bytes32|bool|string|u?int[0-9]*|address\[\])$ ]] && echo "$r" || echo invalid ;;
+esac; }
 # rv <type> <label> <filter|-> <command...>: run a read command, apply an optional filter (one shell pipeline
 # stage, e.g. 'sed -n 4p'), strip cast's "[1e18]" hints, and require exit 0 AND a well-formed <type> value.
 # On failure: a "!!! READ FAILED" line (counted by the final verdict), the sentinel READ-FAILED, return 1.
@@ -352,9 +370,9 @@ xread() { # <url> <label> -> key=value lines; every read is exit-checked and typ
   xr SP.pendingAPNTsToken address - call $SP 'pendingAPNTsToken()(address)' --block $B
   xr SP.pendingAPNTsTokenEta uint - call $SP 'pendingAPNTsTokenEta()(uint256)' --block $B
   xr SP.totalTrackedBalance uint "awk '{print \$1}'" call $SP 'totalTrackedBalance()(uint256)' --block $B
-  xr 'SP.operators(OWNER)' other "awk '{print \$1}' | tr '\n' ','" call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $OWNER --block $B
-  xr 'SP.operators(ANNI)' other "awk '{print \$1}' | tr '\n' ','" call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --block $B
-  xr 'EP.depositInfo(SP)' other - call $EP 'getDepositInfo(address)((uint256,bool,uint112,uint32,uint48))' $SP --block $B
+  xr 'SP.operators(OWNER)' operators-tuple "awk '{print \$1}' | tr '\n' ','" call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $OWNER --block $B
+  xr 'SP.operators(ANNI)' operators-tuple "awk '{print \$1}' | tr '\n' ','" call $SP 'operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)' $ANNI --block $B
+  xr 'EP.depositInfo(SP)' deposit-tuple - call $EP 'getDepositInfo(address)((uint256,bool,uint112,uint32,uint48))' $SP --block $B
   xr Registry.version string - call $REG 'version()(string)' --block $B
   xr Registry.owner address - call $REG 'owner()(address)' --block $B
   xr Registry.implSlot word - storage $REG 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --block $B
@@ -363,7 +381,7 @@ xread() { # <url> <label> -> key=value lines; every read is exit-checked and typ
   xr Safe.threshold uint - call $SAFE 'getThreshold()(uint256)' --block $B
   xr Safe.nonce uint - call $SAFE 'nonce()(uint256)' --block $B
   xr Safe.guardSlot word - storage $SAFE 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8 --block $B
-  xr Safe.modules other "tr '\n' ' '" call $SAFE 'getModulesPaginated(address,uint256)(address[],address)' 0x0000000000000000000000000000000000000001 10 --block $B
+  xr Safe.modules modules-tuple "tr '\n' ' ' | sed -E 's/ +$//'" call $SAFE 'getModulesPaginated(address,uint256)(address[],address)' 0x0000000000000000000000000000000000000001 10 --block $B
   xr OLD_TL.minDelay uint "awk '{print \$1}'" call $OLD_TL 'getMinDelay()(uint256)' --block $B
   xr 'OLD_TL.proposer(Safe)' bool - call $OLD_TL 'hasRole(bytes32,address)(bool)' $PROPOSER_ROLE $SAFE --block $B
   xr 'OLD_TL.admin(OWNER)' bool - call $OLD_TL 'hasRole(bytes32,address)(bool)' $ADMIN_ROLE $OWNER --block $B
@@ -372,7 +390,7 @@ XREAD_N=23
 : > "$OUT/0-prestate-read-failures.log"
 xread "$RPC_URL_FORK" > "$OUT/0-prestate-endpointA.txt"; XBAD_A=$XBAD
 xread "$RPC_URL_X" > "$OUT/0-prestate-endpointB.txt"; XBAD_B=$XBAD
-{ echo "# endpoint A = the anvil --fork-url provider (key-bearing URL, not written); endpoint B = $RPC_URL_X"
+{ echo "# endpoint A = the anvil --fork-url provider; endpoint B = independent read-only provider"
   echo "# block $FORK_BLOCK; identical lines below are equal on both endpoints"
   diff "$OUT/0-prestate-endpointA.txt" "$OUT/0-prestate-endpointB.txt" && echo "IDENTICAL ($(wc -l < "$OUT/0-prestate-endpointA.txt" | tr -d ' ') values)"; } > "$OUT/0-prestate-crosscheck.log" 2>&1
 # Fail-closed: EACH endpoint must deliver all XREAD_N values, every one exit-0 and well-typed (a failed or
@@ -633,7 +651,7 @@ step "STAGE I / A6 (runbook 7c): updatePrice (oracle refreshed on the frozen for
 refresh_oracle() {
   local agg roundid answer started updated answered_in nowts base found_base found_slot slot val intval expect
   agg=$(rv address "price feed aggregator" - cast call "$PRICE_FEED" 'aggregator()(address)' --rpc-url "$RPC")
-  read -r roundid answer started updated answered_in <<< "$(rv other "aggregator latestRoundData" "tr '\n' ' ' | sed 's/\[[^]]*\]//g'" cast call "$agg" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' --rpc-url "$RPC")"
+  read -r roundid answer started updated answered_in <<< "$(rv latest-round-tuple "aggregator latestRoundData" "tr '\n' ' ' | sed 's/\[[^]]*\]//g; s/  */ /g; s/ *$//'" cast call "$agg" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' --rpc-url "$RPC")"
   nowts=$(rv uint "latest block timestamp" - cast block latest --rpc-url "$RPC" --field timestamp)
   expect=$(python3 -c "print(int('$answer') + (int('$updated') << 192))")
   found_base=""
@@ -806,9 +824,15 @@ for T in SP REGISTRY; do
   check "C $T printed execute calldata == independently encoded" "$(payload_after "$OUT/II-C-$T-execute-print.log" "submit this from the Safe")" "$(tl_execute_data $PROXY $UPD $SALT)"
   # pre-execute snapshot for the read-backs the forge script cannot do on the Safe path
   IMPL0=$(impl_of $PROXY); OWN0=$(rv address "$T.owner before execute" - cast call $PROXY 'owner()(address)' --rpc-url $RPC); B_SP=$(rv address "SP.BLS_AGGREGATOR before execute" - cast call $SP 'BLS_AGGREGATOR()(address)' --rpc-url $RPC); B_REG=$(rv address "Registry.blsAggregator before execute" - cast call $REG 'blsAggregator()(address)' --rpc-url $RPC)
-  SB=$(bn); for i in $(seq 0 $((NEND-1))); do cast storage $PROXY $i --rpc-url $RPC --block $SB; done > "$OUT/II-C-$T-slots-before.txt"
+  SB=$(bn); : > "$OUT/II-C-$T-slots-before.txt"; for i in $(seq 0 $((NEND-1))); do
+    v=$(cast storage "$PROXY" "$i" --rpc-url "$RPC" --block "$SB" 2>&1); rc=$?
+    if [ "$rc" -ne 0 ] || ! rtype word "$v"; then fail "READ FAILED [C $T before slot $i @block $SB]: exit $rc, value '${v:0:90}'"; echo READ-FAILED >> "$OUT/II-C-$T-slots-before.txt"; else echo "$v" >> "$OUT/II-C-$T-slots-before.txt"; fi
+  done
   safe_exec "C $T execute(upgradeToAndCall)" $TL "$(tl_execute_data $PROXY $UPD $SALT)" || continue
-  SA=$(bn); for i in $(seq 0 $((NEND-1))); do cast storage $PROXY $i --rpc-url $RPC --block $SA; done > "$OUT/II-C-$T-slots-after.txt"
+  SA=$(bn); : > "$OUT/II-C-$T-slots-after.txt"; for i in $(seq 0 $((NEND-1))); do
+    v=$(cast storage "$PROXY" "$i" --rpc-url "$RPC" --block "$SA" 2>&1); rc=$?
+    if [ "$rc" -ne 0 ] || ! rtype word "$v"; then fail "READ FAILED [C $T after slot $i @block $SA]: exit $rc, value '${v:0:90}'"; echo READ-FAILED >> "$OUT/II-C-$T-slots-after.txt"; else echo "$v" >> "$OUT/II-C-$T-slots-after.txt"; fi
+  done
   check "C $T op done" "$(rb "TL.isOperationDone(C-$T)" $TL 'isOperationDone(bytes32)(bool)' $CID)" true
   check "C $T ERC-1967 impl slot == new impl" "$(impl_of $PROXY)" "$NI"
   check "C $T impl actually changed (old impl $IMPL0 != new impl)" "$( [ "$(lc $IMPL0)" != "$(lc $NI)" ] && echo changed || echo SAME)" changed
@@ -923,7 +947,12 @@ rlog "  D0 test artifact: $(jq -c '{source,sourceSha256,artifactFileSha256,runti
 check "D0 dummy source is committed (archive reproducible from the commit)" "$DSRC_STATE" committed
 check "D0 dummy compiled with the release settings (cancun / 500 runs / via_ir)" "$(jq -r '"\(.evmVersion)/\(.optimizerRuns)/\(.viaIR)"' "$OUT/D-dummy-artifact.json")" "cancun/500/true"
 check "D0 local SuperPaymaster artifact == rc.2 attested runtime (the dummy's base is rc.2)" "$(jq -r .rc2SuperPaymaster.runtimeKeccak "$OUT/D-dummy-artifact.json")" "$(jq -r .rc2SuperPaymaster.attestedRuntimeKeccak "$OUT/D-dummy-artifact.json")"
-check "D0 dummy runtime keccak != rc.2 attested runtime keccak" "$( [ "$(jq -r .runtimeKeccak "$OUT/D-dummy-artifact.json")" != "$(jq -r .rc2SuperPaymaster.attestedRuntimeKeccak "$OUT/D-dummy-artifact.json")" ] && echo different || echo SAME)" different
+DUMMY_RUNTIME=$(jq -er '.runtimeKeccak | select(type == "string")' "$OUT/D-dummy-artifact.json"); DUMMY_RUNTIME_RC=$?
+RC2_RUNTIME=$(jq -er '.rc2SuperPaymaster.attestedRuntimeKeccak | select(type == "string")' "$OUT/D-dummy-artifact.json"); RC2_RUNTIME_RC=$?
+if [ "$DUMMY_RUNTIME_RC" -ne 0 ] || ! rtype hash "$DUMMY_RUNTIME"; then fail "READ FAILED [D0 dummy runtime keccak]: exit $DUMMY_RUNTIME_RC, value '${DUMMY_RUNTIME:0:90}'"; fi
+if [ "$RC2_RUNTIME_RC" -ne 0 ] || ! rtype hash "$RC2_RUNTIME"; then fail "READ FAILED [D0 rc.2 attested runtime keccak]: exit $RC2_RUNTIME_RC, value '${RC2_RUNTIME:0:90}'"; fi
+if [ "$DUMMY_RUNTIME_RC" -eq 0 ] && [ "$RC2_RUNTIME_RC" -eq 0 ] && rtype hash "$DUMMY_RUNTIME" && rtype hash "$RC2_RUNTIME" && [ "$DUMMY_RUNTIME" != "$RC2_RUNTIME" ]; then DUMMY_DIFFERENCE=different; else DUMMY_DIFFERENCE=SAME; fi
+check "D0 dummy runtime keccak != rc.2 attested runtime keccak" "$DUMMY_DIFFERENCE" different
 check "D0 dummy runtime <= EIP-170 24576 B" "$(python3 -c "print($(jq -r .runtimeBytes "$OUT/D-dummy-artifact.json") <= 24576)")" True
 # D0 provenance (Codex #462 M1): the artifact that is deployed must be the one compiled from THIS checkout.
 #   (a) every source recorded in the artifact's compiler metadata (the dummy, SuperPaymaster.sol and all 33
@@ -1068,17 +1097,39 @@ sp_state() {
   sp_getter "$1" "APNTsCapped.balanceOf(SP)" "$b" $CAPPED 'balanceOf(address)(uint256)' $SP || rc=1
   return $rc
 }
-sp_getter() { # <file> <label> <block> <cast call args...>: one checked getter line
-  local f="$1" label="$2" b="$3" v; shift 3
+sp_getter() { # <file> <label> <block> <cast call args...>: one typed getter line
+  local f="$1" label="$2" b="$3" v ty clean; shift 3
+  case "$label" in
+    'operators(OWNER)'|'operators(ANNI)') ty=operators-tuple ;;
+    'EP.getDepositInfo(SP)') ty=deposit-tuple ;;
+    'cachedPrice()(int256,uint256,uint80,uint8)') ty=cached-price-tuple ;;
+    *) ty=$(rtype_of_sig "$2") ;;
+  esac
   if v=$(cast call "$@" --rpc-url $RPC --block "$b" 2>&1); then v=$(echo "$v" | tr '\n' ' ' | sed -E 's/ +$//'); else
     echo "$label = FAILED" >> "$f"; echo "sp_state: FAILED $label @block $b: $(echo "$v" | head -c 160)" >&2; return 1; fi
   if [ -z "$v" ]; then echo "$label = FAILED" >> "$f"; echo "sp_state: FAILED $label @block $b: empty value" >&2; return 1; fi
+  clean=$(printf '%s' "$v" | sed -E 's/ \[-?[0-9.e+-]+\]//g')
+  if ! rtype "$ty" "$clean"; then echo "$label = FAILED" >> "$f"; echo "sp_state: FAILED $label @block $b: ill-typed $ty value '${v:0:90}'" >&2; return 1; fi
   echo "$label = $v" >> "$f"
 }
-state_ok() { # <file>: "valid" iff exactly SP_STATE_N lines "<label> = <non-empty>", none FAILED / error / revert
-  local n bad; n=$(grep -cE '^[^#].* = [^ ]' "$1"); bad=$(grep -v '^#' "$1" | grep -cvE '^.+ = [^ ]')
-  if [ "$n" = "$SP_STATE_N" ] && [ "$bad" = 0 ] && ! grep -qiE ' = FAILED$|error|revert' "$1" && head -1 "$1" | grep -qE '@block [0-9]+$'; then echo valid
-  else echo "INVALID($n non-empty values, $bad bad lines$(grep -qiE ' = FAILED$|error|revert' "$1" && echo ', FAILED/error/revert present'))"; fi
+state_ok() { # <file>: exact count and labels, with every value matching its declared type
+  local n bad typed=0 label value ty clean
+  n=$(grep -cE '^[^#].* = [^ ]' "$1"); bad=$(grep -v '^#' "$1" | grep -cvE '^.+ = [^ ]')
+  while IFS= read -r line; do
+    [[ "$line" == \#* ]] && continue
+    label="${line%% = *}"; value="${line#* = }"
+    case "$label" in
+      'operators(OWNER)'|'operators(ANNI)') ty=operators-tuple ;;
+      'EP.getDepositInfo(SP)') ty=deposit-tuple ;;
+      'APNTsCapped.balanceOf(SP)') ty=uint256 ;;
+      'cachedPrice()(int256,uint256,uint80,uint8)') ty=cached-price-tuple ;;
+      *) ty=$(rtype_of_sig "$label") ;;
+    esac
+    clean=$(printf '%s' "$value" | sed -E 's/ \[-?[0-9.e+-]+\]//g')
+    rtype "$ty" "$clean" || typed=$((typed+1))
+  done < "$1"
+  if [ "$n" = "$SP_STATE_N" ] && [ "$bad" = 0 ] && [ "$typed" = 0 ] && [ "$(tail -n +2 "$1" | cut -d= -f1 | sort -u | wc -l | tr -d ' ')" = "$SP_STATE_N" ] && ! grep -qiE ' = FAILED$|error|revert' "$1" && head -1 "$1" | grep -qE '@block [0-9]+$'; then echo valid
+  else echo "INVALID($n non-empty values, $bad bad lines$([ "$typed" -gt 0 ] && echo ", $typed ill-typed")$(grep -qiE ' = FAILED$|error|revert' "$1" && echo ', FAILED/error/revert present'))"; fi
 }
 sp_state_checked() { # <file> <label>
   sp_state "$1" || fail "$2: getter snapshot had failed or empty reads ($1)"
@@ -1271,15 +1322,34 @@ HEADB=$(bn)
 # NOTE: an integer loop, not `seq`: BSD seq prints 8-digit block numbers as 1.18779e+07 (the first full
 # run, fork block 11877866, produced an EMPTY ledger that way; its positive control caught it).
 LEDGER_BLOCKS=0
+: > "$OUT/fork-tx-ledger.jsonl"
 for ((b = FORK_BLOCK + 1; b <= HEADB; b++)); do
   LEDGER_BLOCKS=$((LEDGER_BLOCKS+1))
-  BJ=$(cast block $b --json --rpc-url $RPC) || { fail "ledger: cast block $b failed"; continue; }
-  for h in $(echo "$BJ" | jq -r '.transactions[] | if type=="object" then .hash else . end'); do
-    RJ=$(cast receipt $h --json --rpc-url $RPC) || { fail "ledger: receipt $h failed"; continue; }
-    cast tx $h --json --rpc-url $RPC | jq -c --arg st "$(echo "$RJ" | jq -r .status)" --arg ca "$(echo "$RJ" | jq -r '.contractAddress // ""')" \
-      '{block:(.blockNumber), hash, from, to, contractAddress:$ca, selector:(.input[0:10]), status:$st}'
-  done
-done > "$OUT/fork-tx-ledger.jsonl"
+  BJ=$(cast block "$b" --json --rpc-url "$RPC"); rc=$?
+  if [ "$rc" -ne 0 ] || ! printf '%s' "$BJ" | jq -e '.transactions | type == "array"' >/dev/null 2>&1; then fail "READ FAILED [ledger block $b]: exit $rc or invalid transactions array"; continue; fi
+  COUNT=$(cast rpc eth_getBlockTransactionCountByNumber "$(printf '0x%x' "$b")" --rpc-url "$RPC"); rc=$?
+  COUNT="${COUNT#\"}"; COUNT="${COUNT%\"}"
+  if [ "$rc" -ne 0 ] || ! [[ "$COUNT" =~ ^0x[0-9a-fA-F]+$ ]]; then fail "READ FAILED [ledger independent tx count block $b]: exit $rc, value '${COUNT:0:90}'"; continue; fi
+  EXPECTED=$((COUNT))
+  if ! printf '%s' "$BJ" | jq -er '.transactions | all(.[]; (type == "string") or (type == "object" and (.hash | type == "string")))' >/dev/null; then fail "READ FAILED [ledger tx list block $b]: invalid entry"; continue; fi
+  if ! printf '%s' "$BJ" | jq -r '.transactions[] | if type == "object" then .hash else . end' > "$OUT/.ledger-hashes"; then fail "READ FAILED [ledger tx list block $b]: jq failed"; continue; fi
+  LISTED=$(wc -l < "$OUT/.ledger-hashes" | tr -d ' ')
+  [ "$LISTED" -eq "$EXPECTED" ] || fail "READ FAILED [ledger block $b]: listed $LISTED txs, independent count $EXPECTED"
+  while IFS= read -r h; do
+    if ! rtype hash "$h"; then fail "READ FAILED [ledger block $b tx hash]: '${h:0:90}'"; continue; fi
+    RJ=$(cast receipt "$h" --json --rpc-url "$RPC"); rc=$?
+    if [ "$rc" -ne 0 ] || ! ST=$(printf '%s' "$RJ" | jq -er '.status | select(. == "0x1" or . == "0x0")'); then fail "READ FAILED [ledger receipt $h status]: exit $rc"; continue; fi
+    CA=$(printf '%s' "$RJ" | jq -er '.contractAddress // ""'); rc=$?
+    if [ "$rc" -ne 0 ] || { [ -n "$CA" ] && ! rtype address "$CA"; }; then fail "READ FAILED [ledger receipt $h contractAddress]: exit $rc"; continue; fi
+    TX=$(cast tx "$h" --json --rpc-url "$RPC"); rc=$?
+    if [ "$rc" -ne 0 ] || ! printf '%s' "$TX" | jq -e --arg h "$(lc "$h")" '(.hash | ascii_downcase) == $h and (.from | type == "string") and ((.to == null) or (.to | type == "string")) and (.input | type == "string" and test("^0x([0-9a-fA-F]{2})*$"))' >/dev/null 2>&1; then fail "READ FAILED [ledger tx $h]: exit $rc or invalid transaction"; continue; fi
+    FROM=$(printf '%s' "$TX" | jq -er .from); from_rc=$?
+    TO=$(printf '%s' "$TX" | jq -er '.to // ""'); to_rc=$?
+    if [ "$from_rc" -ne 0 ] || [ "$to_rc" -ne 0 ] || ! rtype address "$FROM" || { [ -n "$TO" ] && ! rtype address "$TO"; }; then fail "READ FAILED [ledger tx $h from/to]: jq exits $from_rc/$to_rc or ill-typed address"; continue; fi
+    if ! printf '%s' "$TX" | jq -ec --arg st "$ST" --arg ca "$CA" '{block:(.blockNumber), hash, from, to, contractAddress:$ca, selector:(.input[0:10]), status:$st}' >> "$OUT/fork-tx-ledger.jsonl"; then fail "READ FAILED [ledger tx $h jq projection]"; fi
+  done < "$OUT/.ledger-hashes"
+done
+rm -f "$OUT/.ledger-hashes"
 check "ledger walked every block after the fork block" "$LEDGER_BLOCKS" "$((HEADB - FORK_BLOCK))"
 check "ledger contains EVERY tx hash recorded in receipts.jsonl" "$(jq -r '.transactionHash|ascii_downcase' "$OUT/receipts.jsonl" | sort -u | while read -r x; do grep -qi "$x" "$OUT/fork-tx-ledger.jsonl" || echo "$x"; done | wc -l | tr -d ' ')" 0
 NTX=$(wc -l < "$OUT/fork-tx-ledger.jsonl" | tr -d ' ')
@@ -1292,7 +1362,16 @@ check "ledger: no mined tx was sent directly to the canonical timelock (every sc
 rlog "  SP owner=$(rb 'final SP.owner' $SP 'owner()(address)') guardian=$(rb 'final SP.guardian' $SP 'guardian()(address)') impl=$(impl_of $SP) version=$(rb 'final SP.version' $SP 'version()(string)') @block $(bn)"
 rlog "  Registry owner=$(rb 'final Registry.owner' $REG 'owner()(address)') impl=$(impl_of $REG) version=$(rb 'final Registry.version' $REG 'version()(string)') @block $(bn)"
 rlog "  negative controls executed: $NEG_N (all reverted; neg-controls.jsonl)"
-NBANG=$(grep -c '!!!' "$OUT/rehearsal.log")
+if [ ! -f "$OUT/rehearsal.log" ] || [ ! -r "$OUT/rehearsal.log" ]; then
+  fail "READ FAILED [final rehearsal.log]: missing or unreadable"
+  NBANG=1
+else
+  NBANG=$(grep -c '!!!' "$OUT/rehearsal.log"); rc=$?
+  if [ "$rc" -gt 1 ] || ! [[ "$NBANG" =~ ^[0-9]+$ ]]; then
+    fail "READ FAILED [final rehearsal.log]: grep exit $rc"
+    NBANG=1
+  fi
+fi
 rlog "  CHECK lines: $(grep -c 'CHECK \[.*\] PASS' "$OUT/rehearsal.log") PASS, $(grep -c 'CHECK \[.*\] FAIL' "$OUT/rehearsal.log") FAIL; !!! lines: $NBANG"
 # The verdict counts BOTH the in-shell FAILURES counter and the "!!!" lines: a fail() inside $(...) (e.g. a
 # READ FAILED from rv / rb) only survives as its "!!!" line.

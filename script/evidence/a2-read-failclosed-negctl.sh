@@ -22,7 +22,7 @@
 #   ill-typed             SP.owner() answers 0x1234 (not 20 bytes) on both endpoints, exit 0
 #
 # LOCAL ONLY: the public RPC is used only as anvil --fork-url and for the preamble's read-only pre-state
-# reads; nothing is broadcast. RPC URLs / keys are never written to the output.
+# reads; nothing is broadcast. All HTTP(S) URLs are redacted before output is retained.
 # Usage: script/evidence/a2-read-failclosed-negctl.sh <env file with RPC_URL> <fork block> <out dir> [old ref]
 set -uo pipefail
 ENVFILE="$1"; FORK_BLOCK="$2"; OUTROOT="$3"; OLDREF="${4:-252ffe38}"
@@ -75,7 +75,18 @@ for inj in none both-empty both-empty-endpoints both-fail single-endpoint-fail i
     rc=$?
     if [ $ver = old ]; then RC_old=$rc; else RC_new=$rc; fi
     rm -f "$H"
-    sed -i '' -E 's#https?://[^ ]*(alchemy|infura)[^ ]*#<redacted-rpc>#g' "$D/console.log"
+    python3 - "$D" <<'PY'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+pattern = re.compile(rb'https?://[^\s<>"\x27]+')
+for path in root.rglob('*'):
+    if path.is_file():
+        raw = path.read_bytes()
+        clean = pattern.sub(b'<redacted-rpc>', raw)
+        if clean != raw:
+            path.write_bytes(clean)
+PY
+    if rg -l 'https?://' "$D" >/dev/null; then echo "URL redaction failed in $D" >&2; exit 1; fi
     echo "$inj $ver ($ref) exit $rc" | tee -a "$OUTROOT/negctl-summary.log"
   done
   od=$(grep -hE 'CHECK \[(pre-state|fork block hash)|!!!' "$OUTROOT/$inj/old/rehearsal.log" 2>/dev/null | sed 's/^ *//' | cut -c1-110 | paste -sd'|' -)
