@@ -1,0 +1,21 @@
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 13.67s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: rollback rc.2->rc.1: charged at the expected protocol fee: 63277320000000000000 != 58004210000000000000] test_rc2_to_rc1_rollback_mid_bundle() (gas: 31455019)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 9.26ms (6.80ms CPU time)
+
+Ran 1 test suite in 19.25ms (9.26ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: rollback rc.2->rc.1: charged at the expected protocol fee: 63277320000000000000 != 58004210000000000000] test_rc2_to_rc1_rollback_mid_bundle() (gas: 31455019)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test

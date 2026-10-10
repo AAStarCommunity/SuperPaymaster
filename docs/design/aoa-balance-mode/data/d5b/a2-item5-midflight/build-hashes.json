@@ -1,0 +1,144 @@
+{
+ "rc.1": {
+  "SuperPaymaster": {
+   "runtimeBytes": 13571,
+   "runtimeKeccak": "0xc3e96cf85978d0fabc2d3440858cffb495be1d4354e5a8d69f9e70c6c890c3e2",
+   "creationBytes": 34372,
+   "creationKeccak": "0x7afad5dab61cff8ea1ac99d45527fff386fab4156e9f62d8fd579745262483cc",
+   "immutableRefs": 5,
+   "compiler": "0.8.33+commit.64118f21",
+   "runs": 500,
+   "viaIR": true,
+   "evm": "cancun"
+  },
+  "SuperPaymasterAdmin": {
+   "runtimeBytes": 19208,
+   "runtimeKeccak": "0x292491041269b4ee3e6df9e69af9f8c52dcda031070ed3114963ea107180b669",
+   "creationBytes": 20007,
+   "creationKeccak": "0xe59423dd2c160a8771743e500bade25ac5c4d421801c2790d1f553857e52eba1",
+   "immutableRefs": 4,
+   "compiler": "0.8.33+commit.64118f21",
+   "runs": 500,
+   "viaIR": true,
+   "evm": "cancun"
+  },
+  "fixture": {
+   "path": "contracts/test/fixtures/superpaymaster-5.5.0-rc.1-7ae5b340-impl.creation.hex",
+   "bytes": 34372,
+   "keccak": "0x7afad5dab61cff8ea1ac99d45527fff386fab4156e9f62d8fd579745262483cc",
+   "equalsBuildCreation": true
+  }
+ },
+ "rc.2": {
+  "SuperPaymaster": {
+   "runtimeBytes": 13744,
+   "runtimeKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+   "creationBytes": 34551,
+   "creationKeccak": "0x4edff578ddfb3875aa057f690fb68b85df24332aa0023a115aadad07107a0e4e",
+   "immutableRefs": 5,
+   "compiler": "0.8.33+commit.64118f21",
+   "runs": 500,
+   "viaIR": true,
+   "evm": "cancun"
+  },
+  "SuperPaymasterAdmin": {
+   "runtimeBytes": 19214,
+   "runtimeKeccak": "0xefc71c67b20fd21111e50808ee8d60bec6f1f47ec30aaa1729dcf293e7e178d2",
+   "creationBytes": 20013,
+   "creationKeccak": "0x7c5fd9a30e1d2fdb53f0512bca8e5f60fd2047fd71a575f084c57ac59b453e66",
+   "immutableRefs": 4,
+   "compiler": "0.8.33+commit.64118f21",
+   "runs": 500,
+   "viaIR": true,
+   "evm": "cancun"
+  },
+  "fixture": {
+   "path": "contracts/test/fixtures/superpaymaster-5.5.0-rc.2-1ac0e1c5-impl.creation.hex",
+   "bytes": 34551,
+   "keccak": "0x4edff578ddfb3875aa057f690fb68b85df24332aa0023a115aadad07107a0e4e",
+   "equalsBuildCreation": true
+  },
+  "equalsAttestation": {
+   "SuperPaymaster": {
+    "runtimeBytes": true,
+    "runtimeKeccak": true,
+    "creationKeccak": true
+   },
+   "SuperPaymasterAdmin": {
+    "runtimeBytes": true,
+    "runtimeKeccak": true,
+    "creationKeccak": true
+   }
+  }
+ },
+ "rc.1-second": {
+  "SuperPaymaster": {
+   "runtimeBytes": 13571,
+   "runtimeKeccak": "0xc3e96cf85978d0fabc2d3440858cffb495be1d4354e5a8d69f9e70c6c890c3e2",
+   "creationBytes": 34372,
+   "creationKeccak": "0x7afad5dab61cff8ea1ac99d45527fff386fab4156e9f62d8fd579745262483cc",
+   "immutableRefs": 5,
+   "compiler": "0.8.33+commit.64118f21",
+   "runs": 500,
+   "viaIR": true,
+   "evm": "cancun"
+  },
+  "SuperPaymasterAdmin": {
+   "runtimeBytes": 19208,
+   "runtimeKeccak": "0x292491041269b4ee3e6df9e69af9f8c52dcda031070ed3114963ea107180b669",
+   "creationBytes": 20007,
+   "creationKeccak": "0xe59423dd2c160a8771743e500bade25ac5c4d421801c2790d1f553857e52eba1",
+   "immutableRefs": 4,
+   "compiler": "0.8.33+commit.64118f21",
+   "runs": 500,
+   "viaIR": true,
+   "evm": "cancun"
+  },
+  "fixture": {
+   "path": "contracts/test/fixtures/superpaymaster-5.5.0-rc.1-7ae5b340-impl.creation.hex",
+   "bytes": 34372,
+   "keccak": "0x7afad5dab61cff8ea1ac99d45527fff386fab4156e9f62d8fd579745262483cc",
+   "equalsBuildCreation": true
+  }
+ },
+ "1cb21fe8": {
+  "SuperPaymaster": {
+   "runtimeBytes": 22915,
+   "runtimeKeccak": "0x759fb02a2890c2c0d00120f7339144bf8571760d6811f089f9abb71625250c88",
+   "creationBytes": 23616,
+   "creationKeccak": "0xfb170a137598572a3d5811594b61a2d03ae1d459e5c272670f90850505db12f3",
+   "immutableRefs": 4,
+   "compiler": "0.8.33+commit.64118f21",
+   "runs": 500,
+   "viaIR": true,
+   "evm": "cancun"
+  },
+  "SuperPaymasterAdmin": null,
+  "fixture": {
+   "path": "contracts/test/fixtures/superpaymaster-5.5.0-impl.creation.hex",
+   "bytes": 23616,
+   "keccak": "0xfb170a137598572a3d5811594b61a2d03ae1d459e5c272670f90850505db12f3",
+   "equalsBuildCreation": true
+  }
+ },
+ "c30854f9": {
+  "SuperPaymaster": {
+   "runtimeBytes": 23568,
+   "runtimeKeccak": "0xd78a85fcff476d26b4c73baeef7506dbc7181205fe4b5ce3e822b2f986a64a5e",
+   "creationBytes": 24269,
+   "creationKeccak": "0xd2a9e92ec7b318e3c01dc03387f53ee760fcb9b9a481eb90b0390819b9e05e5b",
+   "immutableRefs": 4,
+   "compiler": "0.8.33+commit.64118f21",
+   "runs": 500,
+   "viaIR": true,
+   "evm": "cancun"
+  },
+  "SuperPaymasterAdmin": null,
+  "fixture": {
+   "path": "contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex",
+   "bytes": 24269,
+   "keccak": "0xd2a9e92ec7b318e3c01dc03387f53ee760fcb9b9a481eb90b0390819b9e05e5b",
+   "equalsBuildCreation": true
+  }
+ }
+}

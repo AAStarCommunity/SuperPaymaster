@@ -1,0 +1,18 @@
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 10.59s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: fixture identity: contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex: 0xd2a9e92ec7b318e3c01dc03387f53ee760fcb9b9a481eb90b0390819b9e05e5b != 0x7afad5dab61cff8ea1ac99d45527fff386fab4156e9f62d8fd579745262483cc] test_rc1_to_rc2_forward_mid_bundle() (gas: 757575)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 1.98ms (647.42µs CPU time)
+
+Ran 1 test suite in 27.11ms (1.98ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: fixture identity: contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex: 0xd2a9e92ec7b318e3c01dc03387f53ee760fcb9b9a481eb90b0390819b9e05e5b != 0x7afad5dab61cff8ea1ac99d45527fff386fab4156e9f62d8fd579745262483cc] test_rc1_to_rc2_forward_mid_bundle() (gas: 757575)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test

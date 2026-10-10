@@ -1,0 +1,6 @@
+N1-forward-fee: RED as expected (exit 1; message: charged at the expected protocol fee)
+N2-rollback-fee: RED as expected (exit 1; message: charged at the expected protocol fee)
+N3-fixture-identity: RED as expected (exit 1; message: fixture identity)
+N4-old-fixture: RED as expected (exit 1; message: fixture identity)
+N5-no-gasparams: RED as expected (exit 1; message: gas params changed mid-bundle)
+restored: contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol sha256 3ae84f233e6cfe95ffc01f0416ebe5a106e6598ca28c3a1f5bee31d32c41196e
