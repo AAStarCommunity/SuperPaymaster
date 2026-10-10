@@ -1,0 +1,104 @@
+{
+  "attestation": "/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881940-6cf7af89/D-dummy-TEST-ONLY-attestation.json",
+  "attestedCommit": "see D-dummy-artifact.json",
+  "block": "11882065",
+  "results": [
+    {
+      "mode": "target",
+      "contract": "SuperPaymasterA2DrillDummyBump",
+      "address": "0x90F740A94f8f7f441c1dD0C55FE2e11597E27ff6",
+      "artifact": "out/SuperPaymasterA2DrillDummyBump.sol/SuperPaymasterA2DrillDummyBump.json",
+      "attestedRuntimeKeccak": "0xcb760244e1416530f8845e0651cb4efb90d0853a514d458db0614d4fa6e803d0",
+      "artifactRuntimeKeccak": "0xcb760244e1416530f8845e0651cb4efb90d0853a514d458db0614d4fa6e803d0",
+      "buildReproducesAttestation": true,
+      "onchainBytes": 13782,
+      "artifactBytes": 13782,
+      "onchainCodehash": "0xea5051d205a52644cad65acea4e19bc311fd22b6e97ddcd123ab4a574e985d79",
+      "immutables": [
+        {
+          "astId": "62991",
+          "start": 968,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "62991",
+          "start": 1524,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "62991",
+          "start": 2887,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "62991",
+          "start": 3942,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "62991",
+          "start": 4728,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "62991",
+          "start": 5003,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "62991",
+          "start": 5195,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "62991",
+          "start": 5331,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "62991",
+          "start": 5906,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "64242",
+          "start": 2428,
+          "value": "0x00000000000000000000000035e905e6730e94850725724e1f7c6bcb3690cc64"
+        },
+        {
+          "astId": "64242",
+          "start": 11718,
+          "value": "0x00000000000000000000000035e905e6730e94850725724e1f7c6bcb3690cc64"
+        },
+        {
+          "astId": "70032",
+          "start": 1101,
+          "value": "0x000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71"
+        },
+        {
+          "astId": "70032",
+          "start": 11973,
+          "value": "0x000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71"
+        },
+        {
+          "astId": "70039",
+          "start": 4795,
+          "value": "0x000000000000000000000000694aa1769357215de4fac081bf1f309adc325306"
+        },
+        {
+          "astId": "209381",
+          "start": 2988,
+          "value": "0x00000000000000000000000090f740a94f8f7f441c1dd0c55fe2e11597e27ff6"
+        },
+        {
+          "astId": "209381",
+          "start": 6938,
+          "value": "0x00000000000000000000000090f740a94f8f7f441c1dd0c55fe2e11597e27ff6"
+        }
+      ],
+      "maskedOnchainKeccak": "0xcb760244e1416530f8845e0651cb4efb90d0853a514d458db0614d4fa6e803d0",
+      "match": true
+    }
+  ],
+  "result": "PASS"
+}
