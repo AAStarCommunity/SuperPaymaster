@@ -1,0 +1,51 @@
+No files changed, compilation skipped
+
+Ran 4 tests for contracts/test/halmos/D5c1A3Negatives.t.sol:D5c1A3NegativesTest
+[PASS] test_D5c1_A3_NEG1_control_distinctGenesisSpenderAccepted() (gas: 605052)
+[PASS] test_D5c1_A3_NEG1_initializeRejectsGenesisSpenderEqualToSP() (gas: 547192)
+[PASS] test_D5c1_A3_NEG2_activatedSpenderBecomingSPIsRemoved() (gas: 996079)
+[PASS] test_D5c1_A3_NEG2_genesisSpenderBecomingSPIsRemoved() (gas: 979800)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 7.79ms (8.51ms CPU time)
+
+Ran 2 tests for contracts/test/halmos/D5c1Replay.t.sol:D5c1PrimingTest
+[PASS] test_D5c1_priming_creditMakesExactlyTheRecordLive() (gas: 295626)
+[PASS] test_D5c1_priming_lockMakesExactlyTheRecordLive() (gas: 155978)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 13.46ms (525.71µs CPU time)
+
+Ran 1 test for contracts/test/halmos/MintRepayLemma.t.sol:MintRepayLemmaFuzzTest
+[PASS] testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256,uint256,uint256,uint256) (runs: 10000, μ: 627384, ~: 623450)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 6.19s (6.19s CPU time)
+
+Ran 16 tests for contracts/test/halmos/D5c1Replay.t.sol:D5c1ReplayTest
+[PASS] test_D5c1_A3_scenario_spCannotMoveUserTokens() (gas: 13206739)
+[PASS] test_D5c1_A3_scenario_spFirewallBits() (gas: 13236206)
+[PASS] test_D5c1_CAP1_scenario_mintBeyondCapReverts() (gas: 1316106)
+[PASS] test_D5c1_DISCREPANCY_A3_2_spBurnsOwnBalance() (gas: 13352010)
+[PASS] test_D5c1_I2_scenario_lockBeyondSpCapRejected() (gas: 13214912)
+[PASS] test_D5c1_I4B_scenario_transferBelowLockedRejected() (gas: 13276500)
+[PASS] test_D5c1_I6_scenario_reservationBoundedByRequestedCap() (gas: 13356639)
+[PASS] test_D5c1_REGRESSION_F1_maxRateMaxLockIsExact() (gas: 565120)
+[PASS] test_D5c1_REGRESSION_F1_rateOutOfRangeRejectedAtInit() (gas: 2511650)
+[PASS] test_D5c1_layout_allowancesSlotAndInitSlot() (gas: 41002)
+[PASS] test_D5c1_layout_snapshotMatchesGetters() (gas: 13679862)
+[PASS] test_D5c1_replay_I2_transferFrom_wrapNeedsUnreachableState() (gas: 13162333)
+[PASS] test_D5c1_selectorListMatchesArtifacts() (gas: 9067208)
+[PASS] test_D5c1_witness_creditReserveThenSettle() (gas: 13388664)
+[PASS] test_D5c1_witness_meteredPull() (gas: 13474934)
+[PASS] test_D5c1_witness_spRenewLockThenSettle() (gas: 13350157)
+Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 6.47s (68.14ms CPU time)
+
+Ran 9 tests for contracts/test/halmos/D5c1BoundedFuzz.t.sol:D5c1BoundedFuzzTest
+[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 743923, ~: 743063)
+[PASS] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 754409, ~: 739910)
+[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 787753, ~: 773317)
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 767288, ~: 743077)
+[PASS] testFuzz_D5c1_I4B_mintWithDebt(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 951523, ~: 955571)
+[PASS] test_D5c1_boundary_largestMintWithDebt() (gas: 727325)
+[PASS] test_D5c1_boundary_lockAtTheLimitMaxRate() (gas: 891687)
+[PASS] test_D5c1_boundary_nearMaxBalanceAndAllowance() (gas: 818224)
+[PASS] test_D5c1_boundary_uint128Amounts() (gas: 1036665)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 6.48s (31.77s CPU time)
+
+Ran 5 test suites in 6.49s (19.17s CPU time): 32 tests passed, 0 failed, 0 skipped (32 total tests)
+# binding: {"bytecode_sha": "d13cd8269b3350a5c73939fcc0d99392d78d1da4649c0a629bcb889c76711231", "dirty_src": 0, "family": "xpnts", "git_head": "1ac0e1c595dc84e684b540ca6a936168e922194f", "harness_sha": "204df7566b326c11a8d473aedbb609471df3f570f32837eb9b1ff95d96321853", "lib_sha": "455d76e422c0fedd1b10fcbe6633d2fe701ac0bb8e401b8b3e3c459e70ee3cb1", "out_stale": [], "src_files": {"contracts/src/interfaces/IERC1363.sol": "1245f089e02e84b63c61f0e2105fba9340900ef0605b883a7bbc73530490ee26", "contracts/src/interfaces/IVersioned.sol": "bfc8d3a871afcc530aa814c01e62d61f03ca03412fe87773e9932198563bc83d", "contracts/src/interfaces/v3/IRegistry.sol": "3effca1e9eccdb4c9ad6445a08c6c3a5a74d427b5fdb74e33ff50f5a019e77a1", "contracts/src/tokens/v2/AOAProtocolRegistry.sol": "0753d8b8911117cb492331c80f82d33c8a8bbc10bb210de5526b47c6e43a35e4", "contracts/src/tokens/v2/GlobalTierSource.sol": "99aecad7b3ccc48a016636ed2ef9fb292f1ee05fd22ba688c55f495398e5a254", "contracts/src/tokens/v2/ICreditTierSource.sol": "bcffbd4a6ce75e912d1de63a4b9ad9118b1ef6fcb43045c0de6718961abc0fed", "contracts/src/tokens/v2/IxPNTsTokenV2.sol": "297c6c02c713e5073e8f594d66b853c51aff46954432eebfc42589a12a33a115", "contracts/src/tokens/v2/xPNTsFactoryV2.sol": "893eb4f8fe0e1dd3170049546d990627e1717fff984b12b89e218024991f71e1", "contracts/src/tokens/v2/xPNTsTokenV2.sol": "6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4", "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol": "ed46ee6bc1c84933b3bbd5fe8b7b8ff64fdcca94b9bcf1d2ea2f49dfb2d6b714", "contracts/src/tokens/v2/xPNTsV2Base.sol": "20d1bbda5cc769de35e5c82030779831fec7408a01ac4a50d63e9b7450d7292d"}, "src_sha": "f81c71d5f61e846f1a383fbfb7bac2dd24aca4302da5cca3c217cbeac70e77b1"}

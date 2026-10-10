@@ -1,0 +1,20 @@
+# head: 1ac0e1c595dc84e684b540ca6a936168e922194f
+# forge: forge Version: 1.7.1
+# test sha256: 88eed3f83de7c6adf9405e7f67e64545770b3335e14e12f8d1f391681e15ee5a  contracts/test/halmos/D5c1A3Negatives.t.sol
+# git status --porcelain:
+?? contracts/test/halmos/D5c1A3Negatives.t.sol
+# cmd: forge test --match-path contracts/test/halmos/D5c1A3Negatives.t.sol -vv
+Compiling 3 files with Solc 0.8.33
+Solc 0.8.33 finished in 8.27s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 4 tests for contracts/test/halmos/D5c1A3Negatives.t.sol:D5c1A3NegativesTest
+[PASS] test_D5c1_A3_NEG1_control_distinctGenesisSpenderAccepted() (gas: 605052)
+[PASS] test_D5c1_A3_NEG1_initializeRejectsGenesisSpenderEqualToSP() (gas: 547192)
+[PASS] test_D5c1_A3_NEG2_activatedSpenderBecomingSPIsRemoved() (gas: 996079)
+[PASS] test_D5c1_A3_NEG2_genesisSpenderBecomingSPIsRemoved() (gas: 979800)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 8.48ms (1.55ms CPU time)
+
+Ran 1 test suite in 37.85ms (8.48ms CPU time): 4 tests passed, 0 failed, 0 skipped (4 total tests)
+# exit_code: 0

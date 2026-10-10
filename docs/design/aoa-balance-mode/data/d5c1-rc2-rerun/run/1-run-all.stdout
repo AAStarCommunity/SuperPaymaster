@@ -1,0 +1,602 @@
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 176, "log": "check_RATE_step_coreAbi.OTHER.log", "result": "PASS", "paths": 3, "time_s": 6.57, "counterexample": false}
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 201, "log": "check_RATE_step_coreAbi.approve-095ea7b3.log", "result": "PASS", "paths": 4, "time_s": 2.32, "counterexample": false}
+{"part": "burn-42966c68", "D5C1_PART": 1117154408, "exit": 0, "wall_s": 205, "log": "check_RATE_step_coreAbi.burn-42966c68.log", "result": "PASS", "paths": 7, "time_s": 2.33, "counterexample": false}
+{"part": "initialize-dd1ea56c", "D5C1_PART": 3709773164, "exit": 0, "wall_s": 94, "log": "check_RATE_step_coreAbi.initialize-dd1ea56c.log", "result": "PASS", "paths": 2, "time_s": 0.57, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 136, "log": "check_RATE_step_coreAbi.permit-d505accf.log", "result": "PASS", "paths": 10, "time_s": 1.42, "counterexample": false}
+{"part": "releaseStaleCredit-de4880ca", "D5C1_PART": 3729293514, "exit": 0, "wall_s": 135, "log": "check_RATE_step_coreAbi.releaseStaleCredit-de4880ca.log", "result": "PASS", "paths": 4, "time_s": 0.65, "counterexample": false}
+{"part": "releaseStaleLock-f7b3d30d", "D5C1_PART": 4155757325, "exit": 0, "wall_s": 221, "log": "check_RATE_step_coreAbi.releaseStaleLock-f7b3d30d.log", "result": "PASS", "paths": 13, "time_s": 5.05, "counterexample": false}
+{"part": "renewForSelf-e8c122c7", "D5C1_PART": 3904971463, "exit": 0, "wall_s": 202, "log": "check_RATE_step_coreAbi.renewForSelf-e8c122c7.log", "result": "PASS", "paths": 6, "time_s": 2.28, "counterexample": false}
+{"part": "settleCredit-1baf4408", "D5C1_PART": 464471048, "exit": 0, "wall_s": 213, "log": "check_RATE_step_coreAbi.settleCredit-1baf4408.log", "result": "PASS", "paths": 4, "time_s": 2.34, "counterexample": false}
+{"part": "burn-9dc29fac", "D5C1_PART": 2646777772, "exit": -9, "wall_s": 615, "log": "check_RATE_step_coreAbi.burn-9dc29fac.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "settleLocked-7e48bbce", "D5C1_PART": 2118695886, "exit": 0, "wall_s": 219, "log": "check_RATE_step_coreAbi.settleLocked-7e48bbce.log", "result": "PASS", "paths": 4, "time_s": 1.74, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 218, "log": "check_RATE_step_coreAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 11, "time_s": 4.2, "counterexample": false}
+{"part": "tryReserveCredit-de9e4cae", "D5C1_PART": 3734916270, "exit": 0, "wall_s": 121, "log": "check_RATE_step_coreAbi.tryReserveCredit-de9e4cae.log", "result": "PASS", "paths": 39, "time_s": 8.38, "counterexample": false}
+{"part": "tryLockForGas-ec290731", "D5C1_PART": 3962111793, "exit": 0, "wall_s": 280, "log": "check_RATE_step_coreAbi.tryLockForGas-ec290731.log", "result": "PASS", "paths": 899, "time_s": 154.97, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": 0, "wall_s": 586, "log": "check_RATE_step_coreAbi.transferFrom-23b872dd.log", "result": "PASS", "paths": 3707, "time_s": 454.73, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "activateSP-9c707a14", "D5C1_PART": 2624616980, "exit": 0, "wall_s": 53, "log": "check_RATE_step_extAbi.activateSP-9c707a14.log", "result": "PASS", "paths": 10, "time_s": 1.31, "counterexample": false}
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 59, "log": "check_RATE_step_extAbi.OTHER.log", "result": "PASS", "paths": 2, "time_s": 3.78, "counterexample": false}
+{"part": "activateStandbyDesignation-c322b416", "D5C1_PART": 3273831446, "exit": 0, "wall_s": 52, "log": "check_RATE_step_extAbi.activateStandbyDesignation-c322b416.log", "result": "PASS", "paths": 4, "time_s": 1.4, "counterexample": false}
+{"part": "activateSpender-1615e5dc", "D5C1_PART": 370533852, "exit": 0, "wall_s": 57, "log": "check_RATE_step_extAbi.activateSpender-1615e5dc.log", "result": "PASS", "paths": 16, "time_s": 5.13, "counterexample": false}
+{"part": "addApprovedFacilitator-819c2ff8", "D5C1_PART": 2174496760, "exit": 0, "wall_s": 45, "log": "check_RATE_step_extAbi.addApprovedFacilitator-819c2ff8.log", "result": "PASS", "paths": 5, "time_s": 1.0, "counterexample": false}
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 49, "log": "check_RATE_step_extAbi.approve-095ea7b3.log", "result": "PASS", "paths": 5, "time_s": 0.62, "counterexample": false}
+{"part": "cancelCreditPolicy-04ad0733", "D5C1_PART": 78448435, "exit": 0, "wall_s": 45, "log": "check_RATE_step_extAbi.cancelCreditPolicy-04ad0733.log", "result": "PASS", "paths": 3, "time_s": 0.65, "counterexample": false}
+{"part": "approveCredit-709f2101", "D5C1_PART": 1889476865, "exit": 0, "wall_s": 49, "log": "check_RATE_step_extAbi.approveCredit-709f2101.log", "result": "PASS", "paths": 7, "time_s": 0.91, "counterexample": false}
+{"part": "cancelSP-0c2fd48b", "D5C1_PART": 204461195, "exit": 0, "wall_s": 35, "log": "check_RATE_step_extAbi.cancelSP-0c2fd48b.log", "result": "PASS", "paths": 5, "time_s": 0.86, "counterexample": false}
+{"part": "emergencyRevokePaymaster-25073b3a", "D5C1_PART": 621230906, "exit": 0, "wall_s": 34, "log": "check_RATE_step_extAbi.emergencyRevokePaymaster-25073b3a.log", "result": "PASS", "paths": 5, "time_s": 0.51, "counterexample": false}
+{"part": "disableSpenderForSelf-2d2d92ca", "D5C1_PART": 757961418, "exit": 0, "wall_s": 35, "log": "check_RATE_step_extAbi.disableSpenderForSelf-2d2d92ca.log", "result": "PASS", "paths": 3, "time_s": 0.33, "counterexample": false}
+{"part": "emergencySwitchToStandby-11d15e9d", "D5C1_PART": 298933917, "exit": 0, "wall_s": 48, "log": "check_RATE_step_extAbi.emergencySwitchToStandby-11d15e9d.log", "result": "PASS", "paths": 7, "time_s": 1.29, "counterexample": false}
+{"part": "enableSpenderForSelf-e3fb7f2f", "D5C1_PART": 3824910127, "exit": 0, "wall_s": 44, "log": "check_RATE_step_extAbi.enableSpenderForSelf-e3fb7f2f.log", "result": "PASS", "paths": 3, "time_s": 0.7, "counterexample": false}
+{"part": "executeCreditPolicy-5050a44a", "D5C1_PART": 1347462218, "exit": 0, "wall_s": 45, "log": "check_RATE_step_extAbi.executeCreditPolicy-5050a44a.log", "result": "PASS", "paths": 4, "time_s": 0.81, "counterexample": false}
+{"part": "executeBySig-d182c298", "D5C1_PART": 3515007640, "exit": 0, "wall_s": 56, "log": "check_RATE_step_extAbi.executeBySig-d182c298.log", "result": "PASS", "paths": 96, "time_s": 7.12, "counterexample": false}
+{"part": "executeTierSource-f0575df6", "D5C1_PART": 4032257526, "exit": 0, "wall_s": 52, "log": "check_RATE_step_extAbi.executeTierSource-f0575df6.log", "result": "PASS", "paths": 21, "time_s": 4.79, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 50, "log": "check_RATE_step_extAbi.permit-d505accf.log", "result": "PASS", "paths": 9, "time_s": 1.53, "counterexample": false}
+{"part": "proposeSP-95483c15", "D5C1_PART": 2504539157, "exit": 0, "wall_s": 51, "log": "check_RATE_step_extAbi.proposeSP-95483c15.log", "result": "PASS", "paths": 20, "time_s": 2.97, "counterexample": false}
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 0, "wall_s": 83, "log": "check_RATE_step_extAbi.mint-40c10f19.log", "result": "PASS", "paths": 60, "time_s": 32.87, "counterexample": false}
+{"part": "proposeSpender-9c664f84", "D5C1_PART": 2623950724, "exit": 0, "wall_s": 57, "log": "check_RATE_step_extAbi.proposeSpender-9c664f84.log", "result": "PASS", "paths": 22, "time_s": 7.06, "counterexample": false}
+{"part": "proposeStandby-6553cf6b", "D5C1_PART": 1699991403, "exit": 0, "wall_s": 52, "log": "check_RATE_step_extAbi.proposeStandby-6553cf6b.log", "result": "PASS", "paths": 7, "time_s": 1.17, "counterexample": false}
+{"part": "queueCreditPolicy-41068c0c", "D5C1_PART": 1090948108, "exit": 0, "wall_s": 57, "log": "check_RATE_step_extAbi.queueCreditPolicy-41068c0c.log", "result": "PASS", "paths": 5, "time_s": 1.52, "counterexample": false}
+{"part": "queueTierSource-b44612ba", "D5C1_PART": 3024491194, "exit": 0, "wall_s": 61, "log": "check_RATE_step_extAbi.queueTierSource-b44612ba.log", "result": "PASS", "paths": 17, "time_s": 6.43, "counterexample": false}
+{"part": "releaseAndDisable-e575720c", "D5C1_PART": 3849679372, "exit": 0, "wall_s": 58, "log": "check_RATE_step_extAbi.releaseAndDisable-e575720c.log", "result": "PASS", "paths": 25, "time_s": 5.15, "counterexample": false}
+{"part": "removeApprovedFacilitator-8501dd1b", "D5C1_PART": 2231491867, "exit": 0, "wall_s": 65, "log": "check_RATE_step_extAbi.removeApprovedFacilitator-8501dd1b.log", "result": "PASS", "paths": 4, "time_s": 0.87, "counterexample": false}
+{"part": "removeAutoApprovedSpender-c504e209", "D5C1_PART": 3305431561, "exit": 0, "wall_s": 60, "log": "check_RATE_step_extAbi.removeAutoApprovedSpender-c504e209.log", "result": "PASS", "paths": 3, "time_s": 1.18, "counterexample": false}
+{"part": "repayDebt-6b09de45", "D5C1_PART": 1795808837, "exit": 0, "wall_s": 71, "log": "check_RATE_step_extAbi.repayDebt-6b09de45.log", "result": "PASS", "paths": 12, "time_s": 1.83, "counterexample": false}
+{"part": "renounceFactory-d49bdad0", "D5C1_PART": 3566983888, "exit": 0, "wall_s": 72, "log": "check_RATE_step_extAbi.renounceFactory-d49bdad0.log", "result": "PASS", "paths": 2, "time_s": 0.79, "counterexample": false}
+{"part": "requestCredit-b6b1d5ca", "D5C1_PART": 3065107914, "exit": 0, "wall_s": 63, "log": "check_RATE_step_extAbi.requestCredit-b6b1d5ca.log", "result": "PASS", "paths": 2, "time_s": 0.76, "counterexample": false}
+{"part": "revokeCredit-48567aab", "D5C1_PART": 1213627051, "exit": 0, "wall_s": 63, "log": "check_RATE_step_extAbi.revokeCredit-48567aab.log", "result": "PASS", "paths": 1, "time_s": 0.93, "counterexample": false}
+{"part": "setIssuanceCap-ca9f8d7b", "D5C1_PART": 3399454075, "exit": 0, "wall_s": 65, "log": "check_RATE_step_extAbi.setIssuanceCap-ca9f8d7b.log", "result": "PASS", "paths": 2, "time_s": 0.59, "counterexample": false}
+{"part": "setAutoAllowance-ca7f9c4a", "D5C1_PART": 3397360714, "exit": 0, "wall_s": 66, "log": "check_RATE_step_extAbi.setAutoAllowance-ca7f9c4a.log", "result": "PASS", "paths": 7, "time_s": 1.13, "counterexample": false}
+{"part": "setMaxSingleTxLimit-4e4852f3", "D5C1_PART": 1313362675, "exit": 0, "wall_s": 65, "log": "check_RATE_step_extAbi.setMaxSingleTxLimit-4e4852f3.log", "result": "PASS", "paths": 5, "time_s": 1.52, "counterexample": false}
+{"part": "setRenewalMode-199b8d6e", "D5C1_PART": 429624686, "exit": 0, "wall_s": 68, "log": "check_RATE_step_extAbi.setRenewalMode-199b8d6e.log", "result": "PASS", "paths": 3, "time_s": 1.13, "counterexample": false}
+{"part": "setSpenderDailyCapFor-433ae8eb", "D5C1_PART": 1127934187, "exit": 0, "wall_s": 62, "log": "check_RATE_step_extAbi.setSpenderDailyCapFor-433ae8eb.log", "result": "PASS", "paths": 5, "time_s": 1.52, "counterexample": false}
+{"part": "setSpenderDailyCap-1eb6ca03", "D5C1_PART": 515295747, "exit": 0, "wall_s": 64, "log": "check_RATE_step_extAbi.setSpenderDailyCap-1eb6ca03.log", "result": "PASS", "paths": 3, "time_s": 0.98, "counterexample": false}
+{"part": "setUserTotalCap-81097512", "D5C1_PART": 2164880658, "exit": 0, "wall_s": 55, "log": "check_RATE_step_extAbi.setUserTotalCap-81097512.log", "result": "PASS", "paths": 3, "time_s": 0.84, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 58, "log": "check_RATE_step_extAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 10, "time_s": 1.54, "counterexample": false}
+{"part": "transferCommunityOwnership-623330ae", "D5C1_PART": 1647521966, "exit": 0, "wall_s": 40, "log": "check_RATE_step_extAbi.transferCommunityOwnership-623330ae.log", "result": "PASS", "paths": 4, "time_s": 0.54, "counterexample": false}
+{"part": "transferAndCall-1296ee62", "D5C1_PART": 311881314, "exit": 0, "wall_s": 83, "log": "check_RATE_step_extAbi.transferAndCall-1296ee62.log", "result": "PASS", "paths": 20, "time_s": 4.32, "counterexample": false}
+{"part": "transferAndCall-4000aea0", "D5C1_PART": 1073786528, "exit": 0, "wall_s": 87, "log": "check_RATE_step_extAbi.transferAndCall-4000aea0.log", "result": "PASS", "paths": 40, "time_s": 9.09, "counterexample": false}
+{"part": "unsetEmergencyDisabled-027e6d67", "D5C1_PART": 41839975, "exit": 0, "wall_s": 69, "log": "check_RATE_step_extAbi.unsetEmergencyDisabled-027e6d67.log", "result": "PASS", "paths": 4, "time_s": 0.97, "counterexample": false}
+{"part": "updateExchangeRate-b9e205ae", "D5C1_PART": 3118597550, "exit": 0, "wall_s": 54, "log": "check_RATE_step_extAbi.updateExchangeRate-b9e205ae.log", "result": "PASS", "paths": 21, "time_s": 2.42, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": 0, "wall_s": 331, "log": "check_RATE_step_extAbi.transferFrom-23b872dd.log", "result": "PASS", "paths": 3534, "time_s": 264.15, "counterexample": false}
+PASS
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 45, "log": "check_A3_coreAbi.OTHER.log", "result": "PASS", "paths": 2, "time_s": 5.07, "counterexample": false}
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 66, "log": "check_A3_coreAbi.approve-095ea7b3.log", "result": "PASS", "paths": 4, "time_s": 1.24, "counterexample": false}
+{"part": "burn-42966c68", "D5C1_PART": 1117154408, "exit": 0, "wall_s": 70, "log": "check_A3_coreAbi.burn-42966c68.log", "result": "PASS", "paths": 9, "time_s": 3.74, "counterexample": false}
+{"part": "burn-9dc29fac", "D5C1_PART": 2646777772, "exit": 1, "wall_s": 68, "log": "check_A3_coreAbi.burn-9dc29fac.log", "result": "FAIL", "paths": 10, "time_s": 4.78, "counterexample": true}
+{"part": "initialize-dd1ea56c", "D5C1_PART": 3709773164, "exit": 0, "wall_s": 55, "log": "check_A3_coreAbi.initialize-dd1ea56c.log", "result": "PASS", "paths": 2, "time_s": 1.08, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 61, "log": "check_A3_coreAbi.permit-d505accf.log", "result": "PASS", "paths": 10, "time_s": 2.02, "counterexample": false}
+{"part": "releaseStaleCredit-de4880ca", "D5C1_PART": 3729293514, "exit": 0, "wall_s": 62, "log": "check_A3_coreAbi.releaseStaleCredit-de4880ca.log", "result": "PASS", "paths": 4, "time_s": 2.12, "counterexample": false}
+{"part": "releaseStaleLock-f7b3d30d", "D5C1_PART": 4155757325, "exit": 0, "wall_s": 65, "log": "check_A3_coreAbi.releaseStaleLock-f7b3d30d.log", "result": "PASS", "paths": 11, "time_s": 4.11, "counterexample": false}
+{"part": "renewForSelf-e8c122c7", "D5C1_PART": 3904971463, "exit": 0, "wall_s": 56, "log": "check_A3_coreAbi.renewForSelf-e8c122c7.log", "result": "PASS", "paths": 5, "time_s": 1.91, "counterexample": false}
+{"part": "settleCredit-1baf4408", "D5C1_PART": 464471048, "exit": 0, "wall_s": 55, "log": "check_A3_coreAbi.settleCredit-1baf4408.log", "result": "PASS", "paths": 4, "time_s": 1.06, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 76, "log": "check_A3_coreAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 11, "time_s": 6.38, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": 0, "wall_s": 78, "log": "check_A3_coreAbi.transferFrom-23b872dd.log", "result": "PASS", "paths": 4, "time_s": 2.63, "counterexample": false}
+{"part": "tryReserveCredit-de9e4cae", "D5C1_PART": 3734916270, "exit": 0, "wall_s": 98, "log": "check_A3_coreAbi.tryReserveCredit-de9e4cae.log", "result": "PASS", "paths": 102, "time_s": 25.62, "counterexample": false}
+{"part": "settleLocked-7e48bbce", "D5C1_PART": 2118695886, "exit": 0, "wall_s": 311, "log": "check_A3_coreAbi.settleLocked-7e48bbce.log", "result": "PASS", "paths": 543, "time_s": 265.99, "counterexample": false}
+{"part": "tryLockForGas-ec290731", "D5C1_PART": 3962111793, "exit": 0, "wall_s": 322, "log": "check_A3_coreAbi.tryLockForGas-ec290731.log", "result": "PASS", "paths": 759, "time_s": 267.3, "counterexample": false}
+NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 41, "log": "check_A3_extAbi.OTHER.log", "result": "PASS", "paths": 2, "time_s": 4.37, "counterexample": false}
+{"part": "activateSP-9c707a14", "D5C1_PART": 2624616980, "exit": 0, "wall_s": 51, "log": "check_A3_extAbi.activateSP-9c707a14.log", "result": "PASS", "paths": 10, "time_s": 3.29, "counterexample": false}
+{"part": "activateStandbyDesignation-c322b416", "D5C1_PART": 3273831446, "exit": 0, "wall_s": 51, "log": "check_A3_extAbi.activateStandbyDesignation-c322b416.log", "result": "PASS", "paths": 4, "time_s": 2.35, "counterexample": false}
+{"part": "activateSpender-1615e5dc", "D5C1_PART": 370533852, "exit": 0, "wall_s": 55, "log": "check_A3_extAbi.activateSpender-1615e5dc.log", "result": "PASS", "paths": 16, "time_s": 6.63, "counterexample": false}
+{"part": "addApprovedFacilitator-819c2ff8", "D5C1_PART": 2174496760, "exit": 0, "wall_s": 39, "log": "check_A3_extAbi.addApprovedFacilitator-819c2ff8.log", "result": "PASS", "paths": 5, "time_s": 0.99, "counterexample": false}
+{"part": "approveCredit-709f2101", "D5C1_PART": 1889476865, "exit": 0, "wall_s": 38, "log": "check_A3_extAbi.approveCredit-709f2101.log", "result": "PASS", "paths": 6, "time_s": 1.13, "counterexample": false}
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 47, "log": "check_A3_extAbi.approve-095ea7b3.log", "result": "PASS", "paths": 4, "time_s": 1.19, "counterexample": false}
+{"part": "cancelCreditPolicy-04ad0733", "D5C1_PART": 78448435, "exit": 0, "wall_s": 42, "log": "check_A3_extAbi.cancelCreditPolicy-04ad0733.log", "result": "PASS", "paths": 3, "time_s": 1.28, "counterexample": false}
+{"part": "cancelSP-0c2fd48b", "D5C1_PART": 204461195, "exit": 0, "wall_s": 57, "log": "check_A3_extAbi.cancelSP-0c2fd48b.log", "result": "PASS", "paths": 5, "time_s": 2.86, "counterexample": false}
+{"part": "disableSpenderForSelf-2d2d92ca", "D5C1_PART": 757961418, "exit": 0, "wall_s": 53, "log": "check_A3_extAbi.disableSpenderForSelf-2d2d92ca.log", "result": "PASS", "paths": 3, "time_s": 2.32, "counterexample": false}
+{"part": "emergencyRevokePaymaster-25073b3a", "D5C1_PART": 621230906, "exit": 0, "wall_s": 53, "log": "check_A3_extAbi.emergencyRevokePaymaster-25073b3a.log", "result": "PASS", "paths": 5, "time_s": 3.06, "counterexample": false}
+{"part": "emergencySwitchToStandby-11d15e9d", "D5C1_PART": 298933917, "exit": 0, "wall_s": 53, "log": "check_A3_extAbi.emergencySwitchToStandby-11d15e9d.log", "result": "PASS", "paths": 7, "time_s": 2.33, "counterexample": false}
+{"part": "enableSpenderForSelf-e3fb7f2f", "D5C1_PART": 3824910127, "exit": 0, "wall_s": 37, "log": "check_A3_extAbi.enableSpenderForSelf-e3fb7f2f.log", "result": "PASS", "paths": 3, "time_s": 0.99, "counterexample": false}
+{"part": "executeBySig-d182c298", "D5C1_PART": 3515007640, "exit": 0, "wall_s": 36, "log": "check_A3_extAbi.executeBySig-d182c298.log", "result": "PASS", "paths": 94, "time_s": 7.92, "counterexample": false}
+{"part": "executeCreditPolicy-5050a44a", "D5C1_PART": 1347462218, "exit": 0, "wall_s": 73, "log": "check_A3_extAbi.executeCreditPolicy-5050a44a.log", "result": "PASS", "paths": 4, "time_s": 2.6, "counterexample": false}
+{"part": "executeTierSource-f0575df6", "D5C1_PART": 4032257526, "exit": 0, "wall_s": 112, "log": "check_A3_extAbi.executeTierSource-f0575df6.log", "result": "PASS", "paths": 20, "time_s": 9.08, "counterexample": false}
+{"part": "proposeSP-95483c15", "D5C1_PART": 2504539157, "exit": 0, "wall_s": 75, "log": "check_A3_extAbi.proposeSP-95483c15.log", "result": "PASS", "paths": 20, "time_s": 2.7, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 161, "log": "check_A3_extAbi.permit-d505accf.log", "result": "PASS", "paths": 9, "time_s": 9.76, "counterexample": false}
+{"part": "proposeSpender-9c664f84", "D5C1_PART": 2623950724, "exit": 0, "wall_s": 154, "log": "check_A3_extAbi.proposeSpender-9c664f84.log", "result": "PASS", "paths": 17, "time_s": 16.1, "counterexample": false}
+{"part": "queueCreditPolicy-41068c0c", "D5C1_PART": 1090948108, "exit": 0, "wall_s": 98, "log": "check_A3_extAbi.queueCreditPolicy-41068c0c.log", "result": "PASS", "paths": 5, "time_s": 4.9, "counterexample": false}
+{"part": "proposeStandby-6553cf6b", "D5C1_PART": 1699991403, "exit": 0, "wall_s": 147, "log": "check_A3_extAbi.proposeStandby-6553cf6b.log", "result": "PASS", "paths": 7, "time_s": 5.89, "counterexample": false}
+{"part": "queueTierSource-b44612ba", "D5C1_PART": 3024491194, "exit": 0, "wall_s": 102, "log": "check_A3_extAbi.queueTierSource-b44612ba.log", "result": "PASS", "paths": 16, "time_s": 16.5, "counterexample": false}
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 1, "wall_s": 354, "log": "check_A3_extAbi.mint-40c10f19.log", "result": "TIMEOUT", "paths": 70, "time_s": 315.54, "counterexample": false}
+{"part": "removeApprovedFacilitator-8501dd1b", "D5C1_PART": 2231491867, "exit": 0, "wall_s": 83, "log": "check_A3_extAbi.removeApprovedFacilitator-8501dd1b.log", "result": "PASS", "paths": 3, "time_s": 2.35, "counterexample": false}
+{"part": "releaseAndDisable-e575720c", "D5C1_PART": 3849679372, "exit": 0, "wall_s": 89, "log": "check_A3_extAbi.releaseAndDisable-e575720c.log", "result": "PASS", "paths": 24, "time_s": 6.48, "counterexample": false}
+{"part": "removeAutoApprovedSpender-c504e209", "D5C1_PART": 3305431561, "exit": 0, "wall_s": 36, "log": "check_A3_extAbi.removeAutoApprovedSpender-c504e209.log", "result": "PASS", "paths": 3, "time_s": 0.96, "counterexample": false}
+{"part": "renounceFactory-d49bdad0", "D5C1_PART": 3566983888, "exit": 0, "wall_s": 37, "log": "check_A3_extAbi.renounceFactory-d49bdad0.log", "result": "PASS", "paths": 2, "time_s": 0.9, "counterexample": false}
+{"part": "requestCredit-b6b1d5ca", "D5C1_PART": 3065107914, "exit": 0, "wall_s": 32, "log": "check_A3_extAbi.requestCredit-b6b1d5ca.log", "result": "PASS", "paths": 2, "time_s": 1.08, "counterexample": false}
+{"part": "repayDebt-6b09de45", "D5C1_PART": 1795808837, "exit": 0, "wall_s": 41, "log": "check_A3_extAbi.repayDebt-6b09de45.log", "result": "PASS", "paths": 14, "time_s": 7.7, "counterexample": false}
+{"part": "revokeCredit-48567aab", "D5C1_PART": 1213627051, "exit": 0, "wall_s": 44, "log": "check_A3_extAbi.revokeCredit-48567aab.log", "result": "PASS", "paths": 1, "time_s": 1.11, "counterexample": false}
+{"part": "setAutoAllowance-ca7f9c4a", "D5C1_PART": 3397360714, "exit": 0, "wall_s": 49, "log": "check_A3_extAbi.setAutoAllowance-ca7f9c4a.log", "result": "PASS", "paths": 6, "time_s": 2.77, "counterexample": false}
+{"part": "setIssuanceCap-ca9f8d7b", "D5C1_PART": 3399454075, "exit": 0, "wall_s": 47, "log": "check_A3_extAbi.setIssuanceCap-ca9f8d7b.log", "result": "PASS", "paths": 2, "time_s": 1.59, "counterexample": false}
+{"part": "setMaxSingleTxLimit-4e4852f3", "D5C1_PART": 1313362675, "exit": 0, "wall_s": 45, "log": "check_A3_extAbi.setMaxSingleTxLimit-4e4852f3.log", "result": "PASS", "paths": 4, "time_s": 2.38, "counterexample": false}
+{"part": "setSpenderDailyCapFor-433ae8eb", "D5C1_PART": 1127934187, "exit": 0, "wall_s": 34, "log": "check_A3_extAbi.setSpenderDailyCapFor-433ae8eb.log", "result": "PASS", "paths": 5, "time_s": 0.99, "counterexample": false}
+{"part": "setSpenderDailyCap-1eb6ca03", "D5C1_PART": 515295747, "exit": 0, "wall_s": 35, "log": "check_A3_extAbi.setSpenderDailyCap-1eb6ca03.log", "result": "PASS", "paths": 3, "time_s": 0.87, "counterexample": false}
+{"part": "setRenewalMode-199b8d6e", "D5C1_PART": 429624686, "exit": 0, "wall_s": 57, "log": "check_A3_extAbi.setRenewalMode-199b8d6e.log", "result": "PASS", "paths": 3, "time_s": 2.16, "counterexample": false}
+{"part": "setUserTotalCap-81097512", "D5C1_PART": 2164880658, "exit": 0, "wall_s": 73, "log": "check_A3_extAbi.setUserTotalCap-81097512.log", "result": "PASS", "paths": 3, "time_s": 5.13, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 76, "log": "check_A3_extAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 11, "time_s": 7.13, "counterexample": false}
+{"part": "transferAndCall-1296ee62", "D5C1_PART": 311881314, "exit": 0, "wall_s": 78, "log": "check_A3_extAbi.transferAndCall-1296ee62.log", "result": "PASS", "paths": 22, "time_s": 9.09, "counterexample": false}
+{"part": "transferAndCall-4000aea0", "D5C1_PART": 1073786528, "exit": 0, "wall_s": 70, "log": "check_A3_extAbi.transferAndCall-4000aea0.log", "result": "PASS", "paths": 43, "time_s": 12.17, "counterexample": false}
+{"part": "transferCommunityOwnership-623330ae", "D5C1_PART": 1647521966, "exit": 0, "wall_s": 51, "log": "check_A3_extAbi.transferCommunityOwnership-623330ae.log", "result": "PASS", "paths": 4, "time_s": 2.48, "counterexample": false}
+{"part": "unsetEmergencyDisabled-027e6d67", "D5C1_PART": 41839975, "exit": 0, "wall_s": 32, "log": "check_A3_extAbi.unsetEmergencyDisabled-027e6d67.log", "result": "PASS", "paths": 4, "time_s": 1.0, "counterexample": false}
+{"part": "updateExchangeRate-b9e205ae", "D5C1_PART": 3118597550, "exit": 0, "wall_s": 29, "log": "check_A3_extAbi.updateExchangeRate-b9e205ae.log", "result": "PASS", "paths": 21, "time_s": 2.08, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": 0, "wall_s": 40, "log": "check_A3_extAbi.transferFrom-23b872dd.log", "result": "PASS", "paths": 4, "time_s": 1.46, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "burn-9dc29fac", "D5C1_PART": 2646777772, "exit": 0, "wall_s": 27, "log": "check_A3_coreAbi.burn-9dc29fac.log", "result": "PASS", "paths": 12, "time_s": 2.14, "counterexample": false}
+PASS
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": 0, "wall_s": 27, "log": "check_A3_coreAbi.transferFrom-23b872dd.log", "result": "PASS", "paths": 4, "time_s": 0.95, "counterexample": false}
+PASS
+{"part": "burn-9dc29fac", "D5C1_PART": 2646777772, "exit": 0, "wall_s": 27, "log": "check_A3_coreAbi.burn-9dc29fac.log", "result": "PASS", "paths": 10, "time_s": 1.03, "counterexample": false}
+PASS
+{"part": "burn-9dc29fac", "D5C1_PART": 2646777772, "exit": 1, "wall_s": 26, "log": "check_A3_selfBurnDiscrepancy.burn-9dc29fac.log", "result": "FAIL", "paths": 9, "time_s": 1.05, "counterexample": true}
+NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 67, "log": "check_I2_coreAbi.OTHER.log", "result": "PASS", "paths": 8, "time_s": 4.93, "counterexample": false}
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 76, "log": "check_I2_coreAbi.approve-095ea7b3.log", "result": "PASS", "paths": 20, "time_s": 4.54, "counterexample": false}
+{"part": "burn-42966c68", "D5C1_PART": 1117154408, "exit": 0, "wall_s": 88, "log": "check_I2_coreAbi.burn-42966c68.log", "result": "PASS", "paths": 36, "time_s": 5.4, "counterexample": false}
+{"part": "initialize-dd1ea56c", "D5C1_PART": 3709773164, "exit": 0, "wall_s": 56, "log": "check_I2_coreAbi.initialize-dd1ea56c.log", "result": "PASS", "paths": 8, "time_s": 0.77, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 189, "log": "check_I2_coreAbi.permit-d505accf.log", "result": "PASS", "paths": 40, "time_s": 14.94, "counterexample": false}
+{"part": "releaseStaleCredit-de4880ca", "D5C1_PART": 3729293514, "exit": 0, "wall_s": 186, "log": "check_I2_coreAbi.releaseStaleCredit-de4880ca.log", "result": "PASS", "paths": 16, "time_s": 7.95, "counterexample": false}
+{"part": "releaseStaleLock-f7b3d30d", "D5C1_PART": 4155757325, "exit": 0, "wall_s": 247, "log": "check_I2_coreAbi.releaseStaleLock-f7b3d30d.log", "result": "PASS", "paths": 64, "time_s": 79.23, "counterexample": false}
+{"part": "renewForSelf-e8c122c7", "D5C1_PART": 3904971463, "exit": 0, "wall_s": 212, "log": "check_I2_coreAbi.renewForSelf-e8c122c7.log", "result": "PASS", "paths": 24, "time_s": 16.5, "counterexample": false}
+{"part": "settleCredit-1baf4408", "D5C1_PART": 464471048, "exit": 0, "wall_s": 206, "log": "check_I2_coreAbi.settleCredit-1baf4408.log", "result": "PASS", "paths": 16, "time_s": 10.67, "counterexample": false}
+{"part": "burn-9dc29fac", "D5C1_PART": 2646777772, "exit": -9, "wall_s": 608, "log": "check_I2_coreAbi.burn-9dc29fac.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 213, "log": "check_I2_coreAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 43, "time_s": 44.4, "counterexample": false}
+{"part": "settleLocked-7e48bbce", "D5C1_PART": 2118695886, "exit": -9, "wall_s": 614, "log": "check_I2_coreAbi.settleLocked-7e48bbce.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": -9, "wall_s": 609, "log": "check_I2_coreAbi.transferFrom-23b872dd.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "tryReserveCredit-de9e4cae", "D5C1_PART": 3734916270, "exit": 0, "wall_s": 425, "log": "check_I2_coreAbi.tryReserveCredit-de9e4cae.log", "result": "PASS", "paths": 408, "time_s": 223.48, "counterexample": false}
+{"part": "tryLockForGas-ec290731", "D5C1_PART": 3962111793, "exit": -9, "wall_s": 605, "log": "check_I2_coreAbi.tryLockForGas-ec290731.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (4 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 45, "log": "check_I2_extAbi.OTHER.log", "result": "PASS", "paths": 8, "time_s": 6.37, "counterexample": false}
+{"part": "activateSP-9c707a14", "D5C1_PART": 2624616980, "exit": 0, "wall_s": 44, "log": "check_I2_extAbi.activateSP-9c707a14.log", "result": "PASS", "paths": 40, "time_s": 3.69, "counterexample": false}
+{"part": "activateStandbyDesignation-c322b416", "D5C1_PART": 3273831446, "exit": 0, "wall_s": 44, "log": "check_I2_extAbi.activateStandbyDesignation-c322b416.log", "result": "PASS", "paths": 16, "time_s": 2.02, "counterexample": false}
+{"part": "activateSpender-1615e5dc", "D5C1_PART": 370533852, "exit": 0, "wall_s": 49, "log": "check_I2_extAbi.activateSpender-1615e5dc.log", "result": "PASS", "paths": 64, "time_s": 7.28, "counterexample": false}
+{"part": "addApprovedFacilitator-819c2ff8", "D5C1_PART": 2174496760, "exit": 0, "wall_s": 46, "log": "check_I2_extAbi.addApprovedFacilitator-819c2ff8.log", "result": "PASS", "paths": 20, "time_s": 2.71, "counterexample": false}
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 47, "log": "check_I2_extAbi.approve-095ea7b3.log", "result": "PASS", "paths": 20, "time_s": 4.45, "counterexample": false}
+{"part": "approveCredit-709f2101", "D5C1_PART": 1889476865, "exit": 0, "wall_s": 45, "log": "check_I2_extAbi.approveCredit-709f2101.log", "result": "PASS", "paths": 24, "time_s": 2.6, "counterexample": false}
+{"part": "cancelCreditPolicy-04ad0733", "D5C1_PART": 78448435, "exit": 0, "wall_s": 46, "log": "check_I2_extAbi.cancelCreditPolicy-04ad0733.log", "result": "PASS", "paths": 12, "time_s": 2.08, "counterexample": false}
+{"part": "cancelSP-0c2fd48b", "D5C1_PART": 204461195, "exit": 0, "wall_s": 48, "log": "check_I2_extAbi.cancelSP-0c2fd48b.log", "result": "PASS", "paths": 20, "time_s": 2.4, "counterexample": false}
+{"part": "disableSpenderForSelf-2d2d92ca", "D5C1_PART": 757961418, "exit": 0, "wall_s": 48, "log": "check_I2_extAbi.disableSpenderForSelf-2d2d92ca.log", "result": "PASS", "paths": 12, "time_s": 1.86, "counterexample": false}
+{"part": "emergencyRevokePaymaster-25073b3a", "D5C1_PART": 621230906, "exit": 0, "wall_s": 48, "log": "check_I2_extAbi.emergencyRevokePaymaster-25073b3a.log", "result": "PASS", "paths": 20, "time_s": 2.32, "counterexample": false}
+{"part": "emergencySwitchToStandby-11d15e9d", "D5C1_PART": 298933917, "exit": 0, "wall_s": 49, "log": "check_I2_extAbi.emergencySwitchToStandby-11d15e9d.log", "result": "PASS", "paths": 28, "time_s": 2.73, "counterexample": false}
+{"part": "enableSpenderForSelf-e3fb7f2f", "D5C1_PART": 3824910127, "exit": 0, "wall_s": 46, "log": "check_I2_extAbi.enableSpenderForSelf-e3fb7f2f.log", "result": "PASS", "paths": 12, "time_s": 1.79, "counterexample": false}
+{"part": "executeCreditPolicy-5050a44a", "D5C1_PART": 1347462218, "exit": 0, "wall_s": 46, "log": "check_I2_extAbi.executeCreditPolicy-5050a44a.log", "result": "PASS", "paths": 16, "time_s": 3.73, "counterexample": false}
+{"part": "executeTierSource-f0575df6", "D5C1_PART": 4032257526, "exit": 0, "wall_s": 50, "log": "check_I2_extAbi.executeTierSource-f0575df6.log", "result": "PASS", "paths": 80, "time_s": 9.66, "counterexample": false}
+{"part": "executeBySig-d182c298", "D5C1_PART": 3515007640, "exit": 0, "wall_s": 102, "log": "check_I2_extAbi.executeBySig-d182c298.log", "result": "PASS", "paths": 392, "time_s": 39.51, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 66, "log": "check_I2_extAbi.permit-d505accf.log", "result": "PASS", "paths": 40, "time_s": 9.6, "counterexample": false}
+{"part": "proposeStandby-6553cf6b", "D5C1_PART": 1699991403, "exit": 0, "wall_s": 79, "log": "check_I2_extAbi.proposeStandby-6553cf6b.log", "result": "PASS", "paths": 28, "time_s": 2.35, "counterexample": false}
+{"part": "proposeSP-95483c15", "D5C1_PART": 2504539157, "exit": 0, "wall_s": 167, "log": "check_I2_extAbi.proposeSP-95483c15.log", "result": "PASS", "paths": 80, "time_s": 17.54, "counterexample": false}
+{"part": "proposeSpender-9c664f84", "D5C1_PART": 2623950724, "exit": 0, "wall_s": 191, "log": "check_I2_extAbi.proposeSpender-9c664f84.log", "result": "PASS", "paths": 68, "time_s": 40.37, "counterexample": false}
+{"part": "queueTierSource-b44612ba", "D5C1_PART": 3024491194, "exit": 0, "wall_s": 119, "log": "check_I2_extAbi.queueTierSource-b44612ba.log", "result": "PASS", "paths": 64, "time_s": 34.14, "counterexample": false}
+{"part": "queueCreditPolicy-41068c0c", "D5C1_PART": 1090948108, "exit": 0, "wall_s": 171, "log": "check_I2_extAbi.queueCreditPolicy-41068c0c.log", "result": "PASS", "paths": 20, "time_s": 12.13, "counterexample": false}
+{"part": "removeAutoApprovedSpender-c504e209", "D5C1_PART": 3305431561, "exit": 0, "wall_s": 67, "log": "check_I2_extAbi.removeAutoApprovedSpender-c504e209.log", "result": "PASS", "paths": 12, "time_s": 1.58, "counterexample": false}
+{"part": "removeApprovedFacilitator-8501dd1b", "D5C1_PART": 2231491867, "exit": 0, "wall_s": 173, "log": "check_I2_extAbi.removeApprovedFacilitator-8501dd1b.log", "result": "PASS", "paths": 12, "time_s": 1.96, "counterexample": false}
+{"part": "releaseAndDisable-e575720c", "D5C1_PART": 3849679372, "exit": 0, "wall_s": 309, "log": "check_I2_extAbi.releaseAndDisable-e575720c.log", "result": "PASS", "paths": 135, "time_s": 145.73, "counterexample": false}
+{"part": "renounceFactory-d49bdad0", "D5C1_PART": 3566983888, "exit": 0, "wall_s": 182, "log": "check_I2_extAbi.renounceFactory-d49bdad0.log", "result": "PASS", "paths": 8, "time_s": 6.04, "counterexample": false}
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": -9, "wall_s": 604, "log": "check_I2_extAbi.mint-40c10f19.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "repayDebt-6b09de45", "D5C1_PART": 1795808837, "exit": 0, "wall_s": 148, "log": "check_I2_extAbi.repayDebt-6b09de45.log", "result": "PASS", "paths": 56, "time_s": 30.94, "counterexample": false}
+{"part": "revokeCredit-48567aab", "D5C1_PART": 1213627051, "exit": 0, "wall_s": 75, "log": "check_I2_extAbi.revokeCredit-48567aab.log", "result": "PASS", "paths": 4, "time_s": 2.03, "counterexample": false}
+{"part": "requestCredit-b6b1d5ca", "D5C1_PART": 3065107914, "exit": 0, "wall_s": 91, "log": "check_I2_extAbi.requestCredit-b6b1d5ca.log", "result": "PASS", "paths": 8, "time_s": 2.72, "counterexample": false}
+{"part": "setAutoAllowance-ca7f9c4a", "D5C1_PART": 3397360714, "exit": 0, "wall_s": 62, "log": "check_I2_extAbi.setAutoAllowance-ca7f9c4a.log", "result": "PASS", "paths": 32, "time_s": 5.02, "counterexample": false}
+{"part": "setIssuanceCap-ca9f8d7b", "D5C1_PART": 3399454075, "exit": 0, "wall_s": 51, "log": "check_I2_extAbi.setIssuanceCap-ca9f8d7b.log", "result": "PASS", "paths": 8, "time_s": 2.41, "counterexample": false}
+{"part": "setMaxSingleTxLimit-4e4852f3", "D5C1_PART": 1313362675, "exit": 0, "wall_s": 44, "log": "check_I2_extAbi.setMaxSingleTxLimit-4e4852f3.log", "result": "PASS", "paths": 16, "time_s": 2.75, "counterexample": false}
+{"part": "setRenewalMode-199b8d6e", "D5C1_PART": 429624686, "exit": 0, "wall_s": 44, "log": "check_I2_extAbi.setRenewalMode-199b8d6e.log", "result": "PASS", "paths": 12, "time_s": 2.63, "counterexample": false}
+{"part": "setSpenderDailyCap-1eb6ca03", "D5C1_PART": 515295747, "exit": 0, "wall_s": 46, "log": "check_I2_extAbi.setSpenderDailyCap-1eb6ca03.log", "result": "PASS", "paths": 12, "time_s": 2.85, "counterexample": false}
+{"part": "setSpenderDailyCapFor-433ae8eb", "D5C1_PART": 1127934187, "exit": 0, "wall_s": 48, "log": "check_I2_extAbi.setSpenderDailyCapFor-433ae8eb.log", "result": "PASS", "paths": 20, "time_s": 2.85, "counterexample": false}
+{"part": "setUserTotalCap-81097512", "D5C1_PART": 2164880658, "exit": 0, "wall_s": 49, "log": "check_I2_extAbi.setUserTotalCap-81097512.log", "result": "PASS", "paths": 16, "time_s": 2.79, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 60, "log": "check_I2_extAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 44, "time_s": 7.23, "counterexample": false}
+{"part": "transferAndCall-1296ee62", "D5C1_PART": 311881314, "exit": 0, "wall_s": 72, "log": "check_I2_extAbi.transferAndCall-1296ee62.log", "result": "PASS", "paths": 88, "time_s": 14.3, "counterexample": false}
+{"part": "transferCommunityOwnership-623330ae", "D5C1_PART": 1647521966, "exit": 0, "wall_s": 76, "log": "check_I2_extAbi.transferCommunityOwnership-623330ae.log", "result": "PASS", "paths": 16, "time_s": 4.32, "counterexample": false}
+{"part": "transferAndCall-4000aea0", "D5C1_PART": 1073786528, "exit": 0, "wall_s": 116, "log": "check_I2_extAbi.transferAndCall-4000aea0.log", "result": "PASS", "paths": 172, "time_s": 27.41, "counterexample": false}
+{"part": "unsetEmergencyDisabled-027e6d67", "D5C1_PART": 41839975, "exit": 0, "wall_s": 171, "log": "check_I2_extAbi.unsetEmergencyDisabled-027e6d67.log", "result": "PASS", "paths": 16, "time_s": 10.16, "counterexample": false}
+{"part": "updateExchangeRate-b9e205ae", "D5C1_PART": 3118597550, "exit": 0, "wall_s": 176, "log": "check_I2_extAbi.updateExchangeRate-b9e205ae.log", "result": "PASS", "paths": 84, "time_s": 31.78, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": -9, "wall_s": 605, "log": "check_I2_extAbi.transferFrom-23b872dd.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (2 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 45, "log": "check_I4B_coreAbi.approve-095ea7b3.log", "result": "PASS", "paths": 4, "time_s": 0.9, "counterexample": false}
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 51, "log": "check_I4B_coreAbi.OTHER.log", "result": "PASS", "paths": 3, "time_s": 4.0, "counterexample": false}
+{"part": "burn-42966c68", "D5C1_PART": 1117154408, "exit": 0, "wall_s": 88, "log": "check_I4B_coreAbi.burn-42966c68.log", "result": "PASS", "paths": 9, "time_s": 7.31, "counterexample": false}
+{"part": "initialize-dd1ea56c", "D5C1_PART": 3709773164, "exit": 0, "wall_s": 88, "log": "check_I4B_coreAbi.initialize-dd1ea56c.log", "result": "PASS", "paths": 2, "time_s": 1.97, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 90, "log": "check_I4B_coreAbi.permit-d505accf.log", "result": "PASS", "paths": 9, "time_s": 3.29, "counterexample": false}
+{"part": "releaseStaleCredit-de4880ca", "D5C1_PART": 3729293514, "exit": 0, "wall_s": 66, "log": "check_I4B_coreAbi.releaseStaleCredit-de4880ca.log", "result": "PASS", "paths": 4, "time_s": 2.29, "counterexample": false}
+{"part": "renewForSelf-e8c122c7", "D5C1_PART": 3904971463, "exit": 0, "wall_s": 37, "log": "check_I4B_coreAbi.renewForSelf-e8c122c7.log", "result": "PASS", "paths": 5, "time_s": 0.83, "counterexample": false}
+{"part": "releaseStaleLock-f7b3d30d", "D5C1_PART": 4155757325, "exit": 0, "wall_s": 46, "log": "check_I4B_coreAbi.releaseStaleLock-f7b3d30d.log", "result": "PASS", "paths": 16, "time_s": 6.45, "counterexample": false}
+{"part": "settleCredit-1baf4408", "D5C1_PART": 464471048, "exit": 0, "wall_s": 70, "log": "check_I4B_coreAbi.settleCredit-1baf4408.log", "result": "PASS", "paths": 4, "time_s": 1.34, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 76, "log": "check_I4B_coreAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 11, "time_s": 14.12, "counterexample": false}
+{"part": "burn-9dc29fac", "D5C1_PART": 2646777772, "exit": -9, "wall_s": 607, "log": "check_I4B_coreAbi.burn-9dc29fac.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "settleLocked-7e48bbce", "D5C1_PART": 2118695886, "exit": -9, "wall_s": 608, "log": "check_I4B_coreAbi.settleLocked-7e48bbce.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": -9, "wall_s": 607, "log": "check_I4B_coreAbi.transferFrom-23b872dd.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "tryReserveCredit-de9e4cae", "D5C1_PART": 3734916270, "exit": 0, "wall_s": 226, "log": "check_I4B_coreAbi.tryReserveCredit-de9e4cae.log", "result": "PASS", "paths": 110, "time_s": 74.65, "counterexample": false}
+{"part": "tryLockForGas-ec290731", "D5C1_PART": 3962111793, "exit": -9, "wall_s": 602, "log": "check_I4B_coreAbi.tryLockForGas-ec290731.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (4 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "activateSP-9c707a14", "D5C1_PART": 2624616980, "exit": 0, "wall_s": 44, "log": "check_I4B_extAbi.activateSP-9c707a14.log", "result": "PASS", "paths": 10, "time_s": 2.86, "counterexample": false}
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 51, "log": "check_I4B_extAbi.OTHER.log", "result": "PASS", "paths": 3, "time_s": 7.92, "counterexample": false}
+{"part": "activateStandbyDesignation-c322b416", "D5C1_PART": 3273831446, "exit": 0, "wall_s": 46, "log": "check_I4B_extAbi.activateStandbyDesignation-c322b416.log", "result": "PASS", "paths": 4, "time_s": 2.42, "counterexample": false}
+{"part": "activateSpender-1615e5dc", "D5C1_PART": 370533852, "exit": 0, "wall_s": 51, "log": "check_I4B_extAbi.activateSpender-1615e5dc.log", "result": "PASS", "paths": 18, "time_s": 6.07, "counterexample": false}
+{"part": "addApprovedFacilitator-819c2ff8", "D5C1_PART": 2174496760, "exit": 0, "wall_s": 44, "log": "check_I4B_extAbi.addApprovedFacilitator-819c2ff8.log", "result": "PASS", "paths": 5, "time_s": 2.37, "counterexample": false}
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 46, "log": "check_I4B_extAbi.approve-095ea7b3.log", "result": "PASS", "paths": 4, "time_s": 2.72, "counterexample": false}
+{"part": "cancelCreditPolicy-04ad0733", "D5C1_PART": 78448435, "exit": 0, "wall_s": 45, "log": "check_I4B_extAbi.cancelCreditPolicy-04ad0733.log", "result": "PASS", "paths": 3, "time_s": 1.68, "counterexample": false}
+{"part": "approveCredit-709f2101", "D5C1_PART": 1889476865, "exit": 0, "wall_s": 49, "log": "check_I4B_extAbi.approveCredit-709f2101.log", "result": "PASS", "paths": 6, "time_s": 3.0, "counterexample": false}
+{"part": "cancelSP-0c2fd48b", "D5C1_PART": 204461195, "exit": 0, "wall_s": 48, "log": "check_I4B_extAbi.cancelSP-0c2fd48b.log", "result": "PASS", "paths": 5, "time_s": 2.66, "counterexample": false}
+{"part": "disableSpenderForSelf-2d2d92ca", "D5C1_PART": 757961418, "exit": 0, "wall_s": 46, "log": "check_I4B_extAbi.disableSpenderForSelf-2d2d92ca.log", "result": "PASS", "paths": 3, "time_s": 1.69, "counterexample": false}
+{"part": "emergencyRevokePaymaster-25073b3a", "D5C1_PART": 621230906, "exit": 0, "wall_s": 48, "log": "check_I4B_extAbi.emergencyRevokePaymaster-25073b3a.log", "result": "PASS", "paths": 5, "time_s": 2.32, "counterexample": false}
+{"part": "emergencySwitchToStandby-11d15e9d", "D5C1_PART": 298933917, "exit": 0, "wall_s": 47, "log": "check_I4B_extAbi.emergencySwitchToStandby-11d15e9d.log", "result": "PASS", "paths": 7, "time_s": 2.76, "counterexample": false}
+{"part": "executeCreditPolicy-5050a44a", "D5C1_PART": 1347462218, "exit": 0, "wall_s": 34, "log": "check_I4B_extAbi.executeCreditPolicy-5050a44a.log", "result": "PASS", "paths": 4, "time_s": 1.09, "counterexample": false}
+{"part": "executeTierSource-f0575df6", "D5C1_PART": 4032257526, "exit": 0, "wall_s": 49, "log": "check_I4B_extAbi.executeTierSource-f0575df6.log", "result": "PASS", "paths": 20, "time_s": 10.06, "counterexample": false}
+{"part": "enableSpenderForSelf-e3fb7f2f", "D5C1_PART": 3824910127, "exit": 0, "wall_s": 65, "log": "check_I4B_extAbi.enableSpenderForSelf-e3fb7f2f.log", "result": "PASS", "paths": 3, "time_s": 1.7, "counterexample": false}
+{"part": "executeBySig-d182c298", "D5C1_PART": 3515007640, "exit": 0, "wall_s": 94, "log": "check_I4B_extAbi.executeBySig-d182c298.log", "result": "PASS", "paths": 98, "time_s": 34.94, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 65, "log": "check_I4B_extAbi.permit-d505accf.log", "result": "PASS", "paths": 11, "time_s": 5.53, "counterexample": false}
+{"part": "proposeSP-95483c15", "D5C1_PART": 2504539157, "exit": 0, "wall_s": 64, "log": "check_I4B_extAbi.proposeSP-95483c15.log", "result": "PASS", "paths": 20, "time_s": 8.98, "counterexample": false}
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 0, "wall_s": 88, "log": "check_I4B_extAbi.mint-40c10f19.log", "result": "PASS", "paths": 76, "time_s": 26.16, "counterexample": false}
+{"part": "proposeSpender-9c664f84", "D5C1_PART": 2623950724, "exit": 0, "wall_s": 51, "log": "check_I4B_extAbi.proposeSpender-9c664f84.log", "result": "PASS", "paths": 17, "time_s": 7.63, "counterexample": false}
+{"part": "queueTierSource-b44612ba", "D5C1_PART": 3024491194, "exit": 0, "wall_s": 40, "log": "check_I4B_extAbi.queueTierSource-b44612ba.log", "result": "PASS", "paths": 17, "time_s": 6.24, "counterexample": false}
+{"part": "proposeStandby-6553cf6b", "D5C1_PART": 1699991403, "exit": 0, "wall_s": 51, "log": "check_I4B_extAbi.proposeStandby-6553cf6b.log", "result": "PASS", "paths": 7, "time_s": 2.79, "counterexample": false}
+{"part": "queueCreditPolicy-41068c0c", "D5C1_PART": 1090948108, "exit": 0, "wall_s": 52, "log": "check_I4B_extAbi.queueCreditPolicy-41068c0c.log", "result": "PASS", "paths": 5, "time_s": 1.93, "counterexample": false}
+{"part": "releaseAndDisable-e575720c", "D5C1_PART": 3849679372, "exit": 0, "wall_s": 58, "log": "check_I4B_extAbi.releaseAndDisable-e575720c.log", "result": "PASS", "paths": 37, "time_s": 13.84, "counterexample": false}
+{"part": "removeApprovedFacilitator-8501dd1b", "D5C1_PART": 2231491867, "exit": 0, "wall_s": 46, "log": "check_I4B_extAbi.removeApprovedFacilitator-8501dd1b.log", "result": "PASS", "paths": 3, "time_s": 1.94, "counterexample": false}
+{"part": "removeAutoApprovedSpender-c504e209", "D5C1_PART": 3305431561, "exit": 0, "wall_s": 49, "log": "check_I4B_extAbi.removeAutoApprovedSpender-c504e209.log", "result": "PASS", "paths": 4, "time_s": 2.27, "counterexample": false}
+{"part": "renounceFactory-d49bdad0", "D5C1_PART": 3566983888, "exit": 0, "wall_s": 45, "log": "check_I4B_extAbi.renounceFactory-d49bdad0.log", "result": "PASS", "paths": 2, "time_s": 1.52, "counterexample": false}
+{"part": "repayDebt-6b09de45", "D5C1_PART": 1795808837, "exit": 0, "wall_s": 47, "log": "check_I4B_extAbi.repayDebt-6b09de45.log", "result": "PASS", "paths": 14, "time_s": 4.32, "counterexample": false}
+{"part": "requestCredit-b6b1d5ca", "D5C1_PART": 3065107914, "exit": 0, "wall_s": 43, "log": "check_I4B_extAbi.requestCredit-b6b1d5ca.log", "result": "PASS", "paths": 2, "time_s": 1.73, "counterexample": false}
+{"part": "revokeCredit-48567aab", "D5C1_PART": 1213627051, "exit": 0, "wall_s": 45, "log": "check_I4B_extAbi.revokeCredit-48567aab.log", "result": "PASS", "paths": 2, "time_s": 1.62, "counterexample": false}
+{"part": "setAutoAllowance-ca7f9c4a", "D5C1_PART": 3397360714, "exit": 0, "wall_s": 47, "log": "check_I4B_extAbi.setAutoAllowance-ca7f9c4a.log", "result": "PASS", "paths": 6, "time_s": 2.84, "counterexample": false}
+{"part": "setIssuanceCap-ca9f8d7b", "D5C1_PART": 3399454075, "exit": 0, "wall_s": 44, "log": "check_I4B_extAbi.setIssuanceCap-ca9f8d7b.log", "result": "PASS", "paths": 2, "time_s": 2.04, "counterexample": false}
+{"part": "setMaxSingleTxLimit-4e4852f3", "D5C1_PART": 1313362675, "exit": 0, "wall_s": 41, "log": "check_I4B_extAbi.setMaxSingleTxLimit-4e4852f3.log", "result": "PASS", "paths": 4, "time_s": 2.07, "counterexample": false}
+{"part": "setRenewalMode-199b8d6e", "D5C1_PART": 429624686, "exit": 0, "wall_s": 46, "log": "check_I4B_extAbi.setRenewalMode-199b8d6e.log", "result": "PASS", "paths": 3, "time_s": 2.42, "counterexample": false}
+{"part": "setSpenderDailyCap-1eb6ca03", "D5C1_PART": 515295747, "exit": 0, "wall_s": 44, "log": "check_I4B_extAbi.setSpenderDailyCap-1eb6ca03.log", "result": "PASS", "paths": 3, "time_s": 1.78, "counterexample": false}
+{"part": "setUserTotalCap-81097512", "D5C1_PART": 2164880658, "exit": 0, "wall_s": 32, "log": "check_I4B_extAbi.setUserTotalCap-81097512.log", "result": "PASS", "paths": 3, "time_s": 1.22, "counterexample": false}
+{"part": "setSpenderDailyCapFor-433ae8eb", "D5C1_PART": 1127934187, "exit": 0, "wall_s": 43, "log": "check_I4B_extAbi.setSpenderDailyCapFor-433ae8eb.log", "result": "PASS", "paths": 5, "time_s": 2.36, "counterexample": false}
+{"part": "transferCommunityOwnership-623330ae", "D5C1_PART": 1647521966, "exit": 0, "wall_s": 33, "log": "check_I4B_extAbi.transferCommunityOwnership-623330ae.log", "result": "PASS", "paths": 4, "time_s": 1.11, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 58, "log": "check_I4B_extAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 11, "time_s": 9.97, "counterexample": false}
+{"part": "transferAndCall-1296ee62", "D5C1_PART": 311881314, "exit": 0, "wall_s": 59, "log": "check_I4B_extAbi.transferAndCall-1296ee62.log", "result": "PASS", "paths": 22, "time_s": 11.03, "counterexample": false}
+{"part": "transferAndCall-4000aea0", "D5C1_PART": 1073786528, "exit": 0, "wall_s": 57, "log": "check_I4B_extAbi.transferAndCall-4000aea0.log", "result": "PASS", "paths": 45, "time_s": 13.51, "counterexample": false}
+{"part": "unsetEmergencyDisabled-027e6d67", "D5C1_PART": 41839975, "exit": 0, "wall_s": 49, "log": "check_I4B_extAbi.unsetEmergencyDisabled-027e6d67.log", "result": "PASS", "paths": 4, "time_s": 1.34, "counterexample": false}
+{"part": "updateExchangeRate-b9e205ae", "D5C1_PART": 3118597550, "exit": 0, "wall_s": 55, "log": "check_I4B_extAbi.updateExchangeRate-b9e205ae.log", "result": "PASS", "paths": 22, "time_s": 4.92, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": -9, "wall_s": 603, "log": "check_I4B_extAbi.transferFrom-23b872dd.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 37, "log": "check_I6_coreAbi.approve-095ea7b3.log", "result": "PASS", "paths": 4, "time_s": 0.59, "counterexample": false}
+{"part": "burn-42966c68", "D5C1_PART": 1117154408, "exit": 0, "wall_s": 35, "log": "check_I6_coreAbi.burn-42966c68.log", "result": "PASS", "paths": 7, "time_s": 0.91, "counterexample": false}
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 60, "log": "check_I6_coreAbi.OTHER.log", "result": "PASS", "paths": 5, "time_s": 8.35, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 57, "log": "check_I6_coreAbi.permit-d505accf.log", "result": "PASS", "paths": 10, "time_s": 3.52, "counterexample": false}
+{"part": "initialize-dd1ea56c", "D5C1_PART": 3709773164, "exit": 0, "wall_s": 60, "log": "check_I6_coreAbi.initialize-dd1ea56c.log", "result": "PASS", "paths": 2, "time_s": 1.98, "counterexample": false}
+{"part": "releaseStaleCredit-de4880ca", "D5C1_PART": 3729293514, "exit": 0, "wall_s": 61, "log": "check_I6_coreAbi.releaseStaleCredit-de4880ca.log", "result": "PASS", "paths": 5, "time_s": 5.06, "counterexample": false}
+{"part": "releaseStaleLock-f7b3d30d", "D5C1_PART": 4155757325, "exit": 0, "wall_s": 76, "log": "check_I6_coreAbi.releaseStaleLock-f7b3d30d.log", "result": "PASS", "paths": 11, "time_s": 3.33, "counterexample": false}
+{"part": "renewForSelf-e8c122c7", "D5C1_PART": 3904971463, "exit": 0, "wall_s": 77, "log": "check_I6_coreAbi.renewForSelf-e8c122c7.log", "result": "PASS", "paths": 5, "time_s": 1.89, "counterexample": false}
+{"part": "settleCredit-1baf4408", "D5C1_PART": 464471048, "exit": 0, "wall_s": 81, "log": "check_I6_coreAbi.settleCredit-1baf4408.log", "result": "PASS", "paths": 17, "time_s": 11.65, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 56, "log": "check_I6_coreAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 9, "time_s": 3.13, "counterexample": false}
+{"part": "settleLocked-7e48bbce", "D5C1_PART": 2118695886, "exit": 0, "wall_s": 66, "log": "check_I6_coreAbi.settleLocked-7e48bbce.log", "result": "PASS", "paths": 4, "time_s": 1.87, "counterexample": false}
+{"part": "tryReserveCredit-de9e4cae", "D5C1_PART": 3734916270, "exit": 0, "wall_s": 191, "log": "check_I6_coreAbi.tryReserveCredit-de9e4cae.log", "result": "PASS", "paths": 90, "time_s": 120.28, "counterexample": false}
+{"part": "burn-9dc29fac", "D5C1_PART": 2646777772, "exit": -9, "wall_s": 605, "log": "check_I6_coreAbi.burn-9dc29fac.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "tryLockForGas-ec290731", "D5C1_PART": 3962111793, "exit": 0, "wall_s": 541, "log": "check_I6_coreAbi.tryLockForGas-ec290731.log", "result": "PASS", "paths": 759, "time_s": 470.43, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": -9, "wall_s": 604, "log": "check_I6_coreAbi.transferFrom-23b872dd.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (2 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "activateSP-9c707a14", "D5C1_PART": 2624616980, "exit": 0, "wall_s": 89, "log": "check_I6_extAbi.activateSP-9c707a14.log", "result": "PASS", "paths": 10, "time_s": 3.98, "counterexample": false}
+{"part": "activateStandbyDesignation-c322b416", "D5C1_PART": 3273831446, "exit": 0, "wall_s": 88, "log": "check_I6_extAbi.activateStandbyDesignation-c322b416.log", "result": "PASS", "paths": 4, "time_s": 2.69, "counterexample": false}
+{"part": "activateSpender-1615e5dc", "D5C1_PART": 370533852, "exit": 0, "wall_s": 97, "log": "check_I6_extAbi.activateSpender-1615e5dc.log", "result": "PASS", "paths": 16, "time_s": 7.91, "counterexample": false}
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 105, "log": "check_I6_extAbi.OTHER.log", "result": "PASS", "paths": 9, "time_s": 14.86, "counterexample": false}
+{"part": "addApprovedFacilitator-819c2ff8", "D5C1_PART": 2174496760, "exit": 0, "wall_s": 50, "log": "check_I6_extAbi.addApprovedFacilitator-819c2ff8.log", "result": "PASS", "paths": 5, "time_s": 1.19, "counterexample": false}
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 88, "log": "check_I6_extAbi.approve-095ea7b3.log", "result": "PASS", "paths": 4, "time_s": 4.59, "counterexample": false}
+{"part": "approveCredit-709f2101", "D5C1_PART": 1889476865, "exit": 0, "wall_s": 87, "log": "check_I6_extAbi.approveCredit-709f2101.log", "result": "PASS", "paths": 6, "time_s": 4.64, "counterexample": false}
+{"part": "cancelCreditPolicy-04ad0733", "D5C1_PART": 78448435, "exit": 0, "wall_s": 86, "log": "check_I6_extAbi.cancelCreditPolicy-04ad0733.log", "result": "PASS", "paths": 3, "time_s": 3.63, "counterexample": false}
+{"part": "cancelSP-0c2fd48b", "D5C1_PART": 204461195, "exit": 0, "wall_s": 79, "log": "check_I6_extAbi.cancelSP-0c2fd48b.log", "result": "PASS", "paths": 5, "time_s": 3.01, "counterexample": false}
+{"part": "emergencySwitchToStandby-11d15e9d", "D5C1_PART": 298933917, "exit": 0, "wall_s": 41, "log": "check_I6_extAbi.emergencySwitchToStandby-11d15e9d.log", "result": "PASS", "paths": 7, "time_s": 1.95, "counterexample": false}
+{"part": "disableSpenderForSelf-2d2d92ca", "D5C1_PART": 757961418, "exit": 0, "wall_s": 71, "log": "check_I6_extAbi.disableSpenderForSelf-2d2d92ca.log", "result": "PASS", "paths": 3, "time_s": 4.13, "counterexample": false}
+{"part": "emergencyRevokePaymaster-25073b3a", "D5C1_PART": 621230906, "exit": 0, "wall_s": 71, "log": "check_I6_extAbi.emergencyRevokePaymaster-25073b3a.log", "result": "PASS", "paths": 5, "time_s": 3.16, "counterexample": false}
+{"part": "enableSpenderForSelf-e3fb7f2f", "D5C1_PART": 3824910127, "exit": 0, "wall_s": 64, "log": "check_I6_extAbi.enableSpenderForSelf-e3fb7f2f.log", "result": "PASS", "paths": 3, "time_s": 3.28, "counterexample": false}
+{"part": "executeBySig-d182c298", "D5C1_PART": 3515007640, "exit": 0, "wall_s": 79, "log": "check_I6_extAbi.executeBySig-d182c298.log", "result": "PASS", "paths": 94, "time_s": 20.08, "counterexample": false}
+{"part": "executeCreditPolicy-5050a44a", "D5C1_PART": 1347462218, "exit": 0, "wall_s": 67, "log": "check_I6_extAbi.executeCreditPolicy-5050a44a.log", "result": "PASS", "paths": 4, "time_s": 2.4, "counterexample": false}
+{"part": "executeTierSource-f0575df6", "D5C1_PART": 4032257526, "exit": 0, "wall_s": 86, "log": "check_I6_extAbi.executeTierSource-f0575df6.log", "result": "PASS", "paths": 20, "time_s": 8.87, "counterexample": false}
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 0, "wall_s": 66, "log": "check_I6_extAbi.mint-40c10f19.log", "result": "PASS", "paths": 67, "time_s": 16.61, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 106, "log": "check_I6_extAbi.permit-d505accf.log", "result": "PASS", "paths": 9, "time_s": 8.35, "counterexample": false}
+{"part": "proposeSP-95483c15", "D5C1_PART": 2504539157, "exit": 0, "wall_s": 106, "log": "check_I6_extAbi.proposeSP-95483c15.log", "result": "PASS", "paths": 20, "time_s": 10.54, "counterexample": false}
+{"part": "proposeStandby-6553cf6b", "D5C1_PART": 1699991403, "exit": 0, "wall_s": 98, "log": "check_I6_extAbi.proposeStandby-6553cf6b.log", "result": "PASS", "paths": 7, "time_s": 5.25, "counterexample": false}
+{"part": "proposeSpender-9c664f84", "D5C1_PART": 2623950724, "exit": 0, "wall_s": 114, "log": "check_I6_extAbi.proposeSpender-9c664f84.log", "result": "PASS", "paths": 17, "time_s": 9.38, "counterexample": false}
+{"part": "queueCreditPolicy-41068c0c", "D5C1_PART": 1090948108, "exit": 0, "wall_s": 101, "log": "check_I6_extAbi.queueCreditPolicy-41068c0c.log", "result": "PASS", "paths": 5, "time_s": 5.42, "counterexample": false}
+{"part": "releaseAndDisable-e575720c", "D5C1_PART": 3849679372, "exit": 0, "wall_s": 72, "log": "check_I6_extAbi.releaseAndDisable-e575720c.log", "result": "PASS", "paths": 30, "time_s": 17.51, "counterexample": false}
+{"part": "queueTierSource-b44612ba", "D5C1_PART": 3024491194, "exit": 0, "wall_s": 105, "log": "check_I6_extAbi.queueTierSource-b44612ba.log", "result": "PASS", "paths": 14, "time_s": 13.5, "counterexample": false}
+{"part": "removeApprovedFacilitator-8501dd1b", "D5C1_PART": 2231491867, "exit": 0, "wall_s": 87, "log": "check_I6_extAbi.removeApprovedFacilitator-8501dd1b.log", "result": "PASS", "paths": 3, "time_s": 3.4, "counterexample": false}
+{"part": "removeAutoApprovedSpender-c504e209", "D5C1_PART": 3305431561, "exit": 0, "wall_s": 60, "log": "check_I6_extAbi.removeAutoApprovedSpender-c504e209.log", "result": "PASS", "paths": 3, "time_s": 2.42, "counterexample": false}
+{"part": "renounceFactory-d49bdad0", "D5C1_PART": 3566983888, "exit": 0, "wall_s": 59, "log": "check_I6_extAbi.renounceFactory-d49bdad0.log", "result": "PASS", "paths": 2, "time_s": 1.9, "counterexample": false}
+{"part": "requestCredit-b6b1d5ca", "D5C1_PART": 3065107914, "exit": 0, "wall_s": 43, "log": "check_I6_extAbi.requestCredit-b6b1d5ca.log", "result": "PASS", "paths": 2, "time_s": 1.42, "counterexample": false}
+{"part": "repayDebt-6b09de45", "D5C1_PART": 1795808837, "exit": 0, "wall_s": 60, "log": "check_I6_extAbi.repayDebt-6b09de45.log", "result": "PASS", "paths": 14, "time_s": 9.04, "counterexample": false}
+{"part": "setAutoAllowance-ca7f9c4a", "D5C1_PART": 3397360714, "exit": 0, "wall_s": 49, "log": "check_I6_extAbi.setAutoAllowance-ca7f9c4a.log", "result": "PASS", "paths": 6, "time_s": 1.47, "counterexample": false}
+{"part": "setMaxSingleTxLimit-4e4852f3", "D5C1_PART": 1313362675, "exit": 0, "wall_s": 48, "log": "check_I6_extAbi.setMaxSingleTxLimit-4e4852f3.log", "result": "PASS", "paths": 4, "time_s": 1.33, "counterexample": false}
+{"part": "revokeCredit-48567aab", "D5C1_PART": 1213627051, "exit": 0, "wall_s": 96, "log": "check_I6_extAbi.revokeCredit-48567aab.log", "result": "PASS", "paths": 1, "time_s": 3.16, "counterexample": false}
+{"part": "setIssuanceCap-ca9f8d7b", "D5C1_PART": 3399454075, "exit": 0, "wall_s": 105, "log": "check_I6_extAbi.setIssuanceCap-ca9f8d7b.log", "result": "PASS", "paths": 2, "time_s": 3.08, "counterexample": false}
+{"part": "setRenewalMode-199b8d6e", "D5C1_PART": 429624686, "exit": 0, "wall_s": 105, "log": "check_I6_extAbi.setRenewalMode-199b8d6e.log", "result": "PASS", "paths": 3, "time_s": 4.84, "counterexample": false}
+{"part": "setSpenderDailyCap-1eb6ca03", "D5C1_PART": 515295747, "exit": 0, "wall_s": 106, "log": "check_I6_extAbi.setSpenderDailyCap-1eb6ca03.log", "result": "PASS", "paths": 3, "time_s": 5.19, "counterexample": false}
+{"part": "setSpenderDailyCapFor-433ae8eb", "D5C1_PART": 1127934187, "exit": 0, "wall_s": 106, "log": "check_I6_extAbi.setSpenderDailyCapFor-433ae8eb.log", "result": "PASS", "paths": 5, "time_s": 3.8, "counterexample": false}
+{"part": "setUserTotalCap-81097512", "D5C1_PART": 2164880658, "exit": 0, "wall_s": 105, "log": "check_I6_extAbi.setUserTotalCap-81097512.log", "result": "PASS", "paths": 3, "time_s": 5.66, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 94, "log": "check_I6_extAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 9, "time_s": 7.32, "counterexample": false}
+{"part": "transferAndCall-1296ee62", "D5C1_PART": 311881314, "exit": 0, "wall_s": 90, "log": "check_I6_extAbi.transferAndCall-1296ee62.log", "result": "PASS", "paths": 20, "time_s": 7.14, "counterexample": false}
+{"part": "transferAndCall-4000aea0", "D5C1_PART": 1073786528, "exit": 0, "wall_s": 83, "log": "check_I6_extAbi.transferAndCall-4000aea0.log", "result": "PASS", "paths": 39, "time_s": 11.13, "counterexample": false}
+{"part": "transferCommunityOwnership-623330ae", "D5C1_PART": 1647521966, "exit": 0, "wall_s": 71, "log": "check_I6_extAbi.transferCommunityOwnership-623330ae.log", "result": "PASS", "paths": 4, "time_s": 2.88, "counterexample": false}
+{"part": "unsetEmergencyDisabled-027e6d67", "D5C1_PART": 41839975, "exit": 0, "wall_s": 65, "log": "check_I6_extAbi.unsetEmergencyDisabled-027e6d67.log", "result": "PASS", "paths": 4, "time_s": 2.43, "counterexample": false}
+{"part": "updateExchangeRate-b9e205ae", "D5C1_PART": 3118597550, "exit": 0, "wall_s": 55, "log": "check_I6_extAbi.updateExchangeRate-b9e205ae.log", "result": "PASS", "paths": 22, "time_s": 6.38, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": -9, "wall_s": 603, "log": "check_I6_extAbi.transferFrom-23b872dd.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 60, "log": "check_I6J_coreAbi.approve-095ea7b3.log", "result": "PASS", "paths": 5, "time_s": 2.13, "counterexample": false}
+{"part": "burn-42966c68", "D5C1_PART": 1117154408, "exit": 0, "wall_s": 65, "log": "check_I6J_coreAbi.burn-42966c68.log", "result": "PASS", "paths": 8, "time_s": 3.04, "counterexample": false}
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 72, "log": "check_I6J_coreAbi.OTHER.log", "result": "PASS", "paths": 3, "time_s": 9.06, "counterexample": false}
+{"part": "initialize-dd1ea56c", "D5C1_PART": 3709773164, "exit": 0, "wall_s": 84, "log": "check_I6J_coreAbi.initialize-dd1ea56c.log", "result": "PASS", "paths": 2, "time_s": 2.31, "counterexample": false}
+{"part": "releaseStaleCredit-de4880ca", "D5C1_PART": 3729293514, "exit": 0, "wall_s": 83, "log": "check_I6J_coreAbi.releaseStaleCredit-de4880ca.log", "result": "PASS", "paths": 5, "time_s": 4.86, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 85, "log": "check_I6J_coreAbi.permit-d505accf.log", "result": "PASS", "paths": 11, "time_s": 4.95, "counterexample": false}
+{"part": "releaseStaleLock-f7b3d30d", "D5C1_PART": 4155757325, "exit": 0, "wall_s": 64, "log": "check_I6J_coreAbi.releaseStaleLock-f7b3d30d.log", "result": "PASS", "paths": 12, "time_s": 4.09, "counterexample": false}
+{"part": "renewForSelf-e8c122c7", "D5C1_PART": 3904971463, "exit": 0, "wall_s": 71, "log": "check_I6J_coreAbi.renewForSelf-e8c122c7.log", "result": "PASS", "paths": 5, "time_s": 1.88, "counterexample": false}
+{"part": "settleLocked-7e48bbce", "D5C1_PART": 2118695886, "exit": 0, "wall_s": 74, "log": "check_I6J_coreAbi.settleLocked-7e48bbce.log", "result": "PASS", "paths": 4, "time_s": 1.69, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 89, "log": "check_I6J_coreAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 9, "time_s": 3.95, "counterexample": false}
+{"part": "settleCredit-1baf4408", "D5C1_PART": 464471048, "exit": 0, "wall_s": 221, "log": "check_I6J_coreAbi.settleCredit-1baf4408.log", "result": "PASS", "paths": 19, "time_s": 154.23, "counterexample": false}
+{"part": "tryReserveCredit-de9e4cae", "D5C1_PART": 3734916270, "exit": 0, "wall_s": 118, "log": "check_I6J_coreAbi.tryReserveCredit-de9e4cae.log", "result": "PASS", "paths": 97, "time_s": 59.42, "counterexample": false}
+{"part": "burn-9dc29fac", "D5C1_PART": 2646777772, "exit": -9, "wall_s": 606, "log": "check_I6J_coreAbi.burn-9dc29fac.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+{"part": "tryLockForGas-ec290731", "D5C1_PART": 3962111793, "exit": 0, "wall_s": 457, "log": "check_I6J_coreAbi.tryLockForGas-ec290731.log", "result": "PASS", "paths": 877, "time_s": 374.5, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": -9, "wall_s": 603, "log": "check_I6J_coreAbi.transferFrom-23b872dd.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (2 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "activateSP-9c707a14", "D5C1_PART": 2624616980, "exit": 0, "wall_s": 60, "log": "check_I6J_extAbi.activateSP-9c707a14.log", "result": "PASS", "paths": 10, "time_s": 3.53, "counterexample": false}
+{"part": "activateStandbyDesignation-c322b416", "D5C1_PART": 3273831446, "exit": 0, "wall_s": 57, "log": "check_I6J_extAbi.activateStandbyDesignation-c322b416.log", "result": "PASS", "paths": 4, "time_s": 2.68, "counterexample": false}
+{"part": "OTHER", "D5C1_PART": 1, "exit": 0, "wall_s": 70, "log": "check_I6J_extAbi.OTHER.log", "result": "PASS", "paths": 3, "time_s": 10.62, "counterexample": false}
+{"part": "activateSpender-1615e5dc", "D5C1_PART": 370533852, "exit": 0, "wall_s": 66, "log": "check_I6J_extAbi.activateSpender-1615e5dc.log", "result": "PASS", "paths": 16, "time_s": 7.18, "counterexample": false}
+{"part": "addApprovedFacilitator-819c2ff8", "D5C1_PART": 2174496760, "exit": 0, "wall_s": 69, "log": "check_I6J_extAbi.addApprovedFacilitator-819c2ff8.log", "result": "PASS", "paths": 5, "time_s": 4.44, "counterexample": false}
+{"part": "approve-095ea7b3", "D5C1_PART": 157198259, "exit": 0, "wall_s": 74, "log": "check_I6J_extAbi.approve-095ea7b3.log", "result": "PASS", "paths": 4, "time_s": 3.16, "counterexample": false}
+{"part": "cancelCreditPolicy-04ad0733", "D5C1_PART": 78448435, "exit": 0, "wall_s": 74, "log": "check_I6J_extAbi.cancelCreditPolicy-04ad0733.log", "result": "PASS", "paths": 3, "time_s": 2.81, "counterexample": false}
+{"part": "approveCredit-709f2101", "D5C1_PART": 1889476865, "exit": 0, "wall_s": 75, "log": "check_I6J_extAbi.approveCredit-709f2101.log", "result": "PASS", "paths": 6, "time_s": 3.71, "counterexample": false}
+{"part": "emergencyRevokePaymaster-25073b3a", "D5C1_PART": 621230906, "exit": 0, "wall_s": 36, "log": "check_I6J_extAbi.emergencyRevokePaymaster-25073b3a.log", "result": "PASS", "paths": 5, "time_s": 1.26, "counterexample": false}
+{"part": "emergencySwitchToStandby-11d15e9d", "D5C1_PART": 298933917, "exit": 0, "wall_s": 38, "log": "check_I6J_extAbi.emergencySwitchToStandby-11d15e9d.log", "result": "PASS", "paths": 7, "time_s": 1.41, "counterexample": false}
+{"part": "cancelSP-0c2fd48b", "D5C1_PART": 204461195, "exit": 0, "wall_s": 61, "log": "check_I6J_extAbi.cancelSP-0c2fd48b.log", "result": "PASS", "paths": 5, "time_s": 3.68, "counterexample": false}
+{"part": "disableSpenderForSelf-2d2d92ca", "D5C1_PART": 757961418, "exit": 0, "wall_s": 59, "log": "check_I6J_extAbi.disableSpenderForSelf-2d2d92ca.log", "result": "PASS", "paths": 3, "time_s": 2.45, "counterexample": false}
+{"part": "enableSpenderForSelf-e3fb7f2f", "D5C1_PART": 3824910127, "exit": 0, "wall_s": 53, "log": "check_I6J_extAbi.enableSpenderForSelf-e3fb7f2f.log", "result": "PASS", "paths": 3, "time_s": 1.83, "counterexample": false}
+{"part": "executeCreditPolicy-5050a44a", "D5C1_PART": 1347462218, "exit": 0, "wall_s": 52, "log": "check_I6J_extAbi.executeCreditPolicy-5050a44a.log", "result": "PASS", "paths": 4, "time_s": 1.84, "counterexample": false}
+{"part": "executeBySig-d182c298", "D5C1_PART": 3515007640, "exit": 0, "wall_s": 80, "log": "check_I6J_extAbi.executeBySig-d182c298.log", "result": "PASS", "paths": 97, "time_s": 19.61, "counterexample": false}
+{"part": "executeTierSource-f0575df6", "D5C1_PART": 4032257526, "exit": 0, "wall_s": 64, "log": "check_I6J_extAbi.executeTierSource-f0575df6.log", "result": "PASS", "paths": 21, "time_s": 7.72, "counterexample": false}
+{"part": "permit-d505accf", "D5C1_PART": 3573918927, "exit": 0, "wall_s": 65, "log": "check_I6J_extAbi.permit-d505accf.log", "result": "PASS", "paths": 10, "time_s": 5.16, "counterexample": false}
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 0, "wall_s": 90, "log": "check_I6J_extAbi.mint-40c10f19.log", "result": "PASS", "paths": 69, "time_s": 28.02, "counterexample": false}
+{"part": "proposeSP-95483c15", "D5C1_PART": 2504539157, "exit": 0, "wall_s": 67, "log": "check_I6J_extAbi.proposeSP-95483c15.log", "result": "PASS", "paths": 20, "time_s": 5.49, "counterexample": false}
+{"part": "proposeSpender-9c664f84", "D5C1_PART": 2623950724, "exit": 0, "wall_s": 70, "log": "check_I6J_extAbi.proposeSpender-9c664f84.log", "result": "PASS", "paths": 17, "time_s": 9.07, "counterexample": false}
+{"part": "proposeStandby-6553cf6b", "D5C1_PART": 1699991403, "exit": 0, "wall_s": 94, "log": "check_I6J_extAbi.proposeStandby-6553cf6b.log", "result": "PASS", "paths": 7, "time_s": 5.49, "counterexample": false}
+{"part": "queueCreditPolicy-41068c0c", "D5C1_PART": 1090948108, "exit": 0, "wall_s": 106, "log": "check_I6J_extAbi.queueCreditPolicy-41068c0c.log", "result": "PASS", "paths": 5, "time_s": 3.78, "counterexample": false}
+{"part": "queueTierSource-b44612ba", "D5C1_PART": 3024491194, "exit": 0, "wall_s": 119, "log": "check_I6J_extAbi.queueTierSource-b44612ba.log", "result": "PASS", "paths": 15, "time_s": 19.12, "counterexample": false}
+{"part": "releaseAndDisable-e575720c", "D5C1_PART": 3849679372, "exit": 0, "wall_s": 123, "log": "check_I6J_extAbi.releaseAndDisable-e575720c.log", "result": "PASS", "paths": 33, "time_s": 24.25, "counterexample": false}
+{"part": "removeApprovedFacilitator-8501dd1b", "D5C1_PART": 2231491867, "exit": 0, "wall_s": 95, "log": "check_I6J_extAbi.removeApprovedFacilitator-8501dd1b.log", "result": "PASS", "paths": 3, "time_s": 5.24, "counterexample": false}
+{"part": "removeAutoApprovedSpender-c504e209", "D5C1_PART": 3305431561, "exit": 0, "wall_s": 88, "log": "check_I6J_extAbi.removeAutoApprovedSpender-c504e209.log", "result": "PASS", "paths": 4, "time_s": 3.78, "counterexample": false}
+{"part": "renounceFactory-d49bdad0", "D5C1_PART": 3566983888, "exit": 0, "wall_s": 81, "log": "check_I6J_extAbi.renounceFactory-d49bdad0.log", "result": "PASS", "paths": 2, "time_s": 2.6, "counterexample": false}
+{"part": "repayDebt-6b09de45", "D5C1_PART": 1795808837, "exit": 0, "wall_s": 84, "log": "check_I6J_extAbi.repayDebt-6b09de45.log", "result": "PASS", "paths": 15, "time_s": 15.96, "counterexample": false}
+{"part": "requestCredit-b6b1d5ca", "D5C1_PART": 3065107914, "exit": 0, "wall_s": 60, "log": "check_I6J_extAbi.requestCredit-b6b1d5ca.log", "result": "PASS", "paths": 2, "time_s": 1.53, "counterexample": false}
+{"part": "revokeCredit-48567aab", "D5C1_PART": 1213627051, "exit": 0, "wall_s": 59, "log": "check_I6J_extAbi.revokeCredit-48567aab.log", "result": "PASS", "paths": 2, "time_s": 1.67, "counterexample": false}
+{"part": "setAutoAllowance-ca7f9c4a", "D5C1_PART": 3397360714, "exit": 0, "wall_s": 63, "log": "check_I6J_extAbi.setAutoAllowance-ca7f9c4a.log", "result": "PASS", "paths": 6, "time_s": 2.6, "counterexample": false}
+{"part": "setIssuanceCap-ca9f8d7b", "D5C1_PART": 3399454075, "exit": 0, "wall_s": 67, "log": "check_I6J_extAbi.setIssuanceCap-ca9f8d7b.log", "result": "PASS", "paths": 2, "time_s": 2.28, "counterexample": false}
+{"part": "setMaxSingleTxLimit-4e4852f3", "D5C1_PART": 1313362675, "exit": 0, "wall_s": 74, "log": "check_I6J_extAbi.setMaxSingleTxLimit-4e4852f3.log", "result": "PASS", "paths": 4, "time_s": 3.09, "counterexample": false}
+{"part": "setRenewalMode-199b8d6e", "D5C1_PART": 429624686, "exit": 0, "wall_s": 86, "log": "check_I6J_extAbi.setRenewalMode-199b8d6e.log", "result": "PASS", "paths": 3, "time_s": 3.15, "counterexample": false}
+{"part": "setSpenderDailyCap-1eb6ca03", "D5C1_PART": 515295747, "exit": 0, "wall_s": 93, "log": "check_I6J_extAbi.setSpenderDailyCap-1eb6ca03.log", "result": "PASS", "paths": 3, "time_s": 2.46, "counterexample": false}
+{"part": "setSpenderDailyCapFor-433ae8eb", "D5C1_PART": 1127934187, "exit": 0, "wall_s": 96, "log": "check_I6J_extAbi.setSpenderDailyCapFor-433ae8eb.log", "result": "PASS", "paths": 5, "time_s": 5.63, "counterexample": false}
+{"part": "setUserTotalCap-81097512", "D5C1_PART": 2164880658, "exit": 0, "wall_s": 96, "log": "check_I6J_extAbi.setUserTotalCap-81097512.log", "result": "PASS", "paths": 3, "time_s": 3.75, "counterexample": false}
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 0, "wall_s": 86, "log": "check_I6J_extAbi.transfer-a9059cbb.log", "result": "PASS", "paths": 9, "time_s": 5.07, "counterexample": false}
+{"part": "transferAndCall-1296ee62", "D5C1_PART": 311881314, "exit": 0, "wall_s": 81, "log": "check_I6J_extAbi.transferAndCall-1296ee62.log", "result": "PASS", "paths": 21, "time_s": 7.95, "counterexample": false}
+{"part": "transferAndCall-4000aea0", "D5C1_PART": 1073786528, "exit": 0, "wall_s": 82, "log": "check_I6J_extAbi.transferAndCall-4000aea0.log", "result": "PASS", "paths": 39, "time_s": 10.2, "counterexample": false}
+{"part": "transferCommunityOwnership-623330ae", "D5C1_PART": 1647521966, "exit": 0, "wall_s": 69, "log": "check_I6J_extAbi.transferCommunityOwnership-623330ae.log", "result": "PASS", "paths": 4, "time_s": 3.46, "counterexample": false}
+{"part": "unsetEmergencyDisabled-027e6d67", "D5C1_PART": 41839975, "exit": 0, "wall_s": 51, "log": "check_I6J_extAbi.unsetEmergencyDisabled-027e6d67.log", "result": "PASS", "paths": 4, "time_s": 1.79, "counterexample": false}
+{"part": "updateExchangeRate-b9e205ae", "D5C1_PART": 3118597550, "exit": 0, "wall_s": 45, "log": "check_I6J_extAbi.updateExchangeRate-b9e205ae.log", "result": "PASS", "paths": 21, "time_s": 4.17, "counterexample": false}
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": -9, "wall_s": 603, "log": "check_I6J_extAbi.transferFrom-23b872dd.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 0, "wall_s": 60, "log": "check_A3_extAbi.mint-40c10f19.log", "result": "PASS", "paths": 71, "time_s": 16.09, "counterexample": false}
+PASS
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 0, "wall_s": 98, "log": "check_I2_extAbi.mint-40c10f19.log", "result": "PASS", "paths": 277, "time_s": 48.14, "counterexample": false}
+PASS
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 0, "wall_s": 63, "log": "check_I4B_extAbi.mint-40c10f19.log", "result": "PASS", "paths": 72, "time_s": 17.7, "counterexample": false}
+PASS
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 0, "wall_s": 45, "log": "check_I6_extAbi.mint-40c10f19.log", "result": "PASS", "paths": 59, "time_s": 8.5, "counterexample": false}
+PASS
+{"part": "mint-40c10f19", "D5C1_PART": 1086394137, "exit": 0, "wall_s": 46, "log": "check_I6J_extAbi.mint-40c10f19.log", "result": "PASS", "paths": 69, "time_s": 10.51, "counterexample": false}
+PASS
+{"part": "OTHER", "D5C1_PART": 1, "exit": -9, "wall_s": 603, "log": "check_LEMMA_M1_floorDivTimesDivisor.OTHER.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "OTHER", "D5C1_PART": 1, "exit": -9, "wall_s": 603, "log": "check_LEMMA_M_repayNeverExceedsMint.OTHER.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "OTHER", "D5C1_PART": 1, "exit": -9, "wall_s": 603, "log": "check_LEMMA_M3_ceilDivByConstant.OTHER.log", "result": "TIMEOUT", "paths": 5, "time_s": 544.47, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "OTHER", "D5C1_PART": 1, "exit": -9, "wall_s": 603, "log": "check_LEMMA_M2_monotoneProduct.OTHER.log", "result": "TIMEOUT", "paths": 2, "time_s": 540.63, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "settleLocked-7e48bbce", "D5C1_PART": 2118695886, "exit": -9, "wall_s": 602, "log": "check_A3x_exactCeilBound.settleLocked-7e48bbce.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "tryLockForGas-ec290731", "D5C1_PART": 3962111793, "exit": -9, "wall_s": 602, "log": "check_I2_coreAbi.tryLockForGas-ec290731.log", "result": "TIMEOUT-WALL", "wall_cap_s": 600, "counterexample": false}
+NOT-ALL-PASS (1 BOUNDED, 0 FAIL, 0 ABORTED/ERROR)
+{"part": "settleLocked-7e48bbce", "D5C1_PART": 2118695886, "exit": 1, "wall_s": 339, "log": "check_witness_A3_spSettleBurnsVictim.settleLocked-7e48bbce.log", "result": "FAIL", "paths": 102, "time_s": 307.67, "counterexample": true}
+NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+{"part": "tryLockForGas-ec290731", "D5C1_PART": 3962111793, "exit": 1, "wall_s": 136, "log": "check_witness_I2_spRenewIncrements.tryLockForGas-ec290731.log", "result": "FAIL", "paths": 669, "time_s": 104.36, "counterexample": true}
+NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": 1, "wall_s": 204, "log": "check_witness_I2_meteredPull.transferFrom-23b872dd.log", "result": "FAIL", "paths": 1070, "time_s": 169.15, "counterexample": true}
+NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+{"part": "transferFrom-23b872dd", "D5C1_PART": 599290589, "exit": 1, "wall_s": 36, "log": "check_witness_I2_explicitPull.transferFrom-23b872dd.log", "result": "FAIL", "paths": 7, "time_s": 1.45, "counterexample": true}
+NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+{"part": "transfer-a9059cbb", "D5C1_PART": 2835717307, "exit": 1, "wall_s": 32, "log": "check_witness_I4B_outgoingWithLock.transfer-a9059cbb.log", "result": "FAIL", "paths": 11, "time_s": 1.47, "counterexample": true}
+NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+{"part": "tryReserveCredit-de9e4cae", "D5C1_PART": 3734916270, "exit": 1, "wall_s": 331, "log": "check_witness_I6_reservationAdmitted.tryReserveCredit-de9e4cae.log", "result": "FAIL", "paths": 12, "time_s": 301.67, "counterexample": true}
+NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+{"part": "settleCredit-1baf4408", "D5C1_PART": 464471048, "exit": 1, "wall_s": 30, "log": "check_witness_I6_debtGrows.settleCredit-1baf4408.log", "result": "FAIL", "paths": 15, "time_s": 2.05, "counterexample": true}
+NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src 0 head 1ac0e1c595dc
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src 0 head 1ac0e1c595dc
+tree         out/ [xpnts]                                                                        the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                                        the build of the current sources (metadata keccak256)  OK        fresh
+suite        logs:cap1.log                                                                       == mandatory suite                        OK        equal
+suite        logs:cap1-witness.log                                                               == mandatory suite                        OK        equal
+suite        logs:rate-base.log                                                                  == mandatory suite                        OK        equal
+suite        logs:i4b-base.log                                                                   == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2RateHalmosTest.check_RATE_step_coreAbi                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2RateHalmosTest.check_RATE_step_extAbi                            == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3HalmosTest.check_A3_coreAbi                                    == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3HalmosTest.check_A3_extAbi                                     == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi                          == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi                                == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi                                == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3HalmosTest.check_A3_selfBurnDiscrepancy                        == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I2HalmosTest.check_I2_coreAbi                                    == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I2HalmosTest.check_I2_extAbi                                     == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I4BHalmosTest.check_I4B_coreAbi                                  == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I4BHalmosTest.check_I4B_extAbi                                   == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I4BMintNoDebtHalmosTest.check_I4B_extAbi                         == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6HalmosTest.check_I6_coreAbi                                    == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6HalmosTest.check_I6_extAbi                                     == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6HalmosTest.check_I6J_coreAbi                                   == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6HalmosTest.check_I6J_extAbi                                    == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi                          == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I2NoRHalmosTest.check_I2_coreAbi                                 == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim     == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements             == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull             == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I2_explicitPull                  == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I4B_outgoingWithLock             == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows                     == mandatory suite                        OK        equal
+suite        partitioned:MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint            == mandatory suite                        OK        equal
+suite        partitioned:MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor            == mandatory suite                        OK        equal
+suite        partitioned:MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct                 == mandatory suite                        OK        equal
+suite        partitioned:MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant               == mandatory suite                        OK        equal
+suite        mutations:M-CAP1                                                                    == mandatory suite                        OK        equal
+suite        mutations:M-A3                                                                      == mandatory suite                        OK        equal
+suite        mutations:M-A3TF                                                                    == mandatory suite                        OK        equal
+suite        mutations:M-A3BF                                                                    == mandatory suite                        OK        equal
+suite        mutations:M-I2                                                                      == mandatory suite                        OK        equal
+suite        mutations:M-I4B                                                                     == mandatory suite                        OK        equal
+suite        mutations:M-I6                                                                      == mandatory suite                        OK        equal
+suite        mutations:M-F1                                                                      == mandatory suite                        OK        equal
+suite        archives:artifact-parity.log                                                        == mandatory suite                        OK        equal
+suite        archives:verify-selftest.log                                                        == mandatory suite                        OK        equal
+suite        archives:forge-halmos-suite.log                                                     == mandatory suite                        OK        equal
+suite        archives:cap1.log                                                                   == mandatory suite                        OK        equal
+suite        fuzz_liveness                                                                       == mandatory suite                        OK        equal
+binding      cap1.log                                                                            meta/argv/contract/binding/exit (apnts, cap1)  OK        bound, fresh, dirty_src=0, argv and contract match
+log          cap1.log:check_CAP1_a_supplyIncreaseStaysUnderCap                                   PASS                                      OK        PASS
+log          cap1.log:check_CAP1_b_onlyMinterMintIncreasesSupply                                 PASS                                      OK        PASS
+log          cap1.log:check_CAP1_c_mintDoesNotMoveCap                                            PASS                                      OK        PASS
+binding      cap1-witness.log                                                                    meta/argv/contract/binding/exit (apnts, cap1-fail)  OK        bound, fresh, dirty_src=0, argv and contract match
+log          cap1-witness.log:check_witness_CAP1_supplyCanIncrease                               FAIL                                      OK        FAIL
+binding      rate-base.log                                                                       meta/argv/contract/binding/exit (xpnts, xp)  OK        bound, fresh, dirty_src=0, argv and contract match
+log          rate-base.log:check_RATE_base_initialize                                            PASS                                      OK        PASS
+log          rate-base.log:check_RATE_base_realFactory                                           PASS                                      OK        PASS
+binding      i4b-base.log                                                                        meta/argv/contract/binding/exit (xpnts, xp)  OK        bound, fresh, dirty_src=0, argv and contract match
+log          i4b-base.log:check_I4B_base_initialize                                              PASS                                      OK        PASS
+log          i4b-base.log:check_I4B_base_realFactory                                             PASS                                      OK        PASS
+partitioned  XPNTsV2RateHalmosTest.check_RATE_step_coreAbi: partition set                        exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2RateHalmosTest.check_RATE_step_coreAbi                                       15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2RateHalmosTest.check_RATE_step_coreAbi                                       PASS                                      MISMATCH  14/15 PASS; BOUNDED burn-9dc29fac
+partitioned  XPNTsV2RateHalmosTest.check_RATE_step_extAbi: partition set                         exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2RateHalmosTest.check_RATE_step_extAbi                                        44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2RateHalmosTest.check_RATE_step_extAbi                                        PASS                                      OK        PASS (44/44)
+partitioned  XPNTsV2A3HalmosTest.check_A3_coreAbi: partition set                                 exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2A3HalmosTest.check_A3_coreAbi                                                15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3HalmosTest.check_A3_coreAbi                                                PASS (ceiling: settleLocked-7e48bbce,tryLockForGas-ec290731)  OK        14/15 PASS; DISCREPANCY-FAIL burn-9dc29fac
+  discrepancy XPNTsV2A3HalmosTest.check_A3_coreAbi:burn-9dc29fac                                  FAIL+cex (documented spec-vs-code discrepancy)  OK        FAIL+cex — D-A3-2: spec 03 §2.3 A-3 rejects burn(address,uint256) for any current/historical SP caller; xPNTsTokenV2.sol:134 skips _spendV2 (and with it the firewall) when from == msg.sender, so an SP can burn its OWN balance. Reported, not weakened (replay: test_D5c1_DISCREPANCY_A3_2_spBurnsOwnBalance)
+partitioned  XPNTsV2A3HalmosTest.check_A3_extAbi: partition set                                  exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2A3HalmosTest.check_A3_extAbi                                                 44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3HalmosTest.check_A3_extAbi                                                 PASS (ceiling: mint-40c10f19)             OK        43/44 PASS; BOUNDED mint-40c10f19
+  bounded    XPNTsV2A3HalmosTest.check_A3_extAbi:mint-40c10f19                                   BOUNDED (allowed)                         OK        TIMEOUT — mint auto-repay non-linearity (lemma M); substitute: XPNTsV2A3MintNoDebtHalmosTest (debts = 0, symbolic) + MintRepayLemmaFuzzTest (debts > 0, 10,000 runs) + paper proof
+partitioned  XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi: partition set                       exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi                                      1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi                                      PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi: partition set                             exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi                                            1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi                                            PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi: partition set                             exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi                                            1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi                                            PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2A3HalmosTest.check_A3_selfBurnDiscrepancy: partition set                     exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3HalmosTest.check_A3_selfBurnDiscrepancy                                    1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3HalmosTest.check_A3_selfBurnDiscrepancy                                    FAIL                                      OK        FAIL+cex in burn-9dc29fac
+partitioned  XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi: partition set                        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi                                       1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi                                       PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound: partition set                        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound                                       1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound                                       PASS (ceiling: settleLocked-7e48bbce)     OK        0/1 PASS; BOUNDED settleLocked-7e48bbce
+  bounded    XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound:settleLocked-7e48bbce                 BOUNDED (allowed)                         OK        TIMEOUT-WALL — non-linear exact ceil bound (mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked asserts the A3x bitmask (10,000 runs)
+partitioned  XPNTsV2I2HalmosTest.check_I2_coreAbi: partition set                                 exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2I2HalmosTest.check_I2_coreAbi                                                15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I2HalmosTest.check_I2_coreAbi                                                PASS (ceiling: burn-9dc29fac,settleLocked-7e48bbce,transferFrom-23b872dd,tryLockForGas-ec290731)  OK        11/15 PASS; BOUNDED burn-9dc29fac,settleLocked-7e48bbce,transferFrom-23b872dd,tryLockForGas-ec290731
+  bounded    XPNTsV2I2HalmosTest.check_I2_coreAbi:burn-9dc29fac                                  BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered burn(from): mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_burnFrom (10,000 runs) + boundary cases
+  bounded    XPNTsV2I2HalmosTest.check_I2_coreAbi:settleLocked-7e48bbce                          BOUNDED (allowed)                         OK        TIMEOUT-WALL — solver / wall cap (mulDiv in settle); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked (10,000 runs) + boundary cases
+  bounded    XPNTsV2I2HalmosTest.check_I2_coreAbi:transferFrom-23b872dd                          BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered pull: mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom (10,000 runs) + boundary cases
+  bounded    XPNTsV2I2HalmosTest.check_I2_coreAbi:tryLockForGas-ec290731                         BOUNDED (allowed)                         OK        TIMEOUT-WALL — solver / wall cap (mulDiv in the lock path); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_tryLockForGas (10,000 runs) + boundary cases
+partitioned  XPNTsV2I2HalmosTest.check_I2_extAbi: partition set                                  exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2I2HalmosTest.check_I2_extAbi                                                 44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I2HalmosTest.check_I2_extAbi                                                 PASS (ceiling: mint-40c10f19,transferFrom-23b872dd)  OK        42/44 PASS; BOUNDED mint-40c10f19,transferFrom-23b872dd
+  bounded    XPNTsV2I2HalmosTest.check_I2_extAbi:mint-40c10f19                                   BOUNDED (allowed)                         OK        TIMEOUT-WALL — mint auto-repay non-linearity (lemma M); substitute: XPNTsV2I2MintNoDebtHalmosTest + MintRepayLemmaFuzzTest + paper proof
+  bounded    XPNTsV2I2HalmosTest.check_I2_extAbi:transferFrom-23b872dd                           BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered pull: mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom (10,000 runs) + boundary cases
+partitioned  XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi: partition set                        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi                                       1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi                                       PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2I4BHalmosTest.check_I4B_coreAbi: partition set                               exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2I4BHalmosTest.check_I4B_coreAbi                                              15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I4BHalmosTest.check_I4B_coreAbi                                              PASS (ceiling: burn-9dc29fac,settleLocked-7e48bbce,transferFrom-23b872dd,tryLockForGas-ec290731)  OK        11/15 PASS; BOUNDED burn-9dc29fac,settleLocked-7e48bbce,transferFrom-23b872dd,tryLockForGas-ec290731
+  bounded    XPNTsV2I4BHalmosTest.check_I4B_coreAbi:burn-9dc29fac                                BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered burn(from): mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_burnFrom asserts the I4-B bitmask (10,000 runs)
+  bounded    XPNTsV2I4BHalmosTest.check_I4B_coreAbi:settleLocked-7e48bbce                        BOUNDED (allowed)                         OK        TIMEOUT-WALL — solver / wall cap (mulDiv in settle); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked asserts the I4-B bitmask (10,000 runs)
+  bounded    XPNTsV2I4BHalmosTest.check_I4B_coreAbi:transferFrom-23b872dd                        BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered pull: mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom asserts the I4-B bitmask (10,000 runs)
+  bounded    XPNTsV2I4BHalmosTest.check_I4B_coreAbi:tryLockForGas-ec290731                       BOUNDED (allowed)                         OK        TIMEOUT-WALL — solver / wall cap (mulDiv in the lock path); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_tryLockForGas asserts the I4-B bitmask (10,000 runs)
+partitioned  XPNTsV2I4BHalmosTest.check_I4B_extAbi: partition set                                exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2I4BHalmosTest.check_I4B_extAbi                                               44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I4BHalmosTest.check_I4B_extAbi                                               PASS (ceiling: mint-40c10f19,transferFrom-23b872dd)  OK        43/44 PASS; BOUNDED transferFrom-23b872dd
+  bounded    XPNTsV2I4BHalmosTest.check_I4B_extAbi:transferFrom-23b872dd                         BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered pull: mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom asserts the I4-B bitmask (10,000 runs)
+partitioned  XPNTsV2I4BMintNoDebtHalmosTest.check_I4B_extAbi: partition set                      exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I4BMintNoDebtHalmosTest.check_I4B_extAbi                                     1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I4BMintNoDebtHalmosTest.check_I4B_extAbi                                     PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2I6HalmosTest.check_I6_coreAbi: partition set                                 exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2I6HalmosTest.check_I6_coreAbi                                                15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6HalmosTest.check_I6_coreAbi                                                PASS                                      MISMATCH  13/15 PASS; BOUNDED burn-9dc29fac,transferFrom-23b872dd
+partitioned  XPNTsV2I6HalmosTest.check_I6_extAbi: partition set                                  exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2I6HalmosTest.check_I6_extAbi                                                 44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6HalmosTest.check_I6_extAbi                                                 PASS (ceiling: mint-40c10f19)             MISMATCH  43/44 PASS; BOUNDED transferFrom-23b872dd
+partitioned  XPNTsV2I6HalmosTest.check_I6J_coreAbi: partition set                                exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2I6HalmosTest.check_I6J_coreAbi                                               15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6HalmosTest.check_I6J_coreAbi                                               PASS                                      MISMATCH  13/15 PASS; BOUNDED burn-9dc29fac,transferFrom-23b872dd
+partitioned  XPNTsV2I6HalmosTest.check_I6J_extAbi: partition set                                 exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2I6HalmosTest.check_I6J_extAbi                                                44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6HalmosTest.check_I6J_extAbi                                                PASS (ceiling: mint-40c10f19)             MISMATCH  43/44 PASS; BOUNDED transferFrom-23b872dd
+partitioned  XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi: partition set                        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi                                       1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi                                       PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi: partition set                       exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi                                      1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi                                      PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2I2NoRHalmosTest.check_I2_coreAbi: partition set                              exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I2NoRHalmosTest.check_I2_coreAbi                                             1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I2NoRHalmosTest.check_I2_coreAbi                                             FAIL                                      MISMATCH  BOUNDED tryLockForGas-ec290731
+partitioned  XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim: partition set  exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim                 1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim                 FAIL                                      OK        FAIL+cex in settleLocked-7e48bbce
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements: partition set          exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements                         1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements                         FAIL                                      OK        FAIL+cex in tryLockForGas-ec290731
+partitioned  XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull: partition set          exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull                         1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull                         FAIL                                      OK        FAIL+cex in transferFrom-23b872dd
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I2_explicitPull: partition set               exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I2_explicitPull                              1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I2_explicitPull                              FAIL                                      OK        FAIL+cex in transferFrom-23b872dd
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I4B_outgoingWithLock: partition set          exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I4B_outgoingWithLock                         1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I4B_outgoingWithLock                         FAIL                                      OK        FAIL+cex in transfer-a9059cbb
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted: partition set        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted                       1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted                       FAIL                                      OK        FAIL+cex in tryReserveCredit-de9e4cae
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows: partition set                  exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows                                 1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows                                 FAIL                                      OK        FAIL+cex in settleCredit-1baf4408
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint: partition set         exactly 1 (from current ABI)              OK        equal
+binding      MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint                        1 logs: meta/argv/contract/binding/exit (lemma)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint                        PASS (ceiling: OTHER)                     OK        0/1 PASS; BOUNDED OTHER
+  bounded    MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint:OTHER                  BOUNDED (allowed)                         OK        TIMEOUT-WALL — 256-bit division / product beyond the solver (540 s assertion timeout); substitute: paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10,000 runs)
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor: partition set         exactly 1 (from current ABI)              OK        equal
+binding      MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor                        1 logs: meta/argv/contract/binding/exit (lemma)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor                        PASS (ceiling: OTHER)                     OK        0/1 PASS; BOUNDED OTHER
+  bounded    MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor:OTHER                  BOUNDED (allowed)                         OK        TIMEOUT-WALL — 256-bit division / product beyond the solver (540 s assertion timeout); substitute: paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10,000 runs)
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct: partition set              exactly 1 (from current ABI)              OK        equal
+binding      MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct                             1 logs: meta/argv/contract/binding/exit (lemma)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct                             PASS (ceiling: OTHER)                     OK        0/1 PASS; BOUNDED OTHER
+  bounded    MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct:OTHER                       BOUNDED (allowed)                         OK        TIMEOUT — 256-bit division / product beyond the solver (540 s assertion timeout); substitute: paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10,000 runs)
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant: partition set            exactly 1 (from current ABI)              OK        equal
+binding      MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant                           1 logs: meta/argv/contract/binding/exit (lemma)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant                           PASS (ceiling: OTHER)                     OK        0/1 PASS; BOUNDED OTHER
+  bounded    MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant:OTHER                     BOUNDED (allowed)                         OK        TIMEOUT — 256-bit division / product beyond the solver (540 s assertion timeout); substitute: paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10,000 runs)
+
+VERDICT: 6 MISMATCH(ES) (185 rows) [partial: --only suite,logs,partitioned]; mandatory suite builtin
+RUN-ALL all done (children rc=0, verify rc=1)
