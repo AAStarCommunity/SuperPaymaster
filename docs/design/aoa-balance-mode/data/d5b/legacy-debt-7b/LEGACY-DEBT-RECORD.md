@@ -1,6 +1,9 @@
 # Legacy token debt record — spec §6 row 7b (Sepolia)
 
 Responds to DSR CC-124 comment a6097e85 item (2) (`03-final-spec.md` §6 row 7b, L380: "对账 / 放弃记录（文件路径 + sha256）").
+Line numbers: row 7b is L380 in the spec as it stands on the #459 branch (`d5c-2/a2-full-rehearsal`), which is the
+numbering DSR uses; on `feat/aoa-balance-mode-5.5.0` (`9d2fe5a4`, spec v4.1.1) the same row is L382. The text of the
+row is identical in both.
 
 > **Timing disclaimer.** This record was produced on 2026-10-10 against Sepolia block 11,881,000, **after** the
 > A2 fork rehearsal of PR #459 (fork block 11,877,936, script `0c21a8fe`). It does **not** claim to have existed
@@ -72,16 +75,26 @@ The only debt ever recorded in any in-scope token: user `0xf7bf79acb7f3702b9dbd3
 **Total outstanding legacy debt across all in-scope old tokens: 0 aPNTs** (`legacy-debt.json`
 `.grandTotalOutstanding_aPNTsWei = "0"`).
 
-## Disposition
+## Disposition (per the author decision D-21)
 
-| token | outstanding | disposition |
+The disposition of legacy token debt is already decided by the author. `03-final-spec.md` §6 row 7b (L380 on the
+#459 branch / L382 on feat), quoted exactly:
+
+> **D-21（作者定：不处理）**：旧代币里的债务都是测试数据，直接放弃，只在迁移记录里写一句。
+
+This record is that migration-record entry. It does not add a new author-signature gate for in-scope test debt.
+
+| token | outstanding at block 11,881,000 | disposition |
 |---|---|---|
-| all five tokens above | 0 | **nothing to waive, import or reconcile** at block 11,881,000. D-21 (author: legacy token debt is test data, abandoned, one line in the migration record) applies vacuously: there is no amount to abandon. |
+| all five tokens above | **0** | Waived per D-21. Disclosure: range = each token's creation block → 11,881,000; amount = 0 outstanding (the only debt ever recorded, 2 × 400e18 aPNTs to `0xf7bf…642c` on aPNTs `0x696A…`, was repaid in full, see table above); source = the tokens' own `debts` ledgers (`DebtRecorded` / `DebtRepaid` events + `getDebt` at the fixed block, two archive endpoints); method = §Method above. With 0 outstanding there is nothing to abandon. |
 
-Because every outstanding amount is zero, no "PROPOSED — needs author/governance sign-off" item arises from this
-record. If the re-run at the T block finds any non-zero amount, that amount must be listed here with the
-disposition **"PROPOSED — needs author/governance sign-off"** (D-21 is the author's stated direction, but this
-record does not itself decide a waiver of a non-zero amount), and 7c stays blocked until it is signed off.
+**Rule for the T-block re-run (A3b).**
+- **In-scope legacy test debt** — any non-zero `debts[user]` on the old xPNTs tokens covered by D-21 (the Sepolia
+  test tokens and test users in scope above) — is **disclosed** in this record (token, user, range, amount,
+  source, method) and **waived per D-21**. It needs no new author signature and does **not** block 7c.
+- **Only** a real obligation, or anything outside D-21's scope — for example a non-test token or a non-test user,
+  or any production obligation — must be **escalated to the author**, and it **blocks 7c** until the author
+  decides.
 
 ## Limits
 
