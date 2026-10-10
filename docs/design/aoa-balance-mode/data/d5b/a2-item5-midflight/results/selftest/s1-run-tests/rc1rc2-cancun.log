@@ -1,7 +1,7 @@
 Compiling 146 files with Solc 0.8.33
 Compiling 18 files with Solc 0.8.33
-Solc 0.8.33 finished in 3.81s
-Solc 0.8.33 finished in 35.90s
+Solc 0.8.33 finished in 4.03s
+Solc 0.8.33 finished in 55.25s
 Compiler run successful with warnings:
 Warning (4591): There are more than 256 warnings. Ignoring the rest.
 Warning (2018): Function state mutability can be restricted to view
@@ -20,16 +20,21 @@ Warning (2018): Function state mutability can be restricted to view
 Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
   revertTo(uint256): replaced by `revertToState`
   snapshot(): replaced by `snapshotState`
-Ran 1 test for contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
-[FAIL: precondition: gas params changed mid-bundle: 1000000 != 175000] test_rc1_to_rc2_forward_mid_bundle() (gas: 31554671)
-Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 7.04ms (5.57ms CPU time)
+Ran 6 tests for contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[PASS] test_control_rc1_stays_chargesLiveFee() (gas: 31130235)
+[FAIL: control rc.2->rc.2: charged at the expected protocol fee: 162283660000000000000 != 177036720000000000000] test_control_rc2_stays_chargesSnapshotFee() (gas: 31345687)
+[PASS] test_exact_forward_rc1ctx_settledByRc2() (gas: 30540264)
+[PASS] test_exact_rollback_rc2ctx_settledByRc1() (gas: 30540063)
+[PASS] test_rc1_to_rc2_forward_mid_bundle() (gas: 31366107)
+[PASS] test_rc2_to_rc1_rollback_mid_bundle() (gas: 31366074)
+Suite result: FAILED. 5 passed; 1 failed; 0 skipped; finished in 26.17ms (35.64ms CPU time)
 
-Ran 1 test suite in 56.96ms (7.04ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+Ran 1 test suite in 33.63ms (26.17ms CPU time): 5 tests passed, 1 failed, 0 skipped (6 total tests)
 
 Failing tests:
 Encountered 1 failing test in contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
-[FAIL: precondition: gas params changed mid-bundle: 1000000 != 175000] test_rc1_to_rc2_forward_mid_bundle() (gas: 31554671)
+[FAIL: control rc.2->rc.2: charged at the expected protocol fee: 162283660000000000000 != 177036720000000000000] test_control_rc2_stays_chargesSnapshotFee() (gas: 31345687)
 
-Encountered a total of 1 failing tests, 0 tests succeeded
+Encountered a total of 1 failing tests, 5 tests succeeded
 
 Tip: Run `forge test --rerun` to retry only the 1 failed test

@@ -6,6 +6,7 @@ import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@account-abstraction-v7/samples/SimpleAccount.sol";
 import "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
@@ -74,11 +75,23 @@ contract SuperPaymasterRc1Rc2MidBundleTest is Test {
     uint256 constant BPS = 10_000;
     uint256 constant FEE0 = 1000;     // protocolFeeBPS default = the validation-time fee
     uint256 constant FEE_NEW = 2000;  // MAX_PROTOCOL_FEE, executed mid-bundle
-    // gas parameters executed MID-BUNDLE (all within the GOV-5 hard bounds, far from the defaults)
-    uint32 constant NEW_MIN = 400_000;
-    uint32 constant NEW_SETTLE = 300_000;
-    uint32 constant NEW_CWRAP = 50_000;
-    uint32 constant NEW_CPOSTOP = 400_000;
+    // GOV-5 gas parameters. VAL is live when the victims are VALIDATED (activated before the bundle,
+    // far from the defaults); MID is executed MID-BUNDLE and equals the defaults. So the three candidate
+    // buffers a postOp could apply are pairwise far apart: snapshot (VAL) vs live (MID) vs hardcoded
+    // defaults (== MID). All values are within the hard bounds.
+    uint32 constant VAL_MIN = 1_000_000;
+    uint32 constant VAL_SETTLE = 300_000;
+    uint32 constant VAL_CWRAP = 50_000;
+    uint32 constant VAL_CPOSTOP = 1_000_000;
+    uint32 constant MID_MIN = 200_000;
+    uint32 constant MID_SETTLE = 160_000;
+    uint32 constant MID_CWRAP = 5_000;
+    uint32 constant MID_CPOSTOP = 175_000;
+    uint128 constant CALL_GAS = 300_000;        // victims' callGasLimit
+    uint128 constant POSTOP_LIMIT = 1_000_000;  // victims' paymasterPostOpGasLimit (>= VAL_MIN)
+    // upper bound on (UserOperationEvent.actualGasCost - postOp's actualGasCost): postOp's own gas plus
+    // EntryPoint v0.7's 10% unused-execution-gas penalty, at 1 gwei
+    uint256 constant OVH = 350_000 gwei;
 
     IEntryPoint entryPoint = IEntryPoint(EP);
     SimpleAccountFactory accountFactory;
@@ -197,12 +210,12 @@ contract SuperPaymasterRc1Rc2MidBundleTest is Test {
         op.sender = acct[i];
         op.nonce = 1 << 64;
         op.callData = callData;
-        op.accountGasLimits = bytes32(abi.encodePacked(uint128(400_000), uint128(300_000)));
+        op.accountGasLimits = bytes32(abi.encodePacked(uint128(400_000), CALL_GAS));
         op.preVerificationGas = 50_000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         if (sponsored) {
             op.paymasterAndData = abi.encodePacked(
-                address(sp), uint128(700_000), uint128(200_000), operator, type(uint256).max, address(token), uint8(0)
+                address(sp), uint128(700_000), POSTOP_LIMIT, operator, type(uint256).max, address(token), uint8(0)
             );
         }
         bytes32 h = entryPoint.getUserOpHash(op);
@@ -232,10 +245,17 @@ contract SuperPaymasterRc1Rc2MidBundleTest is Test {
         return _op(0, abi.encodeCall(SimpleAccount.execute, (address(timelock), 0, exec)), false);
     }
 
-    /// @dev Schedule `p` (all targeting SP) as ONE timelock batch; mature both the timelock delay and
-    ///      SP's internal 48 h gas-parameter queue (queued beforehand on the starting implementation).
+    /// @dev On the starting implementation: activate VAL (queue -> 48 h -> execute), queue MID, then
+    ///      schedule `p` (all targeting SP) as ONE timelock batch and mature both the timelock delay and
+    ///      SP's internal 48 h queue for MID.
     function _prepareBatch(bytes[] memory p, bytes32 salt) internal returns (address[] memory t) {
-        _viaTimelock(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (NEW_MIN, NEW_SETTLE, NEW_CWRAP, NEW_CPOSTOP)));
+        _viaTimelock(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (VAL_MIN, VAL_SETTLE, VAL_CWRAP, VAL_CPOSTOP)));
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        _viaTimelock(abi.encodeCall(SuperPaymasterAdmin.executeGasParams, ()));
+        (SuperPaymasterStorage.GasParams memory cur, ) = sp.gasParams();
+        assertEq(cur.cPostop, VAL_CPOSTOP, "precondition: VAL params live at validation");
+        assertEq(cur.cWrap, VAL_CWRAP, "precondition: VAL params live at validation");
+        _viaTimelock(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (MID_MIN, MID_SETTLE, MID_CWRAP, MID_CPOSTOP)));
         t = new address[](p.length);
         for (uint256 i; i < p.length; i++) t[i] = address(sp);
         uint256[] memory v = new uint256[](p.length);
@@ -313,17 +333,21 @@ contract SuperPaymasterRc1Rc2MidBundleTest is Test {
         assertEq(target.hits(keccak256("v1")), 1, string.concat(dir, ": victim 1 execution kept"));
         assertEq(target.hits(keccak256("v2")), 1, string.concat(dir, ": victim 2 execution kept"));
 
-        // gas: settled at the VALIDATION-time snapshot (defaults C_POSTOP 175k, C_WRAP 5k), not at the
-        // parameters executed mid-bundle (C_POSTOP 400k, C_WRAP 50k)
-        uint256 bufSnap = (175_000 + 5_000 + Math.ceilDiv(uint256(300_000 + 200_000) * 10, 100)) * 1 gwei;
-        uint256 bufNew = (uint256(NEW_CPOSTOP) + NEW_CWRAP + Math.ceilDiv(uint256(300_000 + 200_000) * 10, 100)) * 1 gwei;
-        assertGt(bufNew, bufSnap + 200_000 gwei, "precondition: the mid-bundle params would move the charge");
+        // gas: settled at the VALIDATION-time snapshot (VAL: C_POSTOP 1M, C_WRAP 50k), not at the params
+        // executed mid-bundle / the defaults (MID: C_POSTOP 175k, C_WRAP 5k). W - G lies in
+        // [bufExp - OVH, bufExp]; the windows for bufSnap and bufLive are disjoint (precondition), so a
+        // postOp that used the live or default params cannot satisfy the snapshot window.
+        uint256 tenPct = Math.ceilDiv(uint256(CALL_GAS + POSTOP_LIMIT) * 10, 100);
+        uint256 bufSnap = (uint256(VAL_CPOSTOP) + VAL_CWRAP + tenPct) * 1 gwei;
+        uint256 bufLive = (uint256(MID_CPOSTOP) + MID_CWRAP + tenPct) * 1 gwei;
+        assertLt(bufLive + OVH, bufSnap - OVH, "precondition: snapshot and live buffer windows are disjoint");
+        uint256 bufExp = bufSnap;
         for (uint256 k = 2; k < 4; k++) {
             uint256 W = r.aGas[k] / 1e5; // ETH 2000 / aPNTs 0.02 -> exact
             assertGt(r.aGas[k], 0, "positive control: aGas > 0");
             assertGe(W + 1, r.G[k], "charge covers the op's cost");
-            assertLe(W, r.G[k] + bufSnap + 1, string.concat(dir, ": gas at the validation-time snapshot, not the mid-bundle params"));
-            assertGe(W + 1, r.G[k] + bufSnap - 250_000 gwei, string.concat(dir, ": the snapshot buffer was applied"));
+            assertLe(W, r.G[k] + bufExp + 1, string.concat(dir, ": gas buffer <= the validation-time snapshot"));
+            assertGe(W + 1, r.G[k] + bufExp - OVH, string.concat(dir, ": gas buffer == the validation-time snapshot (not live/default)"));
             // fee
             assertTrue(_chargeAt(r.aGas[k], expectFee) != _chargeAt(r.aGas[k], otherFee), "precondition: the two fees are distinguishable");
             assertEq(r.charge[k], _chargeAt(r.aGas[k], expectFee), string.concat(dir, ": charged at the expected protocol fee"));
@@ -364,7 +388,8 @@ contract SuperPaymasterRc1Rc2MidBundleTest is Test {
         (, , bool opPaused, , , , , , ) = sp.operators(operator);
         assertTrue(opPaused, "precondition: operator paused mid-bundle");
         (SuperPaymasterStorage.GasParams memory cur, ) = sp.gasParams();
-        assertEq(cur.cPostop, NEW_CPOSTOP, "precondition: gas params changed mid-bundle");
+        assertEq(cur.cPostop, MID_CPOSTOP, "precondition: gas params changed mid-bundle");
+        assertEq(cur.cWrap, MID_CWRAP, "precondition: gas params changed mid-bundle (cWrap)");
         assertEq(sp.protocolFeeBPS(), FEE_NEW, "precondition: protocol fee changed mid-bundle");
     }
 
@@ -449,5 +474,101 @@ contract SuperPaymasterRc1Rc2MidBundleTest is Test {
         assertTrue(_implIs(rc1), "precondition: still rc.1");
         _assertMidBundleState();
         _assertSettled(h, r, FEE_NEW, FEE0, b0, rv0, s0, "control rc.1->rc.1");
+    }
+
+    // ===================================================================== exact charge (direct postOp)
+
+    /// @dev The spec rule (§10.7b GOV-5 ④ + fee snapshot) evaluated on a context: buffer gas from word 12
+    ///      bits 64-127 (C_WRAP, C_POSTOP) unless `useParams`, in which case from (cPostop, cWrap).
+    function _expectedAGas(bytes memory ctx, uint256 A, uint256 fpg, bool useParams, uint256 cPostop, uint256 cWrap)
+        internal pure returns (uint256)
+    {
+        // OpCtx words (ABI-canonical): 6 callGas, 7 postOpGas, 8 price, 9 decimals, 10 aPriceUSD
+        uint256 snap = _word12(ctx);
+        uint256 bufGas = useParams ? cPostop + cWrap : uint256(uint32(snap >> 96)) + uint32(snap >> 64);
+        uint256 bufWei = (bufGas + Math.ceilDiv((_word(ctx, 6) + _word(ctx, 7)) * 10, 100)) * fpg;
+        return Math.mulDiv((A + bufWei) * _word(ctx, 8), 1e18, (10 ** _word(ctx, 9)) * _word(ctx, 10), Math.Rounding.Ceil);
+    }
+
+    function _word(bytes memory ctx, uint256 i) internal pure returns (uint256 w) {
+        assembly { w := mload(add(add(ctx, 32), mul(i, 32))) }
+    }
+
+    /// @dev Validate a victim under the starting impl (VAL live), execute the matured batch
+    ///      [executeGasParams(MID), setProtocolFee(FEE_NEW), upgradeToAndCall(other)] OUTSIDE a bundle,
+    ///      then call postOp directly as the EntryPoint with a chosen actualGasCost, and check the EXACT
+    ///      aGas and charge against the spec rule: buffer from the validation-time snapshot (VAL).
+    function _exactCase(bool startOnRc2, string memory dir) internal {
+        _boot(startOnRc2);
+        address other = startOnRc2 ? rc1 : rc2;
+        bytes[] memory p = new bytes[](3);
+        p[0] = abi.encodeCall(SuperPaymasterAdmin.executeGasParams, ());
+        p[1] = abi.encodeCall(SuperPaymasterAdmin.setProtocolFee, (FEE_NEW));
+        p[2] = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", other, bytes(""));
+        bytes32 salt = keccak256(bytes(dir));
+        address[] memory t = _prepareBatch(p, salt);
+
+        bytes32 oh = keccak256(bytes(string.concat(dir, "-op")));
+        PackedUserOperation memory vop = _victimOp(2, dir); // built first: it calls the EntryPoint
+        vm.prank(EP);
+        (bytes memory ctx, ) = sp.validatePaymasterUserOp(vop, oh, 1e16);
+        assertEq(ctx.length, 384, "384-byte context");
+        assertEq(uint32(_word12(ctx) >> 96), VAL_CPOSTOP, "context snapshots VAL C_POSTOP");
+        assertEq(uint32(_word12(ctx) >> 64), VAL_CWRAP, "context snapshots VAL C_WRAP");
+        assertEq(_word12(ctx) >> 128, startOnRc2 ? FEE0 + 1 : 0, "fee bits: rc.2 snapshots fee+1, rc.1 none");
+        uint256 a0 = _word(ctx, 2);
+
+        timelock.executeBatch(t, new uint256[](3), p, bytes32(0), salt); // open executor
+        assertTrue(_implIs(other), "precondition: implementation switched between validate and postOp");
+        (SuperPaymasterStorage.GasParams memory cur, ) = sp.gasParams();
+        assertEq(cur.cPostop, MID_CPOSTOP, "precondition: gas params changed mid-bundle");
+        assertEq(cur.cWrap, MID_CWRAP, "precondition: gas params changed mid-bundle (cWrap)");
+        assertEq(sp.protocolFeeBPS(), FEE_NEW, "precondition: protocol fee changed mid-bundle");
+
+        (uint128 opBal0, , , , , , , , ) = sp.operators(operator);
+        uint256 rev0 = sp.protocolRevenue();
+        uint256 A = 1e14;
+        uint256 fpg = 1 gwei;
+        vm.recordLogs();
+        vm.prank(EP);
+        sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, A, fpg);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 aGas;
+        uint256 charge;
+        uint256 n;
+        for (uint256 j; j < logs.length; j++) {
+            if (logs[j].emitter == address(sp) && logs[j].topics[0] == T_TX_SPONSORED) {
+                (aGas, charge) = abi.decode(logs[j].data, (uint256, uint256));
+                n++;
+            }
+        }
+        assertEq(n, 1, "exactly one TransactionSponsored");
+
+        uint256 expSnap = _expectedAGas(ctx, A, fpg, false, 0, 0);
+        uint256 expLive = _expectedAGas(ctx, A, fpg, true, MID_CPOSTOP, MID_CWRAP);
+        assertTrue(expSnap != expLive, "precondition: snapshot and live/default params give different aGas");
+        uint256 expAGas = expSnap;
+        assertEq(aGas, expAGas, string.concat(dir, ": exact aGas under the validation-time gas snapshot"));
+        // fee rule: both directions settle at the live fee (rc.2 has no snapshot in an rc.1 context; rc.1
+        // ignores rc.2's fee bits)
+        uint256 expCharge = _chargeAt(expAGas, FEE_NEW);
+        assertLt(expCharge, a0, "precondition: the a0 cap does not bind");
+        assertEq(charge, expCharge, string.concat(dir, ": exact charge"));
+        (uint128 opBal1, , , , , , , , ) = sp.operators(operator);
+        assertEq(uint256(opBal1) - opBal0, a0 - charge, string.concat(dir, ": operator refunded a0 - charge"));
+        assertEq(sp.protocolRevenue() - rev0, charge, string.concat(dir, ": revenue == charge"));
+        assertTrue(token.usedOpHashes(oh), "lock settled");
+        assertEq(token.lockedOf(acct[2]), 0, "no residual lock");
+        (address f, uint256 a0Left) = sp.inflightOf(oh);
+        assertEq(f, address(0), "in-flight cleared");
+        assertEq(a0Left, 0, "in-flight a0 cleared");
+    }
+
+    function test_exact_forward_rc1ctx_settledByRc2() public {
+        _exactCase(false, "exact rc.1->rc.2");
+    }
+
+    function test_exact_rollback_rc2ctx_settledByRc1() public {
+        _exactCase(true, "exact rc.2->rc.1");
     }
 }

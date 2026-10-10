@@ -1,0 +1,15 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: exact rc.2->rc.1: exact aGas under the validation-time gas snapshot: 128000000000000000000 != 41000000000000000000] test_exact_rollback_rc2ctx_settledByRc1() (gas: 30700925)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 8.91ms (2.89ms CPU time)
+
+Ran 1 test suite in 20.98ms (8.91ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: exact rc.2->rc.1: exact aGas under the validation-time gas snapshot: 128000000000000000000 != 41000000000000000000] test_exact_rollback_rc2ctx_settledByRc1() (gas: 30700925)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
