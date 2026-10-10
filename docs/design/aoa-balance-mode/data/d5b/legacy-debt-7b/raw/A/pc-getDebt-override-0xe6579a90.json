@@ -1,0 +1,11 @@
+{
+ "endpoint": "A (eth-sepolia.g.alchemy.com)",
+ "request": {
+  "block": 11881000,
+  "data": "0x9a78e72e00000000000000000000000000000000000000000000000000000000000000aa",
+  "method": "eth_call",
+  "stateOverride": true,
+  "to": "0xe6579a90dc498a710008de12119812d0fb7aa224"
+ },
+ "response": "0x00000000000000000000000000000000000000000000000000000000000003fe"
+}

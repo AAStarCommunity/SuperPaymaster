@@ -1,0 +1,11 @@
+{
+ "endpoint": "B (sepolia.gateway.tenderly.co)",
+ "request": {
+  "block": 11881000,
+  "data": "0x91d148542024516755f401845808190bb830b0e4523d0df0845503cab52130a794699a0f000000000000000000000000f7bf79acb7f3702b9dbd397d8140ac9de6ce642c",
+  "method": "eth_call",
+  "stateOverride": false,
+  "to": "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71"
+ },
+ "response": "0x0000000000000000000000000000000000000000000000000000000000000000"
+}
