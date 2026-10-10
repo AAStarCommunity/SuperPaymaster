@@ -1,0 +1,21 @@
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 10.72s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: forward rc.1->rc.2: gas buffer <= the validation-time snapshot: 1475187000000000 > 829737000000001] test_rc1_to_rc2_forward_mid_bundle() (gas: 31576249)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 12.73ms (9.90ms CPU time)
+
+Ran 1 test suite in 18.35ms (12.73ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: forward rc.1->rc.2: gas buffer <= the validation-time snapshot: 1475187000000000 > 829737000000001] test_rc1_to_rc2_forward_mid_bundle() (gas: 31576249)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test

@@ -1,0 +1,28 @@
+Compiling 18 files with Solc 0.8.33
+Compiling 142 files with Solc 0.8.33
+Solc 0.8.33 finished in 2.62s
+Solc 0.8.33 finished in 26.18s
+Compiler run successful with warnings:
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 2 tests for contracts/test/v2/SuperPaymasterV542ToRc2MidBundle.t.sol:SuperPaymasterV542ToRc2MidBundleTest
+[PASS] test_control_v542_stays_settlesNormally() (gas: 14700525)
+[PASS] test_v542_to_rc2_forward_mid_bundle_inflightOpsFail() (gas: 14694258)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 13.45ms (6.99ms CPU time)
+
+Ran 1 test suite in 24.51ms (13.45ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)
