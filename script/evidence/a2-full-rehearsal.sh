@@ -853,9 +853,10 @@ check "D0 local SuperPaymaster artifact == rc.2 attested runtime (the dummy's ba
 check "D0 dummy runtime keccak != rc.2 attested runtime keccak" "$( [ "$(jq -r .runtimeKeccak "$OUT/D-dummy-artifact.json")" != "$(jq -r .rc2SuperPaymaster.attestedRuntimeKeccak "$OUT/D-dummy-artifact.json")" ] && echo different || echo SAME)" different
 check "D0 dummy runtime <= EIP-170 24576 B" "$(python3 -c "print($(jq -r .runtimeBytes "$OUT/D-dummy-artifact.json") <= 24576)")" True
 # storage layout: the compiler's storageLayout of the dummy must equal rc.2 SuperPaymaster's EXACTLY (every
-# storage entry's astId/label/offset/slot/type AND the full type table incl. struct members). The ONLY field
-# allowed to differ is solc's `contract` attribution, which names the contract being compiled (the derived
-# test contract): the dummy's layout JSON with that one id string substituted by rc.2's must be byte-identical.
+# storage entry's label/slot/offset and its type, expanded recursively incl. struct members / mapping key and
+# value / array base). Not compared: solc's `contract` attribution (names the contract being compiled, i.e.
+# the derived test contract) and astId / raw type ids (they embed per-compilation AST ids: the first trial run
+# compared raw JSON and failed only because forge script had recompiled SuperPaymaster with other AST ids).
 # Comparator controls (must say DIFFERENT): SuperPaymaster vs Registry, and rc.2's own layout with ONE
 # struct-member offset mutated.
 REGART=out/Registry.sol/Registry.default.json; [ -f "$REGART" ] || REGART=out/Registry.sol/Registry.json
@@ -863,9 +864,15 @@ cmp_layout() { node -e '
 const fs=require("fs"); const L=p=>{const j=JSON.parse(fs.readFileSync(p)); return j.storageLayout||j;};
 const a=L(process.argv[1]), b=L(process.argv[2]);
 if(!a||!b||!a.storage||!b.storage||!a.storage.length){console.log("NO-LAYOUT");process.exit(0);}
-const ida=a.storage[0].contract, idb=b.storage[0].contract;
-const sa=JSON.stringify(a).split(JSON.stringify(ida)).join(JSON.stringify(idb)), sb=JSON.stringify(b);
-console.log(sa===sb?"IDENTICAL":"DIFFERENT");' "$1" "$2"; }
+// canonical form: every type identifier is expanded recursively into {encoding,label,numberOfBytes,base,key,
+// value,members[{label,slot,offset,type}]}; astId / contract / raw type ids (which embed per-compilation AST
+// ids) are dropped, everything that determines where and how a value is stored is kept.
+const canon=(lay)=>{ const T=(t)=>{ const d=lay.types[t]; if(!d) return {missing:t};
+  const o={encoding:d.encoding,label:d.label,numberOfBytes:d.numberOfBytes};
+  if(d.base) o.base=T(d.base); if(d.key) o.key=T(d.key); if(d.value) o.value=T(d.value);
+  if(d.members) o.members=d.members.map(m=>({label:m.label,slot:m.slot,offset:m.offset,type:T(m.type)})); return o; };
+  return lay.storage.map(e=>({label:e.label,slot:e.slot,offset:e.offset,type:T(e.type)})); };
+console.log(JSON.stringify(canon(a))===JSON.stringify(canon(b))?"IDENTICAL":"DIFFERENT");' "$1" "$2"; }
 node -e 'const fs=require("fs");const l=JSON.parse(fs.readFileSync(process.argv[1])).storageLayout;
 const k=Object.keys(l.types).find(t=>l.types[t].members&&l.types[t].members.length>1); const m=l.types[k].members[1]; m.offset=m.offset+1;
 fs.writeFileSync(process.argv[2], JSON.stringify(l)); console.log(k+"."+m.label);' "$SPART" "$OUT/.mutated-layout.json" > "$OUT/.mutated-layout.what"
@@ -929,6 +936,8 @@ node script/evidence/verify-attested-runtime.mjs --rpc "$RPC" --attestation "$OU
   && rlog "  CHECK [D1 deployed dummy runtime == dummy artifact (masked immutables)] PASS ($(tail -1 "$OUT/codehash-D1-dummy-vs-dummy-artifact.log"))" \
   || fail "D1 deployed dummy runtime != dummy artifact (codehash-D1-dummy-vs-dummy-artifact.log)"
 attest_runtime D1-dummy-ext-and-negative --target SuperPaymasterAdmin=$DEXT --expect-mismatch SuperPaymaster=$DUMMY
+check "D1 dummy's EXTENSION runtime == rc.2 attested SuperPaymasterAdmin (only the core changed)" "$(grep -c "^MATCH    SuperPaymasterAdmin @ $DEXT" "$OUT/codehash-D1-dummy-ext-and-negative.log")" 1
+check "D1 dummy core runtime != rc.2 attested SuperPaymaster (comparator says no)" "$(grep -c "^negative ok (mismatch as expected) SuperPaymaster vs $DUMMY" "$OUT/codehash-D1-dummy-ext-and-negative.log")" 1
 roles_check before-D1-printer
 must_fail "D1: the RELEASE tool (UpgradeViaTimelock schedule-upgrade) refuses the TEST dummy impl (DefaultArtifacts gate)" \
   "DefaultArtifacts: SuperPaymaster runtime != profile.default artifact" \
@@ -984,6 +993,7 @@ rlog "  readback [codehash of the proxy's implementation] = $D5_CH @block $(bn) 
 check "D5 runtime codehash of the proxy's impl == dummy codehash" "$D5_CH" "$DCH"
 check "D5 runtime codehash of the proxy's impl CHANGED vs rc.2 impl" "$( [ "$D5_CH" != "$CH0" ] && echo changed || echo SAME)" changed
 attest_runtime D5-proxy-impl-is-NOT-rc2 --expect-mismatch SuperPaymaster=$(impl_of $SP)
+check "D5 the proxy's implementation runtime != rc.2 attested SuperPaymaster (expected mismatch)" "$(grep -c "^negative ok (mismatch as expected) SuperPaymaster vs $(impl_of $SP)" "$OUT/codehash-D5-proxy-impl-is-NOT-rc2.log")" 1
 check "D5 SP.EXTENSION via proxy == dummy's extension (new extension instance, rc.2 code)" "$(rb 'SP.EXTENSION' $SP 'EXTENSION()(address)')" "$DEXT"
 check "D5 SP.owner == TL (unchanged)" "$(rb 'SP.owner' $SP 'owner()(address)')" $TL
 check "D5 SP.pendingOwner == 0" "$(rb 'SP.pendingOwner' $SP 'pendingOwner()(address)')" 0x0000000000000000000000000000000000000000
@@ -1025,6 +1035,7 @@ D6_CH=$(codehash_at "$(impl_of $SP)")
 rlog "  readback [codehash of the proxy's implementation] = $D6_CH @block $(bn) (dummy: $DCH; original rc.2: $CH0)"
 check "D6 runtime codehash of the proxy's impl == original rc.2 impl codehash" "$D6_CH" "$CH0"
 attest_runtime D6-proxy-impl-is-rc2-again --target SuperPaymaster=$(impl_of $SP)
+check "D6 the proxy's implementation runtime == rc.2 attested SuperPaymaster again" "$(grep -c "^MATCH    SuperPaymaster @ $(impl_of $SP)" "$OUT/codehash-D6-proxy-impl-is-rc2-again.log")" 1
 check "D6 SP.EXTENSION == original rc.2 extension" "$(rb 'SP.EXTENSION' $SP 'EXTENSION()(address)')" "$EXT0"
 check "D6 SP.owner == TL; pendingOwner == 0; guardian == Safe" "$(rb 'SP.owner' $SP 'owner()(address)'):$(rb 'SP.pendingOwner' $SP 'pendingOwner()(address)'):$(rb 'SP.guardian' $SP 'guardian()(address)')" "$TL:0x0000000000000000000000000000000000000000:$SAFE"
 check "D6 getter snapshots well-formed" "$(state_ok "$OUT/D6-state-before.txt" && state_ok "$OUT/D6-state-after.txt" && echo ok || echo BAD)" ok
