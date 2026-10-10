@@ -1,0 +1,46 @@
+Error: injected: endpoint B unreachable
+blockHash=
+Error: injected: endpoint B unreachable
+SP.version=
+Error: injected: endpoint B unreachable
+SP.owner=
+Error: injected: endpoint B unreachable
+SP.implSlot=
+Error: injected: endpoint B unreachable
+SP.APNTS_TOKEN=
+Error: injected: endpoint B unreachable
+SP.pendingAPNTsToken=
+Error: injected: endpoint B unreachable
+SP.pendingAPNTsTokenEta=
+Error: injected: endpoint B unreachable
+SP.totalTrackedBalance=
+Error: injected: endpoint B unreachable
+SP.operators(OWNER)=
+Error: injected: endpoint B unreachable
+SP.operators(ANNI)=
+Error: injected: endpoint B unreachable
+EP.depositInfo(SP)=
+Error: injected: endpoint B unreachable
+Registry.version=
+Error: injected: endpoint B unreachable
+Registry.owner=
+Error: injected: endpoint B unreachable
+Registry.implSlot=
+Error: injected: endpoint B unreachable
+Safe.VERSION=
+Error: injected: endpoint B unreachable
+Safe.owners=
+Error: injected: endpoint B unreachable
+Safe.threshold=
+Error: injected: endpoint B unreachable
+Safe.nonce=
+Error: injected: endpoint B unreachable
+Safe.guardSlot=
+Error: injected: endpoint B unreachable
+Safe.modules=
+Error: injected: endpoint B unreachable
+OLD_TL.minDelay=
+Error: injected: endpoint B unreachable
+OLD_TL.proposer(Safe)=
+Error: injected: endpoint B unreachable
+OLD_TL.admin(OWNER)=

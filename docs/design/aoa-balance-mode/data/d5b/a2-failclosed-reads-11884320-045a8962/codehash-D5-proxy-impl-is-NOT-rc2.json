@@ -1,0 +1,23 @@
+{
+  "attestation": "docs/release/v5.5.0-rc.2-attestation.json",
+  "attestedCommit": "1ac0e1c595dc84e684b540ca6a936168e922194f",
+  "block": "11884458",
+  "results": [
+    {
+      "mode": "expect-mismatch (negative control)",
+      "contract": "SuperPaymaster",
+      "address": "0x90f740a94f8f7f441c1dd0c55fe2e11597e27ff6",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.json",
+      "attestedRuntimeKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+      "artifactRuntimeKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+      "buildReproducesAttestation": true,
+      "onchainBytes": 13782,
+      "artifactBytes": 13744,
+      "onchainCodehash": "0xea5051d205a52644cad65acea4e19bc311fd22b6e97ddcd123ab4a574e985d79",
+      "immutables": [],
+      "maskedOnchainKeccak": "0xea5051d205a52644cad65acea4e19bc311fd22b6e97ddcd123ab4a574e985d79",
+      "match": false
+    }
+  ],
+  "result": "PASS"
+}

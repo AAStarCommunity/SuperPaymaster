@@ -1,0 +1,3 @@
+[inject] A block hash -> exit 1
+[inject] B block hash -> exit 1
+[inject] local block hash -> exit 1

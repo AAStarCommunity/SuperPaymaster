@@ -1,0 +1,144 @@
+{
+  "schema": "d5b-timelock-roles-attestation/2",
+  "result": "FAIL",
+  "chainId": 11155111,
+  "rpc2ChainId": null,
+  "manifestChainId": "11155111",
+  "timelock": "0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c",
+  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/full3/manifest.json",
+  "manifestSha256": "6d9c24db0136f03479285642e9b880bb3a1d2297ce17463b5e6776ad2c3b1f7f",
+  "manifestKeccak256": "0x96f9609f0034387e6f827b7b7012e510fb383452e63d2d66bf37c1efaa243a04",
+  "deploymentBlock": "11884321",
+  "headBlock": 11884405,
+  "headBlockHash": "0x2892db59b74bbf019d38e5dabf83dda64d45dd7656bb4fa412c30d9f705b68e5",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c"
+    ],
+    "PROPOSER_ROLE": [
+      "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+    ],
+    "CANCELLER_ROLE": [
+      "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+    ]
+  },
+  "unknownRoles": [],
+  "mustHoldNothing": [
+    "0xb5600060e6de5E11D3636731964218E53caadf0E",
+    "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
+  ],
+  "mustHoldNothingLabels": [
+    "deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock",
+    "old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one"
+  ],
+  "logs": 4,
+  "depthProbe": true,
+  "rpc2DepthProbe": null,
+  "constructorControl": "constructor grants found in deployment block 11884321",
+  "completeness": "completeness NOT independently verified (no --rpc2)",
+  "rpc2Used": false,
+  "endpoint": "http://127.0.0.1:28631",
+  "endpoint2": null,
+  "problems": [],
+  "checker": {
+    "path": "script/governance/check-timelock-roles.mjs",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "045a896299cdb0119d2f53f709409806ea366f7b",
+    "gitDirty": false
+  },
+  "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs.",
+  "holders": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c"
+    ],
+    "PROPOSER_ROLE": [
+      "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+    ],
+    "CANCELLER_ROLE": [
+      "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+    ]
+  },
+  "expected": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c"
+    ],
+    "PROPOSER_ROLE": [
+      "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+    ],
+    "CANCELLER_ROLE": [
+      "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+    ]
+  },
+  "liveHasRole": [
+    {
+      "role": "DEFAULT_ADMIN_ROLE",
+      "account": "0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c",
+      "hasRole": true
+    },
+    {
+      "role": "DEFAULT_ADMIN_ROLE",
+      "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "hasRole": false
+    },
+    {
+      "role": "DEFAULT_ADMIN_ROLE",
+      "account": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+      "hasRole": false
+    },
+    {
+      "role": "PROPOSER_ROLE",
+      "account": "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114",
+      "hasRole": true
+    },
+    {
+      "role": "PROPOSER_ROLE",
+      "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "hasRole": false
+    },
+    {
+      "role": "PROPOSER_ROLE",
+      "account": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+      "hasRole": false
+    },
+    {
+      "role": "CANCELLER_ROLE",
+      "account": "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114",
+      "hasRole": true
+    },
+    {
+      "role": "CANCELLER_ROLE",
+      "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "hasRole": false
+    },
+    {
+      "role": "CANCELLER_ROLE",
+      "account": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+      "hasRole": false
+    },
+    {
+      "role": "EXECUTOR_ROLE",
+      "account": "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114",
+      "hasRole": true
+    },
+    {
+      "role": "EXECUTOR_ROLE",
+      "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "hasRole": false
+    },
+    {
+      "role": "EXECUTOR_ROLE",
+      "account": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+      "hasRole": false
+    }
+  ],
+  "ok": true
+}

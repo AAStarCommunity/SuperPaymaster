@@ -1,0 +1,55 @@
+{
+  "utc": "2026-10-10T11:47:41.732Z",
+  "chains": {
+    "sepolia": {
+      "chainId": 11155111,
+      "blockNumber": 11884330,
+      "eth_config": {
+        "currentActivationTime": 1791294816,
+        "currentForkId": "0x6c1d9423",
+        "blobSchedule": {
+          "baseFeeUpdateFraction": 11684671,
+          "max": 21,
+          "target": 14
+        },
+        "next": null
+      },
+      "clz": "0x00000000000000000000000000000000000000000000000000000000000000ff",
+      "osakaByClz": true,
+      "entryPointCodehash": "0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58",
+      "entryPointCodehashMatches": true,
+      "spDepositInfo": {
+        "sp": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+        "deposit": "93470830000000000",
+        "staked": true,
+        "stake": "100000000000000000",
+        "unstakeDelaySec": 86400,
+        "withdrawTime": 0
+      }
+    },
+    "op-mainnet": {
+      "chainId": 10,
+      "blockNumber": 158017043,
+      "clz": "0x00000000000000000000000000000000000000000000000000000000000000ff",
+      "osakaByClz": true,
+      "entryPointCodehash": "0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58",
+      "entryPointCodehashMatches": true,
+      "spDepositInfo": {
+        "sp": "0xA2c9A6e95f19f5D2a364CBCbB5f0b32B1B4d140E",
+        "deposit": "89012729856682592",
+        "staked": true,
+        "stake": "100000000000000000",
+        "unstakeDelaySec": 86400,
+        "withdrawTime": 0
+      }
+    },
+    "op-sepolia": {
+      "chainId": 11155420,
+      "blockNumber": 49915163,
+      "clz": "0x00000000000000000000000000000000000000000000000000000000000000ff",
+      "osakaByClz": true,
+      "entryPointCodehash": "0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58",
+      "entryPointCodehashMatches": true
+    }
+  }
+}
