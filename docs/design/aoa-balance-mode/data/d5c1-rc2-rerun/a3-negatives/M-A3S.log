@@ -1,0 +1,40 @@
+# mutation M-A3S on contracts/src/tokens/v2/xPNTsTokenV2Ext.sol
+diff --git a/contracts/src/tokens/v2/xPNTsTokenV2Ext.sol b/contracts/src/tokens/v2/xPNTsTokenV2Ext.sol
+index c6b2f5f1..c7c83ba7 100644
+--- a/contracts/src/tokens/v2/xPNTsTokenV2Ext.sol
++++ b/contracts/src/tokens/v2/xPNTsTokenV2Ext.sol
+@@ -322,8 +322,7 @@ contract xPNTsTokenV2Ext is xPNTsV2Base {
+         SUPERPAYMASTER_ADDRESS = sp;
+         historicalSP[sp] = true;
+         if (autoApprovedSpenders[sp]) {
+-            autoApprovedSpenders[sp] = false;
+-            emit AutoApprovedSpenderRemoved(sp);
++            emit AutoApprovedSpenderRemoved(sp); // M-A3S: state write dropped, event kept
+         }
+         pendingSP = address(0);
+         emit SuperPaymasterAddressUpdated(old, sp);
+# cmd: forge test --match-path contracts/test/halmos/D5c1A3Negatives.t.sol -vv
+Compiling 3 files with Solc 0.8.33
+Solc 0.8.33 finished in 8.77s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 4 tests for contracts/test/halmos/D5c1A3Negatives.t.sol:D5c1A3NegativesTest
+[PASS] test_D5c1_A3_NEG1_control_distinctGenesisSpenderAccepted() (gas: 605052)
+[PASS] test_D5c1_A3_NEG1_initializeRejectsGenesisSpenderEqualToSP() (gas: 547192)
+[FAIL: removed from autoApprovedSpenders as current SP] test_D5c1_A3_NEG2_activatedSpenderBecomingSPIsRemoved() (gas: 878043)
+[FAIL: removed from autoApprovedSpenders as current SP] test_D5c1_A3_NEG2_genesisSpenderBecomingSPIsRemoved() (gas: 841863)
+Suite result: FAILED. 2 passed; 2 failed; 0 skipped; finished in 9.41ms (5.57ms CPU time)
+
+Ran 1 test suite in 13.37ms (9.41ms CPU time): 2 tests passed, 2 failed, 0 skipped (4 total tests)
+
+Failing tests:
+Encountered 2 failing tests in contracts/test/halmos/D5c1A3Negatives.t.sol:D5c1A3NegativesTest
+[FAIL: removed from autoApprovedSpenders as current SP] test_D5c1_A3_NEG2_activatedSpenderBecomingSPIsRemoved() (gas: 878043)
+[FAIL: removed from autoApprovedSpenders as current SP] test_D5c1_A3_NEG2_genesisSpenderBecomingSPIsRemoved() (gas: 841863)
+
+Encountered a total of 2 failing tests, 2 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 2 failed tests
+# exit_code: 1
+# restored sha256: ed46ee6bc1c84933b3bbd5fe8b7b8ff64fdcca94b9bcf1d2ea2f49dfb2d6b714  contracts/src/tokens/v2/xPNTsTokenV2Ext.sol

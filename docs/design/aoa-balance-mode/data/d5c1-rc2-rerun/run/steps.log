@@ -1,0 +1,13 @@
+# step 0-ast-build start 2026-10-10T12:01:25Z cwd=/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/cc125-rc2 cmd: forge build --ast --extra-output storageLayout metadata
+# step 0-ast-build end 2026-10-10T12:20:24Z rc=0
+# step 1-run-all start 2026-10-10T12:20:24Z cwd=/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/cc125-rc2 cmd: script/halmos/run-all-d5c1.sh all 4
+# step 1-run-all end 2026-10-10T16:54:51Z rc=1
+# step 2-mutations start 2026-10-10T16:56:52Z cwd=/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/cc125-mutcopy cmd: script/halmos/run-mutations-all.sh /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/cc125-rc2/docs/design/aoa-balance-mode/data/halmos/mutations
+# step 2-mutations end 2026-10-10T18:20:51Z rc=0
+# step 3-fuzz-liveness start 2026-10-10T18:20:51Z cwd=/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/cc125-rc2 cmd: script/halmos/run-fuzz-liveness.sh docs/design/aoa-balance-mode/data/halmos/fuzz-liveness
+# step 3-fuzz-liveness end 2026-10-10T18:45:05Z rc=0
+# step 4-archive start 2026-10-10T18:45:05Z cwd=/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/cc125-rc2 cmd: script/halmos/archive-d5c1.sh all
+# step 4-archive end 2026-10-10T18:50:49Z rc=1
+# step 5-verify start 2026-10-10T18:50:49Z cwd=/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/cc125-rc2 cmd: python3 script/halmos/verify-d5c1.py --markdown docs/design/aoa-balance-mode/data/halmos/verify-final.md
+# step 5-verify end 2026-10-10T18:50:57Z rc=1
+DONE

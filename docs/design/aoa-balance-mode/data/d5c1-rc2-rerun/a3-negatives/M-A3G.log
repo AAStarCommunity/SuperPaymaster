@@ -1,0 +1,38 @@
+# mutation M-A3G on contracts/src/tokens/v2/xPNTsTokenV2.sol
+diff --git a/contracts/src/tokens/v2/xPNTsTokenV2.sol b/contracts/src/tokens/v2/xPNTsTokenV2.sol
+index e3f19e9c..92b7c654 100644
+--- a/contracts/src/tokens/v2/xPNTsTokenV2.sol
++++ b/contracts/src/tokens/v2/xPNTsTokenV2.sol
+@@ -92,7 +92,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
+             emit SuperPaymasterAddressUpdated(address(0), c.superPaymaster);
+         }
+         if (c.genesisSpender != address(0)) {
+-            if (c.genesisSpender == c.superPaymaster) revert InvalidAddress(c.genesisSpender);
++            // M-A3G: equality check removed
+             if (!PROTOCOL_REGISTRY.isApprovedImpl(PROTOCOL_REGISTRY.KIND_SPENDER(), c.genesisSpender)) {
+                 revert NotApproved(c.genesisSpender);
+             }
+# cmd: forge test --match-path contracts/test/halmos/D5c1A3Negatives.t.sol -vv
+Compiling 4 files with Solc 0.8.33
+Solc 0.8.33 finished in 9.98s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 4 tests for contracts/test/halmos/D5c1A3Negatives.t.sol:D5c1A3NegativesTest
+[PASS] test_D5c1_A3_NEG1_control_distinctGenesisSpenderAccepted() (gas: 604789)
+[FAIL: next call did not revert as expected] test_D5c1_A3_NEG1_initializeRejectsGenesisSpenderEqualToSP() (gas: 587464)
+[PASS] test_D5c1_A3_NEG2_activatedSpenderBecomingSPIsRemoved() (gas: 996078)
+[PASS] test_D5c1_A3_NEG2_genesisSpenderBecomingSPIsRemoved() (gas: 979537)
+Suite result: FAILED. 3 passed; 1 failed; 0 skipped; finished in 7.95ms (6.95ms CPU time)
+
+Ran 1 test suite in 13.11ms (7.95ms CPU time): 3 tests passed, 1 failed, 0 skipped (4 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/halmos/D5c1A3Negatives.t.sol:D5c1A3NegativesTest
+[FAIL: next call did not revert as expected] test_D5c1_A3_NEG1_initializeRejectsGenesisSpenderEqualToSP() (gas: 587464)
+
+Encountered a total of 1 failing tests, 3 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+# exit_code: 1
+# restored sha256: 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4  contracts/src/tokens/v2/xPNTsTokenV2.sol
