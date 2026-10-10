@@ -226,7 +226,57 @@ def addr_of_topic(t):
 
 
 def u(h):
+    """Hex -> int for values that are NOT getter answers (block numbers, log data slices already length-checked).
+    Getter answers must go through word()."""
     return int(h, 16) if h not in ('0x', '') else 0
+
+
+WORD_RE = re.compile(r'0x[0-9a-fA-F]{64}')
+
+
+def word(r):
+    """Strict decoding of a uint/bool getter answer: EXACTLY one 32-byte ABI word ('0x' + 64 hex chars).
+    '0x', '', a revert object, a short/long/multi-word answer or non-hex all raise ValueError -> FAIL.
+    (An empty '0x' answer must never be read as zero: that is what a missing function or a lying endpoint
+    returns.)"""
+    if not isinstance(r, str) or not WORD_RE.fullmatch(r):
+        raise ValueError('not exactly one 32-byte ABI word: %r' % (r if not isinstance(r, str) else r[:80]))
+    return int(r, 16)
+
+
+def ord_key(l):
+    """Execution order of logs: (blockNumber, logIndex). logIndex is block-global, so the transaction hash
+    must NOT take part in ordering (sorting by hash reorders same-block events)."""
+    return (int(l['blockNumber'], 16), int(l['logIndex'], 16))
+
+
+def replay_token_debt(logs, t_recorded, t_repaid):
+    """Replay DebtRecorded / DebtRepaid logs of ONE token in execution order.
+    Returns (balance_by_user, results) where results is a list of (ok, message): one length check per log
+    (DebtRecorded data = 1 word, DebtRepaid data = 2 words) and, per DebtRepaid, remainingDebt == the running
+    replayed balance of that user at that point."""
+    run = collections.defaultdict(int)
+    results = []
+    for l in sorted(logs, key=ord_key):
+        usr = addr_of_topic(l['topics'][1])
+        t0, data = l['topics'][0].lower(), l['data'].lower()
+        where = 'block %d logIndex %d' % ord_key(l)
+        if t0 == t_recorded:
+            ok = bool(re.fullmatch(r'0x[0-9a-f]{64}', data))
+            results.append((ok, 'DebtRecorded@%s data is exactly 1 word' % where))
+            if ok:
+                run[usr] += int(data[2:66], 16)
+        elif t0 == t_repaid:
+            ok = bool(re.fullmatch(r'0x[0-9a-f]{128}', data))
+            results.append((ok, 'DebtRepaid@%s data is exactly 2 words' % where))
+            if ok:
+                run[usr] -= int(data[2:66], 16)
+                rem = int(data[66:130], 16)
+                results.append((rem == run[usr], 'user %s DebtRepaid@%s remainingDebt %d == replayed balance %d'
+                                % (usr, where, rem, run[usr])))
+        else:
+            results.append((False, 'unexpected topic0 %s at %s' % (t0, where)))
+    return dict(run), results
 
 
 class Raw:
@@ -284,7 +334,7 @@ def both_logs(eps, raw, name, flt, lo, hi):
     a, b = (sorted(canon_log(l) for l in r) for r in res)
     check(a == b, '%s: endpoint A and B return identical (block,tx,logIndex,topics,data,blockHash) sets '
                   '(A=%d B=%d) over [%d,%d]' % (name, len(res[0]), len(res[1]), lo, hi))
-    return sorted(res[0], key=log_key), [len(r) for r in res]
+    return sorted(res[0], key=ord_key), [len(r) for r in res]
 
 
 def both_call(eps, raw, name, to, data, block, override=None, allow_revert=False):
@@ -298,6 +348,24 @@ def both_call(eps, raw, name, to, data, block, override=None, allow_revert=False
     check(json.dumps(out[0], sort_keys=True) == json.dumps(out[1], sort_keys=True),
           '%s: identical on A and B' % name)
     return out[0]
+
+
+def both_uint(eps, raw, name, to, data, block, override=None):
+    """eth_call on both endpoints; EACH answer must be exactly one 32-byte ABI word (word()), else FAIL;
+    then the two values must be equal. Returns the int."""
+    vals = []
+    for ep in eps:
+        params = [{'to': to, 'data': data}, hex(block)] + ([override] if override else [])
+        r = ep.call('eth_call', params)
+        raw.put(ep, name, {'method': 'eth_call', 'to': to, 'data': data, 'block': block,
+                           'stateOverride': bool(override)}, r)
+        try:
+            vals.append(word(r))
+        except ValueError as e:
+            check(False, '%s: %s answer is exactly one 32-byte ABI word (%s)' % (name, ep.label, e))
+            raise
+    check(vals[0] == vals[1], '%s: identical on A and B (strict 1-word answers)' % name)
+    return vals[0]
 
 
 def both(eps, raw, name, method, params):
@@ -388,372 +456,369 @@ def mapping_slot_discovery(eps, raw, name, target, calldata, slot_fn, maxslot=30
     diff = {}
     for s in range(maxslot):
         diff['0x' + slot_fn(s).hex()] = '0x' + (1000 + s).to_bytes(32, 'big').hex()
-    r = both_call(eps, raw, name, target, calldata, BLOCK, override={target: {'stateDiff': diff}})
-    v = u(r) - 1000
+    v = both_uint(eps, raw, name, target, calldata, BLOCK, override={target: {'stateDiff': diff}}) - 1000
     check(0 <= v < maxslot, '%s: getter returns a planted value -> mapping declared at slot %d' % (name, v))
     return v
 
 
 # ---------------------------------------------------------------- main ------------------------------
-ap = argparse.ArgumentParser()
-ap.add_argument('--block', type=int, default=11881000)
-ap.add_argument('--row0', default='docs/design/aoa-balance-mode/data/d5b/debt-scan-row0')
-ap.add_argument('--legacy', default='docs/design/aoa-balance-mode/data/d5b/legacy-debt-7b')
-args = ap.parse_args()
-BLOCK = args.block
+def main():
+    global BLOCK
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--block', type=int, default=11881000)
+    ap.add_argument('--row0', default='docs/design/aoa-balance-mode/data/d5b/debt-scan-row0')
+    ap.add_argument('--legacy', default='docs/design/aoa-balance-mode/data/d5b/legacy-debt-7b')
+    args = ap.parse_args()
+    BLOCK = args.block
 
-url_a = os.environ.get('RPC_A') or load_env('~/Dev/.env').get('SEPOLIA_RPC')
-url_b = os.environ.get('RPC_B') or 'https://sepolia.gateway.tenderly.co'
-if not url_a:
-    sys.exit('endpoint A missing: set RPC_A or SEPOLIA_RPC in ~/Dev/.env')
-EPS = [EP('A', url_a), EP('B', url_b)]
-# the path/key part of each URL is what must never be written
-SECRET_PARTS = [p for x in (url_a, url_b) for p in x.split('/')[3:] if len(p) >= 12]
+    url_a = os.environ.get('RPC_A') or load_env('~/Dev/.env').get('SEPOLIA_RPC')
+    url_b = os.environ.get('RPC_B') or 'https://sepolia.gateway.tenderly.co'
+    if not url_a:
+        sys.exit('endpoint A missing: set RPC_A or SEPOLIA_RPC in ~/Dev/.env')
+    EPS = [EP('A', url_a), EP('B', url_b)]
+    # the path/key part of each URL is what must never be written
+    SECRET_PARTS = [p for x in (url_a, url_b) for p in x.split('/')[3:] if len(p) >= 12]
 
-os.makedirs(args.row0, exist_ok=True)
-os.makedirs(args.legacy, exist_ok=True)
-R0, R7 = Raw(args.row0), Raw(args.legacy)
-log('A2 row0/7b debt scan; fixed block', BLOCK, '; endpoints:', ', '.join('%s=%s' % (e.label, e.host) for e in EPS))
-_me = os.path.relpath(os.path.abspath(__file__), git('rev-parse', '--show-toplevel').strip())
-log('script', _me, 'sha256', __import__('hashlib').sha256(open(__file__, 'rb').read()).hexdigest(),
-    '; repo HEAD', git('rev-parse', 'HEAD').strip(),
-    '; script differs from HEAD:', 'yes' if git('status', '--porcelain', '--', _me).strip() else 'no')
+    os.makedirs(args.row0, exist_ok=True)
+    os.makedirs(args.legacy, exist_ok=True)
+    R0, R7 = Raw(args.row0), Raw(args.legacy)
+    log('A2 row0/7b debt scan; fixed block', BLOCK, '; endpoints:', ', '.join('%s=%s' % (e.label, e.host) for e in EPS))
+    _me = os.path.relpath(os.path.abspath(__file__), git('rev-parse', '--show-toplevel').strip())
+    log('script', _me, 'sha256', __import__('hashlib').sha256(open(__file__, 'rb').read()).hexdigest(),
+        '; repo HEAD', git('rev-parse', 'HEAD').strip(),
+        '; script differs from HEAD:', 'yes' if git('status', '--porcelain', '--', _me).strip() else 'no')
 
-try:
-    # ---- 0. endpoints, fixed block ----------------------------------------------------------------
-    for ep in EPS:
-        cid = u(ep.call('eth_chainId', []))
-        head = u(ep.call('eth_blockNumber', []))
-        check(cid == CHAIN_ID, '%s chainId == %d' % (ep.label, CHAIN_ID))
-        check(BLOCK <= head - FINALITY_MARGIN, '%s fixed block %d <= head %d - %d' % (ep.label, BLOCK, head,
-                                                                                         FINALITY_MARGIN))
-    blk = [ep.call('eth_getBlockByNumber', [hex(BLOCK), False]) for ep in EPS]
-    for ep, b in zip(EPS, blk):
-        R0.put(ep, 'block-fixed', {'method': 'eth_getBlockByNumber', 'block': BLOCK},
-               {'number': b['number'], 'hash': b['hash'], 'timestamp': b['timestamp']})
-    check(blk[0]['hash'] == blk[1]['hash'], 'fixed block hash identical on A and B (%s)' % blk[0]['hash'])
-    FIXED = {'number': BLOCK, 'hash': blk[0]['hash'], 'timestamp': u(blk[0]['timestamp'])}
+    try:
+        # ---- 0. endpoints, fixed block ----------------------------------------------------------------
+        for ep in EPS:
+            cid = u(ep.call('eth_chainId', []))
+            head = u(ep.call('eth_blockNumber', []))
+            check(cid == CHAIN_ID, '%s chainId == %d' % (ep.label, CHAIN_ID))
+            check(BLOCK <= head - FINALITY_MARGIN, '%s fixed block %d <= head %d - %d' % (ep.label, BLOCK, head,
+                                                                                             FINALITY_MARGIN))
+        blk = [ep.call('eth_getBlockByNumber', [hex(BLOCK), False]) for ep in EPS]
+        for ep, b in zip(EPS, blk):
+            R0.put(ep, 'block-fixed', {'method': 'eth_getBlockByNumber', 'block': BLOCK},
+                   {'number': b['number'], 'hash': b['hash'], 'timestamp': b['timestamp']})
+        check(blk[0]['hash'] == blk[1]['hash'], 'fixed block hash identical on A and B (%s)' % blk[0]['hash'])
+        FIXED = {'number': BLOCK, 'hash': blk[0]['hash'], 'timestamp': u(blk[0]['timestamp'])}
 
-    # ---- 1. source: tags + exact declarations; topics -------------------------------------------
-    src = {}
-    for tag, sha in EXPECTED_TAGS.items():
-        got = git('rev-parse', tag + '^{commit}').strip()
-        check(got == sha, 'tag %s -> %s' % (tag, got))
-    for tag, path, decl in SOURCE_DECLS:
-        txt = re.sub(r'\s+', ' ', git('show', '%s:%s' % (tag, path)))
-        ok = decl in txt
-        check(ok, 'source %s:%s declares `%s`' % (tag, path, decl))
-        src.setdefault(tag, []).append({'path': path, 'declaration': decl})
-    topics = {n: {'signature': s, 'topic0': T[n]} for n, s in SIG.items()}
-    log('topic0 DebtRecordFailed(address,address,uint256) =', T['DebtRecordFailed'])
-    log('topic0 DebtRecorded(address,uint256)            =', T['DebtRecorded'])
-    SIGDB = event_sigs_from_tags(['v5.4.2', 'v5.5.0-rc.2'])
-    for s in OPERATOR_TOPIC1_EVENTS:
-        check(k(s) in SIGDB, 'operator event %s is declared in tagged source' % s)
+        # ---- 1. source: tags + exact declarations; topics -------------------------------------------
+        src = {}
+        for tag, sha in EXPECTED_TAGS.items():
+            got = git('rev-parse', tag + '^{commit}').strip()
+            check(got == sha, 'tag %s -> %s' % (tag, got))
+        for tag, path, decl in SOURCE_DECLS:
+            txt = re.sub(r'\s+', ' ', git('show', '%s:%s' % (tag, path)))
+            ok = decl in txt
+            check(ok, 'source %s:%s declares `%s`' % (tag, path, decl))
+            src.setdefault(tag, []).append({'path': path, 'declaration': decl})
+        topics = {n: {'signature': s, 'topic0': T[n]} for n, s in SIG.items()}
+        log('topic0 DebtRecordFailed(address,address,uint256) =', T['DebtRecordFailed'])
+        log('topic0 DebtRecorded(address,uint256)            =', T['DebtRecorded'])
+        SIGDB = event_sigs_from_tags(['v5.4.2', 'v5.5.0-rc.2'])
+        for s in OPERATOR_TOPIC1_EVENTS:
+            check(k(s) in SIGDB, 'operator event %s is declared in tagged source' % s)
 
-    # ---- 2. SP: creation block, live impl, full log dump ---------------------------------------
-    C_SP = creation_block(EPS, R0, 'sp-creation', SP, BLOCK)
-    impl_now = '0x' + both(EPS, R0, 'sp-impl-slot-at-fixed', 'eth_getStorageAt', [SP, EIP1967_IMPL_SLOT, hex(BLOCK)])[-40:]
-    check(impl_now == EXPECTED_SP_IMPL, 'SP ERC-1967 impl at fixed block == %s' % EXPECTED_SP_IMPL)
-    v = dec_string(both_call(EPS, R0, 'sp-version-at-fixed', SP, sel('version()'), BLOCK))
-    check(v == EXPECTED_SP_VERSION, 'SP.version() at fixed block == %s (got %s)' % (EXPECTED_SP_VERSION, v))
+        # ---- 2. SP: creation block, live impl, full log dump ---------------------------------------
+        C_SP = creation_block(EPS, R0, 'sp-creation', SP, BLOCK)
+        impl_now = '0x' + both(EPS, R0, 'sp-impl-slot-at-fixed', 'eth_getStorageAt', [SP, EIP1967_IMPL_SLOT, hex(BLOCK)])[-40:]
+        check(impl_now == EXPECTED_SP_IMPL, 'SP ERC-1967 impl at fixed block == %s' % EXPECTED_SP_IMPL)
+        v = dec_string(both_call(EPS, R0, 'sp-version-at-fixed', SP, sel('version()'), BLOCK))
+        check(v == EXPECTED_SP_VERSION, 'SP.version() at fixed block == %s (got %s)' % (EXPECTED_SP_VERSION, v))
 
-    sp_all, sp_all_n = both_logs(EPS, R0, 'sp-all-logs', {'address': SP}, C_SP, BLOCK)
-    by_t0 = collections.Counter(l['topics'][0].lower() for l in sp_all)
-    unknown = [t for t in by_t0 if t not in SIGDB]
-    check(not unknown, 'every topic0 emitted by SP over [creation, fixed] decodes to an event declared in the '
-                       'tagged sources (unknown: %s)' % unknown)
-    sp_topic_counts = {SIGDB.get(t, t): n for t, n in by_t0.most_common()}
-    log('SP unfiltered log count A=%d B=%d; per event: %s' % (sp_all_n[0], sp_all_n[1], json.dumps(sp_topic_counts)))
+        sp_all, sp_all_n = both_logs(EPS, R0, 'sp-all-logs', {'address': SP}, C_SP, BLOCK)
+        by_t0 = collections.Counter(l['topics'][0].lower() for l in sp_all)
+        unknown = [t for t in by_t0 if t not in SIGDB]
+        check(not unknown, 'every topic0 emitted by SP over [creation, fixed] decodes to an event declared in the '
+                           'tagged sources (unknown: %s)' % unknown)
+        sp_topic_counts = {SIGDB.get(t, t): n for t, n in by_t0.most_common()}
+        log('SP unfiltered log count A=%d B=%d; per event: %s' % (sp_all_n[0], sp_all_n[1], json.dumps(sp_topic_counts)))
 
-    # impl history (Upgraded) + bytecode instrument checks
-    upgrades = [(int(l['blockNumber'], 16), addr_of_topic(l['topics'][1])) for l in sp_all if l['topics'][0] == T['Upgraded']]
-    check(upgrades and upgrades[0][0] == C_SP, 'first Upgraded log is in the SP creation block %d' % C_SP)
-    check(upgrades[-1][1] == impl_now, 'last Upgraded impl == ERC-1967 slot at fixed block')
-    impls = []
-    for b, impl in upgrades:
-        code = both(EPS, R0, 'sp-impl-code-%s' % impl[:10], 'eth_getCode', [impl, hex(BLOCK)])
-        c = code[2:].lower()
-        ver = dec_string(both_call(EPS, R0, 'sp-impl-version-%s' % impl[:10], impl, sel('version()'), BLOCK))
-        row = {'upgradedAtBlock': b, 'impl': impl, 'version': ver, 'runtimeBytes': len(c) // 2,
-               'runtimeKeccak': '0x' + keccak(bytes.fromhex(c)).hex()}
-        for n in ['DebtRecordFailed', 'PendingDebtRetried', 'PendingDebtCleared', 'OperatorConfigured',
-                  'TransactionSponsored']:
-            row['PUSH32_' + n] = ('7f' + T[n][2:]) in c
-            check(row['PUSH32_' + n], 'impl %s (%s) bytecode contains PUSH32 topic0 of %s' % (impl, ver, n))
-        row['PUSH4_pendingDebts'] = ('63' + sel('pendingDebts(address,address)')[2:]) in c
-        check(row['PUSH4_pendingDebts'], 'impl %s dispatcher contains PUSH4 pendingDebts(address,address)' % impl)
-        # discrimination (negative control of the bytecode instrument): token-only topic must be absent
-        row['PUSH32_DebtRecorded_absent'] = ('7f' + T['DebtRecorded'][2:]) not in c
-        check(row['PUSH32_DebtRecorded_absent'], 'negative control: impl %s does NOT contain the token-only '
-                                                 'DebtRecorded topic' % impl)
-        impls.append(row)
+        # impl history (Upgraded) + bytecode instrument checks
+        upgrades = [(int(l['blockNumber'], 16), addr_of_topic(l['topics'][1])) for l in sp_all if l['topics'][0] == T['Upgraded']]
+        check(upgrades and upgrades[0][0] == C_SP, 'first Upgraded log is in the SP creation block %d' % C_SP)
+        check(upgrades[-1][1] == impl_now, 'last Upgraded impl == ERC-1967 slot at fixed block')
+        impls = []
+        for b, impl in upgrades:
+            code = both(EPS, R0, 'sp-impl-code-%s' % impl[:10], 'eth_getCode', [impl, hex(BLOCK)])
+            c = code[2:].lower()
+            ver = dec_string(both_call(EPS, R0, 'sp-impl-version-%s' % impl[:10], impl, sel('version()'), BLOCK))
+            row = {'upgradedAtBlock': b, 'impl': impl, 'version': ver, 'runtimeBytes': len(c) // 2,
+                   'runtimeKeccak': '0x' + keccak(bytes.fromhex(c)).hex()}
+            for n in ['DebtRecordFailed', 'PendingDebtRetried', 'PendingDebtCleared', 'OperatorConfigured',
+                      'TransactionSponsored']:
+                row['PUSH32_' + n] = ('7f' + T[n][2:]) in c
+                check(row['PUSH32_' + n], 'impl %s (%s) bytecode contains PUSH32 topic0 of %s' % (impl, ver, n))
+            row['PUSH4_pendingDebts'] = ('63' + sel('pendingDebts(address,address)')[2:]) in c
+            check(row['PUSH4_pendingDebts'], 'impl %s dispatcher contains PUSH4 pendingDebts(address,address)' % impl)
+            # discrimination (negative control of the bytecode instrument): token-only topic must be absent
+            row['PUSH32_DebtRecorded_absent'] = ('7f' + T['DebtRecorded'][2:]) not in c
+            check(row['PUSH32_DebtRecorded_absent'], 'negative control: impl %s does NOT contain the token-only '
+                                                     'DebtRecorded topic' % impl)
+            impls.append(row)
 
-    # filtered DebtRecordFailed scan + same-shaped positive controls
-    q = {}
-    for n in ['DebtRecordFailed', 'PendingDebtRetried', 'PendingDebtCleared', 'Upgraded', 'TransactionSponsored']:
-        logs, ns = both_logs(EPS, R0, 'sp-logs-%s' % n, {'address': SP, 'topics': [T[n]]}, C_SP, BLOCK)
-        dump_n = by_t0.get(T[n], 0)
-        check(ns[0] == dump_n, '%s: topic-filtered count %d == count inside the unfiltered dump %d' % (n, ns[0], dump_n))
-        q[n] = {'topic0': T[n], 'countA': ns[0], 'countB': ns[1],
-                'logs': [{'block': log_key(l)[0], 'tx': log_key(l)[1], 'logIndex': log_key(l)[2],
-                          'topics': l['topics'], 'data': l['data']} for l in logs]}
-    check(q['Upgraded']['countA'] > 0 and q['Upgraded']['logs'][0]['block'] == C_SP,
-          'POSITIVE CONTROL 1 (same shape: address=SP, topics=[Upgraded], same range): >0 logs and the first one '
-          'is in the range START block %d -> the endpoints serve logs from the beginning of the range' % C_SP)
-    check(q['TransactionSponsored']['countA'] > 0,
-          'POSITIVE CONTROL 2 (same shape: address=SP, topics=[TransactionSponsored]): %d > 0'
-          % q['TransactionSponsored']['countA'])
-    log('DebtRecordFailed count: A=%d B=%d' % (q['DebtRecordFailed']['countA'], q['DebtRecordFailed']['countB']))
+        # filtered DebtRecordFailed scan + same-shaped positive controls
+        q = {}
+        for n in ['DebtRecordFailed', 'PendingDebtRetried', 'PendingDebtCleared', 'Upgraded', 'TransactionSponsored']:
+            logs, ns = both_logs(EPS, R0, 'sp-logs-%s' % n, {'address': SP, 'topics': [T[n]]}, C_SP, BLOCK)
+            dump_n = by_t0.get(T[n], 0)
+            check(ns[0] == dump_n, '%s: topic-filtered count %d == count inside the unfiltered dump %d' % (n, ns[0], dump_n))
+            q[n] = {'topic0': T[n], 'countA': ns[0], 'countB': ns[1],
+                    'logs': [{'block': log_key(l)[0], 'tx': log_key(l)[1], 'logIndex': log_key(l)[2],
+                              'topics': l['topics'], 'data': l['data']} for l in logs]}
+        check(q['Upgraded']['countA'] > 0 and q['Upgraded']['logs'][0]['block'] == C_SP,
+              'POSITIVE CONTROL 1 (same shape: address=SP, topics=[Upgraded], same range): >0 logs and the first one '
+              'is in the range START block %d -> the endpoints serve logs from the beginning of the range' % C_SP)
+        check(q['TransactionSponsored']['countA'] > 0,
+              'POSITIVE CONTROL 2 (same shape: address=SP, topics=[TransactionSponsored]): %d > 0'
+              % q['TransactionSponsored']['countA'])
+        log('DebtRecordFailed count: A=%d B=%d' % (q['DebtRecordFailed']['countA'], q['DebtRecordFailed']['countB']))
 
-    # ---- 3. operator full set -----------------------------------------------------------------
-    op_src = collections.defaultdict(set)
-    op_t0 = {k(s): s.split('(')[0] for s in OPERATOR_TOPIC1_EVENTS}
-    for l in sp_all:
-        t0 = l['topics'][0].lower()
-        if t0 in op_t0:
-            op_src[addr_of_topic(l['topics'][1])].add('SP.' + op_t0[t0])
-    C_REG = creation_block(EPS, R0, 'registry-creation', REGISTRY, BLOCK)
-    role_logs = {}
-    for n in ['RoleRegistered', 'RoleGranted', 'RoleExited', 'RoleRevoked']:
-        for rn, rid in [('PAYMASTER_SUPER', ROLE_PAYMASTER_SUPER), ('COMMUNITY', ROLE_COMMUNITY)]:
-            logs, ns = both_logs(EPS, R0, 'registry-%s-%s' % (n, rn), {'address': REGISTRY, 'topics': [T[n], rid]},
-                                 C_REG, BLOCK)
-            role_logs['%s/%s' % (n, rn)] = {'countA': ns[0], 'countB': ns[1],
-                                             'accounts': sorted({addr_of_topic(l['topics'][2]) for l in logs})}
-            if rn == 'PAYMASTER_SUPER':
-                for l in logs:
-                    op_src[addr_of_topic(l['topics'][2])].add('Registry.%s(PAYMASTER_SUPER)' % n)
-    check(role_logs['RoleRegistered/PAYMASTER_SUPER']['countA'] > 0,
-          'POSITIVE CONTROL 3 (same shape: address=Registry, topics=[RoleRegistered, PAYMASTER_SUPER]): >0')
-    # state-based enumeration: roleMembers[PAYMASTER_SUPER] array read from storage at the fixed block
-    cnt = u(both_call(EPS, R0, 'registry-getRoleUserCount-PAYMASTER_SUPER', REGISTRY,
-                      sel('getRoleUserCount(bytes32)') + ROLE_PAYMASTER_SUPER[2:], BLOCK))
-    base = keccak(bytes.fromhex(ROLE_PAYMASTER_SUPER[2:]) + REGISTRY_ROLE_MEMBERS_SLOT.to_bytes(32, 'big'))
-    ln = u(both(EPS, R0, 'registry-roleMembers-len', 'eth_getStorageAt', [REGISTRY, '0x' + base.hex(), hex(BLOCK)]))
-    check(cnt > 0 and ln == cnt, 'POSITIVE CONTROL 4: roleMembers[PAYMASTER_SUPER].length read from raw storage '
-                                 '(slot %d) == getRoleUserCount == %d' % (REGISTRY_ROLE_MEMBERS_SLOT, cnt))
-    data0 = int.from_bytes(keccak(base), 'big')
-    members = []
-    for i in range(ln):
-        w = both(EPS, R0, 'registry-roleMembers-%d' % i, 'eth_getStorageAt', [REGISTRY, hex(data0 + i), hex(BLOCK)])
-        m = '0x' + w[-40:].lower()
-        hr = u(both_call(EPS, R0, 'registry-hasRole-PAYMASTER_SUPER-%d' % i, REGISTRY,
-                         sel('hasRole(bytes32,address)') + ROLE_PAYMASTER_SUPER[2:] + pad32(m), BLOCK))
-        check(hr == 1, 'roleMembers[PAYMASTER_SUPER][%d] = %s has hasRole == true' % (i, m))
-        members.append(m)
-        op_src[m].add('Registry.roleMembers[PAYMASTER_SUPER]@fixed')
+        # ---- 3. operator full set -----------------------------------------------------------------
+        op_src = collections.defaultdict(set)
+        op_t0 = {k(s): s.split('(')[0] for s in OPERATOR_TOPIC1_EVENTS}
+        for l in sp_all:
+            t0 = l['topics'][0].lower()
+            if t0 in op_t0:
+                op_src[addr_of_topic(l['topics'][1])].add('SP.' + op_t0[t0])
+        C_REG = creation_block(EPS, R0, 'registry-creation', REGISTRY, BLOCK)
+        role_logs = {}
+        for n in ['RoleRegistered', 'RoleGranted', 'RoleExited', 'RoleRevoked']:
+            for rn, rid in [('PAYMASTER_SUPER', ROLE_PAYMASTER_SUPER), ('COMMUNITY', ROLE_COMMUNITY)]:
+                logs, ns = both_logs(EPS, R0, 'registry-%s-%s' % (n, rn), {'address': REGISTRY, 'topics': [T[n], rid]},
+                                     C_REG, BLOCK)
+                role_logs['%s/%s' % (n, rn)] = {'countA': ns[0], 'countB': ns[1],
+                                                 'accounts': sorted({addr_of_topic(l['topics'][2]) for l in logs})}
+                if rn == 'PAYMASTER_SUPER':
+                    for l in logs:
+                        op_src[addr_of_topic(l['topics'][2])].add('Registry.%s(PAYMASTER_SUPER)' % n)
+        check(role_logs['RoleRegistered/PAYMASTER_SUPER']['countA'] > 0,
+              'POSITIVE CONTROL 3 (same shape: address=Registry, topics=[RoleRegistered, PAYMASTER_SUPER]): >0')
+        # state-based enumeration: roleMembers[PAYMASTER_SUPER] array read from storage at the fixed block
+        cnt = both_uint(EPS, R0, 'registry-getRoleUserCount-PAYMASTER_SUPER', REGISTRY,
+                        sel('getRoleUserCount(bytes32)') + ROLE_PAYMASTER_SUPER[2:], BLOCK)
+        base = keccak(bytes.fromhex(ROLE_PAYMASTER_SUPER[2:]) + REGISTRY_ROLE_MEMBERS_SLOT.to_bytes(32, 'big'))
+        ln = word(both(EPS, R0, 'registry-roleMembers-len', 'eth_getStorageAt', [REGISTRY, '0x' + base.hex(), hex(BLOCK)]))
+        check(cnt > 0 and ln == cnt, 'POSITIVE CONTROL 4: roleMembers[PAYMASTER_SUPER].length read from raw storage '
+                                     '(slot %d) == getRoleUserCount == %d' % (REGISTRY_ROLE_MEMBERS_SLOT, cnt))
+        data0 = int.from_bytes(keccak(base), 'big')
+        members = []
+        for i in range(ln):
+            w = both(EPS, R0, 'registry-roleMembers-%d' % i, 'eth_getStorageAt', [REGISTRY, hex(data0 + i), hex(BLOCK)])
+            m = '0x' + ('%064x' % word(w))[-40:]
+            hr = both_uint(EPS, R0, 'registry-hasRole-PAYMASTER_SUPER-%d' % i, REGISTRY,
+                           sel('hasRole(bytes32,address)') + ROLE_PAYMASTER_SUPER[2:] + pad32(m), BLOCK)
+            check(hr == 1, 'roleMembers[PAYMASTER_SUPER][%d] = %s has hasRole == true' % (i, m))
+            members.append(m)
+            op_src[m].add('Registry.roleMembers[PAYMASTER_SUPER]@fixed')
 
-    operators = []
-    for op in sorted(op_src):
-        r = both_call(EPS, R0, 'sp-operators-%s' % op[:10], SP, sel('operators(address)') + pad32(op), BLOCK)
-        w = [r[2 + 64 * i: 2 + 64 * (i + 1)] for i in range((len(r) - 2) // 64)]
-        check(len(w) == 9, 'operators(%s) returns the 9-word 5.4.2 OperatorConfig tuple' % op)
-        hasrole = u(both_call(EPS, R0, 'registry-hasRole-op-%s' % op[:10], REGISTRY,
-                              sel('hasRole(bytes32,address)') + ROLE_PAYMASTER_SUPER[2:] + pad32(op), BLOCK))
-        operators.append({'operator': op, 'basis': sorted(op_src[op]), 'aPNTsBalance': str(int(w[0], 16)),
-                          'isConfigured': bool(int(w[1], 16)), 'isPaused': bool(int(w[2], 16)),
-                          'xPNTsToken': '0x' + w[3][-40:], 'reputation': int(w[4], 16), 'minTxInterval': int(w[5], 16),
-                          'treasury': '0x' + w[6][-40:], 'totalSpent': str(int(w[7], 16)),
-                          'totalTxSponsored': int(w[8], 16), 'hasRole_PAYMASTER_SUPER': bool(hasrole)})
-    configured = [o['operator'] for o in operators if o['isConfigured']]
-    oc_emitters = {addr_of_topic(l['topics'][1]) for l in sp_all if l['topics'][0] == T['OperatorConfigured']}
-    check(set(configured) <= oc_emitters, 'every operator with isConfigured==true at the fixed block emitted '
-                                          'OperatorConfigured (completeness cross-check)')
-    log('operator set:', json.dumps([(o['operator'], o['isConfigured'], o['xPNTsToken']) for o in operators]))
+        operators = []
+        for op in sorted(op_src):
+            r = both_call(EPS, R0, 'sp-operators-%s' % op[:10], SP, sel('operators(address)') + pad32(op), BLOCK)
+            w = [r[2 + 64 * i: 2 + 64 * (i + 1)] for i in range((len(r) - 2) // 64)]
+            check(len(w) == 9, 'operators(%s) returns the 9-word 5.4.2 OperatorConfig tuple' % op)
+            hasrole = both_uint(EPS, R0, 'registry-hasRole-op-%s' % op[:10], REGISTRY,
+                                sel('hasRole(bytes32,address)') + ROLE_PAYMASTER_SUPER[2:] + pad32(op), BLOCK)
+            operators.append({'operator': op, 'basis': sorted(op_src[op]), 'aPNTsBalance': str(int(w[0], 16)),
+                              'isConfigured': bool(int(w[1], 16)), 'isPaused': bool(int(w[2], 16)),
+                              'xPNTsToken': '0x' + w[3][-40:], 'reputation': int(w[4], 16), 'minTxInterval': int(w[5], 16),
+                              'treasury': '0x' + w[6][-40:], 'totalSpent': str(int(w[7], 16)),
+                              'totalTxSponsored': int(w[8], 16), 'hasRole_PAYMASTER_SUPER': bool(hasrole)})
+        configured = [o['operator'] for o in operators if o['isConfigured']]
+        oc_emitters = {addr_of_topic(l['topics'][1]) for l in sp_all if l['topics'][0] == T['OperatorConfigured']}
+        check(set(configured) <= oc_emitters, 'every operator with isConfigured==true at the fixed block emitted '
+                                              'OperatorConfigured (completeness cross-check)')
+        log('operator set:', json.dumps([(o['operator'], o['isConfigured'], o['xPNTsToken']) for o in operators]))
 
-    # ---- 4. token set (row 7b scope) ----------------------------------------------------------
-    tokens = dict((a, [d]) for a, d in NAMED_TOKENS.items())
-    for o in operators:
-        if int(o['xPNTsToken'], 16):
-            tokens.setdefault(o['xPNTsToken'], []).append('SP.operators(%s).xPNTsToken' % o['operator'])
-    for l in sp_all:
-        t0 = l['topics'][0]
-        if t0 == T['OperatorConfigured']:
-            tokens.setdefault('0x' + l['data'][26:66].lower(), []).append('SP.OperatorConfigured data')
-        if t0 == T['APNTsTokenChangeQueued']:
-            tokens.setdefault(addr_of_topic(l['topics'][1]), []).append('SP.APNTsTokenChangeQueued')
-        if t0 == T['DebtRecordFailed']:
-            tokens.setdefault(addr_of_topic(l['topics'][1]), []).append('SP.DebtRecordFailed topic1')
-    factories = set(EXTRA_FACTORIES)
-    for l in sp_all:
-        if l['topics'][0] == T['XPNTsFactoryUpdated']:
-            factories.add(addr_of_topic(l['topics'][2]))
-    factory_rows = []
-    for fac in sorted(factories):
-        cf = creation_block(EPS, R7, 'factory-creation-%s' % fac[:10], fac, BLOCK)
-        logs, ns = both_logs(EPS, R7, 'factory-%s-xPNTsTokenDeployed' % fac[:10],
-                             {'address': fac, 'topics': [T['xPNTsTokenDeployed']]}, cf, BLOCK)
-        check(ns[0] > 0, 'POSITIVE CONTROL (factory %s): xPNTsTokenDeployed count %d > 0' % (fac, ns[0]))
-        for l in logs:
-            tokens.setdefault(addr_of_topic(l['topics'][2]), []).append('factory %s xPNTsTokenDeployed' % fac)
-        factory_rows.append({'factory': fac, 'creationBlock': cf, 'deployedCountA': ns[0], 'deployedCountB': ns[1],
-                             'tokens': [addr_of_topic(l['topics'][2]) for l in logs]})
+        # ---- 4. token set (row 7b scope) ----------------------------------------------------------
+        tokens = dict((a, [d]) for a, d in NAMED_TOKENS.items())
+        for o in operators:
+            if int(o['xPNTsToken'], 16):
+                tokens.setdefault(o['xPNTsToken'], []).append('SP.operators(%s).xPNTsToken' % o['operator'])
+        for l in sp_all:
+            t0 = l['topics'][0]
+            if t0 == T['OperatorConfigured']:
+                tokens.setdefault('0x' + l['data'][26:66].lower(), []).append('SP.OperatorConfigured data')
+            if t0 == T['APNTsTokenChangeQueued']:
+                tokens.setdefault(addr_of_topic(l['topics'][1]), []).append('SP.APNTsTokenChangeQueued')
+            if t0 == T['DebtRecordFailed']:
+                tokens.setdefault(addr_of_topic(l['topics'][1]), []).append('SP.DebtRecordFailed topic1')
+        factories = set(EXTRA_FACTORIES)
+        for l in sp_all:
+            if l['topics'][0] == T['XPNTsFactoryUpdated']:
+                factories.add(addr_of_topic(l['topics'][2]))
+        factory_rows = []
+        for fac in sorted(factories):
+            cf = creation_block(EPS, R7, 'factory-creation-%s' % fac[:10], fac, BLOCK)
+            logs, ns = both_logs(EPS, R7, 'factory-%s-xPNTsTokenDeployed' % fac[:10],
+                                 {'address': fac, 'topics': [T['xPNTsTokenDeployed']]}, cf, BLOCK)
+            check(ns[0] > 0, 'POSITIVE CONTROL (factory %s): xPNTsTokenDeployed count %d > 0' % (fac, ns[0]))
+            for l in logs:
+                tokens.setdefault(addr_of_topic(l['topics'][2]), []).append('factory %s xPNTsTokenDeployed' % fac)
+            factory_rows.append({'factory': fac, 'creationBlock': cf, 'deployedCountA': ns[0], 'deployedCountB': ns[1],
+                                 'tokens': [addr_of_topic(l['topics'][2]) for l in logs]})
 
-    # ---- 5. pendingDebts reconciliation -------------------------------------------------------
-    pd_slot = mapping_slot_discovery(
-        EPS, R0, 'pc-pendingDebts-override', SP,
-        sel('pendingDebts(address,address)') + pad32('0x696a73701b104c6ccbbaaddd2216788ea08eab89')
-        + pad32('0x00000000000000000000000000000000000000aa'),
-        lambda s: keccak(bytes.fromhex(pad32('0x00000000000000000000000000000000000000aa')) +
-                         keccak(bytes.fromhex(pad32('0x696a73701b104c6ccbbaaddd2216788ea08eab89')) + s.to_bytes(32, 'big'))))
-    neg = both_call(EPS, R0, 'nc-sp-unknown-selector', SP, '0xdeadbeef', BLOCK, allow_revert=True)
-    check(isinstance(neg, dict) and '__error__' in neg, 'NEGATIVE CONTROL: unknown selector 0xdeadbeef on SP reverts '
-                                                        '(a 32-byte answer therefore means the selector dispatched)')
-    expected = collections.defaultdict(int)
-    for n, sign in [('DebtRecordFailed', 1), ('PendingDebtRetried', -1), ('PendingDebtCleared', -1)]:
-        for l in q[n]['logs']:
-            expected[(addr_of_topic(l['topics'][1]), addr_of_topic(l['topics'][2]))] += sign * u(l['data'][:66])
-    users = set()
-    for l in sp_all:
-        if l['topics'][0] in (T['TransactionSponsored'],) and len(l['topics']) > 2:
-            users.add(addr_of_topic(l['topics'][2]))
-    pairs = set(expected)
-    # (filled after the token debt scan adds DebtRecorded users)
+        # ---- 5. pendingDebts reconciliation -------------------------------------------------------
+        pd_slot = mapping_slot_discovery(
+            EPS, R0, 'pc-pendingDebts-override', SP,
+            sel('pendingDebts(address,address)') + pad32('0x696a73701b104c6ccbbaaddd2216788ea08eab89')
+            + pad32('0x00000000000000000000000000000000000000aa'),
+            lambda s: keccak(bytes.fromhex(pad32('0x00000000000000000000000000000000000000aa')) +
+                             keccak(bytes.fromhex(pad32('0x696a73701b104c6ccbbaaddd2216788ea08eab89')) + s.to_bytes(32, 'big'))))
+        neg = both_call(EPS, R0, 'nc-sp-unknown-selector', SP, '0xdeadbeef', BLOCK, allow_revert=True)
+        check(isinstance(neg, dict) and '__error__' in neg, 'NEGATIVE CONTROL: unknown selector 0xdeadbeef on SP reverts '
+                                                            '(a 32-byte answer therefore means the selector dispatched)')
+        expected = collections.defaultdict(int)
+        for n, sign in [('DebtRecordFailed', 1), ('PendingDebtRetried', -1), ('PendingDebtCleared', -1)]:
+            for l in q[n]['logs']:
+                check(bool(WORD_RE.fullmatch(l['data'])), '%s@%d data is exactly 1 word' % (n, l['block']))
+                expected[(addr_of_topic(l['topics'][1]), addr_of_topic(l['topics'][2]))] += sign * word(l['data'])
+        users = set()
+        for l in sp_all:
+            if l['topics'][0] in (T['TransactionSponsored'],) and len(l['topics']) > 2:
+                users.add(addr_of_topic(l['topics'][2]))
+        pairs = set(expected)
+        # (filled after the token debt scan adds DebtRecorded users)
 
-    # ---- 6. legacy token debt scan ------------------------------------------------------------
-    token_rows = []
-    debt_users = set()
-    token_logs = {}
-    for tok in sorted(tokens):
-        ct = creation_block(EPS, R7, 'token-creation-%s' % tok[:10], tok, BLOCK)
-        code = both(EPS, R7, 'token-code-%s' % tok[:10], 'eth_getCode', [tok, hex(BLOCK)])
-        impl = impl_of_clone(code)
-        icode = both(EPS, R7, 'token-impl-code-%s' % tok[:10], 'eth_getCode', [impl or tok, hex(BLOCK)])[2:].lower()
-        ver = dec_string(both_call(EPS, R7, 'token-version-%s' % tok[:10], tok, sel('version()'), BLOCK))
-        sym = dec_string(both_call(EPS, R7, 'token-symbol-%s' % tok[:10], tok, sel('symbol()'), BLOCK))
-        ins = {'PUSH32_DebtRecorded': ('7f' + T['DebtRecorded'][2:]) in icode,
-               'PUSH32_DebtRepaid': ('7f' + T['DebtRepaid'][2:]) in icode,
-               'PUSH4_getDebt': ('63' + sel('getDebt(address)')[2:]) in icode,
-               'PUSH32_DebtRecordFailed_absent': ('7f' + T['DebtRecordFailed'][2:]) not in icode}
-        for kk, vv in ins.items():
-            check(vv, 'token %s impl %s: %s' % (tok, impl, kk))
-        allt, alln = both_logs(EPS, R7, 'token-%s-all-logs' % tok[:10], {'address': tok}, ct, BLOCK)
-        tc = collections.Counter(l['topics'][0].lower() for l in allt)
-        rows = {}
-        for n in ['DebtRecorded', 'DebtRepaid', 'Transfer']:
-            logs, ns = both_logs(EPS, R7, 'token-%s-%s' % (tok[:10], n), {'address': tok, 'topics': [T[n]]}, ct, BLOCK)
-            check(ns[0] == tc.get(T[n], 0), 'token %s %s filtered count %d == unfiltered dump count %d'
-                  % (tok, n, ns[0], tc.get(T[n], 0)))
-            rows[n] = (logs, ns)
-        check(rows['Transfer'][1][0] > 0, 'POSITIVE CONTROL (token %s, same shape: address=token, topics=[Transfer], '
-                                          'same range): %d > 0' % (tok, rows['Transfer'][1][0]))
-        exp = collections.defaultdict(int)
-        for l in rows['DebtRecorded'][0]:
-            exp[addr_of_topic(l['topics'][1])] += u(l['data'][:66])
-        for l in rows['DebtRepaid'][0]:
-            exp[addr_of_topic(l['topics'][1])] -= u(l['data'][2:66])
-        # Replay in log order: every DebtRepaid.remainingDebt must equal the running event-derived balance
-        # (cross-checks that no debt was written without an event between two logged points).
-        run = collections.defaultdict(int)
-        for l in sorted(rows['DebtRecorded'][0] + rows['DebtRepaid'][0], key=log_key):
-            usr = addr_of_topic(l['topics'][1])
-            if l['topics'][0].lower() == T['DebtRecorded']:
-                run[usr] += u(l['data'][:66])
-            else:
-                run[usr] -= u(l['data'][2:66])
-                check(u(l['data'][66:130]) == run[usr], 'token %s user %s DebtRepaid@%d remainingDebt %d == replayed '
-                      'balance %d' % (tok, usr, log_key(l)[0], u(l['data'][66:130]), run[usr]))
-        slot = mapping_slot_discovery(
-            EPS, R7, 'pc-getDebt-override-%s' % tok[:10], tok,
-            sel('getDebt(address)') + pad32('0x00000000000000000000000000000000000000aa'),
-            lambda s: keccak(bytes.fromhex(pad32('0x00000000000000000000000000000000000000aa')) + s.to_bytes(32, 'big')))
-        per_user = []
-        total_onchain = 0
-        for usr in sorted(exp):
-            debt = u(both_call(EPS, R7, 'token-%s-getDebt-%s' % (tok[:10], usr[:10]), tok,
-                               sel('getDebt(address)') + pad32(usr), BLOCK))
-            check(debt == exp[usr], 'token %s user %s: getDebt@fixed %d == sum(DebtRecorded) - sum(DebtRepaid) %d'
-                  % (tok, usr, debt, exp[usr]))
-            per_user.append({'user': usr, 'getDebtAtFixed': str(debt), 'eventDerived': str(exp[usr]),
-                             'recorded': [{'block': log_key(l)[0], 'tx': log_key(l)[1], 'logIndex': log_key(l)[2],
-                                           'amount': str(u(l['data'][:66]))} for l in rows['DebtRecorded'][0]
-                                          if addr_of_topic(l['topics'][1]) == usr],
-                             'repaid': [{'block': log_key(l)[0], 'tx': log_key(l)[1], 'logIndex': log_key(l)[2],
-                                         'amountRepaid': str(u(l['data'][2:66])), 'remainingDebt': str(u(l['data'][66:130]))}
-                                        for l in rows['DebtRepaid'][0] if addr_of_topic(l['topics'][1]) == usr]})
-            total_onchain += debt
-            debt_users.add(usr)
-        token_rows.append({'token': tok, 'symbol': sym, 'version': ver, 'implementation': impl, 'why_in_scope': sorted(set(tokens[tok])),
-                           'creationBlock': ct, 'range': [ct, BLOCK], 'instrument': ins, 'debtsMappingSlot': slot,
-                           'unfilteredLogCountA': alln[0], 'unfilteredLogCountB': alln[1],
-                           'unfilteredPerEvent': {SIGDB.get(t, t): n for t, n in tc.most_common()},
-                           'DebtRecorded': {'countA': rows['DebtRecorded'][1][0], 'countB': rows['DebtRecorded'][1][1]},
-                           'DebtRepaid': {'countA': rows['DebtRepaid'][1][0], 'countB': rows['DebtRepaid'][1][1]},
-                           'Transfer_positiveControl': {'countA': rows['Transfer'][1][0], 'countB': rows['Transfer'][1][1]},
-                           'users': per_user, 'totalOutstandingDebt_aPNTsWei': str(total_onchain)})
-        log('token %s %s %s: DebtRecorded A=%d B=%d, DebtRepaid A=%d B=%d, Transfer(PC) A=%d B=%d, outstanding=%d'
-            % (tok, sym, ver, rows['DebtRecorded'][1][0], rows['DebtRecorded'][1][1], rows['DebtRepaid'][1][0],
-               rows['DebtRepaid'][1][1], rows['Transfer'][1][0], rows['Transfer'][1][1], total_onchain))
+        # ---- 6. legacy token debt scan ------------------------------------------------------------
+        token_rows = []
+        debt_users = set()
+        token_logs = {}
+        for tok in sorted(tokens):
+            ct = creation_block(EPS, R7, 'token-creation-%s' % tok[:10], tok, BLOCK)
+            code = both(EPS, R7, 'token-code-%s' % tok[:10], 'eth_getCode', [tok, hex(BLOCK)])
+            impl = impl_of_clone(code)
+            icode = both(EPS, R7, 'token-impl-code-%s' % tok[:10], 'eth_getCode', [impl or tok, hex(BLOCK)])[2:].lower()
+            ver = dec_string(both_call(EPS, R7, 'token-version-%s' % tok[:10], tok, sel('version()'), BLOCK))
+            sym = dec_string(both_call(EPS, R7, 'token-symbol-%s' % tok[:10], tok, sel('symbol()'), BLOCK))
+            ins = {'PUSH32_DebtRecorded': ('7f' + T['DebtRecorded'][2:]) in icode,
+                   'PUSH32_DebtRepaid': ('7f' + T['DebtRepaid'][2:]) in icode,
+                   'PUSH4_getDebt': ('63' + sel('getDebt(address)')[2:]) in icode,
+                   'PUSH32_DebtRecordFailed_absent': ('7f' + T['DebtRecordFailed'][2:]) not in icode}
+            for kk, vv in ins.items():
+                check(vv, 'token %s impl %s: %s' % (tok, impl, kk))
+            allt, alln = both_logs(EPS, R7, 'token-%s-all-logs' % tok[:10], {'address': tok}, ct, BLOCK)
+            tc = collections.Counter(l['topics'][0].lower() for l in allt)
+            rows = {}
+            for n in ['DebtRecorded', 'DebtRepaid', 'Transfer']:
+                logs, ns = both_logs(EPS, R7, 'token-%s-%s' % (tok[:10], n), {'address': tok, 'topics': [T[n]]}, ct, BLOCK)
+                check(ns[0] == tc.get(T[n], 0), 'token %s %s filtered count %d == unfiltered dump count %d'
+                      % (tok, n, ns[0], tc.get(T[n], 0)))
+                rows[n] = (logs, ns)
+            check(rows['Transfer'][1][0] > 0, 'POSITIVE CONTROL (token %s, same shape: address=token, topics=[Transfer], '
+                                              'same range): %d > 0' % (tok, rows['Transfer'][1][0]))
+            # Replay in EXECUTION order (block, logIndex): every DebtRepaid.remainingDebt must equal the running
+            # event-derived balance (cross-checks that no debt was written without an event between two logged points).
+            exp, results = replay_token_debt(rows['DebtRecorded'][0] + rows['DebtRepaid'][0],
+                                             T['DebtRecorded'], T['DebtRepaid'])
+            for ok, msg in results:
+                check(ok, 'token %s %s' % (tok, msg))
+            exp = collections.defaultdict(int, exp)
+            slot = mapping_slot_discovery(
+                EPS, R7, 'pc-getDebt-override-%s' % tok[:10], tok,
+                sel('getDebt(address)') + pad32('0x00000000000000000000000000000000000000aa'),
+                lambda s: keccak(bytes.fromhex(pad32('0x00000000000000000000000000000000000000aa')) + s.to_bytes(32, 'big')))
+            per_user = []
+            total_onchain = 0
+            for usr in sorted(exp):
+                debt = both_uint(EPS, R7, 'token-%s-getDebt-%s' % (tok[:10], usr[:10]), tok,
+                                 sel('getDebt(address)') + pad32(usr), BLOCK)
+                check(debt == exp[usr], 'token %s user %s: getDebt@fixed %d == sum(DebtRecorded) - sum(DebtRepaid) %d'
+                      % (tok, usr, debt, exp[usr]))
+                per_user.append({'user': usr, 'getDebtAtFixed': str(debt), 'eventDerived': str(exp[usr]),
+                                 'recorded': [{'block': log_key(l)[0], 'tx': log_key(l)[1], 'logIndex': log_key(l)[2],
+                                               'amount': str(u(l['data'][:66]))} for l in rows['DebtRecorded'][0]
+                                              if addr_of_topic(l['topics'][1]) == usr],
+                                 'repaid': [{'block': log_key(l)[0], 'tx': log_key(l)[1], 'logIndex': log_key(l)[2],
+                                             'amountRepaid': str(u(l['data'][2:66])), 'remainingDebt': str(u(l['data'][66:130]))}
+                                            for l in rows['DebtRepaid'][0] if addr_of_topic(l['topics'][1]) == usr]})
+                total_onchain += debt
+                debt_users.add(usr)
+            token_rows.append({'token': tok, 'symbol': sym, 'version': ver, 'implementation': impl, 'why_in_scope': sorted(set(tokens[tok])),
+                               'creationBlock': ct, 'range': [ct, BLOCK], 'instrument': ins, 'debtsMappingSlot': slot,
+                               'unfilteredLogCountA': alln[0], 'unfilteredLogCountB': alln[1],
+                               'unfilteredPerEvent': {SIGDB.get(t, t): n for t, n in tc.most_common()},
+                               'DebtRecorded': {'countA': rows['DebtRecorded'][1][0], 'countB': rows['DebtRecorded'][1][1]},
+                               'DebtRepaid': {'countA': rows['DebtRepaid'][1][0], 'countB': rows['DebtRepaid'][1][1]},
+                               'Transfer_positiveControl': {'countA': rows['Transfer'][1][0], 'countB': rows['Transfer'][1][1]},
+                               'users': per_user, 'totalOutstandingDebt_aPNTsWei': str(total_onchain)})
+            log('token %s %s %s: DebtRecorded A=%d B=%d, DebtRepaid A=%d B=%d, Transfer(PC) A=%d B=%d, outstanding=%d'
+                % (tok, sym, ver, rows['DebtRecorded'][1][0], rows['DebtRecorded'][1][1], rows['DebtRepaid'][1][0],
+                   rows['DebtRepaid'][1][1], rows['Transfer'][1][0], rows['Transfer'][1][1], total_onchain))
 
-    # pendingDebts: event-revealed pairs + cross product (tokens x every user seen anywhere)
-    users |= debt_users
-    users |= {u2 for (_, u2) in expected}
-    for tok in tokens:
-        for usr in users:
-            pairs.add((tok, usr))
-    pd_rows = []
-    for tok, usr in sorted(pairs):
-        val = u(both_call(EPS, R0, 'sp-pendingDebts-%s-%s' % (tok[:10], usr[:10]), SP,
-                          sel('pendingDebts(address,address)') + pad32(tok) + pad32(usr), BLOCK))
-        check(val == expected.get((tok, usr), 0), 'pendingDebts(%s,%s)@fixed %d == event-derived %d'
-              % (tok, usr, val, expected.get((tok, usr), 0)))
-        pd_rows.append({'token': tok, 'user': usr, 'pendingDebtsAtFixed': str(val),
-                        'eventDerived': str(expected.get((tok, usr), 0)),
-                        'source': 'DebtRecordFailed' if (tok, usr) in expected else 'cross-product (tokens x users)'})
+        # pendingDebts: event-revealed pairs + cross product (tokens x every user seen anywhere)
+        users |= debt_users
+        users |= {u2 for (_, u2) in expected}
+        for tok in tokens:
+            for usr in users:
+                pairs.add((tok, usr))
+        pd_rows = []
+        for tok, usr in sorted(pairs):
+            val = both_uint(EPS, R0, 'sp-pendingDebts-%s-%s' % (tok[:10], usr[:10]), SP,
+                            sel('pendingDebts(address,address)') + pad32(tok) + pad32(usr), BLOCK)
+            check(val == expected.get((tok, usr), 0), 'pendingDebts(%s,%s)@fixed %d == event-derived %d'
+                  % (tok, usr, val, expected.get((tok, usr), 0)))
+            pd_rows.append({'token': tok, 'user': usr, 'pendingDebtsAtFixed': str(val),
+                            'eventDerived': str(expected.get((tok, usr), 0)),
+                            'source': 'DebtRecordFailed' if (tok, usr) in expected else 'cross-product (tokens x users)'})
 
-    inv = {
-        'schema': 'a2-row0-debt-scan/1', 'fixedBlock': FIXED,
-        'endpoints': [{'label': e.label, 'host': e.host, 'requests': e.n} for e in EPS],
-        'sources': {'tags': EXPECTED_TAGS, 'declarations': src}, 'topics': topics,
-        'superPaymaster': {'proxy': SP, 'creationBlock': C_SP, 'range': [C_SP, BLOCK], 'implAtFixed': impl_now,
-                           'versionAtFixed': v, 'implHistory': impls,
-                           'unfilteredLogCount': {'A': sp_all_n[0], 'B': sp_all_n[1]}, 'unfilteredPerEvent': sp_topic_counts},
-        'scans': q,
-        'positiveControls': {
-            'PC1_Upgraded_at_range_start': {'countA': q['Upgraded']['countA'], 'countB': q['Upgraded']['countB'],
-                                            'firstBlock': q['Upgraded']['logs'][0]['block']},
-            'PC2_TransactionSponsored': {'countA': q['TransactionSponsored']['countA'],
-                                         'countB': q['TransactionSponsored']['countB']},
-            'PC3_Registry_RoleRegistered_PAYMASTER_SUPER': role_logs['RoleRegistered/PAYMASTER_SUPER'],
-            'PC4_roleMembers_storage_len_eq_getRoleUserCount': cnt,
-            'PC5_pendingDebts_getter_state_override_slot': pd_slot,
-            'NC_unknown_selector_reverts': True},
-        'registry': {'proxy': REGISTRY, 'creationBlock': C_REG, 'roleLogs': role_logs,
-                     'roleMembers_PAYMASTER_SUPER_atFixed': members},
-        'operators': operators,
-        'pendingDebts': {'pairsChecked': len(pd_rows), 'nonZero': [r for r in pd_rows if r['pendingDebtsAtFixed'] != '0'],
-                         'rows': pd_rows},
-    }
-    leg = {'schema': 'a2-7b-legacy-debt/1', 'fixedBlock': FIXED,
-           'endpoints': [{'label': e.label, 'host': e.host} for e in EPS],
-           'factories': factory_rows, 'tokens': token_rows,
-           'grandTotalOutstanding_aPNTsWei': str(sum(int(t['totalOutstandingDebt_aPNTsWei']) for t in token_rows))}
-except Exception as e:  # any RPC / parse failure is a failure, never a silent zero
-    FAIL.append('exception: %s: %s' % (type(e).__name__, str(e)[:300]))
-    log('EXCEPTION', type(e).__name__, str(e)[:300])
-    inv, leg = None, None
+        inv = {
+            'schema': 'a2-row0-debt-scan/1', 'fixedBlock': FIXED,
+            'endpoints': [{'label': e.label, 'host': e.host, 'requests': e.n} for e in EPS],
+            'sources': {'tags': EXPECTED_TAGS, 'declarations': src}, 'topics': topics,
+            'superPaymaster': {'proxy': SP, 'creationBlock': C_SP, 'range': [C_SP, BLOCK], 'implAtFixed': impl_now,
+                               'versionAtFixed': v, 'implHistory': impls,
+                               'unfilteredLogCount': {'A': sp_all_n[0], 'B': sp_all_n[1]}, 'unfilteredPerEvent': sp_topic_counts},
+            'scans': q,
+            'positiveControls': {
+                'PC1_Upgraded_at_range_start': {'countA': q['Upgraded']['countA'], 'countB': q['Upgraded']['countB'],
+                                                'firstBlock': q['Upgraded']['logs'][0]['block']},
+                'PC2_TransactionSponsored': {'countA': q['TransactionSponsored']['countA'],
+                                             'countB': q['TransactionSponsored']['countB']},
+                'PC3_Registry_RoleRegistered_PAYMASTER_SUPER': role_logs['RoleRegistered/PAYMASTER_SUPER'],
+                'PC4_roleMembers_storage_len_eq_getRoleUserCount': cnt,
+                'PC5_pendingDebts_getter_state_override_slot': pd_slot,
+                'NC_unknown_selector_reverts': True},
+            'registry': {'proxy': REGISTRY, 'creationBlock': C_REG, 'roleLogs': role_logs,
+                         'roleMembers_PAYMASTER_SUPER_atFixed': members},
+            'operators': operators,
+            'pendingDebts': {'pairsChecked': len(pd_rows), 'nonZero': [r for r in pd_rows if r['pendingDebtsAtFixed'] != '0'],
+                             'rows': pd_rows},
+        }
+        leg = {'schema': 'a2-7b-legacy-debt/1', 'fixedBlock': FIXED,
+               'endpoints': [{'label': e.label, 'host': e.host} for e in EPS],
+               'factories': factory_rows, 'tokens': token_rows,
+               'grandTotalOutstanding_aPNTsWei': str(sum(int(t['totalOutstandingDebt_aPNTsWei']) for t in token_rows))}
+    except Exception as e:  # any RPC / parse failure is a failure, never a silent zero
+        FAIL.append('exception: %s: %s' % (type(e).__name__, str(e)[:300]))
+        log('EXCEPTION', type(e).__name__, str(e)[:300])
+        inv, leg = None, None
 
-if inv:
-    with open(os.path.join(args.row0, 'inventory.json'), 'w') as f:
-        json.dump(inv, f, indent=1, sort_keys=True); f.write('\n')
-    with open(os.path.join(args.legacy, 'legacy-debt.json'), 'w') as f:
-        json.dump(leg, f, indent=1, sort_keys=True); f.write('\n')
-log('CHECK totals: OK=%d FAIL=%d' % (sum(1 for x in LOG if x.startswith('CHECK OK')), len(FAIL)))
-log('RESULT', 'FAIL (%d)' % len(FAIL) if FAIL else 'OK', *(['\n  - ' + x for x in FAIL]))
-with open(os.path.join(args.row0, 'scan.log'), 'w') as f:
-    f.write('\n'.join(LOG) + '\n')
+    if inv:
+        with open(os.path.join(args.row0, 'inventory.json'), 'w') as f:
+            json.dump(inv, f, indent=1, sort_keys=True); f.write('\n')
+        with open(os.path.join(args.legacy, 'legacy-debt.json'), 'w') as f:
+            json.dump(leg, f, indent=1, sort_keys=True); f.write('\n')
+    log('CHECK totals: OK=%d FAIL=%d' % (sum(1 for x in LOG if x.startswith('CHECK OK')), len(FAIL)))
+    log('RESULT', 'FAIL (%d)' % len(FAIL) if FAIL else 'OK', *(['\n  - ' + x for x in FAIL]))
+    with open(os.path.join(args.row0, 'scan.log'), 'w') as f:
+        f.write('\n'.join(LOG) + '\n')
 
-# secret scan of everything written (fail-closed)
-leak = []
-for d in (args.row0, args.legacy):
-    for root, _, files in os.walk(d):
-        for fn in files:
-            p = os.path.join(root, fn)
-            txt = open(p, errors='replace').read()
-            if any(s in txt for s in SECRET_PARTS):
-                leak.append(p)
-if leak:
-    print('SECRET LEAK in', leak)
-    sys.exit(1)
-sys.exit(1 if FAIL else 0)
+    # secret scan of everything written (fail-closed)
+    leak = []
+    for d in (args.row0, args.legacy):
+        for root, _, files in os.walk(d):
+            for fn in files:
+                p = os.path.join(root, fn)
+                txt = open(p, errors='replace').read()
+                if any(s in txt for s in SECRET_PARTS):
+                    leak.append(p)
+    if leak:
+        print('SECRET LEAK in', leak)
+        sys.exit(1)
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == '__main__':
+    main()
