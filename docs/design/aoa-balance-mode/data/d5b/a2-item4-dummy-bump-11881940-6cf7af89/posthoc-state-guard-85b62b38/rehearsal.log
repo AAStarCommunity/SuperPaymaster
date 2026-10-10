@@ -1,0 +1,26 @@
+# script under test: script/evidence/a2-full-rehearsal.sh @ 85b62b385a91cb6f7e3f3e430faf1ba06bde1a9c
+  local anvil fork of Sepolia @11881940 (forkBlockHash 0x1b708b2ec46bd87e8a9cf1f9ba0df5bfe4449cf3b7ac9f19e6732cc9951a9a1d); live SP "SuperPaymaster-5.4.2"
+  fork-only: proxy impl slot -> rc.2 build 0x11cc8878c12dafee401ff4a3f5f7d2c4d4ed5d7c (runtime keccak 0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222); SP now reports "SuperPaymaster-5.5.0"
+== 1. negative controls (state_neg_controls, verbatim from the script) ==
+  negative ok NEG-1 [D0: sp_state with an injected EMPTY getter (operators(OWNER) exit 0, blank) returns failure]: reverted @block 11881942 (head after 11881942); regex expected == actual 'FAILED operators(OWNER) @block 11881942: empty value'
+  negative ok NEG-2 [D0: sp_state with an injected FAILED getter (operators(OWNER) exit 1) returns failure]: reverted @block 11881942 (head after 11881942); regex expected == actual 'FAILED operators(OWNER) @block 11881942: Error: injected read failure'
+  CHECK [D0: injection was scoped (cast is no longer shadowed)] PASS: file
+  CHECK [D0: healthy getter snapshot accepted by state_ok (positive control)] PASS: valid
+  CHECK [D0: snapshot with the injected failed getter rejected] PASS: INVALID
+  CHECK [D0: snapshot with the injected empty getter rejected] PASS: INVALID
+  CHECK [D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot A rejected] PASS: INVALID(23 non-empty values, 1 bad lines)
+  CHECK [D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot B rejected] PASS: INVALID(23 non-empty values, 1 bad lines)
+  CHECK [D0: Codex repro — the OLD rule would have accepted it (documents the gap)] PASS: old-accepts
+== 2. post-hoc: NEW state_ok applied to the archived getter snapshots of docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881940-6cf7af89 ==
+  D5-state-before.txt: state_ok -> valid; ' = ' lines 24; blank values 0; error/revert lines 0; header: # SP getters via proxy @block 11882076
+  CHECK [post-hoc D5-state-before.txt accepted by the NEW state_ok] PASS: valid
+  D5-state-after.txt: state_ok -> valid; ' = ' lines 24; blank values 0; error/revert lines 0; header: # SP getters via proxy @block 11882078
+  CHECK [post-hoc D5-state-after.txt accepted by the NEW state_ok] PASS: valid
+  D6-state-before.txt: state_ok -> valid; ' = ' lines 24; blank values 0; error/revert lines 0; header: # SP getters via proxy @block 11882086
+  CHECK [post-hoc D6-state-before.txt accepted by the NEW state_ok] PASS: valid
+  D6-state-after.txt: state_ok -> valid; ' = ' lines 24; blank values 0; error/revert lines 0; header: # SP getters via proxy @block 11882088
+  CHECK [post-hoc D6-state-after.txt accepted by the NEW state_ok] PASS: valid
+  CHECK [post-hoc D5 getters identical before/after] PASS: identical
+  CHECK [post-hoc D6 getters identical before/after] PASS: identical
+  CHECK lines: 13 PASS, 0 FAIL; negative controls 2
+SELFTEST COMPLETED WITH 0 FAILURES

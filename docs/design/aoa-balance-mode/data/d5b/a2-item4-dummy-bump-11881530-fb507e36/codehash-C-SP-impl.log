@@ -1,0 +1,2 @@
+MATCH    SuperPaymaster @ 0x3a69C08A310bb62bEfdd03048C6Ec64235772e5b: masked on-chain keccak 0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222 vs attested 0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222 (13744 B, raw codehash 0x855c0e80217be18958cecb20582584966412ae98b5e357cd7e109dd37219dfbf) @block 11881615
+ATTESTED RUNTIME CHECK PASS (1 targets, 0 clones, 0 negative controls) @block 11881615

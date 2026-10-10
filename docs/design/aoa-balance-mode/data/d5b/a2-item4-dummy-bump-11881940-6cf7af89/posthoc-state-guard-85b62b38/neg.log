@@ -1,0 +1,6 @@
+### NEG-1 [D0: sp_state with an injected EMPTY getter (operators(OWNER) exit 0, blank) returns failure] expect=FAILED operators\(OWNER\) @block [0-9]+: empty value head block before=11881942 after=11881942 exit=1
+sp_state: FAILED operators(OWNER) @block 11881942: empty value
+
+### NEG-2 [D0: sp_state with an injected FAILED getter (operators(OWNER) exit 1) returns failure] expect=FAILED operators\(OWNER\) @block [0-9]+: Error: injected read failure head block before=11881942 after=11881942 exit=1
+sp_state: FAILED operators(OWNER) @block 11881942: Error: injected read failure
+

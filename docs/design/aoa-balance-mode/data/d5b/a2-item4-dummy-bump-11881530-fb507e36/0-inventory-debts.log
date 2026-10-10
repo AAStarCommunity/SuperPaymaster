@@ -1,0 +1,12 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig inventoryDebts(address[],address[]) [0x696A73701b104c6cCBbAadDD2216788ea08EaB89,0xE6579A90dc498a710008de12119812D0FB7aA224] [0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9] --rpc-url http://127.0.0.1:28631
+# git HEAD: fb507e36367287f2746c99dc914be2072814a233
+# forge: forge Version: 1.7.1
+# utc: 2026-10-10T02:29:32Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    pendingDebts 0x696A73701b104c6cCBbAadDD2216788ea08EaB89 0xb5600060e6de5E11D3636731964218E53caadf0E 0
+    pendingDebts 0xE6579A90dc498a710008de12119812D0FB7aA224 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 0
+    total pendingDebts: 0

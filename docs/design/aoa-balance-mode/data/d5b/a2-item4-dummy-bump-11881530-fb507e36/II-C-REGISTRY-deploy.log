@@ -1,0 +1,48 @@
+Compiling 18 files with Solc 0.8.33
+Compiling 137 files with Solc 0.8.33
+Solc 0.8.33 finished in 2.03s
+Solc 0.8.33 finished in 24.87s
+Compiler run successful with warnings:
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Script ran successfully.
+
+== Logs ==
+    [artifact] default artifact OK: Registry 0x6b1c9f8555FEE910C5c8CbdBac036D00bA94BB87 23306
+    [artifact] default artifact OK: Registry 0x6b1c9f8555FEE910C5c8CbdBac036D00bA94BB87 23306
+    Registry impl ready (default build, runs=200): 0x6b1c9f8555FEE910C5c8CbdBac036D00bA94BB87 23306
+    new implementation (pass as TL_NEW_IMPL): 0x6b1c9f8555FEE910C5c8CbdBac036D00bA94BB87
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.002031276 gwei
+
+Estimated total gas used for script: 6715814
+
+Estimated amount required: 0.000013641671798664 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/broadcast/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/cache/UpgradeViaTimelock.s.sol/11155111/run-latest.json

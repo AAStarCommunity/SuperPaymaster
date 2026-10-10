@@ -1,0 +1,300 @@
+{
+ "entries": 42,
+ "maxSlot": 64,
+ "storage": [
+  {
+   "slot": "0",
+   "offset": 0,
+   "label": "_owner",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "1",
+   "offset": 0,
+   "label": "_status",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "2",
+   "offset": 0,
+   "label": "APNTS_TOKEN",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "3",
+   "offset": 0,
+   "label": "xpntsFactory",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "4",
+   "offset": 0,
+   "label": "treasury",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "5",
+   "offset": 0,
+   "label": "operators",
+   "type": "t_mapping(t_address,t_struct(OperatorConfig)46306_storage)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "6",
+   "offset": 0,
+   "label": "userOpState",
+   "type": "t_mapping(t_address,t_mapping(t_address,t_struct(UserOperatorState)62444_storage))",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "7",
+   "offset": 0,
+   "label": "sbtHolders",
+   "type": "t_mapping(t_address,t_bool)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "8",
+   "offset": 0,
+   "label": "slashHistory",
+   "type": "t_mapping(t_address,t_array(t_struct(SlashRecord)46318_storage)dyn_storage)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "9",
+   "offset": 0,
+   "label": "aPNTsPriceUSD",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "10",
+   "offset": 0,
+   "label": "cachedPrice",
+   "type": "t_struct(PriceCache)62411_storage",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "13",
+   "offset": 0,
+   "label": "protocolFeeBPS",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "14",
+   "offset": 0,
+   "label": "BLS_AGGREGATOR",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "15",
+   "offset": 0,
+   "label": "totalTrackedBalance",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "16",
+   "offset": 0,
+   "label": "protocolRevenue",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "17",
+   "offset": 0,
+   "label": "pendingDebts",
+   "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "18",
+   "offset": 0,
+   "label": "priceMode",
+   "type": "t_uint8",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "19",
+   "offset": 0,
+   "label": "emergencyQueuedAt",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "20",
+   "offset": 0,
+   "label": "emergencyPendingPrice",
+   "type": "t_int256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "21",
+   "offset": 0,
+   "label": "emergencyActivatedAt",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "22",
+   "offset": 0,
+   "label": "priceStalenessThreshold",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "23",
+   "offset": 0,
+   "label": "agentIdentityRegistry",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "24",
+   "offset": 0,
+   "label": "agentReputationRegistry",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "25",
+   "offset": 0,
+   "label": "__deprecated_x402_facilitatorFeeBPS",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "26",
+   "offset": 0,
+   "label": "__deprecated_x402_operatorFacilitatorFees",
+   "type": "t_mapping(t_address,t_uint256)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "27",
+   "offset": 0,
+   "label": "__deprecated_x402_settlementNonces",
+   "type": "t_mapping(t_bytes32,t_bool)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "28",
+   "offset": 0,
+   "label": "__deprecated_x402_facilitatorEarnings",
+   "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "29",
+   "offset": 0,
+   "label": "pendingAPNTsToken",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "30",
+   "offset": 0,
+   "label": "pendingAPNTsTokenEta",
+   "type": "t_uint256",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "31",
+   "offset": 0,
+   "label": "_slashCd",
+   "type": "t_mapping(t_address,t_uint48)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "32",
+   "offset": 0,
+   "label": "pendingBLSAgg",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "32",
+   "offset": 20,
+   "label": "pendingBLSAggEta",
+   "type": "t_uint48",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "33",
+   "offset": 0,
+   "label": "_settledDebtOps",
+   "type": "t_mapping(t_bytes32,t_bool)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "34",
+   "offset": 0,
+   "label": "_pendingSlash",
+   "type": "t_mapping(t_address,t_bool)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "35",
+   "offset": 0,
+   "label": "_blsSlashCd",
+   "type": "t_mapping(t_address,t_uint48)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "36",
+   "offset": 0,
+   "label": "_blsSlashCdFloor",
+   "type": "t_uint48",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "37",
+   "offset": 0,
+   "label": "_inflight",
+   "type": "t_mapping(t_bytes32,t_struct(Inflight)62417_storage)",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "38",
+   "offset": 0,
+   "label": "_gasParams",
+   "type": "t_struct(GasParams)62427_storage",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "39",
+   "offset": 0,
+   "label": "_pendingGasParams",
+   "type": "t_struct(PendingGasParams)62439_storage",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "40",
+   "offset": 0,
+   "label": "guardian",
+   "type": "t_address",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "40",
+   "offset": 20,
+   "label": "paused",
+   "type": "t_bool",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  },
+  {
+   "slot": "41",
+   "offset": 0,
+   "label": "__gap",
+   "type": "t_array(t_uint256)24_storage",
+   "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster"
+  }
+ ]
+}
