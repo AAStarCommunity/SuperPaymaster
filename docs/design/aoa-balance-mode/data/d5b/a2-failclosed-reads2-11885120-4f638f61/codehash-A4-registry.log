@@ -1,0 +1,2 @@
+MATCH    Registry @ 0xd71d988efdadef92e95c7c9d7c1a3f66dff671ad: masked on-chain keccak 0xde3d06d860890b9e95a1e80202833efea49175a417958d3362d32e0231406e8b vs attested 0xde3d06d860890b9e95a1e80202833efea49175a417958d3362d32e0231406e8b (23306 B, raw codehash 0x276b99eb204edd22fda28753d49493573dd7f8a042b13eb80e9a335980482458) @block 11885164
+ATTESTED RUNTIME CHECK PASS (1 targets, 0 clones, 0 negative controls) @block 11885164

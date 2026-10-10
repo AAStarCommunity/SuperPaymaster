@@ -1,0 +1,3 @@
+# endpoint A = the anvil --fork-url provider (key-bearing URL, not written); endpoint B = https://ethereum-sepolia-rpc.publicnode.com
+# block 11884270; identical lines below are equal on both endpoints
+IDENTICAL (23 values)

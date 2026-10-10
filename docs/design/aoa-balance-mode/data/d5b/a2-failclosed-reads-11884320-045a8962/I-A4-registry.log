@@ -1,0 +1,53 @@
+Compiling 137 files with Solc 0.8.33
+Compiling 18 files with Solc 0.8.33
+Solc 0.8.33 finished in 4.67s
+Solc 0.8.33 finished in 49.90s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Script ran successfully.
+
+== Logs ==
+    [artifact] default artifact OK: Registry 0xd71d988efDADEf92e95c7C9d7c1a3F66Dff671AD 23306
+    [artifact] default artifact OK: Registry 0xd71d988efDADEf92e95c7C9d7c1a3F66Dff671AD 23306
+    Registry impl ready (default build, runs=200): 0xd71d988efDADEf92e95c7C9d7c1a3F66Dff671AD 23306
+    [artifact] default artifact OK: ERC1967Proxy 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71 100
+    [artifact] default artifact OK: Registry 0xd71d988efDADEf92e95c7C9d7c1a3F66Dff671AD 23306
+    Registry read-back OK: impl / version / owner / pendingOwner == 0; version = Registry-5.9.0
+    BLS three legs unchanged (SP / Registry / DVT): 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+    Registry: raw slots 0..N-1 byte-identical, N = 74
+    5c done. Registry impl: 0xd71d988efDADEf92e95c7C9d7c1a3F66Dff671AD
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.001000014 gwei
+
+Estimated total gas used for script: 6770828
+
+Estimated amount required: 0.000006770922791592 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/broadcast/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/cache/UpgradeViaTimelock.s.sol/11155111/run-latest.json

@@ -1,0 +1,6 @@
+grep: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/missing-log-old/rehearsal.log: No such file or directory
+grep: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/missing-log-old/rehearsal.log: No such file or directory
+grep: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/missing-log-old/rehearsal.log: No such file or directory
+  CHECK lines:  PASS,  FAIL; !!! lines: 
+/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/.run-old.sh: line 30: [: : integer expression expected
+RUN COMPLETED WITH 0 FAILURES (all) — this line is a tally, not evidence; see the per-step CHECK / TX / readback lines above

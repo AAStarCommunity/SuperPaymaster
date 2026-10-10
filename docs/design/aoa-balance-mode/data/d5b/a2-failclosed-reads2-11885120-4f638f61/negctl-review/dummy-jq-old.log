@@ -1,0 +1,2 @@
+CHECK [D0 dummy runtime keccak != rc.2 attested runtime keccak] PASS: different
+FAILURES=0

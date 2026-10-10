@@ -1,0 +1,73 @@
+# endpoint A = the anvil --fork-url provider (key-bearing URL, not written); endpoint B = https://ethereum-sepolia-rpc.publicnode.com
+# block 11884270; identical lines below are equal on both endpoints
+1,23c1,46
+< blockHash=0x6b0d91b865fb278ec8898762d48d9057151f472fe1ddc21ed1cfc29532bf363c
+< SP.version="SuperPaymaster-5.4.2"
+< SP.owner=0xb5600060e6de5E11D3636731964218E53caadf0E
+< SP.implSlot=0x000000000000000000000000e25f88dbeafc64200270a948df8e9dd2f9b22c27
+< SP.APNTS_TOKEN=0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+< SP.pendingAPNTsToken=0xBb46321545a91DB2F3B5c3e694F2f23aBe259883
+< SP.pendingAPNTsTokenEta=1789099908 [1.789e9]
+< SP.totalTrackedBalance=2934135941213700000000
+< SP.operators(OWNER)=1690008712737068326800,true,false,0x696A73701b104c6cCBbAadDD2216788ea08EaB89,100,60,0xb5600060e6de5E11D3636731964218E53caadf0E,1174614808208040000000,6,
+< SP.operators(ANNI)=844540702843415794600,true,false,0xE6579A90dc498a710008de12119812D0FB7aA224,0,0,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9,587307404104020000000,3,
+< EP.depositInfo(SP)=(93470830000000000 [9.347e16], true, 100000000000000000 [1e17], 86400 [8.64e4], 0)
+< Registry.version="Registry-5.8.0"
+< Registry.owner=0xb5600060e6de5E11D3636731964218E53caadf0E
+< Registry.implSlot=0x0000000000000000000000009bed0f58d6001b0006923eb8c4b1cc548d42ccee
+< Safe.VERSION="1.4.1"
+< Safe.owners=[0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+< Safe.threshold=2
+< Safe.nonce=1
+< Safe.guardSlot=0x0000000000000000000000000000000000000000000000000000000000000000
+< Safe.modules=[] 0x0000000000000000000000000000000000000001 
+< OLD_TL.minDelay=172800
+< OLD_TL.proposer(Safe)=false
+< OLD_TL.admin(OWNER)=true
+---
+> Error: injected: endpoint B unreachable
+> blockHash=
+> Error: injected: endpoint B unreachable
+> SP.version=
+> Error: injected: endpoint B unreachable
+> SP.owner=
+> Error: injected: endpoint B unreachable
+> SP.implSlot=
+> Error: injected: endpoint B unreachable
+> SP.APNTS_TOKEN=
+> Error: injected: endpoint B unreachable
+> SP.pendingAPNTsToken=
+> Error: injected: endpoint B unreachable
+> SP.pendingAPNTsTokenEta=
+> Error: injected: endpoint B unreachable
+> SP.totalTrackedBalance=
+> Error: injected: endpoint B unreachable
+> SP.operators(OWNER)=
+> Error: injected: endpoint B unreachable
+> SP.operators(ANNI)=
+> Error: injected: endpoint B unreachable
+> EP.depositInfo(SP)=
+> Error: injected: endpoint B unreachable
+> Registry.version=
+> Error: injected: endpoint B unreachable
+> Registry.owner=
+> Error: injected: endpoint B unreachable
+> Registry.implSlot=
+> Error: injected: endpoint B unreachable
+> Safe.VERSION=
+> Error: injected: endpoint B unreachable
+> Safe.owners=
+> Error: injected: endpoint B unreachable
+> Safe.threshold=
+> Error: injected: endpoint B unreachable
+> Safe.nonce=
+> Error: injected: endpoint B unreachable
+> Safe.guardSlot=
+> Error: injected: endpoint B unreachable
+> Safe.modules=
+> Error: injected: endpoint B unreachable
+> OLD_TL.minDelay=
+> Error: injected: endpoint B unreachable
+> OLD_TL.proposer(Safe)=
+> Error: injected: endpoint B unreachable
+> OLD_TL.admin(OWNER)=

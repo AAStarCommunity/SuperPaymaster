@@ -1,0 +1,3 @@
+MATCH    SuperPaymasterAdmin @ 0x35e905E6730e94850725724E1F7C6Bcb3690Cc64: masked on-chain keccak 0xefc71c67b20fd21111e50808ee8d60bec6f1f47ec30aaa1729dcf293e7e178d2 vs attested 0xefc71c67b20fd21111e50808ee8d60bec6f1f47ec30aaa1729dcf293e7e178d2 (19214 B, raw codehash 0x1f004b889059e05602d4bcba3d31f54fb12b84cd23772e39f93e6d10e732da5d) @block 11885245
+negative ok (mismatch as expected) SuperPaymaster vs 0x90F740A94f8f7f441c1dD0C55FE2e11597E27ff6: masked keccak 0xea5051d205a52644cad65acea4e19bc311fd22b6e97ddcd123ab4a574e985d79, 13782 B vs artifact 13744 B @block 11885245
+ATTESTED RUNTIME CHECK PASS (1 targets, 0 clones, 1 negative controls) @block 11885245
