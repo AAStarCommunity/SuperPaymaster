@@ -1,0 +1,26 @@
+{
+  "attestation": "docs/release/v5.5.0-rc.2-attestation.json",
+  "attestedCommit": "1ac0e1c595dc84e684b540ca6a936168e922194f",
+  "block": "11881576",
+  "results": [
+    {
+      "mode": "clone",
+      "label": "AAStarV2",
+      "address": "0x50a3cc04208d6A4E2A3B443275c0adD139416DD8",
+      "impl": "0x5B1D105e43dc297336bB7c2EdAA1d7d4e243F99a",
+      "onchainCodehash": "0x5739b181e84a7e96c6431a14ed730515de4fb9d296ed8a1b3a564d814ec4be88",
+      "expectedCodehash": "0x5739b181e84a7e96c6431a14ed730515de4fb9d296ed8a1b3a564d814ec4be88",
+      "match": true
+    },
+    {
+      "mode": "clone",
+      "label": "MyceliumV2",
+      "address": "0xe443749BE2fdaA6826FeC2F5d3e7D29f3092f297",
+      "impl": "0x5B1D105e43dc297336bB7c2EdAA1d7d4e243F99a",
+      "onchainCodehash": "0x5739b181e84a7e96c6431a14ed730515de4fb9d296ed8a1b3a564d814ec4be88",
+      "expectedCodehash": "0x5739b181e84a7e96c6431a14ed730515de4fb9d296ed8a1b3a564d814ec4be88",
+      "match": true
+    }
+  ],
+  "result": "PASS"
+}

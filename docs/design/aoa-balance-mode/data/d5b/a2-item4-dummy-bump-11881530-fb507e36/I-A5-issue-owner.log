@@ -1,0 +1,35 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig issueCommunityToken(string,string,string,string,uint256) AAStar PNTs v2 aPNTsV2 AAStar aastar.eth 1000000000000000000 --rpc-url http://127.0.0.1:28631 --unlocked --sender 0xb5600060e6de5E11D3636731964218E53caadf0E --broadcast --slow
+# git HEAD: fb507e36367287f2746c99dc914be2072814a233
+# forge: forge Version: 1.7.1
+# utc: 2026-10-10T02:31:12Z
+# exit code: 0
+# (compiler output before line 5 omitted)
+Script ran successfully.
+
+== Logs ==
+    [v55] v2 token issued: aPNTsV2 0x50a3cc04208d6A4E2A3B443275c0adD139416DD8
+    step 7a: v2 token 0x50a3cc04208d6A4E2A3B443275c0adD139416DD8
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.002031276 gwei
+
+Estimated total gas used for script: 733759
+
+Estimated amount required: 0.000001490467046484 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/broadcast/UpgradeToV5_5_0.s.sol/11155111/issueCommunityToken-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/cache/UpgradeToV5_5_0.s.sol/11155111/issueCommunityToken-latest.json
+

@@ -1,0 +1,59 @@
+{
+  "attestation": "docs/release/v5.5.0-rc.2-attestation.json",
+  "attestedCommit": "1ac0e1c595dc84e684b540ca6a936168e922194f",
+  "block": "11881535",
+  "results": [
+    {
+      "mode": "target",
+      "contract": "APNTsCapped",
+      "address": "0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7",
+      "artifact": "out/APNTsCapped.sol/APNTsCapped.json",
+      "attestedRuntimeKeccak": "0x16a1a114c5c16b566e056ef5d9701652cb647926a7cde85432ff6b79692c1304",
+      "artifactRuntimeKeccak": "0x16a1a114c5c16b566e056ef5d9701652cb647926a7cde85432ff6b79692c1304",
+      "buildReproducesAttestation": true,
+      "onchainBytes": 5346,
+      "artifactBytes": 5346,
+      "onchainCodehash": "0x313d60fc0cd6c959371f5ae6dc544232690e34512a6094c96ebc45bd510fb8e4",
+      "immutables": [
+        {
+          "astId": "88561",
+          "start": 4587,
+          "value": "0x1e6b004fb025d43d7acd57b0d7a4ce494813a52358eb0c20db630bbd8826af17"
+        },
+        {
+          "astId": "88563",
+          "start": 4776,
+          "value": "0x0000000000000000000000000000000000000000000000000000000000aa36a7"
+        },
+        {
+          "astId": "88565",
+          "start": 4540,
+          "value": "0x0000000000000000000000009eb17fac022557f64924aa2f9e018db3a330e1e7"
+        },
+        {
+          "astId": "88567",
+          "start": 4666,
+          "value": "0xb61d5c2240b92a39a4b635d085e9d59534f71f542fb712e82ce2d23f93a3682f"
+        },
+        {
+          "astId": "88569",
+          "start": 4704,
+          "value": "0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6"
+        },
+        {
+          "astId": "88572",
+          "start": 1597,
+          "value": "0x41415374617220504e547300000000000000000000000000000000000000000b"
+        },
+        {
+          "astId": "88575",
+          "start": 1638,
+          "value": "0x3100000000000000000000000000000000000000000000000000000000000001"
+        }
+      ],
+      "maskedOnchainKeccak": "0x16a1a114c5c16b566e056ef5d9701652cb647926a7cde85432ff6b79692c1304",
+      "match": true
+    }
+  ],
+  "result": "PASS"
+}
