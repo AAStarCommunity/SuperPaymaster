@@ -852,6 +852,48 @@ check "D0 dummy compiled with the release settings (cancun / 500 runs / via_ir)"
 check "D0 local SuperPaymaster artifact == rc.2 attested runtime (the dummy's base is rc.2)" "$(jq -r .rc2SuperPaymaster.runtimeKeccak "$OUT/D-dummy-artifact.json")" "$(jq -r .rc2SuperPaymaster.attestedRuntimeKeccak "$OUT/D-dummy-artifact.json")"
 check "D0 dummy runtime keccak != rc.2 attested runtime keccak" "$( [ "$(jq -r .runtimeKeccak "$OUT/D-dummy-artifact.json")" != "$(jq -r .rc2SuperPaymaster.attestedRuntimeKeccak "$OUT/D-dummy-artifact.json")" ] && echo different || echo SAME)" different
 check "D0 dummy runtime <= EIP-170 24576 B" "$(python3 -c "print($(jq -r .runtimeBytes "$OUT/D-dummy-artifact.json") <= 24576)")" True
+# D0 provenance (Codex #462 M1): the artifact that is deployed must be the one compiled from THIS checkout.
+#   (a) every source recorded in the artifact's compiler metadata (the dummy, SuperPaymaster.sol and all 33
+#       transitive imports) has keccak256 == keccak256 of the file in the checkout;
+#   (b) compilationTarget is the dummy, and the settings are the release ones;
+#   (c) a FRESH compile of the dummy in this run (isolated out/cache dirs under cache/, never out/) yields a
+#       runtime AND creation bytecode byte-identical to the artifact that D1 deploys.
+# Negative controls: a stale artifact whose recorded dummy source differs (metadata keccak of a source with
+# extra logic) and a stale artifact whose runtime differs by one byte must both be REFUSED.
+dummy_provenance() { # <artifact> <fresh artifact> -> "PROVENANCE OK ..." (exit 0) | "PROVENANCE MISMATCH: ..." (exit 1)
+  node -e '
+const fs=require("fs"), {keccak256}=require("viem");
+const [art, fresh, target]=process.argv.slice(1);
+const a=JSON.parse(fs.readFileSync(art)), f=JSON.parse(fs.readFileSync(fresh));
+const bad=[]; const srcs=Object.entries(a.metadata.sources||{});
+if(!srcs.length) bad.push("no metadata sources");
+for(const [p,v] of srcs){ let k; try{ k=keccak256(fs.readFileSync(p)); }catch(e){ bad.push("source keccak: "+p+" unreadable"); continue; }
+  if(k!==v.keccak256) bad.push("source keccak: "+p+" artifact "+v.keccak256+" != checkout "+k); }
+const ct=a.metadata.settings.compilationTarget||{};
+if(ct[target]!=="SuperPaymasterA2DrillDummyBump") bad.push("compilationTarget "+JSON.stringify(ct));
+if(!srcs.find(([p])=>p==="contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol")) bad.push("SuperPaymaster.sol not among metadata sources");
+const s=a.metadata.settings; if(!(s.evmVersion==="cancun"&&s.optimizer.runs===500&&s.viaIR===true&&s.metadata.bytecodeHash==="none")) bad.push("settings "+JSON.stringify({e:s.evmVersion,r:s.optimizer.runs,v:s.viaIR}));
+if(a.deployedBytecode.object!==f.deployedBytecode.object) bad.push("runtime != fresh rebuild ("+keccak256(a.deployedBytecode.object)+" vs "+keccak256(f.deployedBytecode.object)+")");
+if(a.bytecode.object!==f.bytecode.object) bad.push("creation != fresh rebuild");
+if(bad.length){ console.log("PROVENANCE MISMATCH: "+bad.join("; ")); process.exit(1); }
+console.log("PROVENANCE OK: "+srcs.length+"/"+srcs.length+" metadata sources == checkout; runtime "+keccak256(a.deployedBytecode.object)+" and creation "+keccak256(a.bytecode.object)+" == fresh rebuild");' "$1" "$2" "$DSRC"; }
+FRESH_DIR=cache/evidence-a2/dummy-fresh; rm -rf "$FRESH_DIR"
+forge build "$DSRC" --out "$FRESH_DIR/out" --cache-path "$FRESH_DIR/cache" > "$OUT/D0-dummy-fresh-build.log" 2>&1 || { fail "D0 fresh rebuild of the dummy failed (D0-dummy-fresh-build.log)"; exit 1; }
+FRESH_ART="$FRESH_DIR/out/SuperPaymasterA2DrillDummyBump.sol/SuperPaymasterA2DrillDummyBump.json"
+rlog "  D0 fresh rebuild: $(grep -m1 -E '^Compiling [0-9]+ files' "$OUT/D0-dummy-fresh-build.log") -> $FRESH_ART"
+DPROV=$(dummy_provenance "$DART" "$FRESH_ART"); DPROV_RC=$?
+echo "$DPROV" > "$OUT/D0-dummy-provenance.log"
+rlog "  $DPROV"
+check "D0 dummy artifact provenance (metadata source keccaks == checkout; == fresh rebuild)" "$DPROV_RC:${DPROV%%:*}" "0:PROVENANCE OK"
+[ $DPROV_RC -eq 0 ] || { fail "D0: refusing to deploy an artifact not built from this checkout"; exit 1; }
+node -e 'const fs=require("fs"),{keccak256}=require("viem");const a=JSON.parse(fs.readFileSync(process.argv[1]));
+a.metadata.sources[process.argv[3]].keccak256=keccak256(Buffer.concat([fs.readFileSync(process.argv[3]),Buffer.from("\n// stale build: extra logic\n")]));
+fs.writeFileSync(process.argv[2],JSON.stringify(a));' "$DART" "$OUT/.stale-source-artifact.json" "$DSRC"
+node -e 'const fs=require("fs");const a=JSON.parse(fs.readFileSync(process.argv[1]));const o=a.deployedBytecode.object;const i=o.length-2;
+a.deployedBytecode.object=o.slice(0,i)+(o.slice(i)==="00"?"01":"00");fs.writeFileSync(process.argv[2],JSON.stringify(a));' "$DART" "$OUT/.stale-runtime-artifact.json"
+must_fail "D0: stale artifact compiled from a DIFFERENT dummy source (metadata keccak != checkout) is refused" "PROVENANCE MISMATCH: source keccak: $DSRC" dummy_provenance "$OUT/.stale-source-artifact.json" "$FRESH_ART"
+must_fail "D0: stale artifact whose runtime differs by one byte from the fresh rebuild is refused" "PROVENANCE MISMATCH: runtime != fresh rebuild" dummy_provenance "$OUT/.stale-runtime-artifact.json" "$FRESH_ART"
+rm -f "$OUT/.stale-source-artifact.json" "$OUT/.stale-runtime-artifact.json"
 # storage layout: the compiler's storageLayout of the dummy must equal rc.2 SuperPaymaster's EXACTLY (every
 # storage entry's label/slot/offset and its type, expanded recursively incl. struct members / mapping key and
 # value / array base). Not compared: solc's `contract` attribution (names the contract being compiled, i.e.
@@ -888,13 +930,47 @@ rlog "  D0 layout: $(jq -r .entries "$OUT/D-rc2-storage-layout.json") entries, l
 INIT_SLOT=0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00   # OZ v5 Initializable (ERC-7201)
 OWN2_SLOT=0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d27120286f742a00   # Ownable2StepNamespaced pending owner
 IMPL_SLOT=0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
-dump_slots() { # <file>: raw SP proxy storage at ONE block (sequential 0..maxSlot + ERC-7201 namespaced slots)
-  local b; b=$(bn)
-  { echo "# SP proxy $SP raw storage @block $b"
-    for i in $(seq 0 $SP_MAXSLOT); do echo "slot $i $(cast storage $SP $i --rpc-url $RPC --block $b)"; done
-    echo "slot Initializable(ERC-7201) $(cast storage $SP $INIT_SLOT --rpc-url $RPC --block $b)"
-    echo "slot Ownable2Step.pending(ERC-7201) $(cast storage $SP $OWN2_SLOT --rpc-url $RPC --block $b)"; } > "$1"
+# dump_slots <file>: raw SP proxy storage at ONE block (sequential 0..maxSlot + ERC-7201 namespaced slots).
+# Codex #462 M2: every read is checked — a failed `cast storage` (or block-number read) writes a
+# "READ-FAILED" line, prints "dump_slots: READ-FAILED ..." and returns 1; the caller fails the run. Each
+# snapshot is then validated by slots_valid (exactly DN + 2 lines "slot <id> 0x<64 hex>"), so a read that
+# failed identically in two snapshots can never compare "identical".
+dump_slots() {
+  local b v i rc=0 id
+  if ! b=$(bn) ||! [[ "$b" =~ ^[0-9]+$ ]]; then echo "dump_slots: READ-FAILED block number" >&2; echo "# READ-FAILED block number" > "$1"; return 1; fi
+  echo "# SP proxy $SP raw storage @block $b" > "$1"
+  for id in $(seq 0 $SP_MAXSLOT) "Initializable(ERC-7201)=$INIT_SLOT" "Ownable2Step.pending(ERC-7201)=$OWN2_SLOT"; do
+    i=${id#*=}
+    if v=$(cast storage $SP "$i" --rpc-url $RPC --block "$b" 2>&1) && [[ "$v" =~ ^0x[0-9a-f]{64}$ ]]; then echo "slot ${id%%=*} $v" >> "$1"
+    else echo "slot ${id%%=*} READ-FAILED" >> "$1"; echo "dump_slots: READ-FAILED slot ${id%%=*} @block $b: $(echo "$v" | head -c 160)" >&2; rc=1; fi
+  done
+  return $rc
 }
+slots_valid() { # <file>: "valid" iff exactly DN + 2 lines "slot <id> 0x<64 hex>", no READ-FAILED, header with a block
+  local n bad; n=$(grep -cE '^slot [^ ]+ 0x[0-9a-f]{64}$' "$1"); bad=$(grep -v '^#' "$1" | grep -cvE '^slot [^ ]+ 0x[0-9a-f]{64}$')
+  if [ "$n" = "$((DN+2))" ] && [ "$bad" = 0 ] && head -1 "$1" | grep -qE '@block [0-9]+$'; then echo valid; else echo "INVALID($n valid words, $bad bad lines)"; fi
+}
+dump_slots_checked() { # <file> <label>: dump + fail the run on any read error or malformed snapshot
+  dump_slots "$1" || fail "$2: raw slot dump had read failures ($1)"
+  check "$2: slot snapshot well-formed (exactly $((DN+2)) 32-byte words, no READ-FAILED)" "$(slots_valid "$1")" valid
+}
+# Negative controls for the dump itself (injected read failure; a corrupted snapshot), run once here.
+dump_slots_deadrpc() { local RPC=http://127.0.0.1:9; dump_slots "$1"; }
+dump_slots_inject_slot5() { # shadow `cast` for ONE call: `cast storage <SP> 5 ...` fails like an RPC error
+  cast() { if [ "$1" = storage ] && [ "$3" = 5 ]; then echo "Error: injected read failure (connection reset)" >&2; return 1; fi; command cast "$@"; }
+  dump_slots "$1"; local rc=$?; unset -f cast; return $rc
+}
+must_fail "D0: dump_slots with an injected read failure on slot 5 (one cast storage call fails) returns failure" "READ-FAILED slot 5" dump_slots_inject_slot5 "$OUT/.slots-injected-failure.txt"
+check "D0: the injected slot-5-failure snapshot is rejected by slots_valid" "$(slots_valid "$OUT/.slots-injected-failure.txt")" "INVALID($((DN+1)) valid words, 1 bad lines)"
+check "D0: injection was scoped (cast is no longer shadowed)" "$(type -t cast)" file
+must_fail "D0: dump_slots with every read failing (RPC on a dead port) returns failure" "READ-FAILED block number" dump_slots_deadrpc "$OUT/.slots-injected-failure2.txt"
+check "D0: the dead-RPC snapshot is rejected by slots_valid" "$(slots_valid "$OUT/.slots-injected-failure2.txt" | cut -c1-7)" INVALID
+rm -f "$OUT/.slots-injected-failure2.txt"
+dump_slots "$OUT/.slots-control.txt" || fail "D0 control dump failed"
+check "D0: a healthy snapshot is accepted by slots_valid (positive control)" "$(slots_valid "$OUT/.slots-control.txt")" valid
+sed -E '6s/ 0x[0-9a-f]{64}$/ /' "$OUT/.slots-control.txt" > "$OUT/.slots-corrupt.txt"
+check "D0: a snapshot with ONE empty word (the old swallowed-error shape 'slot 4 ') is rejected" "$(slots_valid "$OUT/.slots-corrupt.txt" | cut -c1-7)" INVALID
+rm -f "$OUT/.slots-injected-failure.txt" "$OUT/.slots-control.txt" "$OUT/.slots-corrupt.txt"
 OPSIG='operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)'
 sp_state() { # <file>: key getters THROUGH the proxy (i.e. decoded by the CURRENT implementation) at ONE block
   local b; b=$(bn)
@@ -979,10 +1055,10 @@ check "D4 op ready after 48h" "$(rb 'TL.isOperationReady(D-fwd)' $TL 'isOperatio
 must_fail "D4: deployer EOA execute after 48h (not EXECUTOR)" "$(errdata "$E_ACL" $OWNER $EXECUTOR_ROLE)" cast send $TL 'execute(address,uint256,bytes,bytes32,bytes32)' $SP 0 $DUPD $ZERO32 $DSALT --unlocked --from $OWNER --rpc-url $RPC
 
 step "STAGE D / D5: Safe -> TL.execute(SP.upgradeToAndCall(dummy)) + read-backs"
-dump_slots "$OUT/D5-slots-before.txt"; sp_state "$OUT/D5-state-before.txt"
+dump_slots_checked "$OUT/D5-slots-before.txt" "D5-slots-before"; sp_state "$OUT/D5-state-before.txt"
 safe_exec "D5 execute(upgradeToAndCall(dummy))" $TL "$(tl_execute_data $SP $DUPD $DSALT)" || { fail "D5 execute"; exit 1; }
 D5_TX=$SAFE_LAST_TX; D5_BLOCK=$LAST_BLOCK
-dump_slots "$OUT/D5-slots-after.txt"; sp_state "$OUT/D5-state-after.txt"
+dump_slots_checked "$OUT/D5-slots-after.txt" "D5-slots-after"; sp_state "$OUT/D5-state-after.txt"
 check "D5 Upgraded(dummy) event in the execute tx" "$(cast receipt $D5_TX --rpc-url $RPC --json | jq -r --arg s "$(lc $SP)" --arg t "$(cast keccak 'Upgraded(address)')" --arg i "0x000000000000000000000000$(lc ${DUMMY#0x})" '[.logs[] | select((.address|ascii_downcase)==$s and .topics[0]==$t and .topics[1]==$i)] | length')" 1
 check "D5 op done" "$(rb 'TL.isOperationDone(D-fwd)' $TL 'isOperationDone(bytes32)(bool)' $DID)" true
 check "D5 ERC-1967 implementation slot == dummy" "$(rbs 'SP ERC-1967 impl slot' $SP $IMPL_SLOT | sed 's/0x000000000000000000000000/0x/')" "$DUMMY"
@@ -1000,7 +1076,7 @@ check "D5 SP.pendingOwner == 0" "$(rb 'SP.pendingOwner' $SP 'pendingOwner()(addr
 check "D5 SP.guardian == Safe (unchanged)" "$(rb 'SP.guardian' $SP 'guardian()(address)')" $SAFE
 check "D5 getter snapshots well-formed (no error, >= 24 values)" "$(state_ok "$OUT/D5-state-before.txt" && state_ok "$OUT/D5-state-after.txt" && echo ok || echo BAD)" ok
 check "D5 getters via proxy identical before/after (rc.2 decode vs dummy decode)" "$(diff <(tail -n +2 "$OUT/D5-state-before.txt") <(tail -n +2 "$OUT/D5-state-after.txt") >/dev/null && echo identical || echo DIFFERENT)" identical
-check "D5 slot dumps well-formed ($DN + 2 words each, >= 1 non-zero)" "$(grep -c ' 0x[0-9a-f]\{64\}$' "$OUT/D5-slots-before.txt"):$(grep -c ' 0x[0-9a-f]\{64\}$' "$OUT/D5-slots-after.txt"):$(grep -v '^#' "$OUT/D5-slots-before.txt" | grep -vc ' 0x0\{64\}$' | awk '{print ($1>0)}')" "$((DN+2)):$((DN+2)):1"
+check "D5 slot snapshot not all-zero (>= 1 non-zero word)" "$(grep '^slot ' "$OUT/D5-slots-before.txt" | grep -vc ' 0x0\{64\}$' | awk '{print ($1>0)}')" 1
 check "D5 raw storage (slots 0..$SP_MAXSLOT + ERC-7201) byte-identical across the dummy upgrade" "$(diff <(tail -n +2 "$OUT/D5-slots-before.txt") <(tail -n +2 "$OUT/D5-slots-after.txt") >/dev/null && echo identical || echo DIFFERENT)" identical
 fresh_price after-dummy
 check "D5 probe validate on the DUMMY: sigFail bit == 0 (the changed runtime still sponsors a real op)" "$(probe_validate D-on-dummy)" 0
@@ -1023,10 +1099,10 @@ must_fail "D6: deployer EOA execute rollback after 48h (not EXECUTOR)" "$(errdat
 roles_check before-D-rollback-execute
 fscript_tl UpgradeViaTimelock $SAFE_O1 no TL_MODE=execute-upgrade TL_TARGET=SP TL_NEW_IMPL=$IMPL0 TL_SALT=$RSALT TL_ROLES_ATTESTATION="$ATT" > "$OUT/D6-rollback-execute-print.log" 2>&1 || fail "D6 execute print"
 check "D6 release printer execute calldata == independently encoded" "$(payload_after "$OUT/D6-rollback-execute-print.log" "submit this from the Safe")" "$(tl_execute_data $SP $RUPD $RSALT)"
-dump_slots "$OUT/D6-slots-before.txt"; sp_state "$OUT/D6-state-before.txt"
+dump_slots_checked "$OUT/D6-slots-before.txt" "D6-slots-before"; sp_state "$OUT/D6-state-before.txt"
 safe_exec "D6 execute(upgradeToAndCall(rc.2 impl))" $TL "$(tl_execute_data $SP $RUPD $RSALT)" || { fail "D6 execute"; exit 1; }
 D6_TX=$SAFE_LAST_TX
-dump_slots "$OUT/D6-slots-after.txt"; sp_state "$OUT/D6-state-after.txt"
+dump_slots_checked "$OUT/D6-slots-after.txt" "D6-slots-after"; sp_state "$OUT/D6-state-after.txt"
 check "D6 Upgraded(rc.2 impl) event in the execute tx" "$(cast receipt $D6_TX --rpc-url $RPC --json | jq -r --arg s "$(lc $SP)" --arg t "$(cast keccak 'Upgraded(address)')" --arg i "0x000000000000000000000000$(lc ${IMPL0#0x})" '[.logs[] | select((.address|ascii_downcase)==$s and .topics[0]==$t and .topics[1]==$i)] | length')" 1
 check "D6 op done" "$(rb 'TL.isOperationDone(D-rb)' $TL 'isOperationDone(bytes32)(bool)' $RID)" true
 check "D6 ERC-1967 implementation slot == rc.2 impl" "$(rbs 'SP ERC-1967 impl slot' $SP $IMPL_SLOT | sed 's/0x000000000000000000000000/0x/')" "$IMPL0"
