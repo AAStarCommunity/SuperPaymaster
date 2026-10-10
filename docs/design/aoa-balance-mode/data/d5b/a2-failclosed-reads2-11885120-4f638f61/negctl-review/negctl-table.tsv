@@ -1,0 +1,17 @@
+case	old exit	new exit
+prestate-tuple	0	1
+sp-getter-type	0	1
+state-ok-type	0	1
+stage-c-before	0	1
+stage-c-after	0	1
+dummy-jq	0	1
+ledger-list	0	1
+ledger-tx	0	1
+ledger-status	0	1
+ledger-from	0	1
+ledger-count	0	1
+rb-type	1	1
+subshell-rv	1	1
+missing-log	0	1
+endpoint-url	0	1
+redaction-publicnode	0	1

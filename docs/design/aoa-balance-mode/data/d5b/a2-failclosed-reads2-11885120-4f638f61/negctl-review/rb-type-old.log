@@ -1,0 +1,3 @@
+!!! READ FAILED [readback owner] (expected address): exit 0, value '0x1234'  @block 100
+  CHECK lines: 0 PASS, 0 FAIL; !!! lines: 1
+RUN FAILED (all): 1 failure(s), see the !!! lines

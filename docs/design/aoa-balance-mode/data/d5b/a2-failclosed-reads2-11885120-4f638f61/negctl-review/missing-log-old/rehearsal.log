@@ -1,0 +1,2 @@
+  CHECK lines:  PASS,  FAIL; !!! lines: 
+RUN COMPLETED WITH 0 FAILURES (all) — this line is a tally, not evidence; see the per-step CHECK / TX / readback lines above

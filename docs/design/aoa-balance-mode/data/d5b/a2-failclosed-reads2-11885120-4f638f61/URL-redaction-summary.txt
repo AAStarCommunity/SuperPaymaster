@@ -1,0 +1,3 @@
+HTTP(S) URLs redacted in 74 archive files.
+Remaining URL-bearing files: 0.
+Removed negative-control scratch error files: 8.
