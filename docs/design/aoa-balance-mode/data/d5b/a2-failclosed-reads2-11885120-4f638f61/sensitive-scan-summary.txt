@@ -1,0 +1,4 @@
+Non-empty environment values (length >= 8) scanned: 33.
+Secret or endpoint values scanned: 12; archive matches: 0.
+Public identifiers matching environment values: 13 (expected addresses and chain IDs).
+Invalid JSON or JSONL files after URL redaction: 0.

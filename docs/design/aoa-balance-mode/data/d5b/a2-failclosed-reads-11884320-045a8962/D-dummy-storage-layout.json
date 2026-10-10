@@ -1,0 +1,300 @@
+{
+ "entries": 42,
+ "maxSlot": 64,
+ "storage": [
+  {
+   "slot": "0",
+   "offset": 0,
+   "label": "_owner",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "1",
+   "offset": 0,
+   "label": "_status",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "2",
+   "offset": 0,
+   "label": "APNTS_TOKEN",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "3",
+   "offset": 0,
+   "label": "xpntsFactory",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "4",
+   "offset": 0,
+   "label": "treasury",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "5",
+   "offset": 0,
+   "label": "operators",
+   "type": "t_mapping(t_address,t_struct(OperatorConfig)53891_storage)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "6",
+   "offset": 0,
+   "label": "userOpState",
+   "type": "t_mapping(t_address,t_mapping(t_address,t_struct(UserOperatorState)70029_storage))",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "7",
+   "offset": 0,
+   "label": "sbtHolders",
+   "type": "t_mapping(t_address,t_bool)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "8",
+   "offset": 0,
+   "label": "slashHistory",
+   "type": "t_mapping(t_address,t_array(t_struct(SlashRecord)53903_storage)dyn_storage)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "9",
+   "offset": 0,
+   "label": "aPNTsPriceUSD",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "10",
+   "offset": 0,
+   "label": "cachedPrice",
+   "type": "t_struct(PriceCache)69996_storage",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "13",
+   "offset": 0,
+   "label": "protocolFeeBPS",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "14",
+   "offset": 0,
+   "label": "BLS_AGGREGATOR",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "15",
+   "offset": 0,
+   "label": "totalTrackedBalance",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "16",
+   "offset": 0,
+   "label": "protocolRevenue",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "17",
+   "offset": 0,
+   "label": "pendingDebts",
+   "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "18",
+   "offset": 0,
+   "label": "priceMode",
+   "type": "t_uint8",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "19",
+   "offset": 0,
+   "label": "emergencyQueuedAt",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "20",
+   "offset": 0,
+   "label": "emergencyPendingPrice",
+   "type": "t_int256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "21",
+   "offset": 0,
+   "label": "emergencyActivatedAt",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "22",
+   "offset": 0,
+   "label": "priceStalenessThreshold",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "23",
+   "offset": 0,
+   "label": "agentIdentityRegistry",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "24",
+   "offset": 0,
+   "label": "agentReputationRegistry",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "25",
+   "offset": 0,
+   "label": "__deprecated_x402_facilitatorFeeBPS",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "26",
+   "offset": 0,
+   "label": "__deprecated_x402_operatorFacilitatorFees",
+   "type": "t_mapping(t_address,t_uint256)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "27",
+   "offset": 0,
+   "label": "__deprecated_x402_settlementNonces",
+   "type": "t_mapping(t_bytes32,t_bool)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "28",
+   "offset": 0,
+   "label": "__deprecated_x402_facilitatorEarnings",
+   "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "29",
+   "offset": 0,
+   "label": "pendingAPNTsToken",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "30",
+   "offset": 0,
+   "label": "pendingAPNTsTokenEta",
+   "type": "t_uint256",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "31",
+   "offset": 0,
+   "label": "_slashCd",
+   "type": "t_mapping(t_address,t_uint48)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "32",
+   "offset": 0,
+   "label": "pendingBLSAgg",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "32",
+   "offset": 20,
+   "label": "pendingBLSAggEta",
+   "type": "t_uint48",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "33",
+   "offset": 0,
+   "label": "_settledDebtOps",
+   "type": "t_mapping(t_bytes32,t_bool)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "34",
+   "offset": 0,
+   "label": "_pendingSlash",
+   "type": "t_mapping(t_address,t_bool)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "35",
+   "offset": 0,
+   "label": "_blsSlashCd",
+   "type": "t_mapping(t_address,t_uint48)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "36",
+   "offset": 0,
+   "label": "_blsSlashCdFloor",
+   "type": "t_uint48",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "37",
+   "offset": 0,
+   "label": "_inflight",
+   "type": "t_mapping(t_bytes32,t_struct(Inflight)70002_storage)",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "38",
+   "offset": 0,
+   "label": "_gasParams",
+   "type": "t_struct(GasParams)70012_storage",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "39",
+   "offset": 0,
+   "label": "_pendingGasParams",
+   "type": "t_struct(PendingGasParams)70024_storage",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "40",
+   "offset": 0,
+   "label": "guardian",
+   "type": "t_address",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "40",
+   "offset": 20,
+   "label": "paused",
+   "type": "t_bool",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  },
+  {
+   "slot": "41",
+   "offset": 0,
+   "label": "__gap",
+   "type": "t_array(t_uint256)24_storage",
+   "contract": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol:SuperPaymasterA2DrillDummyBump"
+  }
+ ]
+}

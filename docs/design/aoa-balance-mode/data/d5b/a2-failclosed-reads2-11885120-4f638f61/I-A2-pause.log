@@ -1,0 +1,35 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig pauseOperators(address[]) [0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9] --rpc-url <redacted-rpc> --unlocked --sender 0xb5600060e6de5E11D3636731964218E53caadf0E --broadcast --slow
+# git HEAD: 554e956e3e2927b37bb56bb6b79aef4d96be97bd
+# forge: forge Version: 1.7.1
+# utc: 2026-10-10T14:47:24Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    step 3: paused 0xb5600060e6de5E11D3636731964218E53caadf0E
+    step 3: paused 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.001000014 gwei
+
+Estimated total gas used for script: 104645
+
+Estimated amount required: 0.00000010464646503 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/broadcast/UpgradeToV5_5_0.s.sol/11155111/pauseOperators-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/cache/UpgradeToV5_5_0.s.sol/11155111/pauseOperators-latest.json
+

@@ -1,0 +1,50 @@
+Compiling 137 files with Solc 0.8.33
+Compiling 18 files with Solc 0.8.33
+Solc 0.8.33 finished in 6.90s
+Solc 0.8.33 finished in 75.94s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Script ran successfully.
+
+== Logs ==
+    [artifact] default artifact OK: SuperPaymaster 0x3a69C08A310bb62bEfdd03048C6Ec64235772e5b 13744
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xA497F738446fD823e15198bFa8157E6Aa50677C0
+    [artifact] default artifact OK: SuperPaymaster 0x3a69C08A310bb62bEfdd03048C6Ec64235772e5b 13744
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xA497F738446fD823e15198bFa8157E6Aa50677C0
+    SP impl ready (default build, immutables == live, headroom >= 1,024): 0x3a69C08A310bb62bEfdd03048C6Ec64235772e5b 13744
+    new implementation (pass as TL_NEW_IMPL): 0x3a69C08A310bb62bEfdd03048C6Ec64235772e5b
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.001000014 gwei
+
+Estimated total gas used for script: 9671330
+
+Estimated amount required: 0.00000967146539862 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/broadcast/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/cache/UpgradeViaTimelock.s.sol/11155111/run-latest.json

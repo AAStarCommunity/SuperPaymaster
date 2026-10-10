@@ -1,0 +1,32 @@
+Compiling 137 files with Solc 0.8.33
+Compiling 18 files with Solc 0.8.33
+Solc 0.8.33 finished in 13.51s
+Solc 0.8.33 finished in 188.94s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Script ran successfully.
+
+== Logs ==
+    roles attestation: head block hash verified against blockhash() 11884460
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11884460
+    [artifact] default artifact OK: SuperPaymaster 0x3a69C08A310bb62bEfdd03048C6Ec64235772e5b 13744
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xA497F738446fD823e15198bFa8157E6Aa50677C0
+    SP impl ready (default build, immutables == live, headroom >= 1,024): 0x3a69C08A310bb62bEfdd03048C6Ec64235772e5b 13744
+    NOTE for Safe signers: the operator preflight above binds only this script run. Before
+    signing, re-run check-timelock-roles.mjs at the current head and review the operation.
+    broadcaster is not the Safe - submit this from the Safe:
+    to  : 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000129f2ce9d4e2eb844591259b5af2c9eb503cbbaf84990c66c398af6f6a1b3f4f000000000000000000000000000000000000000000000000000000000002a30000000000000000000000000000000000000000000000000000000000000000644f1ef2860000000000000000000000003a69c08a310bb62befdd03048c6ec64235772e5b0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  0x6003ae483b474aafa028db1cb1cff8cb859d71a699e96b988b06ba507f7cd0f5

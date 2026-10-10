@@ -1,0 +1,11 @@
+{
+  "testOnly": "TEST ARTIFACT - NOT A RELEASE ATTESTATION (A2 item-4 dummy bump)",
+  "attestedCommit": "see D-dummy-artifact.json",
+  "contracts": [
+    {
+      "contract": "SuperPaymasterA2DrillDummyBump",
+      "artifact": "SuperPaymasterA2DrillDummyBump.sol/SuperPaymasterA2DrillDummyBump.json",
+      "runtimeKeccak": "0xcb760244e1416530f8845e0651cb4efb90d0853a514d458db0614d4fa6e803d0"
+    }
+  ]
+}

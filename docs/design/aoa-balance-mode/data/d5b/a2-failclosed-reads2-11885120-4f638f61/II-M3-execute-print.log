@@ -1,0 +1,27 @@
+Compiling 18 files with Solc 0.8.33
+Compiling 137 files with Solc 0.8.33
+Solc 0.8.33 finished in 3.09s
+Solc 0.8.33 finished in 45.47s
+Compiler run successful with warnings:
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Script ran successfully.
+
+== Logs ==
+    roles attestation: head block hash verified against blockhash() 11885241
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11885241
+    NOTE for Safe signers: the operator preflight above binds only this script run. Before
+    signing, re-run check-timelock-roles.mjs at the current head and review the operation.
+    broadcaster is not the Safe - submit this from the Safe:
+  0x134008d300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000846923df1793a10b2e361251fa550e02d7eb606cf00845a00d16f9888cbbec850000000000000000000000000000000000000000000000000000000000000024ec2123f1000000000000000000000000000000000000000000000000004a9b638448800000000000000000000000000000000000000000000000000000000000

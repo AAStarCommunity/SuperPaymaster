@@ -1,0 +1,2 @@
+xread: READ-FAILED SP.operators(OWNER) (expected operators-tuple): exit 0, value 'malformed-operator-tuple,' 
+xread: READ-FAILED SP.operators(ANNI) (expected operators-tuple): exit 0, value 'malformed-operator-tuple,' 
