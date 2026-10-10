@@ -1155,8 +1155,8 @@ state_neg_controls() { # <tag>: logs to $OUT/D0-state-guard-controls.log
   check "D0: snapshot with the injected empty getter rejected" "$(state_ok "$T-blank.txt" | cut -c1-7)" INVALID
   # the Codex reproduction: the SAME getter blank in BOTH snapshots (old state_ok accepted it, diff said identical)
   sed -E 's/^(operators\(OWNER\)) = .*/\1 = /' "$T-ok.txt" > "$T-blankA.txt"; cp "$T-blankA.txt" "$T-blankB.txt"
-  check "D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot A rejected" "$(state_ok "$T-blankA.txt")" "INVALID($((SP_STATE_N-1)) non-empty values, 1 bad lines)"
-  check "D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot B rejected" "$(state_ok "$T-blankB.txt")" "INVALID($((SP_STATE_N-1)) non-empty values, 1 bad lines)"
+  check "D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot A rejected" "$(state_ok "$T-blankA.txt")" "INVALID($((SP_STATE_N-1)) non-empty values, 1 bad lines, 1 ill-typed)"
+  check "D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot B rejected" "$(state_ok "$T-blankB.txt")" "INVALID($((SP_STATE_N-1)) non-empty values, 1 bad lines, 1 ill-typed)"
   check "D0: Codex repro — the OLD rule would have accepted it (documents the gap)" "$( ! grep -qiE 'error|revert' "$T-blankA.txt" && [ "$(grep -c ' = ' "$T-blankA.txt")" -ge 24 ] && echo old-accepts || echo old-rejects)" old-accepts
   { echo "# getter-snapshot guard controls @block $(bn) (sp_state / state_ok, Codex #462 round 2)"
     for f in ok blank fail blankA; do echo "## $f: state_ok -> $(state_ok "$T-$f.txt")"; sed 's/^/  /' "$T-$f.txt"; done; } > "$L"
