@@ -36,10 +36,12 @@ FAKE_HALMOS = textwrap.dedent(f"""\
     #   fail       print a counterexample + [FAIL] line with statistics, leave a sleeping
     #              grandchild behind, exit 1
     #   pass       print a [PASS] line, leave a sleeping grandchild behind, exit 0
+    #   pass_loop_bound  print [PASS], then the Halmos 0.3.3 loop-bound warning, exit 0
     import os, signal, subprocess, sys, time
     if "--version" in sys.argv:
         print("halmos 0.0.0-fake"); sys.exit(0)
     mode = os.environ["FAKE_MODE"]
+    check = os.environ.get("FAKE_CHECK", "{CHECK}")
     pidfile = os.environ["FAKE_PIDFILE"]
     if mode == "stubborn":
         signal.signal(signal.SIGTERM, signal.SIG_IGN)   # inherited as SIG_IGN through exec
@@ -60,10 +62,13 @@ FAKE_HALMOS = textwrap.dedent(f"""\
         time.sleep(300)
     elif mode == "fail":
         print("Counterexample: \\n    p_x = 0x00", flush=True)
-        print("[FAIL] {CHECK}(address) {STAT}", flush=True)
+        print(f"[FAIL] {{check}}(address) {STAT}", flush=True)
         sys.exit(1)
-    elif mode == "pass":
-        print("[PASS] {CHECK}(address) {STAT}", flush=True)
+    elif mode in ("pass", "pass_loop_bound"):
+        print(f"[PASS] {{check}}(address) {STAT}", flush=True)
+        if mode == "pass_loop_bound":
+            print(f"WARNING: {{check}}(address): paths have not been fully explored "
+                  "due to the loop unrolling bound: 2", flush=True)
         sys.exit(0)
 """)
 
@@ -111,11 +116,17 @@ class RunnerIntegration(unittest.TestCase):
                 pass
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def start(self, mode, wall_cap=60, grace=1):
+    def start(self, mode, wall_cap=60, grace=1, check=None, expect=None):
         env = dict(os.environ, FAKE_MODE=mode, FAKE_PIDFILE=self.pidfile)
+        extra = []
+        if check is not None:
+            env["FAKE_CHECK"] = check
+            extra += ["--check", check]
+        if expect is not None:
+            extra += ["--expect", expect]
         return subprocess.Popen(
             [sys.executable, RUNNER, "--wall-cap", str(wall_cap), "--log", self.log, "--keep-cache",
-             "--kill-grace", str(grace), "--halmos-bin", self.fake],
+             "--kill-grace", str(grace), "--halmos-bin", self.fake] + extra,
             cwd=self.tmp, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
     def wait_pids(self):
@@ -190,7 +201,8 @@ class RunnerIntegration(unittest.TestCase):
         self.assert_clean(pgid)
 
     def test_wall_cap(self):
-        r = self.start("hang", wall_cap=2)
+        # Leave time for the positive process checks before the cap expires on loaded hosts.
+        r = self.start("hang", wall_cap=10)
         pgid = self.control_alive(r)
         rc, trailer, out = self.finish(r)
         self.assertEqual(rc, 2, out)
@@ -217,6 +229,78 @@ class RunnerIntegration(unittest.TestCase):
                                   "(expected [FAIL]))")
         self.assert_clean(leader)
 
+    # ---- expectation-aware verdicts (DSR CC-125 d030f6e8 item 3), real processes ----
+    PASS_CHECK = "check_I9_CF3ctx384_settleCannotSilentlyFail"     # declared PASS-expected
+    FAIL_CHECK = "check_witness_I9_posCharge384Reachable"          # declared FAIL-expected
+
+    def _natural(self, mode, check, expect=None):
+        for f in (self.pidfile, self.pidfile + ".g"):   # a previous run in the same test
+            if os.path.exists(f):
+                os.remove(f)
+        r = self.start(mode, check=check, expect=expect)
+        leader, _, _ = self.wait_pids()
+        rc, trailer, out = self.finish(r)
+        self.assertIn(f"check={check} expect=", read(self.log).splitlines()[0])
+        self.assert_clean(leader)
+        return rc, trailer, out
+
+    def test_pass_expected_pass_is_accept(self):
+        rc, trailer, out = self._natural("pass", self.PASS_CHECK)
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(trailer.startswith(f"# VERDICT: ACCEPT (expected [PASS] with statistics: "
+                                           f"[PASS] {self.PASS_CHECK}(address)"), trailer)
+
+    def test_pass_expected_loop_bound_is_inconclusive(self):
+        rc, trailer, out = self._natural("pass_loop_bound", self.PASS_CHECK)
+        self.assertEqual(rc, 2, out)
+        self.assertEqual(trailer, "# VERDICT: INCONCLUSIVE ([PASS] with paths not fully explored "
+                                  "due to the loop unrolling bound)")
+        log = read(self.log)
+        self.assertIn(f"[PASS] {self.PASS_CHECK}(address) {STAT}", log)
+        self.assertIn("paths have not been fully explored due to the loop unrolling bound: 2", log)
+        self.assertIn("# exit_code: 0 ", log)
+
+    def test_reverse_control_pass_expected_but_fails_is_reject(self):
+        # negative control: a PASS-expected property that FAILs (with a counterexample, i.e. exactly
+        # what a witness ACCEPT looks like) must be REJECTed, never accepted
+        rc, trailer, out = self._natural("fail", self.PASS_CHECK)
+        self.assertEqual(rc, 1, out)
+        self.assertEqual(trailer, "# VERDICT: REJECT (check FAILED: counterexample to a PASS-expected "
+                                  "property (expected [PASS]))")
+
+    def test_fail_expected_fail_is_accept(self):
+        rc, trailer, out = self._natural("fail", self.FAIL_CHECK)
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(trailer.startswith("# VERDICT: ACCEPT (expected [FAIL] with counterexample"), trailer)
+
+    def test_reverse_control_fail_expected_but_passes_is_reject(self):
+        rc, trailer, out = self._natural("pass", self.FAIL_CHECK)
+        self.assertEqual(rc, 1, out)
+        self.assertEqual(trailer, "# VERDICT: REJECT (check PASSED: the witness state was NOT reached "
+                                  "(expected [FAIL]))")
+
+    def test_unknown_check_with_explicit_expect(self):
+        rc, trailer, out = self._natural("pass", "check_some_unlisted_property", expect="PASS")
+        self.assertEqual(rc, 0, out)
+        rc2, trailer2, out2 = self._natural("pass", "check_some_unlisted_property", expect="FAIL")
+        self.assertEqual(rc2, 1, out2)
+
+    def _config_error(self, extra):
+        p = subprocess.run([sys.executable, RUNNER, "--wall-cap", "10", "--log", self.log, "--keep-cache",
+                            "--halmos-bin", self.fake] + extra, cwd=self.tmp, capture_output=True, text=True,
+                           env=dict(os.environ, FAKE_MODE="pass", FAKE_PIDFILE=self.pidfile))
+        self.assertEqual(p.returncode, 3, p.stdout + p.stderr)
+        self.assertFalse(os.path.exists(self.log), "a misdeclared target must not run halmos")
+        self.assertFalse(os.path.exists(self.pidfile), "fake halmos was spawned")
+        return p.stderr
+
+    def test_unknown_check_without_expect_is_config_error(self):
+        self.assertIn("--expect PASS|FAIL is required", self._config_error(["--check", "check_unlisted"]))
+
+    def test_expect_contradicting_declaration_is_config_error(self):
+        err = self._config_error(["--check", self.PASS_CHECK, "--expect", "FAIL"])
+        self.assertIn("contradicts the declared expectation PASS", err)
+
     def test_spawn_exception_is_inconclusive(self):
         # real exception path: the halmos binary does not exist -> Popen raises FileNotFoundError
         r = subprocess.Popen([sys.executable, RUNNER, "--wall-cap", "10", "--log", self.log, "--keep-cache",
@@ -229,7 +313,8 @@ class RunnerIntegration(unittest.TestCase):
     def test_judge_fixtures(self):
         p = subprocess.run([sys.executable, RUNNER, "--self-test"], capture_output=True, text=True)
         self.assertEqual(p.returncode, 0, p.stdout)
-        self.assertEqual(p.stdout.count(" ok"), 8, p.stdout)
+        self.assertEqual(p.stdout.count(" ok"), 18, p.stdout)
+        self.assertNotIn("MISMATCH", p.stdout)
 
 
 if __name__ == "__main__":

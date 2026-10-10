@@ -1,0 +1,38 @@
+Missing dependencies found. Installing now...
+
+fatal: destination path '/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/rc2clean/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/rc2clean/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts'. Retry scheduled
+fatal: destination path '/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/rc2clean/contracts/lib/solady' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/Vectorized/solady.git' into submodule path '/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/rc2clean/contracts/lib/solady' failed
+Failed to clone 'contracts/lib/solady'. Retry scheduled
+fatal: destination path '/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/rc2clean/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/rc2clean/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts' a second time, aborting
+Warning: Your project has missing dependencies that could not be installed.
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 5.33s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 13 tests for contracts/test/v2/SuperPaymasterCtxLengthRc2.t.sol:SuperPaymasterCtxLengthRc2Test
+[PASS] testFuzz_I9_CF3ctx384_settleCannotSilentlyFail(bool,uint128,bytes32,uint8,uint128,uint128,uint256,uint256,uint128,uint16) (runs: 256, μ: 107601, ~: 85775)
+[PASS] testFuzz_ctxLen_onlyTwoAccepted(uint16) (runs: 256, μ: 71238, ~: 62547)
+[PASS] test_ctx384_chargesSnapshotFee_notLiveFee() (gas: 251974)
+[PASS] test_ctx384_zeroFeeBits_fallsBackToLiveFee() (gas: 167228)
+[PASS] test_ctxLen0_noop() (gas: 18133)
+[PASS] test_ctxLen351_rejected() (gas: 113580)
+[PASS] test_ctxLen352_accepted_positiveControl() (gas: 150658)
+[PASS] test_ctxLen353_rejected() (gas: 113907)
+[PASS] test_ctxLen383_rejected() (gas: 120839)
+[PASS] test_ctxLen384_accepted_positiveControl() (gas: 148654)
+[PASS] test_ctxLen385_rejected() (gas: 120926)
+[PASS] test_replay_witness_posCharge352_halmosModel() (gas: 150962)
+[PASS] test_replay_witness_posCharge384_halmosModel() (gas: 149442)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 52.91ms (103.46ms CPU time)
+
+Ran 1 test for contracts/test/v2/SuperPaymasterI9Fuzz.t.sol:SuperPaymasterI9FuzzTest
+[PASS] testFuzz_I9_CF3_settleCannotSilentlyFail(bool,address,uint128,bytes32,address,uint8,uint128,uint128,uint256,uint256,uint128,uint16) (runs: 256, μ: 109027, ~: 85629)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 56.04ms (55.05ms CPU time)
+
+Ran 2 test suites in 70.05ms (108.95ms CPU time): 14 tests passed, 0 failed, 0 skipped (14 total tests)

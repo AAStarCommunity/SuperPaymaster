@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wall-capped, self-judging reproduction of the D5c-2 I9 reachability witness.
+r"""Wall-capped, self-judging, EXPECTATION-AWARE runner for the D5c-2 I9 Halmos checks.
 
 Default target: SuperPaymasterI9HalmosTest.check_witness_I9_freshBalanceSettlementReachable
 (EVIDENCE-INDEX H-06; archived run: data/halmos-i9/all-checks-final.log, 478 paths, 2881.59 s).
@@ -15,13 +15,26 @@ Why this exists
     default_unit="ms")`), so the archived `300000` and `300s` are the same 300 s; the unit is
     spelled out only so nobody has to know that.
 
+Expectation (DSR CC-125 d030f6e8 item 3)
+  Every target declares what a correct run looks like: `PASS` (a property that must be proven,
+  e.g. CF-3) or `FAIL` (a reachability witness that must be refuted with a model). Known checks
+  carry their expectation in EXPECTATIONS below; `--expect` must agree with it, and an unknown
+  check REQUIRES `--expect` (the runner refuses to guess). ACCEPT only when the outcome matches.
+  Halmos selection is EXACT (`--match-test '^<check>\('`): halmos' `--function X` is a PREFIX
+  regex (`^X.*`) and would also run any check whose name merely extends X.
+
 Verdict (printed as the last line `# VERDICT: ...`, also encoded in the exit code)
-  ACCEPT        exit 0  the expected `[FAIL] <check>(` result line, carrying the --statistics
+  ACCEPT        exit 0  expect FAIL: the `[FAIL] <check>(` result line, carrying the --statistics
                         breakdown `(paths: N, time: Xs (paths: Ys, models: Zs)`, AND at least
-                        one `Counterexample:` block in the log. Only this is a reproduction.
-  REJECT        exit 1  the check reported [PASS] (the witness did NOT reach the state), or
-                        [FAIL] without a counterexample / without statistics, or [ERROR].
-  INCONCLUSIVE  exit 2  wall cap hit, [TIMEOUT] result, no result line at all, or the run was
+                        one valid `Counterexample:` block in the log.
+                        expect PASS: the `[PASS] <check>(` line with the same full statistics,
+                        and no loop-unrolling-bound warning anywhere in the log.
+  REJECT        exit 1  the opposite outcome ([PASS] for a FAIL-expected witness: the state was
+                        NOT reached; [FAIL] for a PASS-expected property: a counterexample), or
+                        the expected outcome without statistics / without a counterexample, or
+                        [ERROR], or more than one result line (selection was not exact).
+  INCONCLUSIVE  exit 2  wall cap hit, [TIMEOUT] result, no result line at all, a PASS-expected
+                        result with paths cut by the loop-unrolling bound, or the run was
                         cancelled (SIGINT / SIGTERM / SIGHUP -> `cancelled: SIGINT` etc.) or
                         aborted by a runner exception. Never a PASS, never an ACCEPT: it says
                         nothing about the property.
@@ -33,6 +46,10 @@ Cleanup (every exit path: natural exit, wall cap, signal, exception)
 
 Usage (repo root):
   python3 script/halmos/run-i9-witness.py --wall-cap 14400 --log i9-witness.log
+  python3 script/halmos/run-i9-witness.py --wall-cap 600 --log cf3-384.log \
+      --contract SuperPaymasterI9Rc2HalmosTest --check check_I9_CF3ctx384_settleCannotSilentlyFail
+  (exit 3 = configuration error: unknown check without --expect, or --expect contradicting
+  EXPECTATIONS; nothing is run)
 """
 import argparse
 import os
@@ -47,26 +64,69 @@ import traceback
 DEFAULT_CONTRACT = "SuperPaymasterI9HalmosTest"
 DEFAULT_CHECK = "check_witness_I9_freshBalanceSettlementReachable"
 
+# check name -> expected halmos outcome. FAIL = reachability witness, PASS = property.
+EXPECTATIONS = {
+    "check_I9_CF1_emptyContext": "PASS",
+    "check_I9_CF2_idempotentNoOp": "PASS",
+    "check_I9_CF3_settleCannotSilentlyFail": "PASS",
+    "check_I9_CF3ctx384_settleCannotSilentlyFail": "PASS",
+    "check_witness_I9_settleRevertsButCallerObservesSuccess": "PASS",   # misnamed: a property
+    "check_witness_I9_CF2_idempotentSucceedsWithEnoughGas": "FAIL",
+    "check_witness_I9_freshBalanceSettlementReachable": "FAIL",
+    "check_witness_I9_posCharge352Reachable": "FAIL",
+    "check_witness_I9_posCharge384Reachable": "FAIL",
+}
 
-def judge(text, check, walled):
+STATS_RE = r"\(paths: \d+, time: [0-9.]+s \(paths: [0-9.]+s, models: [0-9.]+s\)"
+RESULT_RE = r"\[(PASS|FAIL|TIMEOUT|ERROR)\]\S*\s*"
+# Halmos 0.3.3 emits this warning even after a [PASS] result (halmos/__main__.py).
+LOOP_BOUND_RE = r"paths\s+have\s+not\s+been\s+fully\s+explored\s+due\s+to\s+the\s+loop\s+unrolling\s+bound"
+
+
+def resolve_expect(check, expect):
+    """Return the expectation for `check`, or raise ValueError (never guesses)."""
+    known = EXPECTATIONS.get(check)
+    if expect is None:
+        if known is None:
+            raise ValueError(f"unknown check {check!r}: --expect PASS|FAIL is required")
+        return known
+    if known is not None and known != expect:
+        raise ValueError(f"--expect {expect} contradicts the declared expectation {known} for {check}")
+    return expect
+
+
+def judge(text, check, walled, expect="FAIL"):
+    if expect not in ("PASS", "FAIL"):
+        raise ValueError(f"expect must be PASS or FAIL, got {expect!r}")
     if walled:
         return "INCONCLUSIVE", 2, "wall cap hit before halmos reported a result"
-    m = re.search(r"\[(PASS|FAIL|TIMEOUT|ERROR)\]\S*\s*" + re.escape(check) + r"\(", text)
+    m = re.search(RESULT_RE + re.escape(check) + r"\(", text)
     if not m:
         return "INCONCLUSIVE", 2, "no result line for the check"
+    if len(re.findall(RESULT_RE + r"\w+\(", text)) != 1:
+        return "REJECT", 1, "more than one halmos result line (check selection was not exact)"
     res = m.group(1)
     if res == "TIMEOUT":
         return "INCONCLUSIVE", 2, "halmos reported [TIMEOUT] (a solver query hit the per-query timeout)"
-    if res == "PASS":
-        return "REJECT", 1, "check PASSED: the witness state was NOT reached (expected [FAIL])"
     if res == "ERROR":
         return "REJECT", 1, "halmos reported [ERROR]"
     line = text[m.start():text.find("\n", m.start())]
-    if not re.search(r"\(paths: \d+, time: [0-9.]+s \(paths: [0-9.]+s, models: [0-9.]+s\)", line):
-        return "REJECT", 1, "[FAIL] line lacks the --statistics breakdown"
-    if "Counterexample:" not in text:
-        return "REJECT", 1, "[FAIL] without any Counterexample block"
-    return "ACCEPT", 0, "expected [FAIL] with counterexample and statistics: " + line.strip()
+    if expect == "FAIL":
+        if res == "PASS":
+            return "REJECT", 1, "check PASSED: the witness state was NOT reached (expected [FAIL])"
+        if not re.search(STATS_RE, line):
+            return "REJECT", 1, "[FAIL] line lacks the --statistics breakdown"
+        if "Counterexample:" not in text:
+            return "REJECT", 1, "[FAIL] without any Counterexample block"
+        return "ACCEPT", 0, "expected [FAIL] with counterexample and statistics: " + line.strip()
+    # expect == "PASS"
+    if res == "FAIL":
+        return "REJECT", 1, "check FAILED: counterexample to a PASS-expected property (expected [PASS])"
+    if not re.search(STATS_RE, line):
+        return "REJECT", 1, "[PASS] line lacks the --statistics breakdown"
+    if re.search(LOOP_BOUND_RE, text, re.IGNORECASE):
+        return "INCONCLUSIVE", 2, "[PASS] with paths not fully explored due to the loop unrolling bound"
+    return "ACCEPT", 0, "expected [PASS] with statistics: " + line.strip()
 
 
 class Cancelled(BaseException):
@@ -170,7 +230,8 @@ def terminate_group(pr, grace):
 
 def run(a):
     """Spawn halmos, enforce the wall cap, and ALWAYS clean up its group and write a trailer."""
-    argv = [a.halmos_bin, "--contract", a.contract, "--function", a.check, "--loop", "2",
+    argv = [a.halmos_bin, "--contract", a.contract, "--match-test", "^" + re.escape(a.check) + r"\(",
+            "--loop", "2",
             "--solver-timeout-assertion", a.solver_timeout_assertion, "--statistics"]
     env = dict(os.environ, PYTHONUNBUFFERED="1",
                PATH=os.path.expanduser("~/.foundry/bin") + ":" + os.path.expanduser("~/.local/bin")
@@ -197,7 +258,7 @@ def run(a):
             except (OSError, subprocess.TimeoutExpired):
                 ver = ""
             f.write(f"# run-i9-witness: head={head or '-'} halmos={ver or '-'} wall_cap_s={a.wall_cap}"
-                    f" halmos_bin={a.halmos_bin}\n")
+                    f" halmos_bin={a.halmos_bin} check={a.check} expect={a.expect}\n")
             f.write(f"# command: {' '.join(argv)}\n")
             f.flush()
 
@@ -261,7 +322,7 @@ def run(a):
             verdict, code, why = "INCONCLUSIVE", 2, abort
         else:
             text = open(a.log, errors="replace").read()
-            verdict, code, why = judge(text, a.check, walled)
+            verdict, code, why = judge(text, a.check, walled, a.expect)
         f.write(f"# VERDICT: {verdict} ({why})\n")
     finally:
         f.close()
@@ -286,8 +347,17 @@ def main():
                     help="seconds between SIGTERM and SIGKILL of the process group (default 5)")
     ap.add_argument("--halmos-bin", default="halmos",
                     help="halmos executable (TEST HOOK; recorded in the log header as halmos_bin=)")
+    ap.add_argument("--expect", choices=("PASS", "FAIL"), default=None,
+                    help="expected halmos outcome; defaults to EXPECTATIONS[check], required otherwise")
     ap.add_argument("--self-test", action="store_true", help="run judge() fixtures and exit")
     a = ap.parse_args()
+    try:
+        a.expect = resolve_expect(a.check, a.expect)
+    except ValueError as e:
+        # exit 3 (not argparse's 2, which would read as INCONCLUSIVE): a misdeclared target is a
+        # configuration error, and no halmos run / log is produced at all
+        print(f"run-i9-witness: error: {e}", file=sys.stderr)
+        sys.exit(3)
 
     if not re.fullmatch(r"(0|[0-9.]+(ms|s|m|h))", a.solver_timeout_assertion):
         ap.error("--solver-timeout-assertion needs an explicit unit (ms|s|m|h), e.g. 300s")
@@ -304,19 +374,34 @@ def main():
 def self_test():
     c = DEFAULT_CHECK
     stat = "(paths: 478, time: 2881.59s (paths: 17.48s, models: 2864.11s), bounds: [])"
+    p = "check_I9_CF3_settleCannotSilentlyFail"
     cases = [
-        (f"Counterexample: \n    p_x = 0x00\n[FAIL] {c}(address) {stat}\n", False, "ACCEPT"),
-        (f"[FAIL] {c}(address) {stat}\n", False, "REJECT"),                         # no cex
-        (f"Counterexample: \n[FAIL] {c}(address) (paths: 4, time: 1.00s, bounds: [])\n", False, "REJECT"),
-        (f"[PASS] {c}(address) {stat}\n", False, "REJECT"),
-        (f"[TIMEOUT] {c}(address) {stat}\n", False, "INCONCLUSIVE"),
-        ("Compiling...\n", False, "INCONCLUSIVE"),
-        (f"Counterexample: \n[FAIL] {c}(address) {stat}\n", True, "INCONCLUSIVE"),   # walled wins
-        (f"Counterexample: \n[FAIL] {c}_other(address) {stat}\n", False, "INCONCLUSIVE"),  # other check
+        # (text, walled, check, expect, want) -- FAIL-expected witness
+        (f"Counterexample: \n    p_x = 0x00\n[FAIL] {c}(address) {stat}\n", False, c, "FAIL", "ACCEPT"),
+        (f"[FAIL] {c}(address) {stat}\n", False, c, "FAIL", "REJECT"),                         # no cex
+        (f"Counterexample: \n[FAIL] {c}(address) (paths: 4, time: 1.00s, bounds: [])\n", False, c, "FAIL", "REJECT"),
+        (f"[PASS] {c}(address) {stat}\n", False, c, "FAIL", "REJECT"),                         # reverse control
+        (f"[TIMEOUT] {c}(address) {stat}\n", False, c, "FAIL", "INCONCLUSIVE"),
+        ("Compiling...\n", False, c, "FAIL", "INCONCLUSIVE"),
+        (f"Counterexample: \n[FAIL] {c}(address) {stat}\n", True, c, "FAIL", "INCONCLUSIVE"),   # walled wins
+        (f"Counterexample: \n[FAIL] {c}_other(address) {stat}\n", False, c, "FAIL", "INCONCLUSIVE"),  # other check
+        # PASS-expected property
+        (f"[PASS] {p}(bool) {stat}\n", False, p, "PASS", "ACCEPT"),
+        (f"[PASS] {p}(bool) {stat}\nWARNING: {p}(bool): paths have not been fully explored "
+         "due to the loop unrolling bound: 2\n", False, p, "PASS", "INCONCLUSIVE"),
+        (f"Counterexample: \n    p_x = 0x00\n[FAIL] {p}(bool) {stat}\n", False, p, "PASS", "REJECT"),  # reverse control
+        (f"[FAIL] {p}(bool) {stat}\n", False, p, "PASS", "REJECT"),
+        (f"[PASS] {p}(bool) (paths: 4, time: 1.00s, bounds: [])\n", False, p, "PASS", "REJECT"),  # no stats
+        (f"[TIMEOUT] {p}(bool) {stat}\n", False, p, "PASS", "INCONCLUSIVE"),                  # never PASS
+        (f"[PASS] {p}(bool) {stat}\n", True, p, "PASS", "INCONCLUSIVE"),                      # walled wins
+        (f"[ERROR] {p}(bool) {stat}\n", False, p, "PASS", "REJECT"),
+        ("Compiling...\n", False, p, "PASS", "INCONCLUSIVE"),
+        # selection not exact: a second result line (e.g. a prefix-matched sibling) -> REJECT
+        (f"[PASS] {p}(bool) {stat}\n[PASS] {p}X(bool) {stat}\n", False, p, "PASS", "REJECT"),
     ]
     bad = 0
-    for i, (text, walled, want) in enumerate(cases):
-        got = judge(text, c, walled)[0]
+    for i, (text, walled, chk, exp, want) in enumerate(cases):
+        got = judge(text, chk, walled, exp)[0]
         ok = got == want
         bad += not ok
         print(f"case {i}: want {want} got {got} {'ok' if ok else 'MISMATCH'}")
