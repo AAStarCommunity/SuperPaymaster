@@ -9,8 +9,8 @@ inside the old tokens) is in the sibling directory `../legacy-debt-7b/` and was 
 `CHECK totals: OK=282 FAIL=0`, `RESULT OK` (last two lines of `scan.log`).
 
 **Revision 2 (Codex challenge on #460, head `6f4ab439`).** Two Medium findings fixed in `c25a3fb1`:
-(1) getter answers were decoded leniently (`"0x"` / `""` → 0), so an endpoint answering `"0x"` to every debt read
-passed; now every `pendingDebts` / `getDebt` / `getRoleUserCount` / `hasRole` / state-override / role-array-length
+(1) getter answers were decoded leniently (`"0x"` / `""` → 0), so **both** endpoints consistently answering `"0x"`
+to a debt read passed (a single diverging endpoint was already caught by the A/B equality check); now every `pendingDebts` / `getDebt` / `getRoleUserCount` / `hasRole` / state-override / role-array-length
 read must be **exactly one 32-byte ABI word on each endpoint** (`word()`), anything else is a FAIL, and the
 `DebtRecordFailed` / `DebtRecorded` / `DebtRepaid` data lengths are checked; (2) the token-debt replay sorted
 by `(block, txHash, logIndex)`, which mis-orders same-block events — it now uses execution order
@@ -18,7 +18,8 @@ by `(block, txHash, logIndex)`, which mis-orders same-block events — it now us
 with `c25a3fb1`: all 238 data files (`raw/`, `inventory.json`, `../legacy-debt-7b/raw/`, `legacy-debt.json`) are
 **byte-identical** to revision 1 (`6f4ab439`); only `scan.log` changed (+4 CHECK lines: the data-length checks of
 the four aPNTs debt events; every strict-word read replaced an existing "identical on A and B" line one for one).
-New negative controls NC4/NC5 and the offline self-test are below. Revision 1 was produced by `eb073e5a`.
+New negative controls NC4/NC5/NC6 and the offline self-test are below; **NC6 is the one that isolates the `word()` fix**
+(NC4/NC5 are endpoint-divergence controls that revision 1 also fails). Revision 1 was produced by `eb073e5a`.
 
 READ-ONLY: the script issues only `eth_chainId`, `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getCode`,
 `eth_getStorageAt`, `eth_call` (two of them with a state override — a local simulation, nothing is written)
@@ -139,13 +140,19 @@ evidence; completeness rests on the three enumerations above.
 |---|---|---|---|
 | NC1 | `ethereum-sepolia-rpc.publicnode.com` (prunes history) | fail-closed | exit 1: `pruned history unavailable` on the first old-state read |
 | NC2 | Tenderly behind `scripts/d5b-rpc-tamper-proxy.mjs … drop` (drops the last log of every non-empty `eth_getLogs` answer — a *silent* partial answer) | fail-closed | exit 1, 22 `CHECK FAIL` (e.g. `sp-all-logs A=73 B=69`, `sp-logs-Upgraded A=3 B=2`) |
-| NC3 | Tenderly behind `scripts/a2-debt-scan-tamper-proxy.py … pass` (control for NC2/NC4/NC5) | OK | exit 0, `OK=282 FAIL=0`, all 238 data files identical to the archived run |
+| NC3 | Tenderly behind `scripts/a2-debt-scan-tamper-proxy.py … pass` (control for NC2/NC4/NC5/NC6) | OK | exit 0, `OK=282 FAIL=0`, all 238 data files identical to the archived run |
 | NC4 | Tenderly behind `scripts/a2-debt-scan-tamper-proxy.py … empty-once:0x9a78e72e` — answers `"0x"` to the first plain `getDebt` call (aPNTs, user `0xf7bf…642c`; real answer was a zero word) | fail-closed | exit 1: `CHECK FAIL token-0x696a7370-getDebt-0xf7bf79ac: B answer is exactly one 32-byte ABI word (… '0x')` |
 | NC5 | same proxy, `empty-once:0x7b707185` — answers `"0x"` to the first plain `pendingDebts` call (`(0x4680…, 0xecd9…)`; real answer a zero word) | fail-closed | exit 1: `CHECK FAIL sp-pendingDebts-0x4680bf1a-0xecd9c07f: B answer is exactly one 32-byte ABI word (… '0x')` |
 | self-test | offline, `python3 scripts/a2-row0-7b-debt-scan-selftest.py` (`selftest-offline.log`) | 19 PASS | exit 0. T1: `word()` rejects `0x`, `''`, 31/33 bytes, two words, non-hex, no prefix, revert object, None. T2: same-block `DebtRecorded` (logIndex 5, tx `0xff…`) → `DebtRepaid` (logIndex 9, tx `0x00…`) fed in reverse order reconciles (remaining 0 == replayed 0); discrimination: the old `(block, txHash, logIndex)` key puts the repay first and the check is red. T3: malformed event data rejected. |
 
-NC4/NC5 are exactly the Codex probe ("replace a getter answer with `0x`") applied end-to-end on the real run:
-revision 1 would have read that `"0x"` as 0 and passed.
+| NC6 (current) | **A and B** each behind `scripts/a2-debt-scan-tamper-proxy.py … empty-once:0x9a78e72e`: both endpoints answer the identical string `"0x"` to the same first plain `getDebt` call (aPNTs, user `0xf7bf…642c`); script = current `c25a3fb1` (sha256 `82b56065…fe04b`, at repo HEAD `ae96c364`) | fail-closed on the word check | **exit 1**, `OK=197 FAIL=2`: `CHECK FAIL token-0x696a7370-getDebt-0xf7bf79ac: A answer is exactly one 32-byte ABI word (… '0x')` (`nc6-…current-c25a3fb1.log`; `nc6-proxy-current-A.log` shows the tampering; `nc6-proxy-current-B.log` is empty because the script stops at A's malformed answer before asking B) |
+| NC6 (rev1) | the same two-proxy tampering; script = revision 1 from `6f4ab439` (sha256 `7f7d3970…4d93`, identical to the rev1 archive's `scan.log` L2), run as an untracked copy `scripts/.rev1-6f4ab439-a2-row0-7b-debt-scan.py` (hence its log says `script differs from HEAD: yes`; the copy was deleted after the run) | rev1 passes → the fix discriminates | **exit 0**, `OK=278 FAIL=0`, `RESULT OK`: both proxies tampered the same call (`nc6-proxy-rev1-A.log`, `-B.log`), the raw responses were `"0x"` on A and on B, so rev1's `identical on A and B` check passed and `u("0x")` = 0 matched the expected 0 (`nc6-…rev1-6f4ab439.log`) |
+
+What each control proves: NC1–NC5 are **endpoint-divergence** controls — one endpoint lies or is incomplete and the
+A/B comparison fails closed. NC4/NC5 are red on revision 1 too (its `both_call` compares the raw A/B answers first;
+PR-Daemon reproduced A = real word, B = `"0x"` → rev1 exit 1), so **they do not isolate the `word()` fix**. The fix
+is isolated only by **NC6**: both endpoints consistently return the same non-word `"0x"`. Both readings were run
+for real: rev1 → exit 0 (passes the bad input), current → exit 1 on the word check.
 
 ## Files
 

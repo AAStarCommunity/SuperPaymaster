@@ -1,10 +1,16 @@
-c44231a6aa229c7cb02f44df754bfef961b218f6c4942271d03a3becf04312ce  README.md
+bb5f201a8eb4280e152a9988096ffaeba63917cca17ca4f0adf4be2a85455cba  README.md
 aedf8329c364c1d6f96c407b07560a20bbdda801751f12527cbbbbe728bae5c3  inventory.json
 c2db88fb3e074fb0236f606ce06dcf66b276b977cf5423d12249de0970bc55f0  negative-controls/nc1-B-is-pruning-publicnode.log
 32e075d1b026369cabf12726f40e21d736f203558ad96e1a70a08702d0d963b0  negative-controls/nc2-B-drops-last-log-per-getLogs.log
 307625d047f19fc6063e2e94bc38aa659b988a9f065e6e1057eb0b4c34c7cf37  negative-controls/nc3-control-B-via-pass-through-proxy.log
 3b5baf9a306bb0e07aa170fb35ab26f6e4119ce60d7b994dfe880f601b5ec542  negative-controls/nc4-B-answers-0x-to-one-getDebt.log
 dd34972945d6f78caa9ee049cc86a51964148df43aa6c2f83ed6b5b91920ff94  negative-controls/nc5-B-answers-0x-to-one-pendingDebts.log
+7996269192c2c825b00dfd089003d66d5ebb9a8a20cb77b4ab1b0d5f6eddc8d3  negative-controls/nc6-A-and-B-answer-0x-to-one-getDebt.current-c25a3fb1.log
+4281e6429c2704b880b622d1abc9c90d5373cb8a11d416b8579231d4b8cf9adb  negative-controls/nc6-A-and-B-answer-0x-to-one-getDebt.rev1-6f4ab439.log
+4ef3f5a6348dd742bf45d7543954d9a04ff8d97ea90528ee3d2b4698b77cb12d  negative-controls/nc6-proxy-current-A.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  negative-controls/nc6-proxy-current-B.log
+4ef3f5a6348dd742bf45d7543954d9a04ff8d97ea90528ee3d2b4698b77cb12d  negative-controls/nc6-proxy-rev1-A.log
+4ef3f5a6348dd742bf45d7543954d9a04ff8d97ea90528ee3d2b4698b77cb12d  negative-controls/nc6-proxy-rev1-B.log
 80d187bc421aa48d9df4f8e1d2428da96bcf328be554687919c8f0d2f92743db  negative-controls/selftest-offline.log
 a2069e653ba9909ffcb18959807580fd7ac65e15b76c39f0acbe02bac81024f6  raw/A/block-fixed.json
 1c648edbaa3bee4aa49cb109c77e209869a2f4d3522c9bd489e5a970b97279eb  raw/A/nc-sp-unknown-selector.json
