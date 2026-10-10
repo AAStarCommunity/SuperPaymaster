@@ -139,6 +139,31 @@ contract SuperPaymasterCtxLengthRc2Test is Test {
         _assertRejected(len);
     }
 
+    // ------------------------------------- witness counterexample replays ----
+    // The halmos runs of check_witness_I9_posCharge{352,384}Reachable (archived under
+    // docs/design/aoa-balance-mode/data/i9-rc2-testonly/) printed counterexamples before the 600 s
+    // wall cap ended them; the RUN verdict stays INCONCLUSIVE. These tests replay the first model
+    // each printed (all other params 0) on a concrete zero pre-state with the witness's exact
+    // inputs (actualGasCost 1e12, fee 1 gwei, MODE_BALANCE, probeGood), and assert the witness's
+    // negated predicate: postOp returns, settleLocked was reached, a0 > 0 and charge > 0.
+
+    function _replayWitness(uint256 a0, bool ctx384) internal {
+        bytes memory c = abi.encode(
+            address(probeGood), address(0), a0, bytes32(0), address(0), MODE_BALANCE, uint128(0), uint128(0),
+            PRICE, DECIMALS, A_PRICE_USD
+        );
+        if (ctx384) c = bytes.concat(c, bytes32(GP_DEFAULTS | ((SNAP_FEE_BPS + 1) << 128)));
+        (bool ok, ) = _postOp(c, 1e12, 1 gwei);
+        assertTrue(ok, "replay: postOp returned");
+        assertTrue(probeGood.lockedCalled(bytes32(0)), "replay: settleLocked reached");
+        assertGt(a0, 0, "replay: a0 > 0");
+        assertGt(probeGood.lockedCharge(bytes32(0)), 0, "replay: charge > 0");
+        assertLe(probeGood.lockedCharge(bytes32(0)), a0, "replay: clamp");
+    }
+
+    function test_replay_witness_posCharge352_halmosModel() public { _replayWitness(0x2000000000000000, false); }
+    function test_replay_witness_posCharge384_halmosModel() public { _replayWitness(0x10000000000000000, true); }
+
     // ------------------------------------------------------- 384 fee snapshot ----
 
     /// @dev Exact charge, recomputed from rc.2's formula with the parameters each path must use.

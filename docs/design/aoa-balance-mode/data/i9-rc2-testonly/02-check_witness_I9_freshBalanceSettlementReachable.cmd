@@ -1,0 +1,1 @@
+python3 script/halmos/run-i9-witness.py --wall-cap 600 --solver-timeout-assertion 300s --keep-cache --log /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/13f6212e-b200-423b-852b-995b2d8a30a5/scratchpad/i9ae7d/out/02-check_witness_I9_freshBalanceSettlementReachable.log --contract SuperPaymasterI9HalmosTest --check check_witness_I9_freshBalanceSettlementReachable

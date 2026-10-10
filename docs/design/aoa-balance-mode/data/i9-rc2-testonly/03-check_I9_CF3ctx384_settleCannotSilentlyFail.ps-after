@@ -1,0 +1,4 @@
+13520 27331 27307 S    bash script/halmos/run-all-d5c1.sh all 4
+13540 13520 27307 S    bash script/halmos/run-d5c1.sh XPNTsV2RateHalmosTest docs/design/aoa-balance-mode/data/halmos/rate-base.log xp ^check_RATE_base
+17451 13540 27307 R    /Users/jason/.pyenv/versions/3.11.9/bin/python3 - docs/design/aoa-balance-mode/data/halmos/rate-base.log ["--contract", "XPNTsV2RateHalmosTest", "--match-test", "^check_RATE_base", "--panic-error-codes", "*", "--loop", "2", "--default-bytes-lengths", "0,65", "--statistics", "--solver-timeout-assertion", "300000"]
+17846 17451 17846 Rs   /Users/jason/.local/share/uv/tools/halmos/bin/python /Users/jason/.local/bin/halmos --contract XPNTsV2RateHalmosTest --match-test ^check_RATE_base --panic-error-codes * --loop 2 --default-bytes-lengths 0,65 --statistics --solver-timeout-assertion 300000
