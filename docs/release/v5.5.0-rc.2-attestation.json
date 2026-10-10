@@ -231,6 +231,62 @@
   "implemented": true,
   "reviewedPrDaemon": true,
   "dsrAccepted": false,
-  "tagged": false
- }
+  "tagged": true
+ },
+ "tag": {
+  "name": "v5.5.0-rc.2",
+  "annotated": true,
+  "tagObject": "250fb800b0162bd77c8d5067c1aef55371ef6584",
+  "peeledCommit": "1ac0e1c595dc84e684b540ca6a936168e922194f",
+  "peeledEqualsAttestedCommit": true,
+  "tagger": "jhfnetboy",
+  "taggedAtUtc": "2026-09-27T07:17:15Z",
+  "moved": false
+ },
+ "attestationPr": {
+  "number": 445,
+  "approvedHead": "6134265701d858825a137718266ed9e511478341",
+  "mergeCommit": "a81e659da9174c9adbe10ed357d35033f26874d2",
+  "mergedAtUtc": "2026-09-27T08:14:24Z"
+ },
+ "reproductionScripts": {
+  "note": "Not inside the rc.2 tag by design (added after the tagged commit). Pinned by commit + blob + SHA-256.",
+  "addedInCommit": "6134265701d858825a137718266ed9e511478341",
+  "files": {
+   "docs/release/attest-hashes.mjs": {
+    "gitBlob": "e487c7f8209973e4da0ad7635bbf735907b41c88",
+    "sha256": "7b9591168dbba84e2af1e7507db2a9f637910aa3f637065f9cebd4cca5bc5ae8"
+   },
+   "docs/release/build-attestation-json.py": {
+    "gitBlob": "c87e9a642a1baf40f6e2e4276f8d75923d850a45",
+    "sha256": "8d443b4e00dd1318f0e62373ec8c46b0a0590ba868ff212d22299d4a3a81eb93"
+   }
+  },
+  "reproducedFromTag20260927": {
+   "method": "fresh shallow clone of v5.5.0-rc.2 + submodules chainlink-brownie-contracts, solady; rm -rf cache out; forge build (1.7.1, profile.default); pinned attest-hashes.mjs from 61342657",
+   "fieldsCompared": [
+    "runtimeBytes",
+    "headroom",
+    "runtimeKeccak",
+    "creationKeccak",
+    "immutableRefs",
+    "compiler",
+    "runs",
+    "viaIR",
+    "evm"
+   ],
+   "result": "10/10 contracts identical",
+   "negativeControl": "every runtimeKeccak altered -> 10/10 DIFF"
+  }
+ },
+ "amendments": [
+  {
+   "id": 1,
+   "date": "2026-09-27",
+   "reason": "DSR CC-122 a2105e99: attestation said not tagged; reproduction scripts not in tag and unpinned",
+   "docsOnly": true,
+   "contractsSrcDiffFromAttestedCommit": "empty",
+   "positiveControl": "5cb78646..1ac0e1c5 -- contracts/src lists 10 files"
+  }
+ ]
 }

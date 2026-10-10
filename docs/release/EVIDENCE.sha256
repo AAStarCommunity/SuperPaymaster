@@ -1,2 +1,4 @@
-efc714a405769bd197ca78da95d3ac673ba41bdab34c49be4202824566ae0059  v5.5.0-rc.2-attestation.md
-6eeffc045245ff1a698e808e5b8ddfa94d10d18570b8fb97f3284c3e3d17fed8  v5.5.0-rc.2-attestation.json
+ee165aa9fec0da42f4b280c45c171d7e2dc1ac7e2d70296d42efe61f0793aee0  v5.5.0-rc.2-attestation.md
+399116c381a0d0a68e742eccfbc2f2430ba96e9a943ea451c06405d4eb897d04  v5.5.0-rc.2-attestation.json
+7b9591168dbba84e2af1e7507db2a9f637910aa3f637065f9cebd4cca5bc5ae8  attest-hashes.mjs
+8d443b4e00dd1318f0e62373ec8c46b0a0590ba868ff212d22299d4a3a81eb93  build-attestation-json.py
