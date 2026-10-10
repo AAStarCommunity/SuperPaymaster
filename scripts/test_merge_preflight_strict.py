@@ -174,8 +174,8 @@ BASE_UNREAD = r"^FAIL  base branch unreadable"
 
 # (name, base, mutate, expect_exit_zero, leg_regex, env)
 S = []
-def sc(name, base, mut, ok, leg, env=None):
-    S.append((name, base, mut, ok, leg, env or {}))
+def sc(name, base, mut, ok, leg, env=None, extra=None):
+    S.append((name, base, mut, ok, leg, env or {}, extra))
 
 # --- positive controls -------------------------------------------------------
 sc("unprotected, no rulesets", U, lambda f: None, True, INFO_NONE)
@@ -256,6 +256,19 @@ sc("check-run record malformed (id missing)", P,
 sc("required-set union: jq prints then exits 7", P, lambda f: None, False,
    r"^FAIL  could not evaluate", {"FAKE_JQ_FAIL_ON": "--argjson runs"})
 
+# --- approval body must name the full head (strict) ----------------------------
+REV = f"repos/{REPO}/pulls/{PR}/reviews"
+def body(text):
+    return lambda f: f["api"][REV]["pages"][0][0].update(body=text)
+sc("approval body names no SHA", U, body("APPROVE looks good"), False, INFO_NONE,
+   extra=r"^FAIL  the approval body names no full 40-hex SHA")
+sc("approval body names only an 8-char head prefix", U, body("APPROVE at " + HEAD[:8]), False, INFO_NONE,
+   extra=r"^FAIL  the approval body names no full 40-hex SHA")
+sc("approval body names a different full SHA", U, body("APPROVE at " + "b" * 40), False, INFO_NONE,
+   extra=r"^FAIL  the approval body names bbbbbbbbbbbb")
+sc("approval body names the full head (control)", U, lambda f: None, True, INFO_NONE,
+   extra=r"^OK    the approval body names this exact head")
+
 LEG = re.compile(r"^(OK    all \d+ required checks|INFO  .*requires no status checks|"
                  r"FAIL  (could not (read|evaluate) .*required checks|required check\(s\) not satisfied|base branch unreadable))")
 
@@ -270,7 +283,7 @@ def main():
             open(p, "w").write(body)
             os.chmod(p, 0o755)
         failures = 0
-        for i, (name, base, mut, ok, leg, env) in enumerate(S):
+        for i, (name, base, mut, ok, leg, env, extra) in enumerate(S):
             fx = base_fixture(base)
             mut(fx)
             fpath = os.path.join(tmp, f"fx{i}.json")
@@ -292,6 +305,8 @@ def main():
             got_leg = legs[0] if legs else "<no required-checks line>"
             exit_ok = (p.returncode == 0) == ok
             leg_ok = re.search(leg, got_leg) is not None
+            if extra is not None:
+                leg_ok = leg_ok and re.search(extra, out, re.M) is not None
             mark = "ok  " if exit_ok and leg_ok else "FAIL"
             if not (exit_ok and leg_ok):
                 failures += 1
