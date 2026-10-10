@@ -163,11 +163,45 @@ Final state after the rollback: every deployed runtime == rc.2 attestation (`cod
 * The dummy changes only a `pure` string. It does not exercise a forward upgrade whose logic changes, such as the OpCtx context-compatibility paths; that is C2's job.
 * The same swallowed-read pattern (Codex M2) still exists in the #459 stage II / C slot dumps (`II-C-*-slots-*.txt`). They are outside this PR's stage D. They are guarded there by an explicit well-formedness CHECK (SP 65:65:1, Registry 74:74:1), which a failed read would fail.
 
+## Post-hoc check of the archived run (script 6cf7af89)
+
+**This archived run predates the getter-snapshot hardening.** Codex #462 round 2 found a gap in script `6cf7af89`:
+- `sp_state` wrote each `cast call` result without checking its exit status.
+- `state_ok` accepted any 24 lines containing " = " that had no error/revert.
+- So a getter returning blank in BOTH snapshots would let the D5/D6 before/after diff say "identical".
+
+Fixed in `85b62b385a91cb6f7e3f3e430faf1ba06bde1a9c`:
+- Every getter now goes through `sp_getter`. A non-zero exit or an empty value writes `<getter> = FAILED`, and `sp_state` returns 1, which fails the run.
+- `state_ok` requires EXACTLY 24 lines `<getter> = <non-empty>`, with no FAILED/error/revert, plus a block header.
+- D0 now runs `state_neg_controls`.
+
+To save time, no new `all` run was made. Instead, `script/evidence/a2-item4-state-guard-selftest.sh @ 85b62b38` loads the guard's function bodies verbatim from the committed `a2-full-rehearsal.sh`. Its output is in `posthoc-state-guard-85b62b38/` (`rehearsal.log`, `neg-controls.jsonl`, `neg.log`, `D0-state-guard-controls.log`, `console.log`).
+
+**1. The negative controls** run on a short-lived local anvil fork of block 11881940. The live SP there is 5.4.2. The fork-only cheat that gives it a 5.5.0 surface: the rc.2 impl build is deployed on the fork and the proxy's ERC-1967 slot is pointed at it with `anvil_setStorageAt` (`rehearsal.log` L3).
+- NEG-1: an injected EMPTY getter (operators(OWNER) exits 0 with a blank value) → `sp_state` fails with `FAILED operators(OWNER) @block …: empty value`. PASS (offline regex).
+- NEG-2: an injected FAILED getter (exit 1) → `sp_state` fails with `FAILED operators(OWNER) @block …: Error: injected read failure`. PASS (offline regex).
+- Both injected snapshots are rejected by `state_ok`; a healthy snapshot is accepted (L8–L10).
+- Codex reproduction, operators(OWNER) blank in BOTH snapshots: each side is rejected as `INVALID(23 non-empty values, 1 bad lines)`, and the OLD rule is shown to accept it (L11–L13).
+
+**2. The NEW `state_ok` applied to the 4 archived getter snapshots** (L15–L24):
+
+| file | NEW state_ok | " = " lines | blank values | error/revert | block |
+|---|---|---|---|---|---|
+| `D5-state-before.txt` | valid | 24 | 0 | 0 | 11882076 |
+| `D5-state-after.txt` | valid | 24 | 0 | 0 | 11882078 |
+| `D6-state-before.txt` | valid | 24 | 0 | 0 | 11882086 |
+| `D6-state-after.txt` | valid | 24 | 0 | 0 | 11882088 |
+
+The D5 and D6 before/after getters are still identical. The self-test ends `SELFTEST COMPLETED WITH 0 FAILURES`: 13 CHECK PASS and 2/2 negative controls, both offline regex refusals.
+
+This archive's own numbers above (353 CHECK, 63 negative controls) are those of the `6cf7af89` run and are unchanged. If DSR requires it, a fresh complete `all` run under the final script (`85b62b38` or later) can be made.
+
 ## Reproduce
 
 ```
 forge build                      # profile.default
 pnpm install
 script/evidence/a2-full-rehearsal.sh <env file with RPC_URL> 11881940 <out dir> all
+script/evidence/a2-item4-state-guard-selftest.sh <env file> 11881940 <this dir> <out dir>   # post-hoc guard check
 cd docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881940-6cf7af89 && shasum -a 256 -c EVIDENCE.sha256
 ```
