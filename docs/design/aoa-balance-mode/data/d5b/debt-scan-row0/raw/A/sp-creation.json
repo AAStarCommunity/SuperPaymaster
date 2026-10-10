@@ -1,0 +1,16 @@
+{
+ "endpoint": "A (eth-sepolia.g.alchemy.com)",
+ "request": {
+  "address": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+  "blocks": [
+   11151015,
+   11151016
+  ],
+  "method": "eth_getCode boundary"
+ },
+ "response": {
+  "codeAtCreationMinus1": "0x",
+  "codeAtCreation_keccak": "0xbfa8a49f3061225d6e1298934a59b43ee6ab3c042b13fc572712709ff6cc7ec0",
+  "codeAtCreation_len": 100
+ }
+}

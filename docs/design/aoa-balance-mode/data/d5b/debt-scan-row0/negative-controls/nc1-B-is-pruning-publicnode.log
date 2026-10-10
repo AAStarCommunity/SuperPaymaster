@@ -1,0 +1,40 @@
+A2 row0/7b debt scan; fixed block 11881000 ; endpoints: A=eth-sepolia.g.alchemy.com, B=ethereum-sepolia-rpc.publicnode.com
+script scripts/a2-row0-7b-debt-scan.py sha256 7f7d397052db61ea5dd1f58447793d8ebe0617da0aa75e27376085b84f1b4d93 ; repo HEAD eb073e5aa8662782ef4d343a02c7fbb5b01a99dc ; script differs from HEAD: no
+CHECK OK   A chainId == 11155111
+CHECK OK   A fixed block 11881000 <= head 11881502 - 64
+CHECK OK   B chainId == 11155111
+CHECK OK   B fixed block 11881000 <= head 11881502 - 64
+CHECK OK   fixed block hash identical on A and B (0xf785a1efed005453e054f35adf4877eac985fafdd500407595fb4ff6640595af)
+CHECK OK   tag v5.4.2 -> 78364b12f42f1d3043ae992472ab6bdb6de82377
+CHECK OK   tag v5.5.0-rc.2 -> 1ac0e1c595dc84e684b540ca6a936168e922194f
+CHECK OK   source v5.4.2:contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol declares `event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);`
+CHECK OK   source v5.4.2:contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol declares `mapping(address => mapping(address => uint256)) public pendingDebts;`
+CHECK OK   source v5.5.0-rc.2:contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol declares `event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);`
+CHECK OK   source v5.4.2:contracts/src/tokens/xPNTsToken.sol declares `event DebtRecorded(address indexed user, uint256 amount);`
+CHECK OK   source v5.4.2:contracts/src/tokens/xPNTsToken.sol declares `event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);`
+CHECK OK   source v5.4.2:contracts/src/tokens/xPNTsToken.sol declares `function getDebt(address user) external view returns (uint256)`
+CHECK OK   source d04b83cf6423cc874185366209195aa2ed4552e6:contracts/src/tokens/xPNTsToken.sol declares `return "XPNTs-3.4.0";`
+CHECK OK   source d04b83cf6423cc874185366209195aa2ed4552e6:contracts/src/tokens/xPNTsToken.sol declares `event DebtRecorded(address indexed user, uint256 amount);`
+CHECK OK   source d04b83cf6423cc874185366209195aa2ed4552e6:contracts/src/tokens/xPNTsToken.sol declares `event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);`
+CHECK OK   source d04b83cf6423cc874185366209195aa2ed4552e6:contracts/src/tokens/xPNTsToken.sol declares `function getDebt(address user) external view returns (uint256)`
+topic0 DebtRecordFailed(address,address,uint256) = 0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f
+topic0 DebtRecorded(address,uint256)            = 0x99cf5cc1e3146bd15204f8eae4fe16c690d6123fbdac32515502fe688b86b8f5
+CHECK OK   operator event OperatorConfigured(address,address,address) is declared in tagged source
+CHECK OK   operator event OperatorDeposited(address,uint256) is declared in tagged source
+CHECK OK   operator event OperatorWithdrawn(address,uint256) is declared in tagged source
+CHECK OK   operator event TransactionSponsored(address,address,uint256,uint256) is declared in tagged source
+CHECK OK   operator event OperatorSlashed(address,uint256,uint8) is declared in tagged source
+CHECK OK   operator event ReputationUpdated(address,uint256) is declared in tagged source
+CHECK OK   operator event OperatorPaused(address) is declared in tagged source
+CHECK OK   operator event OperatorUnpaused(address) is declared in tagged source
+CHECK OK   operator event OperatorMinTxIntervalUpdated(address,uint48) is declared in tagged source
+CHECK OK   operator event UserBlockedStatusUpdated(address,address,bool) is declared in tagged source
+CHECK OK   operator event SlashQueued(address) is declared in tagged source
+CHECK OK   operator event SlashCancelled(address) is declared in tagged source
+CHECK OK   operator event SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256) is declared in tagged source
+CHECK OK   operator event ProtocolRevenueUnderflow(address,uint256,uint256) is declared in tagged source
+CHECK OK   sp-creation: A state served at creation boundary (code empty @11151015, present @11151016)
+EXCEPTION RuntimeError B rpc error {"code": 4444, "message": "pruned history unavailable: requested 5940500, earliest available 11871426"}
+CHECK totals: OK=32 FAIL=1
+RESULT FAIL (1) 
+  - exception: RuntimeError: B rpc error {"code": 4444, "message": "pruned history unavailable: requested 5940500, earliest available 11871426"}
