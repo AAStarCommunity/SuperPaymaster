@@ -1,0 +1,18 @@
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: rollback rc.2->rc.1: gas buffer <= the validation-time snapshot: 1475302000000000 > 829769000000001] test_rc2_to_rc1_rollback_mid_bundle() (gas: 31576216)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 9.21ms (4.05ms CPU time)
+
+Ran 1 test suite in 32.82ms (9.21ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol:SuperPaymasterRc1Rc2MidBundleTest
+[FAIL: rollback rc.2->rc.1: gas buffer <= the validation-time snapshot: 1475302000000000 > 829769000000001] test_rc2_to_rc1_rollback_mid_bundle() (gas: 31576216)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test

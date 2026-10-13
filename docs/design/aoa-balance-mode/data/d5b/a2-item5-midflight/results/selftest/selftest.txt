@@ -1,0 +1,5 @@
+S1 run-tests.sh with a failing test: exit 1 (non-zero, as required)
+S2 run-negative-controls.sh INJECT=noapply: exit 1 (non-zero, as required)
+S3 run-negative-controls.sh INJECT=undetected: exit 1 (non-zero, as required)
+restored: contracts/test/v2/SuperPaymasterRc1Rc2MidBundle.t.sol sha256 c7333cd76f80e0f2abb741cb8b24837e3cbb0760e5e0a5287269b155741f9577
+SELFTEST: OK (all injected failures produced a non-zero exit)
