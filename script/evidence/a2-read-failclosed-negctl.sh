@@ -27,6 +27,9 @@
 set -uo pipefail
 ENVFILE="$1"; FORK_BLOCK="$2"; OUTROOT="$3"; OLDREF="${4:-252ffe38}"
 export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH"
+for tool in git python3 awk grep sed cut paste head tee mkdir rm cat bash; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "required tool missing: $tool" >&2; exit 2; }
+done
 W="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$W"
 S=script/evidence/a2-full-rehearsal.sh
 git diff --quiet HEAD -- "$S" "$0" || { echo "refusing: $S or this harness has uncommitted changes"; exit 2; }
@@ -86,7 +89,7 @@ for path in root.rglob('*'):
         if clean != raw:
             path.write_bytes(clean)
 PY
-    if rg -l 'https?://' "$D" >/dev/null; then echo "URL redaction failed in $D" >&2; exit 1; fi
+    bash script/evidence/check-url-residue.sh "$D" || exit $?
     echo "$inj $ver ($ref) exit $rc" | tee -a "$OUTROOT/negctl-summary.log"
   done
   od=$(grep -hE 'CHECK \[(pre-state|fork block hash)|!!!' "$OUTROOT/$inj/old/rehearsal.log" 2>/dev/null | sed 's/^ *//' | cut -c1-110 | paste -sd'|' -)

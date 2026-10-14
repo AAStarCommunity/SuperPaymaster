@@ -1,0 +1,5 @@
+case	old_exit	new_exit	scanner
+missing-rg-url	0	1	no-rg
+missing-rg-clean	0	0	no-rg
+rg-url	1	1	with-rg
+scan-error	0	2	with-rg

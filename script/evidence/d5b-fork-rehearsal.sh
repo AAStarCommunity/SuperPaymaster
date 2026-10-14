@@ -110,7 +110,15 @@ trap cleanup EXIT
 
 PORT=28571; RPC="http://127.0.0.1:$PORT"
 step() { echo; echo "=== $* ===" | tee -a "$OUT/rehearsal.log"; }
-must_fail() { local what="$1"; shift; if "$@" >"$OUT/neg.log" 2>&1; then echo "NEGATIVE CONTROL FAILED: $what succeeded" | tee -a "$OUT/rehearsal.log"; exit 1; else echo "  negative ok: $what reverted ($(grep -oE 'Error: [^,]{0,120}|revert[^,]{0,120}' "$OUT/neg.log" | head -1))" | tee -a "$OUT/rehearsal.log"; fi; }
+must_fail() {
+  local what="$1" rc
+  shift
+  command -v "$1" >/dev/null 2>&1 || { echo "NEGATIVE CONTROL FAILED: required command missing: $1" | tee -a "$OUT/rehearsal.log"; exit 2; }
+  "$@" >"$OUT/neg.log" 2>&1; rc=$?
+  if [ "$rc" -eq 0 ]; then echo "NEGATIVE CONTROL FAILED: $what succeeded" | tee -a "$OUT/rehearsal.log"; exit 1; fi
+  if [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ]; then echo "NEGATIVE CONTROL FAILED: $what could not run (exit $rc)" | tee -a "$OUT/rehearsal.log"; exit 2; fi
+  echo "  negative ok: $what reverted ($(grep -oE 'Error: [^,]{0,120}|revert[^,]{0,120}' "$OUT/neg.log" | head -1))" | tee -a "$OUT/rehearsal.log"
+}
 txhash() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).transactionHash))'; }
 warp48h() { cast rpc evm_increaseTime 172800 --rpc-url "$RPC" >/dev/null; cast rpc evm_mine --rpc-url "$RPC" >/dev/null; }
 impl_of() { cast storage "$1" 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$RPC" | sed 's/0x000000000000000000000000/0x/'; }
