@@ -39,7 +39,12 @@ APID=$!; echo "$APID" >"$W/anvil.pid"
 MANIFEST="deployments/timelock-roles.$ENVNAME.json"
 cleanup() { kill "$APID" 2>/dev/null || true; rm -f "$ROOT/$CFG" "$ROOT/$MANIFEST" "$ROOT"/deployments/attestations/timelock-roles."$ENVNAME".*.json; }
 trap cleanup EXIT
-for _ in $(seq 1 100); do "$CAST" chain-id --rpc-url "$RPC" >/dev/null 2>&1 && break; sleep 0.2; done
+anvil_ready=0
+for _ in $(seq 1 100); do
+  if "$CAST" chain-id --rpc-url "$RPC" >/dev/null 2>&1; then anvil_ready=1; break; fi
+  sleep 0.2
+done
+if [ "$anvil_ready" -ne 1 ]; then echo "anvil did not become ready after 100 attempts" >&2; exit 1; fi
 
 step() { echo; echo "=== $* ==="; }
 art() { python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['bytecode']['object'])" "$1"; }
@@ -47,7 +52,8 @@ create() { # <creation hex> -> address
   "$CAST" send --rpc-url "$RPC" --unlocked --from "$OWNER" --create "$1" --json | python3 -c "import json,sys;print(json.load(sys.stdin)['contractAddress'])"
 }
 send() { local from="$1"; shift; "$CAST" send --rpc-url "$RPC" --unlocked --from "$from" "$@" >/dev/null; }
-must_fail() { local what="$1"; shift; if "$@" >"$W/neg.log" 2>&1; then echo "NEGATIVE CONTROL FAILED: $what succeeded"; exit 1; else echo "  negative ok: $what reverted ($(grep -oE 'Error: [^,]{0,120}|revert[^,]{0,120}' "$W/neg.log" | head -1))"; fi; }
+source "$ROOT/script/evidence/require-revert.sh"
+must_fail() { require_revert "$W/neg.log" "$@" || exit $?; }
 fscript() { # <contract> <sender> [env...]
   local c="$1" s="$2"; shift 2
   env ENV="$ENVNAME" "$@" "$FORGE" script "contracts/script/v3/UpgradeViaTimelock.s.sol:$c" \

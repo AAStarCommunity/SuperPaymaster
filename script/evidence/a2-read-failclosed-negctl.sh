@@ -78,12 +78,21 @@ for inj in none both-empty both-empty-endpoints both-fail single-endpoint-fail i
     rc=$?
     if [ $ver = old ]; then RC_old=$rc; else RC_new=$rc; fi
     rm -f "$H"
-    python3 - "$D" <<'PY'
-import pathlib, re, sys
+    python3 - "$D" <<'PY' || exit $?
+import os, pathlib, re, sys
 root = pathlib.Path(sys.argv[1])
-pattern = re.compile(rb'https?://[^\s<>"\x27]+')
-for path in root.rglob('*'):
-    if path.is_file():
+pattern = re.compile(rb'https?:(?:\\?\/){2}[^\s<>"\x27]+', re.IGNORECASE)
+seen = set()
+def walk_error(error):
+    raise error
+for parent, dirs, files in os.walk(root, followlinks=True, onerror=walk_error):
+    identity = (os.stat(parent).st_dev, os.stat(parent).st_ino)
+    if identity in seen:
+        dirs[:] = []
+        continue
+    seen.add(identity)
+    for name in files:
+        path = pathlib.Path(parent, name)
         raw = path.read_bytes()
         clean = pattern.sub(b'<redacted-rpc>', raw)
         if clean != raw:

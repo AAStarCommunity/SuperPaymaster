@@ -1,17 +1,30 @@
 #!/usr/bin/env bash
 # Exit 0 only when the complete directory scan succeeds and finds no URL.
-# rg must not apply its default filters: -uuu disables .gitignore/.ignore handling and
-# includes hidden and binary files, so it scans exactly what `grep -r` (the fallback) scans.
+# Scan hidden, ignored, binary, and linked content without user search configuration.
 set -uo pipefail
 command -v grep >/dev/null 2>&1 || { echo "required tool missing: grep" >&2; exit 2; }
 if [ "$#" -ne 1 ] || [ ! -d "$1" ]; then echo "URL scan requires a directory" >&2; exit 2; fi
 dir="$1"
 if command -v rg >/dev/null 2>&1; then
-  rg -uuu -l 'https?://' "$dir" >/dev/null
+  rg --no-config -uuu -a -L -i -l 'https?:(\\?[/]){2}' "$dir" >/dev/null
   rc=$?
 else
-  grep -rEla 'https?://' "$dir" >/dev/null
-  rc=$?
+  command -v find >/dev/null 2>&1 || { echo "required tool missing: find" >&2; exit 2; }
+  files=$(mktemp) || exit 2
+  trap 'rm -f "$files"' EXIT
+  if ! find -L "$dir" \( -type f -o -type l \) -print0 > "$files"; then
+    rc=2
+  else
+    rc=1
+    while IFS= read -r -d '' file; do
+      if [ -L "$file" ] && [ ! -e "$file" ]; then rc=2; break; fi
+      env -u GREP_OPTIONS grep -Eila 'https?:(\\?[/]){2}' "$file" >/dev/null
+      match_rc=$?
+      if [ "$match_rc" -eq 0 ]; then rc=0
+      elif [ "$match_rc" -ne 1 ]; then rc=2; break
+      fi
+    done < "$files"
+  fi
 fi
 case "$rc" in
   0) echo "URL redaction failed in $dir" >&2; exit 1 ;;

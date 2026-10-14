@@ -110,14 +110,12 @@ trap cleanup EXIT
 
 PORT=28571; RPC="http://127.0.0.1:$PORT"
 step() { echo; echo "=== $* ===" | tee -a "$OUT/rehearsal.log"; }
+source "$W/script/evidence/require-revert.sh"
 must_fail() {
-  local what="$1" rc
-  shift
-  command -v "$1" >/dev/null 2>&1 || { echo "NEGATIVE CONTROL FAILED: required command missing: $1" | tee -a "$OUT/rehearsal.log"; exit 2; }
-  "$@" >"$OUT/neg.log" 2>&1; rc=$?
-  if [ "$rc" -eq 0 ]; then echo "NEGATIVE CONTROL FAILED: $what succeeded" | tee -a "$OUT/rehearsal.log"; exit 1; fi
-  if [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ]; then echo "NEGATIVE CONTROL FAILED: $what could not run (exit $rc)" | tee -a "$OUT/rehearsal.log"; exit 2; fi
-  echo "  negative ok: $what reverted ($(grep -oE 'Error: [^,]{0,120}|revert[^,]{0,120}' "$OUT/neg.log" | head -1))" | tee -a "$OUT/rehearsal.log"
+  local rc
+  require_revert "$OUT/neg.log" "$@" 2>&1 | tee -a "$OUT/rehearsal.log"
+  rc=${PIPESTATUS[0]}
+  [ "$rc" -eq 0 ] || exit "$rc"
 }
 txhash() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).transactionHash))'; }
 warp48h() { cast rpc evm_increaseTime 172800 --rpc-url "$RPC" >/dev/null; cast rpc evm_mine --rpc-url "$RPC" >/dev/null; }
@@ -252,7 +250,12 @@ if [ "$RC" -ne 0 ]; then echo "  !!! forge build --force FAILED (exit $RC), see 
 step "fork Sepolia at block $FORK_BLOCK"
 anvil --fork-url "$RPC_URL_FORK" --fork-block-number "$FORK_BLOCK" --port "$PORT" --silent >"$OUT/anvil.log" 2>&1 &
 PIDS+=($!)
-for _ in $(seq 1 60); do cast chain-id --rpc-url "$RPC" >/dev/null 2>&1 && break; sleep 1; done
+anvil_ready=0
+for _ in $(seq 1 60); do
+  if cast chain-id --rpc-url "$RPC" >/dev/null 2>&1; then anvil_ready=1; break; fi
+  sleep 1
+done
+if [ "$anvil_ready" -ne 1 ]; then echo "  !!! anvil did not become ready after 60 attempts" | tee -a "$OUT/rehearsal.log"; exit 1; fi
 for a in $OWNER $ANNI $GOV_MULTISIG; do cast rpc anvil_impersonateAccount $a --rpc-url "$RPC" >/dev/null; done
 cast rpc anvil_setBalance $OWNER 0x56BC75E2D63100000 --rpc-url "$RPC" >/dev/null   # 100 ETH, real balance is fine but keep headroom
 cast rpc anvil_setBalance $GOV_MULTISIG 0x56BC75E2D63100000 --rpc-url "$RPC" >/dev/null
