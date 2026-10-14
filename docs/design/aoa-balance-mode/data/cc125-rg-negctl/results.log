@@ -4,4 +4,7 @@ missing-rg-url: old=0 new=1 (expected 0/1)
 missing-rg-clean: old=0 new=0 (expected 0/0)
 rg-url: old=1 new=1 (expected 1/1)
 scan-error: old=0 new=2 (expected 0/2)
+rg-hidden-url: old=0 new=1 (expected 0/1)
+rg-binary-url: old=0 new=1 (expected 0/1)
+no-rg-hidden-url: old=0 new=1 (expected 0/1)
 failures=0

@@ -13,7 +13,7 @@ old_line=$(git show "$OLDREF:script/evidence/a2-read-failclosed-negctl.sh" | gre
 rg_bin=$(command -v rg)
 tmp=$(mktemp -d)
 trap 'chmod 700 "$tmp/scan-error/closed" 2>/dev/null || :; rm -r "$tmp"' EXIT
-mkdir "$tmp/no-rg" "$tmp/with-rg" "$tmp/missing-rg-url" "$tmp/missing-rg-clean" "$tmp/rg-url" "$tmp/scan-error" "$tmp/scan-error/closed"
+mkdir "$tmp/no-rg" "$tmp/with-rg" "$tmp/missing-rg-url" "$tmp/missing-rg-clean" "$tmp/rg-url" "$tmp/scan-error" "$tmp/scan-error/closed" "$tmp/rg-hidden-url" "$tmp/rg-binary-url"
 ln -s "$(command -v bash)" "$tmp/no-rg/bash"
 ln -s "$(command -v grep)" "$tmp/no-rg/grep"
 ln -s "$(command -v bash)" "$tmp/with-rg/bash"
@@ -24,6 +24,9 @@ printf 'plain text\n' > "$tmp/missing-rg-clean/input.txt"
 printf 'https://example.invalid/injected\n' > "$tmp/rg-url/input.txt"
 printf 'plain text\n' > "$tmp/scan-error/closed/input.txt"
 chmod 000 "$tmp/scan-error/closed"
+# rg skips hidden and binary files by default; the old check missed both.
+printf 'https://example.invalid/hidden\n' > "$tmp/rg-hidden-url/.hidden.log"
+printf 'bin\000https://example.invalid/binary\n' > "$tmp/rg-binary-url/blob.bin"
 
 TABLE="$OUT/results.tsv"
 LOG="$OUT/results.log"
@@ -47,6 +50,9 @@ run_case missing-rg-url "$tmp/no-rg" "$tmp/missing-rg-url" 0 1
 run_case missing-rg-clean "$tmp/no-rg" "$tmp/missing-rg-clean" 0 0
 run_case rg-url "$tmp/with-rg" "$tmp/rg-url" 1 1
 run_case scan-error "$tmp/with-rg" "$tmp/scan-error" 0 2
+run_case rg-hidden-url "$tmp/with-rg" "$tmp/rg-hidden-url" 0 1
+run_case rg-binary-url "$tmp/with-rg" "$tmp/rg-binary-url" 0 1
+run_case no-rg-hidden-url "$tmp/no-rg" "$tmp/rg-hidden-url" 0 1
 printf 'failures=%s\n' "$failures" >> "$LOG"
 (cd "$OUT" && shasum -a 256 results.tsv results.log > EVIDENCE.sha256)
 cat "$TABLE"

@@ -3,3 +3,6 @@ missing-rg-url	0	1	no-rg
 missing-rg-clean	0	0	no-rg
 rg-url	1	1	with-rg
 scan-error	0	2	with-rg
+rg-hidden-url	0	1	with-rg
+rg-binary-url	0	1	with-rg
+no-rg-hidden-url	0	1	no-rg

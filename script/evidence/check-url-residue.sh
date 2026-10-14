@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Exit 0 only when the complete directory scan succeeds and finds no URL.
+# rg must not apply its default filters: -uuu disables .gitignore/.ignore handling and
+# includes hidden and binary files, so it scans exactly what `grep -r` (the fallback) scans.
 set -uo pipefail
 command -v grep >/dev/null 2>&1 || { echo "required tool missing: grep" >&2; exit 2; }
 if [ "$#" -ne 1 ] || [ ! -d "$1" ]; then echo "URL scan requires a directory" >&2; exit 2; fi
 dir="$1"
 if command -v rg >/dev/null 2>&1; then
-  rg -l 'https?://' "$dir" >/dev/null
+  rg -uuu -l 'https?://' "$dir" >/dev/null
   rc=$?
 else
-  grep -rEl 'https?://' "$dir" >/dev/null
+  grep -rEla 'https?://' "$dir" >/dev/null
   rc=$?
 fi
 case "$rc" in
