@@ -39,9 +39,11 @@ two-pass log, the verify self-test log bound to the evidence generation's verifi
 the forge suite of the replay / layout / priming / boundary tests).
 
 BEHAVIOUR and DOCUMENT-SYNC have separate verdicts. The latter compares CAP-1 paths/times and
-any quoted self-test count against the explicitly selected report; without --report it is N/A.
-Exit 0 when behaviour passes and document sync passes or is N/A; 1 for behaviour failure,
-2 for document-sync failure, 3 for both failures.
+the required self-test count against the explicitly selected report; without --report it is N/A.
+Exit 0 when selected behaviour passes and document sync passes or is N/A; 1 for behaviour failure,
+2 for document-sync failure, 3 for both failures, 4 when --filter matches no behaviour rows.
+Partial selections are marked [partial]; exit 0 then means only the selected rows passed.
+Invalid arguments exit 64 (argparse usage errors), distinct from document-sync failure.
 usage: python3 script/halmos/verify-d5c1.py [--root DIR] [--expect FILE] [--tree DIR]
                   [--only suite,logs,partitioned,mutations,fuzz,archives] [--filter a,b]
                   [--report PATH]
@@ -740,21 +742,20 @@ SCRIPTS = ("verify-d5c1.py", "verify-selftest.py", "d5c1_binding.py")
 
 
 def generation_script_hashes():
-    """Pin an archived self-test to the scripts at the evidence tree's recorded HEAD.
-
-    Fake self-test trees have no verifier scripts in git, so they use the running scripts.
-    A real tree with only some scripts at HEAD is invalid, not a reason to fall back.
-    """
+    """Return running hashes and the evidence tree's HEAD and working-copy hashes."""
+    running = {s: sha_file(os.path.join(HERE, s)) for s in SCRIPTS}
     head = cur("xpnts")["git_head"]
+    listed = subprocess.run(["git", "ls-tree", "--name-only", head, "--",
+                             *(f"script/halmos/{s}" for s in SCRIPTS)], cwd=TREE,
+                            capture_output=True, text=True)
+    if listed.returncode == 0 and not listed.stdout.strip():
+        return running, None, None
     blobs = [subprocess.run(["git", "show", f"{head}:script/halmos/{s}"], cwd=TREE,
                             capture_output=True) for s in SCRIPTS]
-    if all(p.returncode != 0 for p in blobs):
-        return {s: sha_file(os.path.join(HERE, s)) for s in SCRIPTS}
     pinned = {s: hashlib.sha256(p.stdout).hexdigest() if p.returncode == 0 else None
               for s, p in zip(SCRIPTS, blobs)}
-    # A self-test produced by locally edited verifier scripts must not be accepted: when the
-    # working copies differ from HEAD, return the HEAD hashes so the archived header mismatches.
-    return pinned
+    working = {s: sha_file(os.path.join(TREE, "script", "halmos", s)) for s in SCRIPTS}
+    return running, pinned, working
 
 
 def check_archives(root, req):
@@ -788,14 +789,25 @@ def check_archives(root, req):
                 "; ".join(probs) or f"2/2 OK ({'; '.join(d for _, d in passes)})", not probs)
         elif k == "selftest":
             sm = re.search(r"^# scripts: (\{.*\})$", t, re.M)
-            got = json.loads(sm.group(1)) if sm else {}
-            now = generation_script_hashes()
+            try:
+                got = json.loads(sm.group(1)) if sm else {}
+            except json.JSONDecodeError:
+                got = {}
+            if not isinstance(got, dict):
+                got = {}
+            running, pinned, working = generation_script_hashes()
             fin = re.search(r"^SELFTEST: all (\d+) controls behave$", t, re.M)
             nok = len(re.findall(r"^ok  ", t, re.M))
             nfail = len(re.findall(r"^FAIL  ", t, re.M))
             probs = []
-            if got != now:
-                probs.append("tested scripts differ from the current ones: " + ",".join(s for s in SCRIPTS if got.get(s) != now[s]))
+            for label, hashes in (("currently executing", running), ("tree HEAD", pinned),
+                                  ("tree working copy", working)):
+                if hashes is not None and got != hashes:
+                    probs.append("tested scripts differ from " + label + ": " +
+                                 ",".join(s for s in SCRIPTS if got.get(s) != hashes[s]))
+            if pinned is not None and working != pinned:
+                probs.append("tree working scripts differ from HEAD: " +
+                             ",".join(s for s in SCRIPTS if working[s] != pinned[s]))
             if not fin or int(fin.group(1)) != nok or nfail:
                 probs.append(f"final line {fin.group(0) if fin else None!r}, ok-lines {nok}, FAIL-lines {nfail}")
             elif nok < a["min_controls"]:
@@ -833,7 +845,7 @@ def check_document_sync(root, report, req):
         for m in RES.finditer(t):
             letter = re.fullmatch(r"check_CAP1_([abc])_.*", m.group(2))
             if letter:
-                tm = re.search(re.escape(m.group(2)) + r"\([^)]*\) \(paths: \d+, time: ([0-9.]+)s", t)
+                tm = re.search(r"\(paths: " + re.escape(m.group(3)) + r", time: ([0-9.]+)s", m.group(0))
                 found.setdefault(letter.group(1), []).append((m.group(1), m.group(3), tm.group(1) if tm else None))
         for letter in "abc":
             got = found.get(letter, [])
@@ -848,15 +860,22 @@ def check_document_sync(root, report, req):
     fin = re.search(r"^SELFTEST: all (\d+) controls behave$", st, re.M)
     claims = re.findall(r"判定器自己的对照[^\n]*?共 (\d+) 个", doc)
     claims += re.findall(r"D5C1 self-test controls: (\d+)", doc)
-    if claims:
+    if len(selftests) == 1:
         expected = fin.group(1) if fin else None
         document_row("report", "self-test control count", "exactly the log's final count",
-                     f"log={expected}; report={claims}", expected is not None and all(c == expected for c in claims))
+                     f"log={expected}; report={claims or 'MISSING'}",
+                     expected is not None and bool(claims) and all(c == expected for c in claims))
+
+
+class VerdictArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(64, f"{self.prog}: error: {message}\n")
 
 
 def main():
     global TREE, rows
-    ap = argparse.ArgumentParser()
+    ap = VerdictArgumentParser()
     ap.add_argument("--root", default=os.environ.get("D5C1_ROOT", "docs/design/aoa-balance-mode/data/halmos"))
     ap.add_argument("--expect", default=os.environ.get("D5C1_EXPECT", "script/halmos/d5c1-expectations.json"))
     ap.add_argument("--tree", default=os.environ.get("D5C1_TREE_ROOT", "."))
@@ -894,28 +913,30 @@ def main():
     if "archives" in sel: check_archives(a.root, req)
     if a.report:
         check_document_sync(a.root, a.report, req)
+    filter_empty = False
     if a.filter:
         keys = a.filter.split(",")
         rows = [r for r in rows if any(k in r[1] for k in keys)]
-        if not rows:
-            print("VERDICT: filter matched nothing"); sys.exit(2)
+        filter_empty = not rows
     bad = [r for r in rows if r[4] != "OK"]
     doc_bad = [r for r in document_rows if r[4] != "OK"]
     all_rows = rows + document_rows
     w = [max(len(str(r[i])) for r in all_rows) for i in range(4)] if all_rows else [0] * 4
     for r in all_rows:
         print(f"{r[0]:<12} {r[1]:<{w[1]}}  {r[2]:<{min(w[2], 40)}}  {r[4]:<8}  {r[3]}")
-    scope = "" if sel >= {"suite", "logs", "partitioned", "mutations", "fuzz", "archives"} and not a.filter else f" [partial: --only {a.only}{' --filter ' + a.filter if a.filter else ''}]"
-    print(f"\nBEHAVIOUR VERDICT: {'ALL EXPECTATIONS MET' if not bad else f'{len(bad)} MISMATCH(ES)'} ({len(rows)} rows){scope}; mandatory suite {req_src}")
+    partial = sel != {"suite", "logs", "partitioned", "mutations", "fuzz", "archives"} or bool(a.filter or a.mutation_id)
+    scope = " [partial]" if partial else ""
+    print(f"\nBEHAVIOUR VERDICT: {'FILTER MATCHED NOTHING' if filter_empty else 'ALL SELECTED EXPECTATIONS MET' if not bad and partial else 'ALL EXPECTATIONS MET' if not bad else f'{len(bad)} MISMATCH(ES)'} ({len(rows)} rows){scope}; mandatory suite {req_src}")
     print("DOCUMENT-SYNC VERDICT: " + ("NOT APPLICABLE (--report not supplied)" if not a.report else
           f"{'ALL QUOTES MATCH' if not doc_bad else f'{len(doc_bad)} MISMATCH(ES)'} ({len(document_rows)} rows); report {a.report}"))
-    code = (1 if bad else 0) | (2 if doc_bad else 0)
-    print(f"VERDICT: {'ALL EXPECTATIONS MET' if code == 0 else f'FAILED (exit {code})'}; exit 0=both pass or document-sync N/A, 1=behaviour, 2=document-sync, 3=both")
+    code = 4 if filter_empty else (1 if bad else 0) | (2 if doc_bad else 0)
+    verdict = "FILTER MATCHED NOTHING" if filter_empty else "ALL SELECTED EXPECTATIONS MET" if code == 0 and partial else "ALL EXPECTATIONS MET" if code == 0 else f"FAILED (exit {code})"
+    print(f"VERDICT:{scope} {verdict}; exit 0=selected rows pass and document-sync passes or N/A, 1=behaviour, 2=document-sync, 3=both, 4=empty filter, 64=usage")
     if a.markdown:
         with open(a.markdown, "w") as f:
             f.write(f"mandatory suite sha256 `{req_sha}`; expectations `{a.expect}` sha256 `{exp_sha}`; tree xpnts src "
                     f"`{cur('xpnts')['src_sha'][:16]}` bytecode `{cur('xpnts')['bytecode_sha'][:16]}`, apnts src `{cur('apnts')['src_sha'][:16]}`\n\n")
-            f.write(f"BEHAVIOUR: {'PASS' if not bad else 'FAIL'}; DOCUMENT-SYNC: "
+            f.write(f"BEHAVIOUR: {'NO MATCH' if filter_empty else 'PASS' if not bad else 'FAIL'}{scope}; DOCUMENT-SYNC: "
                     f"{'N/A' if not a.report else 'FAIL' if doc_bad else 'PASS'}; exit {code}\n\n")
             f.write("| 类别 | 项 | 期望 | 实际 | 判定 |\n|---|---|---|---|---|\n")
             for r in all_rows:

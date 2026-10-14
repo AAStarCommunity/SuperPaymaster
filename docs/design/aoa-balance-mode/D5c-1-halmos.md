@@ -352,4 +352,4 @@ python3 script/halmos/verify-d5c1.py --markdown docs/design/aoa-balance-mode/dat
   > docs/design/aoa-balance-mode/data/halmos/verify-final.txt
 ```
 
-新一代证据用其自己的版本化报告显式判定：`python3 script/halmos/verify-d5c1.py --root <本代日志目录> --tree <本代源码及构建目录> --report <本代README或报告>`。报告需逐项引用 `D5C1 CAP-1 (a): PASS, paths=<n>, time=<s>s`（同样列出 b、c）；引用自检数量时写 `D5C1 self-test controls: <n>`。输出分别给出 BEHAVIOUR 与 DOCUMENT-SYNC 判定；不传 `--report` 时后者为 N/A。本页数字只属于上述历史证据代，不作为新一代日志的断言。
+新一代证据用其自己的版本化报告显式判定：`python3 script/halmos/verify-d5c1.py --root <本代日志目录> --tree <本代源码及构建目录> --report <本代README或报告>`。报告需逐项引用 `D5C1 CAP-1 (a): PASS, paths=<n>, time=<s>s`（同样列出 b、c）；若证据目录恰有一份 self-test 存档，报告也必须引用 `D5C1 self-test controls: <n>`，数字与存档末行一致。输出分别给出 BEHAVIOUR 与 DOCUMENT-SYNC 判定；不传 `--report` 时后者为 N/A。`--only` 或 `--filter` 的结果标为 `[partial]`。退出码：0=所选行为项通过且文档同步通过或 N/A（部分运行不代表全套通过），1=行为失败，2=文档同步失败，3=两者失败，4=`--filter` 未匹配任何行为项，64=命令行参数错误。本页数字只属于上述历史证据代，不作为新一代日志的断言。

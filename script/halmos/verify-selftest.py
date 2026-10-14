@@ -87,6 +87,9 @@ def mk_tree(t, stale=False):
     write(os.path.join(t, "contracts/src/tokens/APNTsCapped.sol"), "contract A {}\n")
     write(os.path.join(t, "contracts/src/Unrelated.sol"), "contract U {}\n")
     write(os.path.join(t, "contracts/test/halmos/H.t.sol"), "contract H {}\n")
+    os.makedirs(os.path.join(t, "script", "halmos"), exist_ok=True)
+    for s in SCRIPTS:
+        shutil.copyfile(os.path.join(HERE, s), os.path.join(t, "script", "halmos", s))
     artifacts(t, stale=stale)
     git(t, "init", "-q")
     git(t, "add", "-A")
@@ -239,19 +242,30 @@ def fresh(req=None, ex=None, stale=False):
     return t, r, e, q
 
 
-def expect(name, want_zero, t, r, e, q, orchestrator=False, why=None, report=None):
+def expect(name, want_zero, t, r, e, q, orchestrator=False, why=None, report=None,
+           code=None, verdict=None, extra_args=(), verifier=None, markdown_pattern=None,
+           mismatch_count=None):
     control_count[0] += 1
     env = dict(os.environ, D5C1_REQUIRED=q)
     if orchestrator:
         env.update(D5C1_ROOT=r, D5C1_EXPECT=e, D5C1_TREE_ROOT=t)
         p = subprocess.run([os.path.join(HERE, "run-step-d5c1.sh"), "verify"], cwd=REPO, env=env, capture_output=True, text=True)
     else:
-        p = subprocess.run(V + ["--root", r, "--expect", e, "--tree", t] +
-                           (["--report", report] if report else []), cwd=t, env=env, capture_output=True, text=True)
-    mism = [l for l in p.stdout.splitlines() if "MISMATCH" in l and not l.startswith("VERDICT")]
+        p = subprocess.run((verifier or V) + ["--root", r, "--expect", e, "--tree", t] +
+                           (["--report", report] if report else []) + list(extra_args),
+                           cwd=t, env=env, capture_output=True, text=True)
+    mism = [l for l in p.stdout.splitlines() if "MISMATCH" in l and not l.startswith(
+        ("VERDICT:", "BEHAVIOUR VERDICT:", "DOCUMENT-SYNC VERDICT:"))]
     hit = [l for l in mism if why and re.search(why, l)]
-    ok = (p.returncode == 0) == want_zero and (want_zero or bool(hit))
-    print(f"{'ok  ' if ok else 'FAIL'}  {name} (rc={p.returncode}, wanted {'0' if want_zero else '!=0'}"
+    verdict_hit = bool(verdict and re.search(verdict, p.stdout))
+    markdown = extra_args[extra_args.index("--markdown") + 1] if "--markdown" in extra_args else None
+    markdown_ok = markdown_pattern is None or bool(markdown and os.path.exists(markdown) and
+                                                   re.search(markdown_pattern, open(markdown).read()))
+    wanted = code if code is not None else (0 if want_zero else None)
+    ok = (p.returncode == wanted if wanted is not None else p.returncode != 0) and \
+        (want_zero or bool(hit) or verdict_hit) and (verdict is None or verdict_hit) and markdown_ok and \
+        (mismatch_count is None or len(mism) == mismatch_count)
+    print(f"{'ok  ' if ok else 'FAIL'}  {name} (rc={p.returncode}, wanted {wanted if wanted is not None else '!=0'}"
           + (f", {len(mism)} mismatch row(s), reason matched: {bool(hit)}" if not want_zero else "") + ")", flush=True)
     if hit:
         print("      " + re.sub(r"\s+", " ", hit[0])[:190])
@@ -416,16 +430,42 @@ def main():
     expect("N45_parity_log_single_pass", False, t, r, e, q, why=r"want two passes")
     t, r, e, q = F(); write(f"{r}/selftest.log", open(f"{r}/selftest.log").read().replace('"verify-d5c1.py": "', '"verify-d5c1.py": "0', 1))
     expect("N46_selftest_log_of_other_scripts", False, t, r, e, q, why=r"tested scripts differ.*verify-d5c1\.py")
+    t, r, e, q = F()
+    with open(f"{t}/script/halmos/verify-d5c1.py", "a") as fh:
+        fh.write("# changed working verifier bytes\n")
+    expect("N54_selftest_tree_working_script_differs_from_HEAD", False, t, r, e, q, code=1,
+           why=r"tree working scripts differ from HEAD.*verify-d5c1\.py")
+    t, r, e, q = F()
+    alternate = os.path.join(TMP, "alternate-verifier")
+    os.makedirs(alternate, exist_ok=True)
+    for s in SCRIPTS:
+        shutil.copyfile(os.path.join(HERE, s), os.path.join(alternate, s))
+    with open(os.path.join(alternate, "verify-d5c1.py"), "a") as fh:
+        fh.write("# changed executing verifier bytes\n")
+    expect("N55_selftest_executing_script_differs_from_HEAD", False, t, r, e, q, code=1,
+           verifier=[sys.executable, os.path.join(alternate, "verify-d5c1.py")],
+           why=r"tested scripts differ from currently executing.*verify-d5c1\.py")
+    t, r, e, q = F()
+    git(t, "rm", "-q", *(f"script/halmos/{s}" for s in SCRIPTS))
+    git(t, "commit", "-q", "-m", "no verifier scripts at HEAD")
+    expect("P10_all_HEAD_scripts_absent_uses_running", True, t, r, e, q, code=0)
+    t, r, e, q = F()
+    git(t, "rm", "-q", "script/halmos/d5c1_binding.py")
+    git(t, "commit", "-q", "-m", "one verifier script absent at HEAD")
+    expect("N62_one_HEAD_script_absent_is_mismatch", False, t, r, e, q, code=1,
+           why=r"tested scripts differ from tree HEAD.*d5c1_binding\.py")
     t, r, e, q = F(); write(f"{r}/selftest.log", open(f"{r}/selftest.log").read().replace("ok    B\n", ""))
     expect("N47_selftest_count_mismatch", False, t, r, e, q, why=r"ok-lines 1")
     t, r, e, q = F(); write(f"{t}/{DOC}", "判定器自己的对照（x）：共 29 个。\n(a) PASS，5 条路径，1.00 s\n")
     expect("N48_report_quotes_another_control_count", False, t, r, e, q,
-           report=f"{t}/{DOC}", why=r"self-test control count.*report=\['29'\]")
+           report=f"{t}/{DOC}", code=2, verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET",
+           why=r"self-test control count.*report=\['29'\]")
     t, r, e, q = F(); write(f"{r}/suite.log", open(f"{r}/suite.log").read().replace("[PASS] test_a()", "[FAIL: x] test_a()"))
     expect("N49_forge_suite_not_green", False, t, r, e, q, why=r"not all green")
     t, r, e, q = F(); write(f"{t}/{DOC}", "判定器自己的对照（x）：共 2 个。\n(a) PASS，109 条路径，1.93 s\n")
     expect("N50_report_quotes_other_cap1_numbers", False, t, r, e, q,
-           report=f"{t}/{DOC}", why=r"CAP-1 \(a\) paths/time.*report=\[\('109', '1\.93'\)\]")
+           report=f"{t}/{DOC}", code=2, verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET",
+           why=r"CAP-1 \(a\) paths/time.*report=\[\('109', '1\.93'\)\]")
     t, r, e, q = F(); artifacts(t, harness_code="0x60dd"); write(f"{r}/parity.log", open(f"{r}/parity.log").read())
     expect("N51_parity_log_for_another_harness_build", False, t, r, e, q, why=r"harness artifacts differ")
     # A report belongs to a selected evidence generation, not to the historical design document.
@@ -434,13 +474,57 @@ def main():
     write(report, "D5C1 CAP-1 (a): PASS, paths=5, time=1.00s\n"
           "D5C1 self-test controls: 2\n")
     expect("N52_incomplete_versioned_report", False, t, r, e, q, report=report,
+           code=2, verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET",
            why=r"CAP-1 \(b\) paths/time.*MISSING")
     write(report, open(report).read() + "D5C1 CAP-1 (b): PASS, paths=5, time=1.00s\n"
           "D5C1 CAP-1 (c): PASS, paths=5, time=1.00s\n")
     expect("P6_matching_versioned_report", True, t, r, e, q, report=report)
     write(report, open(report).read().replace("(b): PASS, paths=5", "(b): PASS, paths=6"))
     expect("N53_wrong_number_in_versioned_report", False, t, r, e, q, report=report,
+           code=2, verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET",
            why=r"CAP-1 \(b\) paths/time.*report=\[\('6', '1\.00'\)\]")
+    report_good = "".join(f"D5C1 CAP-1 ({letter}): PASS, paths=5, time=1.00s\n" for letter in "abc")
+    t, r, e, q = F(); report = f"{r}/report.md"; write(report, report_good)
+    expect("N56_report_missing_selftest_count", False, t, r, e, q, report=report, code=2,
+           verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET",
+           why=r"self-test control count.*report=MISSING", mismatch_count=1)
+    t, r, e, q = F(); report = f"{r}/report.md"; write(report, report_good + "D5C1 self-test controls:2\n")
+    expect("N57_report_unparseable_selftest_count", False, t, r, e, q, report=report, code=2,
+           verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET",
+           why=r"self-test control count.*report=MISSING")
+    t, r, e, q = F(); report = f"{r}/report.md"; write(report, report_good + "D5C1 self-test controls: 2\n")
+    write(f"{r}/cap.log", open(f"{r}/cap.log").read() +
+          "[PASS] check_CAP1_a_x() (paths: 5, time: 1.00s, bounds: [])\n")
+    expect("N58_duplicate_cap1_pass", False, t, r, e, q, report=report, code=2,
+           verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET",
+           why=r"CAP-1 \(a\) paths/time.*log=None")
+    t, r, e, q = F(); report = f"{r}/report.md"
+    write(report, report_good.replace("(a): PASS, paths=5, time=1.00s", "(a): PASS, paths=5, time=9.99s") +
+          "D5C1 self-test controls: 2\n")
+    write(f"{r}/cap.log", "check_CAP1_a_x() (paths: 1, time: 9.99s\n" + open(f"{r}/cap.log").read())
+    expect("N59_cap1_decoy_earlier_time", False, t, r, e, q, report=report, code=2,
+           verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET",
+           why=r"CAP-1 \(a\) paths/time.*report=\[\('5', '9\.99'\)\]")
+    t, r, e, q = F(); report = f"{r}/report.md"; write(report, report_good + "D5C1 self-test controls: 2\n")
+    markdown = f"{r}/partial.md"
+    expect("P8_only_subset_is_partial", True, t, r, e, q, code=0,
+           extra_args=("--only", "suite", "--markdown", markdown),
+           verdict=r"VERDICT: \[partial\] ALL SELECTED EXPECTATIONS MET",
+           markdown_pattern=r"BEHAVIOUR: PASS \[partial\]")
+    markdown = f"{r}/filter.md"
+    expect("P9_filter_subset_is_partial", True, t, r, e, q, code=0,
+           extra_args=("--filter", "u.log", "--markdown", markdown),
+           verdict=r"VERDICT: \[partial\] ALL SELECTED EXPECTATIONS MET",
+           markdown_pattern=r"BEHAVIOUR: PASS \[partial\]")
+    markdown = f"{r}/empty-filter.md"
+    expect("N60_empty_filter_has_distinct_exit_and_report", False, t, r, e, q, code=4,
+           report=report, extra_args=("--filter", "CAP-1", "--markdown", markdown),
+           verdict=r"VERDICT: \[partial\] FILTER MATCHED NOTHING.*4=empty filter",
+           markdown_pattern=r"BEHAVIOUR: NO MATCH \[partial\]; DOCUMENT-SYNC: PASS; exit 4")
+    t, r, e, q = F(); report = f"{r}/report.md"; write(report, report_good)
+    os.remove(f"{r}/suite.log")
+    expect("N61_both_behavior_and_report_fail", False, t, r, e, q, report=report, code=3,
+           verdict=r"BEHAVIOUR VERDICT: 1 MISMATCH\(ES\)", why=r"suite\.log.*MISSING")
     t, r, e, q = F(); write(f"{t}/{DOC}", "判定器自己的对照（x）：共 2 个。\n(a) PASS，999 条路径，9.99 s\n")
     expect("P7_historical_numbers_not_compared_by_default", True, t, r, e, q)
     # --- orchestrator
