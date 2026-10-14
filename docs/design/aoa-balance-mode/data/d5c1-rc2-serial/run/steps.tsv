@@ -1,0 +1,6 @@
+0-ast-build	0	2	forge build --ast --extra-output storageLayout metadata
+1-run-all	0	17080	script/halmos/run-all-d5c1.sh all 1
+2-mutations	0	3396	script/halmos/run-mutations-all.sh /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/fe329fc9-cd0f-403f-bcd2-f6b77938458b/scratchpad/rerun-d5c1/docs/design/aoa-balance-mode/data/halmos/mutations
+3-fuzz-liveness	0	1074	script/halmos/run-fuzz-liveness.sh docs/design/aoa-balance-mode/data/halmos/fuzz-liveness
+4-archive	0	176	script/halmos/archive-d5c1.sh all
+5-verify	1	5	python3 script/halmos/verify-d5c1.py --markdown docs/design/aoa-balance-mode/data/halmos/verify-final.md

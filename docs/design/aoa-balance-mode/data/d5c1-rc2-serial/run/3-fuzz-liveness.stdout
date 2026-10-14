@@ -1,0 +1,108 @@
+== unmutated: Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 3.26s (16.28s CPU time)
+== M-I2
+[FAIL: I2 bitmask: 98307 != 0; counterexample: calldata=0x11b55f0e00000000000000000000000000000000000000000000
+[PASS] test_D5c1_boundary_largestMintWithDebt() (gas: 727325)
+[PASS] test_D5c1_boundary_lockAtTheLimitMaxRate() (gas: 890252)
+[PASS] test_D5c1_boundary_nearMaxBalanceAndAllowance() (gas: 818158)
+[PASS] test_D5c1_boundary_uint128Amounts() (gas: 1036665)
+[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 743942, ~: 
+[PASS] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 753188, ~:
+[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ:
+[PASS] testFuzz_D5c1_I4B_mintWithDebt(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 950093, ~: 954
+[PASS] testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256,uint256,uint256,uint256) (runs: 10000, μ: 6
+== M-PULL
+[FAIL: I2 bitmask: 32769 != 0; counterexample: calldata=0x3af9ce2300000000000000000000000000000000000000000000
+[FAIL: I2 bitmask: 32769 != 0; counterexample: calldata=0xe320f03100000000000000000000000000000000000000000ddd
+[PASS] test_D5c1_boundary_largestMintWithDebt() (gas: 727325)
+[PASS] test_D5c1_boundary_lockAtTheLimitMaxRate() (gas: 891687)
+[PASS] test_D5c1_boundary_nearMaxBalanceAndAllowance() (gas: 818224)
+[PASS] test_D5c1_boundary_uint128Amounts() (gas: 1036665)
+[PASS] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 753428, ~:
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool) (runs: 100
+[PASS] testFuzz_D5c1_I4B_mintWithDebt(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 951517, ~: 955
+[PASS] testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256,uint256,uint256,uint256) (runs: 10000, μ: 6
+== M-EXPL
+[FAIL: I2 bitmask: 2048 != 0; counterexample: calldata=0x3af9ce23000000000000000000000000000000000000000000000
+[FAIL: I2 bitmask: 2048 != 0; counterexample: calldata=0xe320f031000000000000000000000000000000000000000000000
+[FAIL: I2 bitmask: 2048 != 0] test_D5c1_boundary_nearMaxBalanceAndAllowance() (gas: 795496)
+[PASS] test_D5c1_boundary_largestMintWithDebt() (gas: 727325)
+[PASS] test_D5c1_boundary_lockAtTheLimitMaxRate() (gas: 891687)
+[PASS] test_D5c1_boundary_uint128Amounts() (gas: 1036665)
+[PASS] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 753711, ~:
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool) (runs: 100
+[PASS] testFuzz_D5c1_I4B_mintWithDebt(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 951486, ~: 955
+[PASS] testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256,uint256,uint256,uint256) (runs: 10000, μ: 6
+== M-BURNALL
+[FAIL: A3x exact bound on settleLocked: 64 != 0; counterexample: calldata=0x84af657d00000000000000000000000000
+[PASS] test_D5c1_boundary_largestMintWithDebt() (gas: 727325)
+[PASS] test_D5c1_boundary_lockAtTheLimitMaxRate() (gas: 891571)
+[PASS] test_D5c1_boundary_nearMaxBalanceAndAllowance() (gas: 818224)
+[PASS] test_D5c1_boundary_uint128Amounts() (gas: 1036665)
+[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 744014, ~: 
+[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ:
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool) (runs: 100
+[PASS] testFuzz_D5c1_I4B_mintWithDebt(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 951302, ~: 955
+[PASS] testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance(uint256,uint256,uint256,uint256) (runs: 10000, μ: 6
+== M-REPAY
+[FAIL: only an overflowing m * 1e18 can make this mint revert; counterexample: calldata=0xb4a69aad000000000000
+[FAIL: repayX = ceil(debt * rate / 1e18): 115792089237316195423570985008687907853264984665640564039456 != 1157
+[PASS] test_D5c1_boundary_lockAtTheLimitMaxRate() (gas: 891687)
+[PASS] test_D5c1_boundary_nearMaxBalanceAndAllowance() (gas: 818224)
+[PASS] test_D5c1_boundary_uint128Amounts() (gas: 1036665)
+[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 743979, ~: 
+[PASS] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 753485, ~:
+[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ:
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool) (runs: 100
+[PASS] testFuzz_D5c1_I4B_mintWithDebt(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 951582, ~: 955
+== M-REPAYLOCK
+[FAIL: I4-B bitmask on mint with debt: 1 != 0; counterexample: calldata=0x53e20a400000000000000000000000000000
+[FAIL: only an overflowing m * 1e18 can make this mint revert; counterexample: calldata=0xb4a69aad000000000000
+[FAIL: repayX = ceil(debt * rate / 1e18): 115792089237316195423570985008687907853264984665640564039456 != 1157
+[PASS] test_D5c1_boundary_lockAtTheLimitMaxRate() (gas: 891587)
+[PASS] test_D5c1_boundary_nearMaxBalanceAndAllowance() (gas: 818030)
+[PASS] test_D5c1_boundary_uint128Amounts() (gas: 1036568)
+[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 743947, ~: 
+[PASS] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 753730, ~:
+[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ:
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool) (runs: 100
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src 0 head 1ac0e1c595dc
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src 0 head 1ac0e1c595dc
+tree         out/ [xpnts]                                                         the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                         the build of the current sources (metadata keccak256)  OK        fresh
+binding      fuzz-liveness/fuzz-bounded-partitions.log                            bound to current tree (xpnts)             OK        bound, fresh, dirty_src=0
+fuzz         unmutated testFuzz_D5c1_I2_tryLockForGas                             PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_I2_settleLocked                              PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_I2_transferFrom                              PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_I2_burnFrom                                  PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_I4B_mintWithDebt                             PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance        PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         M-I2 reddens testFuzz_D5c1_I2_tryLockForGas                          red                                       OK        red
+fuzz         M-I2 binding (mutated)                                               log bound to current src + diff           OK        ok
+fuzz         M-I2 restored tree                                                   src/lib/harness/bytecode == current       OK        equal
+fuzz         M-I2 source restored                                                 pristine == reverted == current file      OK        6ddccb29160f
+fuzz         M-PULL reddens testFuzz_D5c1_I2_transferFrom                         red                                       OK        red
+fuzz         M-PULL reddens testFuzz_D5c1_I2_burnFrom                             red                                       OK        red
+fuzz         M-PULL binding (mutated)                                             log bound to current src + diff           OK        ok
+fuzz         M-PULL restored tree                                                 src/lib/harness/bytecode == current       OK        equal
+fuzz         M-PULL source restored                                               pristine == reverted == current file      OK        6ddccb29160f
+fuzz         M-EXPL reddens testFuzz_D5c1_I2_transferFrom                         red                                       OK        red
+fuzz         M-EXPL reddens testFuzz_D5c1_I2_burnFrom                             red                                       OK        red
+fuzz         M-EXPL binding (mutated)                                             log bound to current src + diff           OK        ok
+fuzz         M-EXPL restored tree                                                 src/lib/harness/bytecode == current       OK        equal
+fuzz         M-EXPL source restored                                               pristine == reverted == current file      OK        6ddccb29160f
+fuzz         M-BURNALL reddens testFuzz_D5c1_I2_settleLocked                      red                                       OK        red
+fuzz         M-BURNALL binding (mutated)                                          log bound to current src + diff           OK        ok
+fuzz         M-BURNALL restored tree                                              src/lib/harness/bytecode == current       OK        equal
+fuzz         M-BURNALL source restored                                            pristine == reverted == current file      OK        6ddccb29160f
+fuzz         M-REPAY reddens testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance  red                                       OK        red
+fuzz         M-REPAY binding (mutated)                                            log bound to current src + diff           OK        ok
+fuzz         M-REPAY restored tree                                                src/lib/harness/bytecode == current       OK        equal
+fuzz         M-REPAY source restored                                              pristine == reverted == current file      OK        20d1bbda5cc7
+fuzz         M-REPAYLOCK reddens testFuzz_D5c1_I4B_mintWithDebt                   red                                       OK        red
+fuzz         M-REPAYLOCK binding (mutated)                                        log bound to current src + diff           OK        ok
+fuzz         M-REPAYLOCK restored tree                                            src/lib/harness/bytecode == current       OK        equal
+fuzz         M-REPAYLOCK source restored                                          pristine == reverted == current file      OK        20d1bbda5cc7
+
+VERDICT: ALL EXPECTATIONS MET (35 rows) [partial: --only fuzz]; mandatory suite builtin

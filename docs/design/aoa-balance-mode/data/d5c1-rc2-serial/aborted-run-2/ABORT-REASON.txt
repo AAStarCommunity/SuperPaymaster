@@ -1,0 +1,1 @@
+reason: self-induced load; 4-way run-all with per-halmos yices fan-out drove load 150-500 on 10 cores; >=10 partitions hit the 600 s wall cap before abort at 2026-10-14T16:43:12Z; killed only own pgids 8605/49283-49286

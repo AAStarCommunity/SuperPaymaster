@@ -1,0 +1,18 @@
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src 0 head 1ac0e1c595dc
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src 0 head 1ac0e1c595dc
+tree         out/ [xpnts]             the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]             the build of the current sources (metadata keccak256)  OK        fresh
+archive      artifact-parity.log      two passes RESULT: OK, bound to the current tree + harness build  OK        2/2 OK (after the Halmos-style build (forge build --ast --extra-output storageLayout metadata); after a plain forge build (the deployment build))
+archive      verify-selftest.log      self-test of generation scripts, all controls behave  MISMATCH  tested scripts differ from currently executing: verify-d5c1.py,verify-selftest.py
+archive      forge-halmos-suite.log   replay/layout/priming/boundary forge suite green, bound  OK        green (32 tests), 11 named tests present
+archive      cap1.log                 present for optional report sync          OK        present
+report       CAP-1 (a) paths/time     exactly the log's PASS paths/time         OK        log=('108', '2.41'); report=[('108', '2.41')]
+report       CAP-1 (b) paths/time     exactly the log's PASS paths/time         OK        log=('106', '1.36'); report=[('106', '1.36')]
+report       CAP-1 (c) paths/time     exactly the log's PASS paths/time         OK        log=('107', '1.32'); report=[('107', '1.32')]
+report       self-test control count  exactly the log's final count             OK        log=57; report=['57']
+
+BEHAVIOUR VERDICT: 1 MISMATCH(ES) (6 rows) [partial]; mandatory suite builtin
+DOCUMENT-SYNC VERDICT: ALL QUOTES MATCH (4 rows); report $SCRATCH/wt-d5c1pkg/docs/design/aoa-balance-mode/data/d5c1-rc2-serial/README.md
+VERDICT: [partial] FAILED (exit 1); exit 0=selected rows pass and document-sync passes or N/A, 1=behaviour, 2=document-sync, 3=both, 4=empty filter, 6=empty filter + document-sync, 64=usage (failure bits OR together)
