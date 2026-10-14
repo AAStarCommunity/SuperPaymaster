@@ -27,4 +27,54 @@ loop: old=0 new=2 (expected 0/2)
 grep-loop: old=0 new=2 (expected 0/2)
 grep-options: old=0 new=1 (expected 0/1)
 git-ignored: old=0 new=1 (expected 0/1)
+cast-missing-selector: old/mutant=0 new=2 expected=(0, 2) PASS
+cast-wrong-selector: old/mutant=0 new=2 expected=(0, 2) PASS
+cast-invalid-implementation: old/mutant=0 new=2 expected=(0, 2) PASS
+cast-format-estimate: old/mutant=0 new=0 expected=(0, 0) PASS
+cast-format-server: old/mutant=0 new=0 expected=(0, 0) PASS
+cast-format-direct: old/mutant=0 new=0 expected=(0, 0) PASS
+cast-final-line-no-newline: old/mutant=2 new=0 expected=(2, 0) PASS
+transport-with-valid-revert: old/mutant=0 new=2 expected=(0, 2) PASS
+forge-trace-quote-M2: old/mutant=0 new=2 expected=(0, 2) PASS
+forge-source-quote-M2: old/mutant=0 new=2 expected=(0, 2) PASS
+forge-trace-quote-M4: old/mutant=0 new=2 expected=(0, 2) PASS
+forge-source-quote-M4: old/mutant=0 new=2 expected=(0, 2) PASS
+cast-readonly-stale-log: old/mutant=0 new=2 expected=(0, 2) PASS
+forge-readonly-stale-log: old/mutant=0 new=2 expected=(0, 2) PASS
+unwritable-log-command-not-run: old/mutant=2 new=2 expected=(2, 2) PASS
+sibling-cycle-no-rg: old/mutant=0 new=2 expected=(0, 2) PASS
+sibling-cycle-with-rg: old/mutant=2 new=2 expected=(2, 2) PASS
+outside-cycle-no-rg: old/mutant=0 new=2 expected=(0, 2) PASS
+outside-cycle-with-rg: old/mutant=2 new=2 expected=(2, 2) PASS
+diamond-no-rg: old/mutant=0 new=0 expected=(0, 0) PASS
+diamond-with-rg: old/mutant=0 new=0 expected=(0, 0) PASS
+redactor-outside-hardlink: old/mutant=0 new=1 expected=(0, 1) PASS
+readiness-guard-fork: old/mutant=0 new=1 expected=(0, 1) PASS
+wrapper-fork-fake-exit-0: old/mutant=0 new=2 expected=(0, 2) PASS
+wrapper-fork-wrong-selector: old/mutant=0 new=2 expected=(0, 2) PASS
+wrapper-fork-expected-revert: old/mutant=0 new=0 expected=(0, 0) PASS
+readiness-guard-anvil: old/mutant=0 new=1 expected=(0, 1) PASS
+wrapper-anvil-fake-exit-0: old/mutant=0 new=2 expected=(0, 2) PASS
+wrapper-anvil-wrong-selector: old/mutant=0 new=2 expected=(0, 2) PASS
+wrapper-anvil-expected-revert: old/mutant=0 new=0 expected=(0, 0) PASS
+required-tool-guard-harness: old/mutant=0 new=2 expected=(0, 2) PASS
+required-tool-guard-scanner: old/mutant=0 new=2 expected=(0, 2) PASS
+selector-OwnableUnauthorizedAccount: old/mutant=NA new=0 expected=('NA', 0) PASS
+selector-Unauthorized: old/mutant=NA new=0 expected=('NA', 0) PASS
+selector-TimelockUnexpectedOperationState: old/mutant=NA new=0 expected=('NA', 0) PASS
+executable-check-url-residue: old/mutant=1 new=0 expected=(1, 0) PASS
+executable-negctl-rg-absence-selftest: old/mutant=1 new=0 expected=(1, 0) PASS
+selftest-pinned-oldref: old/mutant=1 new=0 expected=(1, 0) PASS
+selftest-optional-rg-no-app-bundle: old/mutant=2 new=0 expected=(2, 0) PASS
+callsite-fork-execute-acceptOwnership-expected: old/mutant=0 new=0 expected=(0, 0) PASS
+callsite-fork-execute-acceptOwnership-wrong: old/mutant=0 new=2 expected=(0, 2) PASS
+callsite-fork-old-EOA-owner-expected: old/mutant=0 new=0 expected=(0, 0) PASS
+callsite-fork-old-EOA-owner-wrong: old/mutant=0 new=2 expected=(0, 2) PASS
+fork-upgrade-authorization-removed: old/mutant=0 new=2 expected=(0, 2) PASS
+callsite-fork-guardian-unpause-expected: old/mutant=0 new=0 expected=(0, 0) PASS
+callsite-fork-guardian-unpause-wrong: old/mutant=0 new=2 expected=(0, 2) PASS
+callsite-anvil-old-EOA-owner-expected: old/mutant=0 new=0 expected=(0, 0) PASS
+callsite-anvil-old-EOA-owner-wrong: old/mutant=0 new=2 expected=(0, 2) PASS
+callsite-anvil-guardian-unpause-expected: old/mutant=0 new=0 expected=(0, 0) PASS
+callsite-anvil-guardian-unpause-wrong: old/mutant=0 new=2 expected=(0, 2) PASS
 failures=0
