@@ -110,7 +110,13 @@ trap cleanup EXIT
 
 PORT=28571; RPC="http://127.0.0.1:$PORT"
 step() { echo; echo "=== $* ===" | tee -a "$OUT/rehearsal.log"; }
-must_fail() { local what="$1"; shift; if "$@" >"$OUT/neg.log" 2>&1; then echo "NEGATIVE CONTROL FAILED: $what succeeded" | tee -a "$OUT/rehearsal.log"; exit 1; else echo "  negative ok: $what reverted ($(grep -oE 'Error: [^,]{0,120}|revert[^,]{0,120}' "$OUT/neg.log" | head -1))" | tee -a "$OUT/rehearsal.log"; fi; }
+source "$W/script/evidence/require-revert.sh"
+must_fail() {
+  local rc
+  require_revert "$OUT/neg.log" "$@" 2>&1 | tee -a "$OUT/rehearsal.log"
+  rc=${PIPESTATUS[0]}
+  [ "$rc" -eq 0 ] || exit "$rc"
+}
 txhash() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).transactionHash))'; }
 warp48h() { cast rpc evm_increaseTime 172800 --rpc-url "$RPC" >/dev/null; cast rpc evm_mine --rpc-url "$RPC" >/dev/null; }
 impl_of() { cast storage "$1" 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$RPC" | sed 's/0x000000000000000000000000/0x/'; }
@@ -244,7 +250,12 @@ if [ "$RC" -ne 0 ]; then echo "  !!! forge build --force FAILED (exit $RC), see 
 step "fork Sepolia at block $FORK_BLOCK"
 anvil --fork-url "$RPC_URL_FORK" --fork-block-number "$FORK_BLOCK" --port "$PORT" --silent >"$OUT/anvil.log" 2>&1 &
 PIDS+=($!)
-for _ in $(seq 1 60); do cast chain-id --rpc-url "$RPC" >/dev/null 2>&1 && break; sleep 1; done
+anvil_ready=0
+for _ in $(seq 1 60); do
+  if cast chain-id --rpc-url "$RPC" >/dev/null 2>&1; then anvil_ready=1; break; fi
+  sleep 1
+done
+if [ "$anvil_ready" -ne 1 ]; then echo "  !!! anvil did not become ready after 60 attempts" | tee -a "$OUT/rehearsal.log"; exit 1; fi
 for a in $OWNER $ANNI $GOV_MULTISIG; do cast rpc anvil_impersonateAccount $a --rpc-url "$RPC" >/dev/null; done
 cast rpc anvil_setBalance $OWNER 0x56BC75E2D63100000 --rpc-url "$RPC" >/dev/null   # 100 ETH, real balance is fine but keep headroom
 cast rpc anvil_setBalance $GOV_MULTISIG 0x56BC75E2D63100000 --rpc-url "$RPC" >/dev/null
@@ -323,7 +334,7 @@ ACC_SALT=$(cast keccak "APNTsCapped-1.0.0/acceptOwnership")
 ZERO32=0x0000000000000000000000000000000000000000000000000000000000000000
 cast send $FRESH_TL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT 172800 --unlocked --from $GOV_MULTISIG --rpc-url $RPC >/dev/null
 check_stage1 A1d-schedule $?
-must_fail "execute acceptOwnership before 48h" cast send $FRESH_TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT --unlocked --from $GOV_MULTISIG --rpc-url $RPC
+must_fail "execute acceptOwnership before 48h" "execution reverted" cast send $FRESH_TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT --unlocked --from $GOV_MULTISIG --rpc-url $RPC
 warp48h
 cast send $FRESH_TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT --unlocked --from $GOV_MULTISIG --rpc-url $RPC >/dev/null
 check_stage1 A1d-execute $?
@@ -536,15 +547,15 @@ step "STAGE II / M1: two-step transferOwnership(timelock) on SP + Registry, then
 cast send $SP 'transferOwnership(address)' $TL --unlocked --from $OWNER --rpc-url $RPC >/dev/null
 cast send $REG 'transferOwnership(address)' $TL --unlocked --from $OWNER --rpc-url $RPC >/dev/null
 echo "  after transferOwnership: SP.pendingOwner=$(cast call $SP 'pendingOwner()(address)' --rpc-url $RPC) Registry.pendingOwner=$(cast call $REG 'pendingOwner()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
-must_fail "schedule-accept WITHOUT a roles attestation" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-accept
+must_fail "schedule-accept WITHOUT a roles attestation" "roles attestation: missing" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-accept
 roles_check before-M1
 fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-accept TL_ROLES_ATTESTATION="$ATT" | tee "$OUT/II-M1-schedule.log" | grep -E "scheduled|Error|revert" || true
-must_fail "execute-accept before 48h" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT"
+must_fail "execute-accept before 48h" "M1: batch not ready" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT"
 warp48h
 roles_check before-M1-execute
 fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT" | tee "$OUT/II-M1-execute.log" | grep -E "read-back|Error|revert" || true
 grep -q "M1/M2 read-back OK" "$OUT/II-M1-execute.log" && echo "  M1 read-back OK" | tee -a "$OUT/rehearsal.log" || { echo "  !!! M1 read-back marker NOT found, see II-M1-execute.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); }
-must_fail "old EOA owner upgradeToAndCall after M1" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'upgradeToAndCall(address,bytes)' $SP 0x
+must_fail "old EOA owner upgradeToAndCall after M1" "execution reverted" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'upgradeToAndCall(address,bytes)' $SP 0x
 echo "  SP.owner=$(cast call $SP 'owner()(address)' --rpc-url $RPC) guardian=$(cast call $SP 'guardian()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  Registry.owner=$(cast call $REG 'owner()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
@@ -553,10 +564,10 @@ for T in SP REGISTRY; do
   fscript_tl UpgradeViaTimelock $OWNER TL_MODE=deploy-impl TL_TARGET=$T | tee "$OUT/II-C-$T-deploy.log" | grep -E "ready|new implementation|Error|revert" || true
   NI=$(grep -oE "pass as TL_NEW_IMPL\): 0x[0-9a-fA-F]{40}" "$OUT/II-C-$T-deploy.log" | awk '{print $NF}')
   [ -n "$NI" ] || { echo "  !!! could not extract new impl address for $T, see II-C-$T-deploy.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); continue; }
-  must_fail "schedule-upgrade $T WITHOUT a roles attestation" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T")
+  must_fail "schedule-upgrade $T WITHOUT a roles attestation" "roles attestation: missing" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T")
   roles_check "before-$T-upgrade"
   fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T") | tee "$OUT/II-C-$T-schedule.log" | grep -E "scheduled|Error|revert" || true
-  must_fail "execute-upgrade $T before 48h" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T")
+  must_fail "execute-upgrade $T before 48h" "execute: operation not ready" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T")
   warp48h
   roles_check "before-$T-execute"
   fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$(cast keccak "d5b-fork-c-$T") | tee "$OUT/II-C-$T-execute.log" | grep -E "read-back|BLS|raw slots|extension|Error|revert" || true
@@ -566,12 +577,12 @@ done
 step "STAGE II / M2: guardian (owner) pauses; guardian cannot unpause; timelock unpauses after 48h"
 cast send $SP 'setGlobalPaused(bool)' true --unlocked --from $OWNER --rpc-url $RPC >/dev/null
 echo "  paused() = $(cast call $SP 'paused()(bool)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
-must_fail "guardian unpause" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'setGlobalPaused(bool)' false
+must_fail "guardian unpause" "execution reverted" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'setGlobalPaused(bool)' false
 UNP=$(cast calldata "setGlobalPaused(bool)" false)
-must_fail "schedule-call (unpause) WITHOUT a roles attestation" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-call TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$(cast keccak d5b-fork-m2-unpause)
+must_fail "schedule-call (unpause) WITHOUT a roles attestation" "roles attestation: missing" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-call TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$(cast keccak d5b-fork-m2-unpause)
 roles_check before-M2-unpause
 fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$(cast keccak d5b-fork-m2-unpause) | tee "$OUT/II-M2-schedule.log" | grep -E "roles attestation|scheduled|Error|revert" || true
-must_fail "execute-call (unpause) before 48h" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$(cast keccak d5b-fork-m2-unpause)
+must_fail "execute-call (unpause) before 48h" "execute: operation not ready" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$(cast keccak d5b-fork-m2-unpause)
 warp48h
 roles_check before-M2-unpause-execute
 fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$(cast keccak d5b-fork-m2-unpause) | tee "$OUT/II-M2-execute.log" | grep -E "roles attestation|executed|Error|revert" || true
