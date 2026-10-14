@@ -16,12 +16,17 @@ rg_bin=$(command -v rg || true)
 tmp=$(mktemp -d)
 trap 'chmod 700 "$tmp/scan-error/closed" 2>/dev/null || :; rm -r "$tmp"' EXIT
 mkdir "$tmp/no-rg" "$tmp/with-rg"
-for tool in bash grep env find mktemp rm; do
-  ln -s "$(command -v "$tool")" "$tmp/no-rg/$tool"
-  ln -s "$(command -v "$tool")" "$tmp/with-rg/$tool"
+# Link real executables: a version-manager shim (e.g. pyenv) cannot run inside the restricted PATH.
+real_tool() {
+  if [ "$1" = python3 ]; then python3 -c 'import os,sys; print(os.path.realpath(sys.executable))'
+  else command -v "$1"; fi
+}
+for tool in bash grep env find mktemp rm python3; do
+  ln -s "$(real_tool "$tool")" "$tmp/no-rg/$tool"
+  ln -s "$(real_tool "$tool")" "$tmp/with-rg/$tool"
 done
 ln -s "$rg_bin" "$tmp/with-rg/rg"
-for name in missing-rg-url missing-rg-clean rg-url scan-error rg-hidden-url rg-binary-url config-glob config-size uppercase escaped file-link dir-link broken-link grep-options git-ignored harness-url harness-clean; do mkdir "$tmp/$name"; done
+for name in missing-rg-url missing-rg-clean rg-url scan-error rg-hidden-url rg-binary-url config-glob config-size uppercase escaped double-escaped bare-prefix file-link dir-link broken-link loop grep-options git-ignored harness-url harness-clean; do mkdir "$tmp/$name"; done
 mkdir "$tmp/scan-error/closed" "$tmp/linked-dir"
 printf 'https://example.invalid/injected\n' > "$tmp/missing-rg-url/input.txt"
 printf 'plain text\n' > "$tmp/missing-rg-clean/input.txt"
@@ -34,11 +39,14 @@ printf 'https://example.invalid/config\n' > "$tmp/config-glob/input.log"
 printf 'https://example.invalid/config\n' > "$tmp/config-size/input.txt"
 printf 'HTTPS://example.invalid/upper\n' > "$tmp/uppercase/input.txt"
 printf 'https:\\/\\/example.invalid/escaped\n' > "$tmp/escaped/input.txt"
+printf 'https:\\\\/\\\\/example.invalid/double\n' > "$tmp/double-escaped/input.txt"
+printf 'see https:// later\n' > "$tmp/bare-prefix/input.txt"
 printf 'https://example.invalid/file-link\n' > "$tmp/linked-file.txt"
 ln -s "$tmp/linked-file.txt" "$tmp/file-link/link.txt"
 printf 'https://example.invalid/dir-link\n' > "$tmp/linked-dir/input.txt"
 ln -s "$tmp/linked-dir" "$tmp/dir-link/link"
 ln -s "$tmp/no-such-file" "$tmp/broken-link/dangling"
+ln -s "$tmp/loop" "$tmp/loop/ancestor"
 printf 'https://example.invalid/grep-options\n' > "$tmp/grep-options/input.log"
 git init -q "$tmp/git-ignored"
 printf '*.log\n' > "$tmp/git-ignored/.gitignore"
@@ -77,12 +85,18 @@ run_case uppercase "$tmp/with-rg" "$tmp/uppercase" 0 1
 run_case grep-uppercase "$tmp/no-rg" "$tmp/uppercase" 0 1
 run_case escaped "$tmp/with-rg" "$tmp/escaped" 0 1
 run_case grep-escaped "$tmp/no-rg" "$tmp/escaped" 0 1
+run_case double-escaped "$tmp/with-rg" "$tmp/double-escaped" 0 1
+run_case grep-double-escaped "$tmp/no-rg" "$tmp/double-escaped" 0 1
+run_case bare-prefix "$tmp/with-rg" "$tmp/bare-prefix" 1 1
+run_case grep-bare-prefix "$tmp/no-rg" "$tmp/bare-prefix" 0 1
 run_case file-link "$tmp/with-rg" "$tmp/file-link" 0 1
 run_case grep-file-link "$tmp/no-rg" "$tmp/file-link" 0 1
 run_case dir-link "$tmp/with-rg" "$tmp/dir-link" 0 1
 run_case grep-dir-link "$tmp/no-rg" "$tmp/dir-link" 0 1
 run_case broken-link "$tmp/with-rg" "$tmp/broken-link" 0 2
 run_case grep-broken-link "$tmp/no-rg" "$tmp/broken-link" 0 2
+run_case loop "$tmp/with-rg" "$tmp/loop" 0 2
+run_case grep-loop "$tmp/no-rg" "$tmp/loop" 0 2
 run_case grep-options "$tmp/no-rg" "$tmp/grep-options" 0 1 '' '--exclude=*'
 run_case git-ignored "$tmp/with-rg" "$tmp/git-ignored" 0 1
 # Run the exact source line so both invocation and exit propagation are checked.
@@ -97,28 +111,40 @@ if [ -n "$call_line" ]; then
     [ "$rc" -eq "$want" ] || failures=$((failures+1))
   done
 fi
-# Execute the inline Python redactor from the harness against both URL forms and a linked directory.
+# Execute the inline Python redactor from the harness against URL forms and links.
 redactor_line=$(grep -Fx "    python3 - \"\$D\" <<'PY' || exit \$?" script/evidence/a2-read-failclosed-negctl.sh)
 if [ -z "$redactor_line" ]; then echo 'harness redactor missing' >> "$LOG"; failures=$((failures+1)); fi
 awk '/^import os, pathlib, re, sys$/{copy=1} copy && /^PY$/{exit} copy{print}' script/evidence/a2-read-failclosed-negctl.sh > "$tmp/redactor.py"
-mkdir "$tmp/redact" "$tmp/redact-target"
-printf 'HTTPS://example.invalid/upper https:\\/\\/example.invalid/escaped\n' > "$tmp/redact/input.log"
-printf 'HTTPS://example.invalid/linked\n' > "$tmp/redact-target/input.log"
-ln -s "$tmp/redact-target" "$tmp/redact/linked"
+mkdir "$tmp/redact" "$tmp/redact/inside" "$tmp/redact-target"
+printf 'HTTPS://example.invalid/upper https:\\/\\/example.invalid/escaped https:\\\\/\\\\/example.invalid/double see https:// later\n' > "$tmp/redact/input.log"
+printf 'HTTPS://example.invalid/inside\n' > "$tmp/redact/inside/input.log"
+printf 'HTTPS://example.invalid/outside\n' > "$tmp/redact-target/input.log"
+ln -s "$tmp/redact/inside" "$tmp/redact/linked"
 python3 "$tmp/redactor.py" "$tmp/redact" > "$tmp/redactor.out" 2>&1
 redactor_rc=$?
 bash script/evidence/check-url-residue.sh "$tmp/redact" > "$tmp/redactor-scan.out" 2>&1
 scan_rc=$?
-if [ "$redactor_rc" -ne 0 ] || [ "$scan_rc" -ne 0 ] || ! grep -Fq '<redacted-rpc>' "$tmp/redact/input.log" || ! grep -Fq '<redacted-rpc>' "$tmp/redact-target/input.log"; then
+if [ "$redactor_rc" -ne 0 ] || [ "$scan_rc" -ne 0 ] || [ "$(grep -o '<redacted-rpc>' "$tmp/redact/input.log" | wc -l | tr -d ' ')" -ne 4 ] || ! grep -Fq '<redacted-rpc>' "$tmp/redact/inside/input.log"; then
   failures=$((failures+1))
 fi
-printf 'redactor-uppercase-escaped-linked\tNA\t%s\tpython-redactor\n' "$scan_rc" >> "$TABLE"
+printf 'redactor-uppercase-escaped-double-bare-internal\tNA\t%s\tpython-redactor\n' "$redactor_rc" >> "$TABLE"
+ln -s "$tmp/redact-target" "$tmp/redact/outside"
+python3 "$tmp/redactor.py" "$tmp/redact" > "$tmp/redactor-outside.out" 2>&1
+outside_rc=$?
+bash script/evidence/check-url-residue.sh "$tmp/redact" > "$tmp/redactor-outside-scan.out" 2>&1
+outside_scan_rc=$?
+if [ "$outside_rc" -eq 0 ] || [ "$outside_scan_rc" -ne 1 ] || ! grep -Fq 'HTTPS://example.invalid/outside' "$tmp/redact-target/input.log"; then
+  failures=$((failures+1))
+fi
+printf 'redactor-outside-link\tNA\t%s\tpython-redactor\n' "$outside_rc" >> "$TABLE"
 for source_file in script/evidence/d5b-fork-rehearsal.sh scripts/d5b-anvil-rehearsal.sh; do
   grep -Fq 'script/evidence/require-revert.sh"' "$source_file" || failures=$((failures+1))
 done
-for spec in 'revert:1:0:Error: execution reverted' 'connection-refused:1:2:Error: error sending request: Connection refused' 'exit-2:2:2:Error: execution reverted' 'exit-126:126:2:Error: execution reverted' 'exit-127:127:2:Error: execution reverted' 'exit-130:130:2:Error: execution reverted'; do
+for spec in 'revert:1:0:Error: execution reverted' 'connection-refused:1:2:Error: error sending request: Connection refused' 'exit-2:2:2:Error: execution reverted' 'exit-126:126:2:Error: execution reverted' 'exit-127:127:2:Error: execution reverted' 'exit-130:130:2:Error: execution reverted' 'compiler-source:1:2:Error: Compiler run failed: revert Unauthorized();' 'compiler-reverted:1:2:Error: Compiler run failed: execution reverted' 'readfile-trace:1:2:└─ ← [Revert] vm.readFile: failed to open file' 'readfile-summary:1:2:Error: script failed: vm.readFile: failed to open file' 'forge-expected:1:0:Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION)' 'forge-wrong-reason:1:2:Error: script failed: DefaultArtifacts: missing' 'forge-readfile:1:2:Error: script failed: vm.readFile: failed to open file'; do
   IFS=: read -r name command_rc want message <<< "$spec"
-  FAKE_RC="$command_rc" FAKE_MESSAGE="$message" bash -c 'source script/evidence/require-revert.sh; fake() { printf "%s\n" "$FAKE_MESSAGE"; return "$FAKE_RC"; }; require_revert "$1" "$2" fake' bash "$tmp/neg.log" "$name" > "$tmp/negative.out" 2>&1
+  expected='execution reverted'
+  case "$name" in forge-*) expected='roles attestation: missing' ;; esac
+  FAKE_RC="$command_rc" FAKE_MESSAGE="$message" bash -c 'source script/evidence/require-revert.sh; fake() { printf "%s\n" "$FAKE_MESSAGE"; return "$FAKE_RC"; }; require_revert "$1" "$2" "$3" fake' bash "$tmp/neg.log" "$name" "$expected" > "$tmp/negative.out" 2>&1
   rc=$?
   printf 'must-fail-%s\tNA\t%s\tshared-helper\n' "$name" "$rc" >> "$TABLE"
   [ "$rc" -eq "$want" ] || failures=$((failures+1))

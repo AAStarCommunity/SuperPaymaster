@@ -114,24 +114,24 @@ step "B / M1: two-step transfer to the timelock + ONE scheduleBatch"
 send "$OWNER" "$SP" "transferOwnership(address)" "$TL"
 send "$OWNER" "$REG" "transferOwnership(address)" "$TL"
 echo "  after step 1: SP.owner=$("$CAST" call "$SP" 'owner()(address)' --rpc-url "$RPC") pendingOwner=$("$CAST" call "$SP" 'pendingOwner()(address)' --rpc-url "$RPC")"
-must_fail "schedule-accept WITHOUT a roles attestation" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-accept
+must_fail "schedule-accept WITHOUT a roles attestation" "roles attestation: missing" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-accept
 roles_check before-M1
 fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-accept TL_ROLES_ATTESTATION="$ATT" | tee "$W/B-schedule.log" | grep -E "scheduled|Error|revert" || true
-must_fail "execute-accept before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT"
+must_fail "execute-accept before 48h" "M1: batch not ready" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT"
 warp48h
 roles_check before-M1-execute
 fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT" | tee "$W/B-execute.log" | grep -E "read-back|Error|revert" || true
 grep -q "M1/M2 read-back OK" "$W/B-execute.log"
-must_fail "old EOA owner upgradeToAndCall after M1" "$CAST" send --rpc-url "$RPC" --unlocked --from "$OWNER" "$SP" "upgradeToAndCall(address,bytes)" "$NEW_SP" 0x
+must_fail "old EOA owner upgradeToAndCall after M1" "execution reverted" "$CAST" send --rpc-url "$RPC" --unlocked --from "$OWNER" "$SP" "upgradeToAndCall(address,bytes)" "$NEW_SP" 0x
 
 step "C / §10.7b C: timelock-aware upgrade (SP then Registry)"
 for T in SP REGISTRY; do
   fscript UpgradeViaTimelock "$OWNER" TL_MODE=deploy-impl TL_TARGET=$T | tee "$W/C-$T-deploy.log" | grep -E "ready|new implementation|Error|revert" || true
   NI=$(grep -oE "pass as TL_NEW_IMPL\): 0x[0-9a-fA-F]{40}" "$W/C-$T-deploy.log" | awk '{print $NF}')
-  must_fail "schedule-upgrade $T WITHOUT a roles attestation" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
+  must_fail "schedule-upgrade $T WITHOUT a roles attestation" "roles attestation: missing" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
   roles_check "before-$T-upgrade"
   fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-schedule.log" | grep -E "scheduled|Error|revert" || true
-  must_fail "execute-upgrade $T before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
+  must_fail "execute-upgrade $T before 48h" "execute: operation not ready" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
   warp48h
   roles_check "before-$T-execute"
   fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-execute.log" | grep -E "read-back|BLS|raw slots|extension|Error|revert" || true
@@ -142,14 +142,14 @@ if [ "$(impl_of "$SP" | tr A-F a-f)" = "$(echo "$NEW_SP" | tr A-F a-f)" ]; then 
 step "M2 drill: guardian (Safe) pauses; guardian cannot unpause; timelock unpauses after 48h"
 send "$MULTISIG" "$SP" "setGlobalPaused(bool)" true
 echo "  paused() = $("$CAST" call "$SP" 'paused()(bool)' --rpc-url "$RPC")"
-must_fail "guardian unpause" "$CAST" send --rpc-url "$RPC" --unlocked --from "$MULTISIG" "$SP" "setGlobalPaused(bool)" false
+must_fail "guardian unpause" "execution reverted" "$CAST" send --rpc-url "$RPC" --unlocked --from "$MULTISIG" "$SP" "setGlobalPaused(bool)" false
 UNP=$("$CAST" calldata "setGlobalPaused(bool)" false)
 # Codex re-check L1: the unpause is a timelock schedule like any other -> checker -> attestation -> operator preflight
-must_fail "schedule-call (unpause) WITHOUT a roles attestation" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-call TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause)
+must_fail "schedule-call (unpause) WITHOUT a roles attestation" "roles attestation: missing" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-call TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause)
 roles_check before-M2-unpause
 fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause) | tee "$W/M2-schedule.log" | grep -E "roles attestation|scheduled|Error|revert" || true
 grep -q "call scheduled" "$W/M2-schedule.log"
-must_fail "execute-call (unpause) before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause)
+must_fail "execute-call (unpause) before 48h" "execute: operation not ready" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause)
 warp48h
 roles_check before-M2-unpause-execute
 fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-call TL_ROLES_ATTESTATION="$ATT" TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause) | tee "$W/M2-execute.log" | grep -E "roles attestation|executed|Error|revert" || true

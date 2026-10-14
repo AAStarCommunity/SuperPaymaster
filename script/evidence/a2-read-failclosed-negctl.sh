@@ -80,8 +80,8 @@ for inj in none both-empty both-empty-endpoints both-fail single-endpoint-fail i
     rm -f "$H"
     python3 - "$D" <<'PY' || exit $?
 import os, pathlib, re, sys
-root = pathlib.Path(sys.argv[1])
-pattern = re.compile(rb'https?:(?:\\?\/){2}[^\s<>"\x27]+', re.IGNORECASE)
+root = pathlib.Path(sys.argv[1]).resolve(strict=True)
+pattern = re.compile(rb'https?:(?:\\*/){2}[^\s<>"\x27]*', re.IGNORECASE)
 seen = set()
 def walk_error(error):
     raise error
@@ -94,9 +94,14 @@ for parent, dirs, files in os.walk(root, followlinks=True, onerror=walk_error):
     for name in files:
         path = pathlib.Path(parent, name)
         raw = path.read_bytes()
+        target = path.resolve(strict=True)
+        if target != root and root not in target.parents:
+            if pattern.search(raw):
+                raise RuntimeError(f"URL in link outside scan root: {path}")
+            continue
         clean = pattern.sub(b'<redacted-rpc>', raw)
         if clean != raw:
-            path.write_bytes(clean)
+            target.write_bytes(clean)
 PY
     bash script/evidence/check-url-residue.sh "$D" || exit $?
     echo "$inj $ver ($ref) exit $rc" | tee -a "$OUTROOT/negctl-summary.log"
