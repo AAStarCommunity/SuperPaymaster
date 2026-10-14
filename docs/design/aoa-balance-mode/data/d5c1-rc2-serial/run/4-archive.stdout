@@ -1,0 +1,6 @@
+# pass 1: after the Halmos-style build (forge build --ast --extra-output storageLayout metadata)
+RESULT: OK
+# pass 2: after a plain forge build (the deployment build)
+RESULT: OK
+Ran 5 test suites in 2.70s (8.04s CPU time): 32 tests passed, 0 failed, 0 skipped (32 total tests)
+SELFTEST: all 57 controls behave
