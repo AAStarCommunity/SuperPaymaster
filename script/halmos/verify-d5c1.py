@@ -35,12 +35,16 @@ expect_fail_parts, which MUST FAIL with a counterexample — a documented spec-v
 expect FAIL -> at least one part FAILs with a counterexample, none aborted); mutations (named
 partitions FAIL+cex, `green_parts` stay PASS, scenario test red with the named message; logs bound
 to current source + recorded diff; source restored); fuzz liveness; archives (artifact-parity
-two-pass log, the verify self-test log bound to the current verifier scripts, the forge suite of
-the replay / layout / priming / boundary tests, and the numbers the report quotes from them).
+two-pass log, the verify self-test log bound to the evidence generation's verifier scripts, and
+the forge suite of the replay / layout / priming / boundary tests).
 
-Prints one row per item: kind, item, expected, verdict, actual. Exit 0 iff every row is OK.
+BEHAVIOUR and DOCUMENT-SYNC have separate verdicts. The latter compares CAP-1 paths/times and
+any quoted self-test count against the explicitly selected report; without --report it is N/A.
+Exit 0 when behaviour passes and document sync passes or is N/A; 1 for behaviour failure,
+2 for document-sync failure, 3 for both failures.
 usage: python3 script/halmos/verify-d5c1.py [--root DIR] [--expect FILE] [--tree DIR]
                   [--only suite,logs,partitioned,mutations,fuzz,archives] [--filter a,b]
+                  [--report PATH]
 The mandatory suite can be replaced ONLY through the environment variable D5C1_REQUIRED (a JSON
 file; used by verify-selftest.py on its fake trees); the verdict line then says so.
 """
@@ -58,7 +62,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import d5c1_binding as B  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DOC = "docs/design/aoa-balance-mode/D5c-1-halmos.md"
 
 # ------------------------------------------------------------------------------------------------
 # The mandatory suite. Pinned fields only; the expectation JSON must repeat them verbatim.
@@ -219,10 +222,15 @@ TREE = "."
 _cur = {}
 _arts = {}
 rows = []
+document_rows = []
 
 
 def row(kind, item, expected, actual, ok):
     rows.append((kind, item, expected, actual, "OK" if ok else "MISMATCH"))
+
+
+def document_row(kind, item, expected, actual, ok):
+    document_rows.append((kind, item, expected, actual, "OK" if ok else "MISMATCH"))
 
 
 def cur(fam):
@@ -731,9 +739,30 @@ def check_fuzz(root, req, fdir=None):
 SCRIPTS = ("verify-d5c1.py", "verify-selftest.py", "d5c1_binding.py")
 
 
+def generation_script_hashes():
+    """Pin an archived self-test to the scripts at the evidence tree's recorded HEAD.
+
+    Fake self-test trees have no verifier scripts in git, so they use the running scripts.
+    A real tree with only some scripts at HEAD is invalid, not a reason to fall back.
+    """
+    head = cur("xpnts")["git_head"]
+    blobs = [subprocess.run(["git", "show", f"{head}:script/halmos/{s}"], cwd=TREE,
+                            capture_output=True) for s in SCRIPTS]
+    if all(p.returncode != 0 for p in blobs):
+        return {s: sha_file(os.path.join(HERE, s)) for s in SCRIPTS}
+    pinned = {s: hashlib.sha256(p.stdout).hexdigest() if p.returncode == 0 else None
+              for s, p in zip(SCRIPTS, blobs)}
+    working = {s: sha_file(os.path.join(TREE, "script", "halmos", s)) for s in SCRIPTS}
+    return working if all(working.values()) and working != pinned else pinned
+
+
 def check_archives(root, req):
-    doc = read(os.path.join(TREE, DOC))
     for a in req.get("archives", []):
+        if a["kind"] == "doc-cap1":
+            present = bool(read(os.path.join(root, a["file"])))
+            row("archive", a["file"], "present for optional report sync",
+                "present" if present else "MISSING", present)
+            continue  # Only an explicitly selected generation report can assert its numbers.
         t = read(os.path.join(root, a["file"]))
         k = a["kind"]
         if not t:
@@ -759,7 +788,7 @@ def check_archives(root, req):
         elif k == "selftest":
             sm = re.search(r"^# scripts: (\{.*\})$", t, re.M)
             got = json.loads(sm.group(1)) if sm else {}
-            now = {s: sha_file(os.path.join(HERE, s)) for s in SCRIPTS}
+            now = generation_script_hashes()
             fin = re.search(r"^SELFTEST: all (\d+) controls behave$", t, re.M)
             nok = len(re.findall(r"^ok  ", t, re.M))
             nfail = len(re.findall(r"^FAIL  ", t, re.M))
@@ -770,10 +799,7 @@ def check_archives(root, req):
                 probs.append(f"final line {fin.group(0) if fin else None!r}, ok-lines {nok}, FAIL-lines {nfail}")
             elif nok < a["min_controls"]:
                 probs.append(f"{nok} controls < mandatory {a['min_controls']}")
-            dm = re.search(r"判定器自己的对照[^\n]*?共 (\d+) 个", doc)
-            if fin and (not dm or int(dm.group(1)) != nok):
-                probs.append(f"{DOC} quotes {dm.group(1) if dm else 'no'} controls, the log has {nok}")
-            row("archive", a["file"], "self-test of THESE scripts, all controls behave, count quoted in the report",
+            row("archive", a["file"], "self-test of generation scripts, all controls behave",
                 "; ".join(probs) or f"{nok}/{nok} controls behave", not probs)
         elif k == "forge-suite":
             probs = []
@@ -788,20 +814,43 @@ def check_archives(root, req):
             tot = re.findall(r"Ran \d+ test suites[^\n]*?(\d+) tests passed, (\d+) failed", t)
             row("archive", a["file"], "replay/layout/priming/boundary forge suite green, bound",
                 "; ".join(probs) or f"green ({tot[-1][0] if tot else '?'} tests), {len(a['tests'])} named tests present", not probs)
-        elif k == "doc-cap1":
-            probs = []
-            for m in RES.finditer(t):
-                letter = re.match(r"check_CAP1_([abc])_", m.group(2))
-                if not letter:
-                    continue
-                tm = re.search(re.escape(m.group(2)) + r"\([^)]*\) \(paths: \d+, time: ([0-9.]+)s", t)
-                claim = f"({letter.group(1)}) PASS，{m.group(3)} 条路径，{tm.group(1)} s"
-                if claim not in doc:
-                    probs.append(f"doc lacks '{claim}'")
-            row("archive", f"{a['file']} numbers in {os.path.basename(DOC)}", "paths/times quoted = the final log",
-                "; ".join(probs) or "equal", not probs)
         else:
             row("archive", a["file"], k, "unknown archive kind", False)
+
+
+def check_document_sync(root, report, req):
+    """Compare only this generation's explicitly chosen report with its own evidence logs."""
+    doc = read(report)
+    if not doc:
+        document_row("report", report, "readable nonempty report", "MISSING / empty", False)
+        return
+    for a in req.get("archives", []):
+        if a["kind"] != "doc-cap1":
+            continue
+        t = read(os.path.join(root, a["file"]))
+        found = {}
+        for m in RES.finditer(t):
+            letter = re.fullmatch(r"check_CAP1_([abc])_.*", m.group(2))
+            if letter:
+                tm = re.search(re.escape(m.group(2)) + r"\([^)]*\) \(paths: \d+, time: ([0-9.]+)s", t)
+                found.setdefault(letter.group(1), []).append((m.group(1), m.group(3), tm.group(1) if tm else None))
+        for letter in "abc":
+            got = found.get(letter, [])
+            quoted = re.findall(rf"\({letter}\) PASS，(\d+) 条路径，([0-9.]+) s", doc)
+            quoted += re.findall(rf"D5C1 CAP-1 \({letter}\): PASS, paths=(\d+), time=([0-9.]+)s", doc)
+            expected = got[0][1:] if len(got) == 1 and got[0][0] == "PASS" else None
+            ok = expected is not None and bool(quoted) and all(x == expected for x in quoted)
+            document_row("report", f"CAP-1 ({letter}) paths/time", "exactly the log's PASS paths/time",
+                         f"log={expected}; report={quoted or 'MISSING'}", ok)
+    selftests = [a["file"] for a in req.get("archives", []) if a["kind"] == "selftest"]
+    st = read(os.path.join(root, selftests[0])) if len(selftests) == 1 else ""
+    fin = re.search(r"^SELFTEST: all (\d+) controls behave$", st, re.M)
+    claims = re.findall(r"判定器自己的对照[^\n]*?共 (\d+) 个", doc)
+    claims += re.findall(r"D5C1 self-test controls: (\d+)", doc)
+    if claims:
+        expected = fin.group(1) if fin else None
+        document_row("report", "self-test control count", "exactly the log's final count",
+                     f"log={expected}; report={claims}", expected is not None and all(c == expected for c in claims))
 
 
 def main():
@@ -815,6 +864,7 @@ def main():
     ap.add_argument("--filter", default="", help="keep only rows whose item contains one of these comma-separated substrings")
     ap.add_argument("--mutation-id", default="", help="check only this ONE mutation id (exact match; for a single mutation's own self-check mid-sequence, so sibling mutations that have not run yet are never evaluated — --filter alone is unsafe here since ids like M-A3TF/M-A3BF contain M-A3 as a substring)")
     ap.add_argument("--only", default="suite,logs,partitioned,mutations,fuzz,archives")
+    ap.add_argument("--report", default="", help="report for THIS evidence generation; omit for document-sync N/A")
     ap.add_argument("--markdown", default="")
     a = ap.parse_args()
     TREE = a.tree
@@ -841,25 +891,35 @@ def main():
     if "mutations" in sel: check_mutations(a.root, req, a.mutations_dir or None, a.mutation_id or None)
     if "fuzz" in sel: check_fuzz(a.root, req, a.fuzz_dir or None)
     if "archives" in sel: check_archives(a.root, req)
+    if a.report:
+        check_document_sync(a.root, a.report, req)
     if a.filter:
         keys = a.filter.split(",")
         rows = [r for r in rows if any(k in r[1] for k in keys)]
         if not rows:
             print("VERDICT: filter matched nothing"); sys.exit(2)
     bad = [r for r in rows if r[4] != "OK"]
-    w = [max(len(str(r[i])) for r in rows) for i in range(4)] if rows else [0] * 4
-    for r in rows:
+    doc_bad = [r for r in document_rows if r[4] != "OK"]
+    all_rows = rows + document_rows
+    w = [max(len(str(r[i])) for r in all_rows) for i in range(4)] if all_rows else [0] * 4
+    for r in all_rows:
         print(f"{r[0]:<12} {r[1]:<{w[1]}}  {r[2]:<{min(w[2], 40)}}  {r[4]:<8}  {r[3]}")
     scope = "" if sel >= {"suite", "logs", "partitioned", "mutations", "fuzz", "archives"} and not a.filter else f" [partial: --only {a.only}{' --filter ' + a.filter if a.filter else ''}]"
-    print(f"\nVERDICT: {'ALL EXPECTATIONS MET' if not bad else f'{len(bad)} MISMATCH(ES)'} ({len(rows)} rows){scope}; mandatory suite {req_src}")
+    print(f"\nBEHAVIOUR VERDICT: {'ALL EXPECTATIONS MET' if not bad else f'{len(bad)} MISMATCH(ES)'} ({len(rows)} rows){scope}; mandatory suite {req_src}")
+    print("DOCUMENT-SYNC VERDICT: " + ("NOT APPLICABLE (--report not supplied)" if not a.report else
+          f"{'ALL QUOTES MATCH' if not doc_bad else f'{len(doc_bad)} MISMATCH(ES)'} ({len(document_rows)} rows); report {a.report}"))
+    code = (1 if bad else 0) | (2 if doc_bad else 0)
+    print(f"VERDICT: {'ALL EXPECTATIONS MET' if code == 0 else f'FAILED (exit {code})'}; exit 0=both pass or document-sync N/A, 1=behaviour, 2=document-sync, 3=both")
     if a.markdown:
         with open(a.markdown, "w") as f:
             f.write(f"mandatory suite sha256 `{req_sha}`; expectations `{a.expect}` sha256 `{exp_sha}`; tree xpnts src "
                     f"`{cur('xpnts')['src_sha'][:16]}` bytecode `{cur('xpnts')['bytecode_sha'][:16]}`, apnts src `{cur('apnts')['src_sha'][:16]}`\n\n")
+            f.write(f"BEHAVIOUR: {'PASS' if not bad else 'FAIL'}; DOCUMENT-SYNC: "
+                    f"{'N/A' if not a.report else 'FAIL' if doc_bad else 'PASS'}; exit {code}\n\n")
             f.write("| 类别 | 项 | 期望 | 实际 | 判定 |\n|---|---|---|---|---|\n")
-            for r in rows:
+            for r in all_rows:
                 f.write("| " + " | ".join(str(x).replace("|", "\\|") for x in (r[0].strip(), r[1], r[2], r[3], r[4])) + " |\n")
-    sys.exit(0 if not bad else 1)
+    sys.exit(code)
 
 
 if __name__ == "__main__":

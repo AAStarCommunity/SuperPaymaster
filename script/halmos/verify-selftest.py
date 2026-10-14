@@ -176,8 +176,10 @@ def mk_evidence(t, r):
     write(os.path.join(r, "selftest.log"), "# scripts: " + json.dumps(shas, sort_keys=True) + "\nok    A\nok    B\n\nSELFTEST: all 2 controls behave\n")
     write(os.path.join(r, "suite.log"), "[PASS] test_a() (gas: 1)\n[PASS] test_b() (gas: 1)\n"
           "Ran 1 test suites in 1.00ms (1.00ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)\n" + bline(t))
-    write(os.path.join(r, "cap.log"), "[PASS] check_CAP1_a_x() (paths: 5, time: 1.00s, bounds: [])\n")
-    write(os.path.join(t, DOC), "判定器自己的对照（x）：共 2 个。\n(a) PASS，5 条路径，1.00 s\n")
+    write(os.path.join(r, "cap.log"), "".join(
+        f"[PASS] check_CAP1_{letter}_x() (paths: 5, time: 1.00s, bounds: [])\n" for letter in "abc"))
+    write(os.path.join(t, DOC), "判定器自己的对照（x）：共 2 个。\n" +
+          "".join(f"({letter}) PASS，5 条路径，1.00 s\n" for letter in "abc"))
 
 
 REQ = {"logs": [{"log": "u.log", "contract": "U", "family": "xpnts", "profile": "xp", "match_test": None,
@@ -211,13 +213,25 @@ def to_json(req):
 
 
 n = [0]
+base_fixture = [None]
+control_count = [0]
 
 
 def fresh(req=None, ex=None, stale=False):
     n[0] += 1
     t, r = os.path.join(TMP, f"t{n[0]}"), os.path.join(TMP, f"r{n[0]}")
-    mk_tree(t, stale)
-    mk_evidence(t, r)
+    if stale:
+        mk_tree(t, stale=True)
+        mk_evidence(t, r)
+    else:
+        if base_fixture[0] is None:
+            bt, br = os.path.join(TMP, "base-tree"), os.path.join(TMP, "base-evidence")
+            mk_tree(bt)
+            mk_evidence(bt, br)
+            base_fixture[0] = (bt, br)
+        shutil.copytree(base_fixture[0][0], t)
+        shutil.copytree(base_fixture[0][1], r)
+        shutil.copytree(os.path.join(TMP, "mut-base-evidence"), os.path.join(TMP, f"mut-r{n[0]}"))
     rq = req or REQ
     q, e = os.path.join(TMP, f"q{n[0]}.json"), os.path.join(TMP, f"e{n[0]}.json")
     json.dump(rq, open(q, "w"))
@@ -225,13 +239,15 @@ def fresh(req=None, ex=None, stale=False):
     return t, r, e, q
 
 
-def expect(name, want_zero, t, r, e, q, orchestrator=False, why=None):
+def expect(name, want_zero, t, r, e, q, orchestrator=False, why=None, report=None):
+    control_count[0] += 1
     env = dict(os.environ, D5C1_REQUIRED=q)
     if orchestrator:
         env.update(D5C1_ROOT=r, D5C1_EXPECT=e, D5C1_TREE_ROOT=t)
         p = subprocess.run([os.path.join(HERE, "run-step-d5c1.sh"), "verify"], cwd=REPO, env=env, capture_output=True, text=True)
     else:
-        p = subprocess.run(V + ["--root", r, "--expect", e, "--tree", t], cwd=t, env=env, capture_output=True, text=True)
+        p = subprocess.run(V + ["--root", r, "--expect", e, "--tree", t] +
+                           (["--report", report] if report else []), cwd=t, env=env, capture_output=True, text=True)
     mism = [l for l in p.stdout.splitlines() if "MISMATCH" in l and not l.startswith("VERDICT")]
     hit = [l for l in mism if why and re.search(why, l)]
     ok = (p.returncode == 0) == want_zero and (want_zero or bool(hit))
@@ -403,18 +419,35 @@ def main():
     t, r, e, q = F(); write(f"{r}/selftest.log", open(f"{r}/selftest.log").read().replace("ok    B\n", ""))
     expect("N47_selftest_count_mismatch", False, t, r, e, q, why=r"ok-lines 1")
     t, r, e, q = F(); write(f"{t}/{DOC}", "判定器自己的对照（x）：共 29 个。\n(a) PASS，5 条路径，1.00 s\n")
-    expect("N48_report_quotes_another_control_count", False, t, r, e, q, why=r"quotes 29 controls, the log has 2")
+    expect("N48_report_quotes_another_control_count", False, t, r, e, q,
+           report=f"{t}/{DOC}", why=r"self-test control count.*report=\['29'\]")
     t, r, e, q = F(); write(f"{r}/suite.log", open(f"{r}/suite.log").read().replace("[PASS] test_a()", "[FAIL: x] test_a()"))
     expect("N49_forge_suite_not_green", False, t, r, e, q, why=r"not all green")
     t, r, e, q = F(); write(f"{t}/{DOC}", "判定器自己的对照（x）：共 2 个。\n(a) PASS，109 条路径，1.93 s\n")
-    expect("N50_report_quotes_other_cap1_numbers", False, t, r, e, q, why=r"doc lacks '\(a\) PASS，5 条路径，1\.00 s'")
+    expect("N50_report_quotes_other_cap1_numbers", False, t, r, e, q,
+           report=f"{t}/{DOC}", why=r"CAP-1 \(a\) paths/time.*report=\[\('109', '1\.93'\)\]")
     t, r, e, q = F(); artifacts(t, harness_code="0x60dd"); write(f"{r}/parity.log", open(f"{r}/parity.log").read())
     expect("N51_parity_log_for_another_harness_build", False, t, r, e, q, why=r"harness artifacts differ")
+    # A report belongs to a selected evidence generation, not to the historical design document.
+    t, r, e, q = F()
+    report = f"{r}/generation-2-README.md"
+    write(report, "D5C1 CAP-1 (a): PASS, paths=5, time=1.00s\n"
+          "D5C1 self-test controls: 2\n")
+    expect("N52_incomplete_versioned_report", False, t, r, e, q, report=report,
+           why=r"CAP-1 \(b\) paths/time.*MISSING")
+    write(report, open(report).read() + "D5C1 CAP-1 (b): PASS, paths=5, time=1.00s\n"
+          "D5C1 CAP-1 (c): PASS, paths=5, time=1.00s\n")
+    expect("P6_matching_versioned_report", True, t, r, e, q, report=report)
+    write(report, open(report).read().replace("(b): PASS, paths=5", "(b): PASS, paths=6"))
+    expect("N53_wrong_number_in_versioned_report", False, t, r, e, q, report=report,
+           why=r"CAP-1 \(b\) paths/time.*report=\[\('6', '1\.00'\)\]")
+    t, r, e, q = F(); write(f"{t}/{DOC}", "判定器自己的对照（x）：共 2 个。\n(a) PASS，999 条路径，9.99 s\n")
+    expect("P7_historical_numbers_not_compared_by_default", True, t, r, e, q)
     # --- orchestrator
     t, r, e, q = F(); write(f"{r}/{P}.OTHER.log", plog(t, "C", "check_P", "OTHER", "FAIL", True))
     expect("O1_orchestrator_propagates", False, t, r, e, q, orchestrator=True, why=r"FAIL OTHER")
     t, r, e, q = F(); expect("O2_orchestrator_clean", True, t, r, e, q, orchestrator=True)
-    total = n[0]
+    total = control_count[0]
     if "--no-real" not in sys.argv:
         total += 1
         p = subprocess.run(V + ["--only", "suite,logs,partitioned,mutations,fuzz"], cwd=REPO, capture_output=True, text=True)

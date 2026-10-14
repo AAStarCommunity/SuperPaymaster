@@ -351,3 +351,5 @@ script/halmos/archive-d5c1.sh all
 python3 script/halmos/verify-d5c1.py --markdown docs/design/aoa-balance-mode/data/halmos/verify-final.md \
   > docs/design/aoa-balance-mode/data/halmos/verify-final.txt
 ```
+
+新一代证据用其自己的版本化报告显式判定：`python3 script/halmos/verify-d5c1.py --root <本代日志目录> --tree <本代源码及构建目录> --report <本代README或报告>`。报告需逐项引用 `D5C1 CAP-1 (a): PASS, paths=<n>, time=<s>s`（同样列出 b、c）；引用自检数量时写 `D5C1 self-test controls: <n>`。输出分别给出 BEHAVIOUR 与 DOCUMENT-SYNC 判定；不传 `--report` 时后者为 N/A。本页数字只属于上述历史证据代，不作为新一代日志的断言。
