@@ -752,8 +752,9 @@ def generation_script_hashes():
         return {s: sha_file(os.path.join(HERE, s)) for s in SCRIPTS}
     pinned = {s: hashlib.sha256(p.stdout).hexdigest() if p.returncode == 0 else None
               for s, p in zip(SCRIPTS, blobs)}
-    working = {s: sha_file(os.path.join(TREE, "script", "halmos", s)) for s in SCRIPTS}
-    return working if all(working.values()) and working != pinned else pinned
+    # A self-test produced by locally edited verifier scripts must not be accepted: when the
+    # working copies differ from HEAD, return the HEAD hashes so the archived header mismatches.
+    return pinned
 
 
 def check_archives(root, req):
