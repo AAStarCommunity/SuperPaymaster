@@ -758,6 +758,13 @@ def generation_script_hashes():
     return running, pinned, working
 
 
+def final_selftest_summary(text):
+    """Accept only the last summary, at the last nonempty line."""
+    summaries = list(re.finditer(r"^SELFTEST: all (\d+) controls behave$", text, re.M))
+    last_line = next((line for line in reversed(text.splitlines()) if line.strip()), "")
+    return summaries[-1] if summaries and summaries[-1].group(0) == last_line else None
+
+
 def check_archives(root, req):
     for a in req.get("archives", []):
         if a["kind"] == "doc-cap1":
@@ -796,7 +803,7 @@ def check_archives(root, req):
             if not isinstance(got, dict):
                 got = {}
             running, pinned, working = generation_script_hashes()
-            fin = re.search(r"^SELFTEST: all (\d+) controls behave$", t, re.M)
+            fin = final_selftest_summary(t)
             nok = len(re.findall(r"^ok  ", t, re.M))
             nfail = len(re.findall(r"^FAIL  ", t, re.M))
             probs = []
@@ -857,7 +864,7 @@ def check_document_sync(root, report, req):
                          f"log={expected}; report={quoted or 'MISSING'}", ok)
     selftests = [a["file"] for a in req.get("archives", []) if a["kind"] == "selftest"]
     st = read(os.path.join(root, selftests[0])) if len(selftests) == 1 else ""
-    fin = re.search(r"^SELFTEST: all (\d+) controls behave$", st, re.M)
+    fin = final_selftest_summary(st)
     claims = re.findall(r"判定器自己的对照[^\n]*?共 (\d+) 个", doc)
     claims += re.findall(r"D5C1 self-test controls: (\d+)", doc)
     if len(selftests) == 1:
@@ -929,9 +936,9 @@ def main():
     print(f"\nBEHAVIOUR VERDICT: {'FILTER MATCHED NOTHING' if filter_empty else 'ALL SELECTED EXPECTATIONS MET' if not bad and partial else 'ALL EXPECTATIONS MET' if not bad else f'{len(bad)} MISMATCH(ES)'} ({len(rows)} rows){scope}; mandatory suite {req_src}")
     print("DOCUMENT-SYNC VERDICT: " + ("NOT APPLICABLE (--report not supplied)" if not a.report else
           f"{'ALL QUOTES MATCH' if not doc_bad else f'{len(doc_bad)} MISMATCH(ES)'} ({len(document_rows)} rows); report {a.report}"))
-    code = 4 if filter_empty else (1 if bad else 0) | (2 if doc_bad else 0)
-    verdict = "FILTER MATCHED NOTHING" if filter_empty else "ALL SELECTED EXPECTATIONS MET" if code == 0 and partial else "ALL EXPECTATIONS MET" if code == 0 else f"FAILED (exit {code})"
-    print(f"VERDICT:{scope} {verdict}; exit 0=selected rows pass and document-sync passes or N/A, 1=behaviour, 2=document-sync, 3=both, 4=empty filter, 64=usage")
+    code = (4 if filter_empty else 0) | (1 if bad else 0) | (2 if doc_bad else 0)
+    verdict = ("FILTER MATCHED NOTHING + DOCUMENT-SYNC FAILED (exit 6)" if doc_bad else "FILTER MATCHED NOTHING") if filter_empty else "ALL SELECTED EXPECTATIONS MET" if code == 0 and partial else "ALL EXPECTATIONS MET" if code == 0 else f"FAILED (exit {code})"
+    print(f"VERDICT:{scope} {verdict}; exit 0=selected rows pass and document-sync passes or N/A, 1=behaviour, 2=document-sync, 3=both, 4=empty filter, 6=empty filter + document-sync, 64=usage (failure bits OR together)")
     if a.markdown:
         with open(a.markdown, "w") as f:
             f.write(f"mandatory suite sha256 `{req_sha}`; expectations `{a.expect}` sha256 `{exp_sha}`; tree xpnts src "

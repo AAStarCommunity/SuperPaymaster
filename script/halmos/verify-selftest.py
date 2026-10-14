@@ -242,6 +242,12 @@ def fresh(req=None, ex=None, stale=False):
     return t, r, e, q
 
 
+def reason_and_verdict_match(want_zero, why, hit, verdict, verdict_hit):
+    """Require a supplied reason independently of the overall verdict."""
+    return (why is None or bool(hit)) and (verdict is None or verdict_hit) and \
+        (want_zero or bool(hit) or verdict_hit)
+
+
 def expect(name, want_zero, t, r, e, q, orchestrator=False, why=None, report=None,
            code=None, verdict=None, extra_args=(), verifier=None, markdown_pattern=None,
            mismatch_count=None):
@@ -263,7 +269,7 @@ def expect(name, want_zero, t, r, e, q, orchestrator=False, why=None, report=Non
                                                    re.search(markdown_pattern, open(markdown).read()))
     wanted = code if code is not None else (0 if want_zero else None)
     ok = (p.returncode == wanted if wanted is not None else p.returncode != 0) and \
-        (want_zero or bool(hit) or verdict_hit) and (verdict is None or verdict_hit) and markdown_ok and \
+        reason_and_verdict_match(want_zero, why, hit, verdict, verdict_hit) and markdown_ok and \
         (mismatch_count is None or len(mism) == mismatch_count)
     print(f"{'ok  ' if ok else 'FAIL'}  {name} (rc={p.returncode}, wanted {wanted if wanted is not None else '!=0'}"
           + (f", {len(mism)} mismatch row(s), reason matched: {bool(hit)}" if not want_zero else "") + ")", flush=True)
@@ -450,6 +456,18 @@ def main():
     git(t, "commit", "-q", "-m", "no verifier scripts at HEAD")
     expect("P10_all_HEAD_scripts_absent_uses_running", True, t, r, e, q, code=0)
     t, r, e, q = F()
+    git(t, "rm", "-q", *(f"script/halmos/{s}" for s in SCRIPTS))
+    git(t, "commit", "-q", "-m", "no verifier scripts at HEAD")
+    one_byte = os.path.join(TMP, "one-byte-verifier")
+    os.makedirs(one_byte, exist_ok=True)
+    for s in SCRIPTS:
+        shutil.copyfile(os.path.join(HERE, s), os.path.join(one_byte, s))
+    with open(os.path.join(one_byte, "verify-d5c1.py"), "a") as fh:
+        fh.write("\n")
+    expect("N63_HEAD_less_running_script_one_byte_mismatch", False, t, r, e, q, code=1,
+           verifier=[sys.executable, os.path.join(one_byte, "verify-d5c1.py")],
+           why=r"tested scripts differ from currently executing.*verify-d5c1\.py")
+    t, r, e, q = F()
     git(t, "rm", "-q", "script/halmos/d5c1_binding.py")
     git(t, "commit", "-q", "-m", "one verifier script absent at HEAD")
     expect("N62_one_HEAD_script_absent_is_mismatch", False, t, r, e, q, code=1,
@@ -501,10 +519,10 @@ def main():
     t, r, e, q = F(); report = f"{r}/report.md"
     write(report, report_good.replace("(a): PASS, paths=5, time=1.00s", "(a): PASS, paths=5, time=9.99s") +
           "D5C1 self-test controls: 2\n")
-    write(f"{r}/cap.log", "check_CAP1_a_x() (paths: 1, time: 9.99s\n" + open(f"{r}/cap.log").read())
+    write(f"{r}/cap.log", "check_CAP1_a_x() (paths: 5, time: 9.99s\n" + open(f"{r}/cap.log").read())
     expect("N59_cap1_decoy_earlier_time", False, t, r, e, q, report=report, code=2,
            verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET",
-           why=r"CAP-1 \(a\) paths/time.*report=\[\('5', '9\.99'\)\]")
+           why=r"CAP-1 \(a\) paths/time.*log=\('5', '1\.00'\).*report=\[\('5', '9\.99'\)\]")
     t, r, e, q = F(); report = f"{r}/report.md"; write(report, report_good + "D5C1 self-test controls: 2\n")
     markdown = f"{r}/partial.md"
     expect("P8_only_subset_is_partial", True, t, r, e, q, code=0,
@@ -521,6 +539,35 @@ def main():
            report=report, extra_args=("--filter", "CAP-1", "--markdown", markdown),
            verdict=r"VERDICT: \[partial\] FILTER MATCHED NOTHING.*4=empty filter",
            markdown_pattern=r"BEHAVIOUR: NO MATCH \[partial\]; DOCUMENT-SYNC: PASS; exit 4")
+    write(report, report_good.replace("paths=5", "paths=9", 1) + "D5C1 self-test controls: 2\n")
+    expect("N64_empty_filter_and_bad_report", False, t, r, e, q, code=6,
+           report=report, extra_args=("--filter", "CAP-1", "--markdown", markdown),
+           why=r"CAP-1 \(a\) paths/time.*report=\[\('9', '1\.00'\)\]",
+           verdict=r"VERDICT: \[partial\] FILTER MATCHED NOTHING \+ DOCUMENT-SYNC FAILED \(exit 6\)",
+           markdown_pattern=r"BEHAVIOUR: NO MATCH \[partial\]; DOCUMENT-SYNC: FAIL; exit 6")
+    t, r, e, q = F(); report = f"{r}/report.md"
+    write(report, report_good + "D5C1 CAP-1 (a): PASS, paths=9, time=1.00s\nD5C1 self-test controls: 2\n")
+    expect("N65_contradictory_duplicate_quotes", False, t, r, e, q, code=2, report=report,
+           why=r"CAP-1 \(a\) paths/time.*report=\[\('5', '1\.00'\), \('9', '1\.00'\)\]",
+           verdict=r"BEHAVIOUR VERDICT: ALL EXPECTATIONS MET", mismatch_count=1)
+    t, r, e, q = F(); report = f"{r}/report.md"
+    write(report, report_good + "D5C1 self-test controls: 2\n")
+    write(f"{r}/selftest.log", "SELFTEST: all 2 controls behave\n" +
+          open(f"{r}/selftest.log").read().replace("SELFTEST: all 2 controls behave", "SELFTEST: all 99 controls behave"))
+    expect("N66_last_summary_controls_count", False, t, r, e, q, code=3, report=report,
+           why=r"self-test control count.*log=99; report=\['2'\]",
+           verdict=r"BEHAVIOUR VERDICT: 1 MISMATCH\(ES\)", mismatch_count=2)
+    t, r, e, q = F(); report = f"{r}/report.md"
+    write(report, report_good + "D5C1 self-test controls: 2\n")
+    write(f"{r}/selftest.log", open(f"{r}/selftest.log").read() + "trailing nonempty line\n\n")
+    expect("N67_summary_must_be_last_nonempty_line", False, t, r, e, q, code=3, report=report,
+           why=r"self-test control count.*log=None", mismatch_count=2,
+           verdict=r"BEHAVIOUR VERDICT: 1 MISMATCH\(ES\)")
+    control_count[0] += 1
+    reason_ok = not reason_and_verdict_match(False, r"required reason", [], r"VERDICT", True)
+    print(f"{'ok  ' if reason_ok else 'FAIL'}  N68_reason_required_independently_of_verdict", flush=True)
+    if not reason_ok:
+        FAILS.append("N68_reason_required_independently_of_verdict")
     t, r, e, q = F(); report = f"{r}/report.md"; write(report, report_good)
     os.remove(f"{r}/suite.log")
     expect("N61_both_behavior_and_report_fail", False, t, r, e, q, report=report, code=3,
