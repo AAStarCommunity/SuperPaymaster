@@ -26,7 +26,7 @@ require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '.
 const config = loadConfig();
 const MPC_ADDRESS = config.microPaymentChannel;
 const APNTS_ADDRESS = config.aPNTs;
-const CHAIN_ID = 11155111;
+const CHAIN_ID = Number(process.env.CHAIN_ID) || 11155111; // signing domain must match the target chain
 
 if (!MPC_ADDRESS) throw new Error('microPaymentChannel address missing from config.sepolia.json');
 if (!APNTS_ADDRESS) throw new Error('aPNTs address missing from config.sepolia.json');

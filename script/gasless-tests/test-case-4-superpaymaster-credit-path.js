@@ -568,7 +568,12 @@ async function main() {
     console.log('  Sending transaction...');
     let tx;
     try {
-      tx = await entryPoint.handleOps([userOp], beneficiary);
+      // Explicit nonce from raw eth_getTransactionCount: the same wallet just sent
+      // requestCredit(), and ethers v6's cached getNonce() can still return that used
+      // nonce here ("nonce too low"). Same root cause as test-helpers.js _rawNonce (#438).
+      const ownerAddr = await entryPoint.runner.getAddress();
+      const ownerNonce = parseInt(await provider.send('eth_getTransactionCount', [ownerAddr, 'pending']), 16);
+      tx = await entryPoint.handleOps([userOp], beneficiary, { nonce: ownerNonce });
     } catch (txErr) {
       if (isNetworkError(txErr)) {
         console.warn('\n⚠️  SKIP: Network error sending TX:', txErr.message);
