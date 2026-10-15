@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getAddress } from 'viem';
-import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
+import { privateKeyToAccount } from 'viem/accounts';
 import { clients, deploy, send, eth, ANVIL_KEYS } from '../b-layer/lib.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -47,9 +47,10 @@ const UNSTAKE_DELAY = 86_400;
 const DEPOSIT_ETH = eth('10');
 
 // ── VerifyingPaymaster ────────────────────────────────────────────────────────────────
-// verifyingSigner is a fresh local-only keypair — this collector signs its own off-chain
-// approvals, it is not simulating a real third-party signing service.
-const verifyingSignerKey = generatePrivateKey();
+// verifyingSigner is anvil's well-known dev key #2 (public, local-only) — this collector signs its
+// own off-chain approvals, it is not simulating a real third-party signing service. (Earlier
+// revisions generated a random key; the A6 gauge runs use only anvil default keys.)
+const verifyingSignerKey = ANVIL_KEYS[2];
 const verifyingSigner = privateKeyToAccount(verifyingSignerKey);
 const vpmArtifact = loadArtifact('VerifyingPaymaster');
 const vpm = await deployRaw(ctx, vpmArtifact, [EP, verifyingSigner.address]);
