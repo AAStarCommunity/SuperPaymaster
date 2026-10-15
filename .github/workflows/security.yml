@@ -76,7 +76,7 @@ jobs:
             '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna.*\.yaml$|\.github/workflows/security\.yml$|\.github/scripts/)'
       - if: steps.changes.outputs.contract == 'true'
         uses: foundry-rs/foundry-toolchain@v1
-        with: { version: stable }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
+        with: { version: v1.7.1 }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
       - name: Install solhint
         if: steps.changes.outputs.contract == 'true'
         run: npm install -g solhint
@@ -117,7 +117,7 @@ jobs:
             '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna.*\.yaml$|\.github/workflows/security\.yml$|\.github/scripts/)'
       - if: steps.changes.outputs.contract == 'true'
         uses: foundry-rs/foundry-toolchain@v1
-        with: { version: stable }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
+        with: { version: v1.7.1 }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
       - name: Unit + fuzz
         if: steps.changes.outputs.contract == 'true'
         run: |
@@ -160,7 +160,7 @@ jobs:
             '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna.*\.yaml$|\.github/workflows/security\.yml$|\.github/scripts/)'
       - if: steps.changes.outputs.contract == 'true'
         uses: foundry-rs/foundry-toolchain@v1
-        with: { version: stable }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
+        with: { version: v1.7.1 }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
       - name: Slither
         # ADVISORY. crytic-compile/Slither cannot yet reliably compile this via-IR Foundry
         # project: the slither-action container has no `forge` (FileNotFoundError), and
