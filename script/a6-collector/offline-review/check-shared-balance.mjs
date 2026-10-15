@@ -1,3 +1,4 @@
+import { freshEnd } from './current-fixture.mjs';
 // Offline regression: SP owns operatorBalance even on baseline readbacks.
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -6,6 +7,7 @@ import { operatorBalanceContinuity } from '../gauge-lib.mjs';
 const out = 'script/a6-collector/offline-review';
 // The round-4 suite emits this explicitly synthetic conformant N=50 fixture.
 const base = readFileSync(`${out}/fixtures/r4-n50.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);
+freshEnd(base);
 let balance = base[0].passport.volatile.operatorBalance;
 for (const row of base.slice(1, -1)) {
   for (const rpc of ['A', 'B']) {

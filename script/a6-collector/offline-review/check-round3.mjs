@@ -1,3 +1,4 @@
+import { currentFixture } from './current-fixture.mjs';
 import { syntheticAnchors } from './synthetic-anchors.mjs';
 // Round-3 JSONL tampering only. Host labels are offline test inputs; no RPC calls.
 import assert from 'node:assert/strict';
@@ -15,7 +16,7 @@ const word=n=>BigInt(n).toString(16).padStart(64,'0');
 const event=(r,t)=>r.logs.find(l=>l.topics[0]===t);
 const set=(r,side,f,v)=>{for(const rpc of ['A','B'])r.readbacks[side][rpc][f]=v;};
 const results=[];
-function run(file,old=false){const r=spawnSync(process.execPath,[old?`${out}/validate-round3-old.mjs`:'script/a6-collector/validate.mjs',file],{encoding:'utf8',maxBuffer:16*1024*1024});assert.ifError(r.error);return {exit:r.status,report:JSON.parse(r.stdout)};}
+function run(file,old=false){const r=spawnSync(process.execPath,[old?`${out}/validate-round3-old.mjs`:'script/a6-collector/validate.mjs',old?file:currentFixture(file)],{encoding:'utf8',maxBuffer:16*1024*1024});assert.ifError(r.error);return {exit:r.status,report:JSON.parse(r.stdout)};}
 function control(name,mutate,source=base){const a=structuredClone(source);mutate(a);const f=`${out}/fixtures/r3-${name}.jsonl`;writeFileSync(f,a.map(JSON.stringify).join('\n')+'\n');const old=run(f,true), fresh=run(f);assert.equal(old.exit,0,`${name}: old ${JSON.stringify(old.report)}`);assert.ok([1,2,3].includes(fresh.exit),`${name}: fresh ${JSON.stringify(fresh.report)}`);assert.equal(fresh.report.accepted??false,false);results.push([name,old.exit,fresh.exit,fresh.report.missing??fresh.report.errors.join('; ')]);}
 control('replay-triplet-50',a=>{const triple=a.slice(1,4);a.splice(1,150,...Array.from({length:50},(_,i)=>triple.map((r,j)=>({...structuredClone(r),attemptIndex:3*i+j,tripletIndex:i}))).flat());},n50);
 control('reused-single-tx-block',a=>{for(let j=0;j<3;j++){const r=a[4+j],p=a[1+j];for(const f of ['blockNumber','blockHash','headBefore'])r.tx[f]=p.tx[f];for(const side of ['before','after'])for(const rpc of ['A','B'])for(const f of ['blockNumber','blockHash'])r.readbacks[side][rpc][f]=p.readbacks[side][rpc][f];}},n50);
@@ -44,7 +45,7 @@ for(const f of ['debts','creditReservedOf'])control(`postop-${f}`,a=>set(a.at(-2
 for(const t of [LS,CS])control(`postop-settle-${t===LS?'lock':'credit'}`,a=>{const l=structuredClone(event(base[1],LS));l.topics[0]=t;l.topics[2]=a.at(-2).expectedUserOpHash;if(t===CS)l.data='0x'+word(1);a.at(-2).logs.push(l);},post);
 control('end-chain',a=>a.at(-1).passport.chainId=1);
 control('end-before-last',a=>a.at(-1).passport.block.number='0');
-control('end-blockhash',a=>a.at(-1).passport.block.hash='0x'+'11'.repeat(32));
+control('end-blockhash',a=>a.at(-1).passport.block.hash=a[0].passport.block.hash);
 control('end-future-reused-hash',a=>a.at(-1).passport.block.number=String(BigInt(a.at(-1).passport.block.number)+1n));
 control('end-exitCode',a=>a.at(-1).exitCode=7);
 // Existing ::1 alias protection remains closed under both validators.

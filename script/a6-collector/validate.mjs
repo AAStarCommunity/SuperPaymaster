@@ -97,13 +97,32 @@ function conservation(row, spAddr, tokenAddr, operator, inv) {
   const uoe = logsOf(logs, ep, T.UOE).find((l) => lc(l.topics[1]) === h);
   if (big(b.blockNumber) + 1n !== big(a.blockNumber) || big(a.blockNumber) !== big(need(row, 'tx.blockNumber'))) failed.push('readback_blocks_bracket_tx');
   if (lc(a.blockHash) !== lc(need(row, 'tx.blockHash'))) failed.push('readback_after_blockhash_eq_tx_block');
-  if (!uoe) return failed; // block evidence is required even when no operation executed
+  if (!uoe || row.tx.status !== 'success') {
+    // A reverted transaction or absent matching operation cannot justify any state delta.
+    for (const f of ['epDeposit', ...(row.arm === 'SP' ? SP_FIELDS : [])]) {
+      if (!deepEq(need(b, f), need(a, f))) failed.push(`no_execution.${f}`);
+    }
+    return failed;
+  }
   const actualGasCost = BigInt(word(uoe.data, 2));
   const success = BigInt(word(uoe.data, 1)) === 1n;
   if (big(a.epDeposit) - big(b.epDeposit) !== -actualGasCost) failed.push('D1');
   if (row.arm !== 'SP') return failed;
   for (const f of SP_FIELDS) { need(b, f); need(a, f); }
   const d = (f) => big(a[f]) - big(b[f]);
+  const gas = opGas(row.packedOp), pd = row.packedOp.paymasterAndData;
+  const requiredGas = ['callGasLimit', 'verificationGasLimit', 'preVerificationGas'].reduce((n, f) => n + big(gas[f]), 0n)
+    + BigInt('0x' + pd.slice(42, 74)) + BigInt('0x' + pd.slice(74, 106));
+  const sp = inv.superPaymaster, price = big(sp.cachedPrice.price), usd = big(sp.aPNTsPriceUSD);
+  const ceil = (n, d) => (n + d - 1n) / d;
+  let expectedA0;
+  if (price === 0n || usd === 0n || big(sp.cachedPrice.decimals) > 77n) failed.push('admission.quote');
+  else expectedA0 = ceil(ceil(requiredGas * big(gas.maxFeePerGas) * price * 10n**18n,
+    10n**big(sp.cachedPrice.decimals) * usd) * (10000n + big(sp.protocolFeeBPS) + 1000n), 10000n);
+  for (const reservation of [...logsOf(logs, tokenAddr, T.LOCK_CREATED), ...logsOf(logs, tokenAddr, T.CREDIT_RESERVED)].filter(l => lc(l.topics[2]) === h)) {
+    const a0 = BigInt(word(reservation.data, lc(reservation.topics[0]) === lc(T.LOCK_CREATED) ? 1 : 0));
+    if (expectedA0 === undefined || a0 !== expectedA0) failed.push('admission.quote_a0');
+  }
   // Pin 1ac0e1c5: XT:194-212; SP:313-324. Check admission for every retained lock,
   // including a postOp revert (validation writes survive that branch).
   for (const lock of logsOf(logs, tokenAddr, T.LOCK_CREATED).filter(l => lc(l.topics[2]) === h)) {
@@ -196,7 +215,7 @@ const PASSPORT_FIELDS = [
   'chainId', 'block.number', 'block.hash', 'block.timestamp', 'allowSameEndpointLocal',
   'invariant.entryPoint.address', 'invariant.entryPoint.isCanonicalV07Address',
   ...CODE_NAMES.flatMap(n => ['address', 'codehash', 'size'].map(f => `invariant.code.${n}.${f}`)),
-  ...['version', 'entryPoint', 'registry', 'aPNTs', 'protocolFeeBPS', 'aPNTsPriceUSD', 'priceStalenessThreshold', 'paused', 'cachedPrice.price', 'cachedPrice.decimals', 'operator.address', 'operator.isConfigured', 'operator.isPaused', 'operator.xPNTsToken', 'operator.minTxInterval', 'senderEligible'].map(f => `invariant.superPaymaster.${f}`),
+  ...['version', 'entryPoint', 'registry', 'aPNTs', 'protocolFeeBPS', 'aPNTsPriceUSD', 'priceStalenessThreshold', 'paused', 'cachedPrice.price', 'cachedPrice.decimals', 'operator.address', 'operator.isConfigured', 'operator.isPaused', 'operator.xPNTsToken', 'operator.minTxInterval', 'senderEligible', 'minPostOpGas'].map(f => `invariant.superPaymaster.${f}`),
   ...['address', 'version', 'exchangeRate', 'superPaymaster', 'maxSingleTxLimit', 'emergencyDisabled'].map(f => `invariant.xPNTs.${f}`),
   ...['SP', 'VPM', 'TPM'].flatMap(n => ['staked', 'stake', 'unstakeDelaySec', 'withdrawTime'].map(f => `invariant.stakes.${n}.${f}`)),
   ...['SP', 'VPM', 'TPM', 'account'].map(n => `invariant.armEntryPoints.${n}`),
@@ -226,6 +245,9 @@ function completePassport(p) {
     else valid = (typeof v === 'string' && /^\d+$/.test(v)) || (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0);
     if (!valid) throw new Missing(`malformed passport ${f}`);
   }
+  const account = p.invariant.code.account;
+  if ((big(account.size) === 0n) !== (lc(account.codehash) === keccak256('0x'))) errors.push('passport account size/codehash mismatch');
+  if (big(p.invariant.superPaymaster.minPostOpGas) < 175000n || big(p.invariant.superPaymaster.minPostOpGas) > 2000000n) errors.push('passport minPostOpGas outside contract bounds');
   const inv = p.invariant, ep = inv.entryPoint.address;
   const same = (a, b, label) => { if (lc(a) !== lc(b)) errors.push(`passport binding mismatch: ${label}`); };
   same(ep, inv.code.entryPoint.address, 'EntryPoint code');
@@ -297,6 +319,9 @@ try {
   let previousBlock = { blockNumber: pStart.block.number, blockHash: pStart.block.hash };
   const seenTx = new Set(), seenOps = new Set(), seenBlocks = new Set(), stateByArm = new Map();
   const nonceSequences = new Map();
+  let lastSPTimestamp;
+  let lastAttemptHeight = big(pStart.block.number), lastAfterBalance = big(pStart.volatile.operatorBalance);
+  const allEarlierHashes = new Set([lc(pStart.block.hash)]);
   const balanceReadbacks = new Map();
   let previousOperatorBalance = big(pStart.volatile.operatorBalance);
   // Passports bracket all attempt blocks. Requiring the start quote to remain fresh
@@ -308,6 +333,23 @@ try {
     && !p.invariant.xPNTs.emergencyDisabled;
 
   attempts.forEach((row, i) => {
+    if (row.sent) {
+      const height = big(need(row, 'tx.blockNumber'));
+      if (height > lastAttemptHeight) lastAttemptHeight = height;
+      const lastAfter = row.readbacks?.after?.A;
+      if (lastAfter && 'operatorBalance' in lastAfter) lastAfterBalance = big(lastAfter.operatorBalance);
+    }
+    if (row.readbacks) for (const side of ['before', 'after']) for (const rpc of ['A', 'B']) {
+      const rb = row.readbacks[side]?.[rpc];
+      if (rb?.blockHash) allEarlierHashes.add(lc(rb.blockHash));
+    }
+    // Apply no-execution invariance before STOPPED/unsent handling as well.
+    if (row.arm === 'SP' && row.readbacks && (!row.sent || row.tx?.status !== 'success'
+      || !logsOf(row.logs ?? [], row.entryPoint, T.UOE).some(l => lc(l.topics[1]) === lc(row.expectedUserOpHash)))) {
+      for (const rpc of ['A', 'B']) for (const f of ['epDeposit', ...SP_FIELDS]) {
+        if (!deepEq(need(row, `readbacks.before.${rpc}.${f}`), need(row, `readbacks.after.${rpc}.${f}`))) errors.push(`attempt ${i}: no_execution.${f}`);
+      }
+    }
     if (need(row, 'kind') !== 'attempt') throw new Missing(`line ${i + 2}: unexpected kind ${row.kind}`);
     if (need(row, 'attemptIndex') !== i) errors.push(`attemptIndex ${row.attemptIndex} at position ${i} (rows missing or reordered)`);
     for (const k of ['tripletIndex', 'arm', 'fixture', 'verdict', 'collectedAtUtc']) need(row, k);
@@ -339,6 +381,16 @@ try {
     const pmData = row.packedOp.paymasterAndData;
     const pmGas = { ver: BigInt('0x' + pmData.slice(42, 74)), post: BigInt('0x' + pmData.slice(74, 106)) };
     if (['ver', 'post'].some(f => big(need(row.pmGas, f)) !== pmGas[f] || big(need(inv, `pmGas.${row.arm}.${f}`)) !== pmGas[f])) errors.push(`attempt ${i}: paymaster gas passport mismatch`);
+    if (row.arm === 'SP') {
+      if (pmGas.post < big(inv.superPaymaster.minPostOpGas)) errors.push(`attempt ${i}: paymaster postOp gas below contract floor`);
+      if (pmData.length < 250) errors.push(`attempt ${i}: SP packed tail truncated`);
+      else {
+        if (lc('0x' + pmData.slice(210, 250)) !== lc(inv.superPaymaster.operator.xPNTsToken)) errors.push(`attempt ${i}: SP packed token mismatch`);
+        if (BigInt('0x' + pmData.slice(146, 210)) < big(inv.xPNTs.exchangeRate)) errors.push(`attempt ${i}: SP maxRate below exchangeRate`);
+        const flags = pmData.length > 250 ? parseInt(pmData.slice(250, 252), 16) : 0;
+        if ((flags & 3) === 3) errors.push(`attempt ${i}: SP conflicting renewal flags`);
+      }
+    }
     // hash self-check, recomputed here
     const h = hashOp(row.packedOp, row.entryPoint, chainId);
     if (lc(h) !== lc(row.epUserOpHash) || lc(h) !== lc(row.localUserOpHash)) errors.push(`attempt ${i}: userOpHash recomputation ${h} != recorded ep/local`);
@@ -364,10 +416,23 @@ try {
     const recomputed = typeof v === 'string' ? v : v.verdict;
     report.recomputed[recomputed] = (report.recomputed[recomputed] ?? 0) + 1;
     if (recomputed === 'USEROP_SUCCESS' && lc(row.expectedUserOpHash) !== lc(h)) errors.push(`attempt ${i}: success hash is not packedOp hash`);
-    if (recomputed === 'USEROP_SUCCESS') {
+    if (row.sent && row.tx.status === 'success' && logsOf(row.logs, row.entryPoint, T.UOE).some(l => lc(l.topics[1]) === lc(h))) {
+      const timestamp = big(need(row, 'tx.blockTimestamp'));
+      if (timestamp < big(pStart.block.timestamp) || timestamp > big(end.passport.block.timestamp)) errors.push(`attempt ${i}: tx timestamp outside passport bracket`);
+      if (row.arm === 'VPM') {
+        if (pmData.length < 234) throw new Missing('truncated VPM validity data');
+        const until = BigInt('0x' + pmData.slice(106, 170)), after = BigInt('0x' + pmData.slice(170, 234));
+        if (until >= 1n << 48n || after >= 1n << 48n || timestamp < after || (until !== 0n && timestamp > until)) errors.push(`attempt ${i}: VPM validity outside block time`);
+      }
+      if (row.arm === 'SP') {
+        if (lastSPTimestamp !== undefined && timestamp < lastSPTimestamp + big(inv.superPaymaster.operator.minTxInterval)) errors.push(`attempt ${i}: SP minTxInterval violated`);
+        if (!logsOf(row.logs, row.entryPoint, T.POSTOP).some(l => lc(l.topics[1]) === lc(h))) lastSPTimestamp = timestamp;
+      }
+    }
+    if (row.sent && row.tx.status === 'success' && logsOf(row.logs, row.entryPoint, T.UOE).some(l => lc(l.topics[1]) === lc(h))) {
       // NonceManager:36-40 at the pin: sender + uint192 key, uint64 sequence.
       const nonce = big(row.packedOp.nonce), key = `${lc(row.sender)}:${nonce >> 64n}`, sequence = nonce & ((1n << 64n) - 1n);
-      if (nonceSequences.has(key) && sequence <= nonceSequences.get(key)) errors.push(`attempt ${i}: nonce sequence must strictly increase for sender/key`);
+      if (nonceSequences.has(key) && sequence !== nonceSequences.get(key) + 1n) errors.push(`attempt ${i}: nonce sequence must advance exactly one for sender/key`);
       nonceSequences.set(key, sequence);
       if (row.arm === 'SP') {
         if (!sponsorshipReady(pStart) || !sponsorshipReady(need(end, 'passport'))) errors.push(`attempt ${i}: passport not sponsor-able`);
@@ -385,6 +450,7 @@ try {
       }
       if (row.tx.blockTxCount !== 1 || big(row.tx.blockNumber) !== big(row.tx.headBefore) + 1n) errors.push(`attempt ${i}: tx block not isolated`);
       const before = row.readbacks.before.A, after = row.readbacks.after.A;
+      if (i === attempts.length - 1) need(after, 'operatorBalance');
       for (const [value, seen, label] of [[lc(row.tx.hash), seenTx, 'transaction'], [lc(h), seenOps, 'userOpHash'], [lc(row.tx.blockHash), seenBlocks, 'block']]) {
         if (seen.has(value)) errors.push(`attempt ${i}: reused ${label}`);
         seen.add(value);
@@ -456,10 +522,11 @@ try {
   if (!deepEq(inv, need(end, 'passport.invariant'))) errors.push('passport invariant drifted between run_start and run_end');
   if (pStart.allowSameEndpointLocal !== end.passport.allowSameEndpointLocal) errors.push('passport local override drifted');
   if (big(end.passport.chainId) !== big(chainId)) errors.push('end passport chainId differs from start');
-  if (big(end.passport.block.number) < big(previousBlock.blockNumber) || (big(end.passport.block.number) === big(previousBlock.blockNumber) && lc(end.passport.block.hash) !== lc(previousBlock.blockHash))) errors.push('end passport block precedes or conflicts with last attempt');
-  if (big(end.passport.block.number) > big(previousBlock.blockNumber) && lc(end.passport.block.hash) === lc(previousBlock.blockHash)) errors.push('end passport reuses last block hash at a different height');
+  if (big(end.passport.block.number) <= lastAttemptHeight) errors.push('end passport block must be strictly after last attempt');
+  if (allEarlierHashes.has(lc(end.passport.block.hash))) errors.push('end passport reuses earlier block hash');
+  if (big(end.passport.volatile.operatorBalance) !== lastAfterBalance) errors.push('end passport balance differs from last after');
   if (big(end.passport.block.timestamp) < big(pStart.block.timestamp)) errors.push('end passport timestamp precedes start');
-  if (arms.includes('SP')) for (const [label, p] of [['start', pStart], ['end', end.passport]]) {
+  if (arms.includes('SP')) for (const [label, p] of [['start', pStart]]) {
     const value = balanceReadbacks.get(lc(p.block.hash));
     if (value === undefined) { if (!errors.length) throw new Missing(`${label} passport requires operatorBalance readback at same block hash`); continue; }
     if (value !== big(p.volatile.operatorBalance)) errors.push(`${label} passport/readback operatorBalance mismatch`);

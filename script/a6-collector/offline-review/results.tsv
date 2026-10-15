@@ -59,6 +59,7 @@ missing-invariant-superPaymaster-operator-isPaused	0	2
 missing-invariant-superPaymaster-operator-xPNTsToken	0	2
 missing-invariant-superPaymaster-operator-minTxInterval	0	2
 missing-invariant-superPaymaster-senderEligible	0	2
+missing-invariant-superPaymaster-minPostOpGas	0	2
 missing-invariant-xPNTs-address	2	2
 missing-invariant-xPNTs-version	0	2
 missing-invariant-xPNTs-exchangeRate	0	2

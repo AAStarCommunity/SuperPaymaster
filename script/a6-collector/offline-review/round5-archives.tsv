@@ -1,0 +1,9 @@
+archive	old_exit	new_exit	reason
+positive	0	2	missing field invariant.superPaymaster.minPostOpGas
+a-exec-revert	3	2	missing field invariant.superPaymaster.minPostOpGas
+b-drop-op	3	2	missing field invariant.superPaymaster.minPostOpGas
+c-wrong-hash	3	2	missing field invariant.superPaymaster.minPostOpGas
+d-tamper-b	2	2	missing field invariant.superPaymaster.minPostOpGas
+e-conservation-injected	1	2	missing field invariant.superPaymaster.minPostOpGas
+e-missing-field	2	2	missing field invariant.superPaymaster.minPostOpGas
+n50-mechanism	3	2	missing field invariant.superPaymaster.minPostOpGas

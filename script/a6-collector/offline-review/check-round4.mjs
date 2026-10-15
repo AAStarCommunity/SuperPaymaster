@@ -1,3 +1,4 @@
+import { currentFixture } from './current-fixture.mjs';
 import { syntheticAnchors } from './synthetic-anchors.mjs';
 // Round-4 raw JSONL tampering. All endpoints are labels, never contacted.
 import assert from 'node:assert/strict';
@@ -29,7 +30,7 @@ function rehash(r){
 }
 function nonce(r,n){r.nonce=r.packedOp.nonce=String(n);rehash(r);const u=event(r,UOE);u.data='0x'+word(n)+u.data.slice(66);}
 mkdirSync(`${out}/fixtures`,{recursive:true});
-const run=(f,old=false)=>{const r=spawnSync(process.execPath,[old?oldFile:'script/a6-collector/validate.mjs',f],{encoding:'utf8',maxBuffer:16*1024*1024});assert.ifError(r.error);return {exit:r.status,report:JSON.parse(r.stdout)};};
+const run=(f,old=false)=>{const r=spawnSync(process.execPath,[old?oldFile:'script/a6-collector/validate.mjs',old?f:currentFixture(f)],{encoding:'utf8',maxBuffer:16*1024*1024});assert.ifError(r.error);return {exit:r.status,report:JSON.parse(r.stdout)};};
 const results=[];
 function save(name,a){const f=`${out}/fixtures/r4-${name}.jsonl`;writeFileSync(f,a.map(JSON.stringify).join('\n')+'\n');return f;}
 function control(name,change,proof,source=base){const a=structuredClone(source);change(a);const f=save(name,a),old=run(f,true),fresh=run(f);assert.equal(old.exit,0,`${name} old: ${JSON.stringify(old.report)}`);assert.ok([1,2,3].includes(fresh.exit),`${name} new: ${JSON.stringify(fresh.report)}`);assert.match(fresh.report.missing??fresh.report.errors.join(';'),proof,`${name} specific rejection`);results.push([name,old.exit,fresh.exit,fresh.report.missing??fresh.report.errors.join('; ')]);}
@@ -46,9 +47,9 @@ for(const [path,value] of [['paused',true],['senderEligible',false],['operator.i
 control('price-end-expired',a=>a.at(-1).passport.volatile.cachedPriceUpdatedAt='0',/cached price expires/);
 control('price-expired',a=>passports(a).forEach(p=>p.volatile.cachedPriceUpdatedAt='0'),/cached price expires/);
 control('price-threshold-too-short',a=>{for(const p of passports(a))p.invariant.superPaymaster.priceStalenessThreshold='1';a.at(-1).passport.block.timestamp=String(BigInt(a[0].passport.block.timestamp)+2n);},/cached price expires/);
-control('missing-end-balance-anchor',a=>{for(const rpc of ['A','B'])delete a.at(-2).readbacks.after[rpc].operatorBalance;},/end passport requires operatorBalance readback/);
+control('missing-end-balance-anchor',a=>{for(const rpc of ['A','B'])delete a.at(-2).readbacks.after[rpc].operatorBalance;},/missing field operatorBalance/);
 control('passport-start-balance',a=>a[0].passport.volatile.operatorBalance=String(BigInt(a[0].passport.volatile.operatorBalance)+1n),/passport\/readback operatorBalance/);
-control('passport-end-balance',a=>a.at(-1).passport.volatile.operatorBalance=String(BigInt(a.at(-1).passport.volatile.operatorBalance)+1n),/passport\/readback operatorBalance/);
+control('passport-end-balance',a=>a.at(-1).passport.volatile.operatorBalance=String(BigInt(a.at(-1).passport.volatile.operatorBalance)+1n),/end passport balance differs/);
 control('all-sp-balances-shift',a=>{for(const r of a.slice(1,-1).filter(r=>r.arm==='SP'))for(const side of ['before','after'])set(r,side,'operatorBalance',BigInt(r.readbacks[side].A.operatorBalance)+10n**18n);},/passport\/readback operatorBalance/,n50);
 control('sponsored-aPNTsCost-zero',a=>{const l=event(a[1],SP);l.data='0x'+word(0)+l.data.slice(66);},/C9.aPNTsCost_fee/);
 control('sponsored-aPNTsCost-rounding',a=>{const l=event(a[1],SP);l.data='0x'+word(BigInt('0x'+l.data.slice(2,66))+1n)+l.data.slice(66);},/C9.aPNTsCost_fee/);

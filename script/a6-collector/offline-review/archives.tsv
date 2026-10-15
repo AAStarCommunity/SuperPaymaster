@@ -1,4 +1,14 @@
 archive	old_exit	new_exit	reason
+docs/design/aoa-balance-mode/data/a6-gauge-local/a-exec-revert.jsonl	3	2	missing field invariant.superPaymaster.minPostOpGas
+docs/design/aoa-balance-mode/data/a6-gauge-local/b-drop-op.jsonl	1	2	missing field invariant.superPaymaster.minPostOpGas
+docs/design/aoa-balance-mode/data/a6-gauge-local/c-wrong-hash.jsonl	1	2	missing field invariant.superPaymaster.minPostOpGas
+docs/design/aoa-balance-mode/data/a6-gauge-local/d-tamper-b.jsonl	3	2	missing field invariant.superPaymaster.minPostOpGas
+docs/design/aoa-balance-mode/data/a6-gauge-local/e-conservation-injected.jsonl	1	2	missing field invariant.superPaymaster.minPostOpGas
+docs/design/aoa-balance-mode/data/a6-gauge-local/e-missing-field.jsonl	2	2	missing field invariant.superPaymaster.minPostOpGas
+docs/design/aoa-balance-mode/data/a6-gauge-local/n50-mechanism.jsonl	0	2	missing field invariant.superPaymaster.minPostOpGas
+docs/design/aoa-balance-mode/data/a6-gauge-local/old-a-exec-revert.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/a6-gauge-local/old-b-drop-op.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl	0	2	missing field invariant.superPaymaster.minPostOpGas
 docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads-11884320-045a8962/fork-tx-ledger.jsonl	2	2	missing field kind
 docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads-11884320-045a8962/neg-controls.jsonl	2	2	missing field kind
 docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads-11884320-045a8962/receipts.jsonl	2	2	missing field kind

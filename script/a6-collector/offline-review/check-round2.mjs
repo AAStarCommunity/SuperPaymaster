@@ -1,3 +1,4 @@
+import { currentFixture } from './current-fixture.mjs';
 import { syntheticAnchors } from './synthetic-anchors.mjs';
 // Round-2 controls use the validator immediately before these fixes, not the round-1 pin.
 // All inputs are JSONL mutations of the CURRENT archive. No RPC requests are made.
@@ -18,7 +19,7 @@ const UOE = topic('UserOperationEvent(bytes32,address,address,uint256,bool,uint2
 const LOCK = topic('LockCreated(address,bytes32,address,uint256,uint256)');
 const addr = '0x' + '12'.repeat(20), addrTopic = '0x' + '0'.repeat(24) + addr.slice(2);
 const run = (file, old) => {
-  const r = spawnSync(process.execPath, [`${out}/${old ? 'validate-round2-old.mjs' : '../validate.mjs'}`, file], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+  const r = spawnSync(process.execPath, [`${out}/${old ? 'validate-round2-old.mjs' : '../validate.mjs'}`, old ? file : currentFixture(file)], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
   assert.ifError(r.error);
   return { exit: r.status, report: JSON.parse(r.stdout) };
 };

@@ -141,6 +141,10 @@ const EP_DEPOSIT_ABI = [{ type: 'function', name: 'balanceOf', stateMutability: 
     outputs: [{ type: 'tuple', components: [{ name: 'deposit', type: 'uint256' }, { name: 'staked', type: 'bool' },
       { name: 'stake', type: 'uint112' }, { name: 'unstakeDelaySec', type: 'uint32' }, { name: 'withdrawTime', type: 'uint48' }] }] }];
 const SP_ABI = [
+  { type: 'function', name: 'gasParams', stateMutability: 'view', inputs: [], outputs: [
+    { name: 'current', type: 'tuple', components: ['minPostOpGas', 'settleGasBound', 'cWrap', 'cPostop'].map(name => ({ name, type: 'uint32' })) },
+    { name: 'pending', type: 'tuple', components: [...['minPostOpGas', 'settleGasBound', 'cWrap', 'cPostop'].map(name => ({ name, type: 'uint32' })), { name: 'eta', type: 'uint64' }] },
+  ] },
   { type: 'function', name: 'updateSBTStatus', stateMutability: 'nonpayable', inputs: [{ name: 'user', type: 'address' }, { name: 'status', type: 'bool' }], outputs: [] },
   { type: 'function', name: 'operators', stateMutability: 'view', inputs: [{ name: '', type: 'address' }],
     outputs: [{ name: 'aPNTsBalance', type: 'uint128' }, { name: 'isConfigured', type: 'bool' }, { name: 'isPaused', type: 'bool' },
@@ -353,6 +357,7 @@ async function passport(p, blockNumber) {
         cachedPrice: { price: price[0], decimals: price[3] },
         operator: { address: ctx.account.address, isConfigured: op[1], isPaused: op[2], xPNTsToken: op[3], minTxInterval: op[5] },
         senderEligible: await spR('isEligibleForSponsorship', [sender]),
+        minPostOpGas: (await spR('gasParams'))[0].minPostOpGas,
       },
       xPNTs: { address: spToken, version: await tR('version'), exchangeRate: await tR('exchangeRate'),
         superPaymaster: await tR('SUPERPAYMASTER_ADDRESS'), maxSingleTxLimit: await tR('maxSingleTxLimit'), emergencyDisabled: await tR('emergencyDisabled') },
@@ -511,9 +516,10 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const rdiff = diffPaths(jsonable(rcView(rcA)), jsonable(rcView(rcB)));
   if (rdiff.length) throw new Stop('RECEIPT_DISAGREEMENT', 25, { txHash, diff: rdiff });
   const bn = rcA.blockNumber;
-  const blk = await pubA.getBlock({ blockNumber: bn });
+  const blocks = await readAB('attempt block', async p => { const b = await p.getBlock({ blockNumber: bn }); return { hash: b.hash, timestamp: b.timestamp, transactions: b.transactions }; });
+  const blk = blocks.A;
   const rawTx = await readAB('transaction', p => p.getTransaction({ hash: txHash }));
-  const tx = { from: rawTx.A.from, gasLimit: rawTx.A.gas, hash: txHash, status: rcA.status, blockNumber: bn, blockHash: rcA.blockHash, gasUsed: rcA.gasUsed,
+  const tx = { from: rawTx.A.from, gasLimit: rawTx.A.gas, hash: txHash, status: rcA.status, blockNumber: bn, blockTimestamp: blk.timestamp, blockHash: rcA.blockHash, gasUsed: rcA.gasUsed,
     effectiveGasPrice: rcA.effectiveGasPrice, blockTxCount: blk.transactions.length, headBefore };
   const logs = rcView(rcA).logs;
   // The verdict needs only the receipt; it is fixed (and kept on a stop) before any read-back.
@@ -617,11 +623,22 @@ try {
 let passportEnd = null;
 try {
   if (passportStart && stop.reason !== 'RPC_DISAGREEMENT') {
+    // Wait for an independently read later block; never relabel the last receipt block.
+    const deadline = Date.now() + 60_000;
+    const finalHeight = BigInt(lastAttemptBlock?.blockNumber ?? passportStart.block.number);
+    // A local anvil (automine) produces no block after the last tx; mine one explicitly. Only under
+    // the local override on chain 31337, which already disqualifies conformance; real chains wait.
+    if (allowSameEndpointLocal && Number(passportStart.chainId) === 31337) await pubA.request({ method: 'evm_mine', params: [] });
+    while (await pubA.getBlockNumber({ cacheTime: 0 }) <= finalHeight) {
+      if (Date.now() >= deadline) throw new Stop('END_BLOCK_NOT_ADVANCED', 21, { finalHeight });
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
     passportEnd = await passportAB('end');
     const last = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
     const endHeight = BigInt(passportEnd.block.number), lastHeight = BigInt(last.blockNumber);
     const sameHash = passportEnd.block.hash.toLowerCase() === last.blockHash.toLowerCase();
-    if ((passportEnd.chainId !== passportStart.chainId || endHeight < lastHeight || (endHeight === lastHeight ? !sameHash : sameHash)) && stop.code === 0) stop = { reason: 'PASSPORT_WINDOW_MISMATCH', code: 21 };
+    if ((passportEnd.chainId !== passportStart.chainId || endHeight <= lastHeight || sameHash || seenBlocks.has(passportEnd.block.hash.toLowerCase()) || passportEnd.block.hash.toLowerCase() === passportStart.block.hash.toLowerCase()) && stop.code === 0) stop = { reason: 'PASSPORT_WINDOW_MISMATCH', code: 21 };
+    if (lastAttemptBlock && BigInt(passportEnd.volatile.operatorBalance) !== BigInt(lastAttemptBlock.operatorBalance) && stop.code === 0) stop = { reason: 'END_BALANCE_MISMATCH', code: 21 };
     const drift = diffPaths(passportStart.invariant, passportEnd.invariant);
     if (drift.length && stop.code === 0) stop = { reason: 'PASSPORT_DRIFT', code: 21, detail: { drift } };
   }

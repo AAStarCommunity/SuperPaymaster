@@ -57,6 +57,7 @@ invariant.superPaymaster.operator.isPaused
 invariant.superPaymaster.operator.xPNTsToken
 invariant.superPaymaster.operator.minTxInterval
 invariant.superPaymaster.senderEligible
+invariant.superPaymaster.minPostOpGas
 invariant.xPNTs.address
 invariant.xPNTs.version
 invariant.xPNTs.exchangeRate

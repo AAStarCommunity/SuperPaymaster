@@ -1,3 +1,4 @@
+import { currentFixture } from './current-fixture.mjs';
 import { syntheticAnchors } from './synthetic-anchors.mjs';
 // Offline JSONL mutations of the current archive, with explicitly synthetic end-block balance anchors in test fixtures only. Never connects to an RPC.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -10,7 +11,7 @@ mkdirSync(`${out}/fixtures`, { recursive: true });
 const base = readFileSync(`${root}/positive.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);
 syntheticAnchors(base);
 base[0].rpcA='http://a.invalid:8545'; base[0].rpcB='http://b.invalid:8545';
-const run = (file, old) => spawnSync(process.execPath, [old ? `${out}/validate-old.mjs` : 'script/a6-collector/validate.mjs', file], {encoding:'utf8'});
+const run = (file, old) => spawnSync(process.execPath, [old ? `${out}/validate-old.mjs` : 'script/a6-collector/validate.mjs', old ? file : currentFixture(file)], {encoding:'utf8'});
 const cleanFile=`${out}/fixtures/complete-positive.jsonl`;
 writeFileSync(cleanFile,base.map(JSON.stringify).join('\n')+'\n');
 if(run(cleanFile,false).status!==0) throw Error(run(cleanFile,false).stdout);
@@ -43,7 +44,7 @@ control('gas-record', a=>rows(a).forEach(r=>Object.keys(r.gas).forEach(k=>r.gas[
 control('bundler-record', a=>rows(a).forEach(r=>r.bundler='0x'+'00'.repeat(19)+'01'));
 control('tx-from-arm-diff', a=>a[2].tx.from='0x'+'00'.repeat(19)+'01');
 control('same-endpoint-conformant', a=>a[0].rpcB=a[0].rpcA,1,
-  readFileSync(`${root}/n50-mechanism.jsonl`,'utf8').trim().split('\n').map(JSON.parse));
+  syntheticAnchors(readFileSync(`${root}/n50-mechanism.jsonl`,'utf8').trim().split('\n').map(JSON.parse)));
 control('conformant-override', a=>{a[0].protocolConformant=true; a[0].allowSameEndpointLocal=true;});
 control('false-conformance', a=>a[0].protocolConformant=true);
 control('citation-C6', a=>{a[1].conservation.checks.find(c=>c.id==='C6.locked_unchanged').src='XT:239,263';});
