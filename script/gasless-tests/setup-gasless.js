@@ -236,27 +236,30 @@ async function setupOnce(ctx) {
     const CREDIT_TIER_MIN = ethers.parseEther('200'); // below this → raise
     const CREDIT_TIER_SET = ethers.parseEther('300'); // target value
     try {
-      const [tier1, tier2, registryOwner] = await Promise.all([
-        retryView(() => registry.creditTierConfig(1n), 'creditTierConfig(1)'),
-        retryView(() => registry.creditTierConfig(2n), 'creditTierConfig(2)'),
-        retryView(() => registry.owner(), 'registry.owner'),
-      ]);
+      const registryOwner = await retryView(() => registry.owner(), 'registry.owner');
       const isOwner = registryOwner.toLowerCase() === deployer.address.toLowerCase();
       if (!isOwner) {
         console.log(`  ${WARN} Deployer is not Registry owner — cannot set creditTierConfig (owner=${registryOwner})`);
       } else {
-        if (tier1 < CREDIT_TIER_MIN) {
-          console.log(`  ${WARN} creditTierConfig[1]=${ethers.formatEther(tier1)} aPNTs — below threshold, raising to ${ethers.formatEther(CREDIT_TIER_SET)}...`);
-          await sendAndWait(registry, 'setCreditTier', [1n, CREDIT_TIER_SET], 'registry.setCreditTier(1, 300)');
-          console.log(`  ${PASS} creditTierConfig[1] set to ${ethers.formatEther(CREDIT_TIER_SET)} aPNTs`);
-        } else {
-          check('creditTierConfig[1] sufficient for Sepolia L1 gasless', true, `${ethers.formatEther(tier1)} aPNTs`);
+        // Registry.setCreditTier enforces monotonic tiers against BOTH neighbours
+        // (CreditTiersNotMonotonic), so raising tier 1 alone above tier 2 reverts.
+        // Collect the contiguous low levels from 1 upward (stop at the first level already
+        // >= MIN, or at an unpriced level reading 0 — that is above the reachable top),
+        // then raise them highest-first so every write keeps the table monotonic.
+        const low = [];
+        for (let level = 1n; level <= 21n; level++) {
+          const v = await retryView(() => registry.creditTierConfig(level), `creditTierConfig(${level})`);
+          if (level > 1n && v === 0n) break;
+          if (v >= CREDIT_TIER_MIN) break;
+          low.push(level);
         }
-        if (tier2 < CREDIT_TIER_MIN) {
-          await sendAndWait(registry, 'setCreditTier', [2n, CREDIT_TIER_SET], 'registry.setCreditTier(2, 300)');
-          console.log(`  ${PASS} creditTierConfig[2] set to ${ethers.formatEther(CREDIT_TIER_SET)} aPNTs`);
-        } else {
-          check('creditTierConfig[2] sufficient for Sepolia L1 gasless', true, `${ethers.formatEther(tier2)} aPNTs`);
+        if (low.length === 0) {
+          check('creditTierConfig[1] sufficient for gasless', true, '>= ' + ethers.formatEther(CREDIT_TIER_MIN) + ' aPNTs');
+        }
+        for (const level of [...low].reverse()) {
+          console.log(`  ${WARN} creditTierConfig[${level}] below threshold — raising to ${ethers.formatEther(CREDIT_TIER_SET)}...`);
+          await sendAndWait(registry, 'setCreditTier', [level, CREDIT_TIER_SET], `registry.setCreditTier(${level}, 300)`);
+          console.log(`  ${PASS} creditTierConfig[${level}] set to ${ethers.formatEther(CREDIT_TIER_SET)} aPNTs`);
         }
       }
     } catch (e) {
