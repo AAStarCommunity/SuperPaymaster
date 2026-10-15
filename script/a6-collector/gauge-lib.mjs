@@ -316,3 +316,13 @@ export function addr(a) { return getAddress(a); }
 export const TOPIC = {
   UserOperationEvent: toEventSelector(EP_EVENTS_ABI[0]),
 };
+
+// operatorBalance belongs to SP globally, whereas epDeposit belongs to each arm.
+// SP deltas require event-backed spConservation; baseline transactions cannot change it.
+export function operatorBalanceContinuity(arm, before, after, previousBalance) {
+  const checks = [{ id: 'continuity.operatorBalance', ok: BigInt(before.operatorBalance) === BigInt(previousBalance),
+    expected: String(previousBalance), actual: String(before.operatorBalance) }];
+  if (arm !== 'SP') checks.push({ id: 'continuity.operatorBalance_baseline_unchanged',
+    ok: BigInt(after.operatorBalance) === BigInt(before.operatorBalance) });
+  return checks;
+}

@@ -1,4 +1,4 @@
-import { noFixture } from './gauge-lib.mjs';
+import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
 // A6 per-UserOperation gauge (CC-125 a71741ed; RDR-6 ①; plan §8.4 SP-owned implementation half).
 //
 // Drives matched triplets of real UserOperations — one through each arm, SP (SuperPaymaster),
@@ -538,9 +538,10 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const previousBlock = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
   checks.push({ id: 'continuity.block', ok: BigInt(before.A.blockNumber) === BigInt(previousBlock.blockNumber) && before.A.blockHash.toLowerCase() === previousBlock.blockHash.toLowerCase() });
   const prior = stateByArm.get(arm);
-  if (prior) for (const f of Object.keys(prior).filter(f => !['blockNumber', 'blockHash', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
+  if (prior) for (const f of Object.keys(prior).filter(f => !['blockNumber', 'blockHash', 'operatorBalance', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
     checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], prior[f]).length === 0 });
   }
+  checks.push(...operatorBalanceContinuity(arm, before.A, after.A, lastAttemptBlock?.operatorBalance ?? passportStart.volatile.operatorBalance));
   if (arm === 'SP') checks.push({ id: 'continuity.new_op_lock_empty', ok: BigInt(before.A.lockXLocked) === 0n });
   for (const [value, seen, label] of [[txHash, seenTransactions, 'tx'], [expectedHash, seenOperations, 'op'], [tx.blockHash, seenBlocks, 'block']]) {
     checks.push({ id: `unique.${label}`, ok: !seen.has(value.toLowerCase()) }); seen.add(value.toLowerCase());

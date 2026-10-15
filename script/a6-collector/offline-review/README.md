@@ -6,7 +6,7 @@ Run from the worktree root with Node and `viem` installed:
 node script/a6-collector/offline-review/run.mjs
 ```
 
-This runs all five checks sequentially without RPC access:
+This runs all six checks sequentially without RPC access:
 
 - `check.mjs`: archive-derived offline positive control, every emitted passport leaf deleted independently, original tampering controls, collector argument gates, and tracked archives outside this generated fixture directory. `results.tsv`, `archives.tsv`, and `passport-fields.txt` are regenerated.
 - `check-library.mjs`: valid success/postOp conservation, missing-lock evaluation, independent reservation, inflight state, persistent validation writes, unchanged xPNTs/supply, both lock identity topics, and source citations.
@@ -48,3 +48,41 @@ Rules were checked using `git show 1ac0e1c5:<path>`, with line assertions in the
 | 8. No UOE blocks | Gauge isolation/bracketing rule, independent of whether EntryPoint emitted an operation event. Before+1 = after = receipt height, and after hash = receipt block hash, including sent stopped rows. |
 
 The full suite regenerates offline fixture files and result tables. No chain, deployment, or contract source changes are involved.
+
+## Shared operator-balance regression
+
+`check-shared-balance.mjs` exercises the collector's production shared-balance checks
+and the independently implemented validator. Its explicit synthetic N=50 fixture
+includes operatorBalance on all baseline readbacks. Legitimate SP charges between
+baseline attempts pass; an unexplained boundary jump (including coherent later
+A/B and end-passport shifts) and a mutation inside a baseline transaction both fail.
+`shared-balance-results.tsv` records the results.
+
+The failing round-4 regeneration stopped at attemptIndex **4 (VPM)**, after the
+second SP attempt (index 3). The first VPM after-read at block 188 had balance
+19892333099569332400000. SP's second operation at block 190 reduced it from that
+value (before block 189) to 19784666199138664800000. VPM's next before-read at block
+190 matched SP's after-read exactly on both A/B endpoints, but the collector
+incorrectly compared it with VPM's stale block-188 value. The setup top-up preceded
+the start passport (block 186); no setup/deposit transaction intervened in these
+consecutive isolated attempt blocks. The round-4 all-arm readback exposed this
+per-arm/shared-state ownership error; the end passport itself was consistent.
+
+The collector now follows operatorBalance in chronological attempt order, anchored
+at the start passport. Baseline transactions must leave it unchanged; SP deltas
+still require event-backed conservation. Per-arm deposit and persistent SP-state
+checks, A/B agreement, same-hash passport anchors and all prior rules remain.
+No allowance for unrecorded top-ups was added.
+
+`A6_REVIEW_ARCHIVE=/path/to/recorded/archive node script/a6-collector/offline-review/run.mjs`
+selects an alternate recorded input archive without rewriting it. Test fixtures
+remain explicitly synthetic. For this repair, local regeneration was attempted but
+the sandbox denied Anvil's socket bind and loopback RPC connections (`Operation
+not permitted`). The full offline run uses an exact copy of the tracked HEAD
+archive at `/private/tmp/a6-offline-input`; it is not a fresh chain run.
+
+Verified results: 116 base controls (112 newly rejected), library checks, 57 round-2,
+44 round-3, 36 round-4, and all three shared-balance controls passed.
+`shared-balance-verification.log` records this offline verification. Fresh positive /
+a / b / c / d / e / e' / N=50 results remain **unverified** because of the sandbox
+socket restriction. The archived expected exit pairs are not claimed as fresh outcomes.

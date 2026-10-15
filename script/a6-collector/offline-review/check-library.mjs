@@ -34,7 +34,7 @@ for (const field of ['user','locker']) {
   const bad=structuredClone(tokenEvents);bad.find(e=>e.event==='LockCreated').args[field]='0x'+'12'.repeat(20);
   assert.equal(spConservation({...args,tokenEvents:bad}).ok,false,field);
 }
-const positive=readFileSync('docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl','utf8').trim().split('\n').map(JSON.parse)[1];
+const positive=readFileSync(`${process.env.A6_REVIEW_ARCHIVE ?? 'docs/design/aoa-balance-mode/data/a6-gauge-local'}/positive.jsonl`,'utf8').trim().split('\n').map(JSON.parse)[1];
 const success={...args,before:positive.readbacks.before.A,after:positive.readbacks.after.A,
   tokenEvents:decodeLogsFrom(positive.logs,inv.xPNTs.address,TOKEN_EVENTS_ABI),
   spEvents:decodeLogsFrom(positive.logs,inv.code.superPaymasterProxy.address,SP_EVENTS_ABI),cls:{verdict:'USEROP_SUCCESS'}};

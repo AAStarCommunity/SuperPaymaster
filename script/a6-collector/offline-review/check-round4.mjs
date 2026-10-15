@@ -6,7 +6,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { keccak256, toBytes } from 'viem';
 import { localUserOpHash } from '../gauge-lib.mjs';
-const out='script/a6-collector/offline-review', root='docs/design/aoa-balance-mode/data/a6-gauge-local';
+const out='script/a6-collector/offline-review', root=process.env.A6_REVIEW_ARCHIVE ?? 'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const oldFile=`${out}/validate-round4-old.mjs`;
 assert.equal(createHash('sha256').update(readFileSync(oldFile)).digest('hex'), '2e703559157c474cefeb54a7ba9e987d7d0555e43baef0a8280596e5c228812a');
 const load=n=>readFileSync(`${root}/${n}.jsonl`,'utf8').trim().split('\n').map(JSON.parse);

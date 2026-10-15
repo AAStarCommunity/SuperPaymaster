@@ -22,9 +22,9 @@ price-end-expired	0	1	attempt 0: end cached price expires before passport block
 price-expired	0	1	attempt 0: end cached price expires before passport block; attempt 0: cached price expires within passport block bracket
 price-threshold-too-short	0	1	attempt 0: end cached price expires before passport block; attempt 0: cached price expires within passport block bracket
 missing-end-balance-anchor	0	2	end passport requires operatorBalance readback at same block hash
-passport-start-balance	0	1	start passport/readback operatorBalance mismatch
+passport-start-balance	0	1	attempt 0: balance continuity failed: operatorBalance; start passport/readback operatorBalance mismatch
 passport-end-balance	0	1	end passport/readback operatorBalance mismatch
-all-sp-balances-shift	0	1	start passport/readback operatorBalance mismatch
+all-sp-balances-shift	0	1	attempt 0: balance continuity failed: operatorBalance; attempt 149: baseline changed operatorBalance; start passport/readback operatorBalance mismatch
 sponsored-aPNTsCost-zero	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: C9.aPNTsCost_fee; attempt 0: recorded conservation.ok=true, recomputed false
 sponsored-aPNTsCost-rounding	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: C9.aPNTsCost_fee; attempt 0: recorded conservation.ok=true, recomputed false
 lock-uint96	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: admission.a0_bounds,admission.available_balance,admission.operator_balance; attempt 0: recorded conservation.ok=true, recomputed false

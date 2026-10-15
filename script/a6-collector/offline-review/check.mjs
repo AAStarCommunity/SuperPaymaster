@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { localUserOpHash } from '../gauge-lib.mjs';
 import { keccak256, toBytes } from 'viem';
-const root = 'docs/design/aoa-balance-mode/data/a6-gauge-local';
+const root = process.env.A6_REVIEW_ARCHIVE ?? 'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const out = 'script/a6-collector/offline-review';
 mkdirSync(`${out}/fixtures`, { recursive: true });
 const base = readFileSync(`${root}/positive.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);

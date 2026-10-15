@@ -1,6 +1,0 @@
-A6 gauge c-wrong-hash: N=1 bMax=1 maxAttempts/arm=1 arms=SP,VPM,TPM fixture=wrong-hash
-EP=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 (canonical v0.7 address: false) sender=0x43a71246698E5bE1D9fb04183589edA602EA06F1
-  t=0 SP  HASH_MISMATCH (expected_hash_in_events) hash=0x881d886776… tx=0x90dd421326… receipt=success
-  t=0 VPM HASH_MISMATCH (expected_hash_in_events) hash=0x3ab36c190a… tx=0x7e7cddf2d0… receipt=success
-  t=0 TPM HASH_MISMATCH (expected_hash_in_events) hash=0x0510d9844f… tx=0x8d6ffd2925… receipt=success
-stop=MAX_ATTEMPTS exit=10 matched=0/1 {"SP":{"attempts":1,"verdicts":{"HASH_MISMATCH":1}},"VPM":{"attempts":1,"verdicts":{"HASH_MISMATCH":1}},"TPM":{"attempts":1,"verdicts":{"HASH_MISMATCH":1}}}

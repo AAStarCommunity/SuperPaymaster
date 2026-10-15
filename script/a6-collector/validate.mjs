@@ -298,6 +298,7 @@ try {
   const seenTx = new Set(), seenOps = new Set(), seenBlocks = new Set(), stateByArm = new Map();
   const nonceSequences = new Map();
   const balanceReadbacks = new Map();
+  let previousOperatorBalance = big(pStart.volatile.operatorBalance);
   // Passports bracket all attempt blocks. Requiring the start quote to remain fresh
   // through the end block proves freshness without inventing per-tx timestamps.
   const validUntil48 = (big(pStart.volatile.cachedPriceUpdatedAt) + big(inv.superPaymaster.priceStalenessThreshold)) % (1n << 48n);
@@ -395,6 +396,14 @@ try {
       if (previous) for (const f of ['epDeposit', ...(row.arm === 'SP' ? SP_FIELDS.filter(f => !['lockXLocked', 'inflightA0', 'inflightOperator'].includes(f)) : [])]) {
         if (!deepEq(need(before, f), need(previous, f))) errors.push(`attempt ${i}: balance continuity failed: ${f}`);
       }
+      // Shared SP balance follows chronological attempts, not the previous baseline arm.
+      // Older baseline rows may omit it; SP state continuity and exact-hash passport
+      // anchors remain mandatory. Every recorded baseline readback is checked.
+      if ('operatorBalance' in before && big(before.operatorBalance) !== previousOperatorBalance) errors.push(`attempt ${i}: balance continuity failed: operatorBalance`);
+      if (row.arm !== 'SP') for (const rb of [before, after]) {
+        if ('operatorBalance' in rb && big(rb.operatorBalance) !== previousOperatorBalance) errors.push(`attempt ${i}: baseline changed operatorBalance`);
+      }
+      if (row.arm === 'SP') previousOperatorBalance = big(need(after, 'operatorBalance'));
       if (row.arm === 'SP' && big(need(before, 'lockXLocked')) !== 0n) errors.push(`attempt ${i}: new op lock must start empty`);
       for (const side of ['before', 'after']) for (const rpc of ['A', 'B']) {
         const rb = row.readbacks[side][rpc];

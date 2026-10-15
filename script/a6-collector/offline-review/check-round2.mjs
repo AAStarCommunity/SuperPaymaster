@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { keccak256, toBytes } from 'viem';
 import { localUserOpHash } from '../gauge-lib.mjs';
 const out = 'script/a6-collector/offline-review';
-const root = 'docs/design/aoa-balance-mode/data/a6-gauge-local';
+const root = process.env.A6_REVIEW_ARCHIVE ?? 'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const load = name => readFileSync(`${root}/${name}.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);
 const base = load('positive'), n50 = load('n50-mechanism');
 for (const a of [base,n50].map(syntheticAnchors)) { a[0].rpcA='http://a.invalid:8545'; a[0].rpcB='http://b.invalid:8545'; }

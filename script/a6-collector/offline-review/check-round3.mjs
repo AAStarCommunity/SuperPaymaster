@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { keccak256, toBytes } from 'viem';
-const out='script/a6-collector/offline-review', root='docs/design/aoa-balance-mode/data/a6-gauge-local';
+const out='script/a6-collector/offline-review', root=process.env.A6_REVIEW_ARCHIVE ?? 'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const load=f=>readFileSync(f,'utf8').trim().split('\n').map(JSON.parse);
 const base=load(`${root}/positive.jsonl`), n50=load(`${root}/n50-mechanism.jsonl`);
 for(const a of [base,n50].map(syntheticAnchors)) {a[0].rpcA='http://a.invalid:8545';a[0].rpcB='http://b.invalid:8545';a[0].allowSameEndpointLocal=false;for(const p of [a[0].passport,a.at(-1).passport])p.allowSameEndpointLocal=false;if(a[0].count===50)a[0].protocolConformant=true;}
