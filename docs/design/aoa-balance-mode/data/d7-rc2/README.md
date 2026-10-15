@@ -30,8 +30,8 @@ DSR gate ① (Seeder CC-125 `a1c50793`): D7 was last independently accepted at `
 
 ## Result
 
-Suite: **37 scripts — 31 PASS / 4 FAIL / 2 SKIP** (`03-e2e.clean.log` summary; identical in two
-independent fresh-chain runs). After the warp: **test-case-4 PASS** (`05-tc4-after-warp.log`:
+Suite: **37 scripts — 31 PASS / 4 FAIL / 2 SKIP** (`03-e2e.clean.log` summary). Only this run is
+archived; earlier fresh-chain runs with the same summary were scratch-only and are not evidence. After the warp: **test-case-4 PASS** (`05-tc4-after-warp.log`:
 debt +132.96426 aPNTs, available credit −132.96426, xPNTs balance unchanged).
 
 D7-migrated scripts (scope of the #438 acceptance):
@@ -49,7 +49,7 @@ Outside the D7 migration scope (stale scripts, not contract defects; not fixed h
 |---|---|
 | B3 | passes the v1 `aPNTs` to `configureOperator`; 5.5.0 requires a factory-bound v2 token |
 | D2 | `setCreditTier(7,0)` → `CreditTiersNotMonotonic()` (Registry rule; G3 already handles it) |
-| E1 | `priceFeed()` call reverts with no data on the current SP |
+| E1 | calls `description()` (`0x7284e416`) on the price feed; the local `AnvilMockPriceFeed` does not implement it and reverts with no data (anvil log). Mock/harness gap, not an SP defect |
 | x402 EIP-3009 | `decimals()` on a token that is not deployed on anvil |
 
 ## Harness bugs found by this rerun (fixed on `cc125/d7-chainid-harness`)
