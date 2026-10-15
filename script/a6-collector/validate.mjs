@@ -108,7 +108,14 @@ function conservation(row, spAddr, tokenAddr, operator) {
   if (postOpReverted) {
     if (success) failed.push('R.success_with_postop_revert');
     if (sponsored.length) failed.push('R1.sponsored_absent');
-    if (d('operatorBalance') !== -big(a.inflightA0)) failed.push('R1.op_delta');
+    const locks = logsOf(logs, tokenAddr, T.LOCK_CREATED).filter(l => lc(l.topics[2]) === h);
+    if (locks.length !== 1) { failed.push('R.not_evaluable_missing_lock_created'); return failed; }
+    const a0 = BigInt(word(locks[0].data, 1)), xLocked = BigInt(word(locks[0].data, 0));
+    if (lc(topicAddr(locks[0].topics[1])) !== lc(row.sender) || lc(topicAddr(locks[0].topics[3])) !== lc(spAddr)) failed.push('R.lock_identity');
+    if (lc(a.inflightOperator) !== lc(operator)) failed.push('R1.operator');
+    if (big(a.inflightA0) !== a0) failed.push('R1.a0');
+    if (d('operatorBalance') !== -a0) failed.push('R1.op_delta');
+    if (d('lockedOf') !== xLocked || big(a.lockXLocked) !== xLocked) failed.push('R2.locked');
     if (d('protocolRevenue') !== 0n) failed.push('R1.revenue');
     return failed;
   }
@@ -147,6 +154,38 @@ function conservation(row, spAddr, tokenAddr, operator) {
 
 function deepEq(x, y) { return JSON.stringify(x, (k, v) => (typeof v === 'string' ? v.toLowerCase() : v)) === JSON.stringify(y, (k, v) => (typeof v === 'string' ? v.toLowerCase() : v)); }
 
+// Explicit collector passport schema: require every emitted leaf, including false/zero values.
+const CODE_NAMES = ['entryPoint', 'superPaymasterProxy', 'superPaymasterImpl', 'xPNTsClone', 'xPNTsImpl', 'xPNTsExt', 'account', 'accountImpl', 'verifyingPaymaster', 'tokenPaymaster', 'tokenPaymasterToken', 'priceFeed'];
+const GAS_FIELDS = ['callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'maxFeePerGas', 'maxPriorityFeePerGas'];
+const PASSPORT_FIELDS = [
+  'chainId', 'block.number', 'block.hash', 'block.timestamp',
+  'invariant.entryPoint.address', 'invariant.entryPoint.isCanonicalV07Address',
+  ...CODE_NAMES.flatMap(n => ['address', 'codehash', 'size'].map(f => `invariant.code.${n}.${f}`)),
+  ...['version', 'entryPoint', 'registry', 'aPNTs', 'protocolFeeBPS', 'aPNTsPriceUSD', 'priceStalenessThreshold', 'paused', 'cachedPrice.price', 'cachedPrice.decimals', 'operator.address', 'operator.isConfigured', 'operator.isPaused', 'operator.xPNTsToken', 'operator.minTxInterval', 'senderEligible'].map(f => `invariant.superPaymaster.${f}`),
+  ...['address', 'version', 'exchangeRate', 'superPaymaster', 'maxSingleTxLimit', 'emergencyDisabled'].map(f => `invariant.xPNTs.${f}`),
+  ...['SP', 'VPM', 'TPM'].flatMap(n => ['staked', 'stake', 'unstakeDelaySec', 'withdrawTime'].map(f => `invariant.stakes.${n}.${f}`)),
+  ...['SP', 'VPM', 'TPM', 'account'].map(n => `invariant.armEntryPoints.${n}`),
+  ...['verifyingSigner', 'sender', 'bundler', 'beneficiary', 'callDataHash'].map(f => `invariant.${f}`),
+  ...GAS_FIELDS.map(f => `invariant.gas.${f}`),
+  ...['SP', 'VPM', 'TPM'].flatMap(n => ['ver', 'post'].map(f => `invariant.pmGas.${n}.${f}`)),
+  'volatile.cachedPriceUpdatedAt', 'volatile.operatorBalance',
+];
+function completePassport(p) {
+  for (const f of PASSPORT_FIELDS) {
+    const v = need(p, f);
+    if (v === null || typeof v === 'object') throw new Missing(`malformed passport ${f}`);
+    if ((f.endsWith('.hash') || f.endsWith('.codehash') || f.endsWith('callDataHash')) && !/^0x[0-9a-f]{64}$/i.test(v)) throw new Missing(`malformed passport ${f}`);
+    if (f.endsWith('.address') && !/^0x[0-9a-f]{40}$/i.test(v)) throw new Missing(`malformed passport ${f}`);
+  }
+}
+const endpoint = value => { const u = new URL(value); if (u.hostname === 'localhost') u.hostname = '127.0.0.1'; return u.href; };
+function opGas(op) {
+  const split = x => [BigInt('0x' + x.slice(2, 34)).toString(), BigInt('0x' + x.slice(34)).toString()];
+  const [verificationGasLimit, callGasLimit] = split(op.accountGasLimits);
+  const [maxPriorityFeePerGas, maxFeePerGas] = split(op.gasFees);
+  return { callGasLimit, verificationGasLimit, preVerificationGas: big(op.preVerificationGas).toString(), maxFeePerGas, maxPriorityFeePerGas };
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────────────────
 const report = { file, attempts: 0, recomputed: {}, errors, notes };
 let exit = 0;
@@ -160,6 +199,7 @@ try {
   if (need(end, 'kind') !== 'run_end') throw new Missing('last line is not run_end (truncated run?)');
   for (const l of lines) { if (need(l, 'schema') !== 'a6-gauge/1') throw new Missing('unknown schema'); if (need(l, 'runId') !== start.runId) throw new Missing('runId differs between lines'); }
   const pStart = need(start, 'passport');
+  completePassport(pStart);
   const inv = need(pStart, 'invariant');
   const spAddr = need(inv, 'code.superPaymasterProxy.address');
   const tokenAddr = need(inv, 'xPNTs.address');
@@ -168,6 +208,11 @@ try {
   const arms = need(start, 'arms');
   const fixture = need(start, 'fixture');
   const target = need(start, 'count');
+  const distinctEndpoints = endpoint(need(start, 'rpcA')) !== endpoint(need(start, 'rpcB'));
+  const localOverride = start.allowSameEndpointLocal === true || pStart.allowSameEndpointLocal === true;
+  const conformant = target === 50 && fixture === null && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
+  if (need(start, 'protocolConformant') !== conformant) errors.push('protocolConformant differs from recomputed count/fixture/arms/endpoints/override');
+  if (start.protocolConformant && (!distinctEndpoints || localOverride)) errors.push('conformant run requires distinct endpoints without local override');
   const attempts = lines.slice(1, -1);
   const byTriplet = new Map();
   let stoppedRows = 0;
@@ -175,6 +220,7 @@ try {
     if (need(row, 'kind') !== 'attempt') throw new Missing(`line ${i + 2}: unexpected kind ${row.kind}`);
     if (need(row, 'attemptIndex') !== i) errors.push(`attemptIndex ${row.attemptIndex} at position ${i} (rows missing or reordered)`);
     for (const k of ['tripletIndex', 'arm', 'fixture', 'verdict', 'collectedAtUtc']) need(row, k);
+    if (row.fixture !== fixture) errors.push(`attempt ${i}: row fixture differs from run fixture`);
     report.attempts++;
     if (row.verdict === 'STOPPED' || row.stoppedBy) {
       stoppedRows++;
@@ -187,13 +233,20 @@ try {
     // hash self-check, recomputed here
     const h = hashOp(row.packedOp, row.entryPoint, chainId);
     if (lc(h) !== lc(row.epUserOpHash) || lc(h) !== lc(row.localUserOpHash)) errors.push(`attempt ${i}: userOpHash recomputation ${h} != recorded ep/local`);
-    if (lc(row.expectedUserOpHash) !== lc(h) && row.fixture !== 'wrong-hash') errors.push(`attempt ${i}: expected hash differs from the op's hash outside the wrong-hash fixture`);
+    if (lc(row.expectedUserOpHash) !== lc(h) && fixture !== 'wrong-hash') errors.push(`attempt ${i}: expected hash differs from the op's hash outside the wrong-hash fixture`);
+    if (lc(row.sender) !== lc(row.packedOp.sender) || big(row.nonce) !== big(row.packedOp.nonce)) errors.push(`attempt ${i}: packed sender/nonce mismatch`);
+    row.derivedCallDataHash = keccak256(row.packedOp.callData);
+    row.derivedGas = opGas(row.packedOp);
+    if (lc(row.callDataHash) !== lc(row.derivedCallDataHash)) errors.push(`attempt ${i}: callDataHash mismatch`);
+    if (GAS_FIELDS.some(f => big(need(row.gas, f)) !== big(row.derivedGas[f]))) errors.push(`attempt ${i}: packed gas mismatch`);
     const bundledHashes = row.bundledOps.map((op) => hashOp(op, row.entryPoint, chainId));
     if (!deepEq(bundledHashes, row.bundledUserOpHashes)) errors.push(`attempt ${i}: bundled hashes do not recompute`);
-    if (row.sent) for (const k of ['tx.hash', 'tx.status', 'tx.blockNumber', 'tx.blockHash', 'tx.blockTxCount', 'tx.headBefore']) need(row, k);
+    if (row.sent) for (const k of ['tx.hash', 'tx.status', 'tx.blockNumber', 'tx.blockHash', 'tx.blockTxCount', 'tx.headBefore', 'tx.from']) need(row, k);
+    if (row.sent && (lc(row.bundler) !== lc(row.tx.from) || lc(row.tx.from) !== lc(inv.bundler))) errors.push(`attempt ${i}: transaction bundler mismatch`);
     const v = verdictOf(row);
     const recomputed = typeof v === 'string' ? v : v.verdict;
     report.recomputed[recomputed] = (report.recomputed[recomputed] ?? 0) + 1;
+    if (recomputed === 'USEROP_SUCCESS' && lc(row.expectedUserOpHash) !== lc(h)) errors.push(`attempt ${i}: success hash is not packedOp hash`);
     if (recomputed !== row.verdict) errors.push(`attempt ${i} (${row.arm}): recorded ${row.verdict}, recomputed ${recomputed}`);
     if (row.sent && !row.stoppedBy) {
       need(row, 'readbacks.before.B'); need(row, 'readbacks.after.B');
@@ -203,8 +256,18 @@ try {
       if (row.tx.blockTxCount !== 1 || big(row.tx.blockNumber) !== big(row.tx.headBefore) + 1n) errors.push(`attempt ${i}: tx block not isolated`);
       const failed = conservation(row, spAddr, tokenAddr, operator);
       const recordedOk = need(row, 'conservation.ok');
-      if (failed.length) errors.push(`attempt ${i} (${row.arm}): conservation FAILS on raw read-backs: ${failed.join(',')}`);
-      if ((failed.length === 0) !== recordedOk) errors.push(`attempt ${i}: recorded conservation.ok=${recordedOk}, recomputed ${failed.length === 0}`);
+      const citations = { 'C6.locked_unchanged': 'XT:240,263', 'R2.locked_grew_by_xLocked': 'XT:240', "C5'.credit_reserved_unchanged": 'XT:305,322' };
+      for (const c of need(row, 'conservation.checks')) if (c.id in citations && c.src !== citations[c.id]) errors.push(`attempt ${i}: incorrect source citation ${c.id}`);
+      const notEvaluable = failed.includes('R.not_evaluable_missing_lock_created');
+      if (notEvaluable) {
+        (report.notEvaluable ??= []).push({ attemptIndex: i, reason: 'missing unique LockCreated: R1/R2 cannot be evaluated', countable: false });
+      }
+      const actualFailures = failed.filter(f => f !== 'R.not_evaluable_missing_lock_created');
+      if (actualFailures.length) errors.push(`attempt ${i} (${row.arm}): conservation FAILS on raw read-backs: ${actualFailures.join(',')}`);
+      const evaluated = !notEvaluable && logsOf(row.logs, row.entryPoint, T.UOE).some(l => lc(l.topics[1]) === lc(row.expectedUserOpHash));
+      if (need(row, 'conservation.evaluated') !== evaluated) errors.push(`attempt ${i}: conservation.evaluated mismatch`);
+      if (!evaluated && recordedOk !== null && recordedOk !== false) errors.push(`attempt ${i}: unevaluated conservation cannot pass`);
+      if (evaluated && (failed.length === 0) !== recordedOk) errors.push(`attempt ${i}: recorded conservation.ok=${recordedOk}, recomputed ${failed.length === 0}`);
     }
     if (!byTriplet.has(row.tripletIndex)) byTriplet.set(row.tripletIndex, []);
     byTriplet.get(row.tripletIndex).push({ row, recomputed });
@@ -213,8 +276,9 @@ try {
   let matched = 0;
   for (const [, rows] of byTriplet) {
     // A row interrupted by a stop condition never counts, whatever its receipt said.
-    const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && !r.row.stoppedBy));
-    const same = new Set(rows.map((r) => `${r.row.callDataHash}|${JSON.stringify(r.row.gas)}|${lc(r.row.bundler)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size === 1;
+    const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
+    const same = new Set(rows.map((r) => `${r.row.derivedCallDataHash}|${JSON.stringify(r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size === 1;
+    if (!same) errors.push('triplet callData/gas/bundler differ between arms');
     if (!fixture && okArms && same && rows.length === arms.length) matched++;
   }
   report.matchedTriplets = matched;
@@ -223,10 +287,9 @@ try {
   report.stop = stop.reason;
   report.exitCode = need(end, 'exitCode');
   // passport drift, recomputed
-  if (end.passport) {
-    if (!deepEq(inv, need(end, 'passport.invariant'))) errors.push('passport invariant drifted between run_start and run_end');
-  } else if (stop.reason !== 'RPC_DISAGREEMENT') throw new Missing('run_end.passport missing');
-  report.protocolConformant = need(start, 'protocolConformant');
+  completePassport(need(end, 'passport'));
+  if (!deepEq(inv, need(end, 'passport.invariant'))) errors.push('passport invariant drifted between run_start and run_end');
+  report.protocolConformant = conformant;
   report.consistent = errors.length === 0;
   report.accepted = report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0;
   exit = !report.consistent ? 1 : report.accepted ? 0 : 3;

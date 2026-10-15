@@ -1,0 +1,23 @@
+A6 adversarial repair evidence (offline only)
+Branch: cc125/a6-gauge
+Base HEAD: beb51bfa8ff1f425ff93e51ff61f90c3311ef27b
+Old validator SHA256: b260ae9c8ac06ba02044de4e99a045d0a186a64156b48bed4c5ff7c403820d00
+
+Reproduce (from worktree root with viem available):
+  node script/a6-collector/offline-review/check.mjs
+  node script/a6-collector/offline-review/check-library.mjs
+
+115 negative controls passed: 111 were accepted by OLD (exit 0), all rejected by NEW (exit 1 or 2).
+(e'') passport sweep: 98 individual emitted leaves deleted at BOTH passport endpoints, each NEW exit 2. Four address/chain requirements already failed in OLD (2/2); the remaining 94 demonstrate OLD 0 / NEW 2. Full enumeration: passport-fields.txt and PASSPORT_FIELDS in validate.mjs. Full individual old/new table: results.tsv.
+
+The synthetic complete-positive fixture passes NEW exit 0. Synthetic fixtures supply tx.from and correct the historical C6 citation explicitly as TEST INPUT; this is not a reconstruction of historical evidence. Archive files are unmodified.
+
+All 40 tracked archived JSONL files were run through both validators: archives.tsv. The seven current-schema gauge archives that reached tx checking now exit 2 because the historical collector did not record tx.from. This includes positive and n50 (0 -> 2), (a)-(d) (3 -> 2), and injected conservation (1 -> 2). The missing-logs archive remains 2. Legacy/non-gauge streams remain 2. Missing transaction evidence is deliberately not inferred from the claimed bundler. Historical C6 citations and unevaluated ok=true also need correction in newly collected evidence; a missing end passport now fails closed even on a stopped run.
+
+Collector endpoint gate was exercised WITHOUT chain access: same endpoint (including localhost/127.0.0.1 alias) exits 2 before config/client initialization. With --allow-same-endpoint-local it advances to the next missing-argument check; override is recorded in run_start and both passports and prevents conformance. Distinct URLs do not prove independent backends; topology disclosure remains necessary.
+
+Library assertions: legitimate synthetic postOp path passes; missing LockCreated is explicitly not evaluable with ok=null; mismatched inflight a0 and R2 lock delta fail. Validator reports missing LockCreated as notEvaluable/countable=false and rejects a claimed evaluated/pass result. CREDIT postOp without LockCreated is not evaluable, rather than guessed from after.inflightA0.
+
+Citations verified via git show 1ac0e1c5:contracts/src/tokens/v2/xPNTsTokenV2.sol: lockedOf add 240 / subtract 263; creditReservedOf add 305 / subtract 322. Source-citation mutations C6 and credit are OLD 0 / NEW 1. check-library.mjs also verifies the saved OLD validator is byte-for-byte HEAD.
+
+No chain calls, contracts/src edits, archive edits, commits, or pushes. Syntax checks and git diff --check passed.

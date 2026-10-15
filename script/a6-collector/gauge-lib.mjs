@@ -169,7 +169,7 @@ export function classifyAttempt({ sent, txStatus, logs, entryPoint, expectedHash
 // BALANCE mode, postOp completed (op succeeded OR its execution reverted — postOp runs in both,
 // EP:701-712 calls postOp for both opSucceeded and opReverted):
 //   validation  SP:322-325  operators[op].aPNTsBalance -= a0; _inflight[h] = (op, a0)
-//               XT:239-242  lockedOf[user] += xLocked; _locks[h][user] = (xLocked, aReserved=a0)
+//               XT:240-242  lockedOf[user] += xLocked; _locks[h][user] = (xLocked, aReserved=a0)
 //   postOp      SP:434      charge = min(charge, a0)
 //               SP:439      settleLocked(user, h, charge)
 //               XT:259-267  xBurned = min(ceil(charge * xLocked / aReserved), xLocked);
@@ -225,13 +225,16 @@ export function spConservation({ before, after, spEvents, tokenEvents, expectedH
 
   add('C4.inflight_before_empty', B(before.inflightA0) === 0n, 0, before.inflightA0, 'SP:324,445');
   if (postOpReverted) {
-    const a0 = B(after.inflightA0);
+    if (lockCreated.length !== 1) return { mode: 'UNKNOWN', postOpReverted: true, evaluated: false, notEvaluable: 'missing unique LockCreated', checks, ok: null };
+    const a0 = B(lockCreated[0].args.aReserved);
+    add('R1.inflight_a0', B(after.inflightA0) === a0, a0, after.inflightA0, 'SP:324');
     add('R1.sponsored_absent', sponsored.length === 0, 0, sponsored.length, 'EP:134-148');
     add('R1.inflight_after_operator', eqA(after.inflightOperator, operator), operator, after.inflightOperator, 'SP:324');
     add('R1.op_delta_eq_minus_a0', dOp === -a0, -a0, dOp, 'SP:322');
     add('R1.revenue_unchanged', dRev === 0n, 0, dRev, 'SP:448 not reached');
-    const lc = lockCreated[0]?.args;
-    if (lc) add('R2.locked_grew_by_xLocked', dLocked === B(lc.xLocked), lc.xLocked, dLocked, 'XT:239');
+    const lc = lockCreated[0].args;
+    add('R2.locked_grew_by_xLocked', dLocked === B(lc.xLocked), lc.xLocked, dLocked, 'XT:240');
+    add('R2.lock_record', B(after.lockXLocked) === B(lc.xLocked), lc.xLocked, after.lockXLocked, 'XT:241');
     return { mode: lc ? 'BALANCE' : credRes.length ? 'CREDIT' : 'UNKNOWN', postOpReverted: true, checks, ok: checks.every((c) => c.ok) };
   }
 
@@ -263,14 +266,14 @@ export function spConservation({ before, after, spEvents, tokenEvents, expectedH
     add('C7.xBurned_formula', B(xBurned) === expBurn, expBurn, xBurned, 'XT:259-261');
     add('C5.user_delta_eq_minus_burn', dUser === -B(xBurned), -B(xBurned), dUser, 'XT:267');
     add('C5.supply_delta_eq_minus_burn', dSupply === -B(xBurned), -B(xBurned), dSupply, 'XT:267');
-    add('C6.locked_unchanged', dLocked === 0n, 0, dLocked, 'XT:239,263');
+    add('C6.locked_unchanged', dLocked === 0n, 0, dLocked, 'XT:240,263');
     add('C6.lock_record_cleared', B(after.lockXLocked) === 0n, 0, after.lockXLocked, 'XT:262');
   } else if (credSet.length === 1 && credRes.length === 1) {
     mode = 'CREDIT';
     const { debtAdded } = credSet[0].args;
     add("C5'.debt_delta_eq_charge", dDebt === charge && B(debtAdded) === charge, charge, `${dDebt}/${debtAdded}`, 'XT:320-325');
     add("C5'.user_xpnts_unchanged", dUser === 0n && dSupply === 0n, 0, `${dUser}/${dSupply}`, 'XT:313-326');
-    add("C5'.credit_reserved_unchanged", dCredRes === 0n, 0, dCredRes, 'XT:304,322');
+    add("C5'.credit_reserved_unchanged", dCredRes === 0n, 0, dCredRes, 'XT:305,322');
   } else {
     add('mode.lock_or_credit_events', false, 'LockCreated+LockSettled or CreditReserved+CreditSettled',
       `lc=${lockCreated.length} ls=${lockSettled.length} cr=${credRes.length} cs=${credSet.length}`, 'XT:243,268,308,326');

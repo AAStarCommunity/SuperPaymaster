@@ -1,0 +1,41 @@
+archive	old_exit	new_exit	reason
+docs/design/aoa-balance-mode/data/a6-gauge-local/a-exec-revert.jsonl	3	2	missing field tx.from
+docs/design/aoa-balance-mode/data/a6-gauge-local/b-drop-op.jsonl	3	2	missing field tx.from
+docs/design/aoa-balance-mode/data/a6-gauge-local/c-wrong-hash.jsonl	3	2	missing field tx.from
+docs/design/aoa-balance-mode/data/a6-gauge-local/d-tamper-b.jsonl	3	2	missing field tx.from
+docs/design/aoa-balance-mode/data/a6-gauge-local/e-conservation-injected.jsonl	1	2	missing field tx.from
+docs/design/aoa-balance-mode/data/a6-gauge-local/e-missing-field.jsonl	2	2	missing field logs
+docs/design/aoa-balance-mode/data/a6-gauge-local/n50-mechanism.jsonl	0	2	missing field tx.from
+docs/design/aoa-balance-mode/data/a6-gauge-local/old-a-exec-revert.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/a6-gauge-local/old-b-drop-op.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl	0	2	missing field tx.from
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads-11884320-045a8962/fork-tx-ledger.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads-11884320-045a8962/neg-controls.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads-11884320-045a8962/receipts.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/fork-tx-ledger.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/neg-controls.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-count-new/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-count-old/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-from-new/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-from-old/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-list-new/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-list-old/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-status-new/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-status-old/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-tx-new/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/negctl-review/ledger-tx-old/fork-tx-ledger.jsonl	2	2	need at least run_start and run_end
+docs/design/aoa-balance-mode/data/d5b/a2-failclosed-reads2-11885120-4f638f61/receipts.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881530-fb507e36/fork-tx-ledger.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881530-fb507e36/neg-controls.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881530-fb507e36/receipts.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881940-6cf7af89/fork-tx-ledger.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881940-6cf7af89/neg-controls.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881940-6cf7af89/posthoc-state-guard-85b62b38/neg-controls.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/a2-item4-dummy-bump-11881940-6cf7af89/receipts.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/fork-rehearsal-a2-full-11877936-0c21a8fe/fork-tx-ledger.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/fork-rehearsal-a2-full-11877936-0c21a8fe/neg-controls.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/d5b/fork-rehearsal-a2-full-11877936-0c21a8fe/receipts.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/g2-31921fbc-partA.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/g2-6c3a9a0e-partB.jsonl	2	2	missing field kind
+docs/design/aoa-balance-mode/data/g2-main-7fa7b705-oldformula.jsonl	2	2	missing field kind
+singleton-paymaster/lib/solady/test/data/wycheproof.jsonl	2	2	missing field kind

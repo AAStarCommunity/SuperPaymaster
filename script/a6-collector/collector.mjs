@@ -60,6 +60,10 @@ const rpcA = argVal('--rpc-a') ?? argVal('--rpc');
 const rpcB = argVal('--rpc-b');
 if (!rpcA || !rpcB) die('--rpc-a and --rpc-b are both required (two read-back endpoints; see README)');
 if (!LOCAL.test(rpcA) || !LOCAL.test(rpcB)) die('refusing: local Anvil only (http://127.0.0.1:<port>)');
+const allowSameEndpointLocal = process.argv.includes('--allow-same-endpoint-local');
+const endpoint = value => { const u = new URL(value); if (u.hostname === 'localhost') u.hostname = '127.0.0.1'; return u.href; };
+const distinctEndpoints = endpoint(rpcA) !== endpoint(rpcB);
+if (!distinctEndpoints && !allowSameEndpointLocal) die('identical RPC endpoints require --allow-same-endpoint-local');
 const countRaw = argVal('--count');
 if (!countRaw || !/^[1-9]\d*$/.test(countRaw) || Number(countRaw) > 1000) die('--count is required: an integer in [1, 1000] (matched triplets to collect)');
 const count = Number(countRaw);
@@ -322,6 +326,7 @@ async function passport(p, blockNumber) {
   const depInfo = async (a) => p.readContract({ address: EP, abi: EP_DEPOSIT_ABI, functionName: 'getDepositInfo', args: [a], ...at });
   const stakeOf = async (a) => { const d = await depInfo(a); return { staked: d.staked, stake: d.stake, unstakeDelaySec: d.unstakeDelaySec, withdrawTime: d.withdrawTime }; };
   return {
+    allowSameEndpointLocal,
     chainId: await p.getChainId(),
     block: { number: blockNumber, hash: block.hash, timestamp: block.timestamp },
     // Everything under `invariant` must be identical at the start and the end of the run.
@@ -504,7 +509,8 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   if (rdiff.length) throw new Stop('RECEIPT_DISAGREEMENT', 25, { txHash, diff: rdiff });
   const bn = rcA.blockNumber;
   const blk = await pubA.getBlock({ blockNumber: bn });
-  const tx = { hash: txHash, status: rcA.status, blockNumber: bn, blockHash: rcA.blockHash, gasUsed: rcA.gasUsed,
+  const rawTx = await readAB('transaction', p => p.getTransaction({ hash: txHash }));
+  const tx = { from: rawTx.A.from, gasLimit: rawTx.A.gas, hash: txHash, status: rcA.status, blockNumber: bn, blockHash: rcA.blockHash, gasUsed: rcA.gasUsed,
     effectiveGasPrice: rcA.effectiveGasPrice, blockTxCount: blk.transactions.length, headBefore };
   const logs = rcView(rcA).logs;
   // The verdict needs only the receipt; it is fixed (and kept on a stop) before any read-back.
@@ -533,10 +539,11 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
       tokenEvents: decodeLogsFrom(logs, spToken, TOKEN_EVENTS_ABI), expectedHash, sender, operator: ctx.account.address, cls });
     checks.push(...sp.checks);
   }
-  const conservationOk = checks.every((c) => c.ok);
-  const r = finish({ ...out, spMode: sp?.mode ?? null, charge: sp?.charge ?? null, conservation: { evaluated: checks.length > 0, ok: conservationOk, checks },
+  const evaluated = checks.length > 0 && sp?.evaluated !== false;
+  const conservationOk = evaluated ? checks.every((c) => c.ok) : null;
+  const r = finish({ ...out, spMode: sp?.mode ?? null, charge: sp?.charge ?? null, conservation: { evaluated, notEvaluable: sp?.notEvaluable ?? null, ok: conservationOk, checks },
     exclusion: fixture ? 'FIXTURE' : null });
-  if (!conservationOk) throw new Stop('CONSERVATION_MISMATCH', 22, { attemptIndex: idx, failed: checks.filter((c) => !c.ok) });
+  if (evaluated && !conservationOk) throw new Stop('CONSERVATION_MISMATCH', 22, { attemptIndex: idx, failed: checks.filter((c) => !c.ok) });
 
   // Passport drift (code + config) at this block vs. the start.
   const now = await readAB(`passport@${bn}`, (p) => passport(p, bn));
@@ -558,9 +565,9 @@ try {
   passportStart = await passportAB('start');
   const epMismatch = Object.entries(passportStart.invariant.armEntryPoints).filter(([, a]) => getAddress(a) !== EP);
   if (epMismatch.length) throw new Stop('ENTRYPOINT_MISMATCH', 26, { EP, epMismatch });
-  writeLine({ kind: 'run_start', ...collectorHead(), argv: process.argv.slice(2), rpcA, rpcB,
+  writeLine({ kind: 'run_start', ...collectorHead(), argv: process.argv.slice(2), rpcA, rpcB, allowSameEndpointLocal,
     abTopology: argVal('--ab-topology') ?? 'unspecified', count, bMax, maxAttempts, arms, fixture,
-    protocolConformant: count === PROTOCOL_N && fixture === null && arms.length === 3,
+    protocolConformant: count === PROTOCOL_N && fixture === null && arms.length === 3 && distinctEndpoints && !allowSameEndpointLocal,
     setupLog, passport: passportStart, startedAtUtc: new Date().toISOString() });
   console.log(`A6 gauge ${runId}: N=${count} bMax=${bMax} maxAttempts/arm=${maxAttempts} arms=${arms} fixture=${fixture ?? 'none'}`);
   console.log(`EP=${EP} (canonical v0.7 address: ${passportStart.invariant.entryPoint.isCanonicalV07Address}) sender=${sender}`);
@@ -574,7 +581,7 @@ try {
       rows.push(r);
       console.log(`  t=${t} ${arm.padEnd(3)} ${r.verdict}${r.failingCheck ? ` (${r.failingCheck})` : ''} hash=${r.expectedUserOpHash.slice(0, 12)}…${r.tx ? ` tx=${r.tx.hash.slice(0, 12)}… receipt=${r.tx.status}` : ''}`);
     }
-    const ok = !fixture && rows.every((r) => r.verdict === VERDICTS.USEROP_SUCCESS)
+    const ok = !fixture && rows.every((r) => r.verdict === VERDICTS.USEROP_SUCCESS && r.conservation?.evaluated && r.conservation.ok)
       && new Set(rows.map((r) => r.callDataHash)).size === 1;
     triplets.push({ tripletIndex: t, matched: ok, attempts: rows.map((r) => r.attemptIndex) });
     if (ok) matched++;
