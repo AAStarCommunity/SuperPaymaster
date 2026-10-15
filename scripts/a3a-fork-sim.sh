@@ -45,12 +45,17 @@ rcpt S1-cancel "$H"
 say "  S1 read-back OK: pending cleared, APNTS_TOKEN=$(cast call $SP 'APNTS_TOKEN()(address)' --rpc-url $RPC)"
 
 # ---- S2: deploy a GOV-1-shaped TimelockController (172800 s; proposer=canceller=executor=SAFE; admin=0)
-TLBC="$(node -e 'const j=require(process.argv[1]);const m=j.metadata;if(m.settings.evmVersion!=="cancun"||m.settings.optimizer.runs!==500)throw new Error("not a default build");console.log(j.bytecode.object)' "$W/out/TimelockController.sol/TimelockController.default.json")"
+TLART="$W/out/TimelockController.sol/TimelockController.default.json"
+# Same rule as DefaultArtifacts.sol: X.default.json only when two profiles built X, else X.json.
+# The metadata check below (cancun / 500 runs) still rejects a non-default build.
+[ -f "$TLART" ] || TLART="$W/out/TimelockController.sol/TimelockController.json"
+TLBC="$(node -e 'const j=require(process.argv[1]);const m=j.metadata;if(m.settings.evmVersion!=="cancun"||m.settings.optimizer.runs!==500)throw new Error("not a default build");console.log(j.bytecode.object)' "$TLART")"
 TLARGS="$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 "[$SAFE]" "[$SAFE]" 0x0000000000000000000000000000000000000000)"
 echo "${TLBC}${TLARGS#0x}" > "$OUT/S2-timelock.initcode.hex"
 PRED_TL=$(cast compute-address $OWNER --nonce "$(cast nonce $OWNER --rpc-url $RPC)" --rpc-url $RPC | awk '{print $NF}')
 H=$(cast send --unlocked --from $OWNER --rpc-url $RPC --json --create "${TLBC}${TLARGS#0x}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).transactionHash))')
 rcpt S2-deploy-timelock "$H"
+TLBLK=$(node -e 'console.log(BigInt(require(process.argv[1]).blockNumber).toString())' "$W/$OUT/S2-deploy-timelock.receipt.json")
 NEW_TL=$(node -e 'console.log(require(process.argv[1]).contractAddress)' "$W/$OUT/S2-deploy-timelock.receipt.json")
 NEW_TL=$(cast to-check-sum-address "$NEW_TL")
 [ "$(echo $NEW_TL | tr A-F a-f)" = "$(echo $PRED_TL | tr A-F a-f)" ] || fail "S2 predicted address $PRED_TL != actual $NEW_TL"
@@ -63,7 +68,7 @@ done
 say "  S2 read-back OK: TimelockController $NEW_TL (predicted $PRED_TL) minDelay 172800, SAFE=proposer/canceller/executor, EOA no role, no admin"
 
 # ---- S3+S4 (runbook 1②): DeployAPNTsCapped = CREATE APNTsCapped + transferOwnership(NEW_TL) ----
-ENV=sepolia TIMELOCK=$NEW_TL forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped \
+ENV=sepolia TIMELOCK=$NEW_TL TIMELOCK_DEPLOYMENT_BLOCK=$TLBLK forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped \
   --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow > "$OUT/S3S4-deploy-apnts-capped.log" 2>&1 || fail "S3/S4 DeployAPNTsCapped failed, see log"
 BJ=$(ls -t broadcast/DeployAPNTsCapped.s.sol/11155111/run-latest.json)
 cp "$BJ" "$OUT/S3S4-broadcast.json"
@@ -105,7 +110,7 @@ rcpt S6-safe-execute "$H"
 [ "$(cast call $CAPPED 'owner()(address)' --rpc-url $RPC)" = "$NEW_TL" ] || fail "S6 owner != NEW_TL"
 [ "$(cast call $CAPPED 'pendingOwner()(address)' --rpc-url $RPC)" = "0x0000000000000000000000000000000000000000" ] || fail "S6 pendingOwner != 0"
 say "  S6 read-back OK: APNTsCapped owner=$NEW_TL pendingOwner=0"
-ENV=sepolia TIMELOCK=$NEW_TL forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $CAPPED $OWNER --rpc-url $RPC > "$OUT/S6-verify.log" 2>&1 || fail "S6 DeployAPNTsCapped.verify failed, see $OUT/S6-verify.log"
+ENV=sepolia TIMELOCK=$NEW_TL TIMELOCK_DEPLOYMENT_BLOCK=$TLBLK forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $CAPPED $OWNER --rpc-url $RPC > "$OUT/S6-verify.log" 2>&1 || fail "S6 DeployAPNTsCapped.verify failed, see $OUT/S6-verify.log"
 grep -q '=== verify: ALL PASS ===' "$OUT/S6-verify.log" || fail "S6 DeployAPNTsCapped.verify did not print ALL PASS"
 say "  S6 DeployAPNTsCapped.verify: ALL PASS"
 

@@ -7,6 +7,10 @@ import {Vm} from "forge-std/Vm.sol";
 /// @dev Solidity counterpart of scanLogs/replay in script/governance/check-timelock-roles.mjs:
 ///      scan from the verified deployment block through the fork head, replay grants/revokes,
 ///      require exact holder sets and cross-check live state. RPC errors fail closed.
+///      Exclusivity is proven from event history: a non-standard constructor could write roles
+///      without emitting events, even with the default runtime. This procedure therefore requires
+///      deployment by this runbook using the default artifact (docs/release/a3a-precheck/README.md).
+///      Runtime equality does not bind creation code or exclude such silent constructor writes.
 abstract contract TimelockRoleHistory is Script {
     bytes32 internal constant ROLE_GRANTED = keccak256("RoleGranted(bytes32,address,address)");
     bytes32 internal constant ROLE_REVOKED = keccak256("RoleRevoked(bytes32,address,address)");

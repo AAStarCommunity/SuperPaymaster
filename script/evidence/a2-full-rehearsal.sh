@@ -496,7 +496,7 @@ stop1 A1 $?
 check "A1 pendingAPNTsToken after cancel" "$(rb 'SP.pendingAPNTsToken' $SP 'pendingAPNTsToken()(address)')" 0x0000000000000000000000000000000000000000
 
 step "STAGE I / A1c (runbook 1②): deploy APNTsCapped (minter = capGuardian = Safe) and start the Ownable2Step handover to the CANONICAL timelock"
-ENV=$ENVNAME TIMELOCK=$TL $LOG "$OUT/I-A1c-deploy-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
+ENV=$ENVNAME TIMELOCK=$TL TIMELOCK_DEPLOYMENT_BLOCK=$TL_DEPLOY_BLOCK $LOG "$OUT/I-A1c-deploy-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 stop1 A1c $?
 CAPPED=$(grep -oE "\[artifact\] default artifact OK: APNTsCapped 0x[0-9a-fA-F]{40}" "$OUT/I-A1c-deploy-apnts-capped.log" | awk '{print $NF}')
 [ -n "$CAPPED" ] || { fail "A1c: no APNTsCapped address"; exit 1; }
@@ -523,7 +523,7 @@ safe_exec "A1d execute acceptOwnership" $TL "$(tl_execute_data $CAPPED $ACC $ACC
 check "A1d op done" "$(rb 'TL.isOperationDone(acc)' $TL 'isOperationDone(bytes32)(bool)' $ACC_ID)" true
 check "A1d APNTsCapped.owner == canonical TL" "$(rb 'APNTsCapped.owner' $CAPPED 'owner()(address)')" $TL
 check "A1d APNTsCapped.pendingOwner == 0" "$(rb 'APNTsCapped.pendingOwner' $CAPPED 'pendingOwner()(address)')" 0x0000000000000000000000000000000000000000
-ENV=$ENVNAME TIMELOCK=$TL $LOG "$OUT/I-A1d-verify-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $CAPPED $OWNER --rpc-url $RPC
+ENV=$ENVNAME TIMELOCK=$TL TIMELOCK_DEPLOYMENT_BLOCK=$TL_DEPLOY_BLOCK $LOG "$OUT/I-A1d-verify-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $CAPPED $OWNER --rpc-url $RPC
 [ $? -eq 0 ] && grep -q "verify: ALL PASS" "$OUT/I-A1d-verify-apnts-capped.log" && rlog "  CHECK [A1d DeployAPNTsCapped.verify] PASS (I-A1d-verify-apnts-capped.log)" || fail "A1d DeployAPNTsCapped.verify"
 
 step "STAGE I / A1e (runbook 1③): queue setAPNTsToken(APNTsCapped)"

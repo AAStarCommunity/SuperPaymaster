@@ -23,6 +23,7 @@ contract TimelockHistoryScanHarness is DeployAPNTsCapped {
     uint256 private creationBlock;
     uint256 private scanFrom;
     uint256 public batches;
+    bool private unordered;
 
     function setHistory(Vm.Log[] memory logs, uint256 createdAt) external {
         recorded = abi.encode(logs);
@@ -36,6 +37,10 @@ contract TimelockHistoryScanHarness is DeployAPNTsCapped {
 
     function setScanFrom(uint256 height) external {
         scanFrom = height;
+    }
+
+    function setUnordered(bool value) external {
+        unordered = value;
     }
 
     function _timelockDeploymentBlock() internal view override returns (uint256) {
@@ -62,6 +67,11 @@ contract TimelockHistoryScanHarness is DeployAPNTsCapped {
             out[i].data = logs[i].data;
             out[i].blockNumber = uint64(creationBlock);
             out[i].logIndex = i;
+        }
+        // Keep the same genuine events and live state; only their RPC ordering is invalid.
+        if (unordered && out.length > 1) {
+            out[0].logIndex = 1;
+            out[1].logIndex = 0;
         }
     }
 }
@@ -111,6 +121,29 @@ contract DeployAPNTsCappedTest is Test {
         checker.checkTimelock(address(tl), DEPLOYER);
     }
 
+    function test_revokedUnknownRole_rejected() public {
+        TimelockController tl = _timelock(EXTRA, false);
+        bytes32 unknown = keccak256("UNKNOWN_ROLE");
+        vm.startPrank(EXTRA);
+        tl.grantRole(unknown, SAFE);
+        tl.revokeRole(unknown, SAFE);
+        tl.renounceRole(tl.DEFAULT_ADMIN_ROLE(), EXTRA);
+        vm.stopPrank();
+        assertFalse(tl.hasRole(unknown, SAFE));
+        // Revoked unknown membership leaves all four allowed sets exact, so no later guard rejects it.
+        vm.expectRevert("timelock: unknown role in history");
+        checker.checkTimelock(address(tl), DEPLOYER);
+    }
+
+    function test_timelock_changedRuntime_rejected() public {
+        TimelockController tl = _timelock(address(0), false);
+        // Appending an unreachable STOP preserves every getter and the genuine role history.
+        vm.etch(address(tl), bytes.concat(address(tl).code, hex"00"));
+        assertEq(tl.getMinDelay(), 172800);
+        vm.expectRevert("timelock: runtime != default OZ artifact");
+        checker.checkTimelock(address(tl), DEPLOYER);
+    }
+
     function test_postDeploymentUnlistedProposer_rejected() public {
         TimelockController tl = _timelock(EXTRA, false);
         vm.startPrank(EXTRA);
@@ -146,6 +179,14 @@ contract DeployAPNTsCappedTest is Test {
         TimelockController tl = _timelock(EXTRA, false);
         TimelockHistoryScanHarness scanner = _scanner(vm.getRecordedLogs());
         vm.expectRevert("timelock: unexpected role holder");
+        scanner.checkTimelock(address(tl), DEPLOYER);
+    }
+
+    function test_historyScanner_unorderedLogs_rejected() public {
+        TimelockController tl = _timelock(address(0), false);
+        TimelockHistoryScanHarness scanner = _scanner(vm.getRecordedLogs());
+        scanner.setUnordered(true);
+        vm.expectRevert("timelock: unordered history");
         scanner.checkTimelock(address(tl), DEPLOYER);
     }
 

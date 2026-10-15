@@ -68,8 +68,11 @@ interface ITimelockDeploy {
  *   # fresh anvil: deploys a GOV-1-shaped timelock itself when TIMELOCK is unset
  *   forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped \
  *       --rpc-url http://127.0.0.1:8545 --broadcast --unlocked --sender <anvil acct>
- *   # Sepolia / mainnet: TIMELOCK=<GOV-1 timelock> TIMELOCK_DEPLOYMENT_BLOCK=<creation block>
- *   # [APNTS_CAP=<wei> on mainnet]; RPC must serve code/log history from creation through the fork head
+ *   # Sepolia / mainnet: use the timelock deployed by docs/release/a3a-precheck/README.md
+ *   # from the default artifact. Read TLBLK from its deployment receipt, never a guessed height.
+ *   # RPC must serve code/log history from creation through the fork head; add APNTS_CAP=<wei> on mainnet.
+ *   TIMELOCK=<GOV-1 timelock> TIMELOCK_DEPLOYMENT_BLOCK=$TLBLK forge script ...:DeployAPNTsCapped \
+ *       --rpc-url ...
  *   # dry-run the acceptance in simulation: APNTS_SIMULATE_ACCEPT=true
  *   # after the timelock executed acceptOwnership() (TIMELOCK is required off anvil):
  *   TIMELOCK=<GOV-1 timelock> TIMELOCK_DEPLOYMENT_BLOCK=<creation block> forge script ...:DeployAPNTsCapped \
@@ -316,6 +319,9 @@ contract DeployAPNTsCapped is DefaultArtifacts, TimelockRoleHistory {
     }
 
     function _checkTimelockWithLogs(address timelock, address deployer, Vm.Log[] memory logs) internal view {
+        // Exclusivity relies on event history. A non-standard constructor could silently set roles;
+        // matching runtime does not exclude that. Require runbook deployment with the default artifact
+        // (docs/release/a3a-precheck/README.md); this procedure does not bind creation code.
         require(timelock.code.length > 0, "timelock has no code");
         require(_codeEqArtifact(timelock, _defaultArtifact("TimelockController")), "timelock: runtime != default OZ artifact");
         ITimelockDeploy t = ITimelockDeploy(timelock);

@@ -322,6 +322,12 @@ contract CheckDefaultArtifacts is DefaultArtifacts {
                 && keccak256(bytes(capped.name())) == keccak256("AAStar PNTs")
                 && keccak256(bytes(capped.symbol())) == keccak256("aPNTs") && capped.decimals() == 18
                 && capped.cap() == expectedCap && capped.issuanceCap() == expectedCap);
+        // The runtime-verified APNTsCapped exposes isOverIssued(); lowering its cap below supply
+        // is legal, so the expected cap alone does not prove the supply is within that cap.
+        uint256 supply = capped.totalSupply();
+        bool overIssued = capped.isOverIssued();
+        _row("aPNTs supply", token, "totalSupply <= cap; isOverIssued() == false",
+            supply <= capped.cap() && !overIssued);
         _row("aPNTs governance", token, "owner == config.timelockController (48h); no pending owner; expected minter/guardian",
             timelock.code.length > 0 && capped.owner() == timelock && capped.pendingOwner() == address(0)
                 && capped.minter() == vm.envOr("APNTS_EXPECTED_MINTER", safe)

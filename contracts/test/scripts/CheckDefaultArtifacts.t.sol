@@ -99,8 +99,26 @@ contract CheckDefaultArtifactsTest is Test {
     }
 
     function test_cappedToken_pendingHandover_rejected() public {
-        APNTsCapped token = _capped(address(this));
-        token.transferOwnership(address(timelock));
+        APNTsCapped token = _capped(address(timelock));
+        vm.prank(address(timelock));
+        token.transferOwnership(address(0xBAD));
+        assertEq(token.owner(), address(timelock));
+        assertEq(token.pendingOwner(), address(0xBAD));
+        _check(address(token), false);
+    }
+
+    function test_cappedToken_overIssued_rejected() public {
+        APNTsCapped token = _capped(address(timelock));
+        uint256 cap = token.cap();
+        vm.prank(address(timelock));
+        token.raiseCap(cap + 1);
+        vm.startPrank(SAFE);
+        token.mint(SAFE, cap + 1);
+        token.lowerCap(cap);
+        vm.stopPrank();
+        assertEq(token.cap(), cap);
+        assertGt(token.totalSupply(), cap);
+        assertTrue(token.isOverIssued());
         _check(address(token), false);
     }
 
@@ -132,6 +150,29 @@ contract CheckDefaultArtifactsTest is Test {
     }
 
     function test_cappedToken_wrongNameAndPermitDomain_rejected() public {
-        _check(address(new APNTsCapped("Wrong name", "aPNTs", 10_000_000e18, address(timelock), SAFE, SAFE)), false);
+        APNTsCapped token = _capped(address(timelock));
+        APNTsCapped wrongDomain = new APNTsCapped("Wrong name", "aPNTs", 10_000_000e18, address(timelock), SAFE, SAFE);
+        // Only the masked EIP-712 immutables change; ERC20's name remains correct in storage.
+        vm.etch(address(token), address(wrongDomain).code);
+        assertEq(token.name(), "AAStar PNTs");
+        bytes32 expected = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("AAStar PNTs"),
+                keccak256("1"),
+                block.chainid,
+                address(token)
+            )
+        );
+        assertNotEq(token.DOMAIN_SEPARATOR(), expected);
+        _check(address(token), false);
+    }
+
+    function test_cappedToken_wrongName_rejected() public {
+        APNTsCapped token = new APNTsCapped("Wrong name", "aPNTs", 10_000_000e18, address(timelock), SAFE, SAFE);
+        APNTsCapped correctDomain = _capped(address(timelock));
+        vm.etch(address(token), address(correctDomain).code);
+        assertEq(token.name(), "Wrong name");
+        _check(address(token), false);
     }
 }
