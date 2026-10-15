@@ -176,8 +176,8 @@ function conservation(row, spAddr, tokenAddr, operator, inv) {
   }
   if (row.arm === 'SP') {
     if (sponsored.some(l => !usedSponsored.has(l))) failed.push('receipt.orphan_sponsored');
-    for (const t of tokenTopics) if (logsOf(row.logs, tokenAddr, t).some(l => !hashes.has(lc(l.topics[2])))) failed.push('receipt.orphan_token_event');
   }
+  for (const t of tokenTopics) if (logsOf(row.logs, tokenAddr, t).some(l => !hashes.has(lc(l.topics[2])))) failed.push('receipt.orphan_token_event');
   for (const f of fields) if (!deepEq(need(projected, f), need(after, f))) failed.push(`receipt.unexplained.${f}`);
   // Bracketing applies even when every receipt event belongs to another paymaster.
   if (big(before.blockNumber) + 1n !== big(after.blockNumber) || big(after.blockNumber) !== big(row.tx.blockNumber)) failed.push('readback_blocks_bracket_tx');
@@ -193,7 +193,7 @@ function conservationOne(row, spAddr, tokenAddr, operator, inv) {
   const logs = need(row, 'logs');
   const ep = need(row, 'entryPoint');
   const h = lc(row.expectedUserOpHash);
-  if (row.arm === 'SP') {
+  {
     const hashes = new Set(logsOf(logs, ep, T.UOE).map(l => lc(l.topics[1])));
     for (const t of [T.LOCK_CREATED, T.LOCK_SETTLED, T.CREDIT_RESERVED, T.CREDIT_SETTLED]) {
       if (logsOf(logs, tokenAddr, t).some(l => !hashes.has(lc(l.topics[2])))) failed.push('receipt.orphan_token_event');
@@ -563,7 +563,7 @@ try {
     if (recomputed === 'USEROP_SUCCESS' && lc(row.expectedUserOpHash) !== lc(h)) errors.push(`attempt ${i}: success hash is not packedOp hash`);
     if (row.sent && row.tx.status === 'success' && logsOf(row.logs, row.entryPoint, T.UOE).some(l => lc(l.topics[1]) === lc(h))) {
       const timestamp = big(need(row, 'tx.blockTimestamp'));
-      if (timestamp < big(pStart.block.timestamp) || timestamp > big(end.passport.block.timestamp)) errors.push(`attempt ${i}: tx timestamp outside passport bracket`);
+      if (timestamp < big(pStart.block.timestamp) || timestamp > big(need(end, 'passport.block.timestamp'))) errors.push(`attempt ${i}: tx timestamp outside passport bracket`);
       if (row.arm === 'VPM') {
         if (pmData.length < 234) throw new Missing('truncated VPM validity data');
         const until = BigInt('0x' + pmData.slice(106, 170)), after = BigInt('0x' + pmData.slice(170, 234));
@@ -651,8 +651,8 @@ try {
   });
   // matched triplets, recomputed
   let matched = 0;
-  const triplets = [];
-  const tally = Object.fromEntries(arms.map(arm => [arm, { attempts: 0, verdicts: {} }]));
+  let triplets = [];
+  let tally = Object.fromEntries(arms.map(arm => [arm, { attempts: 0, verdicts: {} }]));
   for (const row of attempts) {
     // attempt() throws after writing a stopped row, before the loop tallies it.
     if (row.verdict === 'STOPPED' || row.stoppedBy) break;
@@ -677,6 +677,23 @@ try {
       if (end.stop?.reason === 'COMPLETE' && matched === target && rows.at(-1).row.attemptIndex !== attempts.length - 1) errors.push('attempt after COMPLETE target reached');
     }
   }
+  // finish() can write the last row before passport@bn throws. Only that row's
+  // accounting is ambiguous; select one whole summary, never mix its fields.
+  const last = attempts.at(-1);
+  if (last && ![0, 10].includes(end.stop?.code) && Number.isInteger(end.stop?.code)
+      && !attempts.some(row => row.verdict === 'STOPPED' || row.stoppedBy)) {
+    const untallied = structuredClone(tally);
+    const arm = untallied[last.arm];
+    arm.attempts--;
+    if (--arm.verdicts[last.verdict] === 0) delete arm.verdicts[last.verdict];
+    const lastTriplet = triplets.at(-1);
+    const completed = lastTriplet?.attempts.includes(last.attemptIndex);
+    const partialTriplets = completed ? triplets.slice(0, -1) : triplets;
+    const partialMatched = matched - (completed && lastTriplet.matched ? 1 : 0);
+    if (deepEq(end.tally, untallied) && deepEq(end.triplets, partialTriplets) && end.matchedTriplets === partialMatched) {
+      tally = untallied; triplets = partialTriplets; matched = partialMatched;
+    }
+  }
   if (!deepEq(need(end, 'tally'), tally)) errors.push('run_end.tally differs from recomputed tally');
   if (!deepEq(need(end, 'triplets'), triplets)) errors.push('run_end.triplets differs from recomputed triplets');
   if (need(end, 'targetTriplets') !== target) errors.push('run_end.targetTriplets differs from run_start.count');
@@ -694,7 +711,7 @@ try {
   if (big(end.passport.block.number) <= lastAttemptHeight) errors.push('end passport block must be strictly after last attempt');
   if (allEarlierHashes.has(lc(end.passport.block.hash))) errors.push('end passport reuses earlier block hash');
   if (big(end.passport.volatile.operatorBalance) !== lastAfterBalance) errors.push('end passport balance differs from last after');
-  if (big(end.passport.block.timestamp) < big(pStart.block.timestamp)) errors.push('end passport timestamp precedes start');
+  if (big(need(end, 'passport.block.timestamp')) < big(pStart.block.timestamp)) errors.push('end passport timestamp precedes start');
   if (arms.includes('SP') && attempts.some(r => r.sent)) for (const [label, p] of [['start', pStart]]) {
     const value = balanceReadbacks.get(lc(p.block.hash));
     if (value === undefined) { if (!errors.length) throw new Missing(`${label} passport requires operatorBalance readback at same block hash`); continue; }

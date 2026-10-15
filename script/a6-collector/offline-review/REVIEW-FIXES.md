@@ -1,6 +1,6 @@
 # PR #477 reviewer repair
 
-Historical repair scope: branch `cc125/a6-gauge`, starting HEAD `6b0a4261`. Those fixes were committed in `0988a589`; `58a8eb44` regenerated the archive from that collector. The N1–N5 follow-up is on `cc125/477-followups`, with no commits, pushes, RPC calls or contract edits in this follow-up. Run `node script/a6-collector/offline-review/run.mjs`; `review-results.tsv` records the old HEAD validator and current validator on identical synthetic inputs. Archive inputs are never repaired.
+Historical repair scope: branch `cc125/a6-gauge`, starting HEAD `6b0a4261`. Those fixes were committed in `0988a589`; `58a8eb44` regenerated the archive from that collector. The N1–N5 follow-up was committed as `64246042` on `cc125/477-followups` for PR #479. The R1 repair is a local, offline validator and evidence update. Run `node script/a6-collector/offline-review/run.mjs`; `review-results.tsv` records the old HEAD validator and current validator on identical synthetic inputs. Archive inputs are never repaired.
 
 | Reviewer ID | Disposition and proof |
 |---|---|
@@ -33,6 +33,6 @@ The `0988a589` repair preserved the top-level schema but changed collector outpu
 
 ## PR body review-rule answers (local draft)
 
-SZ-1/SZ-2/SZ-4: size is largely the recorded evidence archive and reproducible offline fixtures, retained for review. D1: negative-controls/run.sh cleanup kills only its own child processes. T1/T2: offline-review/run.mjs provides executable honest/tampered controls, including the missing withheld-op and CREDIT-postOp branches. B1: assertion-word comments in the frozen old collector are historical comparator evidence, not production assertions. C2: the A/B Promise.all contains read-only requests (reviewer explicitly waived this checker false positive). No remote PR body was edited.
+SZ-1/SZ-2/SZ-4: size is largely the recorded evidence archive and reproducible offline fixtures, retained for review. D1: negative-controls/run.sh cleanup kills only its own child processes. T1/T2: offline-review/run.mjs provides executable honest/tampered controls, including the missing withheld-op and CREDIT-postOp branches. B1: assertion-word comments in the frozen old collector are historical comparator evidence, not production assertions. C2: the A/B Promise.all contains read-only requests (reviewer explicitly waived this checker false positive). This section is a local draft for the PR body.
 
 The final N1–N5 follow-up dispositions and local review-response draft are in `FOLLOWUPS.md`; executable old/current proofs are in `followup-results.tsv`.

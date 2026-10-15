@@ -17,18 +17,65 @@ N1-sent-bundler-tamper	1	1	attempt 2: transaction bundler mismatch; triplet call
 N2-honest-table	0	0	archive table identical
 N2-wrong-verdict	0	1	run.sh fails; previous report preserved; no success message
 N3-current-provenance	stale	current	58a8eb44 archive / 0988a589 collector; historical scope distinguished
+N3-case-No commits, pushes	stale	reject	case-insensitive provenance assertion
+N3-case-no commits, pushes	stale	reject	case-insensitive provenance assertion
+N3-case-NO COMMITS, PUSHES	stale	reject	case-insensitive provenance assertion
 N3-restored-stale-README.md	reject	reject	provenance assertion rejects historical prose
 N3-restored-stale-ROUND5.md	reject	reject	provenance assertion rejects historical prose
 N3-restored-stale-REVIEW-FIXES.md	reject	reject	provenance assertion rejects historical prose
+N3-restored-stale-FOLLOWUPS.md	reject	reject	provenance assertion rejects historical prose
 N4-honest-single-UOE	0	0	consistent
 N4-orphan-CreditReserved	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.orphan_token_event; attempt 0: recorded conservation.ok=true, recomputed false
 N4-orphan-LockCreated	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.orphan_token_event; attempt 0: recorded conservation.ok=true, recomputed false
 N4-orphan-LockSettled	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.orphan_token_event; attempt 0: recorded conservation.ok=true, recomputed false
 N4-orphan-CreditSettled	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.orphan_token_event; attempt 0: recorded conservation.ok=true, recomputed false
+Nit2-VPM-orphan-CreditReserved	0	1	attempt 1 (VPM): conservation FAILS on raw read-backs: receipt.orphan_token_event; attempt 1: recorded conservation.ok=true, recomputed false
+Nit2-TPM-orphan-CreditReserved	0	1	attempt 2 (TPM): conservation FAILS on raw read-backs: receipt.orphan_token_event; attempt 2: recorded conservation.ok=true, recomputed false
 N4-bound-event-identity-tamper	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: C8.lock_identity; attempt 0: recorded conservation.ok=true, recomputed false
 N5-honest-block-gap	3	3	consistent
 N5-honest-external-same-key-advance	1	3	consistent
 N5-unstopped-nonce-gap-tamper	1	1	attempt 2: nonce sequence must advance exactly one for sender/key
 N5-stop-label-without-block-gap-tamper	1	1	attempt 2: nonce sequence must advance exactly one for sender/key
+Nit1-stopped-gap-wrong-run-end-tamper	1	1	attempt 2: nonce sequence must advance exactly one for sender/key
 N5-stopped-event-nonce-tamper	1	1	attempt 2 (TPM): recorded USEROP_SUCCESS, recomputed EVENT_FIELD_MISMATCH
 N5-stopped-block-tamper	1	1	attempt 2: readback_after_blockhash_eq_tx_block
+M1-positive-SP-stop-1-after-write	1	3	consistent
+M1-positive-SP-stop-1-tallied	3	3	consistent
+M1-positive-SP-stop-1-NOT_SENT-tamper	1	1	attempt 0: NOT_SENT contradicts row evidence or failingCheck; attempt 0: no_execution.epDeposit; attempt 0: no_execution.operatorBalance; attempt 0: no_execution.totalSpent; attempt 0: no_execution.totalTxSponsored; attempt 0: no_execution.protocolRevenue; attempt 0: no_execution.userXPNTs; attempt 0: no_execution.totalSupply; attempt 0: no_execution.epDeposit; attempt 0: no_execution.operatorBalance; attempt 0: no_execution.totalSpent; attempt 0: no_execution.totalTxSponsored; attempt 0: no_execution.protocolRevenue; attempt 0: no_execution.userXPNTs; attempt 0: no_execution.totalSupply; end passport balance differs from last after
+M1-positive-SP-stop-21-after-write	1	3	consistent
+M1-positive-SP-stop-21-tallied	3	3	consistent
+M1-positive-SP-stop-21-NOT_SENT-tamper	1	1	attempt 0: NOT_SENT contradicts row evidence or failingCheck; attempt 0: no_execution.epDeposit; attempt 0: no_execution.operatorBalance; attempt 0: no_execution.totalSpent; attempt 0: no_execution.totalTxSponsored; attempt 0: no_execution.protocolRevenue; attempt 0: no_execution.userXPNTs; attempt 0: no_execution.totalSupply; attempt 0: no_execution.epDeposit; attempt 0: no_execution.operatorBalance; attempt 0: no_execution.totalSpent; attempt 0: no_execution.totalTxSponsored; attempt 0: no_execution.protocolRevenue; attempt 0: no_execution.userXPNTs; attempt 0: no_execution.totalSupply; end passport balance differs from last after
+M1-positive-VPM-stop-1-after-write	1	3	consistent
+M1-positive-VPM-stop-1-tallied	3	3	consistent
+M1-positive-VPM-stop-1-NOT_SENT-tamper	1	1	attempt 1: NOT_SENT contradicts row evidence or failingCheck
+M1-positive-VPM-stop-21-after-write	1	3	consistent
+M1-positive-VPM-stop-21-tallied	3	3	consistent
+M1-positive-VPM-stop-21-NOT_SENT-tamper	1	1	attempt 1: NOT_SENT contradicts row evidence or failingCheck
+M1-positive-TPM-stop-1-after-write	1	3	consistent
+M1-positive-TPM-stop-1-tallied	3	3	consistent
+M1-positive-TPM-stop-1-NOT_SENT-tamper	1	1	attempt 2: NOT_SENT contradicts row evidence or failingCheck
+M1-positive-TPM-stop-21-after-write	1	3	consistent
+M1-positive-TPM-stop-21-tallied	3	3	consistent
+M1-positive-TPM-stop-21-NOT_SENT-tamper	1	1	attempt 2: NOT_SENT contradicts row evidence or failingCheck
+M1-n50-mechanism-SP-stop-1-after-write	1	3	consistent
+M1-n50-mechanism-SP-stop-1-tallied	3	3	consistent
+M1-n50-mechanism-SP-stop-1-NOT_SENT-tamper	1	1	attempt 60: NOT_SENT contradicts row evidence or failingCheck; attempt 60: no_execution.epDeposit; attempt 60: no_execution.operatorBalance; attempt 60: no_execution.totalSpent; attempt 60: no_execution.totalTxSponsored; attempt 60: no_execution.protocolRevenue; attempt 60: no_execution.userXPNTs; attempt 60: no_execution.totalSupply; attempt 60: no_execution.epDeposit; attempt 60: no_execution.operatorBalance; attempt 60: no_execution.totalSpent; attempt 60: no_execution.totalTxSponsored; attempt 60: no_execution.protocolRevenue; attempt 60: no_execution.userXPNTs; attempt 60: no_execution.totalSupply; end passport balance differs from last after
+M1-n50-mechanism-SP-stop-21-after-write	1	3	consistent
+M1-n50-mechanism-SP-stop-21-tallied	3	3	consistent
+M1-n50-mechanism-SP-stop-21-NOT_SENT-tamper	1	1	attempt 60: NOT_SENT contradicts row evidence or failingCheck; attempt 60: no_execution.epDeposit; attempt 60: no_execution.operatorBalance; attempt 60: no_execution.totalSpent; attempt 60: no_execution.totalTxSponsored; attempt 60: no_execution.protocolRevenue; attempt 60: no_execution.userXPNTs; attempt 60: no_execution.totalSupply; attempt 60: no_execution.epDeposit; attempt 60: no_execution.operatorBalance; attempt 60: no_execution.totalSpent; attempt 60: no_execution.totalTxSponsored; attempt 60: no_execution.protocolRevenue; attempt 60: no_execution.userXPNTs; attempt 60: no_execution.totalSupply; end passport balance differs from last after
+M1-n50-mechanism-VPM-stop-1-after-write	1	3	consistent
+M1-n50-mechanism-VPM-stop-1-tallied	3	3	consistent
+M1-n50-mechanism-VPM-stop-1-NOT_SENT-tamper	1	1	attempt 61: NOT_SENT contradicts row evidence or failingCheck
+M1-n50-mechanism-VPM-stop-21-after-write	1	3	consistent
+M1-n50-mechanism-VPM-stop-21-tallied	3	3	consistent
+M1-n50-mechanism-VPM-stop-21-NOT_SENT-tamper	1	1	attempt 61: NOT_SENT contradicts row evidence or failingCheck
+M1-n50-mechanism-TPM-stop-1-after-write	1	3	consistent
+M1-n50-mechanism-TPM-stop-1-tallied	3	3	consistent
+M1-n50-mechanism-TPM-stop-1-NOT_SENT-tamper	1	1	attempt 62: NOT_SENT contradicts row evidence or failingCheck
+M1-n50-mechanism-TPM-stop-21-after-write	1	3	consistent
+M1-n50-mechanism-TPM-stop-21-tallied	3	3	consistent
+M1-n50-mechanism-TPM-stop-21-NOT_SENT-tamper	1	1	attempt 62: NOT_SENT contradicts row evidence or failingCheck
+M1-no-exception-stop-0	1	1	run_end.tally differs from recomputed tally; run_end.triplets differs from recomputed triplets; run_end.matchedTriplets 0 != recomputed 1
+M1-no-exception-stop-10	1	1	run_end.tally differs from recomputed tally; run_end.triplets differs from recomputed triplets; run_end.matchedTriplets 0 != recomputed 1
+M1-mixed-summary-tamper	1	1	run_end.tally differs from recomputed tally; run_end.triplets differs from recomputed triplets
+R4-null-end-passport	2	2	missing field; no TypeError
