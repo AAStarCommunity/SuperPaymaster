@@ -17,7 +17,7 @@
 
 | item | value |
 |---|---|
-| collector head (recorded in every `run_start.head`, `collectorDirty: false`) | `d8c8a9f4a906e3c15991cf4cf62caebb904aaa4c` |
+| collector head (recorded in every `run_start.head`, `collectorDirty: false`) | `0988a5897d6312ac3b417ee1bb67783d246ec742` |
 | old collector compared against (`origin/feat/aoa-balance-mode-5.5.0`) | `172ff7df9f3156ae9e6cb742647dd2b132adbbc7` (`old-collector.ref`, source in `old-collector.source.mjs`) |
 | forge / anvil | Both 1.7.1, commit `4072e48705af9d93e3c0f6e29e93b5e9a40caed8`, profile `dist` (local `forge --version` and `anvil --version`) |
 | solc | 0.8.33 (`setup-deploy-core.log.gz`) |
@@ -57,6 +57,15 @@ path, and B′ proves that a disagreement stops the run. Every read-back is pinn
 block number on both sides. Each run records its topology in `run_start.abTopology`. A real
 campaign must use two independently operated nodes.
 
+## Trust root and scope
+
+**Proposal pending DSR:** the validator recomputes self-consistency per row and per
+UserOperationEvent (UOE); it does not re-implement every EntryPoint/paymaster validation rule
+offline. The proposed trust root for formal A6 data is two independent RPC providers plus
+sampled RPC re-fetch, pending DSR's decision on CC-125 `d83512a4`. This scope is a proposal,
+not an approved protocol decision. The local A/B proxies in this archive do not satisfy that
+trust root.
+
 ## Results
 
 The full table is in `NEGATIVE-CONTROLS.md`, generated from these files. Exit codes are in
@@ -77,6 +86,10 @@ Control (d) stops at `RPC_DISAGREEMENT` before read-backs are complete. Its atte
 `readbacks.before.A`, and its `run_end.passport` is null. The validator exits 2 with
 `missing field readbacks.before.A`. This is fail-closed by design,
 not an accepted or fully validated run. See `d-tamper-b.jsonl` and `d-tamper-b.validator.json`.
+
+The check counts above are the recorded `conservation.checks` lengths in `positive.jsonl`:
+SP 30, VPM 7, TPM 7, all evaluated and OK (including continuity/uniqueness checks).
+The exit pairs are from `results.tsv` and the corresponding `*.validator.json` files.
 
 The positive control is accepted with `protocolConformant: false` (one triplet).
 For N=50, `n50-mechanism.jsonl` records 50 attempts per arm and `COMPLETE`; the validator
@@ -130,15 +143,17 @@ judged. `old-*.recheck.json` looks up the UserOperationEvent for the hash each o
   included, and `run_start`/`run_end` lines frame the run. A matched triplet means all three
   arms are `USEROP_SUCCESS` with the same callData, gas, bundler, EntryPoint and sender.
   Exclusion reasons are `FIXTURE`, `NOT_SENT:DEPOSIT_FLOOR`, `NOT_SENT:INFRA_AA31`,
-  `NOT_SENT:PREFLIGHT_UNDECODED`, `BLOCK_NOT_ISOLATED` and `STOPPED`. Stop codes are 20–26 (see
-  the `collector.mjs` header).
+  `NOT_SENT:PREFLIGHT_UNDECODED`, `BLOCK_NOT_ISOLATED` and `STOPPED`. Stop codes are 20–29 (see
+  the `collector.mjs` header), including `EVIDENCE_CONTINUITY_MISMATCH` (28) and
+  `END_PASSPORT_ERROR` (29).
 
 ## What changed vs the cloud run
 
 The superseded cloud run used collector `bbf34d46` and Linux Foundry 1.5.1.
-This directory now contains the macOS regeneration at `d8c8a9f4`, after five rounds of
+This directory now contains the macOS regeneration at `0988a589`, after five rounds of
 adversarial-review hardening in the `script/a6-collector` history (`6ad0a035`, `5d2bdc02`,
-`67fc6c60`, `e272baa7`, `e8187911`) and the regression fixes `23660234` and `d8c8a9f4`:
+`67fc6c60`, `e272baa7`, `e8187911`), the regression fixes `23660234` and `d8c8a9f4`,
+and the pr-daemon fixes described below:
 
 - Fixtures are run-level only. Each success is bound to the userOpHash recomputed from
   `packedOp`. The validator recomputes `callDataHash` and reads gas and bundler from the recorded transaction.
@@ -171,7 +186,7 @@ adversarial-review hardening in the `script/a6-collector` history (`6ad0a035`, `
 - **Round 3 — full conservation.** BALANCE success checks cleared `inflightOperator`, unchanged
   debts and `creditReservedOf`, and `LockSettled` identity. CREDIT checks `totalSpent += a0`,
   reservation bounds and `CreditSettled` identity. The postOp branch requires absent settle
-  events and unchanged credit fields.
+  events; the later F3 fix distinguishes persisting CREDIT validation reservations from settlement.
 - **Round 3 — end passport.** The end passport must retain the start chainId and bind a block
   at or after the last attempt (strengthened in round 5 to strictly after it);
   `run_end.exitCode` must equal `stop.code`.
@@ -209,12 +224,36 @@ adversarial-review hardening in the `script/a6-collector` history (`6ad0a035`, `
   in `receipt-attribution-results.tsv` record three honest cases (including two foreign ops)
   at validator exit 3, consistent but not accepted with zero matched triplets, and 40
   tampered/unbacked cases at exit 1.
+- **pr-daemon repair (F1/F3/F7/F4/F5/F6, included in `0988a589`).** False-reject fixes
+  cover partial/all-unsent triplets and zero attempts (F1/F4), CREDIT postOp rollback that
+  preserves validation reservations, inflight and totalSpent (F3), and admission checks that
+  require a successful receipt with a matching UOE (F7). Honest withheld, failed-tx and
+  CREDIT-postOp controls are consistent but not accepted; paired bundler/transaction reuse,
+  reservation/debt/identity, executed admission and unexplained-state tampering still fail.
+  F5 reconciles archive outcomes. `offline-review/review-results.tsv` records 34 controls:
+  11 change 1 → 3, one zero-attempt case changes 2 → 3, 20 tampered cases remain 1,
+  one priced positive remains 0, and one self-consistent zero-charge mutation changes 0 → 1.
+  These are offline controls, not new on-chain CREDIT/postOp evidence. See
+  `script/a6-collector/offline-review/REVIEW-FIXES.md` for dispositions and source evidence.
+  Continuity/uniqueness failures now stop at 28; conservation failures retain 22.
+  L1 makes the table generator assert the exit matrix and runs it last in the harness;
+  L2 records `stoppedBy` before known isolation/conservation stops; L3 turns unexpected
+  end-passport errors into 29 while preserving any earlier nonzero stop.
+- **F6 limitation.** The validator binds aGas to a source-derived inclusive price/gas interval,
+  alongside the fee, charge, deposit and reservation identities. Final UOE actualGasCost is
+  not the pre-postOp callback cost: it also includes later gas and the unused-execution
+  penalty. The JSONL lacks callback actualGasCost and the validation-time gas snapshot,
+  so exact aGas recomputation is unavailable. The interval rejects zero/underpriced or
+  excessively inflated aGas, but cannot reject every in-range falsification. Exact verification
+  would need independently bound postOp calldata/trace evidence and a format change; equating
+  callback cost to final UOE cost would cause false rejections.
 - The current `offline-review/` result tables contain **117 + 57 + 44 + 36 + 3 + 51 + 43
-  = 351 controls**: base, round-2, round-3, round-4, shared-balance regression, round-5,
-  and receipt-attribution (`no_execution`) regression suites respectively (`results.tsv`,
+  + 34 = 385 controls**: base, round-2, round-3, round-4, shared-balance regression, round-5,
+  receipt-attribution (`no_execution`) regression, and PR-reviewer suites respectively (`results.tsv`,
   `round2-results.tsv`, `round3-results.tsv`, `round4-results.tsv`,
-  `shared-balance-results.tsv`, `round5-results.tsv`, `receipt-attribution-results.tsv`).
-  All 351 controls record their expected outcomes. Of the base controls, 113 previously
+  `shared-balance-results.tsv`, `round5-results.tsv`, `receipt-attribution-results.tsv`,
+  `review-results.tsv`, all under `script/a6-collector/offline-review/`).
+  All 385 controls record their expected outcomes. Of the base controls, 113 previously
   exited 0 and are now rejected; all 57 round-2, 44 round-3, 36 round-4 and 51 round-5
   controls also previously exited 0 and are now rejected (round-2 includes one consistent,
   not-accepted exit 3). The shared-balance regression table records collector pass/validator 0
