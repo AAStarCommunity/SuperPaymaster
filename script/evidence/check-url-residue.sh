@@ -6,18 +6,26 @@ command -v grep >/dev/null 2>&1 || { echo "required tool missing: grep" >&2; exi
 command -v python3 >/dev/null 2>&1 || { echo "required tool missing: python3" >&2; exit 2; }
 if [ "$#" -ne 1 ] || [ ! -d "$1" ]; then echo "URL scan requires a directory" >&2; exit 2; fi
 dir="$1"
-# BSD find silently prunes ancestor links while rg reports a filesystem loop.
-python3 - "$dir" <<'PY' || { echo "URL scan failed in $dir (filesystem traversal)" >&2; exit 2; }
-import os, pathlib, sys
-def fail(error):
-    raise error
-for parent, dirs, _ in os.walk(sys.argv[1], followlinks=True, onerror=fail):
-    ancestor = pathlib.Path(parent).resolve()
-    for name in dirs:
-        target = pathlib.Path(parent, name).resolve()
-        if target == ancestor or target in ancestor.parents:
-            raise RuntimeError("filesystem loop")
-PY
+# Detect cycles by directory identity, including sibling and outside-root cycles.
+python3 - "$dir" <<'PYSCAN' || { echo "URL scan failed in $dir (filesystem traversal)" >&2; exit 2; }
+import os, sys
+visited, active = set(), set()
+def walk(path):
+    stat = os.stat(path)
+    identity = (stat.st_dev, stat.st_ino)
+    if identity in active:
+        raise RuntimeError("filesystem loop")
+    if identity in visited:
+        return
+    active.add(identity)
+    with os.scandir(path) as entries:
+        for entry in entries:
+            if entry.is_dir(follow_symlinks=True):
+                walk(entry.path)
+    active.remove(identity)
+    visited.add(identity)
+walk(sys.argv[1])
+PYSCAN
 if command -v rg >/dev/null 2>&1; then
   rg --no-config -uuu -a -L -i -l 'https?:(\\*[/]){2}' "$dir" >/dev/null
   rc=$?

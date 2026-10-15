@@ -93,6 +93,8 @@ for parent, dirs, files in os.walk(root, followlinks=True, onerror=walk_error):
     seen.add(identity)
     for name in files:
         path = pathlib.Path(parent, name)
+        if path.stat().st_nlink > 1:
+            raise RuntimeError(f"refusing multiply linked file: {path}")
         raw = path.read_bytes()
         target = path.resolve(strict=True)
         if target != root and root not in target.parents:

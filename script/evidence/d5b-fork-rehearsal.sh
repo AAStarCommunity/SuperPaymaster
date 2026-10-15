@@ -334,7 +334,7 @@ ACC_SALT=$(cast keccak "APNTsCapped-1.0.0/acceptOwnership")
 ZERO32=0x0000000000000000000000000000000000000000000000000000000000000000
 cast send $FRESH_TL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT 172800 --unlocked --from $GOV_MULTISIG --rpc-url $RPC >/dev/null
 check_stage1 A1d-schedule $?
-must_fail "execute acceptOwnership before 48h" "execution reverted" cast send $FRESH_TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT --unlocked --from $GOV_MULTISIG --rpc-url $RPC
+must_fail "execute acceptOwnership before 48h" "execution reverted: custom error $(cast sig 'TimelockUnexpectedOperationState(bytes32,bytes32)')" cast send $FRESH_TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT --unlocked --from $GOV_MULTISIG --rpc-url $RPC
 warp48h
 cast send $FRESH_TL 'execute(address,uint256,bytes,bytes32,bytes32)' $CAPPED 0 $ACC_DATA $ZERO32 $ACC_SALT --unlocked --from $GOV_MULTISIG --rpc-url $RPC >/dev/null
 check_stage1 A1d-execute $?
@@ -555,7 +555,9 @@ warp48h
 roles_check before-M1-execute
 fscript_tl UpgradeViaTimelock $OWNER TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT" | tee "$OUT/II-M1-execute.log" | grep -E "read-back|Error|revert" || true
 grep -q "M1/M2 read-back OK" "$OUT/II-M1-execute.log" && echo "  M1 read-back OK" | tee -a "$OUT/rehearsal.log" || { echo "  !!! M1 read-back marker NOT found, see II-M1-execute.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); }
-must_fail "old EOA owner upgradeToAndCall after M1" "execution reverted" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'upgradeToAndCall(address,bytes)' $SP 0x
+CURRENT_SP_IMPL=$(impl_of "$SP")
+[[ "$CURRENT_SP_IMPL" =~ ^0x[0-9a-fA-F]{40}$ ]] && [ "$CURRENT_SP_IMPL" != "0x0000000000000000000000000000000000000000" ] || exit 2
+must_fail "old EOA owner upgradeToAndCall after M1" "execution reverted: custom error $(cast sig 'OwnableUnauthorizedAccount(address)')" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'upgradeToAndCall(address,bytes)' "$CURRENT_SP_IMPL" 0x
 echo "  SP.owner=$(cast call $SP 'owner()(address)' --rpc-url $RPC) guardian=$(cast call $SP 'guardian()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 echo "  Registry.owner=$(cast call $REG 'owner()(address)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
 
@@ -577,7 +579,7 @@ done
 step "STAGE II / M2: guardian (owner) pauses; guardian cannot unpause; timelock unpauses after 48h"
 cast send $SP 'setGlobalPaused(bool)' true --unlocked --from $OWNER --rpc-url $RPC >/dev/null
 echo "  paused() = $(cast call $SP 'paused()(bool)' --rpc-url $RPC)" | tee -a "$OUT/rehearsal.log"
-must_fail "guardian unpause" "execution reverted" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'setGlobalPaused(bool)' false
+must_fail "guardian unpause" "execution reverted: custom error $(cast sig 'Unauthorized()')" cast send --rpc-url $RPC --unlocked --from $OWNER $SP 'setGlobalPaused(bool)' false
 UNP=$(cast calldata "setGlobalPaused(bool)" false)
 must_fail "schedule-call (unpause) WITHOUT a roles attestation" "roles attestation: missing" fscript_tl UpgradeViaTimelock $OWNER TL_MODE=schedule-call TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$(cast keccak d5b-fork-m2-unpause)
 roles_check before-M2-unpause

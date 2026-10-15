@@ -122,7 +122,7 @@ warp48h
 roles_check before-M1-execute
 fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT" | tee "$W/B-execute.log" | grep -E "read-back|Error|revert" || true
 grep -q "M1/M2 read-back OK" "$W/B-execute.log"
-must_fail "old EOA owner upgradeToAndCall after M1" "execution reverted" "$CAST" send --rpc-url "$RPC" --unlocked --from "$OWNER" "$SP" "upgradeToAndCall(address,bytes)" "$NEW_SP" 0x
+must_fail "old EOA owner upgradeToAndCall after M1" "execution reverted: custom error $("$CAST" sig 'OwnableUnauthorizedAccount(address)')" "$CAST" send --rpc-url "$RPC" --unlocked --from "$OWNER" "$SP" "upgradeToAndCall(address,bytes)" "$NEW_SP" 0x
 
 step "C / §10.7b C: timelock-aware upgrade (SP then Registry)"
 for T in SP REGISTRY; do
@@ -142,7 +142,7 @@ if [ "$(impl_of "$SP" | tr A-F a-f)" = "$(echo "$NEW_SP" | tr A-F a-f)" ]; then 
 step "M2 drill: guardian (Safe) pauses; guardian cannot unpause; timelock unpauses after 48h"
 send "$MULTISIG" "$SP" "setGlobalPaused(bool)" true
 echo "  paused() = $("$CAST" call "$SP" 'paused()(bool)' --rpc-url "$RPC")"
-must_fail "guardian unpause" "execution reverted" "$CAST" send --rpc-url "$RPC" --unlocked --from "$MULTISIG" "$SP" "setGlobalPaused(bool)" false
+must_fail "guardian unpause" "execution reverted: custom error $("$CAST" sig 'Unauthorized()')" "$CAST" send --rpc-url "$RPC" --unlocked --from "$MULTISIG" "$SP" "setGlobalPaused(bool)" false
 UNP=$("$CAST" calldata "setGlobalPaused(bool)" false)
 # Codex re-check L1: the unpause is a timelock schedule like any other -> checker -> attestation -> operator preflight
 must_fail "schedule-call (unpause) WITHOUT a roles attestation" "roles attestation: missing" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-call TL_TARGET=SP TL_CALLDATA="$UNP" TL_SALT=$("$CAST" keccak m2-unpause)

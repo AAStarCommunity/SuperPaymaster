@@ -7,13 +7,12 @@ done
 W="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$W"
 OUT=docs/design/aoa-balance-mode/data/cc125-rg-negctl
 mkdir -p "$OUT"
-OLDREF=$(git rev-parse origin/feat/aoa-balance-mode-5.5.0)
+OLDREF=72bd595d59ade991c821b91b1da7c437ff8d4f47
 old_line=$(git show "$OLDREF:script/evidence/a2-read-failclosed-negctl.sh" | grep -F "if rg -l 'https?://' \"\$D\"")
 [ -n "$old_line" ] || { echo "old URL check not found" >&2; exit 2; }
-rg_bin=$(command -v rg || true)
-[ -n "$rg_bin" ] || rg_bin=/Applications/Codex.app/Contents/Resources/rg
-[ -x "$rg_bin" ] || { echo "required tool missing: rg" >&2; exit 2; }
-tmp=$(mktemp -d)
+rg_bin=${RG_BIN:-$(command -v rg || true)}
+if [ -n "$rg_bin" ] && [ ! -x "$rg_bin" ]; then echo "invalid RG_BIN: $rg_bin" >&2; exit 2; fi
+tmp=$(mktemp -d "$W/.negctl-selftest.XXXXXX")
 trap 'chmod 700 "$tmp/scan-error/closed" 2>/dev/null || :; rm -r "$tmp"' EXIT
 mkdir "$tmp/no-rg" "$tmp/with-rg"
 # Link real executables: a version-manager shim (e.g. pyenv) cannot run inside the restricted PATH.
@@ -25,7 +24,11 @@ for tool in bash grep env find mktemp rm python3; do
   ln -s "$(real_tool "$tool")" "$tmp/no-rg/$tool"
   ln -s "$(real_tool "$tool")" "$tmp/with-rg/$tool"
 done
-ln -s "$rg_bin" "$tmp/with-rg/rg"
+if [ -n "$rg_bin" ]; then
+  ln -s "$rg_bin" "$tmp/with-rg/rg"
+else
+  echo "rg unavailable: exercising both fixture paths with the grep fallback"
+fi
 for name in missing-rg-url missing-rg-clean rg-url scan-error rg-hidden-url rg-binary-url config-glob config-size uppercase escaped double-escaped bare-prefix file-link dir-link broken-link loop grep-options git-ignored harness-url harness-clean; do mkdir "$tmp/$name"; done
 mkdir "$tmp/scan-error/closed" "$tmp/linked-dir"
 printf 'https://example.invalid/injected\n' > "$tmp/missing-rg-url/input.txt"
@@ -63,6 +66,7 @@ run_case() {
   local name="$1" path="$2" dir="$3" want_old="$4" want_new="$5" config="${6:-}" options="${7:-}" old_rc new_rc
   PATH="$path" D="$dir" RIPGREP_CONFIG_PATH="$config" GREP_OPTIONS="$options" bash -c 'eval "$1"' bash "$old_line" > "$tmp/old.out" 2>&1
   old_rc=$?
+  [ -n "$rg_bin" ] || want_old=0
   PATH="$path" RIPGREP_CONFIG_PATH="$config" GREP_OPTIONS="$options" bash script/evidence/check-url-residue.sh "$dir" > "$tmp/new.out" 2>&1
   new_rc=$?
   printf '%s\t%s\t%s\t%s\n' "$name" "$old_rc" "$new_rc" "${path##*/}" >> "$TABLE"
@@ -140,9 +144,9 @@ printf 'redactor-outside-link\tNA\t%s\tpython-redactor\n' "$outside_rc" >> "$TAB
 for source_file in script/evidence/d5b-fork-rehearsal.sh scripts/d5b-anvil-rehearsal.sh; do
   grep -Fq 'script/evidence/require-revert.sh"' "$source_file" || failures=$((failures+1))
 done
-for spec in 'revert:1:0:Error: execution reverted' 'connection-refused:1:2:Error: error sending request: Connection refused' 'exit-2:2:2:Error: execution reverted' 'exit-126:126:2:Error: execution reverted' 'exit-127:127:2:Error: execution reverted' 'exit-130:130:2:Error: execution reverted' 'compiler-source:1:2:Error: Compiler run failed: revert Unauthorized();' 'compiler-reverted:1:2:Error: Compiler run failed: execution reverted' 'readfile-trace:1:2:└─ ← [Revert] vm.readFile: failed to open file' 'readfile-summary:1:2:Error: script failed: vm.readFile: failed to open file' 'forge-expected:1:0:Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION)' 'forge-wrong-reason:1:2:Error: script failed: DefaultArtifacts: missing' 'forge-readfile:1:2:Error: script failed: vm.readFile: failed to open file'; do
+for spec in 'revert:1:0:Error: execution reverted: custom error 0x118cdaa7' 'connection-refused:1:2:Error: error sending request: Connection refused' 'exit-2:2:2:Error: execution reverted: custom error 0x118cdaa7' 'exit-126:126:2:Error: execution reverted: custom error 0x118cdaa7' 'exit-127:127:2:Error: execution reverted: custom error 0x118cdaa7' 'exit-130:130:2:Error: execution reverted: custom error 0x118cdaa7' 'compiler-source:1:2:Error: Compiler run failed: revert Unauthorized();' 'compiler-reverted:1:2:Error: Compiler run failed: execution reverted' 'readfile-trace:1:2:└─ ← [Revert] vm.readFile: failed to open file' 'readfile-summary:1:2:Error: script failed: vm.readFile: failed to open file' 'forge-trace-quote:1:2:└─ ← [Revert] roles attestation: missing' 'forge-source-quote:1:2:  revert("roles attestation: missing ...")' 'forge-expected:1:0:Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION)' 'forge-wrong-reason:1:2:Error: script failed: DefaultArtifacts: missing' 'forge-readfile:1:2:Error: script failed: vm.readFile: failed to open file'; do
   IFS=: read -r name command_rc want message <<< "$spec"
-  expected='execution reverted'
+  expected='execution reverted: custom error 0x118cdaa7'
   case "$name" in forge-*) expected='roles attestation: missing' ;; esac
   FAKE_RC="$command_rc" FAKE_MESSAGE="$message" bash -c 'source script/evidence/require-revert.sh; fake() { printf "%s\n" "$FAKE_MESSAGE"; return "$FAKE_RC"; }; require_revert "$1" "$2" "$3" fake' bash "$tmp/neg.log" "$name" "$expected" > "$tmp/negative.out" 2>&1
   rc=$?
@@ -162,6 +166,7 @@ for kind in fork anvil; do
   printf 'anvil-wait-%s\tNA\t%s\treadiness-loop\n' "$kind" "$rc" >> "$TABLE"
   [ "$rc" -eq 1 ] || failures=$((failures+1))
 done
+python3 script/evidence/negctl-followups-selftest.py "$tmp" "$TABLE" "$LOG" || failures=$((failures+1))
 printf 'failures=%s\n' "$failures" >> "$LOG"
 (cd "$OUT" && shasum -a 256 results.tsv results.log > EVIDENCE.sha256)
 cat "$TABLE"
