@@ -203,7 +203,7 @@ export function classifyAttempt({ sent, txStatus, logs, entryPoint, expectedHash
 // validation (EP:535) and refunded prefund - actualGasCost (EP:744-745), so
 //   D1  ΔdepositOf(paymaster) == -actualGasCost (from this op's UserOperationEvent)
 //   (holds only when this tx is the block's ONLY tx — the collector checks that separately.)
-export function spConservation({ before, after, spEvents, tokenEvents, expectedHash, sender, operator, cls }) {
+export function spConservation({ before, after, spEvents, tokenEvents, expectedHash, sender, paymaster, operator, cls }) {
   const checks = [];
   const add = (id, ok, expected, actual, src) => checks.push({ id, ok: !!ok, expected: String(expected), actual: String(actual), src });
   const B = (x) => BigInt(x);
@@ -221,6 +221,10 @@ export function spConservation({ before, after, spEvents, tokenEvents, expectedH
   const lockSettled = tokenEvents.filter((e) => e.event === 'LockSettled' && eqA(e.args.opHash, expectedHash));
   const credRes = tokenEvents.filter((e) => e.event === 'CreditReserved' && eqA(e.args.opHash, expectedHash));
   const credSet = tokenEvents.filter((e) => e.event === 'CreditSettled' && eqA(e.args.opHash, expectedHash));
+  for (const e of lockCreated) {
+    add('lock.user', eqA(e.args.user, sender), sender, e.args.user, 'XT:243');
+    add('lock.locker', eqA(e.args.locker, paymaster), paymaster, e.args.locker, 'XT:243');
+  }
   const postOpReverted = cls.verdict === VERDICTS.USEROP_REVERTED && cls.revertKind === 'postOpReverted';
 
   add('C4.inflight_before_empty', B(before.inflightA0) === 0n, 0, before.inflightA0, 'SP:324,445');
@@ -232,6 +236,9 @@ export function spConservation({ before, after, spEvents, tokenEvents, expectedH
     add('R1.inflight_after_operator', eqA(after.inflightOperator, operator), operator, after.inflightOperator, 'SP:324');
     add('R1.op_delta_eq_minus_a0', dOp === -a0, -a0, dOp, 'SP:322');
     add('R1.revenue_unchanged', dRev === 0n, 0, dRev, 'SP:448 not reached');
+    add('R1.totalSpent_plus_a0', B(after.totalSpent) - B(before.totalSpent) === a0, a0, B(after.totalSpent) - B(before.totalSpent), 'SP:323');
+    add('R1.totalTxSponsored_unchanged', B(after.totalTxSponsored) === B(before.totalTxSponsored), before.totalTxSponsored, after.totalTxSponsored, 'SP:417 not reached');
+    add('R2.xpnts_unchanged', dUser === 0n && dSupply === 0n, 0, `${dUser}/${dSupply}`, 'EP:134-148');
     const lc = lockCreated[0].args;
     add('R2.locked_grew_by_xLocked', dLocked === B(lc.xLocked), lc.xLocked, dLocked, 'XT:240');
     add('R2.lock_record', B(after.lockXLocked) === B(lc.xLocked), lc.xLocked, after.lockXLocked, 'XT:241');

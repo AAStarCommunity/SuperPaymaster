@@ -1,5 +1,6 @@
 control	old_exit	new_exit
 row-fixture-hash	0	1
+missing-allowSameEndpointLocal	0	2
 missing-chainId	2	2
 missing-block-number	0	2
 missing-block-hash	0	2

@@ -30,7 +30,7 @@
 // Exit codes: 0 = N matched triplets collected; 10 = attempt budget exhausted before N;
 //   20 RPC_DISAGREEMENT, 21 PASSPORT_DRIFT, 22 CONSERVATION_MISMATCH, 23 HASH_SELF_CHECK,
 //   24 BLOCK_NOT_ISOLATED, 25 RECEIPT_DISAGREEMENT, 26 ENTRYPOINT_MISMATCH (an arm or the account
-//   is bound to another EntryPoint); 2 = bad arguments / refused; 1 = crash.
+//   is bound to another EntryPoint); 27 UNEXPECTED_USEROP_EVENT (extra op in single-op gauge); 2 = bad arguments / refused; 1 = crash.
 import { readFileSync, existsSync, statSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,7 +61,7 @@ const rpcB = argVal('--rpc-b');
 if (!rpcA || !rpcB) die('--rpc-a and --rpc-b are both required (two read-back endpoints; see README)');
 if (!LOCAL.test(rpcA) || !LOCAL.test(rpcB)) die('refusing: local Anvil only (http://127.0.0.1:<port>)');
 const allowSameEndpointLocal = process.argv.includes('--allow-same-endpoint-local');
-const endpoint = value => { const u = new URL(value); if (u.hostname === 'localhost') u.hostname = '127.0.0.1'; return u.href; };
+const endpoint = value => { const u = new URL(value); const host = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname) ? 'loopback' : u.hostname; return `${u.protocol}//${host}:${u.port || (u.protocol === 'https:' ? '443' : '80')}`; };
 const distinctEndpoints = endpoint(rpcA) !== endpoint(rpcB);
 if (!distinctEndpoints && !allowSameEndpointLocal) die('identical RPC endpoints require --allow-same-endpoint-local');
 const countRaw = argVal('--count');
@@ -93,6 +93,7 @@ if (expectEp !== null && (!/^0x[0-9a-fA-F]{40}$/.test(expectEp) || getAddress(ex
   die(`--expect-entrypoint ${expectEp} does not match the deployment's EntryPoint ${EP}`);
 }
 const SPA = getAddress(cfg.superPaymaster);
+if (new Set([SPA, baselines.verifyingPaymaster.address, baselines.tokenPaymaster.address].map(a => getAddress(a).toLowerCase())).size !== 3) die('SP/VPM/TPM paymasters must be distinct');
 const ctx = clients(rpcA, ANVIL_KEYS[0]);        // operator + account owner (deploy-core's deployer)
 const bundler = clients(rpcA, ANVIL_KEYS[1]);    // bundler EOA, identical for every arm
 const pubA = ctx.pub;
@@ -517,6 +518,10 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const cls = classifyAttempt({ sent: true, txStatus: rcA.status, logs, entryPoint: EP, expectedHash, sender, nonce, paymaster: pm });
   Object.assign(row, { sent: true, tx, logs, verdict: cls.verdict, failingCheck: cls.failingCheck,
     revertKind: cls.revertKind ?? null, userOpEvent: cls.event ?? null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [] });
+  if (fixture === null && cls.epEvents?.some(e => e.event === 'UserOperationEvent' && e.args.userOpHash.toLowerCase() !== expectedHash.toLowerCase())) {
+    // All receipt logs are already in row; never attribute another op's event to an arm.
+    throw new Stop('UNEXPECTED_USEROP_EVENT', 27, { attemptIndex: idx, txHash });
+  }
   const before = await readbacks(arm, bn - 1n, expectedHash, sender);
   const after = await readbacks(arm, bn, expectedHash, sender);
   const out = { readbacks: { before, after } };
@@ -536,7 +541,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   let sp = null;
   if (arm === 'SP' && cls.event) {
     sp = spConservation({ before: before.A, after: after.A, spEvents: decodeLogsFrom(logs, SPA, SP_EVENTS_ABI),
-      tokenEvents: decodeLogsFrom(logs, spToken, TOKEN_EVENTS_ABI), expectedHash, sender, operator: ctx.account.address, cls });
+      tokenEvents: decodeLogsFrom(logs, spToken, TOKEN_EVENTS_ABI), expectedHash, sender, paymaster: SPA, operator: ctx.account.address, cls });
     checks.push(...sp.checks);
   }
   const evaluated = checks.length > 0 && sp?.evaluated !== false;
@@ -582,7 +587,9 @@ try {
       console.log(`  t=${t} ${arm.padEnd(3)} ${r.verdict}${r.failingCheck ? ` (${r.failingCheck})` : ''} hash=${r.expectedUserOpHash.slice(0, 12)}…${r.tx ? ` tx=${r.tx.hash.slice(0, 12)}… receipt=${r.tx.status}` : ''}`);
     }
     const ok = !fixture && rows.every((r) => r.verdict === VERDICTS.USEROP_SUCCESS && r.conservation?.evaluated && r.conservation.ok)
-      && new Set(rows.map((r) => r.callDataHash)).size === 1;
+      && new Set(rows.map((r) => r.callDataHash)).size === 1
+      && ['paymaster', 'expectedUserOpHash'].every(f => new Set(rows.map(r => r[f].toLowerCase())).size === rows.length)
+      && new Set(rows.map(r => r.tx.hash.toLowerCase())).size === rows.length;
     triplets.push({ tripletIndex: t, matched: ok, attempts: rows.map((r) => r.attemptIndex) });
     if (ok) matched++;
   }

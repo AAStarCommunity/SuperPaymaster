@@ -30,7 +30,7 @@ function need(obj, path) {
   return v;
 }
 const lc = (x) => String(x).toLowerCase();
-const big = (x) => { if (typeof x !== 'string' && typeof x !== 'number') throw new Missing(`not a number: ${JSON.stringify(x)}`); return BigInt(x); };
+const big = (x) => { if (!((typeof x === 'string' && /^\d+$/.test(x)) || (typeof x === 'number' && Number.isSafeInteger(x) && x >= 0))) throw new Missing(`not a number: ${JSON.stringify(x)}`); return BigInt(x); };
 
 // ── independent event decoding (topic0 from the canonical signature strings) ──────────────
 const sig = (s) => keccak256(toBytes(s));
@@ -117,6 +117,9 @@ function conservation(row, spAddr, tokenAddr, operator) {
     if (d('operatorBalance') !== -a0) failed.push('R1.op_delta');
     if (d('lockedOf') !== xLocked || big(a.lockXLocked) !== xLocked) failed.push('R2.locked');
     if (d('protocolRevenue') !== 0n) failed.push('R1.revenue');
+    if (d('totalSpent') !== a0) failed.push('R1.totalSpent');
+    if (d('userXPNTs') !== 0n || d('totalSupply') !== 0n) failed.push('R2.xpnts_unchanged');
+    if (d('totalTxSponsored') !== 0n) failed.push('R1.totalTxSponsored');
     return failed;
   }
   if (sponsored.length !== 1) { failed.push('C9.sponsored_count'); return failed; }
@@ -133,6 +136,7 @@ function conservation(row, spAddr, tokenAddr, operator) {
   const lcr = byHash(T.LOCK_CREATED), lse = byHash(T.LOCK_SETTLED), crr = byHash(T.CREDIT_RESERVED), cse = byHash(T.CREDIT_SETTLED);
   if (lcr.length === 1 && lse.length === 1) {
     const xLocked = BigInt(word(lcr[0].data, 0)), a0 = BigInt(word(lcr[0].data, 1));
+    if (lc(topicAddr(lcr[0].topics[1])) !== lc(row.sender) || lc(topicAddr(lcr[0].topics[3])) !== lc(spAddr)) failed.push('C8.lock_identity');
     const xBurned = BigInt(word(lse[0].data, 0)), aCharged = BigInt(word(lse[0].data, 1));
     if (aCharged !== charge) failed.push('C8.charge');
     if (charge > a0) failed.push('C8.le_a0');
@@ -158,7 +162,7 @@ function deepEq(x, y) { return JSON.stringify(x, (k, v) => (typeof v === 'string
 const CODE_NAMES = ['entryPoint', 'superPaymasterProxy', 'superPaymasterImpl', 'xPNTsClone', 'xPNTsImpl', 'xPNTsExt', 'account', 'accountImpl', 'verifyingPaymaster', 'tokenPaymaster', 'tokenPaymasterToken', 'priceFeed'];
 const GAS_FIELDS = ['callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'maxFeePerGas', 'maxPriorityFeePerGas'];
 const PASSPORT_FIELDS = [
-  'chainId', 'block.number', 'block.hash', 'block.timestamp',
+  'chainId', 'block.number', 'block.hash', 'block.timestamp', 'allowSameEndpointLocal',
   'invariant.entryPoint.address', 'invariant.entryPoint.isCanonicalV07Address',
   ...CODE_NAMES.flatMap(n => ['address', 'codehash', 'size'].map(f => `invariant.code.${n}.${f}`)),
   ...['version', 'entryPoint', 'registry', 'aPNTs', 'protocolFeeBPS', 'aPNTsPriceUSD', 'priceStalenessThreshold', 'paused', 'cachedPrice.price', 'cachedPrice.decimals', 'operator.address', 'operator.isConfigured', 'operator.isPaused', 'operator.xPNTsToken', 'operator.minTxInterval', 'senderEligible'].map(f => `invariant.superPaymaster.${f}`),
@@ -170,15 +174,45 @@ const PASSPORT_FIELDS = [
   ...['SP', 'VPM', 'TPM'].flatMap(n => ['ver', 'post'].map(f => `invariant.pmGas.${n}.${f}`)),
   'volatile.cachedPriceUpdatedAt', 'volatile.operatorBalance',
 ];
+const ADDRESS_FIELDS = new Set([
+  'invariant.entryPoint.address', ...CODE_NAMES.map(n => `invariant.code.${n}.address`),
+  ...['entryPoint', 'registry', 'aPNTs', 'operator.address', 'operator.xPNTsToken'].map(f => `invariant.superPaymaster.${f}`),
+  'invariant.xPNTs.address', 'invariant.xPNTs.superPaymaster',
+  ...['SP', 'VPM', 'TPM', 'account'].map(n => `invariant.armEntryPoints.${n}`),
+  ...['verifyingSigner', 'sender', 'bundler', 'beneficiary'].map(f => `invariant.${f}`),
+]);
+const BOOL_FIELDS = new Set(['allowSameEndpointLocal', 'invariant.entryPoint.isCanonicalV07Address',
+  ...['paused', 'operator.isConfigured', 'operator.isPaused', 'senderEligible'].map(f => `invariant.superPaymaster.${f}`),
+  'invariant.xPNTs.emergencyDisabled', ...['SP', 'VPM', 'TPM'].map(n => `invariant.stakes.${n}.staked`)]);
 function completePassport(p) {
   for (const f of PASSPORT_FIELDS) {
     const v = need(p, f);
-    if (v === null || typeof v === 'object') throw new Missing(`malformed passport ${f}`);
-    if ((f.endsWith('.hash') || f.endsWith('.codehash') || f.endsWith('callDataHash')) && !/^0x[0-9a-f]{64}$/i.test(v)) throw new Missing(`malformed passport ${f}`);
-    if (f.endsWith('.address') && !/^0x[0-9a-f]{40}$/i.test(v)) throw new Missing(`malformed passport ${f}`);
+    let valid;
+    if (ADDRESS_FIELDS.has(f)) valid = typeof v === 'string' && /^0x[0-9a-f]{40}$/i.test(v) && !/^0x0{40}$/i.test(v);
+    else if (BOOL_FIELDS.has(f)) valid = typeof v === 'boolean';
+    else if (f.endsWith('.hash') || f.endsWith('.codehash') || f.endsWith('callDataHash')) valid = typeof v === 'string' && /^0x[0-9a-f]{64}$/i.test(v);
+    else if (f.endsWith('.version')) valid = typeof v === 'string' && v.trim().length > 0;
+    else valid = (typeof v === 'string' && /^\d+$/.test(v)) || (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0);
+    if (!valid) throw new Missing(`malformed passport ${f}`);
   }
+  const inv = p.invariant, ep = inv.entryPoint.address;
+  const same = (a, b, label) => { if (lc(a) !== lc(b)) errors.push(`passport binding mismatch: ${label}`); };
+  same(ep, inv.code.entryPoint.address, 'EntryPoint code');
+  for (const [arm, address] of Object.entries(inv.armEntryPoints)) same(ep, address, `armEntryPoints.${arm}`);
+  same(ep, inv.superPaymaster.entryPoint, 'SP EntryPoint');
+  same(inv.sender, inv.code.account.address, 'sender account');
+  same(inv.xPNTs.address, inv.code.xPNTsClone.address, 'xPNTs clone');
+  same(inv.xPNTs.address, inv.superPaymaster.operator.xPNTsToken, 'operator token');
+  same(inv.xPNTs.superPaymaster, inv.code.superPaymasterProxy.address, 'token SP');
+  if (inv.entryPoint.isCanonicalV07Address !== (lc(ep) === '0x0000000071727de22e5e9d8baf0edac6f37da032')) errors.push('passport canonical EntryPoint flag mismatch');
 }
-const endpoint = value => { const u = new URL(value); if (u.hostname === 'localhost') u.hostname = '127.0.0.1'; return u.href; };
+// Origin identity deliberately ignores credentials, path, query and fragment.
+const endpoint = value => {
+  const u = new URL(value);
+  if (!['http:', 'https:'].includes(u.protocol)) throw new Missing('RPC URL must use http(s)');
+  const host = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname) ? 'loopback' : u.hostname;
+  return `${u.protocol}//${host}:${u.port || (u.protocol === 'https:' ? '443' : '80')}`;
+};
 function opGas(op) {
   const split = x => [BigInt('0x' + x.slice(2, 34)).toString(), BigInt('0x' + x.slice(34)).toString()];
   const [verificationGasLimit, callGasLimit] = split(op.accountGasLimits);
@@ -208,6 +242,11 @@ try {
   const arms = need(start, 'arms');
   const fixture = need(start, 'fixture');
   const target = need(start, 'count');
+  if (!Number.isSafeInteger(target) || target < 1) throw new Missing('count must be an integer >= 1');
+  if (!Array.isArray(arms) || !arms.length || new Set(arms).size !== arms.length || arms.some(a => !['SP', 'VPM', 'TPM'].includes(a))) throw new Missing('invalid arms');
+  const armPaymasters = { SP: spAddr, VPM: inv.code.verifyingPaymaster.address, TPM: inv.code.tokenPaymaster.address };
+  if (new Set(Object.values(armPaymasters).map(lc)).size !== 3) errors.push('passport arm paymasters must be distinct');
+  if (need(start, 'allowSameEndpointLocal') !== pStart.allowSameEndpointLocal) errors.push('start/passport local override mismatch');
   const distinctEndpoints = endpoint(need(start, 'rpcA')) !== endpoint(need(start, 'rpcB'));
   const localOverride = start.allowSameEndpointLocal === true || pStart.allowSameEndpointLocal === true;
   const conformant = target === 50 && fixture === null && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
@@ -230,6 +269,15 @@ try {
     for (const k of ['chainId', 'entryPoint', 'sender', 'nonce', 'paymaster', 'bundler', 'callDataHash', 'gas', 'pmGas',
       'expectedUserOpHash', 'epUserOpHash', 'localUserOpHash', 'bundledUserOpHashes', 'packedOp', 'bundledOps', 'guard', 'sent', 'logs']) need(row, k);
     if (row.chainId !== chainId) errors.push(`attempt ${i}: chainId ${row.chainId} != passport ${chainId}`);
+    if (!arms.includes(row.arm)) errors.push(`attempt ${i}: unexpected arm`);
+    if (lc(row.entryPoint) !== lc(inv.entryPoint.address) || lc(row.entryPoint) !== lc(inv.armEntryPoints[row.arm])) errors.push(`attempt ${i}: EntryPoint passport mismatch`);
+    if (lc(row.sender) !== lc(inv.sender)) errors.push(`attempt ${i}: sender passport mismatch`);
+    if (!/^0x[0-9a-f]{40}(?:[0-9a-f]{2}){32,}$/i.test(row.packedOp.paymasterAndData)) throw new Missing('malformed packed paymasterAndData');
+    const packedPaymaster = row.packedOp.paymasterAndData.slice(0, 42);
+    if (lc(row.paymaster) !== lc(packedPaymaster) || lc(row.paymaster) !== lc(armPaymasters[row.arm])) errors.push(`attempt ${i}: packed/arm/passport paymaster mismatch`);
+    const pmData = row.packedOp.paymasterAndData;
+    const pmGas = { ver: BigInt('0x' + pmData.slice(42, 74)), post: BigInt('0x' + pmData.slice(74, 106)) };
+    if (['ver', 'post'].some(f => big(need(row.pmGas, f)) !== pmGas[f] || big(need(inv, `pmGas.${row.arm}.${f}`)) !== pmGas[f])) errors.push(`attempt ${i}: paymaster gas passport mismatch`);
     // hash self-check, recomputed here
     const h = hashOp(row.packedOp, row.entryPoint, chainId);
     if (lc(h) !== lc(row.epUserOpHash) || lc(h) !== lc(row.localUserOpHash)) errors.push(`attempt ${i}: userOpHash recomputation ${h} != recorded ep/local`);
@@ -239,8 +287,16 @@ try {
     row.derivedGas = opGas(row.packedOp);
     if (lc(row.callDataHash) !== lc(row.derivedCallDataHash)) errors.push(`attempt ${i}: callDataHash mismatch`);
     if (GAS_FIELDS.some(f => big(need(row.gas, f)) !== big(row.derivedGas[f]))) errors.push(`attempt ${i}: packed gas mismatch`);
+    if (fixture === null && (lc(row.derivedCallDataHash) !== lc(inv.callDataHash) || GAS_FIELDS.some(f => big(row.derivedGas[f]) !== big(inv.gas[f])))) errors.push(`attempt ${i}: operation callData/gas passport mismatch`);
     const bundledHashes = row.bundledOps.map((op) => hashOp(op, row.entryPoint, chainId));
     if (!deepEq(bundledHashes, row.bundledUserOpHashes)) errors.push(`attempt ${i}: bundled hashes do not recompute`);
+    if (fixture !== 'drop-op' && !row.bundledOps.some(op => deepEq(op, row.packedOp))) errors.push(`attempt ${i}: packedOp absent from bundledOps`);
+    const extraEvents = logsOf(row.logs, row.entryPoint, T.UOE).filter(l => lc(l.topics[1]) !== lc(row.expectedUserOpHash));
+    if (extraEvents.length) {
+      (report.extraUserOperationEvents ??= []).push({ attemptIndex: i, logs: extraEvents });
+      // This single-op gauge cannot attribute aggregate deposit deltas for extra operations.
+      if (fixture === null) errors.push(`attempt ${i}: extra UserOperationEvent in single-op receipt`);
+    }
     if (row.sent) for (const k of ['tx.hash', 'tx.status', 'tx.blockNumber', 'tx.blockHash', 'tx.blockTxCount', 'tx.headBefore', 'tx.from']) need(row, k);
     if (row.sent && (lc(row.bundler) !== lc(row.tx.from) || lc(row.tx.from) !== lc(inv.bundler))) errors.push(`attempt ${i}: transaction bundler mismatch`);
     const v = verdictOf(row);
@@ -279,7 +335,10 @@ try {
     const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
     const same = new Set(rows.map((r) => `${r.row.derivedCallDataHash}|${JSON.stringify(r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size === 1;
     if (!same) errors.push('triplet callData/gas/bundler differ between arms');
-    if (!fixture && okArms && same && rows.length === arms.length) matched++;
+    const distinct = ['paymaster', 'expectedUserOpHash'].every(f => new Set(rows.map(r => lc(r.row[f]))).size === rows.length)
+      && new Set(rows.map(r => lc(r.row.tx?.hash))).size === rows.length;
+    if (!distinct) errors.push('triplet paymasters/transaction hashes/userOpHashes must be distinct');
+    if (!fixture && okArms && same && distinct && rows.length === arms.length) matched++;
   }
   report.matchedTriplets = matched;
   if (need(end, 'matchedTriplets') !== matched) errors.push(`run_end.matchedTriplets ${end.matchedTriplets} != recomputed ${matched}`);
@@ -289,9 +348,10 @@ try {
   // passport drift, recomputed
   completePassport(need(end, 'passport'));
   if (!deepEq(inv, need(end, 'passport.invariant'))) errors.push('passport invariant drifted between run_start and run_end');
+  if (pStart.allowSameEndpointLocal !== end.passport.allowSameEndpointLocal) errors.push('passport local override drifted');
   report.protocolConformant = conformant;
   report.consistent = errors.length === 0;
-  report.accepted = report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0;
+  report.accepted = report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0 && (target !== 50 || conformant);
   exit = !report.consistent ? 1 : report.accepted ? 0 : 3;
 } catch (e) {
   if (e instanceof Missing) { report.missing = e.message; exit = 2; }

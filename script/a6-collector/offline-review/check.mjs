@@ -1,4 +1,4 @@
-// Offline JSONL mutations; never connects to an RPC. Synthetic tx.from is test input only.
+// Offline JSONL mutations of the current archive, without repairs or invented transaction fields. Never connects to an RPC.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { localUserOpHash } from '../gauge-lib.mjs';
@@ -7,17 +7,6 @@ const root = 'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const out = 'script/a6-collector/offline-review';
 mkdirSync(`${out}/fixtures`, { recursive: true });
 const base = readFileSync(`${root}/positive.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);
-function upgradeTestInput(a) {
-  for (const r of a.slice(1,-1)) {
-    if (r.tx) r.tx.from = r.bundler;
-    for (const c of r.conservation?.checks ?? []) {
-      if(c.id === 'C6.locked_unchanged') c.src='XT:240,263';
-      if(c.id === "C5'.credit_reserved_unchanged") c.src='XT:305,322';
-    }
-  }
-  return a;
-}
-upgradeTestInput(base);
 const run = (file, old) => spawnSync(process.execPath, [old ? `${out}/validate-old.mjs` : 'script/a6-collector/validate.mjs', file], {encoding:'utf8'});
 const cleanFile=`${out}/fixtures/complete-positive.jsonl`;
 writeFileSync(cleanFile,base.map(JSON.stringify).join('\n')+'\n');
@@ -51,7 +40,7 @@ control('gas-record', a=>rows(a).forEach(r=>Object.keys(r.gas).forEach(k=>r.gas[
 control('bundler-record', a=>rows(a).forEach(r=>r.bundler='0x'+'00'.repeat(19)+'01'));
 control('tx-from-arm-diff', a=>a[2].tx.from='0x'+'00'.repeat(19)+'01');
 control('same-endpoint-conformant', a=>a[0].rpcB=a[0].rpcA,1,
-  upgradeTestInput(readFileSync(`${root}/n50-mechanism.jsonl`,'utf8').trim().split('\n').map(JSON.parse)));
+  readFileSync(`${root}/n50-mechanism.jsonl`,'utf8').trim().split('\n').map(JSON.parse));
 control('conformant-override', a=>{a[0].protocolConformant=true; a[0].allowSameEndpointLocal=true;});
 control('false-conformance', a=>a[0].protocolConformant=true);
 control('citation-C6', a=>{a[1].conservation.checks.find(c=>c.id==='C6.locked_unchanged').src='XT:239,263';});
@@ -99,10 +88,11 @@ if(gate.status!==2 || !gate.stderr.includes('identical RPC endpoints')) throw Er
 const overrideGate=spawnSync(process.execPath,['script/a6-collector/collector.mjs','--rpc-a','http://127.0.0.1:8545','--rpc-b','http://localhost:8545','--allow-same-endpoint-local'],{encoding:'utf8'});
 if(overrideGate.status!==2 || !overrideGate.stderr.includes('--count is required')) throw Error('collector override gate failed');
 const archive=[];
-for(const f of execFileSync('git',['ls-files','*.jsonl'],{encoding:'utf8'}).trim().split('\n').filter(Boolean)) {
+for(const f of execFileSync('git',['ls-files','*.jsonl'],{encoding:'utf8'}).trim().split('\n').filter(f => f && !f.startsWith(`${out}/`))) {
  const old=run(f,true), fresh=run(f,false);
- archive.push([f,old.status,fresh.status,JSON.parse(fresh.stdout).missing ?? JSON.parse(fresh.stdout).errors?.join('; ') ?? '']);
+ archive.push([f,old.status,fresh.status,JSON.parse(fresh.stdout).missing ?? (JSON.parse(fresh.stdout).errors?.join('; ') || '-')]);
 }
+writeFileSync(`${out}/passport-fields.txt`,leaves(base[0].passport).join('\n')+'\n');
 writeFileSync(`${out}/results.tsv`,'control\told_exit\tnew_exit\n'+results.map(r=>r.join('\t')).join('\n')+'\n');
 writeFileSync(`${out}/archives.tsv`,'archive\told_exit\tnew_exit\treason\n'+archive.map(r=>r.join('\t')).join('\n')+'\n');
 console.log(`${results.length} controls passed (${results.filter(r=>r[1]===0).length} newly rejected old=0 cases); ${archive.length} archives rechecked`);

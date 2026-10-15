@@ -1,3 +1,4 @@
+allowSameEndpointLocal
 chainId
 block.number
 block.hash
