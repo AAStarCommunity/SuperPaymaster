@@ -1,0 +1,1 @@
+# VERDICT: ACCEPT (expected [FAIL] with counterexample and statistics: [FAIL][0m check_witness_I9_posCharge352Reachable(address,uint256,bytes32,address,uint128,uint128) (paths: 539, time: 1528.53s (paths: 21.37s, models: 1507.16s), bounds: [])); wall_seconds=1547; log=$SCRATCH/out/i9/04-check_witness_I9_posCharge352Reachable.log

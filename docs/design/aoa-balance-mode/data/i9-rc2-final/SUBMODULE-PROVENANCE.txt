@@ -1,0 +1,12 @@
+contracts/lib/solady | rc.2 gitlink 90db92ce173856605d24a554969f2c67cadbc7e9 | copy source HEAD 90db92ce173856605d24a554969f2c67cadbc7e9 | source dirty files 0 | rerun-d5c1 diff-vs-source entries 0
+contracts/lib/solady | rc.2 gitlink 90db92ce173856605d24a554969f2c67cadbc7e9 | copy source HEAD 90db92ce173856605d24a554969f2c67cadbc7e9 | source dirty files 0 | rerun-i9 diff-vs-source entries 0
+contracts/lib/chainlink-brownie-contracts | rc.2 gitlink 6e324d8ad9fbb5519186ad9f1eaf99704de4c915 | copy source HEAD 6e324d8ad9fbb5519186ad9f1eaf99704de4c915 | source dirty files 0 | rerun-d5c1 diff-vs-source entries 0
+contracts/lib/chainlink-brownie-contracts | rc.2 gitlink 6e324d8ad9fbb5519186ad9f1eaf99704de4c915 | copy source HEAD 6e324d8ad9fbb5519186ad9f1eaf99704de4c915 | source dirty files 0 | rerun-i9 diff-vs-source entries 0
+standards/ercs | rc.2 gitlink c6d2d5e3ac261769cec2fb49b3e382fe2bf21e88 | copy source HEAD c6d2d5e3ac261769cec2fb49b3e382fe2bf21e88 | source dirty files 0 | rerun-d5c1 diff-vs-source entries 0
+standards/ercs | rc.2 gitlink c6d2d5e3ac261769cec2fb49b3e382fe2bf21e88 | copy source HEAD c6d2d5e3ac261769cec2fb49b3e382fe2bf21e88 | source dirty files 0 | rerun-i9 diff-vs-source entries 0
+standards/mpp-specs | rc.2 gitlink 0c438bdd24b831abafc22b2a99f7562e414dcf4f | copy source HEAD 0c438bdd24b831abafc22b2a99f7562e414dcf4f | source dirty files 0 | rerun-d5c1 diff-vs-source entries 0
+standards/mpp-specs | rc.2 gitlink 0c438bdd24b831abafc22b2a99f7562e414dcf4f | copy source HEAD 0c438bdd24b831abafc22b2a99f7562e414dcf4f | source dirty files 0 | rerun-i9 diff-vs-source entries 0
+standards/permit2 | rc.2 gitlink cc56ad0f3439c502c246fc5cfcc3db92bb8b7219 | copy source HEAD cc56ad0f3439c502c246fc5cfcc3db92bb8b7219 | source dirty files 0 | rerun-d5c1 diff-vs-source entries 1
+standards/permit2 | rc.2 gitlink cc56ad0f3439c502c246fc5cfcc3db92bb8b7219 | copy source HEAD cc56ad0f3439c502c246fc5cfcc3db92bb8b7219 | source dirty files 0 | rerun-i9 diff-vs-source entries 1
+standards/x402 | rc.2 gitlink b054f423400f0b972dbd9032120f172350110a59 | copy source HEAD b054f423400f0b972dbd9032120f172350110a59 | source dirty files 0 | rerun-d5c1 diff-vs-source entries 1
+standards/x402 | rc.2 gitlink b054f423400f0b972dbd9032120f172350110a59 | copy source HEAD b054f423400f0b972dbd9032120f172350110a59 | source dirty files 0 | rerun-i9 diff-vs-source entries 1

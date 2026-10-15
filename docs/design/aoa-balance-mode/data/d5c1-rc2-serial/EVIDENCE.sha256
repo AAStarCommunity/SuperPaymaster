@@ -26,3 +26,4 @@ bedd74250f2dce61fb9f53bca32b9eed2d9eb4a336c7427bd2f458bfae8ffe68  ./scripts/chai
 868cfd828fef68ac6a81f0d6ef82b4cf6cc37bd53dc8e9be10d14f1d5ee0a55d  ./verify-generation.txt
 3fbdb782bb40b107b4e4ff88acb4058f97a2241a22ef138641d5fb6ef9c6faad  ./verify-new-behaviour.txt
 2bfa49a43bd57f338fcde677acc9d654274198afd8f361b3840847f6351f5228  ./verify-new-docsync.txt
+387416c46f64432cdaf5ee63ef240c515fca162907710c0035c9a8a01958b773  ./ERRATA.md
