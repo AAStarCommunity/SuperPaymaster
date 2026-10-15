@@ -1,24 +1,30 @@
-# A6 per-UserOperation gauge: local Anvil evidence (CC-125 a71741ed)
+# A6 per-UserOperation gauge: local Anvil evidence (CC-125, regenerated on macOS)
 
 > **Local Anvil only. This is not A6 data. It can be accepted only after A4.** Nothing here was
-> sent to a public chain. The only keys used are anvil's well-known dev keys. These files prove
-> that the *gauge* works. They say nothing about how VPM, TPM or SP perform. N, B_max and the
+> sent to a public chain. The only keys used are anvil's well-known dev keys. These files exercise
+> the gauge locally. They say nothing about how VPM, TPM or SP perform. N, B_max and the
 > scenario mix are still DSR's deliverable (plan §8.4).
+
+> **LIMITATION: endpoint B is a pass-through proxy over the SAME Anvil as endpoint A.**
+> The N=50 validator's `protocolConformant: true` checks distinct URLs, N, arms, no fixture,
+> and no same-endpoint override. It is **not evidence of independent RPC sources**.
+> A real A6 run must use two independent providers. Their independence must be established
+> outside this gauge.
 
 ## What was run
 
 | item | value |
 |---|---|
-| collector head (recorded in every `run_start.head`, `collectorDirty: false`) | `bbf34d462f97b5ac838aa9c791fef45039599101` |
-| old collector compared against (`origin/feat/aoa-balance-mode-5.5.0`) | `25c33feaf6092eb183f606e571eb7b72e9f0f930` (`old-collector.ref`, source in `old-collector.source.mjs`) |
-| forge / anvil / cast | 1.5.1-stable, commit `b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2` (from the GitHub release tarball, because `foundryup`'s host was blocked by the sandbox proxy) |
-| solc | 0.8.33+commit.64118f21 (static linux build from the GitHub release; `forge build --offline`) |
-| node / pnpm / viem | v22.22.0 / 10.28.0 / 2.52.2 (`pnpm install --frozen-lockfile`) |
+| collector head (recorded in every `run_start.head`, `collectorDirty: false`) | `6ad0a0356ec54e83e1d1bf68d704e8af66f396b0` |
+| old collector compared against (`origin/feat/aoa-balance-mode-5.5.0`) | `64e84e35ed5d27a2bf9114fa055ae58ddde5b197` (`old-collector.ref`, source in `old-collector.source.mjs`) |
+| forge / anvil | Both 1.7.1, commit `4072e48705af9d93e3c0f6e29e93b5e9a40caed8`, profile `dist` (local `forge --version` and `anvil --version`) |
+| solc | 0.8.33 (`setup-deploy-core.log.gz`) |
+| node / pnpm / viem | v24.21.0 / 10.34.5 / 2.52.2 (local `node --version`, `pnpm --version`, and `node_modules/viem/package.json` through the existing symlink) |
 | chain | fresh `anvil --port 8545 --chain-id 31337`, then `./deploy-core anvil --force`, `./prepare-test anvil`, `deploy-baselines.mjs` |
 | SP under test | `SuperPaymaster-5.5.0` (UUPS proxy + impl), xPNTs `XPNTs-4.0.0` (EIP-1167 clone of xPNTsTokenV2 + Ext) |
 | EntryPoint | v0.7 compiled from `singleton-paymaster/lib/account-abstraction-v7`, deployed by `deploy-core` at `0xe7f1…0512` (see the gaps section) |
 
-Commands (the full driver is copied here as `full-run.sh.txt`):
+The local run driver is archived as `full-run.sh.txt`. Its setup and collection commands are:
 
 ```bash
 export PATH="$HOME/.foundry/bin:$PATH"
@@ -29,7 +35,6 @@ OUT=docs/design/aoa-balance-mode/data/a6-gauge-local
 node script/a6-collector/deploy-baselines.mjs http://127.0.0.1:8545 $OUT/baselines.anvil.json
 cp deployments/config.anvil.json $OUT/config.anvil.json
 script/a6-collector/negative-controls/run.sh $OUT $OUT/baselines.anvil.json
-# afterwards: git checkout -- abis deployments/config.anvil.json   (deploy-core/prepare-test rewrite them)
 # archived copy only: baselines.anvil.json signerKey redacted (it is anvil dev key #2, but
 # .github/workflows/check-secrets.yml would flag the literal); setup logs gzipped.
 ```
@@ -60,10 +65,19 @@ The full table is in `NEGATIVE-CONTROLS.md`, generated from these files. Exit co
 | (a) tx succeeds, op execution reverts | all three arms `USEROP_REVERTED` (`user_operation_success`). SP conservation still OK, because postOp settles in `opReverted` | 10 | 3 (consistent, not accepted) | **success** (`status=success`, no failure flag) on all three, although the UserOperationEvent has `success=false` |
 | (b) tx succeeds, our op is not in the bundle | all three arms `NO_EVENT` (`user_operation_event_present`) | 10 | 3 | **success** on all three, although there is **no** UserOperationEvent for the recorded hash |
 | (c) wrong expected userOpHash | all three arms `HASH_MISMATCH` (`expected_hash_in_events`) | 10 | 3 | n/a (the old collector never matched hashes) |
-| (d) endpoint B tampers a read-back | stop `RPC_DISAGREEMENT` on `$.userXPNTs`. The attempt row is still written, with `stoppedBy` | **20** | 3 (consistent, not accepted) | n/a (single endpoint) |
+| (d) endpoint B tampers a read-back | stop `RPC_DISAGREEMENT` on `$.userXPNTs`. The attempt row is still written, with `stoppedBy` | **20** | **2**: `missing field chainId` (fails closed) | n/a (single endpoint) |
 | (e) fake +1000 operator-balance delta injected into validator input | — | — | **1**: `conservation FAILS on raw read-backs: C1,C3`, plus `recorded conservation.ok=true, recomputed false` | n/a |
 | (e′) required field (`logs`) deleted | — | — | **2**: `missing field logs` (fails closed) | n/a |
-| N=50 mechanism run | 150/150 `USEROP_SUCCESS`, 50/50 matched triplets, no stop, `protocolConformant: true` | 0 | 0, recomputed `{"USEROP_SUCCESS":150}`, matchedTriplets 50 | — |
+| N=50 mechanism run | 150/150 `USEROP_SUCCESS`, 50/50 matched triplets, `COMPLETE`, `protocolConformant: true` | 0 | 0, recomputed `{"USEROP_SUCCESS":150}`, matchedTriplets 50 | — |
+
+Control (d) stops at `RPC_DISAGREEMENT` before the passport is complete. Its `run_end.passport`
+is null, so the validator exits 2 with `missing field chainId`. This is fail-closed by design,
+not an accepted or fully validated run. See `d-tamper-b.jsonl` and `d-tamper-b.validator.json`.
+
+The positive control is accepted with `protocolConformant: false` (one triplet).
+For N=50, `n50-mechanism.jsonl` records 50 attempts per arm and `COMPLETE`; the validator
+reports `consistent: true`, `accepted: true`, and `protocolConformant: true`, with no errors.
+These flags have the local limitations stated above.
 
 Collector exit 10 means the attempt budget ran out before N matched triplets. That is expected:
 each fixture run gets one attempt per arm, and a fixture row never counts toward N.
@@ -89,10 +103,11 @@ judged. `old-*.recheck.json` looks up the UserOperationEvent for the hash each o
     - `ΔtotalSpent == a0` (:323)
     - `TransactionSponsored(op, user, ·, charge)` is emitted once (:450)
   - xPNTs side:
-    - `ΔuserXPNTs == ΔtotalSupply == −xBurned`, and `ΔlockedOf == 0` (xPNTsTokenV2.sol:239,263,267)
+    - `ΔuserXPNTs == ΔtotalSupply == −xBurned`, and `ΔlockedOf == 0` (xPNTsTokenV2.sol:240,263,267)
     - `xBurned == min(ceil(charge·xLocked/a0), xLocked)` (:259-260)
     - `LockSettled.aCharged == charge ≤ a0` (:258,268; SuperPaymaster.sol:434)
   - CREDIT mode and postOp-reverted branches are implemented as well. Neither occurred in these runs.
+    `creditReservedOf` citations are xPNTsTokenV2.sol:305,322.
   - Every arm: `ΔEntryPoint deposit == −actualGasCost` (EntryPoint.sol:535,744-745).
 - **Requested identity vs. what is checked.** The task asked for `operator delta + revenue delta
   + burned == charge`. That sum adds two different assets: `burned` is in xPNTs, everything else
@@ -111,6 +126,29 @@ judged. `old-*.recheck.json` looks up the UserOperationEvent for the hash each o
   Exclusion reasons are `FIXTURE`, `NOT_SENT:DEPOSIT_FLOOR`, `NOT_SENT:INFRA_AA31`,
   `NOT_SENT:PREFLIGHT_UNDECODED`, `BLOCK_NOT_ISOLATED` and `STOPPED`. Stop codes are 20–26 (see
   the `collector.mjs` header).
+
+## What changed vs the cloud run
+
+The superseded cloud run used collector `bbf34d46` and Linux Foundry 1.5.1.
+This directory now contains the macOS regeneration at `6ad0a035`, whose commit message
+records the following hardening after adversarial review:
+
+- Fixtures are run-level only. Each success is bound to the userOpHash recomputed from
+  `packedOp`. The validator recomputes `callDataHash` and reads gas and bundler from the recorded transaction.
+- Passport completeness fails closed: 98 single-field deletions each produced validator exit 2.
+- The collector refuses identical A and B endpoints unless it records an explicit local override.
+  The validator recomputes `protocolConformant` from N=50, no fixture, three arms,
+  distinct endpoints, and no local override. Distinct endpoints do not establish independent providers.
+- PostOp R1 and R2 use the independent reservation. Not-evaluable rows cannot count,
+  and unevaluated conservation is `ok: null`.
+- Citations were corrected to `lockedOf` at XT:240,263 and `creditReservedOf` at XT:305,322.
+- The commit's `offline-review/` campaign contains 115 JSONL tampering controls.
+  Of these, 111 that previously exited 0 are now rejected. These counts describe that
+  hardening campaign, not additional on-chain runs in this directory.
+
+The old-collector comparison was also regenerated. `old-collector.ref` now records
+`64e84e35ed5d27a2bf9114fa055ae58ddde5b197`; its false successes remain documented
+in `NEGATIVE-CONTROLS.md` and `old-*.recheck.json`.
 
 ## Gaps / not verified here
 
@@ -138,3 +176,12 @@ judged. `old-*.recheck.json` looks up the UserOperationEvent for the hash each o
   needed for 50 ops at these placeholder gas fields.
 - **Placeholder parameters.** The gas fields, `--b-max 1` and the `--max-attempts` default (2N)
   are placeholders. DSR has not frozen them.
+
+## Evidence integrity
+
+`EVIDENCE.sha256` covers every file in this directory except itself, in sorted path order.
+Regeneration command, run from this directory:
+
+```bash
+find . -type f ! -name EVIDENCE.sha256 | LC_ALL=C sort | while IFS= read -r file; do shasum -a 256 "$file"; done > EVIDENCE.sha256
+```

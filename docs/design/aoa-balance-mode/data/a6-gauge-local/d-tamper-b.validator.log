@@ -11,8 +11,6 @@
   "matchedTriplets": 0,
   "stop": "RPC_DISAGREEMENT",
   "exitCode": 20,
-  "protocolConformant": false,
-  "consistent": true,
-  "accepted": false,
-  "validatorExit": 3
+  "missing": "missing field chainId",
+  "validatorExit": 2
 }

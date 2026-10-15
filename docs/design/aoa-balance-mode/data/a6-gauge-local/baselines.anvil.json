@@ -1,6 +1,6 @@
 {
   "rpcUrl": "http://127.0.0.1:8545",
-  "deployedAtUtc": "2026-10-15T00:44:06.876Z",
+  "deployedAtUtc": "2026-10-15T01:38:27.532Z",
   "verifyingPaymaster": {
     "address": "0x2B0d36FACD61B71CC05ab8F3D2355ec3631C0dd5",
     "abi": [
@@ -433,7 +433,7 @@
         ]
       }
     ],
-    "signerKey": "REDACTED (anvil default dev key #2; see script/a6-collector/deploy-baselines.mjs)",
+    "signerKey": "REDACTED: anvil default key #2 (script/b-layer/lib.mjs ANVIL_KEYS[2])",
     "signer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
   },
   "tokenPaymaster": {
