@@ -1,0 +1,6 @@
+A6 gauge b-drop-op: N=1 bMax=1 maxAttempts/arm=1 arms=SP,VPM,TPM fixture=drop-op
+EP=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 (canonical v0.7 address: false) sender=0x43a71246698E5bE1D9fb04183589edA602EA06F1
+  t=0 SP  NO_EVENT (user_operation_event_present) hash=0x881d886776… tx=0x33c8e46057… receipt=success
+  t=0 VPM NO_EVENT (user_operation_event_present) hash=0xc5990f8644… tx=0x597e5f8baa… receipt=success
+  t=0 TPM NO_EVENT (user_operation_event_present) hash=0xa252d2b576… tx=0x8719f4eb62… receipt=success
+stop=MAX_ATTEMPTS exit=10 matched=0/1 {"SP":{"attempts":1,"verdicts":{"NO_EVENT":1}},"VPM":{"attempts":1,"verdicts":{"NO_EVENT":1}},"TPM":{"attempts":1,"verdicts":{"NO_EVENT":1}}}

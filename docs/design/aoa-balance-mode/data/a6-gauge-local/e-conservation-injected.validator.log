@@ -1,0 +1,19 @@
+{
+  "file": "docs/design/aoa-balance-mode/data/a6-gauge-local/e-conservation-injected.jsonl",
+  "attempts": 3,
+  "recomputed": {
+    "USEROP_SUCCESS": 3
+  },
+  "errors": [
+    "attempt 0 (SP): conservation FAILS on raw read-backs: C1,C3",
+    "attempt 0: recorded conservation.ok=true, recomputed false"
+  ],
+  "notes": [],
+  "matchedTriplets": 1,
+  "stop": "COMPLETE",
+  "exitCode": 0,
+  "protocolConformant": false,
+  "consistent": false,
+  "accepted": false,
+  "validatorExit": 1
+}

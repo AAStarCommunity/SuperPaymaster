@@ -1,0 +1,16 @@
+{
+  "file": "docs/design/aoa-balance-mode/data/a6-gauge-local/a-exec-revert.jsonl",
+  "attempts": 3,
+  "recomputed": {
+    "USEROP_REVERTED": 3
+  },
+  "errors": [],
+  "notes": [],
+  "matchedTriplets": 0,
+  "stop": "MAX_ATTEMPTS",
+  "exitCode": 10,
+  "protocolConformant": false,
+  "consistent": true,
+  "accepted": false,
+  "validatorExit": 3
+}

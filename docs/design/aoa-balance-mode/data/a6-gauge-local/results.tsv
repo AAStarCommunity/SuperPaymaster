@@ -1,0 +1,11 @@
+control	command_exit	validator_exit
+positive	0	0
+a-exec-revert	10	3
+b-drop-op	10	3
+c-wrong-hash	10	3
+d-tamper-b	20	3
+e-conservation-injected	n/a	1
+e-missing-field	n/a	2
+old-a-exec-revert	0	n/a
+old-b-drop-op	0	n/a
+n50-mechanism	0	0
