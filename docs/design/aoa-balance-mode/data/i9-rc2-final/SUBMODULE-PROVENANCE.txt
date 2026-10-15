@@ -10,3 +10,7 @@ standards/permit2 | rc.2 gitlink cc56ad0f3439c502c246fc5cfcc3db92bb8b7219 | copy
 standards/permit2 | rc.2 gitlink cc56ad0f3439c502c246fc5cfcc3db92bb8b7219 | copy source HEAD cc56ad0f3439c502c246fc5cfcc3db92bb8b7219 | source dirty files 0 | rerun-i9 diff-vs-source entries 1
 standards/x402 | rc.2 gitlink b054f423400f0b972dbd9032120f172350110a59 | copy source HEAD b054f423400f0b972dbd9032120f172350110a59 | source dirty files 0 | rerun-d5c1 diff-vs-source entries 1
 standards/x402 | rc.2 gitlink b054f423400f0b972dbd9032120f172350110a59 | copy source HEAD b054f423400f0b972dbd9032120f172350110a59 | source dirty files 0 | rerun-i9 diff-vs-source entries 1
+
+## nested empty directories present in the source but not in the copy (0 files each)
+standards/permit2/lib: 0 files; subdirs: forge-gas-snapshot forge-std openzeppelin-contracts solmate 
+standards/x402/contracts/evm/lib: 0 files; subdirs: forge-std openzeppelin-contracts permit2 

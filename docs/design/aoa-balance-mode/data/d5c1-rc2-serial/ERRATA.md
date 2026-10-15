@@ -7,9 +7,9 @@ Raised by the pr-daemon review of #471 (Low items). **None of these corrections 
 README §0 says the 1-minute load had a median of about 12 and was elevated only at the start, because of residue from the aborted run. **That is incomplete.** Computed from `run/load.log` (365 one-minute samples):
 
 - median 12.3, p90 116.6, max 274.8;
-- **90 of 365 samples above 50, in 16 separate episodes**, spread over the whole of step 1 (`run-all`, 16:43:21Z → 21:28:01Z), not just the beginning. The largest episodes were 18:30–18:40Z (max 274.8), 21:01–21:24Z (max 207.7) and 19:13–19:25Z (max 197.4).
+- **90 of 365 samples above 50, in 16 episodes.** 83 of the 90 samples (14 episodes) fall inside step 1 (`run-all`, 16:43:21Z → 21:28:01Z), across the whole step, not just the start. The largest step-1 episodes were 18:30–18:40Z (max 274.8), 21:01–21:24Z (max 207.7) and 19:13–19:25Z (max 197.4). The other 7 samples are outside step 1. One is 16:43:18Z (161.3), the start-up reading, which is decay from the aborted jobs=4 run; the next sample is 66.4. Six are 21:56–22:01Z (max 135.9), during step 2 (mutations).
 
-These episodes come from Halmos' own solver fan-out, even at `jobs=1`. The verdict still holds: every partition that is required to PASS reached a terminal result inside the 600 s cap. The one marginal row (`check_I4B_coreAbi:transferFrom`, PASS at 588.1 s) is the one most exposed to this load.
+The step-1 episodes come from Halmos' own solver fan-out, even at `jobs=1`. The verdict still holds: every partition that is required to PASS reached a terminal result inside the 600 s cap. The one marginal row (`check_I4B_coreAbi:transferFrom`, PASS at 588.1 s) is the one most exposed to this load.
 
 ## 2. Submodule provenance was asserted without evidence in the archive
 
