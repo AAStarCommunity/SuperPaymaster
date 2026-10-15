@@ -29,7 +29,8 @@
 //
 // Exit codes: 0 = N matched triplets collected; 10 = attempt budget exhausted before N;
 //   20 RPC_DISAGREEMENT, 21 PASSPORT_DRIFT, 22 CONSERVATION_MISMATCH, 23 HASH_SELF_CHECK,
-//   24 BLOCK_NOT_ISOLATED, 25 RECEIPT_DISAGREEMENT; 2 = bad arguments / refused; 1 = crash.
+//   24 BLOCK_NOT_ISOLATED, 25 RECEIPT_DISAGREEMENT, 26 ENTRYPOINT_MISMATCH (an arm or the account
+//   is bound to another EntryPoint); 2 = bad arguments / refused; 1 = crash.
 import { readFileSync, existsSync, statSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -84,6 +85,9 @@ const expectEp = argVal('--expect-entrypoint') ?? null;
 const cfg = JSON.parse(readFileSync(configPath, 'utf8'));
 const baselines = JSON.parse(readFileSync(baselinesPath, 'utf8'));
 const EP = getAddress(cfg.entryPoint);
+if (expectEp !== null && (!/^0x[0-9a-fA-F]{40}$/.test(expectEp) || getAddress(expectEp) !== EP)) {
+  die(`--expect-entrypoint ${expectEp} does not match the deployment's EntryPoint ${EP}`);
+}
 const SPA = getAddress(cfg.superPaymaster);
 const ctx = clients(rpcA, ANVIL_KEYS[0]);        // operator + account owner (deploy-core's deployer)
 const bundler = clients(rpcA, ANVIL_KEYS[1]);    // bundler EOA, identical for every arm
@@ -346,6 +350,13 @@ async function passport(p, blockNumber) {
         superPaymaster: await tR('SUPERPAYMASTER_ADDRESS'), maxSingleTxLimit: await tR('maxSingleTxLimit'), emergencyDisabled: await tR('emergencyDisabled') },
       stakes: { SP: await stakeOf(SPA), VPM: await stakeOf(baselines.verifyingPaymaster.address), TPM: await stakeOf(baselines.tokenPaymaster.address) },
       verifyingSigner: await p.readContract({ address: baselines.verifyingPaymaster.address, abi: baselines.verifyingPaymaster.abi, functionName: 'verifyingSigner', ...at }),
+      // Identical-EntryPoint condition across arms: every paymaster must be bound to EP.
+      armEntryPoints: {
+        SP: await spR('entryPoint'),
+        VPM: await p.readContract({ address: baselines.verifyingPaymaster.address, abi: baselines.verifyingPaymaster.abi, functionName: 'entryPoint', ...at }),
+        TPM: await p.readContract({ address: baselines.tokenPaymaster.address, abi: baselines.tokenPaymaster.abi, functionName: 'entryPoint', ...at }),
+        account: await p.readContract({ address: sender, abi: [{ type: 'function', name: 'entryPoint', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] }], functionName: 'entryPoint', ...at }),
+      },
       sender, bundler: bundler.account.address, beneficiary: bundler.account.address,
       gas: GAS, pmGas: PM_GAS, callDataHash: keccak256(defaultCallData()),
     },
@@ -545,6 +556,8 @@ try {
   chainId = (await readAB('chainId', (p) => p.getChainId())).value;
   await setup();
   passportStart = await passportAB('start');
+  const epMismatch = Object.entries(passportStart.invariant.armEntryPoints).filter(([, a]) => getAddress(a) !== EP);
+  if (epMismatch.length) throw new Stop('ENTRYPOINT_MISMATCH', 26, { EP, epMismatch });
   writeLine({ kind: 'run_start', ...collectorHead(), argv: process.argv.slice(2), rpcA, rpcB,
     abTopology: argVal('--ab-topology') ?? 'unspecified', count, bMax, maxAttempts, arms, fixture,
     protocolConformant: count === PROTOCOL_N && fixture === null && arms.length === 3,
