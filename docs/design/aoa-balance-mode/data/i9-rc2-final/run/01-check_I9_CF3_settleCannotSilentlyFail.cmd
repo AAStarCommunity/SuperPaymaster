@@ -1,0 +1,1 @@
+python3 script/halmos/run-i9-witness.py --wall-cap 14400 --solver-timeout-assertion 300s --keep-cache --log $SCRATCH/out/i9/01-check_I9_CF3_settleCannotSilentlyFail.log --contract SuperPaymasterI9HalmosTest --check check_I9_CF3_settleCannotSilentlyFail

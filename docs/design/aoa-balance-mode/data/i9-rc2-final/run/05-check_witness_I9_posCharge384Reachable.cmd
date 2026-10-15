@@ -1,0 +1,1 @@
+python3 script/halmos/run-i9-witness.py --wall-cap 14400 --solver-timeout-assertion 300s --keep-cache --log $SCRATCH/out/i9/05-check_witness_I9_posCharge384Reachable.log --contract SuperPaymasterI9Rc2HalmosTest --check check_witness_I9_posCharge384Reachable
