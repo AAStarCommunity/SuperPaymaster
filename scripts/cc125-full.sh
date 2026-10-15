@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # CC-125: the FULL D5c-1 procedure (D5c-1-halmos.md §9) on a clean worktree. Raw stdout of each
-# step is kept; exit codes recorded in steps.tsv.
+# step is kept; exit codes recorded in steps.tsv. All steps run, but any failed step
+# makes the final exit non-zero, including a verifier MISMATCH.
 #
 # Hardened successor of docs/design/aoa-balance-mode/data/d5c1-rc2-rerun/scripts/cc125-full.sh.
 # That archived copy is kept byte-identical because EVIDENCE.sha256 of the rc2 rerun pins it.
@@ -45,11 +46,13 @@ if [ "${1:-}" = --check-mutcopy ]; then printf '%s\n' "$C"; exit 0; fi
 
 mkdir -p "$O"; cd "$W" || { echo "cannot cd to $W" >&2; exit 2; }
 
+# shellcheck disable=SC2329 # Invoked by the EXIT trap, including the explicit final exit.
 cleanup() {
   local rc=$?
   [ "${CC125_KEEP_MUTCOPY:-0}" = 1 ] || rm -rf "$C"
   if [ -n "$(git -C "$W" status --porcelain -- contracts/src)" ]; then
-    echo "WARNING: contracts/src in $W is not clean" >&2; rc=99
+    echo "WARNING: contracts/src in $W is not clean" >&2
+    [ "$rc" -ne 0 ] || rc=99
   fi
   exit "$rc"
 }
@@ -102,3 +105,21 @@ cp "$O/5-verify.stdout" "$D/verify-final.txt"
 echo "git status after:" >> "$O/env.txt"; git status --porcelain >> "$O/env.txt"
 echo "load at end: $(uptime)" >> "$O/env.txt"
 echo DONE >> "$O/steps.log"
+# Read the shared ledger: step 2 runs in a subshell, so shell variables would lose its failure.
+# Fail closed on the ledger itself: it must exist, hold exactly one row per step, and every rc
+# must be a non-negative integer. A missing or short ledger is a failure, not "nothing failed".
+EXPECTED_STEPS=6
+failed=0
+rows=0
+if [ ! -f "$O/steps.tsv" ]; then echo "steps ledger missing: $O/steps.tsv" >&2; exit 1; fi
+while IFS=$'\t' read -r name rc rest; do
+  rows=$((rows + 1))
+  case "$rc" in ''|*[!0-9]*) echo "steps ledger row $rows has a non-numeric rc: '$rc'" >&2; failed=1; continue;; esac
+  if [ "$rc" -ne 0 ]; then
+    [ "$failed" -ne 0 ] || echo "Failed steps:" >&2
+    printf '  %s (exit %s)\n' "$name" "$rc" >&2
+    failed=1
+  fi
+done < "$O/steps.tsv"
+if [ "$rows" -ne "$EXPECTED_STEPS" ]; then echo "steps ledger has $rows rows, expected $EXPECTED_STEPS" >&2; failed=1; fi
+exit "$failed"
