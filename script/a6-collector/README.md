@@ -17,6 +17,43 @@ form and its dry-run output is **not accepted evidence** — see "Division of la
 real default, because the real values are DSR's deliverable. Do not treat a dry-run of this code
 as a real sample campaign; it proves the mechanism works, nothing about paymaster performance.
 
+## Per-UserOperation gauge (CC-125 a71741ed)
+
+`collector.mjs` is now a per-UserOperation gauge (it replaced the receipt-level dry-run that
+recorded `receipt.status` only). Evidence of it working, including fixture negative controls and
+the old-vs-new comparison, is archived in `docs/design/aoa-balance-mode/data/a6-gauge-local/`.
+**Local Anvil only; not A6 data; acceptance only after A4.**
+
+- **Verdict per op, never per tx.** For every bundle tx the collector decodes every EntryPoint
+  `UserOperationEvent` / `UserOperationRevertReason` / `PostOpRevertReason` /
+  `UserOperationPrefundTooLow` and classifies the attempt for the *expected* `userOpHash`
+  (computed locally and via `EntryPoint.getUserOpHash`; they must agree or the run stops):
+  `USEROP_SUCCESS`, `USEROP_REVERTED`, `NO_EVENT`, `HASH_MISMATCH`, `EVENT_FIELD_MISMATCH`,
+  `DUPLICATE_EVENT`, `TX_FAILED`, `NOT_SENT`. Only `USEROP_SUCCESS` is a success.
+- **SP conservation.** The SP arm decodes `TransactionSponsored`, `LockCreated`/`LockSettled`
+  (or `CreditReserved`/`CreditSettled`) and checks before/after read-backs (pinned to blocks N-1
+  and N) of operator balance, `protocolRevenue`, `inflightOf`, user xPNTs, `totalSupply`,
+  `lockedOf`, `debts`, `creditReservedOf`, operator `totalSpent`/`totalTxSponsored` against the
+  identities derived from source in `gauge-lib.mjs` (each check carries its `path:line`). Every
+  arm also checks `ΔEntryPoint deposit == −actualGasCost`.
+- **Passport + A/B.** Every read-back is made on two endpoints (`--rpc-a`, `--rpc-b`) at the
+  same block and compared; the Passport (chain id, blocks, runtime codehashes of EntryPoint / SP
+  proxy+impl / xPNTs clone+impl+ext / account proxy+impl / VPM / TPM / feed, config getters) is
+  taken at the start, after every attempt and at the end, and must not drift.
+- **Attempts / exclusions / stops.** One append-only JSONL line per attempt (failures included);
+  `run_start` / `run_end` lines frame the run. `--count` (matched triplets, required, 1..1000;
+  `protocolConformant` only at 50) and `--b-max` (required) are validated. Stops:
+  `RPC_DISAGREEMENT` 20, `PASSPORT_DRIFT` 21, `CONSERVATION_MISMATCH` 22, `EVIDENCE_CONTINUITY_MISMATCH` 28, `END_PASSPORT_ERROR` 29, `HASH_SELF_CHECK` 23,
+  `BLOCK_NOT_ISOLATED` 24, `RECEIPT_DISAGREEMENT` 25, `ENTRYPOINT_MISMATCH` 26 (every arm and the account must be bound to the same EntryPoint; `--expect-entrypoint` pins its address); attempt budget exhausted 10.
+- **`validate.mjs`** re-reads the JSONL and recomputes every verdict, hash, A/B equality,
+  conservation identity, matched-triplet count and Passport drift with its own decoder (it does
+  not import `gauge-lib.mjs`); missing fields fail closed (exit 2).
+- **`rpc-proxy.mjs`** is the local endpoint B (pass-through, or `--tamper-*` for control d);
+  `negative-controls/run.sh` runs all controls and the N=50 mechanism run.
+
+The sections below describe the earlier mechanism dry-run; its commands are superseded by the
+archive README above where they differ (`--rpc-a/--rpc-b/--count/--b-max/--out` are now required).
+
 ## What's here
 
 - `deposit-guard.mjs` — RDR-6 ① deposit-floor guard as pure functions: `F = B_max *
@@ -124,3 +161,8 @@ re-run" — those are two different claims and only the first is true of the cod
   not silently merged into one "infrastructure failure" total — an undecoded revert could be a
   bug in this collector, a new EntryPoint error shape, or something else entirely, and merging
   it with AA31 would misattribute causes future readers can't recover from the aggregate number.
+
+Round-3 offline validation: local runs now require different RPC ports and the explicit
+`--allow-same-endpoint-local` override. Such runs are mechanism evidence with
+`protocolConformant: false`; the two local ports cannot establish provider independence.
+See [offline review](offline-review/README.md) for tampering controls and changed archive verdicts.
