@@ -1,5 +1,14 @@
 # Round 5 independent review fixes
 
+Scope clarification, Seeder `dc7d0fab` (2026-10-15): DSR selected (a).
+The FIXED entries below are historical offline consistency controls, not full
+EntryPoint/VPM/TPM/SimpleAccount validation replay. In particular, the prefund
+arithmetic in finding 2 and account size/codehash consistency in finding 9 do not
+reject coherent whole-row forgery with recomputed hashes. Round-6 items are
+outside validator scope and controlled by on-chain re-fetch. See the
+[decided scope](../README.md#信任根与范围) and [formal SOP](../A6-SOP.md).
+Local Anvil results are mechanism evidence only, not real-chain A6 acceptance.
+
 Scope: `cc125/a6-gauge`, starting HEAD `7eb0c693816fe192c4c13734e5efd391b3a88963`, PR #477.
 The complete `grok5-a6.out` was read. All nine High/Medium findings are accepted and fixed.
 The round-5 offline repair performed no contract source changes or chain operations; later commits and archive regeneration are recorded below.

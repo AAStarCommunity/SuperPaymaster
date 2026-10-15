@@ -1,5 +1,13 @@
 # PR #477 final Low findings
 
+DSR selected scope (a), Seeder `dc7d0fab` (2026-10-15). The rejection proofs
+below concern the listed offline mutations. They do not claim that the validator
+rejects round-6 coherent whole-row forgery with recomputed hashes; those items are
+outside its scope and controlled by on-chain re-fetch. See the
+[decided scope](../README.md#信任根与范围) and [formal SOP](../A6-SOP.md).
+Merged #477/#479 local Anvil runs prove gauge mechanics only, remain outside
+real-chain A6 evidence, and do not block A2. A3a is NO-GO.
+
 Follow-up branch: `cc125/477-followups`, based on `feat` after #477 merged.
 Comparator: reviewed head `58a8eb44`. Archive: regenerated in `58a8eb44` from
 collector `0988a589`. The initial follow-up was committed as `64246042` for
