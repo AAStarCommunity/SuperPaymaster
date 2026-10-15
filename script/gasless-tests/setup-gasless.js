@@ -358,7 +358,7 @@ async function main() {
 
   console.log(`Deployer: ${deployer.address}`);
   console.log(`Anni:     ${anni ? anni.address : '(PRIVATE_KEY_ANNI not set)'}`);
-  console.log(`Network:  Sepolia (chain 11155111)\n`);
+  console.log(`Network:  chain ${Number(process.env.CHAIN_ID) || 11155111}\n`);
 
   const ctx = { provider, deployer, anni, config };
 

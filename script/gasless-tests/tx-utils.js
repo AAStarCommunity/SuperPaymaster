@@ -160,7 +160,13 @@ async function sendAndWait(contract, method, args, label, opts = {}) {
   // back to ethers' default (rare; only under sustained RPC failure).
   let nonce = null;
   try {
-    nonce = await retryView(() => signer.getNonce('pending'), `${label} nonce`);
+    // Raw eth_getTransactionCount, not signer.getNonce(): ethers v6 can return a stale
+    // cached count right after our own previous tx confirmed (same fix as test-helpers.js,
+    // PR #438), which pinned the NEXT tx onto the already-used nonce.
+    const addr = await signer.getAddress();
+    nonce = await retryView(
+      async () => parseInt(await provider.send('eth_getTransactionCount', [addr, 'pending']), 16),
+      `${label} nonce`);
   } catch (_) {
     nonce = null;
   }
@@ -246,7 +252,10 @@ const RPC_REQUEST_TIMEOUT_MS = parseInt(process.env.RPC_REQUEST_TIMEOUT_MS || '2
  * @param {number} chainId
  * @returns {ethers.JsonRpcProvider}
  */
-function makeProvider(rpcUrl, chainId = 11155111) {
+// Default chain id honours CHAIN_ID so every caller works against a local anvil (31337):
+// staticNetwork means ethers signs with this id instead of probing the RPC, and a mismatch
+// gets every signed tx rejected ("invalid chain id for signer").
+function makeProvider(rpcUrl, chainId = Number(process.env.CHAIN_ID) || 11155111) {
   const fr = new ethers.FetchRequest(rpcUrl);
   fr.timeout = RPC_REQUEST_TIMEOUT_MS;
   // staticNetwork avoids the initial eth_chainId auto-detect that can fail under load.
