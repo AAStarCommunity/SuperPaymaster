@@ -250,12 +250,12 @@ contract CoverageSupplementTest is Test {
         vm.startPrank(comm2);
         gtoken.approve(address(staking), 100 ether);
         
-        vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParam.selector, "Name taken"));
+        vm.expectRevert(Registry.InvalidParam.selector); // Registry reverts bare InvalidParam(); there is no reason string
         registry.registerRole(ROLE_COMMUNITY, comm2, data);
         
         // Try empty name
         bytes memory emptyData = abi.encode(Registry.CommunityRoleData("", "", 10 ether));
-        vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParam.selector, "Name required"));
+        vm.expectRevert(Registry.InvalidParam.selector); // Registry reverts bare InvalidParam(); there is no reason string
         registry.registerRole(ROLE_COMMUNITY, comm2, emptyData);
         vm.stopPrank();
     }
@@ -266,7 +266,7 @@ contract CoverageSupplementTest is Test {
         // Point to non-existent community
         bytes memory data = abi.encode(Registry.EndUserRoleData(address(0xDead), 1 ether));
         
-        vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParam.selector, "Invalid community"));
+        vm.expectRevert(Registry.InvalidParam.selector); // Registry reverts bare InvalidParam(); there is no reason string
         registry.registerRole(ROLE_ENDUSER, user, data);
         vm.stopPrank();
     }
