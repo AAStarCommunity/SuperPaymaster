@@ -34,8 +34,9 @@ sleep 1
 RESULTS="$OUT/results.tsv"
 printf 'control\tcommand_exit\tvalidator_exit\n' > "$RESULTS"
 run() { # name, then collector args
+  # A and B are proxies over ONE local anvil: the override is mandatory and disqualifies conformance.
   local name=$1; shift
-  node "$GAUGE/collector.mjs" --run-id "$name" --baselines "$BASELINES" --expect-entrypoint "$EP" --out "$OUT/$name.jsonl" "$@" > "$OUT/$name.collector.log" 2>&1
+  node "$GAUGE/collector.mjs" --run-id "$name" --baselines "$BASELINES" --expect-entrypoint "$EP" --out "$OUT/$name.jsonl" --allow-same-endpoint-local "$@" > "$OUT/$name.collector.log" 2>&1
   local ce=$?
   node "$GAUGE/validate.mjs" "$OUT/$name.jsonl" --json "$OUT/$name.validator.json" > "$OUT/$name.validator.log" 2>&1
   local ve=$?

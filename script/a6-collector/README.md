@@ -161,3 +161,8 @@ re-run" — those are two different claims and only the first is true of the cod
   not silently merged into one "infrastructure failure" total — an undecoded revert could be a
   bug in this collector, a new EntryPoint error shape, or something else entirely, and merging
   it with AA31 would misattribute causes future readers can't recover from the aggregate number.
+
+Round-3 offline validation: local runs now require different RPC ports and the explicit
+`--allow-same-endpoint-local` override. Such runs are mechanism evidence with
+`protocolConformant: false`; the two local ports cannot establish provider independence.
+See [offline review](offline-review/README.md) for tampering controls and changed archive verdicts.

@@ -9,6 +9,7 @@ const out = 'script/a6-collector/offline-review';
 const root = 'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const load = name => readFileSync(`${root}/${name}.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);
 const base = load('positive'), n50 = load('n50-mechanism');
+for (const a of [base,n50]) { a[0].rpcA='http://a.invalid:8545'; a[0].rpcB='http://b.invalid:8545'; }
 const rows = a => a.slice(1, -1);
 const passports = a => [a[0].passport, a.at(-1).passport];
 const topic = s => keccak256(toBytes(s));
@@ -64,9 +65,9 @@ control('extra-uoe', a => {
 });
 for (const [name, value] of Object.entries({ query:'http://127.0.0.1:8545?x=1', path:'http://127.0.0.1:8545/rpc', userinfo:'http://user:pass@127.0.0.1:8545', fragment:'http://127.0.0.1:8545#frag', ipv6:'http://[::1]:8545', localhost:'http://localhost:8545' })) {
   // localhost alone was already rejected; decoration makes it a round-2 old=0 case.
-  control(`endpoint-${name}`, a => a[0].rpcB = name === 'localhost' ? value+'/rpc' : value, n50);
+  control(`endpoint-${name}`, a => { a[0].rpcA='http://127.0.0.1:8545'; a[0].rpcB = name === 'localhost' ? value+'/rpc' : value; }, n50);
 }
-control('same-endpoint-recorded-nonconformant', a => { a[0].rpcB=a[0].rpcA; a[0].protocolConformant=false; }, n50, 3);
+control('same-endpoint-recorded-nonconformant', a => { a[0].rpcB=a[0].rpcA; a[0].protocolConformant=false; }, n50, 1);
 control('n50-override-recorded-nonconformant', a => {
   a[0].allowSameEndpointLocal=true; a[0].protocolConformant=false; passports(a).forEach(p=>p.allowSameEndpointLocal=true);
 }, n50, 3);
@@ -110,6 +111,21 @@ for (const side of ['A','B']) {
     lockedOf:String(BigInt(b.lockedOf)+x),lockXLocked:String(x),totalSpent:String(BigInt(b.totalSpent)+a0),
     userXPNTs:b.userXPNTs,totalSupply:b.totalSupply,totalTxSponsored:b.totalTxSponsored});
 }
+r.tx.hash='0x'+'ab'.repeat(32);
+// A new nonce gives the appended transaction its own operation identity.
+r.packedOp.nonce=String(BigInt(post[3].nonce)+1n); r.nonce=r.packedOp.nonce; rehash(r);
+u.data='0x'+BigInt(r.nonce).toString(16).padStart(64,'0')+u.data.slice(66);
+for (const side of ['A','B']) {
+  const b=r.readbacks.before[side], z=r.readbacks.after[side], prev=post[1].readbacks.after[side];
+  for (const f of Object.keys(prev).filter(f=>!['blockNumber','blockHash','lockXLocked'].includes(f))) {
+    if (f==='inflightOperator') { b[f]=prev[f]; continue; }
+    const delta=BigInt(z[f])-BigInt(b[f]); b[f]=prev[f]; z[f]=String(BigInt(b[f])+delta);
+  }
+  b.blockNumber=post[3].tx.blockNumber; b.blockHash=post[3].tx.blockHash;
+  z.blockNumber=String(BigInt(b.blockNumber)+1n); z.blockHash='0x'+'ac'.repeat(32);
+}
+r.tx.headBefore=r.readbacks.before.A.blockNumber; r.tx.blockNumber=r.readbacks.after.A.blockNumber; r.tx.blockHash=r.readbacks.after.A.blockHash;
+post.at(-1).passport.block.number=r.tx.blockNumber; post.at(-1).passport.block.hash=r.tx.blockHash;
 post.splice(-1,0,r);
 const validPost=`${out}/fixtures/r2-postop-valid.jsonl`;
 writeFileSync(validPost,post.map(JSON.stringify).join('\n')+'\n');

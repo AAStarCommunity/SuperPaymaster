@@ -1,3 +1,4 @@
+import { noFixture } from './gauge-lib.mjs';
 // A6 per-UserOperation gauge (CC-125 a71741ed; RDR-6 ①; plan §8.4 SP-owned implementation half).
 //
 // Drives matched triplets of real UserOperations — one through each arm, SP (SuperPaymaster),
@@ -61,9 +62,9 @@ const rpcB = argVal('--rpc-b');
 if (!rpcA || !rpcB) die('--rpc-a and --rpc-b are both required (two read-back endpoints; see README)');
 if (!LOCAL.test(rpcA) || !LOCAL.test(rpcB)) die('refusing: local Anvil only (http://127.0.0.1:<port>)');
 const allowSameEndpointLocal = process.argv.includes('--allow-same-endpoint-local');
-const endpoint = value => { const u = new URL(value); const host = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname) ? 'loopback' : u.hostname; return `${u.protocol}//${host}:${u.port || (u.protocol === 'https:' ? '443' : '80')}`; };
-const distinctEndpoints = endpoint(rpcA) !== endpoint(rpcB);
-if (!distinctEndpoints && !allowSameEndpointLocal) die('identical RPC endpoints require --allow-same-endpoint-local');
+const distinctEndpoints = false; // Local aliases cannot establish independent host identity.
+if (new URL(rpcA).port === new URL(rpcB).port) die('identical RPC endpoints: different local ports are required');
+if (!distinctEndpoints && !allowSameEndpointLocal) die('local RPC ports require --allow-same-endpoint-local (disqualifies conformance)');
 const countRaw = argVal('--count');
 if (!countRaw || !/^[1-9]\d*$/.test(countRaw) || Number(countRaw) > 1000) die('--count is required: an integer in [1, 1000] (matched triplets to collect)');
 const count = Number(countRaw);
@@ -78,7 +79,7 @@ const arms = (argVal('--arms') ?? ARM_NAMES.join(',')).split(',');
 if (!arms.length || arms.some((a) => !ARM_NAMES.includes(a)) || new Set(arms).size !== arms.length) die(`--arms must be a subset of ${ARM_NAMES}`);
 const FIXTURES = ['exec-revert', 'drop-op', 'wrong-hash'];
 const fixture = argVal('--fixture') ?? null;
-if (fixture !== null && !FIXTURES.includes(fixture)) die(`--fixture must be one of ${FIXTURES}`);
+if (!noFixture(fixture) && !FIXTURES.includes(fixture)) die(`--fixture must be one of ${FIXTURES}`);
 const outPath = argVal('--out');
 if (!outPath) die('--out <run.jsonl> is required');
 if (existsSync(outPath) && statSync(outPath).size > 0) die(`refusing to touch non-empty ${outPath}: raw JSONL is append-only, one file per run`);
@@ -518,7 +519,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const cls = classifyAttempt({ sent: true, txStatus: rcA.status, logs, entryPoint: EP, expectedHash, sender, nonce, paymaster: pm });
   Object.assign(row, { sent: true, tx, logs, verdict: cls.verdict, failingCheck: cls.failingCheck,
     revertKind: cls.revertKind ?? null, userOpEvent: cls.event ?? null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [] });
-  if (fixture === null && cls.epEvents?.some(e => e.event === 'UserOperationEvent' && e.args.userOpHash.toLowerCase() !== expectedHash.toLowerCase())) {
+  if (noFixture(fixture) && cls.epEvents?.some(e => e.event === 'UserOperationEvent' && e.args.userOpHash.toLowerCase() !== expectedHash.toLowerCase())) {
     // All receipt logs are already in row; never attribute another op's event to an arm.
     throw new Stop('UNEXPECTED_USEROP_EVENT', 27, { attemptIndex: idx, txHash });
   }
@@ -533,6 +534,17 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
 
   // Conservation: D1 for every arm whose op produced its event; SP identities on top.
   const checks = [];
+  const previousBlock = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
+  checks.push({ id: 'continuity.block', ok: BigInt(before.A.blockNumber) === BigInt(previousBlock.blockNumber) && before.A.blockHash.toLowerCase() === previousBlock.blockHash.toLowerCase() });
+  const prior = stateByArm.get(arm);
+  if (prior) for (const f of Object.keys(prior).filter(f => !['blockNumber', 'blockHash', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
+    checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], prior[f]).length === 0 });
+  }
+  if (arm === 'SP') checks.push({ id: 'continuity.new_op_lock_empty', ok: BigInt(before.A.lockXLocked) === 0n });
+  for (const [value, seen, label] of [[txHash, seenTransactions, 'tx'], [expectedHash, seenOperations, 'op'], [tx.blockHash, seenBlocks, 'block']]) {
+    checks.push({ id: `unique.${label}`, ok: !seen.has(value.toLowerCase()) }); seen.add(value.toLowerCase());
+  }
+  stateByArm.set(arm, after.A); lastAttemptBlock = after.A;
   if (cls.event) {
     const dDep = BigInt(after.A.epDeposit) - BigInt(before.A.epDeposit);
     checks.push({ id: 'D1.ep_deposit_delta_eq_minus_actualGasCost', ok: dDep === -BigInt(cls.event.actualGasCost),
@@ -544,11 +556,11 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
       tokenEvents: decodeLogsFrom(logs, spToken, TOKEN_EVENTS_ABI), expectedHash, sender, paymaster: SPA, operator: ctx.account.address, cls });
     checks.push(...sp.checks);
   }
-  const evaluated = checks.length > 0 && sp?.evaluated !== false;
+  const evaluated = !!cls.event && sp?.evaluated !== false;
   const conservationOk = evaluated ? checks.every((c) => c.ok) : null;
   const r = finish({ ...out, spMode: sp?.mode ?? null, charge: sp?.charge ?? null, conservation: { evaluated, notEvaluable: sp?.notEvaluable ?? null, ok: conservationOk, checks },
-    exclusion: fixture ? 'FIXTURE' : null });
-  if (evaluated && !conservationOk) throw new Stop('CONSERVATION_MISMATCH', 22, { attemptIndex: idx, failed: checks.filter((c) => !c.ok) });
+    exclusion: !noFixture(fixture) ? 'FIXTURE' : null });
+  if (checks.some(c => !c.ok)) throw new Stop('CONSERVATION_MISMATCH', 22, { attemptIndex: idx, failed: checks.filter((c) => !c.ok) });
 
   // Passport drift (code + config) at this block vs. the start.
   const now = await readAB(`passport@${bn}`, (p) => passport(p, bn));
@@ -561,6 +573,8 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
 let exitCode = 1;
 let stop = null;
 let passportStart = null;
+let lastAttemptBlock = null;
+const stateByArm = new Map(), seenTransactions = new Set(), seenOperations = new Set(), seenBlocks = new Set();
 const tally = Object.fromEntries(arms.map((a) => [a, { attempts: 0, verdicts: {} }]));
 let matched = 0;
 const triplets = [];
@@ -572,7 +586,7 @@ try {
   if (epMismatch.length) throw new Stop('ENTRYPOINT_MISMATCH', 26, { EP, epMismatch });
   writeLine({ kind: 'run_start', ...collectorHead(), argv: process.argv.slice(2), rpcA, rpcB, allowSameEndpointLocal,
     abTopology: argVal('--ab-topology') ?? 'unspecified', count, bMax, maxAttempts, arms, fixture,
-    protocolConformant: count === PROTOCOL_N && fixture === null && arms.length === 3 && distinctEndpoints && !allowSameEndpointLocal,
+    protocolConformant: count === PROTOCOL_N && noFixture(fixture) && arms.length === 3 && distinctEndpoints && !allowSameEndpointLocal,
     setupLog, passport: passportStart, startedAtUtc: new Date().toISOString() });
   console.log(`A6 gauge ${runId}: N=${count} bMax=${bMax} maxAttempts/arm=${maxAttempts} arms=${arms} fixture=${fixture ?? 'none'}`);
   console.log(`EP=${EP} (canonical v0.7 address: ${passportStart.invariant.entryPoint.isCanonicalV07Address}) sender=${sender}`);
@@ -586,7 +600,7 @@ try {
       rows.push(r);
       console.log(`  t=${t} ${arm.padEnd(3)} ${r.verdict}${r.failingCheck ? ` (${r.failingCheck})` : ''} hash=${r.expectedUserOpHash.slice(0, 12)}…${r.tx ? ` tx=${r.tx.hash.slice(0, 12)}… receipt=${r.tx.status}` : ''}`);
     }
-    const ok = !fixture && rows.every((r) => r.verdict === VERDICTS.USEROP_SUCCESS && r.conservation?.evaluated && r.conservation.ok)
+    const ok = noFixture(fixture) && rows.every((r) => r.verdict === VERDICTS.USEROP_SUCCESS && r.conservation?.evaluated && r.conservation.ok)
       && new Set(rows.map((r) => r.callDataHash)).size === 1
       && ['paymaster', 'expectedUserOpHash'].every(f => new Set(rows.map(r => r[f].toLowerCase())).size === rows.length)
       && new Set(rows.map(r => r.tx.hash.toLowerCase())).size === rows.length;
@@ -602,6 +616,10 @@ let passportEnd = null;
 try {
   if (passportStart && stop.reason !== 'RPC_DISAGREEMENT') {
     passportEnd = await passportAB('end');
+    const last = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
+    const endHeight = BigInt(passportEnd.block.number), lastHeight = BigInt(last.blockNumber);
+    const sameHash = passportEnd.block.hash.toLowerCase() === last.blockHash.toLowerCase();
+    if ((passportEnd.chainId !== passportStart.chainId || endHeight < lastHeight || (endHeight === lastHeight ? !sameHash : sameHash)) && stop.code === 0) stop = { reason: 'PASSPORT_WINDOW_MISMATCH', code: 21 };
     const drift = diffPaths(passportStart.invariant, passportEnd.invariant);
     if (drift.length && stop.code === 0) stop = { reason: 'PASSPORT_DRIFT', code: 21, detail: { drift } };
   }

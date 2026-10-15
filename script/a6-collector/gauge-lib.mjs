@@ -203,6 +203,8 @@ export function classifyAttempt({ sent, txStatus, logs, entryPoint, expectedHash
 // validation (EP:535) and refunded prefund - actualGasCost (EP:744-745), so
 //   D1  ΔdepositOf(paymaster) == -actualGasCost (from this op's UserOperationEvent)
 //   (holds only when this tx is the block's ONLY tx — the collector checks that separately.)
+export const noFixture = value => value === null;
+
 export function spConservation({ before, after, spEvents, tokenEvents, expectedHash, sender, paymaster, operator, cls }) {
   const checks = [];
   const add = (id, ok, expected, actual, src) => checks.push({ id, ok: !!ok, expected: String(expected), actual: String(actual), src });
@@ -227,8 +229,11 @@ export function spConservation({ before, after, spEvents, tokenEvents, expectedH
   }
   const postOpReverted = cls.verdict === VERDICTS.USEROP_REVERTED && cls.revertKind === 'postOpReverted';
 
+  add('C4.before_operator_empty', eqA(before.inflightOperator, '0x' + '0'.repeat(40)), 0, before.inflightOperator, 'SP:445');
   add('C4.inflight_before_empty', B(before.inflightA0) === 0n, 0, before.inflightA0, 'SP:324,445');
   if (postOpReverted) {
+    add('R.settle_events_absent', !lockSettled.length && !credSet.length && !credRes.length, 0, lockSettled.length + credSet.length + credRes.length, 'EP:134-148');
+    add('R.credit_unchanged', dDebt === 0n && dCredRes === 0n, 0, `${dDebt}/${dCredRes}`, 'EP:134-148');
     if (lockCreated.length !== 1) return { mode: 'UNKNOWN', postOpReverted: true, evaluated: false, notEvaluable: 'missing unique LockCreated', checks, ok: null };
     const a0 = B(lockCreated[0].args.aReserved);
     add('R1.inflight_a0', B(after.inflightA0) === a0, a0, after.inflightA0, 'SP:324');
@@ -254,12 +259,15 @@ export function spConservation({ before, after, spEvents, tokenEvents, expectedH
   add('C1.op_delta_eq_minus_charge', dOp === -charge, -charge, dOp, 'SP:322,447');
   add('C2.revenue_delta_eq_charge', dRev === charge, charge, dRev, 'SP:448');
   add('C3.op_plus_revenue_zero', dOp + dRev === 0n, 0, dOp + dRev, 'SP:322,447,448');
+  add('C4.after_operator_empty', eqA(after.inflightOperator, '0x' + '0'.repeat(40)), 0, after.inflightOperator, 'SP:445');
   add('C4.inflight_after_empty', B(after.inflightA0) === 0n, 0, after.inflightA0, 'SP:445');
   add('C10.totalTxSponsored_plus_one', B(after.totalTxSponsored) - B(before.totalTxSponsored) === 1n, 1,
     B(after.totalTxSponsored) - B(before.totalTxSponsored), 'SP:417');
 
   let mode = 'UNKNOWN';
-  if (lockSettled.length === 1 && lockCreated.length === 1) {
+  if (lockSettled.length === 1 && lockCreated.length === 1 && !credRes.length && !credSet.length) {
+    add('C8.settled_user', eqA(lockSettled[0].args.user, sender), sender, lockSettled[0].args.user, 'XT:268');
+    add('C8.credit_unchanged', dDebt === 0n && dCredRes === 0n, 0, `${dDebt}/${dCredRes}`, 'XT:259-268');
     mode = 'BALANCE';
     const { xLocked, aReserved } = lockCreated[0].args;
     const { xBurned, aCharged } = lockSettled[0].args;
@@ -275,7 +283,12 @@ export function spConservation({ before, after, spEvents, tokenEvents, expectedH
     add('C5.supply_delta_eq_minus_burn', dSupply === -B(xBurned), -B(xBurned), dSupply, 'XT:267');
     add('C6.locked_unchanged', dLocked === 0n, 0, dLocked, 'XT:240,263');
     add('C6.lock_record_cleared', B(after.lockXLocked) === 0n, 0, after.lockXLocked, 'XT:262');
-  } else if (credSet.length === 1 && credRes.length === 1) {
+  } else if (credSet.length === 1 && credRes.length === 1 && !lockCreated.length && !lockSettled.length) {
+    const reservation = B(credRes[0].args.amount);
+    add('credit.bounds', reservation > 0n && reservation < (1n << 96n) && charge <= reservation && B(credSet[0].args.debtAdded) <= reservation, '0 < reservation < 2^96; charge/debt <= reservation', reservation, 'SP:324;XT:320');
+    add('credit.totalSpent', B(after.totalSpent) - B(before.totalSpent) === reservation, reservation, B(after.totalSpent) - B(before.totalSpent), 'SP:323');
+    add('credit.identity', eqA(credRes[0].args.user, sender) && eqA(credRes[0].args.locker, paymaster) && eqA(credSet[0].args.user, sender), sender, credSet[0].args.user, 'XT:308,326');
+    add('credit.lock_unchanged', dLocked === 0n && B(after.lockXLocked) === 0n, 0, dLocked, 'XT:313-326');
     mode = 'CREDIT';
     const { debtAdded } = credSet[0].args;
     add("C5'.debt_delta_eq_charge", dDebt === charge && B(debtAdded) === charge, charge, `${dDebt}/${debtAdded}`, 'XT:320-325');

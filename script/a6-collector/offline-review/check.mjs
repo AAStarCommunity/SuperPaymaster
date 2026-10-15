@@ -7,6 +7,7 @@ const root = 'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const out = 'script/a6-collector/offline-review';
 mkdirSync(`${out}/fixtures`, { recursive: true });
 const base = readFileSync(`${root}/positive.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);
+base[0].rpcA='http://a.invalid:8545'; base[0].rpcB='http://b.invalid:8545';
 const run = (file, old) => spawnSync(process.execPath, [old ? `${out}/validate-old.mjs` : 'script/a6-collector/validate.mjs', file], {encoding:'utf8'});
 const cleanFile=`${out}/fixtures/complete-positive.jsonl`;
 writeFileSync(cleanFile,base.map(JSON.stringify).join('\n')+'\n');
@@ -85,7 +86,7 @@ for (const field of ['callData','preVerificationGas']) control(`packed-arm-${fie
 });
 const gate = spawnSync(process.execPath,['script/a6-collector/collector.mjs','--rpc-a','http://127.0.0.1:8545','--rpc-b','http://localhost:8545'],{encoding:'utf8'});
 if(gate.status!==2 || !gate.stderr.includes('identical RPC endpoints')) throw Error('collector endpoint gate failed');
-const overrideGate=spawnSync(process.execPath,['script/a6-collector/collector.mjs','--rpc-a','http://127.0.0.1:8545','--rpc-b','http://localhost:8545','--allow-same-endpoint-local'],{encoding:'utf8'});
+const overrideGate=spawnSync(process.execPath,['script/a6-collector/collector.mjs','--rpc-a','http://127.0.0.1:8545','--rpc-b','http://localhost:8546','--allow-same-endpoint-local'],{encoding:'utf8'});
 if(overrideGate.status!==2 || !overrideGate.stderr.includes('--count is required')) throw Error('collector override gate failed');
 const archive=[];
 for(const f of execFileSync('git',['ls-files','*.jsonl'],{encoding:'utf8'}).trim().split('\n').filter(f => f && !f.startsWith(`${out}/`))) {

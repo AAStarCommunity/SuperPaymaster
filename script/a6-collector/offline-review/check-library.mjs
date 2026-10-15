@@ -13,7 +13,7 @@ after.operatorBalance=String(BigInt(before.operatorBalance)-BigInt(lc.aReserved)
 after.userXPNTs=before.userXPNTs;after.totalSupply=before.totalSupply;after.totalTxSponsored=before.totalTxSponsored;
 after.totalSpent=String(BigInt(before.totalSpent)+BigInt(lc.aReserved));
 after.lockedOf=String(BigInt(before.lockedOf)+BigInt(lc.xLocked));after.lockXLocked=lc.xLocked;
-const args={before,after,spEvents:decodeLogsFrom(r.logs,inv.code.superPaymasterProxy.address,SP_EVENTS_ABI),tokenEvents,expectedHash:r.expectedUserOpHash,sender:r.sender,paymaster:inv.code.superPaymasterProxy.address,operator:inv.superPaymaster.operator.address,cls:{verdict:'USEROP_REVERTED',revertKind:'postOpReverted'}};
+const args={before,after,spEvents:decodeLogsFrom(r.logs,inv.code.superPaymasterProxy.address,SP_EVENTS_ABI),tokenEvents:tokenEvents.filter(e=>e.event!=='LockSettled'),expectedHash:r.expectedUserOpHash,sender:r.sender,paymaster:inv.code.superPaymasterProxy.address,operator:inv.superPaymaster.operator.address,cls:{verdict:'USEROP_REVERTED',revertKind:'postOpReverted'}};
 assert.equal(spConservation(args).ok,true);
 const missing=spConservation({...args,tokenEvents:[]});
 assert.equal(missing.evaluated,false);assert.equal(missing.ok,null);
@@ -44,3 +44,30 @@ for (const field of ['user','locker']) {
   assert.equal(spConservation({...success,tokenEvents:bad}).ok,false,field);
 }
 console.log('PASS: round-2 pin, validation writes, unchanged xPNTs/supply, success and postOp lock identities');
+
+assert.equal(createHash('sha256').update(readFileSync('script/a6-collector/offline-review/validate-round3-old.mjs')).digest('hex'),'a6eccc76bc7c6f71a8edaa3c7dd79bffd1be0f6598739acafbbf25f665ce0598');
+for (const f of ['debts','creditReservedOf']) {
+  assert.equal(spConservation({...success,after:{...success.after,[f]:'1'}}).ok,false,`balance ${f}`);
+  assert.equal(spConservation({...args,after:{...args.after,[f]:'1'}}).ok,false,`postOp ${f}`);
+}
+for (const side of ['before','after']) assert.equal(spConservation({...success,[side]:{...success[side],inflightOperator:'0x'+'12'.repeat(20)}}).ok,false);
+const settled=success.tokenEvents.find(e=>e.event==='LockSettled');
+assert.equal(spConservation({...success,tokenEvents:success.tokenEvents.map(e=>e===settled?{...e,args:{...e.args,user:'0x'+'12'.repeat(20)}}:e)}).ok,false);
+assert.equal(spConservation({...args,tokenEvents:[...args.tokenEvents,settled]}).ok,false);
+const reservation=success.tokenEvents.find(e=>e.event==='LockCreated').args.aReserved;
+const charge=success.spEvents.find(e=>e.event==='TransactionSponsored').args.debtAPNTs;
+const creditArgs={...success,after:{...success.after,debts:String(BigInt(success.before.debts)+BigInt(charge)),userXPNTs:success.before.userXPNTs,totalSupply:success.before.totalSupply},tokenEvents:[
+  {event:'CreditReserved',args:{user:success.sender,opHash:success.expectedHash,locker:success.paymaster,amount:reservation}},
+  {event:'CreditSettled',args:{user:success.sender,opHash:success.expectedHash,debtAdded:charge}},
+]};
+assert.equal(spConservation(creditArgs).ok,true);
+assert.equal(spConservation({...creditArgs,after:{...creditArgs.after,totalSpent:creditArgs.before.totalSpent}}).ok,false);
+for(const amount of ['0','1',String(1n<<96n)]) {
+  const bad=structuredClone(creditArgs.tokenEvents);bad[0].args.amount=amount;
+  assert.equal(spConservation({...creditArgs,tokenEvents:bad}).ok,false);
+}
+for(const [index,field] of [[0,'user'],[0,'locker'],[1,'user']]) {
+  const bad=structuredClone(creditArgs.tokenEvents);bad[index].args[field]='0x'+'12'.repeat(20);
+  assert.equal(spConservation({...creditArgs,tokenEvents:bad}).ok,false);
+}
+console.log('PASS: round-3 collector conservation: balance, credit and postOp branch controls');
