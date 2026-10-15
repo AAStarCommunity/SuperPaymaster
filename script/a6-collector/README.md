@@ -29,7 +29,9 @@ A6 校验器不要求复刻完整 EntryPoint、VPM、TPM、SimpleAccount 链上�
 `validate.mjs <run.jsonl> [--json <report.json>]` 只读取归档，使用独立于 `gauge-lib.mjs` 的解码实现，检查：
 
 - 内部逐行自洽、必需字段、packed operation 与重算 hash 的绑定，以及 receipt/log 中逐 UOE 的判定。
-- SP、VPM、TPM 三臂的匹配、唯一性、计数、失败与排除记录、运行汇总和停止状态。
+- SP、VPM、TPM 三臂的匹配、唯一性、计数、逐 UOE 判定、fixture 与停止状态，以及运行汇总。
+  **不校验排除记录**：`validate.mjs` 不读取 `exclusion` 字段，`failingCheck` 只对未发送（NOT_SENT）行核对；
+  删除全部 `exclusion`，或写入与 `failingCheck` 矛盾的排除原因，校验仍会接受。正式 A6 的排除原因须由 DSR 抽检核对（见下方 SP TODO）。
 - 归档中的 A/B 逐值一致、固定块锚定、前后状态连续性、SP 守恒及各臂 EntryPoint deposit 变化。
 - Passport 的字段完整性、地址与配置绑定、代码信息的归档内一致性及漂移。
 
@@ -74,6 +76,7 @@ code size/codehash 字段自洽检查，不等于重新执行对应链上准入�
 - 将原始 receipt/UOE、交易、固定块状态及源码/配置 pin 关联到每个纳入、失败和排除操作的完整证据包。
 - 文件及 SHA-256 manifest 冻结、抽样 seed/名单/命令预先提交、抽样复查记录流程。
 - DSR 从独立 RPC 重取全部 150 个纳入样本及随机深查的工具和核对记录。
+- 排除记录（`exclusion`）及失败原因的校验：现有校验器不检查，需补校验或纳入 DSR 抽检清单。
 
 详细执行与停窗要求见 [SOP 的 SP TODO 清单](A6-SOP.md#sp-todo-before-formal-a6)。本节规定正式验收要求，
 不表示这些缺失能力已经实现。
