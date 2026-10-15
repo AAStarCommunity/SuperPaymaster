@@ -12,6 +12,7 @@
 #     contracts/src in the work tree is still clean (mutations only ever run in the copy).
 #
 # Usage: scripts/cc125-full.sh [JOBS]
+#   --check-mutcopy validates paths and prints the canonical copy path, without side effects.
 #   CC125_WORKTREE  clean checkout to run in   (default: repo root of this script)
 #   CC125_SCRATCH   scratch root               (default: ${TMPDIR:-/tmp}/cc125)
 #   CC125_MUTCOPY   mutation copy of the tree  (default: $CC125_SCRATCH/mutcopy; deleted on exit
@@ -20,7 +21,7 @@
 set -uo pipefail
 export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH"
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HERE="$(dirname "${BASH_SOURCE[0]}")"
 W="${CC125_WORKTREE:-$(git -C "$HERE" rev-parse --show-toplevel)}"
 S="${CC125_SCRATCH:-${TMPDIR:-/tmp}/cc125}"
 C="${CC125_MUTCOPY:-$S/mutcopy}"
@@ -31,8 +32,18 @@ sha() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 
 ncpu() { nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo "?"; }
 redact() { sed -e "s#$HOME#~#g"; }   # keep user/home paths out of the archived env record
 
+# Resolve relative paths, symlinks and missing suffixes before any directory change or deletion.
+canonical() { python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
+W="$(canonical "$W")" || exit 2
+C="$(canonical "$C")" || exit 2
+H="$(canonical "$HOME")" || exit 2
+case "$C" in "$W"|"$W"/*|/|"$H"|"") echo "refusing unsafe mutation copy: $C" >&2; exit 2;; esac
+# An ancestor of the checkout would also delete the checkout.
+case "$W" in "$C"/*) echo "refusing mutation copy containing the work tree: $C" >&2; exit 2;; esac
+readonly W C
+if [ "${1:-}" = --check-mutcopy ]; then printf '%s\n' "$C"; exit 0; fi
+
 mkdir -p "$O"; cd "$W" || { echo "cannot cd to $W" >&2; exit 2; }
-case "$C" in "$W"|"$W"/*|/|"") echo "refusing mutation copy inside the work tree: $C" >&2; exit 2;; esac
 
 cleanup() {
   local rc=$?

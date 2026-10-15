@@ -69,6 +69,9 @@ contract D5c1A3HistoricalSPTest is Test {
     }
 
     function _expectActivateRejected(address s) internal {
+        // A nonzero stored approval makes the allowance view assertion meaningful.
+        vm.prank(user);
+        tok.approve(s, type(uint256).max);
         assertTrue(tok.historicalSP(s), "pre: spender is historicalSP");
         assertGe(vm.getBlockTimestamp(), tok.spenderActivatesAt(s), "pre: timelock elapsed (guard is the only cause)");
         vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.InvalidAddress.selector, s));
@@ -219,6 +222,7 @@ contract D5c1A3HistoricalSPTest is Test {
         V2TokenDeployer.approveSP(st, y);
         _rotateTo(y);
         _assertBanned(address(x), "as historical SP");
+        _assertBanned(sp, "revoked previous SP after rotation");
         vm.prank(owner_);
         vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.InvalidAddress.selector, address(x)));
         IExt(address(tok)).proposeSpender(address(x));
