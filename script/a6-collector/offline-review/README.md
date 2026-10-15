@@ -1,12 +1,21 @@
 # A6 offline review
 
+DSR has decided scope (a), Seeder `dc7d0fab` (2026-10-15). These controls establish
+offline internal consistency within the [decided trust root and scope](../README.md#信任根与范围).
+They do not establish chain authenticity or independent on-chain replay. Round-6
+whole-row forgery with recomputed hashes is outside validator scope and is controlled
+by on-chain re-fetch, not claimed as rejected by this validator. Formal acceptance
+follows [A6-SOP.md](../A6-SOP.md); author A3a go and A4 complete are both required.
+A3a is currently NO-GO. Merged #477/#479 local Anvil results prove gauge mechanics
+only, are not real-chain A6 data, and do not block A2.
+
 Run from the worktree root with Node and `viem` installed:
 
 ```sh
 node script/a6-collector/offline-review/run.mjs
 ```
 
-This runs all nine checks sequentially without RPC access:
+This runs all ten suites sequentially without RPC access:
 
 - `check.mjs`: archive-derived offline positive control, every emitted passport leaf deleted independently, original tampering controls, collector argument gates, and tracked archives outside this generated fixture directory. `results.tsv`, `archives.tsv`, and `passport-fields.txt` are regenerated.
 - `check-library.mjs`: valid success/postOp conservation, missing-lock evaluation, independent reservation, inflight state, persistent validation writes, unchanged xPNTs/supply, both lock identity topics, and source citations.
@@ -16,7 +25,7 @@ This runs all nine checks sequentially without RPC access:
 
 The round-2 rules bind each arm's paymaster to both the packed operation and passport, require the expected packed operation in its bundle, and require distinct paymasters, transactions, and op hashes within each triplet. Extra EntryPoint UserOperationEvents stay in the raw logs and are copied into the validator report. Non-fixture receipts containing extra operations are rejected because aggregate deposit deltas cannot be attributed by this single-op gauge. Deliberate drop-op/wrong-hash fixtures remain consistent failures and cannot match triplets.
 
-RPC identity uses normalized host and effective port, ignoring transport and URL decoration. Distinct provider identities require different non-loopback hosts. Different ports on the same/local host require the recorded `allowSameEndpointLocal` override, which disqualifies conformance. Loopback aliases (`localhost`, `localhost.`, `*.localhost`, `127.0.0.0/8`, `[::1]`, IPv4-mapped IPv6 loopback, `0.0.0.0`) share an identity; credentials, paths, queries, and fragments cannot manufacture distinct endpoints. A count-50 run is accepted only when conformance is recomputed true, even if its recorded conformance flag is false. Small local mechanism checks require the explicit override and different ports; they remain nonconformant. Counts must be positive integers; conformance requires exactly 50.
+The offline endpoint check uses normalized host and effective port, ignoring transport and URL decoration. Its `distinctEndpoints` predicate requires different non-loopback hosts; this is a URL check, not evidence of different operators or backends. Formal A6 requires that independent evidence as described in the SOP. Different ports on the same/local host require the recorded `allowSameEndpointLocal` override, which disqualifies conformance. Loopback aliases (`localhost`, `localhost.`, `*.localhost`, `127.0.0.0/8`, `[::1]`, IPv4-mapped IPv6 loopback, `0.0.0.0`) share an identity; credentials, paths, queries, and fragments cannot manufacture distinct endpoints. For count 50, offline acceptance requires recomputed conformance true and a matching recorded flag; a false recorded flag does not waive that check. Offline acceptance and `protocolConformant` do not establish formal A6 acceptance. Small local mechanism checks require the explicit override and different ports; even local N=50 remains nonconformant. Counts must be positive integers; the offline conformance predicate requires exactly 50.
 
 Both passports require typed, non-empty config leaves, including the local override flag. EntryPoint address/code/arm bindings, canonical-address flag, account sender, token and SP references must agree. Rows must bind to those addresses and passport gas/callData. Success locks bind user/locker to sender/SP. Failed postOp checks preserve `totalSpent += a0`, the inflight reservation and lock, while user xPNTs, supply, sponsorship count, and revenue remain unchanged.
 
@@ -38,7 +47,7 @@ Rules were checked using `git show 1ac0e1c5:<path>`, with line assertions in the
 
 | Finding | Pinned source / rule |
 | --- | --- |
-| 1. Endpoint identity | Gauge provider-independence rule; no Solidity endpoint concept. URL parsing plus DNS-label validation; unspecified IPv4/IPv6 share loopback identity. |
+| 1. Endpoint identity | Offline URL-identity rule; no Solidity endpoint concept. URL parsing plus DNS-label validation; unspecified IPv4/IPv6 share loopback identity. This does not prove operator/backend independence. |
 | 2. Nonce | `singleton-paymaster/lib/account-abstraction-v7/contracts/core/NonceManager.sol:36-40`: sender + uint192 key, uint64 sequence; EntryPoint `:650-652` enforces it. Require strict increase across successes, not contiguous increments. |
 | 3. Sponsor-able state | `SuperPaymaster.sol:233,242,248,252,257`; `tokens/v2/xPNTsTokenV2.sol:194`; EntryPoint `:605`; `Helpers.sol:47-50` maps zero validUntil to max uint48. Start cached quote must stay fresh through the end passport's timestamp; end cache must also be fresh at its block. This is conservative if a quote expires and refreshes mid-run. |
 | 4. Passport balance | `SuperPaymaster.sol:313,322,447`: operator balance is mutable accounting state. Require independently recorded A/B readbacks at the **same block hash**, never carry a different block's value into archive validation. Collector now includes operatorBalance on baseline arms too. |

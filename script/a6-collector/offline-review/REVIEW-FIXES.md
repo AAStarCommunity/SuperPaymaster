@@ -1,5 +1,12 @@
 # PR #477 reviewer repair
 
+DSR selected scope (a), Seeder `dc7d0fab` (2026-10-15). Here, independent
+single-op validation means a separately implemented offline decoder and
+consistency checks, not independent on-chain replay or proof of chain
+authenticity. Round-6 coherent whole-row forgery is outside validator scope and
+controlled by on-chain re-fetch. See the [decided scope](../README.md#信任根与范围)
+and [formal SOP](../A6-SOP.md). Historical local controls do not establish A6 acceptance.
+
 Historical repair scope: branch `cc125/a6-gauge`, starting HEAD `6b0a4261`. Those fixes were committed in `0988a589`; `58a8eb44` regenerated the archive from that collector. The N1–N5 follow-up was committed as `64246042` on `cc125/477-followups` for PR #479. The R1 repair is a local, offline validator and evidence update. Run `node script/a6-collector/offline-review/run.mjs`; `review-results.tsv` records the old HEAD validator and current validator on identical synthetic inputs. Archive inputs are never repaired.
 
 | Reviewer ID | Disposition and proof |
