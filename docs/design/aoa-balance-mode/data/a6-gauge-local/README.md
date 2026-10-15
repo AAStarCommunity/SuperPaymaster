@@ -17,7 +17,7 @@
 
 | item | value |
 |---|---|
-| collector head (recorded in every `run_start.head`, `collectorDirty: false`) | `236602347c6656398232cab776914c5b7cf32cf5` |
+| collector head (recorded in every `run_start.head`, `collectorDirty: false`) | `d8c8a9f4a906e3c15991cf4cf62caebb904aaa4c` |
 | old collector compared against (`origin/feat/aoa-balance-mode-5.5.0`) | `172ff7df9f3156ae9e6cb742647dd2b132adbbc7` (`old-collector.ref`, source in `old-collector.source.mjs`) |
 | forge / anvil | Both 1.7.1, commit `4072e48705af9d93e3c0f6e29e93b5e9a40caed8`, profile `dist` (local `forge --version` and `anvil --version`) |
 | solc | 0.8.33 (`setup-deploy-core.log.gz`) |
@@ -136,13 +136,13 @@ judged. `old-*.recheck.json` looks up the UserOperationEvent for the hash each o
 ## What changed vs the cloud run
 
 The superseded cloud run used collector `bbf34d46` and Linux Foundry 1.5.1.
-This directory now contains the macOS regeneration at `23660234`, after four rounds of
+This directory now contains the macOS regeneration at `d8c8a9f4`, after five rounds of
 adversarial-review hardening in the `script/a6-collector` history (`6ad0a035`, `5d2bdc02`,
-`67fc6c60`, `e272baa7`) and the continuity-regression fix `23660234`:
+`67fc6c60`, `e272baa7`, `e8187911`) and the regression fixes `23660234` and `d8c8a9f4`:
 
 - Fixtures are run-level only. Each success is bound to the userOpHash recomputed from
   `packedOp`. The validator recomputes `callDataHash` and reads gas and bundler from the recorded transaction.
-- Passport completeness fails closed: 99 single-field deletions each produced validator exit 2.
+- Passport completeness fails closed: 100 single-field deletions each produced validator exit 2.
 - The collector refuses identical A and B endpoints unless it records an explicit local override.
   The validator recomputes `protocolConformant` from N=50, no fixture, three arms,
   distinct endpoints, and no local override. Distinct endpoints do not establish independent providers.
@@ -173,7 +173,8 @@ adversarial-review hardening in the `script/a6-collector` history (`6ad0a035`, `
   reservation bounds and `CreditSettled` identity. The postOp branch requires absent settle
   events and unchanged credit fields.
 - **Round 3 — end passport.** The end passport must retain the start chainId and bind a block
-  at or after the last attempt; `run_end.exitCode` must equal `stop.code`.
+  at or after the last attempt (strengthened in round 5 to strictly after it);
+  `run_end.exitCode` must equal `stop.code`.
 - **Round 4 hardening (`e272baa7`).** Malformed or unspecified hosts cannot establish
   distinct endpoints. Successful nonce sequences must strictly increase per sender and nonce key
   across arms. Counted successes require sponsorship eligibility, enabled SP/operator/xPNTs,
@@ -191,15 +192,35 @@ adversarial-review hardening in the `script/a6-collector` history (`6ad0a035`, `
   it unchanged. Per-arm state checks remain, with no allowance for unexplained top-ups.
   Three regression controls verify that a legitimate synthetic N=50 passes, while an
   unexplained jump and a mutation inside a baseline transaction fail.
-- The current `offline-review/` result tables contain **116 + 57 + 44 + 36 + 3 controls**:
-  base, round-2, round-3, round-4 and shared-balance regression suites respectively
-  (`results.tsv`, `round2-results.tsv`, `round3-results.tsv`, `round4-results.tsv`,
-  `shared-balance-results.tsv`). All 256 controls pass their expected checks. Of the base
-  controls, 112 previously exited 0 and are now rejected; all 57 round-2, 44 round-3 and
-  36 round-4 controls also previously exited 0 and are now rejected. The regression table
-  records collector pass/validator 0 for the legitimate N=50 and collector reject/validator 1
-  for each mutation. These are offline tampering/control campaigns, not additional on-chain
-  runs in this directory.
+- **Round 5 hardening (`e8187911`).** Nonces must advance exactly one per sender/key.
+  Reservation quotes must use valid oracle inputs and the contract's rounding; SP enforces
+  `minTxInterval` and the configured postOp gas floor. Non-executed rows must leave state
+  unchanged. The end passport must use a fresh block strictly after the last attempt, with
+  an unused block hash and unchanged final operator balance. Under the local Anvil override
+  on chain 31337, the collector mines one block with `evm_mine` to take this fresh end
+  passport; real chains wait for a later block. Packed SP maxRate, token and renewal flags,
+  VPM validity windows, and account size/codehash consistency are checked as well.
+- **Second regression — receipt attribution (`d8c8a9f4`).** Round 5's “no UOE => no change”
+  rule wrongly flagged honest foreign-op and hash-mismatch fixtures: no UserOperationEvent
+  (UOE) for the expected hash does not mean no operation executed. The fix attributes deltas
+  to executed receipt UOEs bound to the recorded bundled operations, checks each operation's
+  events and conservation, then compares aggregate state deltas. Unexplained or unbacked
+  changes still fail; honest foreign/hash-mismatch rows remain non-countable. The 43 controls
+  in `receipt-attribution-results.tsv` record three honest cases (including two foreign ops)
+  at validator exit 3, consistent but not accepted with zero matched triplets, and 40
+  tampered/unbacked cases at exit 1.
+- The current `offline-review/` result tables contain **117 + 57 + 44 + 36 + 3 + 51 + 43
+  = 351 controls**: base, round-2, round-3, round-4, shared-balance regression, round-5,
+  and receipt-attribution (`no_execution`) regression suites respectively (`results.tsv`,
+  `round2-results.tsv`, `round3-results.tsv`, `round4-results.tsv`,
+  `shared-balance-results.tsv`, `round5-results.tsv`, `receipt-attribution-results.tsv`).
+  All 351 controls record their expected outcomes. Of the base controls, 113 previously
+  exited 0 and are now rejected; all 57 round-2, 44 round-3, 36 round-4 and 51 round-5
+  controls also previously exited 0 and are now rejected (round-2 includes one consistent,
+  not-accepted exit 3). The shared-balance regression table records collector pass/validator 0
+  for the legitimate N=50 and collector reject/validator 1 for each of two mutations.
+  The receipt-attribution outcomes are detailed above. These are offline tampering/control
+  campaigns, not additional on-chain runs in this directory.
 
 The old-collector comparison was also regenerated. `old-collector.ref` now records
 `172ff7df9f3156ae9e6cb742647dd2b132adbbc7`; its false successes remain documented
@@ -218,8 +239,9 @@ in `NEGATIVE-CONTROLS.md` and `old-*.recheck.json`.
   address differs. The gauge has never been run against the canonical deployment.
 - **One bundler, one op per bundle.** The bundler is anvil key #1, and every handleOps carries a
   single op (two only in the drop-op fixture). No external bundler (Alto/Skandha) was involved.
-  The gauge does not yet handle multi-op bundles from other senders sharing a block. It stops
-  with `BLOCK_NOT_ISOLATED` (24) instead of attributing deltas.
+  Receipt attribution now has offline coverage for two foreign ops in one bundle, but that
+  is not an on-chain run here. The gauge still requires an isolated transaction block;
+  other transactions sharing the block stop it with `BLOCK_NOT_ISOLATED` (24).
 - **Paths not exercised by any run.**
   - CREDIT-mode conservation (C5′) and the postOp-reverted branch (R1/R2) exist in both the
     gauge and the validator, but no run produced them.

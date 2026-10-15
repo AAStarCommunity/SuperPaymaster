@@ -1,7 +1,7 @@
 A6 collector dry-run: count=1 bMax=1 (placeholder — DSR to set the real value) rpc=http://127.0.0.1:8545
 SP=0x68B1D87F95878fE05B998F19b66F4baba5De1aed  VerifyingPaymaster=0x2B0d36FACD61B71CC05ab8F3D2355ec3631C0dd5  TokenPaymaster=0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb
 SP sender ready: 0x43a71246698E5bE1D9fb04183589edA602EA06F1  token=0xDC17C27Ae8bE831AF07CC38C02930007060020F4
-SP: SENT tx=0x6e2ed0ec5b92e81f6b2542a3d8b6e9bb5924a1b207dbe28a07e76fc79d55b64f status=success gasUsed=281424
-VerifyingPaymaster: SENT tx=0x49e58c2afa3755cdd35fa62b55522b810254fb8795f84ad76fc211a9cdc7c5b7 status=success gasUsed=87699
-TokenPaymaster: SENT tx=0x695e5abe91aacca9e3d6215c30c71cf5bfc529480a790a1c6528e86ff467e23b status=success gasUsed=120625
+SP: SENT tx=0xf2623e52e96f1191d8b9f4cb43b1d2d4b602a12eeb094d0d13b301d3105046c0 status=success gasUsed=281424
+VerifyingPaymaster: SENT tx=0xa74fe9f8f0df68390cc6a598eb6a8ec6334ce1ec7778bd8c7a8363319269bb6a status=success gasUsed=87699
+TokenPaymaster: SENT tx=0x4a64b63bff9c73539b45d5f9120427c4065833aefd1f1bcc6afa809ea5920baf status=success gasUsed=120625
 wrote docs/design/aoa-balance-mode/data/a6-gauge-local/old-b-drop-op.jsonl

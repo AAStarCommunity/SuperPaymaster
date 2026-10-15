@@ -2,7 +2,22 @@
   "file": "docs/design/aoa-balance-mode/data/a6-gauge-local/e-missing-field.jsonl",
   "attempts": 1,
   "recomputed": {},
-  "errors": [],
+  "errors": [
+    "attempt 0: no_execution.epDeposit",
+    "attempt 0: no_execution.operatorBalance",
+    "attempt 0: no_execution.totalSpent",
+    "attempt 0: no_execution.totalTxSponsored",
+    "attempt 0: no_execution.protocolRevenue",
+    "attempt 0: no_execution.userXPNTs",
+    "attempt 0: no_execution.totalSupply",
+    "attempt 0: no_execution.epDeposit",
+    "attempt 0: no_execution.operatorBalance",
+    "attempt 0: no_execution.totalSpent",
+    "attempt 0: no_execution.totalTxSponsored",
+    "attempt 0: no_execution.protocolRevenue",
+    "attempt 0: no_execution.userXPNTs",
+    "attempt 0: no_execution.totalSupply"
+  ],
   "notes": [],
   "missing": "missing field logs",
   "validatorExit": 2
