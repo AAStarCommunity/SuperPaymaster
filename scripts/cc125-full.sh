@@ -19,6 +19,7 @@
 #   CC125_MUTCOPY   mutation copy of the tree  (default: $CC125_SCRATCH/mutcopy; deleted on exit
 #                   unless CC125_KEEP_MUTCOPY=1)
 #   CC125_OUT       output dir                 (default: $CC125_SCRATCH/run)
+#   CC125_HALMOS_ENV uv/halmos environment root (default: $HOME/.local/share/uv/tools/halmos)
 set -uo pipefail
 export PATH="$HOME/.foundry/bin:$HOME/.local/bin:$PATH"
 
@@ -28,6 +29,7 @@ S="${CC125_SCRATCH:-${TMPDIR:-/tmp}/cc125}"
 C="${CC125_MUTCOPY:-$S/mutcopy}"
 O="${CC125_OUT:-$S/run}"
 J="${1:-4}"
+HALMOS_ENV="${CC125_HALMOS_ENV:-$HOME/.local/share/uv/tools/halmos}"
 
 sha() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi; }
 ncpu() { nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo "?"; }
@@ -37,10 +39,35 @@ redact() { sed -e "s#$HOME#~#g"; }   # keep user/home paths out of the archived 
 canonical() { python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
 W="$(canonical "$W")" || exit 2
 C="$(canonical "$C")" || exit 2
-H="$(canonical "$HOME")" || exit 2
-case "$C" in "$W"|"$W"/*|/|"$H"|"") echo "refusing unsafe mutation copy: $C" >&2; exit 2;; esac
-# An ancestor of the checkout would also delete the checkout.
-case "$W" in "$C"/*) echo "refusing mutation copy containing the work tree: $C" >&2; exit 2;; esac
+# realpath preserves case on case-insensitive filesystems; compare inode identity instead.
+python3 - "$W" "$C" "$HOME" <<'PYGUARD' || exit 2
+import os
+import sys
+
+work, copy, home = sys.argv[1:]
+
+
+def existing_ancestors(path):
+    while True:
+        if os.path.exists(path):
+            yield path
+        parent = os.path.dirname(path)
+        if parent == path:
+            break
+        path = parent
+
+
+def same_existing(left, right):
+    return os.path.exists(left) and os.path.exists(right) and os.path.samefile(left, right)
+
+
+# The second walk also covers missing copy paths via their nearest existing ancestor.
+unsafe = (same_existing(copy, home)
+          or any(same_existing(copy, ancestor) for ancestor in existing_ancestors(work))
+          or any(same_existing(work, ancestor) for ancestor in existing_ancestors(copy)))
+if unsafe:
+    sys.exit(f"refusing unsafe mutation copy: {copy}")
+PYGUARD
 readonly W C
 if [ "${1:-}" = --check-mutcopy ]; then printf '%s\n' "$C"; exit 0; fi
 
@@ -71,13 +98,13 @@ step() { # name cmd...
 {
   echo "date_utc: $(date -u +%FT%TZ)"
   echo "head: $(git rev-parse HEAD)"
-  echo "tag v5.5.0-rc.2 peeled: $(git rev-parse 'v5.5.0-rc.2^{commit}' 2>/dev/null)"
+  echo "tag v5.5.0-rc.2 peeled: $(git rev-parse 'v5.5.0-rc.2^{commit}')"
   echo "git status --porcelain (must be only the new test file):"; git status --porcelain
   echo "submodules:"; git submodule status contracts/lib/solady contracts/lib/chainlink-brownie-contracts
   echo "halmos: $(halmos --version 2>&1)"
   echo "forge: $(forge --version 2>&1 | tr '\n' ' ')"
   echo "python3: $(python3 --version 2>&1)"
-  echo "z3/yices: $(ls ~/.local/share/uv/tools/halmos/lib/python3*/site-packages 2>/dev/null | grep -iE '^(z3|yices)' | tr '\n' ' ')"
+  echo "z3/yices: $(ls "$HALMOS_ENV"/lib/python3*/site-packages 2>/dev/null | grep -iE '^(z3|yices)' | tr '\n' ' ')"
   echo "os: $(uname -srm)"   # no hostname (uname -a would print it)
   echo "ncpu: $(ncpu)  load: $(uptime)"
   echo "jobs: $J"

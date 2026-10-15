@@ -6,9 +6,9 @@
 # That archived copy is kept byte-identical because EVIDENCE.sha256 of the rc2 rerun pins it; it
 # is the record of what was run, not a tool to re-run. Differences:
 #   - no hard-coded absolute paths: work tree and output dir are args / env with defaults;
-#   - an EXIT/INT/TERM/HUP trap restores every mutated file from git and verifies its sha256
-#     against the value captured before the first mutation, so an interrupted or failing run
-#     never leaves mutated production source behind;
+#   - an EXIT/INT/TERM/HUP trap attempts to restore each mutated file from git and checks
+#     its sha256 against the value captured before mutation; restoration failure exits 99;
+#     SIGKILL, power loss, or a failed restore can leave mutated production source behind;
 #   - refuses to start when contracts/src has local changes (the restore baseline is HEAD);
 #   - mutation sets are selectable (MUTSET=a3 | hsp | all).
 #
@@ -42,7 +42,7 @@ h0() { local i; for i in "${!FILES[@]}"; do [ "${FILES[$i]}" = "$1" ] && { echo 
 restore() {
   local rc=$? ok=1
   for f in "${FILES[@]}"; do
-    git checkout -- "$f" 2>/dev/null
+    git checkout -- "$f"
     if [ "$(sha "$f")" = "$(h0 "$f")" ]; then echo "# restored $f sha256 $(h0 "$f")"; else echo "RESTORE-MISMATCH $f" >&2; ok=0; fi
   done
   [ "$ok" = 1 ] && echo RESTORED-OK || { echo RESTORE-FAILED >&2; rc=99; }
