@@ -246,12 +246,18 @@ async function setupOnce(ctx) {
         // Collect the contiguous low levels from 1 upward (stop at the first level already
         // >= MIN, or at an unpriced level reading 0 — that is above the reachable top),
         // then raise them highest-first so every write keeps the table monotonic.
+        // Trigger on tier 1 < MIN, but once raising, collect every contiguous level below the
+        // WRITE target (SET), not below MIN: a neighbour in [MIN, SET) would otherwise sit under
+        // the new value and make the write revert (e.g. [100, 250, 300] -> tier 1 = 300 > 250).
         const low = [];
-        for (let level = 1n; level <= 21n; level++) {
-          const v = await retryView(() => registry.creditTierConfig(level), `creditTierConfig(${level})`);
-          if (level > 1n && v === 0n) break;
-          if (v >= CREDIT_TIER_MIN) break;
-          low.push(level);
+        const tier1 = await retryView(() => registry.creditTierConfig(1n), 'creditTierConfig(1)');
+        if (tier1 < CREDIT_TIER_MIN) {
+          for (let level = 1n; level <= 21n; level++) {
+            const v = await retryView(() => registry.creditTierConfig(level), `creditTierConfig(${level})`);
+            if (level > 1n && v === 0n) break;
+            if (v >= CREDIT_TIER_SET) break;
+            low.push(level);
+          }
         }
         if (low.length === 0) {
           check('creditTierConfig[1] sufficient for gasless', true, '>= ' + ethers.formatEther(CREDIT_TIER_MIN) + ' aPNTs');
