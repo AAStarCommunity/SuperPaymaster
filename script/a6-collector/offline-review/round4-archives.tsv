@@ -1,9 +1,9 @@
 archive	exit	matched	proof
-positive	2	1	end passport requires operatorBalance readback at same block hash
-a-exec-revert	2	0	end passport requires operatorBalance readback at same block hash
-b-drop-op	2	0	end passport requires operatorBalance readback at same block hash
-c-wrong-hash	2	0	end passport requires operatorBalance readback at same block hash
+positive	0	1	consistent
+a-exec-revert	3	0	consistent
+b-drop-op	3	0	consistent
+c-wrong-hash	3	0	consistent
 d-tamper-b	2		missing field readbacks.before.A
-e-conservation-injected	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: C1,C3; attempt 0: recorded conservation.ok=true, recomputed false
+e-conservation-injected	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: C1,C3; attempt 0: recorded conservation.ok=true, recomputed false; attempt 1: balance continuity failed: operatorBalance; attempt 1: baseline changed operatorBalance; attempt 1: baseline changed operatorBalance; attempt 1: same-block operatorBalance readbacks disagree; attempt 2: balance continuity failed: operatorBalance; attempt 2: baseline changed operatorBalance; attempt 2: baseline changed operatorBalance
 e-missing-field	2		missing field logs
-n50-mechanism	2	50	end passport requires operatorBalance readback at same block hash
+n50-mechanism	3	50	consistent

@@ -31,7 +31,7 @@ import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
 // Exit codes: 0 = N matched triplets collected; 10 = attempt budget exhausted before N;
 //   20 RPC_DISAGREEMENT, 21 PASSPORT_DRIFT, 22 CONSERVATION_MISMATCH, 23 HASH_SELF_CHECK,
 //   24 BLOCK_NOT_ISOLATED, 25 RECEIPT_DISAGREEMENT, 26 ENTRYPOINT_MISMATCH (an arm or the account
-//   is bound to another EntryPoint); 27 UNEXPECTED_USEROP_EVENT (extra op in single-op gauge); 2 = bad arguments / refused; 1 = crash.
+//   is bound to another EntryPoint); 27 UNEXPECTED_USEROP_EVENT (extra op in single-op gauge); 28 EVIDENCE_CONTINUITY_MISMATCH; 29 END_PASSPORT_ERROR; 2 = bad arguments / refused; 1 = crash.
 import { readFileSync, existsSync, statSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,7 +46,7 @@ import { clients, send, rpc, EP_ABI, ANVIL_KEYS } from '../b-layer/lib.mjs';
 import { checkDepositFloor, opGasLimitSum, depositFloor } from './deposit-guard.mjs';
 import {
   CANONICAL_EP_V07, VERDICTS, classifyAttempt, decodeLogsFrom, SP_EVENTS_ABI, TOKEN_EVENTS_ABI,
-  spConservation, localUserOpHash, diffPaths, jsonable,
+  spConservation, conservationStop, localUserOpHash, diffPaths, jsonable,
 } from './gauge-lib.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -535,7 +535,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const out = { readbacks: { before, after } };
 
   if (blk.transactions.length !== 1 || bn !== headBefore + 1n) {
-    finish({ ...out, exclusion: 'BLOCK_NOT_ISOLATED' });
+    finish({ ...out, stoppedBy: { reason: 'BLOCK_NOT_ISOLATED', detail: { bn, txCount: blk.transactions.length, headBefore } }, exclusion: 'BLOCK_NOT_ISOLATED' });
     throw new Stop('BLOCK_NOT_ISOLATED', 24, { bn, txCount: blk.transactions.length, headBefore });
   }
 
@@ -566,9 +566,10 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   }
   const evaluated = !!cls.event && sp?.evaluated !== false;
   const conservationOk = evaluated ? checks.every((c) => c.ok) : null;
-  const r = finish({ ...out, spMode: sp?.mode ?? null, charge: sp?.charge ?? null, conservation: { evaluated, notEvaluable: sp?.notEvaluable ?? null, ok: conservationOk, checks },
+  const failure = conservationStop(checks);
+  const r = finish({ ...out, ...(failure ? { stoppedBy: { reason: failure.reason, detail: { attemptIndex: idx, failed: failure.failed } } } : {}), spMode: sp?.mode ?? null, charge: sp?.charge ?? null, conservation: { evaluated, notEvaluable: sp?.notEvaluable ?? null, ok: conservationOk, checks },
     exclusion: !noFixture(fixture) ? 'FIXTURE' : null });
-  if (checks.some(c => !c.ok)) throw new Stop('CONSERVATION_MISMATCH', 22, { attemptIndex: idx, failed: checks.filter((c) => !c.ok) });
+  if (failure) throw new Stop(failure.reason, failure.code, { attemptIndex: idx, failed: failure.failed });
 
   // Passport drift (code + config) at this block vs. the start.
   const now = await readAB(`passport@${bn}`, (p) => passport(p, bn));
@@ -643,7 +644,9 @@ try {
     if (drift.length && stop.code === 0) stop = { reason: 'PASSPORT_DRIFT', code: 21, detail: { drift } };
   }
 } catch (e) {
-  if (e instanceof Stop && stop.code === 0) stop = { reason: e.reason, code: e.code, detail: e.detail };
+  if (stop.code === 0) stop = e instanceof Stop
+    ? { reason: e.reason, code: e.code, detail: e.detail }
+    : { reason: 'END_PASSPORT_ERROR', code: 29, detail: String(e) };
 }
 exitCode = stop.code;
 writeLine({ kind: 'run_end', stop, exitCode, matchedTriplets: matched, targetTriplets: count, tally, triplets,

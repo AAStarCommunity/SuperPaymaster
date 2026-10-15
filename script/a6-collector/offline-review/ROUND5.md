@@ -30,10 +30,10 @@ Aliases:
 | 1. Nonce jumps | FIXED: next observed sender/key sequence must equal previous + 1, including executed operations whose account call reverted. Positive and N=50 gap controls reject. | NM 36–40: key/sequence split and post-increment equality. The gauge has isolated contiguous blocks and the fixed execute call, so unobserved nonce increments cannot explain a gap. |
 | 2. Quote ignored by a0 | FIXED: recompute requiredPrefund, both ceiling divisions, fee and 1000-BPS validation buffer, for both LockCreated and CreditReserved. Five quote controls reject. | EP 402–413; SP 214–223, 304–310; ST 207–209. Price and USD denominator must be positive; decimal exponent must fit uint256. |
 | 3. minTxInterval | FIXED: require tx.blockTimestamp, bracket it with passport times, enforce interval from the previous SP settlement. A normal settlement updates the cursor even when the account call reverted; a postOp revert does not. N=50 interval control rejects. | SP 282–287, 409–411; EP 605. |
-| 4. postOp gas floor | FIXED: packed gas, row gas and passport gas must agree AND meet the effective minPostOpGas. Values 0, 1, 174999, 199999 and a configured floor above the supplied limit reject. | ST 193 (200000 default), 197–199 (155000 + 20000 absolute floor), 200 (2000000 ceiling), 319–320 (zero slot uses defaults); SP 266–270. Admin 330–333 returns effective values. There is no analogous numeric SP verification-gas floor in these pinned checks; none is invented. |
+| 4. postOp gas floor | FIXED: packed gas, row gas and passport gas must agree AND, for a matching executed UOE, meet the effective minPostOpGas. Values 0, 1, 174999, 199999 and a configured floor above the supplied limit reject. | ST 193 (200000 default), 197–199 (155000 + 20000 absolute floor), 200 (2000000 ceiling), 319–320 (zero slot uses defaults); SP 266–270. Admin 330–333 returns effective values. There is no analogous numeric SP verification-gas floor in these pinned checks; none is invented. |
 | 5. No matching UOE / reverted tx mutates SP | FIXED: compare every SP_FIELDS leaf plus epDeposit at both endpoints. Any delta rejects, before STOPPED/unsent handling too. 26 controls cover all 13 tracked fields for both NO_EVENT and reverted tx. Unchanged rows remain accepted. | EP 180–203 validates then executes the ops; 126 reverts the entire bundle; 132 emits a UOE even on low prefund. Absence of the matching UOE cannot attribute a state mutation to this gauge's operation. EVM transaction rollback is distinct from an account-call revert or a caught postOp revert. |
 | 6. End passport reuses earlier hash | FIXED: forbid every earlier readback/start-passport hash, require height strictly after last attempt, compare end operatorBalance to chronological last after balance. Four old-acceptance controls reject. | This is the requested evidence-bracketing rule, not a contract function. SP 322–324 explains the operator debit; SP 426–450 settles it. Reusing an older readback cannot prove the final balance. |
-| 7. Packed SP tail | FIXED: require token and maxRate words, token equality, exchangeRate <= maxRate, and no simultaneous renewal bits. Three controls reject. | ST 175–182 gives byte offsets; SP 292–302 gives admission conditions. Exact maxRate equality and a single renewal bit pass. |
+| 7. Packed SP tail | FIXED: for a matching executed UOE require token and maxRate words, token equality, exchangeRate <= maxRate, and no simultaneous renewal bits. Three controls reject. | ST 175–182 gives byte offsets; SP 292–302 gives admission conditions. Exact maxRate equality and a single renewal bit pass. |
 | 8. VPM validity | FIXED: ABI uint48 bounds and validAfter <= tx time <= validUntil; zero validUntil retains EntryPoint semantics. Three controls reject. Both inclusive time boundaries pass. | VPM 27–29, 76, 89, 92–94; Helpers 43–51; EP 597–605. |
 | 9. Account size/codehash | FIXED: size == 0 iff codehash == keccak256(empty bytes), checked in both passports before the existing initCode rule. Two controls reject, including the size-0/initCode bypass. | EP 427–430 rejects initCode for existing code. Code length and its hash describe the same runtime bytes; the size/hash consistency rule prevents contradictory evidence from bypassing that check. |
 
@@ -44,18 +44,9 @@ New required fields:
 - Both passports: `invariant.superPaymaster.minPostOpGas`, read from the effective `gasParams().current.minPostOpGas` getter, without assuming the default when configuration evidence is absent.
 - Executed operation rows: `tx.blockTimestamp`, read from the attempt block on A/B.
 
-The collector emits these fields and waits up to 60 seconds for a later end-passport
-block. It does not mine a block; a local test harness must advance the chain itself.
-The collector changes were syntax checked only; no chain run was authorized.
+The collector emits these fields and waits up to 60 seconds for a later end-passport block. On chain 31337 with the explicit local override it sends `evm_mine`; other chains wait for a later block and fail closed on timeout.
 
-The untouched current archive cannot retain `0/3/3/3/2/1/2/3` under these requirements.
-Its actual new exits are `2/2/2/2/2/2/2/2`, in that same order. Every file first fails
-with exactly `missing field invariant.superPaymaster.minPostOpGas`.
-The old snapshot reproduces the requested original matrix; see `round5-archives.tsv`.
-The archive also lacks `tx.blockTimestamp` and reuses the last attempt block as the
-end passport. Filling in a guessed gas floor alone would not make this valid evidence.
-No archive JSONL, manifest or archived report was regenerated.
-
+The archive was regenerated in `6b0a4261` from collector `d8c8a9f4`. It includes the effective gas floor, transaction timestamps, all-arm balance readbacks and a distinct later end passport. Its ordered exits are **0/3/3/3/2/1/2/3**. The offline repair does not rewrite archive JSONL, manifests or archived reports. `round4-archives.tsv` records the current matrix; `round5-archives.tsv` retains the historical comparator comparison.
 Older suites retain their frozen-validator inputs. For current-validator checks,
 `current-fixture.mjs` creates explicitly synthetic later end-block envelopes in
 `offline-review/fixtures` only, leaving field mutations intact. `synthetic-anchors.mjs`

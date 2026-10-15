@@ -6,7 +6,7 @@ Run from the worktree root with Node and `viem` installed:
 node script/a6-collector/offline-review/run.mjs
 ```
 
-This runs all six checks sequentially without RPC access:
+This runs all nine checks sequentially without RPC access:
 
 - `check.mjs`: archive-derived offline positive control, every emitted passport leaf deleted independently, original tampering controls, collector argument gates, and tracked archives outside this generated fixture directory. `results.tsv`, `archives.tsv`, and `passport-fields.txt` are regenerated.
 - `check-library.mjs`: valid success/postOp conservation, missing-lock evaluation, independent reservation, inflight state, persistent validation writes, unchanged xPNTs/supply, both lock identity topics, and source citations.
@@ -20,7 +20,7 @@ RPC identity uses normalized host and effective port, ignoring transport and URL
 
 Both passports require typed, non-empty config leaves, including the local override flag. EntryPoint address/code/arm bindings, canonical-address flag, account sender, token and SP references must agree. Rows must bind to those addresses and passport gas/callData. Success locks bind user/locker to sender/SP. Failed postOp checks preserve `totalSpent += a0`, the inflight reservation and lock, while user xPNTs, supply, sponsorship count, and revenue remain unchanged.
 
-The local chain archive is preserved byte-for-byte. Round 4 requires an operator-balance readback at each passport's exact block hash. The existing end passport is at the final TPM block, but its readback has no `operatorBalance`. The newly instrumented collector reads this field for **every arm**. Current ordered archive exits (positive / exec-revert / drop-op / wrong-hash / tamper-B / conservation-injected / missing-field / N=50) are **2/2/2/2/2/1/2/2**, versus the expected pre-repair **0/3/3/3/2/1/2/3**. See `round4-archives.tsv`. Missing end-block evidence is reported, never reconstructed in archive validation.
+The current local archive was regenerated at `d8c8a9f4` and includes all-arm operatorBalance readbacks, the effective gas floor and transaction timestamps. Current ordered exits (positive / exec-revert / drop-op / wrong-hash / tamper-B / conservation-injected / missing-field / N=50) are **0/3/3/3/2/1/2/3**. See `round4-archives.tsv`. The end passport uses a distinct later block; balance is checked against the chronological last after-read. The archive remains untouched by the offline suite.
 
 Offline controls use `a.invalid` / `b.invalid` labels only; no endpoints are contacted. Round-3 and round-4 conformance fixtures clear the local override at both passports and run_start, and explicitly set N=50 conformance true. `synthetic-anchors.mjs` adds the missing end-block operator-balance field to **test fixtures only**, using the known separate-arm synthetic scenario. These fixtures are not provider evidence or regenerated archives. Round-2 override controls toggle the existing value so they cannot become no-ops when an archive changes.
 
@@ -28,9 +28,9 @@ Round 3 adds `check-round3.mjs` and `round3-results.tsv`: each tampered JSONL mu
 
 Run-wide transaction/op/block uniqueness prevents triplet replay. Each before block must equal the preceding after block, anchored at the start passport. Deposits are tracked per arm; persistent SP balances/counters must equal the preceding SP after values, since the other arms use separate paymasters and tokens. `lockXLocked`, `inflightA0`, and `inflightOperator` are op-hash-specific and start empty for each new op; this expected change from a previous failed op is checked by the per-row reservation rules. No unexplained state delta is allowed.
 
-Only `fixture === null` means no fixture; all counting and fixture exclusions use that predicate. Success requires cleared inflight operator/a0; balance settlement preserves debts/credit reservations and binds LockSettled user/hash to LockCreated user/hash/locker (LockSettled has no locker topic). Credit settlement checks reservation bounds, totalSpent, reserved/settled identities and debt bounds. Failed postOp requires no settlement events and unchanged debt/reservations. Collector conservation mirrors these checks while validator decoding remains independent.
+Only `fixture === null` means no fixture; all counting and fixture exclusions use that predicate. Success requires cleared inflight operator/a0; balance settlement preserves debts/credit reservations and binds LockSettled user/hash to LockCreated user/hash/locker (LockSettled has no locker topic). Credit settlement checks reservation bounds, totalSpent, reserved/settled identities and debt bounds. Failed postOp requires no settlement events and unchanged debt; validation-time CREDIT reservations persist with creditReservedOf increased by a0. Collector conservation mirrors these checks while validator decoding remains independent.
 
-End passports must retain chainId and be at or after the last attempt block. At equal height the hash must match; at a later height the hash must differ. Equality is necessary because the collector takes its end passport at the final mined block (e.g. N=50 block 336); a strictly greater height would reject the collector's own output. `run_end.exitCode` must equal `stop.code`.
+End passports must retain chainId, use a distinct hash and be strictly after the last attempt block. The collector mines the later block only for chain 31337 with the local override; otherwise it waits up to 60 seconds. `run_end.exitCode` must equal `stop.code`.
 
 Round 4 adds `check-round4.mjs`, frozen `validate-round4-old.mjs` (SHA256 checked by the harness), and `round4-results.tsv`. Every new tampering control requires old exit 0, new rejection, and the specific rejection reason. Already-rejected IPv4 unspecified addresses remain a separate old=1/new=1 regression. The controls cover malformed DNS and IPv6 unspecified hosts, cross-arm and cross-attempt nonce reuse/decrease, each sponsorship flag and stale quote, both passport balances and missing same-hash anchor, sponsorship cost/fee consistency, balance-lock bounds/rate/available balance, both packed tails, and both block checks without a UOE. Independent nonce keys remain valid.
 
@@ -86,3 +86,5 @@ Verified results: 116 base controls (112 newly rejected), library checks, 57 rou
 `shared-balance-verification.log` records this offline verification. Fresh positive /
 a / b / c / d / e / e' / N=50 results remain **unverified** because of the sandbox
 socket restriction. The archived expected exit pairs are not claimed as fresh outcomes.
+
+PR #477 false-rejection controls are in `check-review.mjs`; old/new exits and rejection proofs are in `review-results.tsv`. See `REVIEW-FIXES.md` for source citations, verdict semantics and the aGas evidence limit.

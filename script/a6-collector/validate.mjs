@@ -155,6 +155,7 @@ function conservation(row, spAddr, tokenAddr, operator, inv) {
         add('operatorBalance', -a0);
         a.inflightOperator = operator; a.inflightA0 = String(a0);
         if (locks.length) { const x = BigInt(word(locks[0].data, 0)); add('lockedOf', x); a.lockXLocked = String(x); }
+        else add('creditReservedOf', a0);
       } else {
         if (charges.length !== 1) { failed.push('receipt.sponsored_count'); continue; }
         const charge = BigInt(word(charges[0].data, 1));
@@ -237,12 +238,18 @@ function conservationOne(row, spAddr, tokenAddr, operator, inv) {
   if (postOpReverted) {
     if (success) failed.push('R.success_with_postop_revert');
     if (sponsored.length) failed.push('R1.sponsored_absent');
-    if (logsOf(logs, tokenAddr, T.LOCK_SETTLED).length || logsOf(logs, tokenAddr, T.CREDIT_SETTLED).length || logsOf(logs, tokenAddr, T.CREDIT_RESERVED).length) failed.push('R.settle_events_absent');
-    if (d('debts') !== 0n || d('creditReservedOf') !== 0n) failed.push('R.credit_unchanged');
+    if (logsOf(logs, tokenAddr, T.LOCK_SETTLED).length || logsOf(logs, tokenAddr, T.CREDIT_SETTLED).length) failed.push('R.settle_events_absent');
     const locks = logsOf(logs, tokenAddr, T.LOCK_CREATED).filter(l => lc(l.topics[2]) === h);
-    if (locks.length !== 1) { failed.push('R.not_evaluable_missing_lock_created'); return failed; }
-    const a0 = BigInt(word(locks[0].data, 1)), xLocked = BigInt(word(locks[0].data, 0));
-    if (lc(topicAddr(locks[0].topics[1])) !== lc(row.sender) || lc(topicAddr(locks[0].topics[3])) !== lc(spAddr)) failed.push('R.lock_identity');
+    const credits = logsOf(logs, tokenAddr, T.CREDIT_RESERVED).filter(l => lc(l.topics[2]) === h);
+    if (locks.length + credits.length !== 1) {
+      if (locks.length + credits.length > 1) failed.push('R.reservation_count');
+      if (d('debts') !== 0n || d('creditReservedOf') !== 0n) failed.push('R.credit_unchanged');
+      failed.push('R.not_evaluable_missing_lock_created'); return failed;
+    }
+    const reservation = locks[0] ?? credits[0];
+    const a0 = BigInt(word(reservation.data, locks.length ? 1 : 0)), xLocked = locks.length ? BigInt(word(reservation.data, 0)) : 0n;
+    if (d('debts') !== 0n || d('creditReservedOf') !== (credits.length ? a0 : 0n)) failed.push('R.credit_unchanged');
+    if (lc(topicAddr(reservation.topics[1])) !== lc(row.sender) || lc(topicAddr(reservation.topics[3])) !== lc(spAddr)) failed.push('R.lock_identity');
     if (lc(a.inflightOperator) !== lc(operator)) failed.push('R1.operator');
     if (big(a.inflightA0) !== a0) failed.push('R1.a0');
     if (d('operatorBalance') !== -a0) failed.push('R1.op_delta');
@@ -256,6 +263,25 @@ function conservationOne(row, spAddr, tokenAddr, operator, inv) {
   if (sponsored.length !== 1) { failed.push('C9.sponsored_count'); return failed; }
   const s = sponsored[0];
   const charge = BigInt(word(s.data, 1)), aGas = BigInt(word(s.data, 0));
+  // git show 1ac0e1c5: SP:419-428 prices the PRE-postOp cost plus a buffer,
+  // whereas EP:703-707,716-730 adds postOp gas and penalty before emitting UOE.
+  // The archive has no postOp calldata trace or gas-parameter snapshot. Bind the
+  // emitted aGas to the source-proven interval; do not equate these two costs.
+  // ST:192,200-203 / Admin:297-301 bound cPostop+cWrap to [180000,2050000].
+  const used = BigInt(word(uoe.data, 3));
+  if (used === 0n || actualGasCost % used !== 0n) failed.push('C9.actualGasCost_gasPrice');
+  else if (price > 0n && usd > 0n && big(sp.cachedPrice.decimals) <= 77n) {
+    const feePerGas = actualGasCost / used;
+    if (feePerGas > big(gas.maxFeePerGas) || feePerGas < (big(gas.maxPriorityFeePerGas) < big(gas.maxFeePerGas) ? big(gas.maxPriorityFeePerGas) : big(gas.maxFeePerGas))) failed.push('C9.actualGasCost_gasPrice');
+    const penaltyBuffer = ceil((big(gas.callGasLimit) + BigInt('0x' + pd.slice(74, 106))) * 10n, 100n);
+    const denominator = 10n ** big(sp.cachedPrice.decimals) * usd;
+    const convert = wei => ceil(wei * price * 10n**18n, denominator);
+    // Pre-op gas includes preVerificationGas (EP:672); final UOE cost includes
+    // all gas charged before the callback, plus nonnegative wrapper/penalty gas.
+    const lower = convert((big(gas.preVerificationGas) + 180000n + penaltyBuffer) * feePerGas);
+    const upper = convert(actualGasCost + (2050000n + penaltyBuffer) * feePerGas);
+    if (aGas < lower || aGas > upper) failed.push('C9.aGas_actualGasCost_price');
+  }
   // SP at 1ac0e1c5:426-434,450 emits (aGas, min(ceil(aGas*(10000+fee)/10000), a0)).
   const reservations = [...logsOf(logs, tokenAddr, T.LOCK_CREATED), ...logsOf(logs, tokenAddr, T.CREDIT_RESERVED)]
     .filter(l => lc(l.topics[2]) === h);
@@ -487,7 +513,10 @@ try {
     const pmData = row.packedOp.paymasterAndData;
     const pmGas = { ver: BigInt('0x' + pmData.slice(42, 74)), post: BigInt('0x' + pmData.slice(74, 106)) };
     if (['ver', 'post'].some(f => big(need(row.pmGas, f)) !== pmGas[f] || big(need(inv, `pmGas.${row.arm}.${f}`)) !== pmGas[f])) errors.push(`attempt ${i}: paymaster gas passport mismatch`);
-    if (row.arm === 'SP') {
+    const executed = row.sent && row.tx?.status === 'success' && logsOf(row.logs, row.entryPoint, T.UOE).some(l =>
+      lc(l.topics[1]) === lc(hashOp(row.packedOp, row.entryPoint, chainId)) && lc(topicAddr(l.topics[2])) === lc(row.sender)
+      && BigInt(word(l.data, 0)) === big(row.nonce) && lc(topicAddr(l.topics[3])) === lc(row.paymaster));
+    if (row.arm === 'SP' && executed) {
       if (pmGas.post < big(inv.superPaymaster.minPostOpGas)) errors.push(`attempt ${i}: paymaster postOp gas below contract floor`);
       if (pmData.length < 250) errors.push(`attempt ${i}: SP packed tail truncated`);
       else {
@@ -593,7 +622,7 @@ try {
       for (const c of need(row, 'conservation.checks')) if (c.id in citations && c.src !== citations[c.id]) errors.push(`attempt ${i}: incorrect source citation ${c.id}`);
       const notEvaluable = failed.includes('R.not_evaluable_missing_lock_created');
       if (notEvaluable) {
-        (report.notEvaluable ??= []).push({ attemptIndex: i, reason: 'missing unique LockCreated: R1/R2 cannot be evaluated', countable: false });
+        (report.notEvaluable ??= []).push({ attemptIndex: i, reason: 'missing unique LockCreated or CreditReserved: R1/R2 cannot be evaluated', countable: false });
       }
       const actualFailures = failed.filter(f => f !== 'R.not_evaluable_missing_lock_created');
       if (actualFailures.length) errors.push(`attempt ${i} (${row.arm}): conservation FAILS on raw read-backs: ${actualFailures.join(',')}`);
@@ -610,10 +639,11 @@ try {
   for (const [, rows] of byTriplet) {
     // A row interrupted by a stop condition never counts, whatever its receipt said.
     const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
-    const same = new Set(rows.map((r) => `${r.row.derivedCallDataHash}|${JSON.stringify(r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size === 1;
+    const sentRows = rows.filter(r => r.row.sent);
+    const same = new Set(sentRows.map((r) => `${r.row.derivedCallDataHash}|${JSON.stringify(r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size <= 1;
     if (!same) errors.push('triplet callData/gas/bundler differ between arms');
-    const distinct = ['paymaster', 'expectedUserOpHash'].every(f => new Set(rows.map(r => lc(r.row[f]))).size === rows.length)
-      && new Set(rows.map(r => lc(r.row.tx?.hash))).size === rows.length;
+    const distinct = ['paymaster', 'expectedUserOpHash'].every(f => new Set(sentRows.map(r => lc(r.row[f]))).size === sentRows.length)
+      && new Set(sentRows.map(r => lc(r.row.tx?.hash))).size === sentRows.length;
     if (!distinct) errors.push('triplet paymasters/transaction hashes/userOpHashes must be distinct');
     if (noFixture(fixture) && okArms && same && distinct && rows.length === arms.length) matched++;
   }
@@ -632,7 +662,7 @@ try {
   if (allEarlierHashes.has(lc(end.passport.block.hash))) errors.push('end passport reuses earlier block hash');
   if (big(end.passport.volatile.operatorBalance) !== lastAfterBalance) errors.push('end passport balance differs from last after');
   if (big(end.passport.block.timestamp) < big(pStart.block.timestamp)) errors.push('end passport timestamp precedes start');
-  if (arms.includes('SP')) for (const [label, p] of [['start', pStart]]) {
+  if (arms.includes('SP') && attempts.some(r => r.sent)) for (const [label, p] of [['start', pStart]]) {
     const value = balanceReadbacks.get(lc(p.block.hash));
     if (value === undefined) { if (!errors.length) throw new Missing(`${label} passport requires operatorBalance readback at same block hash`); continue; }
     if (value !== big(p.volatile.operatorBalance)) errors.push(`${label} passport/readback operatorBalance mismatch`);

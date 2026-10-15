@@ -5,6 +5,10 @@ import { join } from 'node:path';
 const dir = process.argv[2];
 const res = Object.fromEntries(readFileSync(join(dir, 'results.tsv'), 'utf8').trim().split('\n').slice(1)
   .map((l) => l.split('\t')).map(([n, c, v]) => [n, { c, v }]));
+// Fail the fixture campaign when a recorded verdict differs from its contract.
+for (const [name, expected] of Object.entries({positive:['0','0'],'a-exec-revert':['10','3'],'b-drop-op':['10','3'],'c-wrong-hash':['10','3'],'d-tamper-b':['20','2'],'e-conservation-injected':['n/a','1'],'e-missing-field':['n/a','2'],'n50-mechanism':['0','3']})) {
+  if (!res[name] || res[name].c !== expected[0] || res[name].v !== expected[1]) throw Error(`${name}: expected collector/validator ${expected.join('/')}, got ${JSON.stringify(res[name])}`);
+}
 const jsonl = (n) => readFileSync(join(dir, `${n}.jsonl`), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
 const vjson = (n) => (existsSync(join(dir, `${n}.validator.json`)) ? JSON.parse(readFileSync(join(dir, `${n}.validator.json`), 'utf8')) : null);
 function newRow(name, label, expect) {
@@ -14,7 +18,7 @@ function newRow(name, label, expect) {
   const verdicts = att.map((r) => `${r.arm}: ${r.verdict}${r.failingCheck ? ` (\`${r.failingCheck}\`)` : ''}${r.stoppedBy ? ` — stopped by \`${r.stoppedBy.reason}\` on \`${(r.stoppedBy.detail?.diff ?? []).join(',')}\`` : ''}`).join('<br>');
   const cons = att.filter((r) => r.conservation?.evaluated).map((r) => `${r.arm} ${r.conservation.ok ? 'OK' : 'FAIL'} (${r.conservation.checks.length} checks)`).join(', ') || '—';
   const v = vjson(name);
-  return `| ${label} | ${expect} | ${verdicts} | ${cons} | \`${end.stop.reason}\` / exit **${res[name].c}** | exit **${res[name].v}** (${v?.consistent ? 'consistent' : 'INCONSISTENT'}${v?.accepted ? ', accepted' : ', not accepted'}) |`;
+  return `| ${label} | ${expect} | ${verdicts} | ${cons} | \`${end.stop.reason}\` / exit **${res[name].c}** | exit **${res[name].v}** (${res[name].v === '2' ? 'fails closed' : v?.consistent ? 'consistent' : 'INCONSISTENT'}${v?.accepted ? ', accepted' : ', not accepted'}) |`;
 }
 function oldCell(name) {
   const rows = JSON.parse(readFileSync(join(dir, `${name}.recheck.json`), 'utf8'));

@@ -223,19 +223,25 @@ export function spConservation({ before, after, spEvents, tokenEvents, expectedH
   const lockSettled = tokenEvents.filter((e) => e.event === 'LockSettled' && eqA(e.args.opHash, expectedHash));
   const credRes = tokenEvents.filter((e) => e.event === 'CreditReserved' && eqA(e.args.opHash, expectedHash));
   const credSet = tokenEvents.filter((e) => e.event === 'CreditSettled' && eqA(e.args.opHash, expectedHash));
-  for (const e of lockCreated) {
-    add('lock.user', eqA(e.args.user, sender), sender, e.args.user, 'XT:243');
-    add('lock.locker', eqA(e.args.locker, paymaster), paymaster, e.args.locker, 'XT:243');
+  for (const e of [...lockCreated, ...credRes]) {
+    const src = e.event === 'CreditReserved' ? 'XT:308' : 'XT:243';
+    add('lock.user', eqA(e.args.user, sender), sender, e.args.user, src);
+    add('lock.locker', eqA(e.args.locker, paymaster), paymaster, e.args.locker, src);
   }
   const postOpReverted = cls.verdict === VERDICTS.USEROP_REVERTED && cls.revertKind === 'postOpReverted';
 
   add('C4.before_operator_empty', eqA(before.inflightOperator, '0x' + '0'.repeat(40)), 0, before.inflightOperator, 'SP:445');
   add('C4.inflight_before_empty', B(before.inflightA0) === 0n, 0, before.inflightA0, 'SP:324,445');
   if (postOpReverted) {
-    add('R.settle_events_absent', !lockSettled.length && !credSet.length && !credRes.length, 0, lockSettled.length + credSet.length + credRes.length, 'EP:134-148');
-    add('R.credit_unchanged', dDebt === 0n && dCredRes === 0n, 0, `${dDebt}/${dCredRes}`, 'EP:134-148');
-    if (lockCreated.length !== 1) return { mode: 'UNKNOWN', postOpReverted: true, evaluated: false, notEvaluable: 'missing unique LockCreated', checks, ok: null };
-    const a0 = B(lockCreated[0].args.aReserved);
+    add('R.settle_events_absent', !lockSettled.length && !credSet.length, 0, lockSettled.length + credSet.length, 'EP:134-148');
+    if (lockCreated.length + credRes.length !== 1) {
+      add('R.reservation_count', lockCreated.length + credRes.length === 0, '0 or 1', lockCreated.length + credRes.length, 'XT:243,308');
+      add('R.credit_unchanged', dDebt === 0n && dCredRes === 0n, 0, `${dDebt}/${dCredRes}`, 'EP:134-148');
+      return { mode: 'UNKNOWN', postOpReverted: true, evaluated: false, notEvaluable: 'missing unique LockCreated or CreditReserved', checks, ok: null };
+    }
+    const lc = lockCreated[0]?.args, credit = credRes[0]?.args;
+    const a0 = B(lc ? lc.aReserved : credit.amount);
+    add('R.credit_unchanged', dDebt === 0n && dCredRes === (credit ? a0 : 0n), credit ? a0 : 0n, `${dDebt}/${dCredRes}`, 'XT:305; EP:134-148');
     add('R1.inflight_a0', B(after.inflightA0) === a0, a0, after.inflightA0, 'SP:324');
     add('R1.sponsored_absent', sponsored.length === 0, 0, sponsored.length, 'EP:134-148');
     add('R1.inflight_after_operator', eqA(after.inflightOperator, operator), operator, after.inflightOperator, 'SP:324');
@@ -244,9 +250,8 @@ export function spConservation({ before, after, spEvents, tokenEvents, expectedH
     add('R1.totalSpent_plus_a0', B(after.totalSpent) - B(before.totalSpent) === a0, a0, B(after.totalSpent) - B(before.totalSpent), 'SP:323');
     add('R1.totalTxSponsored_unchanged', B(after.totalTxSponsored) === B(before.totalTxSponsored), before.totalTxSponsored, after.totalTxSponsored, 'SP:417 not reached');
     add('R2.xpnts_unchanged', dUser === 0n && dSupply === 0n, 0, `${dUser}/${dSupply}`, 'EP:134-148');
-    const lc = lockCreated[0].args;
-    add('R2.locked_grew_by_xLocked', dLocked === B(lc.xLocked), lc.xLocked, dLocked, 'XT:240');
-    add('R2.lock_record', B(after.lockXLocked) === B(lc.xLocked), lc.xLocked, after.lockXLocked, 'XT:241');
+    add('R2.locked_grew_by_xLocked', dLocked === B(lc?.xLocked ?? 0), lc?.xLocked ?? 0, dLocked, 'XT:240');
+    add('R2.lock_record', B(after.lockXLocked) === B(lc?.xLocked ?? 0), lc?.xLocked ?? 0, after.lockXLocked, 'XT:241');
     return { mode: lc ? 'BALANCE' : credRes.length ? 'CREDIT' : 'UNKNOWN', postOpReverted: true, checks, ok: checks.every((c) => c.ok) };
   }
 
@@ -325,4 +330,11 @@ export function operatorBalanceContinuity(arm, before, after, previousBalance) {
   if (arm !== 'SP') checks.push({ id: 'continuity.operatorBalance_baseline_unchanged',
     ok: BigInt(after.operatorBalance) === BigInt(before.operatorBalance) });
   return checks;
+}
+
+export function conservationStop(checks) {
+  const failed = checks.filter(c => !c.ok);
+  if (!failed.length) return null;
+  const continuity = failed.some(c => c.id.startsWith('continuity.') || c.id.startsWith('unique.'));
+  return { reason: continuity ? 'EVIDENCE_CONTINUITY_MISMATCH' : 'CONSERVATION_MISMATCH', code: continuity ? 28 : 22, failed };
 }
