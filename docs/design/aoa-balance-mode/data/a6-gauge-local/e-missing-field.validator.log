@@ -1,0 +1,9 @@
+{
+  "file": "docs/design/aoa-balance-mode/data/a6-gauge-local/e-missing-field.jsonl",
+  "attempts": 1,
+  "recomputed": {},
+  "errors": [],
+  "notes": [],
+  "missing": "missing field logs",
+  "validatorExit": 2
+}

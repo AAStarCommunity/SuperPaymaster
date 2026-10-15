@@ -1,0 +1,16 @@
+{
+  "file": "docs/design/aoa-balance-mode/data/a6-gauge-local/n50-mechanism.jsonl",
+  "attempts": 150,
+  "recomputed": {
+    "USEROP_SUCCESS": 150
+  },
+  "errors": [],
+  "notes": [],
+  "matchedTriplets": 50,
+  "stop": "COMPLETE",
+  "exitCode": 0,
+  "protocolConformant": false,
+  "consistent": true,
+  "accepted": false,
+  "validatorExit": 3
+}

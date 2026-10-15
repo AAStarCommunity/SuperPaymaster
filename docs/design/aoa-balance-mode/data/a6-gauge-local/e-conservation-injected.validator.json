@@ -1,0 +1,26 @@
+{
+  "file": "docs/design/aoa-balance-mode/data/a6-gauge-local/e-conservation-injected.jsonl",
+  "attempts": 3,
+  "recomputed": {
+    "USEROP_SUCCESS": 3
+  },
+  "errors": [
+    "attempt 0 (SP): conservation FAILS on raw read-backs: C1,C3",
+    "attempt 0: recorded conservation.ok=true, recomputed false",
+    "attempt 1: balance continuity failed: operatorBalance",
+    "attempt 1: baseline changed operatorBalance",
+    "attempt 1: baseline changed operatorBalance",
+    "attempt 1: same-block operatorBalance readbacks disagree",
+    "attempt 2: balance continuity failed: operatorBalance",
+    "attempt 2: baseline changed operatorBalance",
+    "attempt 2: baseline changed operatorBalance"
+  ],
+  "notes": [],
+  "matchedTriplets": 1,
+  "stop": "COMPLETE",
+  "exitCode": 0,
+  "protocolConformant": false,
+  "consistent": false,
+  "accepted": false,
+  "validatorExit": 1
+}

@@ -1,0 +1,7 @@
+A6 collector dry-run: count=1 bMax=1 (placeholder — DSR to set the real value) rpc=http://127.0.0.1:8545
+SP=0x68B1D87F95878fE05B998F19b66F4baba5De1aed  VerifyingPaymaster=0x2B0d36FACD61B71CC05ab8F3D2355ec3631C0dd5  TokenPaymaster=0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb
+SP sender ready: 0x43a71246698E5bE1D9fb04183589edA602EA06F1  token=0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+SP: SENT tx=0x42e376e6a10d95c70ff7e318a8b4472ae46660a3abb336469f4dc405f235c2c5 status=success gasUsed=291846
+VerifyingPaymaster: SENT tx=0x09d0dc64d9821d9bbbac93503a2bc51b8ca9bda275228ba29d0a8f5eec4b4691 status=success gasUsed=100769
+TokenPaymaster: SENT tx=0xa53a53cc39c8ccaec4cf69e9b2bcf24ae8dbedd4a7dc050f3a798d1de0d63760 status=success gasUsed=133601
+wrote docs/design/aoa-balance-mode/data/a6-gauge-local/old-a-exec-revert.jsonl

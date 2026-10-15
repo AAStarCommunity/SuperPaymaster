@@ -1,0 +1,15 @@
+#!/bin/bash
+set -x
+cd $SCRATCH/wt-a6
+export PATH="$HOME/.foundry/bin:$PATH"
+D=docs/design/aoa-balance-mode/data/a6-gauge-local
+anvil --port 8545 --chain-id 31337 > $SCRATCH/a6-anvil.log 2>&1 &
+APID=$!
+sleep 3
+./deploy-core anvil --force > $D/setup-deploy-core.log 2>&1; echo deploy=$?
+./prepare-test anvil > $D/setup-prepare-test.log 2>&1; echo prepare=$?
+node script/a6-collector/deploy-baselines.mjs http://127.0.0.1:8545 $D/baselines.anvil.json > $D/setup-deploy-baselines.log 2>&1; echo baselines=$?
+cp deployments/config.anvil.json $D/config.anvil.json
+script/a6-collector/negative-controls/run.sh $D $D/baselines.anvil.json; echo run=$?
+kill $APID
+echo ALLDONE
