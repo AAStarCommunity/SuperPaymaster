@@ -1,0 +1,11 @@
+set -x
+cd /home/user/SuperPaymaster
+export PATH="$HOME/.foundry/bin:$PATH"
+nohup anvil --port 8545 --chain-id 31337 > /tmp/claude-0/-home-user-SuperPaymaster/b2cb9bb2-2472-582b-a831-5a56d89e5970/scratchpad/anvil4.log 2>&1 &
+sleep 2
+./deploy-core anvil --force > docs/design/aoa-balance-mode/data/a6-gauge-local/setup-deploy-core.log 2>&1; echo deploy=$?
+./prepare-test anvil > docs/design/aoa-balance-mode/data/a6-gauge-local/setup-prepare-test.log 2>&1; echo prepare=$?
+node script/a6-collector/deploy-baselines.mjs http://127.0.0.1:8545 docs/design/aoa-balance-mode/data/a6-gauge-local/baselines.anvil.json > docs/design/aoa-balance-mode/data/a6-gauge-local/setup-deploy-baselines.log 2>&1; echo baselines=$?
+cp deployments/config.anvil.json docs/design/aoa-balance-mode/data/a6-gauge-local/config.anvil.json
+script/a6-collector/negative-controls/run.sh docs/design/aoa-balance-mode/data/a6-gauge-local docs/design/aoa-balance-mode/data/a6-gauge-local/baselines.anvil.json
+echo ALLDONE
