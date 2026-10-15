@@ -61,7 +61,14 @@ jobs:
         if: steps.changes.outputs.contract == 'true'
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: stable
+          # Pinned, not `stable`: forge 1.8.x enables call isolation by default, which
+          # runs every top-level test call as its own transaction and clears EIP-1153
+          # transient storage between them. The suite models validate→postOp inside ONE
+          # handleOps transaction (the token's live-in-original-tx marker is transient),
+          # so under isolation ~95 tests fail with NotLive() while the contracts are
+          # unchanged. All release evidence was produced with 1.7.1; move the pin
+          # deliberately, together with the tests, never implicitly via `stable`.
+          version: v1.7.1
 
       - name: Build
         if: steps.changes.outputs.contract == 'true'
