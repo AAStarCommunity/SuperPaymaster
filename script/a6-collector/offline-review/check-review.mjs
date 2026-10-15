@@ -1,3 +1,4 @@
+import { syntheticSummary } from './synthetic-summary.mjs';
 // PR #477 reviewer regressions. All inputs are synthetic; no RPC or archive writes.
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
@@ -27,6 +28,7 @@ function run(a, validator) {
   return { exit: r.status, report: JSON.parse(r.stdout) };
 }
 function check(name, a, oldExit, newExit, proof) {
+  a = syntheticSummary(structuredClone(a));
   const before = run(a, old), after = run(a, 'script/a6-collector/validate.mjs');
   assert.equal(before.exit, oldExit, `${name} old: ${JSON.stringify(before.report)}`);
   assert.equal(after.exit, newExit, `${name} new: ${JSON.stringify(after.report)}`);

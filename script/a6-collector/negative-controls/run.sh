@@ -97,5 +97,10 @@ node "$GAUGE/negative-controls/recheck-old-rows.mjs" $A "$EP" "$OUT/old-b-drop-o
 # Mechanism run at the protocol's N=50 (local Anvil; NOT A6 data)
 run n50-mechanism --rpc-a $A --rpc-b $B --ab-topology "B=pass-through proxy over the same anvil" --count 50 --b-max 1
 
-node "$GAUGE/negative-controls/table.mjs" "$OUT" > "$OUT/NEGATIVE-CONTROLS.md"
+REPORT_TMP=$(mktemp "$OUT/.negative-controls.XXXXXX") || exit 1
+if ! node "$GAUGE/negative-controls/table.mjs" "$OUT" > "$REPORT_TMP"; then
+  rm -f "$REPORT_TMP"
+  exit 1
+fi
+mv "$REPORT_TMP" "$OUT/NEGATIVE-CONTROLS.md" || exit 1
 echo "wrote $OUT/NEGATIVE-CONTROLS.md"

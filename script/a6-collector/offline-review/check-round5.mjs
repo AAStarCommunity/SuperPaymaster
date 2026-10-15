@@ -1,3 +1,4 @@
+import { syntheticSummary } from './synthetic-summary.mjs';
 // Independent round-5 JSONL tampering; no RPC. Frozen old validator is HEAD 7eb0c693.
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -6,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { keccak256, toBytes } from 'viem';
 import { localUserOpHash } from '../gauge-lib.mjs';
 import { syntheticAnchors } from './synthetic-anchors.mjs';
-import { freshEnd } from './current-fixture.mjs';
+import { freshEnd, unfinishedTarget } from './current-fixture.mjs';
 const out='script/a6-collector/offline-review', root=process.env.A6_REVIEW_ARCHIVE??'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const oldFile=`${out}/validate-round5-old.mjs`;
 assert.equal(createHash('sha256').update(readFileSync(oldFile)).digest('hex'),createHash('sha256').update(execFileSync('git',['show','7eb0c693:script/a6-collector/validate.mjs'])).digest('hex'));
@@ -26,7 +27,7 @@ const passports=a=>[a[0].passport,a.at(-1).passport];
 function rehash(r){const prev=r.expectedUserOpHash,h=localUserOpHash(r.packedOp,r.entryPoint,r.chainId);r.expectedUserOpHash=r.localUserOpHash=r.epUserOpHash=h;r.bundledOps=[structuredClone(r.packedOp)];r.bundledUserOpHashes=[h];for(const l of r.logs)l.topics=l.topics.map(t=>t.toLowerCase()===prev.toLowerCase()?h:t);}
 function nonce(r,n){r.nonce=r.packedOp.nonce=String(n);rehash(r);const u=r.logs.find(l=>l.topics[0]===UOE);u.data='0x'+word(n)+u.data.slice(66);}
 function bytes(r,offset,count,hex){const d=r.packedOp.paymasterAndData;r.packedOp.paymasterAndData=d.slice(0,2+offset*2)+hex+d.slice(2+(offset+count)*2);rehash(r);}
-function run(name,a,old=false){const f=`${out}/fixtures/r5-${name}.jsonl`;writeFileSync(f,a.map(JSON.stringify).join('\n')+'\n');const r=spawnSync(process.execPath,[old?oldFile:'script/a6-collector/validate.mjs',f],{encoding:'utf8',maxBuffer:16*1024*1024});assert.ifError(r.error);return {exit:r.status,report:JSON.parse(r.stdout)};}
+function run(name,a,old=false){a=structuredClone(a);if(!old && name.startsWith('noexec-'))unfinishedTarget(a);syntheticSummary(a);const f=`${out}/fixtures/r5-${name}.jsonl`;writeFileSync(f,a.map(JSON.stringify).join('\n')+'\n');const r=spawnSync(process.execPath,[old?oldFile:'script/a6-collector/validate.mjs',f],{encoding:'utf8',maxBuffer:16*1024*1024});assert.ifError(r.error);return {exit:r.status,report:JSON.parse(r.stdout)};}
 const results=[];
 function control(name,mutate,proof,source=base,{modern=true}={}) {
   const legacy=structuredClone(source);mutate(legacy);
@@ -52,7 +53,7 @@ function appendSP(a,status='success'){
  for(const rpc of ['A','B']){r.readbacks.before[rpc]={...r.readbacks.after[rpc],blockNumber:last.tx.blockNumber,blockHash:last.tx.blockHash,lockXLocked:'0'};r.readbacks.after[rpc]={...r.readbacks.before[rpc],blockNumber:r.tx.blockNumber,blockHash:r.tx.blockHash};}
  a.splice(-1,0,r);a.at(-1).passport.block.number=r.tx.blockNumber;a.at(-1).passport.block.hash=r.tx.blockHash;return r;
 }
-for(const status of ['success','reverted']) {const a=structuredClone(base);appendSP(a,status);freshEnd(a);assert.equal(run('noexec-unchanged-'+status,a).exit,0,'unchanged no-execution row');}
+for(const status of ['success','reverted']) {const a=structuredClone(base);appendSP(a,status);freshEnd(a);assert.equal(run('noexec-unchanged-'+status,a).exit,3,'unchanged no-execution row');}
 const bounds=freshEnd(structuredClone(base));
 bytes(bounds[1],72,32,word(bounds[0].passport.invariant.xPNTs.exchangeRate));
 bytes(bounds[1],124,1,'01');bytes(bounds[2],52,32,word(bounds[2].tx.blockTimestamp));bytes(bounds[2],84,32,word(bounds[2].tx.blockTimestamp));

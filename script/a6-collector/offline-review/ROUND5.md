@@ -2,9 +2,9 @@
 
 Scope: `cc125/a6-gauge`, starting HEAD `7eb0c693816fe192c4c13734e5efd391b3a88963`, PR #477.
 The complete `grok5-a6.out` was read. All nine High/Medium findings are accepted and fixed.
-No contract source changes, commits, pushes or chain operations were performed.
+The round-5 offline repair performed no contract source changes or chain operations; later commits and archive regeneration are recorded below.
 
-Run `node script/a6-collector/offline-review/run.mjs`. The last suite is
+Run `node script/a6-collector/offline-review/run.mjs`. The round-5 suite is
 `check-round5.mjs`; it verifies the old validator snapshot against `git show
 7eb0c693:script/a6-collector/validate.mjs` before running controls.
 `round5-results.tsv` records each old-exit-0 → new-rejection proof.
@@ -46,7 +46,7 @@ New required fields:
 
 The collector emits these fields and waits up to 60 seconds for a later end-passport block. On chain 31337 with the explicit local override it sends `evm_mine`; other chains wait for a later block and fail closed on timeout.
 
-The archive was regenerated in `6b0a4261` from collector `d8c8a9f4`. It includes the effective gas floor, transaction timestamps, all-arm balance readbacks and a distinct later end passport. Its ordered exits are **0/3/3/3/2/1/2/3**. The offline repair does not rewrite archive JSONL, manifests or archived reports. `round4-archives.tsv` records the current matrix; `round5-archives.tsv` retains the historical comparator comparison.
+The archive was regenerated in `58a8eb44` from collector `0988a589`. It includes the effective gas floor, transaction timestamps, all-arm balance readbacks and a distinct later end passport. Its ordered exits are **0/3/3/3/2/1/2/3**. The offline repair does not rewrite archive JSONL, manifests or archived reports. `round4-archives.tsv` records the current matrix; `round5-archives.tsv` retains the historical comparator comparison.
 Older suites retain their frozen-validator inputs. For current-validator checks,
 `current-fixture.mjs` creates explicitly synthetic later end-block envelopes in
 `offline-review/fixtures` only, leaving field mutations intact. `synthetic-anchors.mjs`

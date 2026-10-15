@@ -1,3 +1,4 @@
+import { syntheticSummary } from './synthetic-summary.mjs';
 // Receipt attribution controls derived from recorded fixture runs. No RPC access.
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -16,6 +17,7 @@ const LOCK = sig('LockCreated(address,bytes32,address,uint256,uint256)');
 const word = n => BigInt(n).toString(16).padStart(64, '0');
 const results = [];
 function check(name, a, exit, proof) {
+  syntheticSummary(a);
   const file = `${out}/fixtures/receipt-${name}.jsonl`;
   writeFileSync(file, a.map(JSON.stringify).join('\n') + '\n');
   const r = spawnSync(process.execPath, ['script/a6-collector/validate.mjs', file], { encoding: 'utf8' });
