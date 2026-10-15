@@ -5,17 +5,19 @@
 > the gauge locally. They say nothing about how VPM, TPM or SP perform. N, B_max and the
 > scenario mix are still DSR's deliverable (plan §8.4).
 
-> **LIMITATION: endpoint B is a pass-through proxy over the SAME Anvil as endpoint A.**
-> The N=50 validator's `protocolConformant: true` checks distinct URLs, N, arms, no fixture,
-> and no same-endpoint override. It is **not evidence of independent RPC sources**.
-> A real A6 run must use two independent providers. Their independence must be established
-> outside this gauge.
+> **LIMITATION: local A/B are proxies over ONE Anvil, not independent RPC sources.**
+> A is the direct Anvil endpoint; B forwards to that same node. The gauge treats loopback
+> endpoints as one identity regardless of port and requires `--allow-same-endpoint-local`.
+> Every regenerated run records `allowSameEndpointLocal: true`, which disqualifies conformance.
+> The N=50 run is consistent but **not accepted**, with `protocolConformant: false`.
+> A real A6 run must use two independent providers. Their independence must still be
+> established outside this gauge; distinct endpoint identities alone do not prove it.
 
 ## What was run
 
 | item | value |
 |---|---|
-| collector head (recorded in every `run_start.head`, `collectorDirty: false`) | `6ad0a0356ec54e83e1d1bf68d704e8af66f396b0` |
+| collector head (recorded in every `run_start.head`, `collectorDirty: false`) | `67fc6c606d37655c3bfb318ac4aeec0f8627e129` |
 | old collector compared against (`origin/feat/aoa-balance-mode-5.5.0`) | `64e84e35ed5d27a2bf9114fa055ae58ddde5b197` (`old-collector.ref`, source in `old-collector.source.mjs`) |
 | forge / anvil | Both 1.7.1, commit `4072e48705af9d93e3c0f6e29e93b5e9a40caed8`, profile `dist` (local `forge --version` and `anvil --version`) |
 | solc | 0.8.33 (`setup-deploy-core.log.gz`) |
@@ -35,6 +37,7 @@ OUT=docs/design/aoa-balance-mode/data/a6-gauge-local
 node script/a6-collector/deploy-baselines.mjs http://127.0.0.1:8545 $OUT/baselines.anvil.json
 cp deployments/config.anvil.json $OUT/config.anvil.json
 script/a6-collector/negative-controls/run.sh $OUT $OUT/baselines.anvil.json
+# run.sh passes --allow-same-endpoint-local to every collector invocation.
 # archived copy only: baselines.anvil.json signerKey redacted (it is anvil dev key #2, but
 # .github/workflows/check-secrets.yml would flag the literal); setup logs gzipped.
 ```
@@ -61,14 +64,14 @@ The full table is in `NEGATIVE-CONTROLS.md`, generated from these files. Exit co
 
 | control | new gauge | collector exit | validator exit | old collector |
 |---|---|---|---|---|
-| positive (real triplet) | SP, VPM and TPM all `USEROP_SUCCESS`. SP: 18 conservation checks OK (BALANCE mode). VPM/TPM: deposit identity OK | 0 `COMPLETE` | 0 (consistent, accepted) | — |
+| positive (real triplet) | SP, VPM and TPM all `USEROP_SUCCESS`. SP: 29 conservation checks OK (BALANCE mode). VPM/TPM: 5 checks each OK, including deposit identity | 0 `COMPLETE` | 0 (consistent, accepted) | — |
 | (a) tx succeeds, op execution reverts | all three arms `USEROP_REVERTED` (`user_operation_success`). SP conservation still OK, because postOp settles in `opReverted` | 10 | 3 (consistent, not accepted) | **success** (`status=success`, no failure flag) on all three, although the UserOperationEvent has `success=false` |
 | (b) tx succeeds, our op is not in the bundle | all three arms `NO_EVENT` (`user_operation_event_present`) | 10 | 3 | **success** on all three, although there is **no** UserOperationEvent for the recorded hash |
 | (c) wrong expected userOpHash | all three arms `HASH_MISMATCH` (`expected_hash_in_events`) | 10 | 3 | n/a (the old collector never matched hashes) |
 | (d) endpoint B tampers a read-back | stop `RPC_DISAGREEMENT` on `$.userXPNTs`. The attempt row is still written, with `stoppedBy` | **20** | **2**: `missing field chainId` (fails closed) | n/a (single endpoint) |
 | (e) fake +1000 operator-balance delta injected into validator input | — | — | **1**: `conservation FAILS on raw read-backs: C1,C3`, plus `recorded conservation.ok=true, recomputed false` | n/a |
 | (e′) required field (`logs`) deleted | — | — | **2**: `missing field logs` (fails closed) | n/a |
-| N=50 mechanism run | 150/150 `USEROP_SUCCESS`, 50/50 matched triplets, `COMPLETE`, `protocolConformant: true` | 0 | 0, recomputed `{"USEROP_SUCCESS":150}`, matchedTriplets 50 | — |
+| N=50 mechanism run | 150/150 `USEROP_SUCCESS`, 50/50 matched triplets, `COMPLETE`, `protocolConformant: false` | 0 | 3 (consistent, not accepted), recomputed `{"USEROP_SUCCESS":150}`, matchedTriplets 50 | — |
 
 Control (d) stops at `RPC_DISAGREEMENT` before the passport is complete. Its `run_end.passport`
 is null, so the validator exits 2 with `missing field chainId`. This is fail-closed by design,
@@ -76,8 +79,10 @@ not an accepted or fully validated run. See `d-tamper-b.jsonl` and `d-tamper-b.v
 
 The positive control is accepted with `protocolConformant: false` (one triplet).
 For N=50, `n50-mechanism.jsonl` records 50 attempts per arm and `COMPLETE`; the validator
-reports `consistent: true`, `accepted: true`, and `protocolConformant: true`, with no errors.
-These flags have the local limitations stated above.
+reports `consistent: true`, `accepted: false`, and `protocolConformant: false`, with no errors
+and validator exit 3. The mandatory local override disqualifies conformance, so completion and
+conservation do not make this N=50 run acceptable. The one-triplet positive control remains
+accepted as a local control; it is not protocol conformant.
 
 Collector exit 10 means the attempt budget ran out before N matched triplets. That is expected:
 each fixture run gets one attempt per arm, and a fixture row never counts toward N.
@@ -130,8 +135,9 @@ judged. `old-*.recheck.json` looks up the UserOperationEvent for the hash each o
 ## What changed vs the cloud run
 
 The superseded cloud run used collector `bbf34d46` and Linux Foundry 1.5.1.
-This directory now contains the macOS regeneration at `6ad0a035`, whose commit message
-records the following hardening after adversarial review:
+This directory now contains the macOS regeneration at `67fc6c60`, after three rounds of
+adversarial-review hardening in the `script/a6-collector` history (`6ad0a035`, `5d2bdc02`,
+`67fc6c60`):
 
 - Fixtures are run-level only. Each success is bound to the userOpHash recomputed from
   `packedOp`. The validator recomputes `callDataHash` and reads gas and bundler from the recorded transaction.
@@ -142,9 +148,36 @@ records the following hardening after adversarial review:
 - PostOp R1 and R2 use the independent reservation. Not-evaluable rows cannot count,
   and unevaluated conservation is `ok: null`.
 - Citations were corrected to `lockedOf` at XT:240,263 and `creditReservedOf` at XT:305,322.
-- The commit's `offline-review/` campaign contains 115 JSONL tampering controls.
-  Of these, 111 that previously exited 0 are now rejected. These counts describe that
-  hardening campaign, not additional on-chain runs in this directory.
+- **Round 2 — arms and transaction binding.** Each arm's paymaster must match both its
+  `packedOp` and passport. Triplet arms require distinct paymasters, transaction hashes and
+  userOpHashes; the expected op must appear in `bundledOps`, and extra events cannot satisfy
+  another arm.
+- **Round 2 — endpoints, passport and target.** Endpoint identity uses scheme, host and
+  effective port; path, query, userinfo and fragment cannot create distinctness. The passport
+  is bound to the emitting EntryPoint and sender, with typed, non-empty config. The target
+  must be at least 1, conformance requires exactly 50, and a count-50 run is accepted only
+  when conformance recomputes true.
+- **Round 2 — conservation.** The postOp-revert branch checks persisting validation writes
+  (`totalSpent`, inflight) and unchanged xPNTs/supply. Success checks `LockCreated` user/locker
+  identity.
+- **Round 3 — run-wide continuity and strict fixtures.** Transaction hashes, userOpHashes and
+  blocks cannot be reused across attempts; consecutive single-transaction blocks and balances
+  must be continuous. Only `fixture === null` can count; empty string, false and zero are rejected.
+- **Round 3 — loopback identity.** Loopback aliases, including `localhost.`, `*.localhost`,
+  `127/8`, `::1`, IPv4-mapped loopback and `0.0.0.0`, share one identity. Different local ports
+  require `--allow-same-endpoint-local`, which disqualifies conformance. The negative-control
+  harness now passes this mandatory override.
+- **Round 3 — full conservation.** BALANCE success checks cleared `inflightOperator`, unchanged
+  debts and `creditReservedOf`, and `LockSettled` identity. CREDIT checks `totalSpent += a0`,
+  reservation bounds and `CreditSettled` identity. The postOp branch requires absent settle
+  events and unchanged credit fields.
+- **Round 3 — end passport.** The end passport must retain the start chainId and bind a block
+  at or after the last attempt; `run_end.exitCode` must equal `stop.code`.
+- The current `offline-review/` result tables contain **116 + 57 + 44 controls**: the base,
+  round-2 and round-3 suites respectively (`results.tsv`, `round2-results.tsv`,
+  `round3-results.tsv`). Of the base controls, 112 previously exited 0 and are now rejected;
+  all 57 round-2 and all 44 round-3 controls also previously exited 0 and are now rejected.
+  These are offline tampering/control campaigns, not additional on-chain runs in this directory.
 
 The old-collector comparison was also regenerated. `old-collector.ref` now records
 `64e84e35ed5d27a2bf9114fa055ae58ddde5b197`; its false successes remain documented

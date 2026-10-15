@@ -9,8 +9,8 @@
   "matchedTriplets": 50,
   "stop": "COMPLETE",
   "exitCode": 0,
-  "protocolConformant": true,
+  "protocolConformant": false,
   "consistent": true,
-  "accepted": true,
-  "validatorExit": 0
+  "accepted": false,
+  "validatorExit": 3
 }
