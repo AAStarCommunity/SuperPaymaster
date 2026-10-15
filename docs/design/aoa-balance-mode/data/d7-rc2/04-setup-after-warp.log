@@ -1,0 +1,42 @@
+◇ injected env (0) from ../../.env.sepolia // tip: ◈ encrypted .env [www.dotenvx.com]
+╔═══════════════════════════════════════════════════════════╗
+║         Gasless Tests Pre-Flight Setup                    ║
+╚═══════════════════════════════════════════════════════════╝
+
+Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+Anni:     0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+Network:  chain 31337
+
+━━━ Step 1: SuperPaymaster Price Cache ━━━
+  ✅ Price cache fresh: valid for 349908s
+
+━━━ Step 2: PaymasterV4 (Test 1) ━━━
+  ✅ PaymasterV4 deployed: 0xa37aE2b259D35aF4aBdde122eC90B204323ED304
+  ✅ PaymasterV4 ETH in EntryPoint: 0.04943664 ETH
+  ✅ PaymasterV4 price cache fresh: valid for 86392s
+  ✅ aPNTs is a supported PaymasterV4 gas token
+  ✅ AA_A token deposit in PaymasterV4: 451.137912 aPNTs
+
+━━━ Step 3: SuperPaymaster Deployer Operator (Test 2) ━━━
+  ✅ Deployer operator configured
+  ✅ Deployer operator not paused
+  ❌ Deployer xPNTsToken = aPNTs
+  ✅ Deployer aPNTs in SuperPaymaster: 1001.0 aPNTs
+
+━━━ Step 4: SuperPaymaster Anni Operator (Test 3) ━━━
+  ✅ Anni operator configured
+  ✅ Anni xPNTsToken = PNTs
+  ✅ Anni aPNTs in SuperPaymaster: 863.9498 aPNTs
+
+━━━ Step 4.5: Ensure Base Credit Tier (Registry) ━━━
+  ✅ creditTierConfig[1] sufficient for gasless: >= 200.0 aPNTs
+━━━ Step 5: Fund AA Account Token Balances ━━━
+  ✅ AA_A aPNTs: 999.0 (already funded)
+  ✅ AA_B aPNTs: 1000.0 (already funded)
+  ✅ AA_C aPNTs: 1000.0 (already funded)
+  ✅ AA_A PNTs: 862.9498 (already funded)
+  ✅ AA_B PNTs: 1000.0 (already funded)
+  ✅ AA_C PNTs: 1000.0 (already funded)
+
+━━━ Summary ━━━
+❌ 1 prerequisite(s) not met. See above.
