@@ -1,0 +1,9 @@
+deploy-core rc=0
+prepare-test rc=0
+AA accounts (factory.createAccount(anvil#0, salt 0/1/2)): 0x03611cefB15C3321DdfAf46814fee1A687235e8A 0x1f85544510E5aD9DF0FA4C57d89A026ad10eC185 0x72943E60f4895292d0AF67787e04057EBB012854
+e2e rc=1
+updatePrice after warp rc=0 priceValidUntil=1792424055 [1.792e9]
+warped +172900s; block ts 1792419855
+setup-after-warp rc=1
+tc4-after-warp rc=0
+tc2-after-warp rc=2

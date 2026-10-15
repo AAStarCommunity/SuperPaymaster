@@ -28,6 +28,23 @@ const files = [
   ...walk('b-layer/cases/layouts'),
   'b-layer/rundler-chain-31337.toml',
   'b-layer/F1-EVIDENCE.sha256',
+  // Final rc.2 review pack and offline gauge evidence live outside data/.
+  ...walk('../../release/v5.5.0-rc.2-review-pack'),
+  '../../release/v5.5.0-rc.2-attestation.json',
+  // script/a6-collector is NOT pinned here: its README/SOP are live docs (PR #480 edits them);
+  // the gauge evidence itself is frozen under data/a6-gauge-local/ with its own manifest.
+  '../../../script/halmos/verify-d5c1.py',
+  '../../../contracts/test/halmos/D5c1A3HistoricalSP.t.sol',
+  '../../../contracts/test/halmos/SuperPaymasterI9Halmos.t.sol',
+  '../../../contracts/test/v2/SuperPaymasterI9Fuzz.t.sol',
+  '../../../scripts/cc125-a3mut.sh',
+  '../../../scripts/cc125-full.sh',
+  '../../../scripts/cc125-full-selftest.sh',
+  '../../../scripts/cc125-full-exit-selftest.sh',
+  '../../security/slither-d5c2-2026-09-17.json',
+  '../../security/aderyn-d5c2-2026-09-17.json',
+  '../../security/slither-aderyn-report-2026-09-17.md',
+  'D5c-1-halmos.md',
 ].sort();
 
 const lines = [
