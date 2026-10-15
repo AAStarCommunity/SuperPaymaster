@@ -46,7 +46,7 @@ for(const t of [LS,CS])control(`postop-settle-${t===LS?'lock':'credit'}`,a=>{con
 control('end-chain',a=>a.at(-1).passport.chainId=1);
 control('end-before-last',a=>a.at(-1).passport.block.number='0');
 control('end-blockhash',a=>a.at(-1).passport.block.hash=a[0].passport.block.hash);
-control('end-future-reused-hash',a=>a.at(-1).passport.block.number=String(BigInt(a.at(-1).passport.block.number)+1n));
+control('end-future-reused-hash',a=>{a.at(-1).passport.block.number=String(BigInt(a.at(-2).tx.blockNumber)+1n);a.at(-1).passport.block.hash=a.at(-2).tx.blockHash;});
 control('end-exitCode',a=>a.at(-1).exitCode=7);
 // Existing ::1 alias protection remains closed under both validators.
 const ipv6=structuredClone(n50); ipv6[0].rpcA='http://127.0.0.1:8545';ipv6[0].rpcB='http://[::1]:8545';

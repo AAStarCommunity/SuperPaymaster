@@ -13,6 +13,10 @@ assert.equal(createHash('sha256').update(readFileSync(oldFile)).digest('hex'),cr
 const load=n=>syntheticAnchors(readFileSync(`${root}/${n}.jsonl`,'utf8').trim().split('\n').map(JSON.parse));
 const base=load('positive'), n50=load('n50-mechanism');
 for(const a of [base,n50]) {
+  // The frozen comparator requires its historical same-block end anchor.
+  // Current-validator controls use freshEnd below; archive evidence is untouched.
+  a.at(-1).passport.block.number=a.at(-2).tx.blockNumber;
+  a.at(-1).passport.block.hash=a.at(-2).tx.blockHash;
   a[0].rpcA='http://a.invalid:8545';a[0].rpcB='http://b.invalid:8545';a[0].allowSameEndpointLocal=false;a[0].protocolConformant=a[0].count===50;
   for(const p of [a[0].passport,a.at(-1).passport])p.allowSameEndpointLocal=false;
 }
@@ -55,7 +59,7 @@ bytes(bounds[1],124,1,'01');bytes(bounds[2],52,32,word(bounds[2].tx.blockTimesta
 assert.equal(run('inclusive-bounds',bounds).exit,0,'inclusive maxRate and VPM timestamp boundaries');
 for(const status of ['success','reverted'])for(const f of fields)control(`noexec-${status}-${f}`,a=>{const r=appendSP(a,status);for(const rpc of ['A','B'])r.readbacks.after[rpc][f]=f==='inflightOperator'?'0x'+'22'.repeat(20):String(BigInt(r.readbacks.after[rpc][f])+1n);if(f==='operatorBalance')a.at(-1).passport.volatile.operatorBalance=r.readbacks.after.A.operatorBalance;},new RegExp('no_execution\\.'+f));
 for(const index of [0,1,2])control('end-reuses-'+index,a=>{const p=a.at(-1).passport, rb=index===0?{blockHash:a[0].passport.block.hash,operatorBalance:a[0].passport.volatile.operatorBalance}:a[index].readbacks.after.A;p.block.number=String(BigInt(a.at(-2).tx.blockNumber)+5n);p.block.hash=rb.blockHash;p.volatile.operatorBalance=rb.operatorBalance??a.at(-1).passport.volatile.operatorBalance;},/end passport reuses earlier block hash/,base,{modern:false});
-control('end-same-last-block',()=>{},/strictly after/,base,{modern:false});
+control('end-same-last-block',a=>{a.at(-1).passport.block.number=a.at(-2).tx.blockNumber;a.at(-1).passport.block.hash=a.at(-2).tx.blockHash;},/strictly after/,base,{modern:false});
 control('maxRate',a=>bytes(a[1],72,32,word(0)),/maxRate/);
 control('token',a=>bytes(a[1],104,20,'22'.repeat(20)),/packed token/);
 control('flags',a=>bytes(a[1],124,1,'03'),/conflicting renewal flags/);

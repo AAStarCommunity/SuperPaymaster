@@ -86,8 +86,106 @@ function verdictOf(row) {
 const SP_FIELDS = ['operatorBalance', 'totalSpent', 'totalTxSponsored', 'protocolRevenue', 'inflightOperator', 'inflightA0',
   'userXPNTs', 'totalSupply', 'lockedOf', 'debts', 'creditReservedOf', 'lockXLocked'];
 
-/** Independent conservation recomputation. Returns list of failed check ids. */
+// Attribute fixture receipt effects independently of the expected-hash verdict. Each
+// executed op must bind to a packed bundle member and pass the single-op identities;
+// their summed effects must explain the entire real readback delta.
 function conservation(row, spAddr, tokenAddr, operator, inv) {
+  const events = logsOf(row.logs, row.entryPoint, T.UOE);
+  if (row.tx.status !== 'success' || !events.length ||
+      (events.length === 1 && lc(events[0].topics[1]) === lc(row.expectedUserOpHash))) {
+    return conservationOne(row, spAddr, tokenAddr, operator, inv);
+  }
+  const failed = [], before = row.readbacks.before.A, after = row.readbacks.after.A;
+  const fields = ['epDeposit', ...(row.arm === 'SP' ? SP_FIELDS : [])];
+  const projected = { ...before }, hashes = new Set();
+  const tokenTopics = [T.LOCK_CREATED, T.LOCK_SETTLED, T.CREDIT_RESERVED, T.CREDIT_SETTLED];
+  const sponsored = logsOf(row.logs, spAddr, T.SPONSORED), usedSponsored = new Set();
+  let previousEventIndex = -1;
+  for (const event of events) {
+    const h = lc(event.topics[1]), index = row.logs.indexOf(event);
+    const op = row.bundledOps.find(op => lc(hashOp(op, row.entryPoint, row.chainId)) === h);
+    if (hashes.has(h)) failed.push('receipt.duplicate_uoe');
+    hashes.add(h);
+    if (!op || lc(op.sender) !== lc(topicAddr(event.topics[2])) ||
+        big(op.nonce) !== BigInt(word(event.data, 0)) ||
+        lc(op.paymasterAndData.slice(0, 42)) !== lc(topicAddr(event.topics[3]))) {
+      failed.push('receipt.uoe_bundle_identity');
+      previousEventIndex = index;
+      continue;
+    }
+    // Other paymasters cannot spend this arm's deposit or tracked SP balances.
+    if (lc(topicAddr(event.topics[3])) !== lc(row.paymaster)) {
+      previousEventIndex = index;
+      continue;
+    }
+    // The recorded SP passport/readbacks cover one operator and sender. Refuse
+    // attribution to a different identity without its independent state evidence.
+    if (row.arm === 'SP' && (lc(op.sender) !== lc(row.sender) ||
+        lc('0x' + op.paymasterAndData.slice(106, 146)) !== lc(operator))) {
+      failed.push('receipt.untracked_sp_identity');
+      previousEventIndex = index;
+      continue;
+    }
+    const operationLogs = row.logs.filter((l, j) => {
+      if (lc(l.address) === lc(spAddr) && lc(l.topics[0]) === lc(T.SPONSORED)) {
+        const belongs = j > previousEventIndex && j < index;
+        if (belongs) usedSponsored.add(l);
+        return belongs;
+      }
+      return l.topics.some(t => lc(t) === h);
+    });
+    previousEventIndex = index;
+    const b = { ...projected };
+    // These three fields are keyed by opHash, unlike persistent aggregate state.
+    if (row.arm === 'SP') Object.assign(b, { inflightOperator: ZERO, inflightA0: '0', lockXLocked: '0' });
+    const a = { ...b, blockNumber: after.blockNumber, blockHash: after.blockHash };
+    const add = (f, n) => { a[f] = String(big(b[f]) + n); };
+    add('epDeposit', -BigInt(word(event.data, 2)));
+    if (row.arm === 'SP') {
+      const byHash = t => logsOf(operationLogs, tokenAddr, t);
+      const locks = byHash(T.LOCK_CREATED), credits = byHash(T.CREDIT_RESERVED);
+      const settlements = byHash(T.LOCK_SETTLED), creditSettlements = byHash(T.CREDIT_SETTLED);
+      const charges = logsOf(operationLogs, spAddr, T.SPONSORED);
+      const reservation = locks[0] ?? credits[0];
+      if (!reservation) { failed.push('receipt.missing_reservation'); continue; }
+      const a0 = BigInt(word(reservation.data, locks.length ? 1 : 0));
+      add('totalSpent', a0);
+      const postRevert = logsOf(operationLogs, row.entryPoint, T.POSTOP).length > 0;
+      if (postRevert) {
+        add('operatorBalance', -a0);
+        a.inflightOperator = operator; a.inflightA0 = String(a0);
+        if (locks.length) { const x = BigInt(word(locks[0].data, 0)); add('lockedOf', x); a.lockXLocked = String(x); }
+      } else {
+        if (charges.length !== 1) { failed.push('receipt.sponsored_count'); continue; }
+        const charge = BigInt(word(charges[0].data, 1));
+        add('operatorBalance', -charge); add('protocolRevenue', charge); add('totalTxSponsored', 1n);
+        a.inflightOperator = ZERO; a.inflightA0 = '0'; a.lockXLocked = '0';
+        if (settlements.length) { const burned = BigInt(word(settlements[0].data, 0)); add('userXPNTs', -burned); add('totalSupply', -burned); }
+        if (creditSettlements.length) add('debts', BigInt(word(creditSettlements[0].data, 0)));
+      }
+    }
+    const checks = conservationOne({ ...row, packedOp: op, expectedUserOpHash: h, logs: operationLogs,
+      readbacks: { before: { A: { ...b, blockNumber: before.blockNumber, blockHash: before.blockHash } }, after: { A: a } } },
+      spAddr, tokenAddr, operator, inv);
+    failed.push(...checks.map(c => `receipt.${h}.${c}`));
+    for (const f of fields) {
+      if (['inflightOperator', 'inflightA0', 'lockXLocked'].includes(f) && h !== lc(row.expectedUserOpHash)) continue;
+      projected[f] = a[f];
+    }
+  }
+  if (row.arm === 'SP') {
+    if (sponsored.some(l => !usedSponsored.has(l))) failed.push('receipt.orphan_sponsored');
+    for (const t of tokenTopics) if (logsOf(row.logs, tokenAddr, t).some(l => !hashes.has(lc(l.topics[2])))) failed.push('receipt.orphan_token_event');
+  }
+  for (const f of fields) if (!deepEq(need(projected, f), need(after, f))) failed.push(`receipt.unexplained.${f}`);
+  // Bracketing applies even when every receipt event belongs to another paymaster.
+  if (big(before.blockNumber) + 1n !== big(after.blockNumber) || big(after.blockNumber) !== big(row.tx.blockNumber)) failed.push('readback_blocks_bracket_tx');
+  if (lc(after.blockHash) !== lc(row.tx.blockHash)) failed.push('readback_after_blockhash_eq_tx_block');
+  return failed;
+}
+
+/** Independent conservation recomputation. Returns list of failed check ids. */
+function conservationOne(row, spAddr, tokenAddr, operator, inv) {
   const failed = [];
   const b = need(row, 'readbacks.before.A'), a = need(row, 'readbacks.after.A');
   for (const f of ['epDeposit', 'blockNumber', 'blockHash']) { need(b, f); need(a, f); }
@@ -98,7 +196,7 @@ function conservation(row, spAddr, tokenAddr, operator, inv) {
   if (big(b.blockNumber) + 1n !== big(a.blockNumber) || big(a.blockNumber) !== big(need(row, 'tx.blockNumber'))) failed.push('readback_blocks_bracket_tx');
   if (lc(a.blockHash) !== lc(need(row, 'tx.blockHash'))) failed.push('readback_after_blockhash_eq_tx_block');
   if (!uoe || row.tx.status !== 'success') {
-    // A reverted transaction or absent matching operation cannot justify any state delta.
+    // A reverted transaction or receipt without relevant execution cannot justify state deltas.
     for (const f of ['epDeposit', ...(row.arm === 'SP' ? SP_FIELDS : [])]) {
       if (!deepEq(need(b, f), need(a, f))) failed.push(`no_execution.${f}`);
     }
@@ -345,9 +443,17 @@ try {
     }
     // Apply no-execution invariance before STOPPED/unsent handling as well.
     if (row.arm === 'SP' && row.readbacks && (!row.sent || row.tx?.status !== 'success'
-      || !logsOf(row.logs ?? [], row.entryPoint, T.UOE).some(l => lc(l.topics[1]) === lc(row.expectedUserOpHash)))) {
+      || !logsOf(row.logs ?? [], row.entryPoint, T.UOE).some(l => lc(topicAddr(l.topics[3])) === lc(row.paymaster)))) {
       for (const rpc of ['A', 'B']) for (const f of ['epDeposit', ...SP_FIELDS]) {
         if (!deepEq(need(row, `readbacks.before.${rpc}.${f}`), need(row, `readbacks.after.${rpc}.${f}`))) errors.push(`attempt ${i}: no_execution.${f}`);
+      }
+    }
+    // Stops exclude counting, but do not waive receipt-backed state attribution.
+    if (row.arm === 'SP' && row.sent && row.tx?.status === 'success' && row.readbacks &&
+        (row.verdict === 'STOPPED' || row.stoppedBy) && logsOf(row.logs ?? [], row.entryPoint, T.UOE).length) {
+      for (const rpc of ['A', 'B']) {
+        const failures = conservation({ ...row, readbacks: { before: { A: row.readbacks.before[rpc] }, after: { A: row.readbacks.after[rpc] } } }, spAddr, tokenAddr, operator, inv);
+        if (failures.length) errors.push(`attempt ${i}: stopped receipt ${rpc}: ${failures.join(',')}`);
       }
     }
     if (need(row, 'kind') !== 'attempt') throw new Missing(`line ${i + 2}: unexpected kind ${row.kind}`);

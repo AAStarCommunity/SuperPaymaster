@@ -6,7 +6,7 @@ passport-arm-paymasters-duplicated	0	1	passport arm paymasters must be distinct;
 duplicate-tx-hash	0	1	attempt 1: reused transaction; triplet paymasters/transaction hashes/userOpHashes must be distinct; run_end.matchedTriplets 1 != recomputed 0
 duplicate-userOpHash	0	1	attempt 1: packed/arm/passport paymaster mismatch; attempt 1: paymaster gas passport mismatch; attempt 1: VPM validity outside block time; attempt 1: nonce sequence must advance exactly one for sender/key; attempt 1: reused transaction; attempt 1: reused userOpHash; attempt 1: reused block; attempt 1: consecutive block continuity failed; attempt 1: balance continuity failed: operatorBalance; attempt 1: baseline changed operatorBalance; attempt 2: nonce sequence must advance exactly one for sender/key; attempt 2: consecutive block continuity failed; triplet paymasters/transaction hashes/userOpHashes must be distinct; run_end.matchedTriplets 1 != recomputed 0
 packed-op-not-bundled	0	1	attempt 1: packedOp absent from bundledOps
-extra-uoe	0	1	attempt 0: extra UserOperationEvent in single-op receipt
+extra-uoe	0	1	attempt 0: extra UserOperationEvent in single-op receipt; attempt 0 (SP): conservation FAILS on raw read-backs: receipt.uoe_bundle_identity; attempt 0: recorded conservation.ok=true, recomputed false
 endpoint-query	0	1	RPC identities require different non-loopback hosts or different ports with explicit local override
 endpoint-path	0	1	RPC identities require different non-loopback hosts or different ports with explicit local override
 endpoint-userinfo	0	1	RPC identities require different non-loopback hosts or different ports with explicit local override
@@ -55,4 +55,4 @@ postop-totalSpent	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R1.t
 postop-userXPNTs	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R2.xpnts_unchanged; attempt 3: recorded conservation.ok=true, recomputed false
 postop-totalSupply	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R2.xpnts_unchanged; attempt 3: recorded conservation.ok=true, recomputed false
 postop-totalTxSponsored	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R1.totalTxSponsored; attempt 3: recorded conservation.ok=true, recomputed false
-zero-target-no-events	0	2	missing field invariant.superPaymaster.minPostOpGas
+zero-target-no-events	0	2	count must be an integer >= 1
