@@ -1,4 +1,5 @@
-// Offline JSONL mutations of the current archive, without repairs or invented transaction fields. Never connects to an RPC.
+import { syntheticAnchors } from './synthetic-anchors.mjs';
+// Offline JSONL mutations of the current archive, with explicitly synthetic end-block balance anchors in test fixtures only. Never connects to an RPC.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { localUserOpHash } from '../gauge-lib.mjs';
@@ -7,6 +8,7 @@ const root = 'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const out = 'script/a6-collector/offline-review';
 mkdirSync(`${out}/fixtures`, { recursive: true });
 const base = readFileSync(`${root}/positive.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);
+syntheticAnchors(base);
 base[0].rpcA='http://a.invalid:8545'; base[0].rpcB='http://b.invalid:8545';
 const run = (file, old) => spawnSync(process.execPath, [old ? `${out}/validate-old.mjs` : 'script/a6-collector/validate.mjs', file], {encoding:'utf8'});
 const cleanFile=`${out}/fixtures/complete-positive.jsonl`;

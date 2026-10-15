@@ -1,3 +1,4 @@
+import { syntheticAnchors } from './synthetic-anchors.mjs';
 // Round-2 controls use the validator immediately before these fixes, not the round-1 pin.
 // All inputs are JSONL mutations of the CURRENT archive. No RPC requests are made.
 import assert from 'node:assert/strict';
@@ -9,7 +10,7 @@ const out = 'script/a6-collector/offline-review';
 const root = 'docs/design/aoa-balance-mode/data/a6-gauge-local';
 const load = name => readFileSync(`${root}/${name}.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);
 const base = load('positive'), n50 = load('n50-mechanism');
-for (const a of [base,n50]) { a[0].rpcA='http://a.invalid:8545'; a[0].rpcB='http://b.invalid:8545'; }
+for (const a of [base,n50].map(syntheticAnchors)) { a[0].rpcA='http://a.invalid:8545'; a[0].rpcB='http://b.invalid:8545'; }
 const rows = a => a.slice(1, -1);
 const passports = a => [a[0].passport, a.at(-1).passport];
 const topic = s => keccak256(toBytes(s));
@@ -93,8 +94,8 @@ for (const [field, value] of [['protocolFeeBPS',''],['protocolFeeBPS',true],['pr
 }
 for (const [field, value] of [['exchangeRate',''],['emergencyDisabled',0],['version','']]) control(`token-config-${field}`, a => passports(a).forEach(p => p.invariant.xPNTs[field]=value), base, 2);
 control('passport-override-type', a => passports(a).forEach(p => p.allowSameEndpointLocal='false'), base, 2);
-control('passport-override-start-mismatch', a => passports(a).forEach(p => p.allowSameEndpointLocal=true));
-control('passport-override-end-drift', a => a.at(-1).passport.allowSameEndpointLocal=true);
+control('passport-override-start-mismatch', a => passports(a).forEach(p => p.allowSameEndpointLocal=!a[0].allowSameEndpointLocal));
+control('passport-override-end-drift', a => a.at(-1).passport.allowSameEndpointLocal=!a[0].passport.allowSameEndpointLocal);
 for (const index of [1,3]) control(`success-lock-topic-${index}`, a => a[1].logs.find(l=>l.topics[0]===LOCK).topics[index]=addrTopic);
 // Keep one complete triplet and append one correctly modelled failed postOp transaction.
 const post = structuredClone(base), r = structuredClone(base[1]);
@@ -126,6 +127,7 @@ for (const side of ['A','B']) {
 }
 r.tx.headBefore=r.readbacks.before.A.blockNumber; r.tx.blockNumber=r.readbacks.after.A.blockNumber; r.tx.blockHash=r.readbacks.after.A.blockHash;
 post.at(-1).passport.block.number=r.tx.blockNumber; post.at(-1).passport.block.hash=r.tx.blockHash;
+post.at(-1).passport.volatile.operatorBalance=r.readbacks.after.A.operatorBalance;
 post.splice(-1,0,r);
 const validPost=`${out}/fixtures/r2-postop-valid.jsonl`;
 writeFileSync(validPost,post.map(JSON.stringify).join('\n')+'\n');

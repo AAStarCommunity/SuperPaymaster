@@ -1,3 +1,4 @@
+import { syntheticAnchors } from './synthetic-anchors.mjs';
 // Round-3 JSONL tampering only. Host labels are offline test inputs; no RPC calls.
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -6,7 +7,7 @@ import { keccak256, toBytes } from 'viem';
 const out='script/a6-collector/offline-review', root='docs/design/aoa-balance-mode/data/a6-gauge-local';
 const load=f=>readFileSync(f,'utf8').trim().split('\n').map(JSON.parse);
 const base=load(`${root}/positive.jsonl`), n50=load(`${root}/n50-mechanism.jsonl`);
-for(const a of [base,n50]) {a[0].rpcA='http://a.invalid:8545';a[0].rpcB='http://b.invalid:8545';}
+for(const a of [base,n50].map(syntheticAnchors)) {a[0].rpcA='http://a.invalid:8545';a[0].rpcB='http://b.invalid:8545';a[0].allowSameEndpointLocal=false;for(const p of [a[0].passport,a.at(-1).passport])p.allowSameEndpointLocal=false;if(a[0].count===50)a[0].protocolConformant=true;}
 const sig=s=>keccak256(toBytes(s));
 const UOE=sig('UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)'), LC=sig('LockCreated(address,bytes32,address,uint256,uint256)'), LS=sig('LockSettled(address,bytes32,uint256,uint256)'), CR=sig('CreditReserved(address,bytes32,address,uint256)'), CS=sig('CreditSettled(address,bytes32,uint256)');
 const addr='0x'+'12'.repeat(20), at='0x'+'0'.repeat(24)+addr.slice(2);

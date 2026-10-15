@@ -293,8 +293,9 @@ async function readbacks(arm, blockNumber, expectedHash, sender) {
     const block = await p.getBlock({ blockNumber });
     const out = { blockNumber, blockHash: block.hash,
       epDeposit: await p.readContract({ address: EP, abi: EP_DEPOSIT_ABI, functionName: 'balanceOf', args: [pm], ...at }) };
+    const op = await p.readContract({ address: SPA, abi: SP_ABI, functionName: 'operators', args: [ctx.account.address], ...at });
+    out.operatorBalance = op[0]; // Passport anchor at this exact block, including baseline arms.
     if (arm === 'SP') {
-      const op = await p.readContract({ address: SPA, abi: SP_ABI, functionName: 'operators', args: [ctx.account.address], ...at });
       const inf = await p.readContract({ address: SPA, abi: SP_ABI, functionName: 'inflightOf', args: [expectedHash], ...at });
       const t = (functionName, args = []) => p.readContract({ address: spToken, abi: TOKEN_ABI, functionName, args, ...at });
       Object.assign(out, {

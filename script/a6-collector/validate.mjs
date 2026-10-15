@@ -87,7 +87,7 @@ const SP_FIELDS = ['operatorBalance', 'totalSpent', 'totalTxSponsored', 'protoco
   'userXPNTs', 'totalSupply', 'lockedOf', 'debts', 'creditReservedOf', 'lockXLocked'];
 
 /** Independent conservation recomputation. Returns list of failed check ids. */
-function conservation(row, spAddr, tokenAddr, operator) {
+function conservation(row, spAddr, tokenAddr, operator, inv) {
   const failed = [];
   const b = need(row, 'readbacks.before.A'), a = need(row, 'readbacks.after.A');
   for (const f of ['epDeposit', 'blockNumber', 'blockHash']) { need(b, f); need(a, f); }
@@ -95,15 +95,24 @@ function conservation(row, spAddr, tokenAddr, operator) {
   const ep = need(row, 'entryPoint');
   const h = lc(row.expectedUserOpHash);
   const uoe = logsOf(logs, ep, T.UOE).find((l) => lc(l.topics[1]) === h);
-  if (!uoe) return failed; // nothing to conserve for an op that never executed
   if (big(b.blockNumber) + 1n !== big(a.blockNumber) || big(a.blockNumber) !== big(need(row, 'tx.blockNumber'))) failed.push('readback_blocks_bracket_tx');
   if (lc(a.blockHash) !== lc(need(row, 'tx.blockHash'))) failed.push('readback_after_blockhash_eq_tx_block');
+  if (!uoe) return failed; // block evidence is required even when no operation executed
   const actualGasCost = BigInt(word(uoe.data, 2));
   const success = BigInt(word(uoe.data, 1)) === 1n;
   if (big(a.epDeposit) - big(b.epDeposit) !== -actualGasCost) failed.push('D1');
   if (row.arm !== 'SP') return failed;
   for (const f of SP_FIELDS) { need(b, f); need(a, f); }
   const d = (f) => big(a[f]) - big(b[f]);
+  // Pin 1ac0e1c5: XT:194-212; SP:313-324. Check admission for every retained lock,
+  // including a postOp revert (validation writes survive that branch).
+  for (const lock of logsOf(logs, tokenAddr, T.LOCK_CREATED).filter(l => lc(l.topics[2]) === h)) {
+    const x = BigInt(word(lock.data, 0)), a0 = BigInt(word(lock.data, 1));
+    if (a0 >= (1n << 96n) || a0 > big(inv.xPNTs.maxSingleTxLimit)) failed.push('admission.a0_bounds');
+    if (x !== (a0 * big(inv.xPNTs.exchangeRate) + 10n**18n - 1n) / 10n**18n) failed.push('admission.exchange_rate');
+    if (big(b.userXPNTs) < big(b.lockedOf) + x) failed.push('admission.available_balance');
+    if (big(b.operatorBalance) < a0) failed.push('admission.operator_balance');
+  }
   const postOpReverted = logsOf(logs, ep, T.POSTOP).some((l) => lc(l.topics[1]) === h);
   const sponsored = logsOf(logs, spAddr, T.SPONSORED);
   if (lc(b.inflightOperator) !== ZERO) failed.push('C4.before_operator');
@@ -129,7 +138,16 @@ function conservation(row, spAddr, tokenAddr, operator) {
   }
   if (sponsored.length !== 1) { failed.push('C9.sponsored_count'); return failed; }
   const s = sponsored[0];
-  const charge = BigInt(word(s.data, 1));
+  const charge = BigInt(word(s.data, 1)), aGas = BigInt(word(s.data, 0));
+  // SP at 1ac0e1c5:426-434,450 emits (aGas, min(ceil(aGas*(10000+fee)/10000), a0)).
+  const reservations = [...logsOf(logs, tokenAddr, T.LOCK_CREATED), ...logsOf(logs, tokenAddr, T.CREDIT_RESERVED)]
+    .filter(l => lc(l.topics[2]) === h);
+  if (reservations.length === 1) {
+    const reservation = reservations[0], a0 = BigInt(word(reservation.data, lc(reservation.topics[0]) === lc(T.LOCK_CREATED) ? 1 : 0));
+    const withFee = (aGas * (10000n + big(inv.superPaymaster.protocolFeeBPS)) + 9999n) / 10000n;
+    if (charge !== (withFee > a0 ? a0 : withFee)) failed.push('C9.aPNTsCost_fee');
+  }
+
   if (lc(topicAddr(s.topics[1])) !== lc(operator)) failed.push('C9.operator');
   if (lc(topicAddr(s.topics[2])) !== lc(row.sender)) failed.push('C9.user');
   if (d('operatorBalance') !== -charge) failed.push('C1');
@@ -224,8 +242,12 @@ const endpoint = value => {
   const u = new URL(value);
   if (!['http:', 'https:'].includes(u.protocol)) throw new Missing('RPC URL must use http(s)');
   const h = u.hostname.toLowerCase().replace(/\.$/, '');
+  // URL accepts empty DNS labels, underscores and other non-hostname syntax. One
+  // terminal root dot is valid; repeated dots and invalid labels cannot prove identity.
+  if (!h.startsWith('[') && (h.length > 253 || h.split('.').some(label =>
+    !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)))) throw new Missing('malformed RPC hostname');
   const loopback = h === 'localhost' || h.endsWith('.localhost') || /^127\./.test(h)
-    || h === '0.0.0.0' || h === '[::1]' || /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/.test(h);
+    || h === '0.0.0.0' || h === '[::]' || h === '[::ffff:0:0]' || h === '[::1]' || /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/.test(h);
   return { host: loopback ? 'loopback' : h, port: u.port || (u.protocol === 'https:' ? '443' : '80') };
 };
 function opGas(op) {
@@ -274,12 +296,28 @@ try {
   let stoppedRows = 0;
   let previousBlock = { blockNumber: pStart.block.number, blockHash: pStart.block.hash };
   const seenTx = new Set(), seenOps = new Set(), seenBlocks = new Set(), stateByArm = new Map();
+  const nonceSequences = new Map();
+  const balanceReadbacks = new Map();
+  // Passports bracket all attempt blocks. Requiring the start quote to remain fresh
+  // through the end block proves freshness without inventing per-tx timestamps.
+  const validUntil48 = (big(pStart.volatile.cachedPriceUpdatedAt) + big(inv.superPaymaster.priceStalenessThreshold)) % (1n << 48n);
+  const quoteValidUntil = validUntil48 === 0n ? (1n << 48n) - 1n : validUntil48;
+  const sponsorshipReady = p => !p.invariant.superPaymaster.paused && p.invariant.superPaymaster.senderEligible
+    && p.invariant.superPaymaster.operator.isConfigured && !p.invariant.superPaymaster.operator.isPaused
+    && !p.invariant.xPNTs.emergencyDisabled;
+
   attempts.forEach((row, i) => {
     if (need(row, 'kind') !== 'attempt') throw new Missing(`line ${i + 2}: unexpected kind ${row.kind}`);
     if (need(row, 'attemptIndex') !== i) errors.push(`attemptIndex ${row.attemptIndex} at position ${i} (rows missing or reordered)`);
     for (const k of ['tripletIndex', 'arm', 'fixture', 'verdict', 'collectedAtUtc']) need(row, k);
     if (row.fixture !== fixture) errors.push(`attempt ${i}: row fixture differs from run fixture`);
     report.attempts++;
+    // A stop does not waive block evidence for an already-sent transaction.
+    if (row.sent && (row.verdict === 'STOPPED' || row.stoppedBy)) {
+      const b = need(row, 'readbacks.before.A'), a = need(row, 'readbacks.after.A');
+      if (big(need(b, 'blockNumber')) + 1n !== big(need(a, 'blockNumber')) || big(a.blockNumber) !== big(need(row, 'tx.blockNumber'))) errors.push(`attempt ${i}: readback_blocks_bracket_tx`);
+      if (lc(need(a, 'blockHash')) !== lc(need(row, 'tx.blockHash'))) errors.push(`attempt ${i}: readback_after_blockhash_eq_tx_block`);
+    }
     if (row.verdict === 'STOPPED' || row.stoppedBy) {
       stoppedRows++;
       notes.push(`attempt ${i}: stopped by ${need(row, 'stoppedBy.reason')}`);
@@ -292,6 +330,9 @@ try {
     if (lc(row.entryPoint) !== lc(inv.entryPoint.address) || lc(row.entryPoint) !== lc(inv.armEntryPoints[row.arm])) errors.push(`attempt ${i}: EntryPoint passport mismatch`);
     if (lc(row.sender) !== lc(inv.sender)) errors.push(`attempt ${i}: sender passport mismatch`);
     if (!/^0x[0-9a-f]{40}(?:[0-9a-f]{2}){32,}$/i.test(row.packedOp.paymasterAndData)) throw new Missing('malformed packed paymasterAndData');
+    // EntryPoint:427-430 at the pin rejects initCode for an existing account.
+    if (big(inv.code.account.size) > 0n && row.packedOp.initCode !== '0x') errors.push(`attempt ${i}: initCode for deployed account`);
+    if (row.arm === 'SP' && (row.packedOp.paymasterAndData.length < 146 || lc('0x' + row.packedOp.paymasterAndData.slice(106, 146)) !== lc(operator))) errors.push(`attempt ${i}: packed operator passport mismatch`);
     const packedPaymaster = row.packedOp.paymasterAndData.slice(0, 42);
     if (lc(row.paymaster) !== lc(packedPaymaster) || lc(row.paymaster) !== lc(armPaymasters[row.arm])) errors.push(`attempt ${i}: packed/arm/passport paymaster mismatch`);
     const pmData = row.packedOp.paymasterAndData;
@@ -322,6 +363,19 @@ try {
     const recomputed = typeof v === 'string' ? v : v.verdict;
     report.recomputed[recomputed] = (report.recomputed[recomputed] ?? 0) + 1;
     if (recomputed === 'USEROP_SUCCESS' && lc(row.expectedUserOpHash) !== lc(h)) errors.push(`attempt ${i}: success hash is not packedOp hash`);
+    if (recomputed === 'USEROP_SUCCESS') {
+      // NonceManager:36-40 at the pin: sender + uint192 key, uint64 sequence.
+      const nonce = big(row.packedOp.nonce), key = `${lc(row.sender)}:${nonce >> 64n}`, sequence = nonce & ((1n << 64n) - 1n);
+      if (nonceSequences.has(key) && sequence <= nonceSequences.get(key)) errors.push(`attempt ${i}: nonce sequence must strictly increase for sender/key`);
+      nonceSequences.set(key, sequence);
+      if (row.arm === 'SP') {
+        if (!sponsorshipReady(pStart) || !sponsorshipReady(need(end, 'passport'))) errors.push(`attempt ${i}: passport not sponsor-able`);
+        const endPassport = end.passport;
+        const endUntil48 = (big(need(endPassport, 'volatile.cachedPriceUpdatedAt')) + big(inv.superPaymaster.priceStalenessThreshold)) % (1n << 48n);
+        if ((endUntil48 === 0n ? (1n << 48n) - 1n : endUntil48) < big(endPassport.block.timestamp)) errors.push(`attempt ${i}: end cached price expires before passport block`);
+        if (quoteValidUntil < big(pStart.block.timestamp) || quoteValidUntil < big(need(end, 'passport.block.timestamp'))) errors.push(`attempt ${i}: cached price expires within passport block bracket`);
+      }
+    }
     if (recomputed !== row.verdict) errors.push(`attempt ${i} (${row.arm}): recorded ${row.verdict}, recomputed ${recomputed}`);
     if (row.sent && !row.stoppedBy) {
       need(row, 'readbacks.before.B'); need(row, 'readbacks.after.B');
@@ -342,9 +396,17 @@ try {
         if (!deepEq(need(before, f), need(previous, f))) errors.push(`attempt ${i}: balance continuity failed: ${f}`);
       }
       if (row.arm === 'SP' && big(need(before, 'lockXLocked')) !== 0n) errors.push(`attempt ${i}: new op lock must start empty`);
+      for (const side of ['before', 'after']) for (const rpc of ['A', 'B']) {
+        const rb = row.readbacks[side][rpc];
+        if ('operatorBalance' in rb) {
+          const key = lc(need(rb, 'blockHash')), value = big(rb.operatorBalance);
+          if (balanceReadbacks.has(key) && balanceReadbacks.get(key) !== value) errors.push(`attempt ${i}: same-block operatorBalance readbacks disagree`);
+          balanceReadbacks.set(key, value);
+        }
+      }
       stateByArm.set(row.arm, after);
       previousBlock = after;
-      const failed = conservation(row, spAddr, tokenAddr, operator);
+      const failed = conservation(row, spAddr, tokenAddr, operator, inv);
       const recordedOk = need(row, 'conservation.ok');
       const citations = { 'C6.locked_unchanged': 'XT:240,263', 'R2.locked_grew_by_xLocked': 'XT:240', "C5'.credit_reserved_unchanged": 'XT:305,322' };
       for (const c of need(row, 'conservation.checks')) if (c.id in citations && c.src !== citations[c.id]) errors.push(`attempt ${i}: incorrect source citation ${c.id}`);
@@ -387,6 +449,12 @@ try {
   if (big(end.passport.chainId) !== big(chainId)) errors.push('end passport chainId differs from start');
   if (big(end.passport.block.number) < big(previousBlock.blockNumber) || (big(end.passport.block.number) === big(previousBlock.blockNumber) && lc(end.passport.block.hash) !== lc(previousBlock.blockHash))) errors.push('end passport block precedes or conflicts with last attempt');
   if (big(end.passport.block.number) > big(previousBlock.blockNumber) && lc(end.passport.block.hash) === lc(previousBlock.blockHash)) errors.push('end passport reuses last block hash at a different height');
+  if (big(end.passport.block.timestamp) < big(pStart.block.timestamp)) errors.push('end passport timestamp precedes start');
+  if (arms.includes('SP')) for (const [label, p] of [['start', pStart], ['end', end.passport]]) {
+    const value = balanceReadbacks.get(lc(p.block.hash));
+    if (value === undefined) { if (!errors.length) throw new Missing(`${label} passport requires operatorBalance readback at same block hash`); continue; }
+    if (value !== big(p.volatile.operatorBalance)) errors.push(`${label} passport/readback operatorBalance mismatch`);
+  }
   report.protocolConformant = conformant;
   report.consistent = errors.length === 0;
   report.accepted = report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0 && (target !== 50 || conformant);
