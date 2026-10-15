@@ -44,7 +44,7 @@ the old-vs-new comparison, is archived in `docs/design/aoa-balance-mode/data/a6-
   `run_start` / `run_end` lines frame the run. `--count` (matched triplets, required, 1..1000;
   `protocolConformant` only at 50) and `--b-max` (required) are validated. Stops:
   `RPC_DISAGREEMENT` 20, `PASSPORT_DRIFT` 21, `CONSERVATION_MISMATCH` 22, `HASH_SELF_CHECK` 23,
-  `BLOCK_NOT_ISOLATED` 24, `RECEIPT_DISAGREEMENT` 25; attempt budget exhausted 10.
+  `BLOCK_NOT_ISOLATED` 24, `RECEIPT_DISAGREEMENT` 25, `ENTRYPOINT_MISMATCH` 26 (every arm and the account must be bound to the same EntryPoint; `--expect-entrypoint` pins its address); attempt budget exhausted 10.
 - **`validate.mjs`** re-reads the JSONL and recomputes every verdict, hash, A/B equality,
   conservation identity, matched-triplet count and Passport drift with its own decoder (it does
   not import `gauge-lib.mjs`); missing fields fail closed (exit 2).
