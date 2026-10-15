@@ -1,3 +1,4 @@
+import { syntheticSummary } from './synthetic-summary.mjs';
 import { freshEnd } from './current-fixture.mjs';
 // Offline regression: SP owns operatorBalance even on baseline readbacks.
 import assert from 'node:assert/strict';
@@ -27,6 +28,7 @@ function collectorChecks(rows) {
 }
 const results = [];
 function control(name, rows, expected, reason) {
+  syntheticSummary(rows);
   const file = `${out}/fixtures/shared-balance-${name}.jsonl`;
   writeFileSync(file, rows.map(JSON.stringify).join('\n') + '\n');
   const r = spawnSync(process.execPath, ['script/a6-collector/validate.mjs', file], { encoding: 'utf8', maxBuffer: 16*1024*1024 });

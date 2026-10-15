@@ -1,6 +1,6 @@
 # PR #477 reviewer repair
 
-Scope: branch `cc125/a6-gauge`, starting HEAD `6b0a4261`. No commits, pushes, RPC calls or contract edits. Run `node script/a6-collector/offline-review/run.mjs`; `review-results.tsv` records the old HEAD validator and current validator on identical synthetic inputs. Archive inputs are never repaired.
+Historical repair scope: branch `cc125/a6-gauge`, starting HEAD `6b0a4261`. Those fixes were committed in `0988a589`; `58a8eb44` regenerated the archive from that collector. The N1–N5 follow-up is on `cc125/477-followups`, with no commits, pushes, RPC calls or contract edits in this follow-up. Run `node script/a6-collector/offline-review/run.mjs`; `review-results.tsv` records the old HEAD validator and current validator on identical synthetic inputs. Archive inputs are never repaired.
 
 | Reviewer ID | Disposition and proof |
 |---|---|
@@ -11,10 +11,10 @@ Scope: branch `cc125/a6-gauge`, starting HEAD `6b0a4261`. No commits, pushes, RP
 | F5 | FIXED. README, ROUND5 and round4 archive table now describe the regenerated archive and 0/3/3/3/2/1/2/3 matrix. Local override mining is documented. |
 | F6 | FIXED as a source-proven interval binding; exact equality to final UOE cost is rejected as unsound (see below). Positive remains 0; self-consistent zero aGas/charge changes 0 -> 1. Existing fee, charge, D1 and reservation identities remain mandatory. |
 | R1-F3 Nit | FIXED. Continuity/uniqueness failures stop with EVIDENCE_CONTINUITY_MISMATCH (28); conservation failures retain 22. Production helper controls verify both branches and the no-failure case. |
-| L1 | FIXED. The negative-control table generator now asserts collector/validator exits before generating the report; run.sh invokes it as its final command. Offline replay checks it on the current archive. |
+| L1 | FIXED. The negative-control table generator now asserts collector/validator exits before generating the report; run.sh propagates table failure and replaces the report atomically only after success. Offline replay checks it on the current archive. |
 | L2 | FIXED for known isolation/conservation stops: finalized rows include stoppedBy before the throw. |
 | L3 | FIXED. Unexpected end-passport errors produce END_PASSPORT_ERROR (29) instead of COMPLETE/0. A previous nonzero stop remains authoritative. |
-| (d) label | FIXED in the table generator: validator 2 means fails closed. The archived generated document will update with regeneration. |
+| (d) label | FIXED in the table generator: validator 2 means fails closed. The regenerated archive includes the corrected label. |
 
 ## Source evidence for F3 and F6
 
@@ -29,8 +29,10 @@ Exact aGas recomputation is unavailable from the current JSONL: it lacks callbac
 
 ## Archive and collector output
 
-The required top-level schema is unchanged. CREDIT-postOp rows now carry evaluated CREDIT checks; known stop rows carry stoppedBy and continuity failures use code 28. Unexpected end-passport errors use code 29. Thus collector output semantics changed: regenerate the local archive from the final collector to obtain current source hashes and new-path chain evidence. The existing archive remains unchanged and must reproduce 0/3/3/3/2/1/2/3. No chain regeneration was authorized here.
+The `0988a589` repair preserved the top-level schema but changed collector output semantics: CREDIT-postOp rows gained evaluated CREDIT checks, known stop rows gained stoppedBy, continuity failures use code 28, and unexpected end-passport errors use code 29. The archive was subsequently regenerated in `58a8eb44` from collector `0988a589`. The N1–N5 follow-up leaves that archive unchanged and verifies 0/3/3/3/2/1/2/3. This follow-up changes only validator, offline controls, documentation and report publication; collector output is unchanged, so no archive regeneration is needed.
 
 ## PR body review-rule answers (local draft)
 
 SZ-1/SZ-2/SZ-4: size is largely the recorded evidence archive and reproducible offline fixtures, retained for review. D1: negative-controls/run.sh cleanup kills only its own child processes. T1/T2: offline-review/run.mjs provides executable honest/tampered controls, including the missing withheld-op and CREDIT-postOp branches. B1: assertion-word comments in the frozen old collector are historical comparator evidence, not production assertions. C2: the A/B Promise.all contains read-only requests (reviewer explicitly waived this checker false positive). No remote PR body was edited.
+
+The final N1–N5 follow-up dispositions and local review-response draft are in `FOLLOWUPS.md`; executable old/current proofs are in `followup-results.tsv`.

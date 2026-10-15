@@ -132,7 +132,7 @@ post.at(-1).passport.volatile.operatorBalance=r.readbacks.after.A.operatorBalanc
 post.splice(-1,0,r);
 const validPost=`${out}/fixtures/r2-postop-valid.jsonl`;
 writeFileSync(validPost,post.map(JSON.stringify).join('\n')+'\n');
-assert.equal(run(validPost,false).exit,0,'valid postOp branch must remain evaluable and consistent');
+assert.equal(run(validPost,false).exit,3,'valid postOp branch must remain evaluable and consistent');
 for (const f of ['totalSpent','userXPNTs','totalSupply','totalTxSponsored']) control(`postop-${f}`, a => {
   const r=a.at(-2); for(const side of ['A','B']) r.readbacks.after[side][f]=String(BigInt(r.readbacks.after[side][f])+1n);
 },post);

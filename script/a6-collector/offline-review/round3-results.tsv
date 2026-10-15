@@ -34,10 +34,10 @@ credit-reservation-overflow	0	1	attempt 0 (SP): conservation FAILS on raw read-b
 credit-settled-user	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: credit.identity; attempt 0: recorded conservation.ok=true, recomputed false
 credit-reserved-user	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: credit.identity; attempt 0: recorded conservation.ok=true, recomputed false
 credit-reserved-locker	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: credit.identity; attempt 0: recorded conservation.ok=true, recomputed false
-postop-debts	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R.credit_unchanged; attempt 3: recorded conservation.ok=true, recomputed false
-postop-creditReservedOf	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R.credit_unchanged; attempt 3: recorded conservation.ok=true, recomputed false
-postop-settle-lock	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R.settle_events_absent; attempt 3: recorded conservation.ok=true, recomputed false
-postop-settle-credit	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R.settle_events_absent; attempt 3: recorded conservation.ok=true, recomputed false
+postop-debts	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R.credit_unchanged; attempt 3: recorded conservation.ok=true, recomputed false; attempt after COMPLETE target reached
+postop-creditReservedOf	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R.credit_unchanged; attempt 3: recorded conservation.ok=true, recomputed false; attempt after COMPLETE target reached
+postop-settle-lock	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R.settle_events_absent; attempt 3: recorded conservation.ok=true, recomputed false; attempt after COMPLETE target reached
+postop-settle-credit	0	1	attempt 3 (SP): conservation FAILS on raw read-backs: R.settle_events_absent; attempt 3: recorded conservation.ok=true, recomputed false; attempt after COMPLETE target reached
 end-chain	0	1	end passport chainId differs from start
 end-before-last	0	1	end passport block must be strictly after last attempt
 end-blockhash	0	1	end passport reuses earlier block hash

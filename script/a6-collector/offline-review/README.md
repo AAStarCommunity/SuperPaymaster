@@ -20,7 +20,7 @@ RPC identity uses normalized host and effective port, ignoring transport and URL
 
 Both passports require typed, non-empty config leaves, including the local override flag. EntryPoint address/code/arm bindings, canonical-address flag, account sender, token and SP references must agree. Rows must bind to those addresses and passport gas/callData. Success locks bind user/locker to sender/SP. Failed postOp checks preserve `totalSpent += a0`, the inflight reservation and lock, while user xPNTs, supply, sponsorship count, and revenue remain unchanged.
 
-The current local archive was regenerated at `d8c8a9f4` and includes all-arm operatorBalance readbacks, the effective gas floor and transaction timestamps. Current ordered exits (positive / exec-revert / drop-op / wrong-hash / tamper-B / conservation-injected / missing-field / N=50) are **0/3/3/3/2/1/2/3**. See `round4-archives.tsv`. The end passport uses a distinct later block; balance is checked against the chronological last after-read. The archive remains untouched by the offline suite.
+The current local archive was regenerated in `58a8eb44` from collector `0988a589` and includes all-arm operatorBalance readbacks, the effective gas floor and transaction timestamps. Current ordered exits (positive / exec-revert / drop-op / wrong-hash / tamper-B / conservation-injected / missing-field / N=50) are **0/3/3/3/2/1/2/3**. See `round4-archives.tsv`. The end passport uses a distinct later block; balance is checked against the chronological last after-read. The archive remains untouched by the offline suite.
 
 Offline controls use `a.invalid` / `b.invalid` labels only; no endpoints are contacted. Round-3 and round-4 conformance fixtures clear the local override at both passports and run_start, and explicitly set N=50 conformance true. `synthetic-anchors.mjs` adds the missing end-block operator-balance field to **test fixtures only**, using the known separate-arm synthetic scenario. These fixtures are not provider evidence or regenerated archives. Round-2 override controls toggle the existing value so they cannot become no-ops when an archive changes.
 
@@ -76,15 +76,15 @@ No allowance for unrecorded top-ups was added.
 
 `A6_REVIEW_ARCHIVE=/path/to/recorded/archive node script/a6-collector/offline-review/run.mjs`
 selects an alternate recorded input archive without rewriting it. Test fixtures
-remain explicitly synthetic. For this repair, local regeneration was attempted but
+remain explicitly synthetic. During the earlier shared-balance repair, local regeneration was attempted but
 the sandbox denied Anvil's socket bind and loopback RPC connections (`Operation
 not permitted`). The full offline run uses an exact copy of the tracked HEAD
 archive at `/private/tmp/a6-offline-input`; it is not a fresh chain run.
 
 Verified results: 116 base controls (112 newly rejected), library checks, 57 round-2,
 44 round-3, 36 round-4, and all three shared-balance controls passed.
-`shared-balance-verification.log` records this offline verification. Fresh positive /
-a / b / c / d / e / e' / N=50 results remain **unverified** because of the sandbox
-socket restriction. The archived expected exit pairs are not claimed as fresh outcomes.
+`shared-balance-verification.log` records this offline verification. That historical run did not verify fresh chain results. The subsequent `58a8eb44` archive regeneration from collector `0988a589` supplies the current recorded evidence; offline replay verifies its exit matrix without claiming a new chain run.
 
 PR #477 false-rejection controls are in `check-review.mjs`; old/new exits and rejection proofs are in `review-results.tsv`. See `REVIEW-FIXES.md` for source citations, verdict semantics and the aGas evidence limit.
+
+Final N1–N5 controls are in `check-followups.mjs`, wired into `run.mjs`. See `FOLLOWUPS.md` and `followup-results.tsv` for reviewed-head comparisons, shell publication checks and current archive provenance.

@@ -193,6 +193,12 @@ function conservationOne(row, spAddr, tokenAddr, operator, inv) {
   const logs = need(row, 'logs');
   const ep = need(row, 'entryPoint');
   const h = lc(row.expectedUserOpHash);
+  if (row.arm === 'SP') {
+    const hashes = new Set(logsOf(logs, ep, T.UOE).map(l => lc(l.topics[1])));
+    for (const t of [T.LOCK_CREATED, T.LOCK_SETTLED, T.CREDIT_RESERVED, T.CREDIT_SETTLED]) {
+      if (logsOf(logs, tokenAddr, t).some(l => !hashes.has(lc(l.topics[2])))) failed.push('receipt.orphan_token_event');
+    }
+  }
   const uoe = logsOf(logs, ep, T.UOE).find((l) => lc(l.topics[1]) === h);
   if (big(b.blockNumber) + 1n !== big(a.blockNumber) || big(a.blockNumber) !== big(need(row, 'tx.blockNumber'))) failed.push('readback_blocks_bracket_tx');
   if (lc(a.blockHash) !== lc(need(row, 'tx.blockHash'))) failed.push('readback_after_blockhash_eq_tx_block');
@@ -457,6 +463,10 @@ try {
     && !p.invariant.xPNTs.emergencyDisabled;
 
   attempts.forEach((row, i) => {
+    if (row.sent === false && (need(row, 'tx') !== null || !Array.isArray(need(row, 'logs')) || row.logs.length !== 0
+        || 'readbacks' in row || !['deposit_floor', 'preflight_revert'].includes(row.failingCheck))) {
+      errors.push(`attempt ${i}: NOT_SENT contradicts row evidence or failingCheck`);
+    }
     if (row.sent) {
       const height = big(need(row, 'tx.blockNumber'));
       if (height > lastAttemptHeight) lastAttemptHeight = height;
@@ -567,7 +577,12 @@ try {
     if (row.sent && row.tx.status === 'success' && logsOf(row.logs, row.entryPoint, T.UOE).some(l => lc(l.topics[1]) === lc(h))) {
       // NonceManager:36-40 at the pin: sender + uint192 key, uint64 sequence.
       const nonce = big(row.packedOp.nonce), key = `${lc(row.sender)}:${nonce >> 64n}`, sequence = nonce & ((1n << 64n) - 1n);
-      if (nonceSequences.has(key) && sequence !== nonceSequences.get(key) + 1n) errors.push(`attempt ${i}: nonce sequence must advance exactly one for sender/key`);
+      // A demonstrated intervening block explains external same-key activity at stop 28.
+      // A stop label alone cannot excuse a nonce gap in otherwise contiguous evidence.
+      const interrupted = row.stoppedBy?.reason === 'EVIDENCE_CONTINUITY_MISMATCH'
+        && end.stop?.reason === 'EVIDENCE_CONTINUITY_MISMATCH' && end.stop.code === 28 && end.exitCode === 28
+        && big(need(row, 'readbacks.before.A.blockNumber')) > big(previousBlock.blockNumber);
+      if (!interrupted && nonceSequences.has(key) && sequence !== nonceSequences.get(key) + 1n) errors.push(`attempt ${i}: nonce sequence must advance exactly one for sender/key`);
       nonceSequences.set(key, sequence);
       if (row.arm === 'SP') {
         if (!sponsorshipReady(pStart) || !sponsorshipReady(need(end, 'passport'))) errors.push(`attempt ${i}: passport not sponsor-able`);
@@ -636,7 +651,16 @@ try {
   });
   // matched triplets, recomputed
   let matched = 0;
-  for (const [, rows] of byTriplet) {
+  const triplets = [];
+  const tally = Object.fromEntries(arms.map(arm => [arm, { attempts: 0, verdicts: {} }]));
+  for (const row of attempts) {
+    // attempt() throws after writing a stopped row, before the loop tallies it.
+    if (row.verdict === 'STOPPED' || row.stoppedBy) break;
+    if (!tally[row.arm]) continue;
+    tally[row.arm].attempts++;
+    tally[row.arm].verdicts[row.verdict] = (tally[row.arm].verdicts[row.verdict] ?? 0) + 1;
+  }
+  for (const [tripletIndex, rows] of byTriplet) {
     // A row interrupted by a stop condition never counts, whatever its receipt said.
     const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
     const sentRows = rows.filter(r => r.row.sent);
@@ -645,8 +669,17 @@ try {
     const distinct = ['paymaster', 'expectedUserOpHash'].every(f => new Set(sentRows.map(r => lc(r.row[f]))).size === sentRows.length)
       && new Set(sentRows.map(r => lc(r.row.tx?.hash))).size === sentRows.length;
     if (!distinct) errors.push('triplet paymasters/transaction hashes/userOpHashes must be distinct');
-    if (noFixture(fixture) && okArms && same && distinct && rows.length === arms.length) matched++;
+    const complete = rows.length === arms.length && rows.every(r => r.row.verdict !== 'STOPPED' && !r.row.stoppedBy);
+    const ok = noFixture(fixture) && okArms && same && distinct && complete;
+    if (complete) triplets.push({ tripletIndex, matched: ok, attempts: rows.map(r => r.row.attemptIndex) });
+    if (ok) {
+      matched++;
+      if (end.stop?.reason === 'COMPLETE' && matched === target && rows.at(-1).row.attemptIndex !== attempts.length - 1) errors.push('attempt after COMPLETE target reached');
+    }
   }
+  if (!deepEq(need(end, 'tally'), tally)) errors.push('run_end.tally differs from recomputed tally');
+  if (!deepEq(need(end, 'triplets'), triplets)) errors.push('run_end.triplets differs from recomputed triplets');
+  if (need(end, 'targetTriplets') !== target) errors.push('run_end.targetTriplets differs from run_start.count');
   report.matchedTriplets = matched;
   if (need(end, 'matchedTriplets') !== matched) errors.push(`run_end.matchedTriplets ${end.matchedTriplets} != recomputed ${matched}`);
   const stop = need(end, 'stop');

@@ -33,5 +33,5 @@ lock-exchange-rate	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: adm
 lock-insufficient-user	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: admission.available_balance; attempt 0: recorded conservation.ok=true, recomputed false
 packed-initCode	0	1	attempt 0: initCode for deployed account
 packed-operator	0	1	attempt 0: packed operator passport mismatch
-no-uoe-bracket	0	1	attempt 3 (VPM): conservation FAILS on raw read-backs: readback_blocks_bracket_tx; end passport block must be strictly after last attempt; end passport reuses earlier block hash
-no-uoe-after-hash	0	1	attempt 3 (VPM): conservation FAILS on raw read-backs: readback_after_blockhash_eq_tx_block; end passport block must be strictly after last attempt; end passport reuses earlier block hash
+no-uoe-bracket	0	1	attempt 3 (VPM): conservation FAILS on raw read-backs: readback_blocks_bracket_tx; attempt after COMPLETE target reached; end passport block must be strictly after last attempt; end passport reuses earlier block hash
+no-uoe-after-hash	0	1	attempt 3 (VPM): conservation FAILS on raw read-backs: readback_after_blockhash_eq_tx_block; attempt after COMPLETE target reached; end passport block must be strictly after last attempt; end passport reuses earlier block hash
