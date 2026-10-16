@@ -73,7 +73,7 @@
 
 \* 预测地址基于快照时部署者 nonce 12130/12131，实际执行时要重算（见 §6）。salt = `keccak256("APNTsCapped-1.0.0/acceptOwnership")`。
 
-S1、S3/S4、S7 直接复用仓库脚本：`UpgradeToV5_5_0.cancelPendingAPNTs()`（`V55_APNTS_DECISION=cancel`）、`DeployAPNTsCapped.run()`（`TIMELOCK=<S2 地址>`）、`UpgradeToV5_5_0.queueAPNTs(address)`（`V55_APNTS_DECISION=queue`）。这些脚本在广播后会自行做读回断言。S2 与 D5b fork 演练 A1b 的做法一致；S5/S6 是多签交易，payload 见 `safe-payloads.json`：
+S1、S3/S4、S7 直接复用仓库脚本：`UpgradeToV5_5_0.cancelPendingAPNTs()`（`V55_APNTS_DECISION=cancel`）、`DeployAPNTsCapped.run()`（`TIMELOCK=<S2 地址> TIMELOCK_DEPLOYMENT_BLOCK=<S2 部署回执的 blockNumber>`）、`UpgradeToV5_5_0.queueAPNTs(address)`（`V55_APNTS_DECISION=queue`）。这些脚本在广播后会自行做读回断言。S2 与 D5b fork 演练 A1b 的做法一致；S5/S6 是多签交易，payload 见 `safe-payloads.json`：
 
 | 步 | Safe to | data keccak | Safe nonce（快照时） | safeTxHash（快照时） |
 |---|---|---|---|---|
@@ -81,6 +81,17 @@ S1、S3/S4、S7 直接复用仓库脚本：`UpgradeToV5_5_0.cancelPendingAPNTs()
 | S6 | S2 timelock | 见 json | 2 | `0x02102f31…b996` |
 
 `operation = 0`（CALL），`safeTxGas = baseGas = gasPrice = 0`，`gasToken = refundReceiver = 0x0`。
+
+当前脚本要求 `run()` 和 `verify()` 都显式传入 `TIMELOCK` 与 `TIMELOCK_DEPLOYMENT_BLOCK`。从 S2 部署回执取得区块号（`scripts/a3a-fork-sim.sh` / `scripts/a3a-v2-fork-sim.sh` 使用 `$TLBLK`），不可使用猜测值或扫描起点代替创建块；RPC 必须提供从创建块到当前块的代码与日志历史。例如：
+
+```bash
+TLBLK=$(cast receipt "$TL_DEPLOY_TX" blockNumber --rpc-url "$RPC")
+TIMELOCK="$NEW_TL" TIMELOCK_DEPLOYMENT_BLOCK="$TLBLK" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url "$RPC"
+# After the timelock executes acceptOwnership():
+TIMELOCK="$NEW_TL" TIMELOCK_DEPLOYMENT_BLOCK="$TLBLK" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' "$CAPPED" "$DEPLOYER" --rpc-url "$RPC"
+```
+
+角色排他性依赖完整事件历史。非标准构造函数可以不发事件而直接写入角色，之后仍留下相同的 runtime；`runtime == default artifact` 不能排除这种情况。因此本流程要求 timelock **由本 runbook 使用 profile.default artifact 部署**，不接受来源不明的第三方部署。这里不做 creation-code 绑定。当前执行入口仍为上述 v2 包；历史回执和日志不代表本次改动已重新演练。
 
 ### 每步读回（fork 上全部实测通过）
 

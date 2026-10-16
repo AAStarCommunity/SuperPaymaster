@@ -89,7 +89,7 @@
 
 1. **模式由 chainid 决定**：31337 → anvil（TEST_CAP_SEPOLIA）；11155111 → Sepolia（TEST_CAP_SEPOLIA）；1 / 10 → mainnet（必须 `APNTS_CAP`）；其他链拒绝。
 2. **产物**：只接受元数据满足 compilationTarget == `contracts/src/tokens/APNTsCapped.sol`、optimizer runs == 500、`evmVersion == cancun`、`viaIR == true` 的产物（`out/APNTsCapped.sol/APNTsCapped.json` 或 `.default.json`）。不带后缀的产物会被最后一次编译覆盖（例如 `forge test --evm-version prague` 会在那里留下 Prague 字节码），所以这里显式检查 evmVersion；anvil 模式下部署的 timelock 同样先检查其产物是 cancun。部署后用 `DefaultArtifacts._codeEqArtifact` 比对运行时（屏蔽 immutable 区间）。
-3. **timelock 前置检查**（非 anvil 必须提供 `TIMELOCK`）：有代码、`getMinDelay() == 172800`、多签持有 PROPOSER 和 CANCELLER、部署者不持有 `DEFAULT_ADMIN_ROLE`、executor 是多签或开放；非 anvil 还要求多签地址有代码。
+3. **timelock 前置检查**（非 anvil 的 `run()` / `verify()` 必须提供 `TIMELOCK` 和从部署回执取得的 `TIMELOCK_DEPLOYMENT_BLOCK`；timelock 必须按 [A3a runbook](../../release/a3a-precheck/README.md) 用默认 artifact 部署，事件历史证明不覆盖非标准构造函数的无事件角色写入）：runtime 等于默认 OZ artifact、`getMinDelay() == 172800`，从创建块完整回放授权/撤销事件并与 live state 对账，精确要求 ADMIN = [timelock]、PROPOSER/CANCELLER/EXECUTOR = [Safe]（不开放）；非 anvil 还要求多签地址有代码。
 4. **广播部分**：`vm.deployCode(产物, (name, symbol, cap, deployer, 多签, 多签))` → `transferOwnership(timelock)`。
 5. **阶段 A 读回**：version / name / symbol / decimals / cap / minter / capGuardian / `totalSupply == 0` / `owner == deployer` / `pendingOwner == timelock`；打印多签要提交给 timelock 的 `schedule` 与 `execute` calldata（salt = `keccak256("APNTsCapped-1.0.0/acceptOwnership")`，delay = 172800）以及 operation id。
 6. `APNTS_SIMULATE_ACCEPT=true`：在**模拟中**（prank，不广播）完成多签排队 → 提前 1 秒执行必须失败 → 48h 后执行 `acceptOwnership`，然后跑最终读回。

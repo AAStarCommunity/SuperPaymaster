@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import {DefaultArtifacts} from "../v3/DefaultArtifacts.sol";
+import {IAPNTsCappedDeploy, ITimelockDeploy} from "../v3/DeployAPNTsCapped.s.sol";
 import {SPReleaseVersion} from "../v3/SPReleaseVersion.sol";
 
 /**
@@ -121,7 +122,7 @@ contract CheckDefaultArtifacts is DefaultArtifacts {
         if (k == keccak256("xPNTsFactoryCC28")) { _direct(key, "xPNTsFactory"); return; }
 
         // --- factory clones (embedded impl must be the expected template) -----------------------
-        if (k == keccak256("aPNTs")) { _clone(key, _cfgAddr("aPNTs"), "xPNTsToken", _call(_cfgAddr("xPNTsFactory"), "implementation()")); return; }
+        if (k == keccak256("aPNTs")) { _apnts(); return; }
         if (k == keccak256("xPNTsTokenCC28Test")) { _clone(key, _cfgAddr(key), "xPNTsToken", _call(_cfgAddr("xPNTsFactoryCC28"), "implementation()")); return; }
         if (k == keccak256("aPNTsPaymasterV4") || k == keccak256("pNTsPaymasterV4")) { _v4Clone(key, _cfgAddr(key)); return; }
         if (k == keccak256("pnts") || k == keccak256("aastarXPNTsV2") || k == keccak256("operatorXPNTsV2")) {
@@ -300,6 +301,45 @@ contract CheckDefaultArtifacts is DefaultArtifacts {
         _contract(string.concat(label, " (clone ", vm.toString(clone), ") -> impl"), impl, implName);
     }
 
+    /// @dev Both supported aPNTs families. The legacy path retains its exact factory/template
+    ///      checks. A direct capped token must have completed its ownership handover before use.
+    function _apnts() internal {
+        address token = _cfgAddr("aPNTs");
+        if (_eip1167Impl(token) != address(0)) {
+            _clone("aPNTs", token, "xPNTsToken", _call(_cfgAddr("xPNTsFactory"), "implementation()"));
+            return;
+        }
+        if (!_contract("aPNTs", token, "APNTsCapped")) return;
+        IAPNTsCappedDeploy capped = IAPNTsCappedDeploy(token);
+        address timelock = _cfgAddr("timelockController");
+        address safe = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114;
+        // Caps and operational roles are mutable through governance. These explicit read-back
+        // overrides allow a later governed change; defaults match DeployAPNTsCapped's initial values.
+        uint256 expectedCap = vm.envOr("APNTS_EXPECTED_CAP",
+            block.chainid == 1 || block.chainid == 10 ? uint256(300_000e18) : uint256(10_000_000e18));
+        _row("aPNTs settings", token, "APNTsCapped version/name/symbol/decimals and expected cap",
+            keccak256(bytes(capped.version())) == keccak256("APNTsCapped-1.0.0")
+                && keccak256(bytes(capped.name())) == keccak256("AAStar PNTs")
+                && keccak256(bytes(capped.symbol())) == keccak256("aPNTs") && capped.decimals() == 18
+                && capped.cap() == expectedCap && capped.issuanceCap() == expectedCap);
+        // The runtime-verified APNTsCapped exposes isOverIssued(); lowering its cap below supply
+        // is legal, so the expected cap alone does not prove the supply is within that cap.
+        uint256 supply = capped.totalSupply();
+        bool overIssued = capped.isOverIssued();
+        _row("aPNTs supply", token, "totalSupply <= cap; isOverIssued() == false",
+            supply <= capped.cap() && !overIssued);
+        _row("aPNTs governance", token, "owner == config.timelockController (48h); no pending owner; expected minter/guardian",
+            timelock.code.length > 0 && capped.owner() == timelock && capped.pendingOwner() == address(0)
+                && capped.minter() == vm.envOr("APNTS_EXPECTED_MINTER", safe)
+                && capped.capGuardian() == vm.envOr("APNTS_EXPECTED_CAP_GUARDIAN", safe));
+        if (timelock.code.length > 0) {
+            if (_contract("aPNTs owner", timelock, "TimelockController")) {
+                _row("aPNTs owner delay", timelock, "GOV-1 minDelay == 172800",
+                    ITimelockDeploy(timelock).getMinDelay() == 172800);
+            }
+        }
+    }
+
     function _v4Clone(string memory label, address clone) internal {
         address registered = _call(_cfgAddr("paymasterFactory"), "implementations(string)", "v4.2");
         address cfgImpl = _cfgAddr("paymasterV4Impl");
@@ -392,6 +432,17 @@ contract CheckDefaultArtifacts is DefaultArtifacts {
             return _all3(_is(a, "REGISTRY()", "registry") && extOk, _is(a, "entryPoint()", "entryPoint"),
                 _is(a, "ETH_USD_PRICE_FEED()", "priceFeed"),
                 "REGISTRY, entryPoint, ETH_USD_PRICE_FEED == config; EXTENSION == default SuperPaymasterAdmin with the same three");
+        }
+        if (n == keccak256("APNTsCapped")) {
+            // ERC20Permit's domain contains constructor-derived name and cached address/chain
+            // immutables, which the runtime comparison masks. Bind the usable domain explicitly.
+            (bool ok, bytes memory result) = a.staticcall(abi.encodeWithSignature("DOMAIN_SEPARATOR()"));
+            bytes32 expected = keccak256(abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("AAStar PNTs"), keccak256("1"), block.chainid, a
+            ));
+            return _one(ok && result.length == 32 && abi.decode(result, (bytes32)) == expected,
+                "ERC20Permit domain == AAStar PNTs / 1 / current chain / token");
         }
         if (n == keccak256("GTokenAuthorization")) return _one(_is(a, "factory()", "xPNTsFactory"), "factory == config.xPNTsFactory");
         if (n == keccak256("GTokenStaking")) return _two(_is(a, "GTOKEN()", "gToken"), _is(a, "REGISTRY()", "registry"), "GTOKEN, REGISTRY == config");

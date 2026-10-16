@@ -118,7 +118,11 @@ send S1-cancel $EOA $SP "$(cast calldata 'cancelAPNTsTokenChange()')"
 say "  S1 read-back OK: pending cleared, APNTS_TOKEN unchanged $APNTS0"
 
 # ---- S2: deploy the Safe-only GOV-1 TimelockController (172800 s; proposer=canceller=executor=SAFE; admin=0)
-TLBC="$(node -e 'const j=require(process.argv[1]);const m=j.metadata;if(m.settings.evmVersion!=="cancun"||m.settings.optimizer.runs!==500)throw new Error("not a default build");console.log(j.bytecode.object)' "$W/out/TimelockController.sol/TimelockController.default.json")"
+TLART="$W/out/TimelockController.sol/TimelockController.default.json"
+# Same rule as DefaultArtifacts.sol: X.default.json only when two profiles built X, else X.json.
+# The metadata check below (cancun / 500 runs) still rejects a non-default build.
+[ -f "$TLART" ] || TLART="$W/out/TimelockController.sol/TimelockController.json"
+TLBC="$(node -e 'const j=require(process.argv[1]);const m=j.metadata;if(m.settings.evmVersion!=="cancun"||m.settings.optimizer.runs!==500)throw new Error("not a default build");console.log(j.bytecode.object)' "$TLART")"
 TLARGS="$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 "[$SAFE]" "[$SAFE]" $Z)"
 echo "${TLBC}${TLARGS#0x}" > "$OUT/S2-timelock.initcode.hex"
 expect_nonce $EOA "$((N0 + 1))"
@@ -134,7 +138,7 @@ say "  S2 read-back OK: TimelockController $NEW_TL (== predicted) minDelay 17280
 # ---- S3+S4 (runbook 1②): DeployAPNTsCapped = CREATE APNTsCapped + transferOwnership(NEW_TL) ----
 expect_nonce $EOA "$((N0 + 2))"
 NB=$(nonce_of $EOA); SB=$(safe_nonce)
-ENV=sepolia TIMELOCK=$NEW_TL forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped \
+ENV=sepolia TIMELOCK=$NEW_TL TIMELOCK_DEPLOYMENT_BLOCK=$TLBLK forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped \
   --rpc-url $RPC --unlocked --sender $EOA --broadcast --slow > "$OUT/S3S4-deploy-apnts-capped.log" 2>&1 || fail "S3/S4 DeployAPNTsCapped failed, see log"
 cp broadcast/DeployAPNTsCapped.s.sol/11155111/run-latest.json "$OUT/S3S4-broadcast.json"
 H3=$(node -e 'console.log(require(process.argv[1]).transactions[0].hash)' "$W/$OUT/S3S4-broadcast.json")
@@ -212,7 +216,7 @@ send S6b-safe-exec-execute $OA $SAFE "$(exec_data $NEW_TL "$EXEC" "$SIGS")"
 [ "$(cast call $CAPPED 'pendingOwner()(address)' --rpc-url $RPC)" = "$Z" ] || fail "S6 pendingOwner != 0"
 [ "$(cast call $NEW_TL 'isOperationDone(bytes32)(bool)' $OPID --rpc-url $RPC)" = "true" ] || fail "S6 op not done"
 say "  S6 read-back OK: Safe nonce $((S0 + 1))→$((S0 + 2)); APNTsCapped owner=$NEW_TL pendingOwner=0; inner execute() estimate $INNER6"
-ENV=sepolia TIMELOCK=$NEW_TL forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $CAPPED $EOA --rpc-url $RPC > "$OUT/S6-verify.log" 2>&1 || fail "S6 DeployAPNTsCapped.verify failed"
+ENV=sepolia TIMELOCK=$NEW_TL TIMELOCK_DEPLOYMENT_BLOCK=$TLBLK forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $CAPPED $EOA --rpc-url $RPC > "$OUT/S6-verify.log" 2>&1 || fail "S6 DeployAPNTsCapped.verify failed"
 grep -q '=== verify: ALL PASS ===' "$OUT/S6-verify.log" || fail "S6 verify did not print ALL PASS"
 say "  S6 DeployAPNTsCapped.verify: ALL PASS"
 

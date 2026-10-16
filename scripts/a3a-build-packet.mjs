@@ -47,7 +47,7 @@ const meta = {
     abort: 'any role/minDelay read-back differs → do NOT use this timelock; deploy a new one',
     recovery: 'an unused timelock is inert; redeploy with correct args' },
   S3: { purpose: 'runbook 1② — deploy APNTsCapped (DeployAPNTsCapped.s.sol)', signer: 'deployer EOA', role: 'none (CREATE)', fn: 'CREATE APNTsCapped("AAStar PNTs","aPNTs", cap=10,000,000e18 TEST, owner=deployer, minter=SAFE, capGuardian=SAFE)',
-    pre: ['TIMELOCK env = S2 address; DeployAPNTsCapped._checkTimelock passes', `deployer nonce == ${Number(S.deployerEOA.nonce) + 1}`],
+    pre: ['TIMELOCK = S2 address; TIMELOCK_DEPLOYMENT_BLOCK = S2 receipt blockNumber; DeployAPNTsCapped._checkTimelock passes', `deployer nonce == ${Number(S.deployerEOA.nonce) + 1}`],
     post: ['runtime == profile.default artifact (script T-4 check)', 'cap() == 10,000,000e18', 'minter() == capGuardian() == SAFE', 'totalSupply() == 0', 'version() == APNTsCapped-1.0.0'],
     abort: 'script check fails or any param differs → do NOT queue this token',
     recovery: 'unused token is inert (supply 0); redeploy' },

@@ -317,12 +317,13 @@ TLART=out/TimelockController.sol/TimelockController.default.json
 TLBC="$(node -e 'const j=require(process.argv[1]);const m=j.metadata;if(m.settings.evmVersion!=="cancun"||m.settings.optimizer.runs!==500)throw new Error("not a default build");console.log(j.bytecode.object)' "$W/$TLART")"
 TLARGS="$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 "[$GOV_MULTISIG]" "[$GOV_MULTISIG]" 0x0000000000000000000000000000000000000000)"
 FRESH_TL_JSON="$(cast send --unlocked --from $OWNER --rpc-url $RPC --json --create "$TLBC${TLARGS#0x}")"
+FRESH_TL_DEPLOY_BLOCK="$(echo "$FRESH_TL_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(BigInt(JSON.parse(s).blockNumber).toString()))')"
 FRESH_TL="$(echo "$FRESH_TL_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).contractAddress))')"
 if [ -z "$FRESH_TL" ] || [ "$FRESH_TL" = "null" ]; then echo "  !!! STAGE I / A1b: fresh TimelockController deploy failed" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; fi
 echo "  fresh GOV-1-shaped TimelockController: $FRESH_TL" | tee -a "$OUT/rehearsal.log"
 
 step "STAGE I / A1c (runbook 1②): deploy APNTsCapped, start the Ownable2Step handover to the fresh TimelockController"
-ENV=$ENVNAME TIMELOCK=$FRESH_TL $LOG "$OUT/I-A1c-deploy-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
+ENV=$ENVNAME TIMELOCK=$FRESH_TL TIMELOCK_DEPLOYMENT_BLOCK=$FRESH_TL_DEPLOY_BLOCK $LOG "$OUT/I-A1c-deploy-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url $RPC --unlocked --sender $OWNER --broadcast --slow
 check_stage1 A1c $?
 CAPPED=$(grep -oE "\[artifact\] default artifact OK: APNTsCapped 0x[0-9a-fA-F]{40}" "$OUT/I-A1c-deploy-apnts-capped.log" | awk '{print $NF}')
 if [ -z "$CAPPED" ]; then echo "  !!! STAGE I / A1c could not extract the deployed APNTsCapped address, see $OUT/I-A1c-deploy-apnts-capped.log" | tee -a "$OUT/rehearsal.log"; FAILURES=$((FAILURES+1)); exit 1; fi

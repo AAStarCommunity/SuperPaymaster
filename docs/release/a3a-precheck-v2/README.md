@@ -85,6 +85,8 @@ OZ v5 `TimelockController` 是 `AccessControl`（不可枚举），`hasRole` 点
 | CANCELLER | **[Safe]** |
 | EXECUTOR | **[Safe]**（不开放：`hasRole(EXECUTOR, 0x0) == false`） |
 
+当前 `DeployAPNTsCapped.run()` / `verify()` 必须同时设置 `TIMELOCK=$NEW_TL TIMELOCK_DEPLOYMENT_BLOCK=$TLBLK`。`scripts/a3a-v2-fork-sim.sh` 从 S2 部署回执的 `blockNumber` 取得 `TLBLK`，两处调用均显式传入；RPC 需提供从创建块到当前块的代码与日志历史。排他性证明以事件为基础，runtime 比对无法排除非标准构造函数的无事件角色写入；必须由本 runbook 使用默认 artifact 部署 timelock（前提说明见 [`../a3a-precheck/README.md`](../a3a-precheck/README.md)），不接受来源不明的部署。本段是当前调用要求，已有历史证据未重新生成。
+
 证据：`fork-sim/S2-roles.json`（S2 之后）、`fork-sim/final-roles.json`（S7 之后，集合不变）。
 
 ### 每步读回（fork 上全部实测通过，失败即中止）

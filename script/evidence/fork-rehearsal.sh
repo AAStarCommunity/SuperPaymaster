@@ -64,11 +64,12 @@ TLARGS="$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 "[$SAF
 TLJSON="$(cast send --unlocked --from $OWNER --rpc-url $RA --json --create "$TLBC${TLARGS#0x}")"
 TL="$(echo "$TLJSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).contractAddress))')"
 TLTX="$(echo "$TLJSON" | txhash)"
+TL_DEPLOY_BLOCK="$(echo "$TLJSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(BigInt(JSON.parse(s).blockNumber).toString()))')"
 printf '# command: cast send --create <%s bytecode> abi.encode(172800,[%s],[%s],0x0) --unlocked --from %s\n# timelock %s tx %s\n' "$TLART" $SAFE $SAFE $OWNER "$TL" "$TLTX" > "$OUT/A2-timelock.log"
 node script/evidence/collect-receipts.mjs $RA "$OUT/A2-timelock.receipts.json" fork-simulation "timelockDeploy=$TLTX"
 echo "   timelock $TL"
 echo "== A3 DeployAPNTsCapped (step 1 ②), APNTS_SIMULATE_ACCEPT=true"
-TIMELOCK=$TL APNTS_SIMULATE_ACCEPT=true $LOG "$OUT/A3-deploy-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url $RA --unlocked --sender $OWNER --broadcast
+TIMELOCK=$TL TIMELOCK_DEPLOYMENT_BLOCK=$TL_DEPLOY_BLOCK APNTS_SIMULATE_ACCEPT=true $LOG "$OUT/A3-deploy-apnts-capped.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url $RA --unlocked --sender $OWNER --broadcast
 collect $PA "$OUT/A3-deploy-apnts-capped.receipts.json" "$(bcast DeployAPNTsCapped.s.sol)"
 TOKEN="$(node -e 'const b=require(process.argv[1]);const t=b.transactions.find(x=>x.transactionType==="CREATE");console.log(t.contractAddress)' "$W/$(bcast DeployAPNTsCapped.s.sol)")"
 echo "   APNTsCapped $TOKEN"
@@ -80,7 +81,7 @@ TX1="$(cast send $TL 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' $
 cast rpc evm_increaseTime 172800 --rpc-url $RA >/dev/null; cast rpc evm_mine --rpc-url $RA >/dev/null
 TX2="$(cast send $TL 'execute(address,uint256,bytes,bytes32,bytes32)' $TOKEN 0 $ACC 0x0000000000000000000000000000000000000000000000000000000000000000 $SALT --unlocked --from $SAFE --rpc-url $RA --json | txhash)"
 node script/evidence/collect-receipts.mjs $RA "$OUT/A4-accept.receipts.json" fork-simulation "safeSchedule=$TX1" "safeExecuteAccept=$TX2"
-$LOG "$OUT/A4-verify.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $TOKEN $OWNER --rpc-url $RA
+TIMELOCK=$TL TIMELOCK_DEPLOYMENT_BLOCK=$TL_DEPLOY_BLOCK $LOG "$OUT/A4-verify.log" forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig 'verify(address,address)' $TOKEN $OWNER --rpc-url $RA
 echo "== A5 re-queue setAPNTsToken(APNTsCapped) (step 1 ③) — manual cast, NOT scripted"
 TX3="$(cast send $SP 'setAPNTsToken(address)' $TOKEN --unlocked --from $OWNER --rpc-url $RA --json | txhash)"
 node script/evidence/collect-receipts.mjs $RA "$OUT/A5-requeue.receipts.json" fork-simulation "setAPNTsToken=$TX3"

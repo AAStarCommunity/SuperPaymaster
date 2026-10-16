@@ -83,6 +83,7 @@ contract T4ArtifactReader is Script {
         if (h == keccak256("GTokenAuthorization")) return "contracts/src/tokens/GTokenAuthorization.sol";
         if (h == keccak256("MySBT")) return "contracts/src/tokens/MySBT.sol";
         if (h == keccak256("xPNTsFactory")) return "contracts/src/tokens/xPNTsFactory.sol";
+        if (h == keccak256("APNTsCapped")) return "contracts/src/tokens/APNTsCapped.sol";
         if (h == keccak256("xPNTsToken")) return "contracts/src/tokens/xPNTsToken.sol";
         if (h == keccak256("AOAProtocolRegistry")) return "contracts/src/tokens/v2/AOAProtocolRegistry.sol";
         if (h == keccak256("GlobalTierSource")) return "contracts/src/tokens/v2/GlobalTierSource.sol";
