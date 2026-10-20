@@ -50,6 +50,7 @@ jobs:
       - uses: actions/checkout@v7
         with: { submodules: recursive }
       - uses: foundry-rs/foundry-toolchain@v1
+        with: { version: v1.7.1 }   # same pin as the other stages (forge 1.8.x isolates calls by default)
       # Nothing else in CI compiles contracts/script. `forge build`,
       # `forge build --skip test` and `forge test` all return 0 with a syntax
       # error in there — measured, not assumed — so a PR touching only deploy
