@@ -104,13 +104,16 @@ jobs:
 
       - name: Check EIP-170 Contract Sizes
         if: steps.changes.outputs.contract == 'true'
-        run: |
-          REGISTRY_SIZE=$(forge build --sizes 2>&1 | grep "^| Registry " | awk '{print $4}')
-          echo "Registry runtime size: ${REGISTRY_SIZE}B"
-          if [ "$REGISTRY_SIZE" -gt 24576 ]; then
-            echo "::error::Registry exceeds EIP-170 limit (24576B)"
-            exit 1
-          fi
+        # This step used to parse `forge build --sizes`. That was wrong twice over (CC-125, 2026-10-20):
+        #  1. forge prints "23,306"; `[ "$X" -gt 24576 ]` errored on the comma ("integer expression
+        #     expected", run 39392135141 log L6208), the `if` was false, and the step passed for ANY size.
+        #  2. The table is not a reliable gauge even when parsed: when a contract is compiled under both
+        #     profiles (default 500 runs = what deploy-core ships; registry-size 200 runs), forge lists
+        #     the row with a path suffix and may report the 200-runs variant — BLSAggregator 23,940 B
+        #     instead of the shipped 24,345 B — depending on what is in out/ (verified locally).
+        # scripts/check-sp-size.py selects the profile.default artifact by its metadata (runs) and fails
+        # closed if any of the 7 deployables exceeds 24,576 B or SP core headroom drops below 1,024 B.
+        run: python3 scripts/check-sp-size.py
 
       - name: Gate not applicable (no contract-path changes)
         if: steps.changes.outputs.contract != 'true'

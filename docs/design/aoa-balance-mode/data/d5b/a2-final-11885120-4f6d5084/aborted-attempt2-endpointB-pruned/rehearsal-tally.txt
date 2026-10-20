@@ -1,0 +1,4 @@
+  !!! CHECK [pre-state endpoint B: 23 reads, 0 failed / empty / ill-typed] FAIL: got '23:22' expected '23:0'
+  !!! pre-state cross-check differs, errored or had failed reads (0-prestate-crosscheck.log, 0-prestate-read-failures.log)
+  CHECK lines: 368 PASS, 1 FAIL; !!! lines: 2
+RUN FAILED (all): 2 failure(s), see the !!! lines

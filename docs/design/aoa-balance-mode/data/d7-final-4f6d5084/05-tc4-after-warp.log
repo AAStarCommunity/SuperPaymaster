@@ -1,0 +1,64 @@
+◇ injected env (0) from ../../.env.sepolia // tip: ◈ encrypted .env [www.dotenvx.com]
+╔═══════════════════════════════════════════════════════════╗
+║  Gasless Transfer Test Case 4 - Credit/Debt Path         ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  SuperPaymaster:  0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+  aPNTs Token:     0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+  EntryPoint:      0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+  Operator:        0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  Sender AA:       0x03611cefB15C3321DdfAf46814fee1A687235e8A
+  Recipient:       0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+
+📊 Step 1: Read current credit/debt state
+  xPNTs balance:        0.0 aXPNTs
+  Debt (aPNTs):         0.0 aPNTs
+  Available credit:     0.0 aPNTs
+  Operator configured:  true
+  Operator aPNTs bal:   1001.0 aPNTs
+
+📊 Step 2: Credit precondition check
+  ⚠️  No active credit request for this epoch (req.epoch=0, policyEpoch=1) — requesting 1000.0 aPNTs via the AA account...
+  ✅ requestCredit() submitted from the AA account
+  ✅ Available credit: 300.0 aPNTs — proceeding
+
+📊 Step 3: Determine test path
+  Account A has 0 xPNTs balance — will use PURE CREDIT PATH
+  (validate: tryLockForGas INSUFFICIENT → tryReserveCredit OK; postOp: settleCredit)
+
+📝 Step 4: Prepare Transfer CallData
+  Transfer Amount: 1 aXPNTs to 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+
+🔨 Step 5: Build UserOperation
+  Nonce: 2
+
+✍️  Step 6: Sign UserOperation
+  UserOp Hash: 0x22bb11b4a0508ec829...
+
+🚀 Step 7: Submit UserOp to EntryPoint
+  Estimated gas: 738964
+  Sending transaction...
+
+⬛ TX Hash: 0x402db380c7bfbfe45d1f42cd62688cea8faff1ef4bd6f7ff1df940b9069dfa26
+🔗 Etherscan: https://sepolia.etherscan.io/tx/0x402db380c7bfbfe45d1f42cd62688cea8faff1ef4bd6f7ff1df940b9069dfa26
+  ✅ Transaction confirmed!
+
+📊 Step 8: Read post-TX credit/debt state
+
+  ┌─────────────────────────────────────────────┐
+  │         Before / After Comparison          │
+  ├─────────────────────────────────────────────┤
+  │ xPNTs balance: 0.0        → 0.0        aXPNTs
+  │ Debt (aPNTs):  0.0        → 132.96426  aPNTs
+  │ Credit (aPNTs):300.0      → 167.03574  aPNTs
+  └─────────────────────────────────────────────┘
+
+📊 Step 9: Verify accounting
+  ✅ PASS: xPNTs balance unchanged (no burn)
+  ✅ PASS: DEBT_INCREASED — debt grew by 132.96426 aPNTs (credit/debt path taken)
+  ✅ PASS: Available credit decreased by 132.96426 aPNTs (debt consumed credit)
+
+╔═══════════════════════════════════════════════════════════╗
+║               Test Case 4 Completed — PASS               ║
+╚═══════════════════════════════════════════════════════════╝
