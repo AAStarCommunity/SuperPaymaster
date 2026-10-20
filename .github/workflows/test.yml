@@ -104,13 +104,25 @@ jobs:
 
       - name: Check EIP-170 Contract Sizes
         if: steps.changes.outputs.contract == 'true'
+        # forge prints sizes with thousands separators ("23,306"). The previous `[ "$X" -gt 24576 ]`
+        # errored on the comma ("integer expression expected"), the `if` evaluated false and the step
+        # passed for ANY size — it never enforced EIP-170 (CC-125 final-head CI run 39392135141, log
+        # L6208). Strip separators, require a number, fail closed. BLSAggregator is non-upgradeable
+        # and has ~231 B headroom, so it is checked too.
         run: |
-          REGISTRY_SIZE=$(forge build --sizes 2>&1 | grep "^| Registry " | awk '{print $4}')
-          echo "Registry runtime size: ${REGISTRY_SIZE}B"
-          if [ "$REGISTRY_SIZE" -gt 24576 ]; then
-            echo "::error::Registry exceeds EIP-170 limit (24576B)"
-            exit 1
-          fi
+          forge build --sizes > /tmp/sizes.txt 2>&1
+          for C in Registry BLSAggregator SuperPaymaster; do
+            SZ=$(grep -E "^\| $C +\|" /tmp/sizes.txt | head -1 | awk -F'|' '{gsub(/[ ,]/,"",$3); print $3}')
+            if ! [[ "$SZ" =~ ^[0-9]+$ ]]; then
+              echo "::error::could not read $C runtime size from forge build --sizes (got '$SZ')"
+              exit 1
+            fi
+            echo "$C runtime size: ${SZ}B (limit 24576B, headroom $((24576 - SZ))B)"
+            if [ "$SZ" -gt 24576 ]; then
+              echo "::error::$C exceeds EIP-170 limit (24576B)"
+              exit 1
+            fi
+          done
 
       - name: Gate not applicable (no contract-path changes)
         if: steps.changes.outputs.contract != 'true'

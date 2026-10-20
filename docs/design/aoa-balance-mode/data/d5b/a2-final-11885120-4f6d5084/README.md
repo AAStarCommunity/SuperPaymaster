@@ -21,8 +21,10 @@ and the Solidity scripts it calls, so that PASS cannot be extrapolated. This is 
 
 ## Result
 
-`rehearsal.log` tally: **370 CHECK PASS, 0 CHECK FAIL, 0 `!!!` lines; 65 negative controls executed, all
-reverted** (`neg-controls.jsonl`). Same counts as the previous generation (370 / 65). The tally line is
+`rehearsal.log` tally: **370 CHECK PASS, 0 CHECK FAIL, 0 `!!!` lines; 65 expected negative controls, all
+passed** (`neg-controls.jsonl`: 55 matched by exact revert data, 10 by regex — the regex ones include
+process/provenance failures such as NEG-44–49, not only EVM reverts; see `neg.log`). Same counts as the
+previous generation (370 / 65). The tally line is
 not evidence by itself; the per-step `CHECK` / `TX` / `readback` lines and `receipts.jsonl` are.
 
 ## Deviation from the previous generation: endpoint B

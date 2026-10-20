@@ -24,16 +24,22 @@ deployed contracts and the harness**.
 **write target** (300) instead of the trigger (200), raising highest-first. `853278d0..4f6d5084` does not
 change `script/gasless-tests/` at all.
 
-`setup-gasless.js` runs once, at `run-all-e2e-tests.sh:319` (Phase 9), and again after the warp. So the
-change can only affect what runs **after** it and depends on Registry credit tiers:
+`setup-gasless.js` runs once in the suite, at `run-all-e2e-tests.sh:319` (start of Phase 9), and again
+after the warp. Phases 1–8 run before it and cannot be affected. Phases 9–13 run after it; of those, only
+scripts that read Registry credit tiers can depend on the change (`grep -ciE
+'creditTier|getCreditLimit|effectiveCreditCap|previewCredit'` over each script):
 
-| script | depends on the change? | result here |
+| script (phase) | reads credit tiers? | result here |
 |---|---|---|
-| Phases 1–8 (A1…I2 groups, before L319) | no — run before setup-gasless | see summary |
-| Gasless: PaymasterV4 (test-case-1) | runs after; uses V4 deposit, not credit tiers | PASS |
-| Gasless: SuperPaymaster xPNTs1 (test-case-2) | runs after; balance mode | SKIP — AA account has 0 aPNTs (funding), not exercised |
-| Gasless: SuperPaymaster xPNTs2 (test-case-3) | runs after; balance mode | PASS |
-| Gasless: SP Credit/Debt (test-case-4) | **yes** — credit cap comes from tier 1 | in-suite SKIP (48h timelock, by design); **after warp PASS** — credit 300 aPNTs available, debt +132.96426, credit −132.96426, xPNTs unchanged |
+| Phases 1–8 (A1…H2, before L319) | n/a — run before setup-gasless | see summary |
+| test-case-1 PaymasterV4 (9) | no | PASS |
+| test-case-2 SP xPNTs1 (9) | no (balance mode) | SKIP — see exclusions |
+| test-case-3 SP xPNTs2 (9) | no (balance mode) | PASS |
+| **test-case-4 SP Credit/Debt (9)** | **yes** — cap from tier 1 | in-suite SKIP (48h timelock, by design); **after warp PASS** — credit 300 aPNTs, debt +132.96426, credit −132.96426, xPNTs unchanged |
+| MicroPaymentChannel, x402 EIP-3009, x402 direct, BLS switch (10) | no | PASS, FAIL (out of scope), PASS, PASS |
+| P2 PaymasterV4 lifecycle (11), X1 xPNTs admin (12) | no | PASS, PASS |
+| **I1 Credit Ceiling (13)** | **yes** (31 matches) — reads tiers after the raise (`03-e2e.clean.log` L2122–2137: tiers 1–3 = 300 aPNTs) and tests the resulting ceiling | PASS |
+| I2 Emergency Halt (13) | no | PASS |
 
 The changed code path executed in this run: `03-e2e.clean.log` L1591–1597 — "creditTierConfig[2] below
 threshold — raising to 300" then tier 1, i.e. highest-first, both `setCreditTier` txs confirmed.
@@ -55,7 +61,7 @@ test-case-1/3 PASS; test-case-4 PASS after warp; **test-case-2 not exercised**.
 
 | excluded | reason |
 |---|---|
-| test-case-2 (xPNTs1) | SKIP: AA account holds 0 aPNTs when it runs (harness funding); the balance-mode path is exercised by test-case-3 instead, but test-case-2 itself never ran |
+| test-case-2 (xPNTs1) | SKIP: it checks the operator's v2 token `config.aastarXPNTsV2` (symbol aXPNTs), and the AA account holds **0 aXPNTs** (`03-e2e.clean.log` L1682; after warp `06-tc2-after-warp.log` L17) — setup-gasless funds **aPNTs** (999 aPNTs after warp, `04-setup-after-warp.log` L34), not aXPNTs. Harness funding gap; the balance-mode path is exercised by test-case-3 instead, but test-case-2 itself never ran |
 | B3 | stale script: passes v1 `aPNTs` to `configureOperator`; 5.5.0 requires a factory-bound v2 token |
 | D2 | stale script: `setCreditTier(7,0)` → `CreditTiersNotMonotonic()` (Registry rule; G3 handles it) |
 | E1 | calls `description()` (`0x7284e416`), not implemented by `AnvilMockPriceFeed` |
