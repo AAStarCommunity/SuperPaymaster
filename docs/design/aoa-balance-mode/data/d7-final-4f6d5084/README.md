@@ -15,7 +15,7 @@ deployed contracts and the harness**.
 | contracts/src vs `v5.5.0-rc.2` `1ac0e1c5` | IDENTICAL |
 | tools | anvil 1.7.1, forge 1.7.1, node v24.21.0 |
 | chain | fresh `anvil --chain-id 31337 --hardfork prague`, control block 0 / deployer nonce 0 |
-| runner | `script/evidence/d7-anvil-rerun.sh <worktree> <out> 8640` (committed with this archive; identical sha to the copy that ran) |
+| runner | `script/evidence/d7-anvil-rerun.sh <worktree> <out> 8640` — this archive was produced by blob `85da4066ed2cca1ff2e783d64b78f7e4e908d07d` (as committed in `1951b79b`, identical to the copy that ran). Later hardening (#492 review L1/L2: refuse to run if `abis/` or `deployments/config.anvil.json` is dirty; non-zero exit if any step fails; portable sed) changes only pre-checks and exit handling, not the steps or their arguments |
 
 ## Impact of `68dfdccb → 853278d0` (the 16 lines DSR asked about)
 
