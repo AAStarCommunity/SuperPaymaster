@@ -164,7 +164,7 @@
   }
  },
  "stage1b": {
-  "how": "local, same script as the security.yml job (blob 67b39c27) in a clean clone of the tag, all submodules pinned, forge 1.7.1",
+  "how": "local, same script as the security.yml job (blob 67b39c27) in a clean clone of the tag after `git submodule update --init --recursive`; 28/28 submodules at recorded commits, 6 top-level == tag gitlinks (data/rc3-tag-57c665af/submodule-status-at-stage1b.txt, captured in the same clone right after the run); forge 1.7.1",
   "exit": 0,
   "note": "no GitHub check-run: security.yml triggers only for main/master/develop; DSR accepted as same-tree local equivalent (CC-125 da405a6d)"
  },
@@ -182,5 +182,6 @@
   "A6 formal data",
   "external audit (not performed, author decision)"
  ],
- "a3a": "NO-GO; needs a fresh unsigned packet and a separate author go"
+ "a3a": "NO-GO; needs a fresh unsigned packet and a separate author go",
+ "buildNote": "build used rc.2's recipe (only contracts/lib/chainlink-brownie-contracts and contracts/lib/solady initialised); forge warns 'revision mismatch' for the 4 uninitialised standards/* submodules, which are not compiled"
 }
