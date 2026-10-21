@@ -129,7 +129,7 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 - `_submitSponsorshipFeedback()` — on-chain reputation feedback loop
 - EIP-1153 transient storage cache for same-operator batch optimization
 
-### 5.5.0 (branch `feat/aoa-balance-mode-5.5.0`, NOT deployed) — breaking interface changes
+### 5.5.0 (on `main` since `a02456ff`; release candidate `v5.5.0-rc.4` = `fbd74fb1`; NOT yet deployed to any chain) — breaking interface changes
 
 SuperPaymaster 5.5.0 + xPNTs v2 introduce **balance mode** (validation-time escrow of the user's
 xPNTs) and **reservation-based credit** (default OFF). Spec: [`docs/design/aoa-balance-mode/03-final-spec.md`](docs/design/aoa-balance-mode/03-final-spec.md).
@@ -146,8 +146,11 @@ xPNTs) and **reservation-based credit** (default OFF). Spec: [`docs/design/aoa-b
 Deployment scripts (`deploy-core`, `prepare-test`, `DeployAnvil`/`DeployLive`, the checks, and the
 new `contracts/script/v3/UpgradeToV5_5_0.s.sol` for an existing 5.4.2 proxy) were migrated in D5.2 —
 see [`docs/design/aoa-balance-mode/D5-deploy-migration.md`](docs/design/aoa-balance-mode/D5-deploy-migration.md).
-Still NOT migrated (D7): the JS gasless E2E suites under `script/gasless-tests/` and
-`scripts/gasless-test/` target 5.4.x and must not be run against a 5.5.0 deployment.
+The JS gasless E2E suite under `script/gasless-tests/` was migrated in D7 and is run against 5.5.0 —
+scope and the scripts that are known stale or not exercised are listed in
+[`docs/design/aoa-balance-mode/data/d7-final-4f6d5084/README.md`](docs/design/aoa-balance-mode/data/d7-final-4f6d5084/README.md).
+The older `scripts/gasless-test/` scripts were NOT migrated: they target 5.4.x and must not be run
+against a 5.5.0 deployment.
 
 ### AAStar Stack & Division of Labor
 
