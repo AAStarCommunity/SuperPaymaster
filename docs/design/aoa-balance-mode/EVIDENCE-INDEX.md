@@ -127,7 +127,7 @@ H-01 的旧报告 SHA 固定于 `8c23cfb3eb40474e5b2820d5ae949caadec9703b:docs/d
 
 | manifest / generation | OK | FAILED | shasum exit |
 |---|---:|---:|---:|
-| 总 `EVIDENCE.sha256` | 2854 | 0 | 0 |
+| 总 `EVIDENCE.sha256` | 2868 | 0 | 0 |
 | `data/d5c1-rc2-serial/EVIDENCE.sha256` | 29 | 0 | 0 |
 | `data/d5c1-rc2-rerun/EVIDENCE.sha256` | 27 | 0 | 0 |
 | `data/i9-rc2-final/EVIDENCE.sha256` | 58 | 0 | 0 |
@@ -172,6 +172,13 @@ D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 �
 | id | 内容 | 文件 | 结果 | 边界 |
 |---|---|---|---|---|
 | RC3-TAG | annotated `v5.5.0-rc.3` 读回与 tag 下重核 | `../../release/v5.5.0-rc.3-attestation.{md,json}`；`data/rc3-tag-57c665af/` | tag object `5e57c27e…` → peeled `57c665af…`（ls-remote、GitHub API、本地三方一致）；rc.2 未移动；`git clone --branch v5.5.0-rc.3` 重编与 pre-tag 构建 byte-identical，10/10 keccak 等于 rc.2；Stage 1b exit 0；CI run 39455173004 在 peeled commit 上 success | artifact 哈希非链上 codehash；Stage 1b 本地运行仅作功能补证（DSR ff703246/aad24c8d），**不替代 A2③ CI，A2③ OPEN**；A2 总门 HOLD-CI-AND-MAIN/ATTESTATION；A3a 仍 NO-GO |
+
+## 1.7 v5.5.0-rc.4 已签发（作者 2026-10-21 决定；supersedes rc.3）
+
+| id | 内容 | 文件 | 结果 | 边界 |
+|---|---|---|---|---|
+| RC4-TAG | annotated `v5.5.0-rc.4` 读回与 tag 下重核 | `../../release/v5.5.0-rc.4-attestation.{md,json}`；`data/rc4-tag-fbd74fb1/` | tag object `67f78f60…` → peeled `fbd74fb1…`；rc.2/rc.3 未移动；tag 重编与 pre-tag、rc.3 构建 byte-identical；10/10 合约对象逐字段等于 rc.2；tag clone Stage 1b exit 0 | artifact 哈希非链上 codehash |
+| RC4-CI | 发布输入上的 CI | 同上 `forge-run-39562634858.json`、`security-run-39562599170.json`、`stage1b-input-equality.txt` | Forge Tests 39562634858 在 exact commit 上 success；PR #511 security.yml 39562599170：Stage 1b job 119097152565、Stage 2（含 Prague）job 119097152602 success；merge ref `64aae5d6` 与 tag commit 的 Stage 1b/构建输入 tree/blob 相等 | security.yml 跑在 PR merge ref 上，靠输入相等性对应到 tag；DSR 待复核 |
 
 ## 2. 登记册数字 → 证据
 
