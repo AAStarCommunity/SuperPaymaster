@@ -6,9 +6,13 @@ Usage:
     python3 script/evidence/a3a-v4-reread.py docs/release/a3a-precheck-v4/cap-budget-evidence.json > out.json
 
 Reads, at the same block on both endpoints (eth_call / eth_getCode / eth_getTransactionCount /
-eth_getTransactionReceipt / eth_getBlockByNumber only; nothing is signed or sent):
-  - deployer EOA nonce at BLOCK, plus the endpoint's current `pending` nonce (labelled as such,
-    it is not pinned to BLOCK), Safe nonce, SP owner, SP pendingAPNTsToken;
+eth_getTransactionReceipt / eth_getBlockByNumber / eth_chainId only; nothing is signed or sent):
+  - chain id (must be Sepolia on both endpoints);
+  - deployer EOA nonce at BLOCK plus the endpoint's current `pending` nonce, Safe nonce at BLOCK
+    plus its current `latest` value (the "(unpinned)" fields are not tied to BLOCK and are not
+    part of the A/B equality check), SP owner, SP pendingAPNTsToken;
+  This is an evidence reread, not a signing-time gate: README section 5 still requires re-reading
+  both nonces immediately before every transaction.
   - codesize at the two predicted A3a addresses (must be 0 = not yet occupied);
   - old-aPNTs balanceOf for every mint recipient. Recipients come from the receipts of the mint
     log ids already recorded in cap-budget-evidence.json (Transfer from 0x0 emitted by the token);
@@ -33,6 +37,7 @@ TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 ZERO32 = "0x" + "0" * 64
 HOLDER_10M = "0x42ba82a015655f834b9bcb17959c48c02e873e22"  # CAP-BUDGET.md section 2 note
 EXPECT_NONCE, EXPECT_SAFE_NONCE = 12131, 1
+SEPOLIA_CHAIN_ID = 11155111
 
 
 class RpcFailure(Exception):
@@ -146,10 +151,12 @@ def main():
         bh = rpc(u, "eth_getBlockByNumber", [hex(blk), False])
         if not isinstance(bh, dict) or quantity("eth_getBlockByNumber", bh.get("number")) != blk:
             raise RpcFailure("eth_getBlockByNumber: wrong or missing block")
-        r = {"blockHash": hexdata("eth_getBlockByNumber", bh.get("hash"), nbytes=32),
+        r = {"chainId": quantity("eth_chainId", rpc(u, "eth_chainId", [])),
+             "blockHash": hexdata("eth_getBlockByNumber", bh.get("hash"), nbytes=32),
              "deployerNonceAtBlock": quantity("eth_getTransactionCount", rpc(u, "eth_getTransactionCount", [DEPLOYER, hex(blk)])),
              "deployerNoncePendingNow(unpinned)": quantity("eth_getTransactionCount", rpc(u, "eth_getTransactionCount", [DEPLOYER, "pending"])),
              "safeNonce": int(call(u, SAFE, SEL["nonce()"], blk), 16),
+             "safeNonceLatestNow(unpinned)": int(hexdata("eth_call", rpc(u, "eth_call", [{"to": SAFE, "data": SEL["nonce()"]}, "latest"]), nbytes=32), 16),
              "spOwner": word_addr("eth_call", call(u, SP, SEL["owner()"], blk)),
              "spPendingAPNTsToken": word_addr("eth_call", call(u, SP, SEL["pendingAPNTsToken()"], blk)),
              "codesize": {n: (len(hexdata("eth_getCode", rpc(u, "eth_getCode", [a, hex(blk)]))) - 2) // 2 for n, a in PREDICTED.items()},
@@ -157,7 +164,7 @@ def main():
                                        for a in recips["A"]}}
         out["reads"][k] = r
 
-    pinned = lambda r: {x: y for x, y in r.items() if x != "deployerNoncePendingNow(unpinned)"}
+    pinned = lambda r: {x: y for x, y in r.items() if not x.endswith("(unpinned)")}
     a, b = out["reads"]["A"], out["reads"]["B"]
     out["checks"] = {
         "mintRecipientsIdentical": recips["A"] == recips["B"],
@@ -173,7 +180,10 @@ def main():
         "deployerNonce12131": a["deployerNonceAtBlock"] == EXPECT_NONCE,
         "deployerPendingNow12131BothEndpoints": a["deployerNoncePendingNow(unpinned)"] == EXPECT_NONCE
                                                 and b["deployerNoncePendingNow(unpinned)"] == EXPECT_NONCE,
+        "chainIdSepoliaBothEndpoints": a["chainId"] == SEPOLIA_CHAIN_ID and b["chainId"] == SEPOLIA_CHAIN_ID,
         "safeNonce1": a["safeNonce"] == EXPECT_SAFE_NONCE,
+        "safeNonceLatestNow1BothEndpoints": a["safeNonceLatestNow(unpinned)"] == EXPECT_SAFE_NONCE
+                                            and b["safeNonceLatestNow(unpinned)"] == EXPECT_SAFE_NONCE,
         "holder42ba10M": a["mintRecipientBalances"].get(HOLDER_10M) == str(10_000_000 * 10**18),
         "spOwnerIsDeployer": a["spOwner"].lower() == DEPLOYER.lower(),
         "pendingStillOldBb46": a["spPendingAPNTsToken"].lower() == "0xbb46321545a91db2f3b5c3e694f2f23abe259883",
