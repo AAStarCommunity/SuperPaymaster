@@ -127,7 +127,7 @@ H-01 的旧报告 SHA 固定于 `8c23cfb3eb40474e5b2820d5ae949caadec9703b:docs/d
 
 | manifest / generation | OK | FAILED | shasum exit |
 |---|---:|---:|---:|
-| 总 `EVIDENCE.sha256` | 2847 | 0 | 0 |
+| 总 `EVIDENCE.sha256` | 2854 | 0 | 0 |
 | `data/d5c1-rc2-serial/EVIDENCE.sha256` | 29 | 0 | 0 |
 | `data/d5c1-rc2-rerun/EVIDENCE.sha256` | 27 | 0 | 0 |
 | `data/i9-rc2-final/EVIDENCE.sha256` | 58 | 0 | 0 |
@@ -166,6 +166,12 @@ H-01 的旧报告 SHA 固定于 `8c23cfb3eb40474e5b2820d5ae949caadec9703b:docs/d
 | RC3-C-rebuild | 干净 clone 重编 + 固定版 `attest-hashes.mjs`（sha `7b959116…`） | `data/rc3-precheck-57c665af/clean-rebuild/` | 两次独立构建 byte-identical；10/10 合约 runtime 与 creation keccak 均等于 `v5.5.0-rc.2-attestation.json` | artifact 哈希（immutable 置零），不是链上 codehash；**未打 tag**，由作者决定 |
 
 D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 未执行，B3/D2/E1/x402-EIP3009 排除，不得称 37/37（`../../release/v5.5.0-rc.3-release-precheck.md` §B1）。
+
+## 1.6 v5.5.0-rc.3 已签发（作者 2026-10-21 决定）
+
+| id | 内容 | 文件 | 结果 | 边界 |
+|---|---|---|---|---|
+| RC3-TAG | annotated `v5.5.0-rc.3` 读回与 tag 下重核 | `../../release/v5.5.0-rc.3-attestation.{md,json}`；`data/rc3-tag-57c665af/` | tag object `5e57c27e…` → peeled `57c665af…`（ls-remote、GitHub API、本地三方一致）；rc.2 未移动；`git clone --branch v5.5.0-rc.3` 重编与 pre-tag 构建 byte-identical，10/10 keccak 等于 rc.2；Stage 1b exit 0；CI run 39455173004 在 peeled commit 上 success | artifact 哈希非链上 codehash；Stage 1b 本地运行仅作功能补证（DSR ff703246/aad24c8d），**不替代 A2③ CI，A2③ OPEN**；A2 总门 HOLD-CI-AND-MAIN/ATTESTATION；A3a 仍 NO-GO |
 
 ## 2. 登记册数字 → 证据
 
