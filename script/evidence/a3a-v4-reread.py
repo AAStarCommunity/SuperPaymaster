@@ -16,6 +16,10 @@ eth_getTransactionReceipt / eth_getBlockByNumber only; nothing is signed or sent
     every mint must be at or before BLOCK.
 Exits 1 if the two endpoints disagree on any pinned value or any check is false. RPC URLs are
 never written to stdout or stderr (RPC errors are reported by method name only).
+
+Trust scope: every RPC result is shape-validated and the two endpoints must agree on every
+pinned value. Two colluding providers returning the same well-formed but false data are out
+of scope; that is what the second, independent archive endpoint is for.
 """
 import json, os, re, sys, urllib.request
 
@@ -73,6 +77,14 @@ def quantity(method, v):
     return int(v, 16)
 
 
+def word_addr(method, w):
+    """ABI address word: 12 zero bytes then 20 address bytes."""
+    w = hexdata(method, w, nbytes=32)
+    if w[2:26] != "0" * 24:
+        raise RpcFailure(f"{method}: non-zero address padding")
+    return "0x" + w[-40:].lower()
+
+
 def call(url, to, data, blk):
     return hexdata("eth_call", rpc(url, "eth_call", [{"to": to, "data": data}, hex(blk)]), nbytes=32)
 
@@ -97,13 +109,19 @@ def main():
         s, f = set(), set()
         for tx in mint_txs:
             rc = rpc(u, "eth_getTransactionReceipt", [tx])
+            M = "eth_getTransactionReceipt"
             if not isinstance(rc, dict) or not isinstance(rc.get("logs"), list):
-                raise RpcFailure("eth_getTransactionReceipt: malformed receipt")
+                raise RpcFailure(f"{M}: malformed receipt")
+            if quantity(M, rc.get("status")) != 1:
+                raise RpcFailure(f"{M}: receipt status is not success")
             for lg in rc["logs"]:
-                t = lg["topics"]
-                if lg["address"].lower() == TOKEN.lower() and t and t[0] == TRANSFER and len(t) == 3 and t[1] == ZERO32:
-                    s.add("0x" + t[2][-40:])
-                    f.add((int(lg["blockNumber"], 16), lg["transactionHash"].lower(), int(lg["logIndex"], 16)))
+                if not isinstance(lg, dict) or lg.get("removed") is not False or not isinstance(lg.get("topics"), list):
+                    raise RpcFailure(f"{M}: malformed or removed log")
+                t = [hexdata(M, x, nbytes=32).lower() for x in lg["topics"]]
+                if hexdata(M, lg.get("address"), nbytes=20).lower() == TOKEN.lower() and t and t[0] == TRANSFER and len(t) == 3 and t[1] == ZERO32:
+                    s.add(word_addr(M, t[2]))
+                    f.add((quantity(M, lg.get("blockNumber")), hexdata(M, lg.get("transactionHash"), nbytes=32).lower(),
+                           quantity(M, lg.get("logIndex"))))
         recips[k], found[k] = sorted(s), f
 
     out = {"note": "read-only; RPC URLs omitted", "block": blk, "reads": {}}
@@ -115,8 +133,8 @@ def main():
              "deployerNonceAtBlock": quantity("eth_getTransactionCount", rpc(u, "eth_getTransactionCount", [DEPLOYER, hex(blk)])),
              "deployerNoncePendingNow(unpinned)": quantity("eth_getTransactionCount", rpc(u, "eth_getTransactionCount", [DEPLOYER, "pending"])),
              "safeNonce": int(call(u, SAFE, SEL["nonce()"], blk), 16),
-             "spOwner": "0x" + call(u, SP, SEL["owner()"], blk)[-40:],
-             "spPendingAPNTsToken": "0x" + call(u, SP, SEL["pendingAPNTsToken()"], blk)[-40:],
+             "spOwner": word_addr("eth_call", call(u, SP, SEL["owner()"], blk)),
+             "spPendingAPNTsToken": word_addr("eth_call", call(u, SP, SEL["pendingAPNTsToken()"], blk)),
              "codesize": {n: (len(hexdata("eth_getCode", rpc(u, "eth_getCode", [a, hex(blk)]))) - 2) // 2 for n, a in PREDICTED.items()},
              "mintRecipientBalances": {a: str(int(call(u, TOKEN, SEL["balanceOf(address)"] + addr_word(a), blk), 16))
                                        for a in recips["A"]}}
@@ -151,3 +169,6 @@ if __name__ == "__main__":
     except RpcFailure as e:
         print(f"a3a-v4-reread: {e}", file=sys.stderr)
         sys.exit(2)
+    except Exception as e:  # anything else: type only, never the message (may carry provider text)
+        print(f"a3a-v4-reread: unexpected {type(e).__name__}", file=sys.stderr)
+        sys.exit(3)
