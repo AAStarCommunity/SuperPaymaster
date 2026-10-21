@@ -21,7 +21,7 @@
   "node": "v24.21.0"
  },
  "hashNote": "artifact keccak with zeroed immutables (docs/release/attest-hashes.mjs @ 61342657, sha256 7b9591168dbba84e2af1e7507db2a9f637910aa3f637065f9cebd4cca5bc5ae8); not on-chain codehash",
- "reproducibility": "fresh `git clone --branch v5.5.0-rc.3 --depth 1` -> forge build: byte-identical to two pre-tag clean builds of 57c665af; 10/10 runtime+creation keccak equal v5.5.0-rc.2-attestation.json",
+ "reproducibility": "fresh `git clone --branch v5.5.0-rc.3 --depth 1` -> forge build: byte-identical to two pre-tag clean builds of 57c665af; all 10 contract objects (every field incl. versionLiteral) equal those in v5.5.0-rc.2-attestation.json",
  "contracts": [
   {
    "contract": "SuperPaymaster",
@@ -34,7 +34,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 500,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": "SuperPaymaster-5.5.0"
   },
   {
    "contract": "SuperPaymasterAdmin",
@@ -47,7 +48,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 500,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": null
   },
   {
    "contract": "SuperPaymasterLens",
@@ -60,7 +62,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 500,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": "SuperPaymasterLens-1.2.0"
   },
   {
    "contract": "Registry",
@@ -73,7 +76,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 200,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": "Registry-5.9.0"
   },
   {
    "contract": "xPNTsTokenV2",
@@ -86,7 +90,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 500,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": "XPNTs-4.0.0"
   },
   {
    "contract": "xPNTsTokenV2Ext",
@@ -99,7 +104,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 500,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": null
   },
   {
    "contract": "xPNTsFactoryV2",
@@ -112,7 +118,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 500,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": "xPNTsFactory-3.0.0-v2"
   },
   {
    "contract": "AOAProtocolRegistry",
@@ -125,7 +132,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 500,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": "AOAProtocolRegistry-1.0.0"
   },
   {
    "contract": "GlobalTierSource",
@@ -138,7 +146,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 500,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": "GlobalTierSource-1.0.0"
   },
   {
    "contract": "APNTsCapped",
@@ -151,7 +160,8 @@
    "compiler": "0.8.33+commit.64118f21",
    "runs": 500,
    "viaIR": true,
-   "evm": "cancun"
+   "evm": "cancun",
+   "versionLiteral": "APNTsCapped-1.0.0"
   }
  ],
  "ci": {
@@ -166,14 +176,20 @@
  "stage1b": {
   "how": "local, same script as the security.yml job (blob 67b39c27) in a clean clone of the tag after `git submodule update --init --recursive`; 28/28 submodules at recorded commits, 6 top-level == tag gitlinks (data/rc3-tag-57c665af/submodule-status-at-stage1b.txt, captured in the same clone right after the run); forge 1.7.1",
   "exit": 0,
-  "note": "no GitHub check-run: security.yml triggers only for main/master/develop; DSR accepted as same-tree local equivalent (CC-125 da405a6d)"
+  "note": "no GitHub check-run (security.yml triggers only for main/master/develop). DSR CC-125 ff703246/aad24c8d: local Stage 1b evidence ACCEPTED as functional supporting evidence, but it does NOT replace the A2 \u2462 CI gate; A2 \u2462 remains OPEN unless a controlled GitHub Stage 1b check-run on the exact inputs is produced or the author approves a written exception. Not to be confused with Forge Tests run 39455173004 (tests/size), which is not Stage 1b."
  },
  "a2": {
-  "dsrJudgement": "CC-125 da405a6d: A ACCEPT, B ACCEPT-SCOPED, C PRETAG PASS; A2a independent fork PASS (e87d7195); release gate HOLD-TAG pending this tag",
+  "dsrJudgement": "CC-125 ff703246 (correction, supersedes da405a6d/cea07373) and aad24c8d: A/B/C accepted; tag identity and tagged-build static evidence PASS; A2 \u2462 OPEN; A2 total gate HOLD-CI-AND-MAIN/ATTESTATION (candidate not yet integrated into main; this attestation final only after strict review and merge)",
   "evidence": [
    "#492",
    "#495",
-   "#509"
+   "#509",
+   "#510"
+  ],
+  "openItems": [
+   "A2 \u2462: controlled GitHub Stage 1b check-run on the exact candidate inputs, or a written author exception",
+   "main integration with no drift between main and the tag in contracts / deploy scripts / build inputs",
+   "strict review and merge of this attestation (#510)"
   ]
  },
  "notCovered": [
@@ -183,5 +199,6 @@
   "external audit (not performed, author decision)"
  ],
  "a3a": "NO-GO; needs a fresh unsigned packet and a separate author go",
- "buildNote": "build used rc.2's recipe (only contracts/lib/chainlink-brownie-contracts and contracts/lib/solady initialised); forge warns 'revision mismatch' for the 4 uninitialised standards/* submodules, which are not compiled"
+ "buildNote": "build used rc.2's recipe (only contracts/lib/chainlink-brownie-contracts and contracts/lib/solady initialised); forge warns 'revision mismatch' for the 4 uninitialised standards/* submodules, which are not compiled",
+ "versionLiteralSource": "extracted from each contract's version() return literal in the source at 57c665af (null where the contract has no version()); equal to rc.2's values"
 }

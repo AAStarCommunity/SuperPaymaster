@@ -171,7 +171,7 @@ D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 �
 
 | id | 内容 | 文件 | 结果 | 边界 |
 |---|---|---|---|---|
-| RC3-TAG | annotated `v5.5.0-rc.3` 读回与 tag 下重核 | `../../release/v5.5.0-rc.3-attestation.{md,json}`；`data/rc3-tag-57c665af/` | tag object `5e57c27e…` → peeled `57c665af…`（ls-remote、GitHub API、本地三方一致）；rc.2 未移动；`git clone --branch v5.5.0-rc.3` 重编与 pre-tag 构建 byte-identical，10/10 keccak 等于 rc.2；Stage 1b exit 0；CI run 39455173004 在 peeled commit 上 success | artifact 哈希非链上 codehash；Stage 1b 为同树本地等价；A3a 仍 NO-GO |
+| RC3-TAG | annotated `v5.5.0-rc.3` 读回与 tag 下重核 | `../../release/v5.5.0-rc.3-attestation.{md,json}`；`data/rc3-tag-57c665af/` | tag object `5e57c27e…` → peeled `57c665af…`（ls-remote、GitHub API、本地三方一致）；rc.2 未移动；`git clone --branch v5.5.0-rc.3` 重编与 pre-tag 构建 byte-identical，10/10 keccak 等于 rc.2；Stage 1b exit 0；CI run 39455173004 在 peeled commit 上 success | artifact 哈希非链上 codehash；Stage 1b 本地运行仅作功能补证（DSR ff703246/aad24c8d），**不替代 A2③ CI，A2③ OPEN**；A2 总门 HOLD-CI-AND-MAIN/ATTESTATION；A3a 仍 NO-GO |
 
 ## 2. 登记册数字 → 证据
 
