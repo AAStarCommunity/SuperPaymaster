@@ -13,7 +13,7 @@
 ## 前置条件（执行 A3a 之前必须全部满足）
 
 1. **作者对 A3a 单独 go**，并回答 §6 的三个问题。
-2. **A2 发布总门签字**（DSR）。DSR CC-125 `aad24c8d` 当前判定 HOLD-CI-AND-MAIN/ATTESTATION：A2③ Stage 1b check-run 或作者例外、main 集成（PR #511）、rc.3 attestation 合并（PR #510）未完成。DSR 明确：**不从未合入 main 的 feat/tag 直接进入 A3a**。
+2. **A2 发布总门签字**（DSR）。DSR CC-125 `aad24c8d` 判定 HOLD-CI-AND-MAIN/ATTESTATION：A2③、main 集成（PR #511）未完成（rc.3 attestation 已由 #510 合并）。DSR 明确：**不从未合入 main 的 feat/tag 直接进入 A3a**。
 3. 执行前重读两个 nonce；与本包不一致则重新生成。
 
 ## 来源与生成方式
@@ -21,12 +21,15 @@
 - 工具与产物：**`v5.5.0-rc.3` tag 的工作树**（peeled `57c665af`），未修改任何脚本；`APNTsCapped`、`TimelockController` 取自该树的 profile.default 产物（forge 1.7.1）。
 - 生成器在 tag 树里把结果写到 `docs/release/a3a-precheck-v2/`（目录名写死在 `scripts/a3a-v2-build-packet.mjs`）；本目录是那次输出的原样拷贝，仓库里的 v2 目录保持原状。
 - 快照：`RPC_A`（Alchemy 归档）与 `RPC_B`（publicnode）同块读取，**逐字段一致**（`crossCheckIdentical: true`）。
-- fork 演练：`scripts/a3a-v2-fork-sim.sh <env RPC_URL> 11960489 <out> 12131 1` → **`A3a v2 FORK SIMULATION OK`**；S1–S7 读回、`DeployAPNTsCapped.verify` ALL PASS（含 #485 的 timelock 角色历史排他性检查）、全部负对照按预期 revert（`fork-sim/console.log`）。
+- fork 演练：`scripts/a3a-v2-fork-sim.sh <env RPC_URL> 11960489 <out> 12131 1` → **`A3a v2 FORK SIMULATION OK`**；S1–S7 读回、`DeployAPNTsCapped.verify` ALL PASS（含 #485 的 timelock 角色历史排他性检查）、全部负对照按预期 revert（`fork-sim/console.log`、`fork-sim/sim.log`）。
 - `node scripts/a3a-v2-build-packet.mjs`：nonce 与 EIP-712 safeTxHash 交叉检查通过（`build-packet.log`）。
+- 本目录所有文件（含 `*.log`，强制加入、不受 `.gitignore` 影响）都在 `EVIDENCE.sha256` 中，已在干净 clone 上校验 0 FAILED。
 
 ## 与 v2 包的差异
 
-与 `../a3a-precheck-v2/a3a-precheck.json` 逐字段比较 196 个身份字段（地址、calldata、safeTxHash、operation id、salt、nonce）：**全部相同**；仅 8 个时间 / 区块字段不同（forkBlock、t0、scheduleTs、readyAt、queueTs、eta、timelockDeployBlock、timelockRoles.scannedTo）。原因：两个 nonce 未变（块 11,960,489 时仍为 12131 / 1）；v3 用 rc.3 tag 的脚本（含 #485 修复与 `TIMELOCK_DEPLOYMENT_BLOCK`）在新块上重新演练。
+与 `../a3a-precheck-v2/a3a-precheck.json` 比较：**178 个身份字段（地址、calldata、safeTxHash、operation id、salt、nonce、to；不含时间与区块字段）中不同的为 0 个**——两个 nonce 未变（块 11,960,489 时仍为 12131 / 1），预测出的一切相同。全部叶子字段中共有 **43** 处不同，都是演练产物：时间与区块（forkBlock、t0、scheduleTs、readyAt、queueTs、eta、timelockDeployBlock、pinnedBlock、scannedTo）、fork 交易哈希、`baseFeeAtPinWei`（47 → 15）、`validity` 说明文字，以及 S3 的前置命令新增 `TIMELOCK_DEPLOYMENT_BLOCK`（#485）。v3 用 rc.3 tag 的脚本在新块上重新演练。
+
+**cap 预算材料**（`CAP-BUDGET.md`、`cap-budget-evidence.json`）**未随 v3 重读**，仍以 `../a3a-precheck-v2/` 中的版本为准（v2 快照块 11,877,799；其中的 cachedPrice 当时已过期）。若作者需要在当前块上的 cap 预算，需要另行重算。
 
 ## 1. 固定快照（只读，块 11,960,489）
 
@@ -102,9 +105,9 @@ OZ v5 `TimelockController` 是 `AccessControl`（不可枚举），`hasRole` 点
 - **S1 后**：`pendingAPNTsToken == 0`、`pendingAPNTsTokenEta == 0`、`APNTS_TOKEN` 不变。
 - **S2 后**：地址 == 预测；`getMinDelay() == 172800`；角色集合精确如上。
 - **S3/S4 后**：地址 == 预测；runtime == profile.default 产物（脚本 T-4）；cap 10,000,000e18、minter == capGuardian == Safe、totalSupply 0、`APNTsCapped-1.0.0`；`owner == 部署者`、`pendingOwner == timelock`。
-- **S5b 后**：`Safe.nonce() == 2`；`ExecutionSuccess`（不是 `ExecutionFailure`）；op pending，`readyAt == 块时间 + 172800`（fork：1791703672）。
+- **S5b 后**：`Safe.nonce() == 2`；`ExecutionSuccess`（不是 `ExecutionFailure`）；op pending，`readyAt == 块时间 + 172800`（fork：1792735115）。
 - **S6b 后**：`Safe.nonce() == 3`；`owner == timelock`、`pendingOwner == 0`、`isOperationDone`；`DeployAPNTsCapped.verify` → `ALL PASS`。
-- **S7 后**：`pendingAPNTsToken == APNTsCapped`、`eta == 块时间 + 604800`（fork：1792308506）、`APNTS_TOKEN` 不变；`eta − T0 = 777,662 s = 9 天 0 小时`（脚本断言 ≥ 9 天）。
+- **S7 后**：`pendingAPNTsToken == APNTsCapped`、`eta == 块时间 + 604800`（fork：1793339930）、`APNTS_TOKEN` 不变；`eta − T0 = 777,626 s = 9 天 0 小时`（脚本断言 ≥ 9 天）。
 - **全程结束**：部署者 nonce 12131→12136，Safe nonce 1→3。
 
 ### 负对照（全部按预期 revert，且发送方 nonce 与 Safe nonce 都不变；`fork-sim/negatives.ndjson`、`fork-sim/neg-*.err`）
@@ -126,16 +129,16 @@ OZ v5 `TimelockController` 是 `AccessControl`（不可枚举），`hasRole` 点
 
 负对照为了构造「有效 2-of-3 但过早」的场景，在 fork 上让 owner `0xBB05…` 对 S6 的 safeTxHash 做过一次 `approveHash`（`fork-sim/NEG-approveHash-early-S6-by-OC.*`）。**真实执行时不要做这一步**；它不在执行步骤里。
 
-## 3. 时间线（默认顺序，T−9d；括号内为 fork 演练值）
+## 3. 时间线（默认顺序，T−9d；括号内为本次 fork 演练值，见 `a3a-precheck.json` 的 `timing`）
 
 | 时点 | 事项 |
 |---|---|
 | T0（2026-10-21 05:58 UTC） | 暂停共用部署者 EOA 的自动化 → S1 → S2 → S3/S4 → S5a → S5b（每笔前读 nonce） |
-| S5b + 48h（readyAt 2026-10-23 05:58 UTC） | S6a → S6b，读回 `owner == timelock` |
-| 紧接 S6b | S7；ETA = S7 块时间 + 604800（2026-10-30 05:58 UTC） |
+| S5b + 48h（readyAt 1792735115 = 2026-10-23 05:58 UTC） | S6a → S6b，读回 `owner == timelock` |
+| 紧接 S6b | S7；ETA = S7 块时间 + 604800（1793339930 = 2026-10-30 05:58 UTC；ETA − T0 = 777,626 s） |
 | ETA 之后（≈ T0 + 9 天） | 最早的 A3b 窗口 |
 
-真实执行以实际块时间为准。
+真实执行时 readyAt / ETA 以实际块时间计算，不等于上面的演练值；读回时核对的是「= 块时间 + 172800 / + 604800」的关系。
 
 ## 4. gas 与资金（20 gwei 保守估算；v3 快照 base fee 15 wei）
 
@@ -173,11 +176,11 @@ OZ v5 `TimelockController` 是 `AccessControl`（不可枚举），`hasRole` 点
 ```bash
 # 在 v5.5.0-rc.3 tag 的工作树中
 forge build
-RPC_A=<alchemy archive> RPC_B=https://ethereum-sepolia-rpc.publicnode.com BLOCK=<n> node scripts/a3a-v2-snapshot.mjs > docs/release/a3a-precheck-v2/snapshot.json
-scripts/a3a-v2-fork-sim.sh <env with RPC_URL> <n> docs/release/a3a-precheck-v2/fork-sim 12131 1   # OUT 须为仓库内相对路径
-node scripts/a3a-v2-build-packet.mjs
-# 再把 docs/release/a3a-precheck-v2/ 的输出拷到 a3a-precheck-v3/；校验：
-cd docs/release/a3a-precheck-v3 && shasum -a 256 -c EVIDENCE.sha256
+RPC_A=<alchemy archive> RPC_B=https://ethereum-sepolia-rpc.publicnode.com BLOCK=11960489 node scripts/a3a-v2-snapshot.mjs > docs/release/a3a-precheck-v2/snapshot.json
+scripts/a3a-v2-fork-sim.sh <env with RPC_URL> 11960489 docs/release/a3a-precheck-v2/fork-sim 12131 1 > docs/release/a3a-precheck-v2/fork-sim-console.log 2>&1   # OUT 须为仓库内相对路径
+node scripts/a3a-v2-build-packet.mjs > docs/release/a3a-precheck-v2/build-packet.log 2>&1
+# 拷到 a3a-precheck-v3/（fork-sim-console.log -> fork-sim/console.log）；*.log 需 git add -f。校验（干净 clone 上）：
+cd docs/release/a3a-precheck-v3 && shasum -a 256 -c EVIDENCE.sha256 | grep -c FAILED   # 必须为 0
 ```
 
-RPC key 与私钥不写入本目录（已扫描：0 命中）。
+fork 交易哈希与时间字段依赖演练时刻，每次重跑都会变；身份字段（地址、calldata、safeTxHash、operation id）只依赖两个 nonce 与源码。RPC key 与私钥不写入本目录（已扫描：0 命中）。

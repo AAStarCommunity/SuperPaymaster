@@ -37,10 +37,10 @@
   "safeTxHashS6": "0x7c762ba6a524373107a5a277bfc6fb182e3ace9822daa784730abd17db7001ec",
   "signatures": "0x000000000000000000000000871608cba092105b91e91295a1d79ffc539bfb480000000000000000000000000000000000000000000000000000000000000000010000000000000000000000008c3499252232105a1615767c459db9bbbf1273d6000000000000000000000000000000000000000000000000000000000000000001",
   "t0": 1792562304,
-  "scheduleTs": 1792562319,
-  "readyAt": 1792735119,
-  "queueTs": 1792735138,
-  "eta": 1793339938,
+  "scheduleTs": 1792562315,
+  "readyAt": 1792735115,
+  "queueTs": 1792735130,
+  "eta": 1793339930,
   "timelockDeployBlock": 11960491,
   "innerScheduleGasEstimate": 55529,
   "innerExecuteGasEstimate": 51848
@@ -288,11 +288,11 @@
  "timing": {
   "order": "default (DSR): S1–S4 → S5 → wait ≥ 48h → S6 → S7 → wait 7d → earliest A3b",
   "t0": 1792562304,
-  "scheduleTs": 1792562319,
-  "readyAt": 1792735119,
-  "queueTs": 1792735138,
-  "eta": 1793339938,
-  "etaMinusT0Seconds": 777634,
+  "scheduleTs": 1792562315,
+  "readyAt": 1792735115,
+  "queueTs": 1792735130,
+  "eta": 1793339930,
+  "etaMinusT0Seconds": 777626,
   "earliestA3b": "T0 + 9 days (+ the time between S5b and S7 beyond the 48h minimum)"
  },
  "steps": [
@@ -345,7 +345,7 @@
     }
    ],
    "forkTxHash": "0xe1af49f1f955031998fe8e92bed9f19aad9c6679c4ecc91d07d513cc45725a10",
-   "forkBlockTimestamp": 1792562308
+   "forkBlockTimestamp": 1792562306
   },
   {
    "id": "S2",
@@ -436,7 +436,7 @@
     }
    ],
    "forkTxHash": "0x966242208bd17361ec26f06e0d0aa3163d3c7d4ea255aded02d46c650080e858",
-   "forkBlockTimestamp": 1792562309
+   "forkBlockTimestamp": 1792562307
   },
   {
    "id": "S3",
@@ -518,7 +518,7 @@
     }
    ],
    "forkTxHash": "0x2b44a7f734b909af37a73e73f46aee7309e3a1c770405eef6cd2c81bd030d764",
-   "forkBlockTimestamp": 1792562313
+   "forkBlockTimestamp": 1792562310
   },
   {
    "id": "S4",
@@ -569,7 +569,7 @@
     }
    ],
    "forkTxHash": "0xf19d1c0d772cea4080979e1541c330e87f47ec3ff175d9e7c67e9e905d90c9a5",
-   "forkBlockTimestamp": 1792562313
+   "forkBlockTimestamp": 1792562310
   },
   {
    "id": "S5a",
@@ -622,7 +622,7 @@
     }
    ],
    "forkTxHash": "0xf78c432a5987ff61d9da42a3da7f70b60923a59273b755fc3302fa5c5b9b9551",
-   "forkBlockTimestamp": 1792562317
+   "forkBlockTimestamp": 1792562313
   },
   {
    "id": "S5b",
@@ -726,7 +726,7 @@
     }
    ],
    "forkTxHash": "0x230522f10696feef3af2c180f26507333329e15c3971cfb9c93d2102ac602f9b",
-   "forkBlockTimestamp": 1792562319
+   "forkBlockTimestamp": 1792562315
   },
   {
    "id": "S6a",
@@ -740,7 +740,7 @@
    "requiredSafeNonce": 2,
    "pre": [
     "Safe.nonce() == 2",
-    "block.timestamp >= readyAt (1792735119 in the simulation)"
+    "block.timestamp >= readyAt (1792735115 in the simulation)"
    ],
    "post": [
     "approvedHashes(0x8c3499252232105A1615767C459DB9BBbf1273D6, safeTxHash) == 1"
@@ -778,7 +778,7 @@
     }
    ],
    "forkTxHash": "0xa0b7f169870240459497b05b200b9702138d82cf36eb351be028249a9211ea31",
-   "forkBlockTimestamp": 1792735123
+   "forkBlockTimestamp": 1792735118
   },
   {
    "id": "S6b",
@@ -880,7 +880,7 @@
     }
    ],
    "forkTxHash": "0x92fea71738fc9c0bd2744b3e8079898da7515d68be99b6120b7de91368a4d587",
-   "forkBlockTimestamp": 1792735124
+   "forkBlockTimestamp": 1792735118
   },
   {
    "id": "S7",
@@ -930,12 +930,12 @@
      "name": "APNTsTokenChangeQueued",
      "args": {
       "pendingToken": "0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7",
-      "eta": "1793339938"
+      "eta": "1793339930"
      }
     }
    ],
    "forkTxHash": "0x073837105daa5229b1741586f514bd27e34691156c9253557edb93fdf9ed4376",
-   "forkBlockTimestamp": 1792735138
+   "forkBlockTimestamp": 1792735130
   }
  ],
  "negativeControlSetupTransactions": [
@@ -949,7 +949,7 @@
    "safeNonceAfter": 2,
    "gasUsed": 52784,
    "block": 11960496,
-   "timestamp": 1792562321
+   "timestamp": 1792562316
   }
  ],
  "negativeControls": [
