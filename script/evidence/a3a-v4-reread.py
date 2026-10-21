@@ -50,6 +50,8 @@ def rpc(url, method, params):
             d = json.load(r)
     except Exception as e:  # never echo the exception text: it can carry the URL
         raise RpcFailure(f"{method}: transport error ({type(e).__name__})") from None
+    if not isinstance(d, dict) or d.get("jsonrpc") != "2.0" or d.get("id") != 1:
+        raise RpcFailure(f"{method}: malformed JSON-RPC envelope")
     if "error" in d or d.get("result") is None:
         err = d.get("error")
         code = err.get("code") if isinstance(err, dict) else None
@@ -106,7 +108,7 @@ def main():
     # (block, tx, logIndex) must be found, nothing else may be found, and all must be <= BLOCK.
     recips, found = {}, {}
     for k, u in urls.items():
-        s, f = set(), set()
+        s, f = set(), {}
         for tx in mint_txs:
             rc = rpc(u, "eth_getTransactionReceipt", [tx])
             M = "eth_getTransactionReceipt"
@@ -114,14 +116,29 @@ def main():
                 raise RpcFailure(f"{M}: malformed receipt")
             if quantity(M, rc.get("status")) != 1:
                 raise RpcFailure(f"{M}: receipt status is not success")
+            if hexdata(M, rc.get("transactionHash"), nbytes=32).lower() != tx:
+                raise RpcFailure(f"{M}: receipt for a different transaction")
+            rc_blk = quantity(M, rc.get("blockNumber"))
+            hexdata(M, rc.get("blockHash"), nbytes=32)
             for lg in rc["logs"]:
                 if not isinstance(lg, dict) or lg.get("removed") is not False or not isinstance(lg.get("topics"), list):
                     raise RpcFailure(f"{M}: malformed or removed log")
                 t = [hexdata(M, x, nbytes=32).lower() for x in lg["topics"]]
-                if hexdata(M, lg.get("address"), nbytes=20).lower() == TOKEN.lower() and t and t[0] == TRANSFER and len(t) == 3 and t[1] == ZERO32:
-                    s.add(word_addr(M, t[2]))
-                    f.add((quantity(M, lg.get("blockNumber")), hexdata(M, lg.get("transactionHash"), nbytes=32).lower(),
-                           quantity(M, lg.get("logIndex"))))
+                # Every log in the receipt is validated, not only the mint logs.
+                l_addr = hexdata(M, lg.get("address"), nbytes=20).lower()
+                l_data = hexdata(M, lg.get("data")).lower()
+                l_id = (quantity(M, lg.get("blockNumber")), hexdata(M, lg.get("transactionHash"), nbytes=32).lower(),
+                        quantity(M, lg.get("logIndex")))
+                hexdata(M, lg.get("blockHash"), nbytes=32)
+                if l_id[0] != rc_blk or l_id[1] != tx:
+                    raise RpcFailure(f"{M}: log does not belong to its receipt")
+                if l_addr == TOKEN.lower() and t and t[0] == TRANSFER and len(t) == 3 and t[1] == ZERO32:
+                    rec = word_addr(M, t[2])
+                    amt = int(hexdata(M, l_data, nbytes=32), 16)
+                    if l_id in f:
+                        raise RpcFailure(f"{M}: duplicate mint log")
+                    s.add(rec)
+                    f[l_id] = (rec, str(amt))
         recips[k], found[k] = sorted(s), f
 
     out = {"note": "read-only; RPC URLs omitted", "block": blk, "reads": {}}
@@ -145,8 +162,11 @@ def main():
     out["checks"] = {
         "mintRecipientsIdentical": recips["A"] == recips["B"],
         "mintRecipientsNonEmpty": len(recips["A"]) > 0,
-        "mintLogSetMatchesRecordedA": found["A"] == recorded,
-        "mintLogSetMatchesRecordedB": found["B"] == recorded,
+        "mintLogSetMatchesRecordedA": set(found["A"]) == recorded,
+        "mintLogSetMatchesRecordedB": set(found["B"]) == recorded,
+        # Per-log agreement: same recipient and amount for every (block, tx, logIndex).
+        "mintLogsIdenticalPerLog": found["A"] == found["B"],
+        "mintSumMatchesRecorded": sum(int(v[1]) for v in found["A"].values()) == int(ev["logs"]["A"]["mints"]["sum"]),
         "mintsAtOrBeforeBlock": all(bn <= blk for bn, _, _ in recorded),
         "pinnedReadsIdentical": pinned(a) == pinned(b),
         "predictedAddressesEmpty": all(v == 0 for r in (a, b) for v in r["codesize"].values()),

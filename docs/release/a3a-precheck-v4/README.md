@@ -57,7 +57,7 @@
 | 现有 timelock `0x86C8…9564` | minDelay 172800；A3a 中不触碰 |
 | base fee | 15 wei |
 
-**提交前复读（块 11,961,932，Alchemy 与 Tenderly 同块读取，`reread-11961932.json`，13 项自检全为 true，含两端点当时的 `pending` nonce = 12131、mint 日志集合与记录逐条相等）**：部署者 nonce 12131（两端点当时的 `pending` 也是 12131）、Safe nonce 1、`pendingAPNTsToken` 仍为 `0xBb46…9883`、SP owner 仍为部署者 EOA；预测地址 `0xCCdF…C34B`、`0x9Eb1…e1E7` 上 codesize 均为 0（尚未被占用）。同一脚本在快照块 11,961,849 上的结果见 `reread-11961849.json`。脚本：`script/evidence/a3a-v4-reread.py`（只读）。这只说明本包在该块仍然有效，**执行当时仍须按 §5 逐笔重读**。
+**提交前复读（块 11,961,932，Alchemy 与 Tenderly 同块读取，`reread-11961932.json`，15 项自检全为 true，含两端点当时的 `pending` nonce = 12131、mint 日志集合与记录逐条相等）**：部署者 nonce 12131（两端点当时的 `pending` 也是 12131）、Safe nonce 1、`pendingAPNTsToken` 仍为 `0xBb46…9883`、SP owner 仍为部署者 EOA；预测地址 `0xCCdF…C34B`、`0x9Eb1…e1E7` 上 codesize 均为 0（尚未被占用）。同一脚本在快照块 11,961,849 上的结果见 `reread-11961849.json`。脚本：`script/evidence/a3a-v4-reread.py`（只读）。这只说明本包在该块仍然有效，**执行当时仍须按 §5 逐笔重读**。
 
 关键身份（与 v2、v3 相同）：新 timelock **`0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B`**；APNTsCapped **`0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7`**；accept operation id `0xa8c50665f85b1b63f98adc15dc5aab789f1ad91db7d2bc4425ecd46e0fcebc40`；salt `0xf11f070957a0e534b6d069d538b46e504303e413a6f6624a0569520761ac74f0`；S5 safeTxHash `0x65f033abab61bfd4b3dd915e34a5a5aee635c6c90c6add2d2b58d6b48c6cd2a0`；S6 safeTxHash `0x7c762ba6a524373107a5a277bfc6fb182e3ace9822daa784730abd17db7001ec`。
 
