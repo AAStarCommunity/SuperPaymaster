@@ -58,10 +58,15 @@
  "checks": {
   "mintRecipientsIdentical": true,
   "mintRecipientsNonEmpty": true,
+  "mintLogSetMatchesRecordedA": true,
+  "mintLogSetMatchesRecordedB": true,
+  "mintsAtOrBeforeBlock": true,
   "pinnedReadsIdentical": true,
   "predictedAddressesEmpty": true,
   "deployerNonce12131": true,
+  "deployerPendingNow12131BothEndpoints": true,
   "safeNonce1": true,
+  "holder42ba10M": true,
   "spOwnerIsDeployer": true,
   "pendingStillOldBb46": true
  }

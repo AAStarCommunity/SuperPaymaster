@@ -6,14 +6,16 @@ Usage:
     python3 script/evidence/a3a-v4-reread.py docs/release/a3a-precheck-v4/cap-budget-evidence.json > out.json
 
 Reads, at the same block on both endpoints (eth_call / eth_getCode / eth_getTransactionCount /
-eth_getTransactionReceipt only; nothing is sent):
+eth_getTransactionReceipt / eth_getBlockByNumber only; nothing is signed or sent):
   - deployer EOA nonce at BLOCK, plus the endpoint's current `pending` nonce (labelled as such,
     it is not pinned to BLOCK), Safe nonce, SP owner, SP pendingAPNTsToken;
   - codesize at the two predicted A3a addresses (must be 0 = not yet occupied);
   - old-aPNTs balanceOf for every mint recipient. Recipients come from the receipts of the mint
-    log ids already recorded in cap-budget-evidence.json (Transfer from 0x0 emitted by the token).
+    log ids already recorded in cap-budget-evidence.json (Transfer from 0x0 emitted by the token);
+    the (block, tx, logIndex) set found in the receipts must equal the recorded set exactly and
+    every mint must be at or before BLOCK.
 Exits 1 if the two endpoints disagree on any pinned value or any check is false. RPC URLs are
-never written to stdout.
+never written to stdout or stderr (RPC errors are reported by method name only).
 """
 import json, os, sys, urllib.request
 
@@ -25,6 +27,12 @@ PREDICTED = {"newTimelock": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B",
              "apntsCapped": "0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7"}
 TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 ZERO32 = "0x" + "0" * 64
+HOLDER_10M = "0x42ba82a015655f834b9bcb17959c48c02e873e22"  # CAP-BUDGET.md section 2 note
+EXPECT_NONCE, EXPECT_SAFE_NONCE = 12131, 1
+
+
+class RpcFailure(Exception):
+    pass
 # Fixed 4-byte selectors (cast sig): no keccak dependency.
 SEL = {"nonce()": "0xaffed0e0", "owner()": "0x8da5cb5b",
        "pendingAPNTsToken()": "0x60a9139b", "balanceOf(address)": "0x70a08231"}
@@ -32,11 +40,15 @@ SEL = {"nonce()": "0xaffed0e0", "owner()": "0x8da5cb5b",
 
 def rpc(url, method, params):
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
-    req = urllib.request.Request(url, body, {"Content-Type": "application/json", "User-Agent": "a3a-v4-reread"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        d = json.load(r)
-    if "error" in d:
-        raise RuntimeError(f"{method}: {d['error']}")
+    try:
+        req = urllib.request.Request(url, body, {"Content-Type": "application/json", "User-Agent": "a3a-v4-reread"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.load(r)
+    except Exception as e:  # never echo the exception text: it can carry the URL
+        raise RpcFailure(f"{method}: transport error ({type(e).__name__})") from None
+    if "error" in d or d.get("result") is None:
+        code = d.get("error", {}).get("code") if isinstance(d.get("error"), dict) else None
+        raise RpcFailure(f"{method}: rpc error code={code}")
     return d["result"]
 
 
@@ -52,19 +64,22 @@ def main():
     ev = json.load(open(sys.argv[1]))
     blk = int(os.environ["BLOCK"])
     urls = {"A": os.environ["RPC_A"], "B": os.environ["RPC_B"]}
-    mint_txs = sorted({i.split(":")[1] for i in ev["logIds"]["mints"]})
+    recorded = {(int(b), tx.lower(), int(li)) for b, tx, li in (i.split(":") for i in ev["logIds"]["mints"])}
+    mint_txs = sorted({tx for _, tx, _ in recorded})
 
-    # Mint recipients from receipts (read once per endpoint; must agree).
-    recips = {}
+    # Mint recipients from receipts (read once per endpoint; must agree). Every recorded
+    # (block, tx, logIndex) must be found, nothing else may be found, and all must be <= BLOCK.
+    recips, found = {}, {}
     for k, u in urls.items():
-        s = set()
+        s, f = set(), set()
         for tx in mint_txs:
             rc = rpc(u, "eth_getTransactionReceipt", [tx])
             for lg in rc["logs"]:
                 t = lg["topics"]
-                if lg["address"].lower() == TOKEN.lower() and t[0] == TRANSFER and t[1] == ZERO32:
+                if lg["address"].lower() == TOKEN.lower() and t and t[0] == TRANSFER and len(t) == 3 and t[1] == ZERO32:
                     s.add("0x" + t[2][-40:])
-        recips[k] = sorted(s)
+                    f.add((int(lg["blockNumber"], 16), lg["transactionHash"].lower(), int(lg["logIndex"], 16)))
+        recips[k], found[k] = sorted(s), f
 
     out = {"note": "read-only; RPC URLs omitted", "block": blk, "reads": {}}
     for k, u in urls.items():
@@ -84,10 +99,16 @@ def main():
     out["checks"] = {
         "mintRecipientsIdentical": recips["A"] == recips["B"],
         "mintRecipientsNonEmpty": len(recips["A"]) > 0,
+        "mintLogSetMatchesRecordedA": found["A"] == recorded,
+        "mintLogSetMatchesRecordedB": found["B"] == recorded,
+        "mintsAtOrBeforeBlock": all(bn <= blk for bn, _, _ in recorded),
         "pinnedReadsIdentical": pinned(a) == pinned(b),
         "predictedAddressesEmpty": all(v == 0 for r in (a, b) for v in r["codesize"].values()),
-        "deployerNonce12131": a["deployerNonceAtBlock"] == 12131,
-        "safeNonce1": a["safeNonce"] == 1,
+        "deployerNonce12131": a["deployerNonceAtBlock"] == EXPECT_NONCE,
+        "deployerPendingNow12131BothEndpoints": a["deployerNoncePendingNow(unpinned)"] == EXPECT_NONCE
+                                                and b["deployerNoncePendingNow(unpinned)"] == EXPECT_NONCE,
+        "safeNonce1": a["safeNonce"] == EXPECT_SAFE_NONCE,
+        "holder42ba10M": a["mintRecipientBalances"].get(HOLDER_10M) == str(10_000_000 * 10**18),
         "spOwnerIsDeployer": a["spOwner"].lower() == DEPLOYER.lower(),
         "pendingStillOldBb46": a["spPendingAPNTsToken"].lower() == "0xbb46321545a91db2f3b5c3e694f2f23abe259883",
     }
@@ -97,4 +118,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except RpcFailure as e:
+        print(f"a3a-v4-reread: {e}", file=sys.stderr)
+        sys.exit(2)
