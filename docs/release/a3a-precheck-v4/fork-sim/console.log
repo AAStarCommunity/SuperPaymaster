@@ -1,0 +1,37 @@
+fork: block 11961849 chainId 11155111 (local anvil :28592); expected deployer nonce 12131, Safe nonce 1
+== pre: SP "SuperPaymaster-5.4.2" pendingAPNTsToken=0xBb46321545a91DB2F3B5c3e694F2f23aBe259883 eta=1789099908 APNTS_TOKEN=0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+   predicted: timelock (nonce 12132) 0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B, APNTsCapped (nonce 12133) 0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7
+  S1-cancel: tx 0x0f52b7bf168cf3225f4f5e2460d04d188c9596c746607fdad702c0917f07275f from 0xb5600060e6de5E11D3636731964218E53caadf0E nonce 12131→12132, Safe nonce 1→1, gasUsed 31622, block 11961850 ts 1792578819
+  S1 read-back OK: pending cleared, APNTS_TOKEN unchanged 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  S2-deploy-timelock: tx 0x37859c69436ba868f0d18099c1dd8848c1d66f407fbe490fff0303886aec78fb from 0xb5600060e6de5E11D3636731964218E53caadf0E nonce 12132→12133, Safe nonce 1→1, gasUsed 1378624, block 11961851 ts 1792578820
+  S2 read-back OK: TimelockController 0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B (== predicted) minDelay 172800; EXACT sets ADMIN=[timelock] PROPOSER=CANCELLER=EXECUTOR=[Safe] (S2-roles.json)
+  S3-deploy-apnts-capped: tx 0xbc9bac571403296873ef7fedd217e97a9fabb82c63dc186546e66b8ef5c79a9e from 0xb5600060e6de5E11D3636731964218E53caadf0E nonce 12133→12134, Safe nonce 1→1, gasUsed 1389741, block 11961852 ts 1792578823
+  S4-transfer-ownership: tx 0x86704e63181d07592075b276ae3278b9a96d5d7131fac578390271089a9a9aad from 0xb5600060e6de5E11D3636731964218E53caadf0E nonce 12134→12135, Safe nonce 1→1, gasUsed 48238, block 11961853 ts 1792578823
+  S3/S4 read-back OK: APNTsCapped 0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7 (== predicted) owner=deployer pendingOwner=0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B minter=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 capGuardian=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 cap=10000000000000000000000000 totalSupply=0 version="APNTsCapped-1.0.0"
+   Safe payloads: S5 safeTxHash(nonce 1)=0x65f033abab61bfd4b3dd915e34a5a5aee635c6c90c6add2d2b58d6b48c6cd2a0  S6 safeTxHash(nonce 2)=0x7c762ba6a524373107a5a277bfc6fb182e3ace9822daa784730abd17db7001ec  timelock opId=0xa8c50665f85b1b63f98adc15dc5aab789f1ad91db7d2bc4425ecd46e0fcebc40
+  negative OK [safe-single-signature]: reverted with GS020; sender nonce 28 and Safe nonce 1 unchanged
+  negative OK [safe-unapproved-owner]: reverted with GS025; sender nonce 28 and Safe nonce 1 unchanged
+  negative OK [safe-non-owner-approveHash]: reverted with GS030; sender nonce 12135 and Safe nonce 1 unchanged
+  S5a-approveHash: tx 0x97e9abed0cb2ec6363ffa894843e6367456f5296d71c549204822c6c3edacbeb from 0x8c3499252232105A1615767C459DB9BBbf1273D6 nonce 7→8, Safe nonce 1→1, gasUsed 52784, block 11961854 ts 1792578826
+  negative OK [safe-unsorted-signatures]: reverted with GS026; sender nonce 28 and Safe nonce 1 unchanged
+  negative OK [safe-wrong-executor]: reverted with GS025; sender nonce 0 and Safe nonce 1 unchanged
+  negative OK [safe-non-owner-signer]: reverted with GS026; sender nonce 12135 and Safe nonce 1 unchanged
+  S5b-safe-exec-schedule: tx 0x19b0ba44086310ab2e3017e95ff525a4b22f3c9dbc1e7b12d8ebfe02c02ce5b2 from 0x871608cBA092105b91e91295A1d79fFC539BFb48 nonce 28→29, Safe nonce 1→2, gasUsed 99143, block 11961855 ts 1792578828
+  S5 read-back OK: Safe nonce 1→2; op 0xa8c50665f85b1b63f98adc15dc5aab789f1ad91db7d2bc4425ecd46e0fcebc40 pending, readyAt=1792751628 (= exec block ts 1792578828 + 172800); inner schedule() estimate 55529
+  negative OK [tl-eoa-schedule]: reverted with 0xe2517d3f; sender nonce 12135 and Safe nonce 2 unchanged
+  negative OK [tl-owner-direct-schedule]: reverted with 0xe2517d3f; sender nonce 29 and Safe nonce 2 unchanged
+  negative OK [tl-eoa-execute-early]: reverted with 0xe2517d3f; sender nonce 12135 and Safe nonce 2 unchanged
+  NEG-approveHash-early-S6-by-OC: tx 0x7cae1adf269d1b9ae77b59040bdc2af89bcd4a0889f8b4a3b08a6162ed055059 from 0xBB05d2E9890BceC6141e40A1066bf8927169b75E nonce 0→1, Safe nonce 2→2, gasUsed 52784, block 11961856 ts 1792578830
+  negative OK [safe-exec-execute-early]: reverted with GS013; sender nonce 29 and Safe nonce 2 unchanged
+  negative OK [inner-execute-early]: timelock.execute as the Safe (eth_call only) → TimelockUnexpectedOperationState 0x5ead8eb5
+   (fork) time advanced by 172800 s
+  negative OK [tl-eoa-execute-after-delay]: reverted with 0xe2517d3f; sender nonce 12135 and Safe nonce 2 unchanged
+  S6a-approveHash: tx 0xf2346ddeb5adde4e87c202a277abb36b8cb7f65c170cd7670f51e2dcf446be2a from 0x8c3499252232105A1615767C459DB9BBbf1273D6 nonce 8→9, Safe nonce 2→2, gasUsed 52784, block 11961858 ts 1792751631
+  S6b-safe-exec-execute: tx 0x45d1e45defd49dd70ed914d5054a13e32d356f6b70acf16f07f592a947556508 from 0x871608cBA092105b91e91295A1d79fFC539BFb48 nonce 29→30, Safe nonce 2→3, gasUsed 90370, block 11961859 ts 1792751632
+  S6 read-back OK: Safe nonce 2→3; APNTsCapped owner=0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B pendingOwner=0; inner execute() estimate 51848
+  S6 DeployAPNTsCapped.verify: ALL PASS
+  S7-queue: tx 0x3ba9831209b6051dcb4a2b0e0bba0a1cc5aea44d951d1a274c766224537b3a49 from 0xb5600060e6de5E11D3636731964218E53caadf0E nonce 12135→12136, Safe nonce 3→3, gasUsed 75929, block 11961860 ts 1792751646
+  S7 read-back OK: pendingAPNTsToken=0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7 eta=1793356446 (= queue ts 1792751646 + 604800); APNTS_TOKEN unchanged; ETA - T0 = 777630 s (9 d 0 h)
+  negative OK [sp-execute-switch-before-eta]: reverted with 0xc52a9bd3; sender nonce 12136 and Safe nonce 3 unchanged
+final: deployer nonce 12131→12136, Safe nonce 1→3; timelock roles still exact (final-roles.json)
+A3a v2 FORK SIMULATION OK (local only; nothing broadcast to a public network)
