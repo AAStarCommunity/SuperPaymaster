@@ -36,7 +36,7 @@
 | `cachedPrice` | ETH/USD 2,704.2805（8 位），updatedAt 1790488836（**已过期 24.2 天**；7c 会先 `updatePrice`。keeper 仍打旧 SP，作者已选等 5.5.0 窗口再处理） | `SP.cachedPrice()` |
 | `aPNTsPriceUSD` / `protocolFeeBPS` | 0.02 USD / 1000 | getter |
 
-注意：旧代币总量 12.73M **大于** 新 cap 10M（其中 10,000,000 在 EOA `0x42ba…3e22`）。这不矛盾：runbook 只按 1:1 重新铸造 **SP 内的 operator 余额**（`03-final-spec.md:373` 第 1 步 ④），不迁移旧代币持有人。
+注意：旧代币总量 12.73M **大于** 新 cap 10M（其中 10,000,000 在 EOA `0x42ba…3e22`：块 11,961,849 上两端点 `balanceOf` 一致，见 `reread-11961849.json` 的 `mintRecipientBalances`；`cap-budget-evidence.json` 本身只读了 `balanceOf(SP)`）。这不矛盾：runbook 只按 1:1 重新铸造 **SP 内的 operator 余额**（`03-final-spec.md:373` 第 1 步 ④），不迁移旧代币持有人。
 
 ## 3. 预算表
 
@@ -44,7 +44,7 @@
 
 | # | 项 | 值（aPNTs） | 来源 | 算式 |
 |---|---|---|---|---|
-| 1 | cap | 10,000,000 | `DeployAPNTsCapped.s.sol:78` | — |
+| 1 | cap | 10,000,000 | `DeployAPNTsCapped.s.sol:84` | — |
 | 2 | 每笔 gas limit 之和 | 1,060,000 gas | `collector.mjs:207–212` | 100k call + 300k verif + 60k PVG + 400k pmVerif + 200k pmPostOp |
 | 3 | maxFeePerGas 上限 | 20 gwei | `collector.mjs:208–209` | — |
 | 4 | a_gas（每笔预留，未加费） | 2,866.53733 | `03-final-spec.md:564`；`SuperPaymaster.sol:214–224` | 1,060,000 × 20e9 × 2704.2805 / 0.02 / 1e18 |

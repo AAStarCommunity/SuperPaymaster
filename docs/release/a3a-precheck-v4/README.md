@@ -42,7 +42,7 @@
 | S5b / S6b | Safe owner `0x8716…Fb48` | `execTransaction(...)`，签名为两位 owner 的 approved-hash（v = 1），按地址升序 |
 | — | owner `0xBB05…b75E` | **不参与**（fork 负对照里它的 `approveHash` 只用于构造「过早」场景，真实执行不做） |
 
-本包**不含任何签名**；SP 侧不持有、不使用任何 Safe owner 私钥。逐交易中止条件见 §5。
+本包**不含任何 owner 产生的 ECDSA 签名，也没有任何公链上的 `approveHash`**。S5b / S6b 的 `signatures` 字段是 Safe 的 approved-hash 编码（`r` = owner 地址、`s` = 0、`v` = 1，`a3a-precheck.json` 的 `simulatedAddresses.signatures`），它本身不授权任何东西，只有两位 owner 先在链上 `approveHash` 后才生效。SP 侧不持有、不使用任何 Safe owner 私钥。逐交易中止条件见 §5。
 
 ## 1. 固定快照（只读，块 11,961,849）
 
@@ -57,7 +57,7 @@
 | 现有 timelock `0x86C8…9564` | minDelay 172800；A3a 中不触碰 |
 | base fee | 15 wei |
 
-**提交前复读（块 11,961,891，Alchemy 与 publicnode 同块读取，结果一致）**：部署者 nonce 12131（`pending` 同为 12131）、Safe nonce 1、`pendingAPNTsToken` 仍为 `0xBb46…9883`、SP owner 仍为部署者 EOA；预测地址 `0xCCdF…C34B`、`0x9Eb1…e1E7` 上 codesize 均为 0（尚未被占用）。这只说明本包在该块仍然有效，**执行当时仍须按 §5 逐笔重读**。
+**提交前复读（块 11,961,932，Alchemy 与 Tenderly 同块读取，`reread-11961932.json`，8 项自检全为 true）**：部署者 nonce 12131（两端点当时的 `pending` 也是 12131）、Safe nonce 1、`pendingAPNTsToken` 仍为 `0xBb46…9883`、SP owner 仍为部署者 EOA；预测地址 `0xCCdF…C34B`、`0x9Eb1…e1E7` 上 codesize 均为 0（尚未被占用）。同一脚本在快照块 11,961,849 上的结果见 `reread-11961849.json`。脚本：`script/evidence/a3a-v4-reread.py`（只读）。这只说明本包在该块仍然有效，**执行当时仍须按 §5 逐笔重读**。
 
 关键身份（与 v2、v3 相同）：新 timelock **`0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B`**；APNTsCapped **`0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7`**；accept operation id `0xa8c50665f85b1b63f98adc15dc5aab789f1ad91db7d2bc4425ecd46e0fcebc40`；salt `0xf11f070957a0e534b6d069d538b46e504303e413a6f6624a0569520761ac74f0`；S5 safeTxHash `0x65f033abab61bfd4b3dd915e34a5a5aee635c6c90c6add2d2b58d6b48c6cd2a0`；S6 safeTxHash `0x7c762ba6a524373107a5a277bfc6fb182e3ace9822daa784730abd17db7001ec`。
 
@@ -79,7 +79,7 @@
 | S5a | Safe owner `0x8c34…73D6` | Safe | `approveHash(0x65f033ab…d2a0)` | 7→8 | **1**→1 | 52,784（68,619） | `ApproveHash` |
 | S5b | Safe owner `0x8716…Fb48` | Safe | `execTransaction(timelock, 0, schedule(APNTsCapped, 0, acceptOwnership(), 0x0, salt, 172800), 0, 0,0,0, 0x0, 0x0, sigs)` | 28→29 | **1→2** | 99,143（128,885） | `SafeMultiSigTransaction`、`CallScheduled`、`CallSalt`、`ExecutionSuccess` |
 | — | — | — | **等待 ≥ 48h**（readyAt = S5b 块时间 + 172800） | — | — | — | — |
-| S6a | Safe owner `0x8c34…73D6` | Safe | `approveHash(0x7c762ba6…10ec)` | 8→9 | **2**→2 | 52,784（68,619） | `ApproveHash` |
+| S6a | Safe owner `0x8c34…73D6` | Safe | `approveHash(0x7c762ba6…01ec)` | 8→9 | **2**→2 | 52,784（68,619） | `ApproveHash` |
 | S6b | Safe owner `0x8716…Fb48` | Safe | `execTransaction(timelock, 0, execute(APNTsCapped, 0, acceptOwnership(), 0x0, salt), …, sigs)` | 29→30 | **2→3** | 90,370（117,481） | `SafeMultiSigTransaction`、`OwnershipTransferred(→timelock)`、`CallExecuted`、`ExecutionSuccess` |
 | S7 | 部署者 EOA | SP | `setAPNTsToken(0x9Eb1…e1E7)` | **12135**→12136 | 3→3 | 75,929（98,707） | `APNTsTokenChangeQueued(APNTsCapped, eta)` |
 
@@ -193,6 +193,8 @@ RPC_A=<alchemy archive> RPC_B=https://ethereum-sepolia-rpc.publicnode.com BLOCK=
 scripts/a3a-v2-fork-sim.sh <env with RPC_URL> 11961849 docs/release/a3a-precheck-v2/fork-sim 12131 1 > docs/release/a3a-precheck-v2/fork-sim-console.log 2>&1   # OUT 须为仓库内相对路径
 node scripts/a3a-v2-build-packet.mjs > docs/release/a3a-precheck-v2/build-packet.log 2>&1
 RPC_A=<archive rpc> RPC_B=https://sepolia.gateway.tenderly.co BLOCK=11961849 python3 scripts/a3a-v2-cap-budget-read.py > docs/release/a3a-precheck-v2/cap-budget-evidence.json
+# 当前 main 上（脚本随本包入库）：
+RPC_A=<archive rpc> RPC_B=https://sepolia.gateway.tenderly.co BLOCK=<n> python3 script/evidence/a3a-v4-reread.py docs/release/a3a-precheck-v4/cap-budget-evidence.json > reread-<n>.json
 # 拷到 a3a-precheck-v4/（fork-sim-console.log -> fork-sim/console.log）；*.log 需 git add -f。校验（干净 clone 上）：
 cd docs/release/a3a-precheck-v4 && shasum -a 256 -c EVIDENCE.sha256 | grep -c FAILED   # 必须为 0
 ```
