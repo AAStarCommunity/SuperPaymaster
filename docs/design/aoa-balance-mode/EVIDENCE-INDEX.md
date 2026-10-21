@@ -178,7 +178,7 @@ D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 �
 | id | 内容 | 文件 | 结果 | 边界 |
 |---|---|---|---|---|
 | RC4-TAG | annotated `v5.5.0-rc.4` 读回与 tag 下重核 | `../../release/v5.5.0-rc.4-attestation.{md,json}`；`data/rc4-tag-fbd74fb1/` | tag object `67f78f60…` → peeled `fbd74fb1…`；rc.2/rc.3 未移动；tag 重编与 pre-tag、rc.3 构建 byte-identical；10/10 合约对象逐字段等于 rc.2；tag clone Stage 1b exit 0 | artifact 哈希非链上 codehash |
-| RC4-CI | 发布输入上的 CI | 同上 `forge-run-39562634858.json`、`security-run-39562599170.json`、`stage1b-input-equality.txt` | Forge Tests 39562634858 在 exact commit 上 success；PR #511 security.yml 39562599170：Stage 1b job 119097152565、Stage 2（含 Prague）job 119097152602 success；merge ref `64aae5d6` 与 tag commit 的 Stage 1b/构建输入 tree/blob 相等 | security.yml 跑在 PR merge ref 上，靠输入相等性对应到 tag；DSR 待复核 |
+| RC4-CI | 发布输入上的 CI | 同上 `forge-run-39562634858.json`、`security-run-39562599170.json`、`stage1b-input-equality.txt` | Forge Tests 39562634858 在 exact commit 上 success；PR #511 security.yml 39562599170：Stage 1b job 119097152565、Stage 2（含 Prague）job 119097152602 success；merge ref `64aae5d6` 与 tag commit 的 Stage 1b/构建输入 tree/blob 相等 | security.yml 跑在 PR merge ref 上，靠输入相等性对应到 tag；另有 main `a02456ff` 精确 SHA 上 Security 39581690187 / Forge 39581690201 全绿。DSR `dc77b160`：③ PASS，A2 技术六门已签，总门待本 PR 合并 |
 
 ## 2. 登记册数字 → 证据
 

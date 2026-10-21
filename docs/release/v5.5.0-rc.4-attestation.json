@@ -21,7 +21,7 @@
    "moved": false
   }
  },
- "deltaVsRc3": "contracts/src identical; executable change = contracts/test/scripts/{CheckDefaultArtifacts,DeployAPNTsCapped}.t.sol (#513: self-skip under the Prague gate); plus docs/evidence",
+ "deltaVsRc3": "contracts/src identical. Non-docs changes 57c665af..fbd74fb1 (3 files, none production/deploy input): contracts/test/scripts/{CheckDefaultArtifacts,DeployAPNTsCapped}.t.sol (#513, Prague self-skip) and script/evidence/d7-tier-negctl.sh (#509 negative-control runner). Corrected per DSR dc77b160 (earlier text said two test files).",
  "contractsSrcVsRc2": "identical (git diff 1ac0e1c5 fbd74fb1 -- contracts/src is empty)",
  "toolchain": {
   "forge": "1.7.1 (4072e48705af9d93e3c0f6e29e93b5e9a40caed8)",
@@ -211,8 +211,17 @@
   "preTagFullGates": "fresh clone of fbd74fb1: Cancun 1791/0/49, Prague 1671/0/23, Stage 1b exit 0"
  },
  "a2": {
-  "status": "pending DSR re-check: A2 \u2462 now has a GitHub Stage 1b check-run on inputs equal to the tag, and Stage 2 (incl. Prague) green; main integration (#511) awaiting author go",
-  "previousJudgement": "DSR ff703246/aad24c8d: A2 \u2462 OPEN, HOLD-CI-AND-MAIN/ATTESTATION (on rc.3)"
+  "status": "technical gates signed by DSR (CC-125 dc77b160): (1) ACCEPTED-SCOPED, (2) ACCEPTED-SCOPED, (3) PASS, (4)/A2a PASS-BRIDGED, (5) static PASS, (6) PASS; tag identity PASS; main integration PASS. A2 total gate closes on the merge of this attestation (#514).",
+  "mainIntegration": {
+   "pr": 511,
+   "mergeCommit": "a02456ff75c661ad5e7af0f4d359a93f9568ec61",
+   "pushCI": {
+    "Security \u2014 Stage 1-3": 39581690187,
+    "Forge Tests": 39581690201
+   },
+   "driftVsTag": "none in contracts/src, contracts/script, foundry.toml, .gitmodules, deploy-core, prepare-test, scripts/check-live-scripts-compile.sh; gitlinks equal"
+  },
+  "previousJudgement": "DSR ff703246/aad24c8d on rc.3: A2 \u2462 OPEN, HOLD-CI-AND-MAIN/ATTESTATION"
  },
  "notCovered": [
   "bundler/ERC-7562 traces",
