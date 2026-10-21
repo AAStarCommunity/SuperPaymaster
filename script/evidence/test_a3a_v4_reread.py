@@ -31,6 +31,8 @@ def mint_log(blk, tx, idx, to, amt, bh):
 def healthy():
     bh900, bh901 = "0x" + "90" * 32, "0x" + "91" * 32
     return {
+        "chainId": Q(11155111),
+        "safe_latest": "0x" + hex(1)[2:].rjust(64, "0"),
         "block": {"number": Q(BLK), "hash": BH},
         "nonce_at": Q(12131), "nonce_pending": Q(12131),
         "calls": {(m.SAFE.lower(), m.SEL["nonce()"]): "0x" + hex(1)[2:].rjust(64, "0"),
@@ -48,6 +50,8 @@ def healthy():
 def make_rpc(chains):
     def rpc(url, method, params):
         c = chains[url]
+        if method == "eth_chainId":
+            return c["chainId"]
         if method == "eth_getBlockByNumber":
             return c["block"]
         if method == "eth_getTransactionCount":
@@ -58,6 +62,8 @@ def make_rpc(chains):
             return c["receipts"][params[0]]
         if method == "eth_call":
             to, data = params[0]["to"].lower(), params[0]["data"]
+            if params[1] == "latest" and to == m.SAFE.lower():
+                return c["safe_latest"]
             if data.startswith(m.SEL["balanceOf(address)"]):
                 return "0x" + hex(c["balances"].get("0x" + data[-40:], 0))[2:].rjust(64, "0")
             return c["calls"][(to, data)]
@@ -65,11 +71,11 @@ def make_rpc(chains):
     return rpc
 
 
-def run(chain_a, chain_b, a_url="https://a.invalid", b_url="https://b.invalid"):
+def run(chain_a, chain_b, a_url="https://a.invalid", b_url="https://b.invalid", blk=BLK):
     m.rpc = make_rpc({a_url: chain_a, b_url: chain_b})
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(EVIDENCE, f)
-    os.environ.update(RPC_A=a_url, RPC_B=b_url, BLOCK=str(BLK))
+    os.environ.update(RPC_A=a_url, RPC_B=b_url, BLOCK=str(blk))
     sys.argv = ["x", f.name]
     out = io.StringIO()
     try:
@@ -106,6 +112,15 @@ CASES = {
     "log blockHash != receipt on A": lambda a, b: a["receipts"][TX1]["logs"][0].update(blockHash="0x" + "ee" * 32),
     "malformed getCode on A": lambda a, b: a.update(code="0x0"),
     "address padding on A": lambda a, b: a["calls"].__setitem__((m.SP.lower(), m.SEL["owner()"]), "0x" + "11" * 12 + m.DEPLOYER[2:].lower()),
+    "wrong chain id on both (fork)": lambda a, b: [c.update(chainId=Q(31337)) for c in (a, b)],
+    "Safe nonce moved at BLOCK": lambda a, b: [c["calls"].__setitem__((m.SAFE.lower(), m.SEL["nonce()"]), "0x" + hex(2)[2:].rjust(64, "0")) for c in (a, b)],
+    "Safe nonce moved since BLOCK on B": lambda a, b: b.update(safe_latest="0x" + hex(2)[2:].rjust(64, "0")),
+    "SP owner changed": lambda a, b: [c["calls"].__setitem__((m.SP.lower(), m.SEL["owner()"]), W(m.SAFE)) for c in (a, b)],
+    "pending token changed": lambda a, b: [c["calls"].__setitem__((m.SP.lower(), m.SEL["pendingAPNTsToken()"]), W("0x" + "cd" * 20)) for c in (a, b)],
+    "mint sum differs from recorded": lambda a, b: [c["receipts"][TX2]["logs"][0].update(data="0x" + hex(AMT2 + 7)[2:].rjust(64, "0")) for c in (a, b)],
+    # Same recipient and amount, different log identity on both endpoints: only the
+    # recorded-set checks (mintLogSetMatchesRecordedA/B) can catch this.
+    "mint logIndex shifted on both": lambda a, b: [c["receipts"][TX1]["logs"][0].update(logIndex=Q(4)) for c in (a, b)],
     "holder balance not 10M": lambda a, b: [c["balances"].__setitem__(R1.lower(), AMT1 - 1) for c in (a, b)],
 }
 
@@ -117,6 +132,13 @@ def main():
     fails += code != 0
     code = run(healthy(), healthy(), "https://same.invalid", "https://same.invalid/")
     print(f"same endpoint twice: exit {code}")
+    fails += code == 0
+    # BLOCK pinned between the two recorded mints: the 901 mint is "in the future".
+    early_a, early_b = healthy(), healthy()
+    for c in (early_a, early_b):
+        c["block"]["number"] = Q(900)
+    code = run(early_a, early_b, blk=900)
+    print(f"mint after BLOCK: exit {code}")
     fails += code == 0
     for name, fn in CASES.items():
         code = mutate(fn)
