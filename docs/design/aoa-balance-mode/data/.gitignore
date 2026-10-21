@@ -1,0 +1,4 @@
+# Evidence logs and archives here are data (listed in ../EVIDENCE.sha256), not build noise:
+# undo the repo-wide *.log and the global *.gz ignore rules for this directory.
+!*.log
+!*.gz

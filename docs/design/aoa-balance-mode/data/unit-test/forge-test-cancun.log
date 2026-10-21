@@ -1,0 +1,2697 @@
+# command: /Users/jason/.foundry/bin/forge test
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T04:07:38Z
+# exit code: 0
+# (compiler output before line 15 omitted)
+Ran 7 tests for contracts/test/v3/PriceCache_FutureTimestamp.t.sol:PriceCache_FutureTimestampTest
+[PASS] test_PostOp_DegradesToRealtimeOnFutureCachedPrice() (gas: 645962)
+[PASS] test_SetCachedPrice_AcceptsCurrentTimestamp() (gas: 42882)
+[PASS] test_SetCachedPrice_AcceptsPastTimestamp() (gas: 42520)
+[PASS] test_SetCachedPrice_RejectsAnyFutureTimestamp() (gas: 23219)
+[PASS] test_SetCachedPrice_RejectsFarFutureTimestamp() (gas: 16274)
+[PASS] test_SetCachedPrice_RejectsFutureTimestamp() (gas: 16042)
+[PASS] test_SetCachedPrice_RejectsZeroPrice() (gas: 16250)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 3.26ms (210.38µs CPU time)
+
+Ran 11 tests for contracts/test/v3/X402Direct_FacilitatorWhitelist.t.sol:X402Direct_FacilitatorWhitelistTest
+[PASS] test_AddApprovedFacilitator_DoesNotGrantAutoSpender() (gas: 53514)
+[PASS] test_AddApprovedFacilitator_EmitsEvent() (gas: 43866)
+[PASS] test_AddApprovedFacilitator_OnlyCommunity() (gas: 63457)
+[PASS] test_AddApprovedFacilitator_RevertsIfCommunityOwner() (gas: 25403)
+[PASS] test_AddApprovedFacilitator_RevertsZeroAddress() (gas: 17257)
+[PASS] test_DefaultEmptyApprovedFacilitators() (gas: 32276)
+[PASS] test_RemoveApprovedFacilitator_OnlyCommunity() (gas: 49072)
+[PASS] test_RemoveApprovedFacilitator_RevokesAccess() (gas: 243944)
+[PASS] test_SettleDirect_AllowsApprovedFacilitator() (gas: 212856)
+[PASS] test_SettleDirect_PerCommunityIsolation() (gas: 740967)
+[PASS] test_SettleDirect_RevertsForUnapprovedFacilitator() (gas: 145921)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 4.34ms (2.43ms CPU time)
+
+Ran 25 tests for contracts/test/modules/BLSAggregatorUnit.t.sol:BLSAggregatorUnitTest
+[PASS] test_Constructor_InitialState() (gas: 49999)
+[PASS] test_Constructor_ZeroDVTValidator_Reverts() (gas: 138596)
+[PASS] test_Constructor_ZeroRegistry_Reverts() (gas: 138604)
+[PASS] test_Constructor_ZeroSuperPaymaster_Reverts() (gas: 138247)
+[PASS] test_IdentityPoint_Rejected_NotOnCurve() (gas: 16195)
+[PASS] test_OffCurvePoint_Rejected_NotOnCurve() (gas: 17118)
+[PASS] test_RegisterBLSPublicKey_ChangeSlotForSameValidator_Reverts() (gas: 218710)
+[PASS] test_RegisterBLSPublicKey_OnlyOwner_Reverts() (gas: 18433)
+[PASS] test_RegisterBLSPublicKey_OverwritesExistingSameSlot() (gas: 249694)
+[PASS] test_RegisterBLSPublicKey_SlotAboveMax_Reverts() (gas: 13657)
+[PASS] test_RegisterBLSPublicKey_SlotCollision_Reverts() (gas: 243665)
+[PASS] test_RegisterBLSPublicKey_SlotZero_Reverts() (gas: 13530)
+[PASS] test_RegisterBLSPublicKey_Success() (gas: 208864)
+[PASS] test_RegisterBLSPublicKey_ZeroValidator_Reverts() (gas: 13780)
+[PASS] test_RevokeBLSPublicKey_FreesSlot() (gas: 363161)
+[PASS] test_SetDVTValidator_OnlyOwner_Reverts() (gas: 14362)
+[PASS] test_SetDVTValidator_Success() (gas: 22690)
+[PASS] test_SetDefaultThreshold_ExceedsMax_Reverts() (gas: 17362)
+[PASS] test_SetMinThreshold_ExactMax_Success() (gas: 33309)
+[PASS] test_SetMinThreshold_ExceedsMax_Reverts() (gas: 14459)
+[PASS] test_SetSuperPaymaster_OnlyOwner_Reverts() (gas: 14890)
+[PASS] test_SetSuperPaymaster_Success() (gas: 22866)
+[PASS] test_SmallSubgroupPoint_Rejected_NotInSubgroup() (gas: 19945)
+[PASS] test_ValidG1Point_Registers_Successfully() (gas: 204549)
+[PASS] test_Version() (gas: 9531)
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 4.62ms (1.77ms CPU time)
+
+Ran 6 tests for contracts/test/modules/BLSGoldenVectors.t.sol:BLSGoldenVectors_Test
+[PASS] test_Golden_Canonical_0x11x32() (gas: 38030)
+[PASS] test_Golden_DistinctMessagesDiffer() (gas: 27705)
+[PASS] test_Golden_Empty() (gas: 33661)
+[PASS] test_Golden_NinetySix() (gas: 45831)
+[PASS] test_Golden_OneByte() (gas: 33843)
+[PASS] test_Golden_UserOpHashLike() (gas: 33745)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 5.53ms (5.39ms CPU time)
+
+Ran 10 tests for contracts/test/security/CC48CoreFixes.t.sol:CC48MutableProxyVerifierTest
+[PASS] test_ExecutionRejectsASubstitutedProof() (gas: 299894)
+[PASS] test_ExpiryIsUnchangedByTheFrozenVerdictAndByAnUpgrade() (gas: 190765)
+[PASS] test_GuardianSetIsStillPinnedAlongsideTheProof() (gas: 174335)
+[PASS] test_PartialRetryAfterUpgradeUsesTheSameFrozenProof() (gas: 568685)
+[PASS] test_ProxyUpgradeIsInvisibleToAddressAndCodehash() (gas: 19132)
+[PASS] test_QueueStillHonoursTheLiveImplementation() (gas: 179954)
+[PASS] test_QueuedCaseSurvivesAnImplementationSwapAtTheSameAddress() (gas: 310375)
+[PASS] test_QueuedCaseSurvivesAnUpgradeToARevertingImplementation() (gas: 297452)
+[PASS] test_RotationAfterQueueingStillCannotTouchAnOpenCase() (gas: 397130)
+[PASS] test_SubstitutedProofIsRefusedEvenIfTheLiveVerifierWouldApproveIt() (gas: 163639)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 7.01ms (2.78ms CPU time)
+
+Ran 8 tests for contracts/test/v3/BLSAggregator_PkAggReconstruct.t.sol:BLSAggregatorPkAggReconstructTest
+[PASS] test_DeletedBLSValidator_NoLongerImported() (gas: 3293)
+[PASS] test_Verify_ConsistentAcrossSignerMaskOrderings() (gas: 141474)
+[PASS] test_Verify_ReconstructsFromOnChainPKs_HappyPath() (gas: 178624)
+[PASS] test_Verify_RejectsBelowThreshold() (gas: 68787)
+[PASS] test_Verify_RejectsBitsBeyondMaxValidators() (gas: 14076)
+[PASS] test_Verify_RejectsCallerSuppliedPkAgg_AbiGone() (gas: 4342)
+[PASS] test_Verify_RejectsEmptySignerMask() (gas: 11447)
+[PASS] test_Verify_RejectsForgedPkAgg_BySlotNotRegistered() (gas: 69780)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 1.44ms (586.62µs CPU time)
+
+Ran 18 tests for contracts/test/modules/BLSLibrary.t.sol:BLSLibrary_Test
+[PASS] test_G1Add_PrecompileRevert_BubblesTypedError() (gas: 11145)
+[PASS] test_G1Add_Success_ReturnsDecodedPoint() (gas: 14451)
+[PASS] test_G1Add_WrongReturnSize_Reverts() (gas: 11501)
+[PASS] test_G2Add_PrecompileRevert_Reverts() (gas: 11947)
+[PASS] test_G2Add_Success() (gas: 14477)
+[PASS] test_G2Add_WrongReturnSize_Reverts() (gas: 12199)
+[PASS] test_HashToG2_DST_MatchesNobleHashToField() (gas: 22733)
+[PASS] test_HashToG2_DispatchesAndReturnsPoint() (gas: 21129)
+[PASS] test_HashToG2_DistinctMessages_DoNotRevert() (gas: 25733)
+[PASS] test_HashToG2_MapFailure_Reverts() (gas: 16425)
+[PASS] test_MapFp2ToG2_PrecompileRevert_Reverts() (gas: 11213)
+[PASS] test_MapFp2ToG2_Success() (gas: 13215)
+[PASS] test_MapFpToG1_Success() (gas: 12390)
+[PASS] test_MapFpToG1_WrongSize_Reverts() (gas: 10685)
+[PASS] test_Pairing_Mocked_ReturnsFalse() (gas: 13057)
+[PASS] test_Pairing_Mocked_ReturnsTrue() (gas: 13092)
+[PASS] test_Pairing_MultiPoint_Packing() (gas: 16533)
+[PASS] test_Pairing_PrecompileRevert_Reverts() (gas: 12629)
+Suite result: ok. 18 passed; 0 failed; 0 skipped; finished in 530.54µs (384.17µs CPU time)
+
+Ran 2 tests for contracts/test/v3/PriceCache_FutureTimestamp.t.sol:SuperPaymaster_FutureTimestampTest
+[PASS] test_UpdatePriceDVT_AcceptsTimestampAtGraceBoundary() (gas: 40617)
+[PASS] test_UpdatePriceDVT_RejectsFutureTimestamp() (gas: 21033)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 5.07ms (136.00µs CPU time)
+
+Ran 14 tests for contracts/test/v3/BLSAggregator_SlashPolicy.t.sol:BLSAggregator_SlashPolicyTest
+[PASS] test_BootstrapThresholds_Are_2_3_3() (gas: 23989)
+[PASS] test_CannotSetThresholdAboveMax() (gas: 15117)
+[PASS] test_CannotSetThresholdBelowFloor() (gas: 14718)
+[PASS] test_CannotSetThresholdForInvalidLevel() (gas: 15026)
+[PASS] test_ExecuteProposal_AllowsBlacklistSelector_NotForbidden() (gas: 29806)
+[PASS] test_ExecuteProposal_ForbidsExecuteSlashWithBLSSelector() (gas: 25169)
+[PASS] test_ExecuteProposal_ForbidsMarkProposalExecutedSelector() (gas: 22830)
+[PASS] test_ExecuteProposal_ForbidsQueueSlashSelector() (gas: 24866)
+[PASS] test_NonAdmin_CannotUpdateThreshold() (gas: 15097)
+[PASS] test_OnlyOwner_CanRotatePolicyAdmin() (gas: 13485)
+[PASS] test_PolicyAdmin_CanRaiseThreshold() (gas: 37034)
+[PASS] test_QueueSlashWithConsensus_OnlyDvtOrOwner() (gas: 22023)
+[PASS] test_QueueSlashWithConsensus_RejectsInvalidLevel() (gas: 21697)
+[PASS] test_QueueSlashWithConsensus_RejectsZeroOperator() (gas: 19543)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 550.79µs (200.04µs CPU time)
+
+Ran 8 tests for contracts/test/security/CC48CoreFixes.t.sol:CC48TotalCreditExposureTest
+[PASS] test_CeilingAtLiveExposureFailsClosedButAllowsDowngrade() (gas: 342240)
+[PASS] test_CreditPolicyIsOwnerGated() (gas: 16206)
+[PASS] test_DowngradeReleasesBudgetAndAllowsReissue() (gas: 366996)
+[PASS] test_FreshInitializerSeedsAFiniteProtocolCeiling() (gas: 24721)
+[PASS] test_MixedBatchNetsUpAgainstDown() (gas: 327766)
+[PASS] test_SameBlockProposalSplittingCannotExceedTotalBudget() (gas: 453435)
+[PASS] test_TimePassingDoesNotRefillTheBudget() (gas: 338893)
+[PASS] test_UnderSeededPopulationBackfillsInsteadOfUnderflowing() (gas: 309021)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 1.49ms (704.67µs CPU time)
+
+Ran 10 tests for contracts/test/modules/BLSPermissionlessRegistration.t.sol:BLSPermissionlessRegistrationTest
+[PASS] test_defaultSwitchFalse() (gas: 10518)
+[PASS] test_nonOwnerSwitchOff_revert() (gas: 18133)
+[PASS] test_ownerPathAlsoRequiresPoP() (gas: 64155)
+[PASS] test_ownerPathWorksWithAValidPoP() (gas: 204945)
+[PASS] test_setSwitch_nonOwner_revert() (gas: 14858)
+[PASS] test_setSwitch_ownerSucceeds_emitsEvent() (gas: 23175)
+[PASS] test_switchOn_mismatchedSender_revert() (gas: 29146)
+[PASS] test_switchOn_noDVTRole_revert() (gas: 36113)
+[PASS] test_switchOn_validRoleInvalidPoP_revert() (gas: 120436)
+[PASS] test_switchOn_validRoleValidPoP_TODO() (gas: 228)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 777.79µs (346.58µs CPU time)
+
+Ran 6 tests for contracts/test/paper7/BLSGasMeasurement.t.sol:RepCreditPragueE2E
+[SKIP] test_Prague_DirectRegistryAndDVTUpdateRealState() (gas: 0)
+[SKIP] test_Prague_RejectsBadSignatureAndWrongChain() (gas: 0)
+[SKIP] test_Prague_RejectsBelowThreshold() (gas: 0)
+[SKIP] test_Prague_RejectsExitedValidatorAtVerificationTime() (gas: 0)
+[SKIP] test_Prague_RejectsMalformedSignature() (gas: 0)
+[SKIP] test_Prague_RejectsReplay() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 6 skipped; finished in 670.29µs (51.29µs CPU time)
+
+Ran 9 tests for contracts/test/v3/PriceSetter_Bounds.t.sol:PriceSetter_APNTS_Test
+[PASS] test_SetAPNTSPrice_AcceptsExactMax_WhenUninit() (gas: 153734)
+[PASS] test_SetAPNTSPrice_AcceptsExactMin_WhenUninit() (gas: 153690)
+[PASS] test_SetAPNTSPrice_DeltaRejectedAbove() (gas: 21992)
+[PASS] test_SetAPNTSPrice_DeltaRejectedBelow() (gas: 22421)
+[PASS] test_SetAPNTSPrice_NominalUpdate() (gas: 27869)
+[PASS] test_SetAPNTSPrice_OnlyOwner() (gas: 17634)
+[PASS] test_SetAPNTSPrice_RejectsAboveMax() (gas: 20083)
+[PASS] test_SetAPNTSPrice_RejectsBelowMin() (gas: 19994)
+[PASS] test_SetAPNTSPrice_RejectsZero() (gas: 20192)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 1.38ms (528.75µs CPU time)
+
+Ran 9 tests for contracts/test/v3/PriceSetter_Bounds.t.sol:PriceSetter_CachedPrice_Test
+[PASS] test_SetCachedPrice_AcceptsExactMin_WhenUninit() (gas: 2615373)
+[PASS] test_SetCachedPrice_DeltaAccepted() (gas: 25427)
+[PASS] test_SetCachedPrice_DeltaRejectedAbove() (gas: 18459)
+[PASS] test_SetCachedPrice_DeltaRejectedBelow() (gas: 18580)
+[PASS] test_SetCachedPrice_OnlyOwner() (gas: 13987)
+[PASS] test_SetCachedPrice_RejectsAboveMax() (gas: 16068)
+[PASS] test_SetCachedPrice_RejectsBelowMin() (gas: 16375)
+[PASS] test_SetCachedPrice_RejectsFutureTimestamp() (gas: 16034)
+[PASS] test_SetCachedPrice_RejectsZero() (gas: 16126)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 423.46µs (182.08µs CPU time)
+
+Ran 8 tests for contracts/test/v3/PriceSetter_Bounds.t.sol:PriceSetter_ExchangeRate_Test
+[PASS] test_UpdateExchangeRate_AcceptsExactMin() (gas: 3449474)
+[PASS] test_UpdateExchangeRate_DeltaAccepted() (gas: 47144)
+[PASS] test_UpdateExchangeRate_DeltaRejectedAbove() (gas: 22316)
+[PASS] test_UpdateExchangeRate_DeltaRejectedBelow() (gas: 22194)
+[PASS] test_UpdateExchangeRate_NominalUpdate() (gas: 47452)
+[PASS] test_UpdateExchangeRate_RejectsAboveMax() (gas: 17653)
+[PASS] test_UpdateExchangeRate_RejectsBelowMin() (gas: 17542)
+[PASS] test_UpdateExchangeRate_RejectsZero() (gas: 17222)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 506.71µs (226.96µs CPU time)
+
+Ran 51 tests for contracts/test/v3/ReputationSystemV3_Complete.t.sol:ReputationSystem_Complete_Test
+[PASS] test_CalculateReputation_NoActiveRules_ReturnsFromDefault() (gas: 22804)
+[PASS] test_CalculateReputation_WithActiveRules() (gas: 202744)
+[PASS] test_CompleteReputationFlow() (gas: 542947)
+[PASS] test_ComputeScore_BonusCappedAtMax() (gas: 167251)
+[PASS] test_ComputeScore_CustomRule() (gas: 166543)
+[PASS] test_ComputeScore_DefaultRule() (gas: 43498)
+[PASS] test_ComputeScore_InvalidInput_ActivitiesLengthMismatch() (gas: 21272)
+[PASS] test_ComputeScore_InvalidInput_RuleIdsLengthMismatch() (gas: 22442)
+[PASS] test_ComputeScore_MaxBonusCap() (gas: 167068)
+[PASS] test_ComputeScore_MultipleCommunities() (gas: 325529)
+[PASS] test_ComputeScore_MultipleRules() (gas: 286362)
+[PASS] test_ComputeScore_NFTBoostIgnored_BalanceZero() (gas: 204717)
+[PASS] test_ComputeScore_NFTBoostIgnored_HoldUnder7Days() (gas: 193098)
+[PASS] test_ComputeScore_NFTBoostIgnored_NoHoldStart() (gas: 169780)
+[PASS] test_ComputeScore_WithEntropyFactor() (gas: 70127)
+[PASS] test_ComputeScore_WithMultipleNFTBoosts() (gas: 321340)
+[PASS] test_ComputeScore_WithNFTBoost() (gas: 193984)
+[PASS] test_GetActiveRules_EmptyForNewCommunity() (gas: 14769)
+[PASS] test_GetActiveRules_ReflectsInsertion() (gas: 192347)
+[PASS] test_GetReputationBreakdown_BuggyNFT_IsCaught() (gas: 160853)
+[PASS] test_GetReputationBreakdown_NFTBonusAccumulates() (gas: 253367)
+[PASS] test_GetReputationBreakdown_NoRules_UsesDefault() (gas: 34193)
+[PASS] test_GetReputationBreakdown_WithRulesAndEntropy() (gas: 190018)
+[PASS] test_SetCommunityReputation_EmitsEvent() (gas: 45379)
+[PASS] test_SetCommunityReputation_OwnerCanSet() (gas: 43876)
+[PASS] test_SetCommunityReputation_ReputationSourceCanSet() (gas: 83126)
+[PASS] test_SetCommunityReputation_Unauthorized_Reverts() (gas: 28884)
+[PASS] test_SetEntropyFactor_MultipleCommunities() (gas: 69494)
+[PASS] test_SetEntropyFactor_OnlyOwner() (gas: 16250)
+[PASS] test_SetEntropyFactor_Success() (gas: 41337)
+[PASS] test_SetNFTBoost_MaxCollectionsReached_Reverts() (gas: 2418518)
+[PASS] test_SetNFTBoost_MultipleCollections() (gas: 138558)
+[PASS] test_SetNFTBoost_OnlyOwner() (gas: 16882)
+[PASS] test_SetNFTBoost_Success() (gas: 88197)
+[PASS] test_SetNFTBoost_UpdateExisting() (gas: 92427)
+[PASS] test_SetNFTBoost_UpdateExistingDoesNotPush() (gas: 95284)
+[PASS] test_SetNFTBoost_ZeroAddress_Reverts() (gas: 13668)
+[PASS] test_SetRule_BaseTooHigh_Reverts() (gas: 14883)
+[PASS] test_SetRule_BonusTooHigh_Reverts() (gas: 15808)
+[PASS] test_SetRule_ByAdmin() (gas: 164189)
+[PASS] test_SetRule_ByCommunityOwner() (gas: 156449)
+[PASS] test_SetRule_MaxTooHigh_Reverts() (gas: 15897)
+[PASS] test_SetRule_MultipleRules() (gas: 393863)
+[PASS] test_SetRule_Unauthorized() (gas: 26253)
+[PASS] test_SetRule_UpdateExistingDoesNotDuplicate() (gas: 167375)
+[PASS] test_SyncToRegistry_ComplexScore() (gas: 517281)
+[PASS] test_SyncToRegistry_Success() (gas: 254782)
+[PASS] test_UpdateNFTHoldStart_DoesNotHoldNFT_Reverts() (gas: 18901)
+[PASS] test_UpdateNFTHoldStart_FirstTimeRecords() (gas: 88440)
+[PASS] test_UpdateNFTHoldStart_InvalidCollection_Reverts() (gas: 74772)
+[PASS] test_UpdateNFTHoldStart_SubsequentCallsDoNotOverwrite() (gas: 94839)
+Suite result: ok. 51 passed; 0 failed; 0 skipped; finished in 12.70ms (7.67ms CPU time)
+
+Ran 7 tests for contracts/test/tokens/APNTsCappedSPIntegration.t.sol:APNTsCappedSPIntegrationTest
+[PASS] test_SP_depositFor() (gas: 151439)
+[PASS] test_SP_deposit_approve_pull() (gas: 150082)
+[PASS] test_SP_deposit_transferAndCall_push() (gas: 167950)
+[PASS] test_SP_gasless_balance_mode_op_conservation() (gas: 604197)
+[PASS] test_SP_initialised_with_APNTsCapped() (gas: 18844)
+[PASS] test_SP_withdraw() (gas: 160799)
+[PASS] test_SP_withdrawProtocolRevenue_after_ops() (gas: 781714)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 10.61ms (1.60ms CPU time)
+
+Ran 5 tests for contracts/test/paymasters/superpaymaster/v3/SuperPaymasterHardenVerification.t.sol:SuperPaymasterHardenVerification
+[PASS] testBondingEnforcement() (gas: 616498)
+[PASS] testBondingEnforcement_Legacy3xFactoryTokenRejected() (gas: 444955)
+[PASS] testReentrancyProtectionPostOp() (gas: 888883)
+[PASS] testReentrancyProtection_LegacyShapedTokenRejected() (gas: 491452)
+[PASS] testRoundingCeil() (gas: 27222)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 5.77ms (461.04µs CPU time)
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 4 tests for contracts/test/v3/BlacklistSync.t.sol:BlacklistSyncTest
+[PASS] test_BlacklistFlow() (gas: 365923)
+[PASS] test_Revert_UnauthorizedSource() (gas: 47940)
+[PASS] test_TR1403_StaleBlacklist_AdmittedOpStillSettles() (gas: 389513)
+[PASS] test_UnblockFlow() (gas: 336116)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 6.34ms (615.58µs CPU time)
+
+Ran 26 tests for contracts/test/v3/X402Facilitator.t.sol:X402Facilitator_Test
+[PASS] test_GetEffectiveFacilitatorFee_OverrideTakesPrecedence() (gas: 47493)
+[PASS] test_M1_EIP3009_FeeExceedsMaxFee_Reverts() (gas: 159292)
+[PASS] test_M1_EIP3009_FeeOnTransfer_Reverts() (gas: 1036046)
+[PASS] test_M1_EIP3009_FrontRunReceiveBlocked() (gas: 67889)
+[PASS] test_M1_EIP3009_MaxFeeBoundIntoNonce() (gas: 147507)
+[PASS] test_Nonce_CrossPath_DirectThenEIP3009Blocked() (gas: 208096)
+[PASS] test_Nonce_CrossPath_EIP3009ThenDirectBlocked() (gas: 232886)
+[PASS] test_Nonce_LegacyRawNonceReplayBlocked() (gas: 403979)
+[PASS] test_Nonce_PerAssetIsolation() (gas: 353137)
+[PASS] test_Nonce_PerPayerIsolation() (gas: 275589)
+[PASS] test_Nonce_PublicKeyMatchesStorage() (gas: 201566)
+[PASS] test_Nonce_TripleReplayBlocked() (gas: 224516)
+[PASS] test_SetFacilitatorFeeBPS() (gas: 21468)
+[PASS] test_SetFacilitatorFeeBPS_ExceedsMax() (gas: 13988)
+[PASS] test_SetFacilitatorFeeBPS_OnlyOwner() (gas: 13350)
+[PASS] test_SetOperatorFacilitatorFee() (gas: 39153)
+[PASS] test_SetOperatorFacilitatorFee_ExceedsMax() (gas: 15898)
+[PASS] test_SettleDirect_Replay() (gas: 212403)
+[PASS] test_SettleDirect_Success() (gas: 208555)
+[PASS] test_SettleDirect_Unauthorized() (gas: 36701)
+[PASS] test_SettleEIP3009_Replay() (gas: 224450)
+[PASS] test_SettleEIP3009_Success() (gas: 224423)
+[PASS] test_SettleEIP3009_Unauthorized() (gas: 27649)
+[PASS] test_Version() (gas: 9535)
+[PASS] test_WithdrawFacilitatorEarnings_NoBalance() (gas: 21471)
+[PASS] test_WithdrawFacilitatorEarnings_Success() (gas: 220970)
+Suite result: ok. 26 passed; 0 failed; 0 skipped; finished in 10.99ms (10.51ms CPU time)
+
+Ran 2 tests for contracts/test/v3/SecurityFixes_M4_M5_M7.t.sol:M4_ExchangeRateOverflowTest
+[PASS] test_M4_ConfigureOperatorRejectsNonBalanceModeTokens() (gas: 4419839)
+[PASS] test_M4_ConfigureOperatorSucceeds() (gas: 121803)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 3.76ms (398.92µs CPU time)
+
+Ran 13 tests for contracts/test/modules/BLSAggregatorLiveness.t.sol:BLSAggregatorLivenessTest
+[PASS] test_ReconstructPkAgg_AllowsPartialMask_WhenExcludedSlotIsCompromised() (gas: 191202)
+[PASS] test_ReconstructPkAgg_ExitNoticeExcludesSlotOnlyAfterDelay() (gas: 462641)
+[PASS] test_ReconstructPkAgg_HappyPath_AllSlotsEligible() (gas: 214038)
+[PASS] test_ReconstructPkAgg_RevertsWhen_KeyRevoked() (gas: 114467)
+[PASS] test_ReconstructPkAgg_RevertsWhen_SlotValidatorRoleRevoked() (gas: 89100)
+[PASS] test_ReconstructPkAgg_RevertsWhen_SlotValidatorStakeBelowMin() (gas: 146593)
+[PASS] test_ReconstructPkAgg_RevertsWhen_SlotValidatorStakeFullyWithdrawn() (gas: 46432)
+[PASS] test_RevokeBLSPublicKey_FreesSlotForNewValidator() (gas: 249742)
+[PASS] test_RevokeBLSPublicKey_OnlyOwner() (gas: 14758)
+[PASS] test_RevokeBLSPublicKey_PreservesKeyBytesForAudit() (gas: 42253)
+[PASS] test_RevokeBLSPublicKey_RevertsForUnknownValidator() (gas: 19256)
+[PASS] test_RevokeBLSPublicKey_RevertsWhen_KeyNotActive() (gas: 24963)
+[PASS] test_Version_Bumped() (gas: 9641)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 2.14ms (1.29ms CPU time)
+
+Ran 5 tests for contracts/test/paymasters/superpaymaster/v3/SuperPaymasterPricingV2.t.sol:SuperPaymasterPricingV2Test
+[PASS] test_DVT_Update_RespectsCache() (gas: 388006)
+[PASS] test_FreshCache_DoesNotCallOracle() (gas: 382111)
+[PASS] test_PostOp_ChargesAtValidationSnapshot() (gas: 387482)
+[PASS] test_StaleCache_DoesNotUpdatePrice() (gas: 381768)
+[PASS] test_StaleCache_ReturnsExpiredValidUntil() (gas: 331818)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 2.08ms (716.88µs CPU time)
+
+Ran 10 tests for contracts/test/security/CC48CoreFixes.t.sol:CC48VerifierDisarmTest
+[PASS] test_AQueuedCaseStillExecutesOnItsFrozenVerdictAfterDisarm() (gas: 406686)
+[PASS] test_DisarmAlsoClearsAnInFlightRotation() (gas: 152599)
+[PASS] test_DisarmDoesNotChangeAQueuedCaseDeadline() (gas: 205085)
+[PASS] test_DisarmEmitsTheRoutineEventsAndAnEmergencyMarker() (gas: 146661)
+[PASS] test_DisarmIsImmediateAndStopsNewCases() (gas: 192717)
+[PASS] test_DisarmIsOwnerOnly() (gas: 18057)
+[PASS] test_DisarmRevertsWhenAlreadyDormant() (gas: 18070)
+[PASS] test_DisarmWorksWithOnlyAPendingRotationToClear() (gas: 145663)
+[PASS] test_PartialExecutionSurvivesADisarmAndStillRetries() (gas: 441768)
+[PASS] test_ReArmingStillCostsAFullRotationDelay() (gas: 158190)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 8.60ms (3.16ms CPU time)
+
+Ran 3 tests for contracts/test/v3/Registry.t.sol:RegistryTest
+[PASS] test_ExitRole() (gas: 1338492)
+[PASS] test_RegisterCommunity() (gas: 915865)
+[PASS] test_RegisterEndUser() (gas: 1586255)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 2.96ms (689.54µs CPU time)
+
+Ran 7 tests for contracts/test/crossrepo/CC115CrossRepoConformance.t.sol:CC115CrossRepoConformance
+[PASS] test_DomainSeparatorParityWithRealAggregator() (gas: 32884)
+[PASS] test_FraudProofDigestParityAcrossIdsAndSets() (gas: 90798)
+[PASS] test_InnerCommitmentLayoutParityAgainstRealAggregatorWrite() (gas: 74995)
+[PASS] test_LegacyThreeParamSelectorIsAbsent() (gas: 29666)
+[PASS] test_OverIssuedTokenFlipsTheSameProofToRejected() (gas: 118647)
+[PASS] test_RealDvtVerifierPassesAssertDomainBound() (gas: 93615)
+[PASS] test_RealDvtVerifierPassesAssertSetBound() (gas: 344770)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 2.37ms (1.18ms CPU time)
+
+Ran 11 tests for contracts/test/crossrepo/CC115GenuinePragueCrossRepo.t.sol:CC115GenuinePragueCrossRepo
+[SKIP] test_GenuinePrague_BelowThresholdIsRejected() (gas: 0)
+[SKIP] test_GenuinePrague_DomainSeparatorParityWithRealAggregator() (gas: 0)
+[SKIP] test_GenuinePrague_FraudProofDigestParityAcrossIdsAndSets() (gas: 0)
+[SKIP] test_GenuinePrague_InnerCommitmentLayoutParityAgainstRealAggregatorWrite() (gas: 0)
+[SKIP] test_GenuinePrague_LegacyThreeParamSelectorIsAbsent() (gas: 0)
+[SKIP] test_GenuinePrague_ObsoleteOrPerturbedInnerLayoutIsRejected() (gas: 0)
+[SKIP] test_GenuinePrague_OverIssuedTokenFlipsTheSameProofToRejected() (gas: 0)
+[SKIP] test_GenuinePrague_PrecompilesAreRealNotInjected() (gas: 0)
+[SKIP] test_GenuinePrague_RealDvtVerifierPassesAssertDomainBound() (gas: 0)
+[SKIP] test_GenuinePrague_RealDvtVerifierPassesAssertSetBound() (gas: 0)
+[SKIP] test_GenuinePrague_WrongAggregateSignatureIsRejected() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 11 skipped; finished in 362.62µs (64.96µs CPU time)
+
+Ran 2 tests for contracts/test/v3/SecurityFixes_M4_M5_M7.t.sol:M5_InitializeZeroOwnerTest
+[PASS] test_M5_InitializeRevertsOnZeroOwner() (gas: 10998583)
+[PASS] test_M5_InitializeSucceedsWithValidOwner() (gas: 11134178)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.88ms (1.53ms CPU time)
+
+Ran 1 test for contracts/test/paymasters/superpaymaster/v3/SuperPaymasterRefundTest.t.sol:SuperPaymasterRefundTest
+[PASS] testRefundLogic() (gas: 311797)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.53ms (171.88µs CPU time)
+
+Ran 7 tests for contracts/test/v3/RegistryUpgradeTo580.t.sol:RegistryUpgradeTo580Test
+[PASS] test_AtomicBatchUpgradesRewiresAndDerivesTheBaseline() (gas: 4133138)
+[PASS] test_CeilingBelowLiveExposureIsRefused() (gas: 37576)
+[PASS] test_LegacyAggregatorMakesDvtExitRevert() (gas: 3614557)
+[PASS] test_PolicyAndAggregatorAreOwnerOnly() (gas: 37755)
+[PASS] test_RollbackPreservesStorage() (gas: 4778027)
+[PASS] test_SeedMissingAUserSelfHealsOnNextTouch() (gas: 3919825)
+[PASS] test_UpgradedProxyWithoutPolicyHaltsIssuance() (gas: 192634)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 1.93ms (1.24ms CPU time)
+
+Ran 5 tests for contracts/test/v3/SecurityFixes_M4_M5_M7.t.sol:M7_PaymasterFactoryRoleCheckTest
+[PASS] test_M7_DeployRevertsWithCommunityButNoAOARole() (gas: 54810)
+[PASS] test_M7_DeployRevertsWithoutCommunityRole() (gas: 28091)
+[PASS] test_M7_DeploySucceedsWhenNoRegistrySet() (gas: 1711604)
+[PASS] test_M7_DeploySucceedsWithCommunityRole() (gas: 382426)
+[PASS] test_M7_DeterministicDeployRevertsWithoutRole() (gas: 28189)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 4.54ms (326.58µs CPU time)
+
+Ran 10 tests for contracts/test/v3/RegistryV3NewFeatures.t.sol:RegistryV3NewFeaturesTest
+[PASS] test_ConfigureRole_UpdateExistingSucceeds() (gas: 262528)
+[PASS] test_ConfigureRole_UpdatesExitFee() (gas: 191509)
+[PASS] test_CreateMyTaskRoles_Success() (gas: 939071)
+[PASS] test_CreateNewRole_OnlyOwner() (gas: 44951)
+[PASS] test_CreateNewRole_Success() (gas: 248038)
+[PASS] test_CreateNewRole_SyncsExitFee() (gas: 244849)
+[PASS] test_ExitFeeConfiguration_AllRoles() (gas: 138728)
+[PASS] test_ExitFeeConfiguration_InRoleConfig() (gas: 33001)
+[PASS] test_RoleOwner_CanConfigureOwnRole() (gas: 263878)
+[PASS] test_RoleOwner_CannotConfigureOthersRole() (gas: 44782)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 4.01ms (575.92µs CPU time)
+
+Ran 4 tests for contracts/test/core/RegistryV3_Changes.t.sol:RegistryV3_Changes_Test
+[PASS] test_ExitRole_CommunityDeactivation() (gas: 518254)
+[PASS] test_ExitRole_NonFatal_When_UpdateSBTStatus_Reverts() (gas: 588708)
+[PASS] test_LC_Epoch0_Reverts_WithoutBurningProposalId() (gas: 100779)
+[PASS] test_O1_Removal() (gas: 1323996)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 1.28ms (643.50µs CPU time)
+
+Ran 21 tests for contracts/test/v3/Registry_BLSMockedPaths.t.sol:Registry_BLSMockedPaths
+[PASS] test_BatchUpdate_BLSFailed_Reverts() (gas: 84719)
+[PASS] test_BatchUpdate_BLSNotConfigured_Reverts() (gas: 6163669)
+[PASS] test_BatchUpdate_BatchTooLarge_Reverts() (gas: 139005)
+[PASS] test_BatchUpdate_EmptyProof_Reverts() (gas: 44376)
+[PASS] test_BatchUpdate_EpochSkip_SilentNoOp() (gas: 302079)
+[PASS] test_BatchUpdate_HappyPath_MultiUserSameBatch() (gas: 306617)
+[PASS] test_BatchUpdate_HappyPath_WritesScore() (gas: 228130)
+[PASS] test_BatchUpdate_InsufficientConsensus_Reverts() (gas: 79707)
+[PASS] test_BatchUpdate_InvalidProposalId_Reverts() (gas: 47261)
+[PASS] test_BatchUpdate_LenMismatch_Reverts() (gas: 47194)
+[PASS] test_BatchUpdate_ProposalAlreadyExecuted_Reverts() (gas: 210392)
+[PASS] test_BatchUpdate_ScoreDecreaseClampedAt100() (gas: 356400)
+[PASS] test_BatchUpdate_ScoreIncreaseClampedAt100() (gas: 272440)
+[PASS] test_BatchUpdate_UnauthorizedSource_Reverts() (gas: 45594)
+[PASS] test_UpdateBlacklist_BatchTooLarge_Reverts() (gas: 143190)
+[PASS] test_UpdateBlacklist_EmptyProof_Reverts() (gas: 49738)
+[PASS] test_UpdateBlacklist_HappyPath() (gas: 90804)
+[PASS] test_UpdateBlacklist_LenMismatch_Reverts() (gas: 50576)
+[PASS] test_UpdateBlacklist_NonceMonotonic() (gas: 112461)
+[PASS] test_UpdateBlacklist_NotAggregator_Reverts() (gas: 46193)
+[PASS] test_UpdateBlacklist_ZeroOperator_Reverts() (gas: 43925)
+Suite result: ok. 21 passed; 0 failed; 0 skipped; finished in 1.86ms (1.37ms CPU time)
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 10 tests for contracts/test/v3/Coverage_Supplement.t.sol:CoverageSupplementTest
+[PASS] test_Paymaster_DepositFor_Refill() (gas: 1164915)
+[PASS] test_Paymaster_PostOp_Revert() (gas: 1603775)
+[PASS] test_Paymaster_Validation_Failures() (gas: 2290268)
+[PASS] test_Registry_BatchUpdate_Strategies() (gas: 358563)
+[PASS] test_Registry_InvalidEndUserCommunity() (gas: 75831)
+[PASS] test_Registry_NamingCollisions() (gas: 797020)
+[PASS] test_Registry_RegisterRoleSelf() (gas: 784561)
+[PASS] test_Registry_SafeMintForRole_Logic() (gas: 1271465)
+[PASS] test_Staking_ExitFee_Advanced() (gas: 617659)
+[PASS] test_Staking_Slash_Logic() (gas: 644468)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 26.71ms (16.79ms CPU time)
+
+Ran 8 tests for contracts/test/v3/CreditSystem.t.sol:CreditSystemTest
+[PASS] testAutoRepayment() (gas: 93021)
+[PASS] testDebtRecording() (gas: 58495)
+[PASS] testMintToMultipleUsers() (gas: 100127)
+[PASS] testPartialRepayment() (gas: 85846)
+[PASS] testSetSuperPaymasterUnauthorized() (gas: 21064)
+[PASS] testTransferFromRepayment() (gas: 162506)
+[PASS] testTransferRepayment() (gas: 133827)
+[PASS] testUnauthorizedDebtRecording() (gas: 19898)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 531.50µs (229.00µs CPU time)
+
+Ran 16 tests for contracts/test/v3/SetAPNTsToken_Timelock.t.sol:SetAPNTsToken_TimelockTest
+[PASS] test_CancelAPNTsTokenChange_ClearsPending() (gas: 56158)
+[PASS] test_CancelAPNTsTokenChange_IdempotentWhenNothingPending() (gas: 22274)
+[PASS] test_CancelAPNTsTokenChange_OnlyOwner() (gas: 71917)
+[PASS] test_ExecuteAPNTsTokenChange_HappyPath() (gas: 76722)
+[PASS] test_ExecuteAPNTsTokenChange_OnlyOwner() (gas: 71488)
+[PASS] test_ExecuteAPNTsTokenChange_RevertsBeforeEta() (gas: 73743)
+[PASS] test_ExecuteAPNTsTokenChange_RevertsWhenBalancesNonZero() (gas: 204048)
+[PASS] test_ExecuteAPNTsTokenChange_RevertsWhenNothingPending() (gas: 21436)
+[PASS] test_H4_BufferDeadlockNotPossible_AfterWithdraw() (gas: 415705)
+[PASS] test_H4_ExecuteBlocked_WhenProtocolRevenue_AboveBuffer() (gas: 319311)
+[PASS] test_H4_ExecuteSucceeds_WhenProtocolRevenue_AtBuffer() (gas: 323820)
+[PASS] test_H4_ExecuteSucceeds_WhenProtocolRevenue_BelowBuffer() (gas: 323504)
+[PASS] test_SetAPNTsToken_OnlyOwner() (gas: 22320)
+[PASS] test_SetAPNTsToken_QueuesPendingChange() (gas: 81925)
+[PASS] test_SetAPNTsToken_ReQueueRefreshesEta() (gas: 490740)
+[PASS] test_SetAPNTsToken_RevertsOnZeroAddress() (gas: 19704)
+Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 5.33ms (4.25ms CPU time)
+
+Ran 23 tests for contracts/test/paymasters/superpaymaster/v3/SuperPaymasterV3.t.sol:SuperPaymasterTest
+[PASS] testConfigureOperator() (gas: 121376)
+[PASS] testConfigureOperator_RejectsLegacy3xToken() (gas: 69157)
+[PASS] testDepositFailsIfExceedLimit() (gas: 61371)
+[PASS] testDepositWorksWithApproval() (gas: 166581)
+[PASS] testDestinationLockRevert() (gas: 50490)
+[PASS] testProtocolRevenueFlow() (gas: 1017847)
+[PASS] testPushDeposit() (gas: 178793)
+[PASS] testQueueSlashUnauthorizedReverts() (gas: 24107)
+[PASS] testSlashAndPause() (gas: 339626)
+[PASS] testUnregisteredOperatorCannotDeposit() (gas: 44017)
+[PASS] testWithdraw() (gas: 190752)
+[PASS] testWithdrawAllowedAfterSlashCancelled() (gas: 175559)
+[PASS] testWithdrawAllowedAfterSlashExecuted() (gas: 344312)
+[PASS] testWithdrawBlockedWhenSlashPending() (gas: 201080)
+[PASS] testWithdrawNoPendingSlash() (gas: 187763)
+[PASS] test_C01_AmpleCredit_NoBalance_Allowed() (gas: 601640)
+[PASS] test_C01_DebtAtCeiling_Rejected() (gas: 831666)
+[PASS] test_C01_NoCredit_WithBalance_EscrowedNotDebt() (gas: 551200)
+[PASS] test_C01_ZeroCredit_NoBalance_Rejected() (gas: 591134)
+[PASS] test_V31_BurnSuccess_WhenUserHasBalance() (gas: 535667)
+[PASS] test_V31_CreditPayment_Success() (gas: 584639)
+[PASS] test_V31_DebtRecording_ViaCreditSettlement() (gas: 633425)
+[PASS] test_V31_ValidationPasses_NoSPEventInValidation() (gas: 482353)
+Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 11.46ms (9.96ms CPU time)
+
+Ran 11 tests for contracts/test/paymasters/superpaymaster/v3/SuperPaymasterV3Query.t.sol:SuperPaymasterQueryTest
+[PASS] test_GetLatestSlash_NoHistory() (gas: 21495)
+[PASS] test_GetLatestSlash_ReturnsLatest() (gas: 403226)
+[PASS] test_GetSlashCount_AfterSlashes() (gas: 272484)
+[PASS] test_GetSlashCount_Zero() (gas: 18220)
+[PASS] test_GetSlashHistory_AfterSlash() (gas: 167390)
+[PASS] test_GetSlashHistory_Empty() (gas: 19812)
+[PASS] test_GetSlashHistory_MultipleSlashes() (gas: 410286)
+[PASS] test_MAJOR_FullDeduction() (gas: 208335)
+[PASS] test_MINOR_10PercentDeduction() (gas: 186975)
+[PASS] test_Setup_OperatorConfiguredWithV2Token() (gas: 29847)
+[PASS] test_WARNING_NoBalanceDeduction() (gas: 167445)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 1.59ms (499.12µs CPU time)
+
+Ran 15 tests for contracts/test/security/CC48CoreFixes.t.sol:CC48ExitNoticeTest
+[PASS] test_AccusedGuardianCannotCancelBackIntoSignerSet() (gas: 436980)
+[PASS] test_AlreadyBelowQuorumDoesNotTrapGuardians() (gas: 166963)
+[PASS] test_ExitIsRefusedWhenItWouldBreakQuorum() (gas: 244622)
+[PASS] test_ExitNoticeCannotHaltConsensusInTheSameBlock() (gas: 329943)
+[PASS] test_ExpiredNoticeIsClearedByCancel() (gas: 304221)
+[PASS] test_FloorIgnoresGuardiansWhoseStakeFellBelowMinimum() (gas: 140480)
+[PASS] test_FloorStillAllowsTheExitWhenEveryStakeIsHealthy() (gas: 155103)
+[PASS] test_FloorUsesTheStrictestThresholdAcrossAllPaths() (gas: 142319)
+[PASS] test_NonSignerGuardianIsUnaffectedByTheFloor() (gas: 73307)
+[PASS] test_NoticeAlwaysGivesFullDelayBeforeExclusion() (gas: 157829)
+[PASS] test_QueuedCaseEmitsTheGuardianSetNotJustItsHash() (gas: 325041)
+[PASS] test_RepeatedCyclesNeverProduceAHaltedBlock() (gas: 1146121)
+[PASS] test_RequestCancelCycleIsRateLimited() (gas: 224026)
+[PASS] test_VerifierRotationCanBeCancelledByOwnerOnly() (gas: 145321)
+[PASS] test_VerifierRotationCannotOutrunAQueuedCase() (gas: 421312)
+Suite result: ok. 15 passed; 0 failed; 0 skipped; finished in 14.29ms (13.52ms CPU time)
+
+Ran 5 tests for contracts/test/modules/SignersCommitment.t.sol:SignersCommitmentTest
+[PASS] test_DomainSeparation_MessageHash() (gas: 184167)
+[PASS] test_DomainSeparation_ProposalId() (gas: 184308)
+[PASS] test_SignerMaskBound() (gas: 343010)
+[PASS] test_SingleSigner() (gas: 182552)
+[PASS] test_SortsAscending_AndReproducible() (gas: 342812)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 7.27ms (6.85ms CPU time)
+
+Ran 12 tests for contracts/test/v3/DVTSlash.t.sol:DVTSlashTest
+[PASS] test_CancelReQueueThenExpiry() (gas: 1538349)
+[PASS] test_ExecuteSlashWithBLS_CooldownBlocksReQueue() (gas: 1404194)
+[PASS] test_ExecuteSlashWithBLS_CooldownExpires() (gas: 1504768)
+[PASS] test_ExecuteSlashWithBLS_NoPrimedSlashAfterWindow() (gas: 1400389)
+[PASS] test_FullTwoTierSlashIntegration() (gas: 1444252)
+[PASS] test_IsSlashPending_ReflectsFlag() (gas: 1422465)
+[PASS] test_OwnerSlashDoesNotBlockBLSPath() (gas: 1526943)
+[PASS] test_PrimeBlsSlashCooldown_BlanketsFreshOperator() (gas: 1432392)
+[PASS] test_PrimeBlsSlashCooldown_OnlyOwner() (gas: 19447)
+[PASS] test_PrimeBlsSlashCooldown_OwnerExempt() (gas: 1287760)
+[PASS] test_SlashByDVT_InsufficientStake_Reverts() (gas: 31653)
+[PASS] test_SlashByDVT_Unauthorized_Reverts() (gas: 20057)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 9.01ms (1.85ms CPU time)
+
+Ran 12 tests for contracts/test/modules/DVTValidatorLiveness.t.sol:DVTValidatorLivenessTest
+[PASS] test_CreateProposal_RevertsWhen_NotInLocalSet() (gas: 17049)
+[PASS] test_CreateProposal_RevertsWhen_RoleRevoked() (gas: 26807)
+[PASS] test_CreateProposal_RevertsWhen_StakeWithdrawn() (gas: 41698)
+[PASS] test_CreateProposal_Succeeds_WhenStillEligible() (gas: 113140)
+[PASS] test_ExecuteWithProof_BLSAggregatorBypassesLivenessGate() (gas: 148205)
+[PASS] test_ExecuteWithProof_RevertsWhen_RoleRevoked() (gas: 125419)
+[PASS] test_PruneValidator_Permissionless_WhenRoleRevoked() (gas: 42600)
+[PASS] test_PruneValidator_Permissionless_WhenStakeWithdrawn() (gas: 42988)
+[PASS] test_PruneValidator_RevertsWhen_NotAValidator() (gas: 14420)
+[PASS] test_PruneValidator_RevertsWhen_StillEligible() (gas: 37223)
+[PASS] test_RemoveValidator_OnlyOwner() (gas: 27807)
+[PASS] test_RemoveValidator_RevertsWhen_NotAValidator() (gas: 18680)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 941.62µs (398.34µs CPU time)
+
+Ran 26 tests for contracts/test/tokens/APNTsCapped.t.sol:APNTsCappedTest
+[PASS] testFuzz_supply_never_exceeds_cap(uint256,uint256,uint256) (runs: 256, μ: 82751, ~: 84409)
+[PASS] test_cap_burn_frees_room() (gas: 106566)
+[PASS] test_cap_huge_amount_reverts_without_overflow() (gas: 69490)
+[PASS] test_cap_mint_exactly_cap_succeeds() (gas: 69520)
+[PASS] test_cap_mint_one_wei_over_reverts() (gas: 80747)
+[PASS] test_cap_single_mint_one_wei_over_reverts() (gas: 20773)
+[PASS] test_constructor_rejects_zero_cap_and_zero_roles() (gas: 413765)
+[PASS] test_lowerCap_below_supply_blocks_mint_and_flags_overissued() (gas: 121301)
+[PASS] test_lowerCap_guardian_immediate() (gas: 23939)
+[PASS] test_lowerCap_non_guardian_reverts() (gas: 45296)
+[PASS] test_lowerCap_not_below_reverts() (gas: 51791)
+[PASS] test_lowerCap_owner_via_timelock() (gas: 71854)
+[PASS] test_mint_emits_Minted() (gas: 75560)
+[PASS] test_only_minter_mints() (gas: 111153)
+[PASS] test_ownable2step_pending_owner_has_no_power_before_accept() (gas: 1289880)
+[PASS] test_permit() (gas: 67667)
+[PASS] test_raiseCap_non_owner_reverts() (gas: 62540)
+[PASS] test_raiseCap_not_above_reverts() (gas: 26751)
+[PASS] test_raiseCap_only_multisig_can_propose() (gas: 26455)
+[PASS] test_raiseCap_through_timelock_rejects_lower_value() (gas: 66839)
+[PASS] test_raiseCap_timelock_48h() (gas: 143021)
+[PASS] test_renounceOwnership_reverts() (gas: 19915)
+[PASS] test_setMinter_and_setCapGuardian_owner_only() (gas: 168439)
+[PASS] test_transferAndCall_calls_receiver_with_operator_from() (gas: 464800)
+[PASS] test_transferAndCall_rejections() (gas: 485684)
+[PASS] test_views_and_version() (gas: 42019)
+Suite result: ok. 26 passed; 0 failed; 0 skipped; finished in 39.02ms (33.76ms CPU time)
+
+Ran 12 tests for contracts/test/v3/DVTValidator_P0Hardening.t.sol:DVTValidator_P0HardeningTest
+[PASS] test_AddValidator_AcceptsRoleAndStake() (gas: 102058)
+[PASS] test_AddValidator_RevertsIfNotDVTRole() (gas: 44479)
+[PASS] test_AddValidator_RevertsIfStakeBelowMinStake() (gas: 78444)
+[PASS] test_AddValidator_RevertsIfStakingNotConfigured() (gas: 1875359)
+[PASS] test_AddValidator_TracksUpdatedMinStake() (gas: 82579)
+[PASS] test_ExecuteWithProof_AllowsBLSAggregator() (gas: 120172)
+[PASS] test_ExecuteWithProof_AllowsRegisteredValidator() (gas: 129057)
+[PASS] test_ExecuteWithProof_RevertsForAnonymousCaller() (gas: 121775)
+[PASS] test_ExecuteWithProof_RevertsForUnbornId() (gas: 40068)
+[PASS] test_MarkProposalExecuted_AllowsExistingId() (gas: 122691)
+[PASS] test_MarkProposalExecuted_RevertsForUnbornId() (gas: 15467)
+[PASS] test_PrePoison_AttackBlocked() (gas: 446774)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 758.42µs (537.58µs CPU time)
+
+Ran 7 tests for contracts/test/v3/Registry_BlacklistHardening.t.sol:Registry_BlacklistHardeningTest
+[PASS] test_UpdateBlacklist_HappyPath_PropagatesToPaymaster() (gas: 123709)
+[PASS] test_UpdateBlacklist_MessageIncludesChainIdAndNonce() (gas: 114820)
+[PASS] test_UpdateBlacklist_NonceMonotonic() (gas: 148077)
+[PASS] test_UpdateBlacklist_RejectsCrossChainReplay() (gas: 140026)
+[PASS] test_UpdateBlacklist_RevertsForNonAggregator() (gas: 99865)
+[PASS] test_UpdateBlacklist_RevertsOnEmptyProof() (gas: 35117)
+[PASS] test_UpdateBlacklist_RevertsWhenVerifyReturnsFalse() (gas: 78254)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 13.29ms (445.50µs CPU time)
+
+Ran 5 tests for contracts/test/modules/DVT_BLS.t.sol:DVTBLSTest
+[PASS] test_BLS_ManualVerify() (gas: 354330)
+[PASS] test_DVT_ProposalFlow() (gas: 364882)
+[PASS] test_Fail_NotValidator() (gas: 14224)
+[PASS] test_QueueSlashWithConsensus_FlagsAndBlocksReplay() (gas: 337314)
+[PASS] test_QueueSlashWithProof_ForwarderFlags() (gas: 256584)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 2.20ms (974.42µs CPU time)
+
+Ran 2 tests for contracts/test/v3/Debug.t.sol:DebugTest
+[PASS] test_ConvertToSBTFormat() (gas: 4299)
+[PASS] test_DecodeRoleData() (gas: 6172)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 67.75µs (25.42µs CPU time)
+
+Ran 16 tests for contracts/test/v3/xPNTsTokenFull.t.sol:xPNTsTokenFullTest
+[PASS] test_AllowanceOverride_AutoApproved() (gas: 47442)
+[PASS] test_AutoRepay_MintOnly() (gas: 95507)
+[PASS] test_AutoRepay_ZeroBurn_Regression() (gas: 217400)
+[PASS] test_BurnFromWithOpHash_Success() (gas: 116747)
+[PASS] test_Management_Metadata_And_Access() (gas: 85596)
+[PASS] test_ManualRepayDebt() (gas: 130418)
+[PASS] test_NoAutoRepay_OnTransfer() (gas: 136567)
+[PASS] test_RepayDebt_PrecisionTruncation_SilentReturn() (gas: 255434)
+[PASS] test_Security_KeyRotation_Revokes_Privileges() (gas: 126174)
+[PASS] test_Security_TransferFrom_SingleTxLimit() (gas: 113284)
+[PASS] test_SpenderManagement() (gas: 39728)
+[PASS] test_StandardBurn() (gas: 74206)
+[PASS] test_SuperPaymaster_Firewall_Reverts() (gas: 104098)
+[PASS] test_TransferAndCall() (gas: 259149)
+[PASS] test_Update_ToZeroAddress() (gas: 71322)
+[PASS] test_Update_WithZeroValue() (gas: 25000)
+Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 2.78ms (2.37ms CPU time)
+
+Ran 4 tests for contracts/test/v3/Registry_MultiCommunity.t.sol:RegistryMultiCommunityTest
+[PASS] testCommunityReregistrationReverts() (gas: 760979)
+[PASS] testIdempotentReregistration() (gas: 1349032)
+[PASS] testMultiCommunityRegistration() (gas: 2877122)
+[PASS] testNoEntryBurnOnReregistration() (gas: 2092391)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 1.78ms (997.54µs CPU time)
+
+Ran 16 tests for contracts/test/paper7/RepCreditDomainReplay.t.sol:RepCreditDomainReplay
+[SKIP] test_DirectRegistryCallUsesTheSameSchema() (gas: 0)
+[SKIP] test_FieldsStillBindWithinOneDomain() (gas: 0)
+[SKIP] test_GenericProposalProofDoesNotReplayToAnotherAggregator() (gas: 0)
+[SKIP] test_LegacyPreImageIsNoLongerAccepted() (gas: 0)
+[SKIP] test_OneKeyCannotBeSplitAcrossTwoValidatorsEvenWithValidPoPs() (gas: 0)
+[SKIP] test_PoPCannotBeLiftedByAnotherValidator() (gas: 0)
+[SKIP] test_PoPDoesNotCarryAcrossAggregators() (gas: 0)
+[SKIP] test_QueueSlashProofDoesNotReplayToAnotherAggregator() (gas: 0)
+[SKIP] test_RegistryReVerificationAcceptsTheAggregatorPreImage() (gas: 0)
+[SKIP] test_RepointingRegistryInvalidatesInFlightProofs() (gas: 0)
+[SKIP] test_ReputationProofDoesNotReplayToAnotherAggregator() (gas: 0)
+[SKIP] test_WrongAggregatorInDomainFails() (gas: 0)
+[SKIP] test_WrongChainIdInDomainFails() (gas: 0)
+[SKIP] test_WrongDomainNameFails() (gas: 0)
+[SKIP] test_WrongPathTagFails() (gas: 0)
+[SKIP] test_WrongRegistryInDomainFails() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 16 skipped; finished in 609.33µs (93.58µs CPU time)
+
+Ran 4 tests for contracts/test/security/RepCreditIssuanceAndExitControls.t.sol:AggregateUpliftCapTest
+[PASS] test_AttackBatchAboveCapAtomicallyRevertsAndCanRetry() (gas: 568509)
+[PASS] test_DuplicateAndStaleEntriesCannotInflateAccounting() (gas: 350632)
+[PASS] test_ExactCapAccepted() (gas: 236594)
+[PASS] test_ZeroCapFailsClosedForPositiveUpliftButAllowsDecrease() (gas: 292533)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 824.25µs (387.21µs CPU time)
+
+Ran 14 tests for contracts/test/security/CC48CoreFixes.t.sol:CC48GuardianSlashRetryTest
+[PASS] test_A23ByteContractIsNotMistakenForA7702Delegation() (gas: 47507)
+[PASS] test_ANewCaseAfterRotationRecordsTheNewVerifierAndThenIgnoresIt() (gas: 408092)
+[PASS] test_CaseWindowStrictlyDominatesAFullExitNotice() (gas: 236816)
+[PASS] test_ExecutionSurvivesThePinnedVerifierDisappearing() (gas: 290448)
+[PASS] test_ExpiryIsUnaffectedByARotation() (gas: 303518)
+[PASS] test_ExpiryOnlyReleasesUnresolvedGuardians() (gas: 341141)
+[PASS] test_OneFailingSlashDoesNotBlockOrReleaseTheRest() (gas: 453218)
+[PASS] test_PreArmedVerifierRotationCannotKillAQueuedCase() (gas: 407569)
+[PASS] test_QueueRejectsA7702DelegatedEoaVerifier() (gas: 43230)
+[PASS] test_QueueRejectsAnEOAVerifier() (gas: 42686)
+[PASS] test_QueueStillRequiresAWiredVerifier() (gas: 40533)
+[PASS] test_ResolvedCaseCannotReplayButNewIdCanReopen() (gas: 409576)
+[PASS] test_RetryAfterRotationStillUsesThePinnedVerifier() (gas: 527918)
+[PASS] test_ZeroLockGuardianIsSettledWithoutBurningTheCase() (gas: 320679)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 12.56ms (10.18ms CPU time)
+
+Ran 5 tests for contracts/test/security/RepCreditIssuanceAndExitControls.t.sol:PendingGuardianExitFreezeTest
+[PASS] test_ConcurrentCasesRemainFrozenUntilAllResolved() (gas: 465873)
+[PASS] test_ExpiredCaseReleasesFreezeButNotAReadyExit() (gas: 380588)
+[PASS] test_InstantExitWithoutPublicNoticeReverts() (gas: 33012)
+[PASS] test_InvalidProofCannotFreezeExit() (gas: 36526)
+[PASS] test_PendingCaseFreezesExitThenSlashReleasesCase() (gas: 393368)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 1.62ms (604.66µs CPU time)
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 25 tests for contracts/test/v3/DryRunValidation.t.sol:DryRunValidationTest
+[PASS] test_DryRun_BothRenewFlags_Rejected() (gas: 70233)
+[PASS] test_DryRun_CreditPath_OK() (gas: 420397)
+[PASS] test_DryRun_CreditRejected_NoCredit() (gas: 179144)
+[PASS] test_DryRun_HappyPath_ReturnsTrue() (gas: 296185)
+[PASS] test_DryRun_HardFailure_Wins_Over_RateLimit_InsufficientBalance() (gas: 347179)
+[PASS] test_DryRun_HardFailure_Wins_Over_RateLimit_RateCommitment() (gas: 339143)
+[PASS] test_DryRun_HardFailure_Wins_Over_RateLimit_StalePrice() (gas: 343839)
+[PASS] test_DryRun_InsufficientBalance() (gas: 99422)
+[PASS] test_DryRun_InsufficientBalance_BufferBoundary() (gas: 163483)
+[PASS] test_DryRun_IsViewOnly_NoBalanceChange() (gas: 128224)
+[PASS] test_DryRun_LockRejected_Disabled() (gas: 150399)
+[PASS] test_DryRun_LockRejected_SingleTxLimit() (gas: 139110)
+[PASS] test_DryRun_OperatorNotConfigured() (gas: 52314)
+[PASS] test_DryRun_OperatorPaused() (gas: 71883)
+[PASS] test_DryRun_PostOpGasTooLow() (gas: 64544)
+[PASS] test_DryRun_RateCommitmentViolated() (gas: 79173)
+[PASS] test_DryRun_RateLimited() (gas: 417033)
+[PASS] test_DryRun_RemovedFromSuperPaymaster() (gas: 24249)
+[PASS] test_DryRun_ShortPaymasterData_RejectedAsTokenMismatch() (gas: 100405)
+[PASS] test_DryRun_StalePrice() (gas: 73749)
+[PASS] test_DryRun_StalePrice_WhenUpdatedAtZero() (gas: 234886)
+[PASS] test_DryRun_TokenMismatch_WrongToken() (gas: 9641537)
+[PASS] test_DryRun_UserBlocked() (gas: 97250)
+[PASS] test_DryRun_UserNotEligible() (gas: 63336)
+[PASS] test_DryRun_VersionMismatch() (gas: 23999)
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 4.83ms (3.57ms CPU time)
+
+Ran 3 tests for contracts/test/v3/SuperPaymaster_PassiveFallback.t.sol:SuperPaymaster_PassiveFallback_Test
+[PASS] test_FreshCache_DoesNotCallOracle() (gas: 319867)
+[PASS] test_PostOp_UsesValidationSnapshot_NotCurrentCache() (gas: 450388)
+[PASS] test_StaleCache_SucceedsInPostOp() (gas: 316451)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 1.64ms (510.42µs CPU time)
+
+Ran 25 tests for contracts/test/v3/EmergencyBreakGlass.t.sol:EmergencyBreakGlassTest
+[PASS] test_CancelEmergencyPrice_ClearsPending() (gas: 64958)
+[PASS] test_CancelEmergencyPrice_IdempotentWithNoPending() (gas: 22405)
+[PASS] test_CancelEmergencyPrice_OnlyOwner() (gas: 83194)
+[PASS] test_EmergencyActivatedAt_ClearedOnChainlinkRecovery() (gas: 129316)
+[PASS] test_EmergencyActivatedAt_NotUpdatedOnSubsequentExecute() (gas: 161713)
+[PASS] test_EmergencyActivatedAt_SetOnFirstExecute() (gas: 114683)
+[PASS] test_EmergencyExpiry_OkWithin7Days() (gas: 157816)
+[PASS] test_EmergencyExpiry_RevertsAfter7Days() (gas: 119169)
+[PASS] test_EmergencySetPrice_AcceptsExactBoundary() (gas: 80497)
+[PASS] test_EmergencySetPrice_OnlyOwner() (gas: 19433)
+[PASS] test_EmergencySetPrice_OpensWhenOracleReverts() (gas: 99199)
+[PASS] test_EmergencySetPrice_QueuesPendingValue() (gas: 90520)
+[PASS] test_EmergencySetPrice_RejectsAboveBand() (gas: 33770)
+[PASS] test_EmergencySetPrice_RejectsBelowBand() (gas: 33965)
+[PASS] test_EmergencySetPrice_RejectsZeroOrNegative() (gas: 29362)
+[PASS] test_EmergencySetPrice_RevertsWhenChainlinkFresh() (gas: 34945)
+[PASS] test_ExecuteEmergencyPrice_HappyPath() (gas: 120026)
+[PASS] test_ExecuteEmergencyPrice_RevertsBeforeTimelock() (gas: 84518)
+[PASS] test_ExecuteEmergencyPrice_RevertsWithNothingPending() (gas: 17360)
+[PASS] test_IsChainlinkStale_FalseWhenFresh() (gas: 29838)
+[PASS] test_IsChainlinkStale_TrueWhenOldUpdatedAt() (gas: 24824)
+[PASS] test_IsChainlinkStale_TrueWhenOracleReverts() (gas: 42873)
+[PASS] test_UpdatePriceDVT_ChainlinkRecovered_ClearsPriceMode() (gas: 125312)
+[PASS] test_UpdatePrice_ClearsPendingEmergencyOnRecovery() (gas: 80487)
+[PASS] test_UpdatePrice_RestoresChainlinkModeAfterEmergency() (gas: 131020)
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 1.47ms (664.00µs CPU time)
+
+Ran 8 tests for contracts/test/v3/SlashSync_RegistryStaking.t.sol:SlashSync_RegistryStakingTest
+[PASS] test_GetEffectiveStake_FallbackWhenStakingUnset() (gas: 6067411)
+[PASS] test_GetEffectiveStake_ReadsStaking() (gas: 1262508)
+[PASS] test_INV_NoCrossUserDrift() (gas: 2286310)
+[PASS] test_INV_RegistryEqualsStaking_AfterMixedOps() (gas: 1189118)
+[PASS] test_LockStakeWithTicket_MirrorsRegistry() (gas: 1219883)
+[PASS] test_SlashByDVT_SyncsRegistryCache() (gas: 1259693)
+[PASS] test_SlashByDVT_SyncsRegistryRoleStakes() (gas: 1263736)
+[PASS] test_SyncStakeFromStaking_OnlyStaking() (gas: 66073)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 7.49ms (2.06ms CPU time)
+
+Ran 31 tests for contracts/test/v3/SuperPaymasterV3_Admin.t.sol:SuperPaymaster_Admin_Test
+[PASS] test_ConfigureOperator_NotRegistered() (gas: 27882)
+[PASS] test_ConfigureOperator_Rejects3xToken() (gas: 3481775)
+[PASS] test_ConfigureOperator_Success() (gas: 124107)
+[PASS] test_Deposit_NotRegistered() (gas: 50734)
+[PASS] test_Deposit_Success() (gas: 145865)
+[PASS] test_GetLatestSlash() (gas: 343494)
+[PASS] test_GetSlashCount() (gas: 342242)
+[PASS] test_GetSlashHistory() (gas: 343808)
+[PASS] test_SetAPNTSPrice() (gas: 28463)
+[PASS] test_SetAPNTSPrice_OnlyOwner() (gas: 19777)
+[PASS] test_SetAPNTsToken() (gas: 80111)
+[PASS] test_SetAPNTsToken_OnlyOwner() (gas: 20724)
+[PASS] test_SetOperatorPause() (gas: 57188)
+[PASS] test_SetOperatorPause_OnlyOwner() (gas: 22640)
+[PASS] test_SetOperatorPaused() (gas: 56528)
+[PASS] test_SetOperatorPaused_OnlyOwner() (gas: 22200)
+[PASS] test_SetProtocolFee() (gas: 28518)
+[PASS] test_SetProtocolFee_OnlyOwner() (gas: 19227)
+[PASS] test_SetTreasury() (gas: 28468)
+[PASS] test_SetTreasury_OnlyOwner() (gas: 20108)
+[PASS] test_SetXPNTsFactory_NonOwner_Reverts() (gas: 110690)
+[PASS] test_SetXPNTsFactory_ValidAddress_Succeeds() (gas: 118282)
+[PASS] test_SetXPNTsFactory_ZeroAddress_Reverts() (gas: 18780)
+[PASS] test_SlashOperator_Minor() (gas: 348546)
+[PASS] test_SlashOperator_OnlyOwner() (gas: 22266)
+[PASS] test_UpdateReputation() (gas: 57074)
+[PASS] test_UpdateReputation_OnlyOwner() (gas: 23186)
+[PASS] test_VerifyHasRole() (gas: 19878)
+[PASS] test_WithdrawProtocolRevenue_OnlyOwner() (gas: 21907)
+[PASS] test_Withdraw_InsufficientBalance() (gas: 139806)
+[PASS] test_Withdraw_Success() (gas: 160829)
+Suite result: ok. 31 passed; 0 failed; 0 skipped; finished in 9.88ms (1.11ms CPU time)
+
+Ran 35 tests for contracts/test/v2/xPNTsTokenV2.t.sol:xPNTsTokenV2Test
+[PASS] test_A1_locked_balance_cannot_move() (gas: 189425)
+[PASS] test_A3_sp_cannot_pull_even_with_explicit_approve() (gas: 52987)
+[PASS] test_A8_floor_and_ceiling() (gas: 78258)
+[PASS] test_A9_factory_cannot_pull() (gas: 40774)
+[PASS] test_B7_readd_spender_keeps_counters() (gas: 237514)
+[PASS] test_B7_saturating_allowance_with_explicit_max() (gas: 147882)
+[PASS] test_L3_settle_only_within_original_tx_and_L4_release() (gas: 265394)
+[PASS] test_L4_release_refused_while_live() (gas: 154736)
+[PASS] test_S1_S3_rotation_after_timelock() (gas: 109214)
+[PASS] test_S6_S7_standby_recovery() (gas: 145898)
+[PASS] test_account_only_mode_blocks_sp_renew() (gas: 63206)
+[PASS] test_core_template_is_inert() (gas: 34243)
+[PASS] test_credit_auto_requires_current_epoch_request() (gas: 149342)
+[PASS] test_credit_off_by_default() (gas: 95693)
+[PASS] test_credit_reserve_settle_and_cap() (gas: 216432)
+[PASS] test_deleted_selectors_do_not_exist() (gas: 60225)
+[PASS] test_emergency_blocks_new_locks_but_settles_existing() (gas: 197600)
+[PASS] test_executeBySig_renew_by_relayer() (gas: 134104)
+[PASS] test_extension_direct_calls_are_inert() (gas: 87226)
+[PASS] test_factory_proposal_cannot_override_community_and_is_cancelled_by_emergency() (gas: 101700)
+[PASS] test_lock_insufficient_allowance_and_total() (gas: 394746)
+[PASS] test_lock_results_typed_and_write_free_on_failure() (gas: 219192)
+[PASS] test_lock_settle_happy_path() (gas: 163954)
+[PASS] test_manual_approval_is_a_ceiling() (gas: 150779)
+[PASS] test_old_locker_settles_only_in_original_tx_after_rotation() (gas: 205681)
+[PASS] test_only_current_sp_can_lock() (gas: 20998)
+[PASS] test_other_spender_default_zero_and_user_opt_in() (gas: 232104)
+[PASS] test_policy_noop_switch_rejected() (gas: 24392)
+[PASS] test_registry_resolves_minimal_proxy_to_impl() (gas: 66205)
+[PASS] test_renewForSelf_resets_and_is_blocked_by_outstanding_lock() (gas: 614092)
+[PASS] test_renew_insufficient_after_commit_writes_nothing() (gas: 91885)
+[PASS] test_settle_charge_capped_at_reservation() (gas: 148849)
+[PASS] test_settle_rate_uses_lock_time_ratio() (gas: 184492)
+[PASS] test_sp_renew_K1() (gas: 718012)
+[PASS] test_version_and_genesis() (gas: 51864)
+Suite result: ok. 35 passed; 0 failed; 0 skipped; finished in 8.52ms (7.20ms CPU time)
+
+Ran 13 tests for contracts/test/v3/SuperPaymasterV5Features.t.sol:SuperPaymasterV5Features_Test
+[PASS] test_FeedbackNotSentForNonAgent() (gas: 11203)
+[PASS] test_IsEligible_AgentOnly() (gas: 29917)
+[PASS] test_IsEligible_Neither() (gas: 24129)
+[PASS] test_IsEligible_NoRegistry() (gas: 200964)
+[PASS] test_IsEligible_SBTOnly() (gas: 182259)
+[PASS] test_IsRegisteredAgent_False() (gas: 25638)
+[PASS] test_IsRegisteredAgent_NoRegistry() (gas: 26205)
+[PASS] test_IsRegisteredAgent_True() (gas: 24867)
+[PASS] test_SetAgentRegistries() (gas: 298867)
+[PASS] test_SetAgentRegistries_OnlyOwner() (gas: 19158)
+[PASS] test_SetAgentRegistries_RejectsEOA() (gas: 22742)
+[PASS] test_SetAgentRegistries_ZeroDisablesAgentMode() (gas: 24293)
+[PASS] test_Version() (gas: 14879)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 2.19ms (754.33µs CPU time)
+
+Ran 30 tests for contracts/test/tokens/GTokenAuthorization.t.sol:GTokenAuthorizationTest
+[PASS] test_SBTShortCircuit_skipsFactoryCalls() (gas: 83703)
+[PASS] test_cancel() (gas: 47727)
+[PASS] test_emits_AuthorizationCanceled() (gas: 47883)
+[PASS] test_emits_AuthorizationUsed() (gas: 82023)
+[PASS] test_exactFiveMinutes() (gas: 82212)
+[PASS] test_immutables() (gas: 18715)
+[PASS] test_rc2_beforeSBTSet_xpntsPathWorks() (gas: 1441867)
+[PASS] test_receive_byRecipient() (gas: 81927)
+[PASS] test_revert_cancelAlreadyUsed() (gas: 84206)
+[PASS] test_revert_cancelWrongSigner() (gas: 21887)
+[PASS] test_revert_expired() (gas: 20595)
+[PASS] test_revert_noCredentials() (gas: 56334)
+[PASS] test_revert_nonceReuse() (gas: 98598)
+[PASS] test_revert_notYetValid() (gas: 19698)
+[PASS] test_revert_receiveTypehash_cannotBeUsedInTransfer() (gas: 27293)
+[PASS] test_revert_receive_callerNotRecipient() (gas: 22631)
+[PASS] test_revert_rogueToken() (gas: 63682)
+[PASS] test_revert_tamperedRecipient() (gas: 31589)
+[PASS] test_revert_useAfterCancel() (gas: 52020)
+[PASS] test_revert_validAfterEqualsValidBefore() (gas: 20404)
+[PASS] test_revert_validFactoryTokenButZeroBalance() (gas: 67845)
+[PASS] test_revert_windowTooLong() (gas: 19719)
+[PASS] test_revert_wrongCommunityToken() (gas: 69313)
+[PASS] test_revert_wrongSigner() (gas: 25167)
+[PASS] test_setMySBT_onlyOnce() (gas: 1362062)
+[PASS] test_setMySBT_onlyOwner() (gas: 1340492)
+[PASS] test_transfer_SBT() (gas: 83854)
+[PASS] test_transfer_pntsA() (gas: 94659)
+[PASS] test_transfer_pntsB_differentCommunity() (gas: 94879)
+[PASS] test_version() (gas: 10326)
+Suite result: ok. 30 passed; 0 failed; 0 skipped; finished in 4.41ms (3.84ms CPU time)
+
+Ran 22 tests for contracts/test/v3/SupplementaryLifecycle.t.sol:SupplementaryLifecycleTest
+[PASS] test_MySBT_BurnOnAllRolesExit() (gas: 727753)
+[PASS] test_MySBT_DeactivateMembership_OnCommunityExit() (gas: 730402)
+[PASS] test_MySBT_MetadataFields() (gas: 873586)
+[PASS] test_MySBT_MintOnRegistration() (gas: 870045)
+[PASS] test_RegistryUpgrade_ReinitializerCannotRunTwice() (gas: 4817387)
+[PASS] test_RegistryUpgrade_WithReinitializer() (gas: 4835023)
+[PASS] test_RoleLifecycle_DynamicRoleManagement() (gas: 265592)
+[PASS] test_RoleLifecycle_ExitAllRoles_BurnSBT() (gas: 1070864)
+[PASS] test_RoleLifecycle_ExitWithLockDuration_Reverts() (gas: 1289650)
+[PASS] test_RoleLifecycle_MultipleRoles_ExitOne_KeepSBT() (gas: 1432056)
+[PASS] test_RoleLifecycle_RegisterCommunityThenExit() (gas: 735929)
+[PASS] test_RoleLifecycle_SafeMintForRole() (gas: 1419211)
+[PASS] test_RoleLifecycle_SuperPaymasterRole() (gas: 1283987)
+[PASS] test_SBTStatus_ClearedOnAllRolesExit() (gas: 731081)
+[PASS] test_SBTStatus_SyncedOnRegistration() (gas: 873685)
+[PASS] test_StakingExit_SlashThenExit() (gas: 1123960)
+[PASS] test_StakingExit_UnlockAndTransfer_WithExitFee() (gas: 1074568)
+[PASS] test_StakingExit_ViewFunctions() (gas: 1293389)
+[PASS] test_SuperPaymasterUpgrade_WithReinitializer() (gas: 4821003)
+[PASS] test_UpdateBlockedStatus_OnlyRegistry() (gas: 20546)
+[PASS] test_UpdateBlockedStatus_ViaRegistry() (gas: 1365664)
+[PASS] test_UpdateSBTStatus_OnlyRegistry() (gas: 19896)
+Suite result: ok. 22 passed; 0 failed; 0 skipped; finished in 4.93ms (3.47ms CPU time)
+
+Ran 2 tests for contracts/test/v3/GTokenStaking.t.sol:GTokenStakingSyncTest
+[PASS] test_SyncFailed_EmittedWhenRegistryReverts() (gas: 263658)
+[PASS] test_SyncStakeFromStaking_SucceedsWhenRegistryAccepts() (gas: 315873)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.91ms (1.69ms CPU time)
+
+Ran 8 tests for contracts/test/v3/GTokenStakingSlashBasic.t.sol:GTokenStakingSlashBasicTest
+[PASS] test_GetStakeInfo_FunctionExists() (gas: 3124)
+[PASS] test_MultipleSlashers_CanCoexist() (gas: 92378)
+[PASS] test_RevokeAuthorizedSlasher() (gas: 32964)
+[PASS] test_SetAuthorizedSlasher_OnlyOwner() (gas: 14095)
+[PASS] test_SetAuthorizedSlasher_Success() (gas: 41671)
+[PASS] test_SlashByDVT_FunctionExists() (gas: 3430)
+[PASS] test_SlashByDVT_RequiresAuthorization() (gas: 59218)
+[PASS] test_UpgradeSlasher_Scenario() (gas: 56445)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 366.88µs (151.83µs CPU time)
+
+Ran 6 tests for contracts/test/v3/SuperPaymasterV3_Pricing.t.sol:SuperPaymasterV3_Pricing_Test
+[PASS] test_A0_And_Charge_RoundUp() (gas: 306239)
+[PASS] test_PostOp_ChargeCappedAtReservation() (gas: 301285)
+[PASS] test_PostOp_ConservativeBuffer_R10M3() (gas: 301698)
+[PASS] test_PostOp_UsesValidationPriceSnapshot() (gas: 443099)
+[PASS] test_V3_Pricing_HybridModel_WithBuffer() (gas: 315084)
+[PASS] test_V3_Pricing_Refund_When_Gas_Low() (gas: 298492)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 10.59ms (8.53ms CPU time)
+
+Ran 41 tests for contracts/test/v2/xPNTsTokenV2D3.t.sol:xPNTsTokenV2D3Test
+[PASS] test_1271_signature_bound_to_token_domain() (gas: 811878)
+[PASS] test_1271_wallet_action_by_relayer() (gas: 312699)
+[PASS] test_1271_wallet_rejection_reverts_and_keeps_nonce() (gas: 302978)
+[PASS] test_1271_wrong_key_and_expired_rejected() (gas: 286409)
+[PASS] test_A10_genesis_spender_default_cap_zero_until_user_opts_in() (gas: 662850)
+[PASS] test_A10_genesis_spender_must_be_on_allowlist() (gas: 554302)
+[PASS] test_A10_propagate_does_not_override_community_proposal() (gas: 96995)
+[PASS] test_A10_propagate_only_proposes_and_community_can_cancel() (gas: 118121)
+[PASS] test_A10_propagated_proposal_activates_after_timelock() (gas: 122763)
+[PASS] test_A7_renewal_after_a_lock_in_same_bundle_is_rejected_and_writes_nothing() (gas: 175795)
+[PASS] test_A7_renewal_after_credit_reservation_is_rejected() (gas: 227541)
+[PASS] test_A7_renewal_first_then_plain_ops_ok_second_renewal_rejected() (gas: 248886)
+[PASS] test_C4_owner_lowers_approval_keeps_admitted_reservation() (gas: 229447)
+[PASS] test_C4_policy_off_keeps_admitted_reservation() (gas: 223284)
+[PASS] test_C4_tier_drop_keeps_admitted_reservation() (gas: 213791)
+[PASS] test_C4_user_revoke_keeps_admitted_reservation() (gas: 222736)
+[PASS] test_C5_execute_rechecks_allowlist() (gas: 88093)
+[PASS] test_C5_queue_rejects_unlisted_and_nonowner() (gas: 209967)
+[PASS] test_C5_switch_timelocked_and_bumps_epoch() (gas: 221044)
+[PASS] test_E3_reenable_by_signature_does_not_reset_used() (gas: 444354)
+[PASS] test_E3_reenable_does_not_reset_used() (gas: 251347)
+[PASS] test_E4_releaseAndDisable_atomic_after_tx() (gas: 306021)
+[PASS] test_E4_releaseAndDisable_reverts_whole_while_live() (gas: 188355)
+[PASS] test_E4_releaseAndDisable_without_record_just_disables() (gas: 64269)
+[PASS] test_S2_cancel_authority() (gas: 115954)
+[PASS] test_S3_community_proposal_activates_during_emergency_without_clearing_it() (gas: 279789)
+[PASS] test_S3_old_sp_cannot_act_after_rotation() (gas: 112274)
+[PASS] test_S3_rechecks_registry_at_activation() (gas: 83842)
+[PASS] test_S3_timelock_boundary() (gas: 107983)
+[PASS] test_X5_canonical_clone_accepted_and_activation_rechecks() (gas: 223569)
+[PASS] test_X5_eoa_and_sp_rejected() (gas: 56765)
+[PASS] test_X5_noncanonical_45_byte_lookalike_rejected() (gas: 84305)
+[PASS] test_X5_spender_becoming_sp_cannot_be_activated() (gas: 220841)
+[PASS] test_X5_unlisted_code_rejected() (gas: 177701)
+[PASS] test_X5_upgradeable_proxy_to_listed_impl_rejected() (gas: 120840)
+[PASS] test_tierOf_empty_return_is_zero() (gas: 154392)
+[PASS] test_tierOf_gas_exhaustion_is_zero_and_bounded() (gas: 371487)
+[PASS] test_tierOf_positive_control_huge_tier_is_clipped_by_request() (gas: 154898)
+[PASS] test_tierOf_revert_is_zero() (gas: 170939)
+[PASS] test_tierOf_short_return_is_zero() (gas: 154087)
+[PASS] test_tierOf_wide_return_is_zero() (gas: 154847)
+Suite result: ok. 41 passed; 0 failed; 0 skipped; finished in 7.93ms (6.78ms CPU time)
+
+Ran 15 tests for contracts/test/v3/SuperPaymaster_APNTs_Integration.t.sol:SuperPaymaster_APNTs_Integration_Test
+[PASS] test_ConfigureOperator_NoExchangeRateParam_Configured() (gas: 27736)
+[PASS] test_ConfigureOperator_NoStoredExchangeRate_LiveRateUsed() (gas: 232219)
+[PASS] test_ConfigureOperator_StoredToken_Correct() (gas: 30008)
+[PASS] test_Deposit_IncreasesAPNTsBalance() (gas: 72306)
+[PASS] test_GetAvailableCredit_AfterDebt_DecreasedByDebt() (gas: 391210)
+[PASS] test_GetAvailableCredit_NoDebt_EqualsCreditLimit() (gas: 155240)
+[PASS] test_GetAvailableCredit_PolicyOff_IsZero() (gas: 78477)
+[PASS] test_PostOp_BurnPath_HighRate_BurnsMoreXPNTs() (gas: 472637)
+[PASS] test_PostOp_DebtPath_ProportionalToGas() (gas: 575428)
+[PASS] test_PostOp_DebtPath_RecordsAPNTs() (gas: 486719)
+[PASS] test_PostOp_HigherFee_IncreasesDebt() (gas: 604488)
+[PASS] test_PostOp_NoCreditPolicy_EmptyUser_NotSponsored() (gas: 150305)
+[PASS] test_Validate_LiveRate_Exceeds_MaxRate_Fails() (gas: 237804)
+[PASS] test_Validate_LiveRate_Within_MaxRate_Succeeds() (gas: 425668)
+[PASS] test_Withdraw_DecreasesAPNTsBalance() (gas: 65145)
+Suite result: ok. 15 passed; 0 failed; 0 skipped; finished in 9.51ms (4.21ms CPU time)
+
+Ran 17 tests for contracts/test/v3/SuperPaymaster_BurnRestore.t.sol:SuperPaymaster_BurnRestore_Test
+[PASS] test_AuditH1_OverCeilingOp_RejectedInValidation() (gas: 387316)
+[PASS] test_AuditH1_WithinCeilingDebt_RecordedNormally() (gas: 373982)
+[PASS] test_AuditH1_ZeroCredit_RejectedEveryAttempt() (gas: 250372)
+[PASS] test_B1_SettleFailure_RevertsPostOp_NoFallback() (gas: 367643)
+[PASS] test_CreditPath_ChargeCappedAtReservation() (gas: 369831)
+[PASS] test_CrossPath_BurnSucceeds_SecondPostOpIdempotent() (gas: 350637)
+[PASS] test_CrossPath_DebtRecorded_SecondPostOpIdempotent() (gas: 423866)
+[PASS] test_I10_PostOpOutsideOriginalTx_Reverts_ThenStaleReleaseRestores() (gas: 678085)
+[PASS] test_LegacyPendingDebtSelectorsRemoved() (gas: 40934)
+[PASS] test_NoBalance_AutoCredit_SettlesAsDebt() (gas: 376386)
+[PASS] test_NoBalance_CreditOff_RejectedAtValidation() (gas: 119982)
+[PASS] test_OperatorAccounting_Idempotent_OnReplay() (gas: 348421)
+[PASS] test_PostOp_Burns_WhenUserHasBalance() (gas: 348516)
+[PASS] test_PostOp_OverflowPath_BurnsXPNTs() (gas: 353435)
+[PASS] test_PostOp_TwoOps_NoDuplicateReplay() (gas: 495865)
+[PASS] test_R2_NonInsufficientLockFailure_NeverFallsBackToCredit() (gas: 381194)
+[PASS] test_ReleaseStaleSponsorship_SameTx_RevertsInFlight() (gas: 348898)
+Suite result: ok. 17 passed; 0 failed; 0 skipped; finished in 4.48ms (3.28ms CPU time)
+
+Ran 23 tests for contracts/test/v3/UUPSUpgrade.t.sol:UUPSUpgradeTest
+[PASS] test_MultisigUpgrade_TransferAndUpgrade() (gas: 4759977)
+[PASS] test_MySBTRegistryIsImmutable() (gas: 5002642)
+[PASS] test_ProxyAddressStableAfterUpgrade() (gas: 9480365)
+[PASS] test_RegistrySetStakingSyncsExitFees() (gas: 8765910)
+[PASS] test_Registry_BusinessLogicAfterUpgrade() (gas: 4898270)
+[PASS] test_Registry_CannotReinitialize() (gas: 22250)
+[PASS] test_Registry_DoubleUpgrade_StatePreserved() (gas: 9548400)
+[PASS] test_Registry_ImplCannotBeInitialized() (gas: 4732900)
+[PASS] test_Registry_InitialState() (gas: 37810)
+[PASS] test_Registry_StatePreservedAfterUpgrade() (gas: 4803263)
+[PASS] test_Registry_UpgradeRejectedByNonOwner() (gas: 4741942)
+[PASS] test_Registry_UpgradeSuccess() (gas: 4768210)
+[PASS] test_Registry_UpgradeToNonUUPS_Reverts() (gas: 102828)
+[PASS] test_StakingRegistryIsImmutable() (gas: 2387591)
+[PASS] test_SuperPaymaster_BusinessLogicAfterUpgrade() (gas: 4911452)
+[PASS] test_SuperPaymaster_CannotReinitialize() (gas: 23175)
+[PASS] test_SuperPaymaster_DoubleUpgrade_StatePreserved() (gas: 9620977)
+[PASS] test_SuperPaymaster_ImplCannotBeInitialized() (gas: 4729053)
+[PASS] test_SuperPaymaster_InflightSlot37_SurvivesUpgrade() (gas: 4747979)
+[PASS] test_SuperPaymaster_InitialState() (gas: 55562)
+[PASS] test_SuperPaymaster_UpgradeRejectedByNonOwner() (gas: 4737564)
+[PASS] test_SuperPaymaster_UpgradeSuccess() (gas: 4899091)
+[PASS] test_SuperPaymaster_UpgradeToNonUUPS_Reverts() (gas: 103203)
+Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 13.38ms (11.99ms CPU time)
+
+Ran 25 tests for contracts/test/v3/SuperPaymaster_Coverage.t.sol:SuperPaymaster_Coverage_Test
+[PASS] test_D10_Validate_OperatorPaused_ReturnsSigFailure() (gas: 111703)
+[PASS] test_D11_ProtocolRevenue_ExactlyBuffer_AvailableIsZero() (gas: 234555)
+[PASS] test_D12_Validate_LegacyLayoutWithoutToken_ReturnsSigFailure() (gas: 111112)
+[PASS] test_D1_ExecuteAPNTsTokenChange_Reverts_BeforeTimelock() (gas: 517680)
+[PASS] test_D1_ExecuteAPNTsTokenChange_Reverts_WhenProtocolRevenueNonZero() (gas: 725579)
+[PASS] test_D1_ExecuteAPNTsTokenChange_WhenZeroBalances() (gas: 494591)
+[PASS] test_D2_WithdrawProtocolRevenue_ExactAvailable() (gas: 281162)
+[PASS] test_D2_WithdrawProtocolRevenue_Reverts_WhenAboveAvailable() (gas: 235041)
+[PASS] test_D2_WithdrawProtocolRevenue_Reverts_WhenBelowBuffer() (gas: 232321)
+[PASS] test_D2_WithdrawProtocolRevenue_Reverts_ZeroAddress() (gas: 25361)
+[PASS] test_D3_ConfigureOperator_Reverts_FactoryNotSet() (gas: 4979797)
+[PASS] test_D3_ConfigureOperator_Reverts_Legacy3xToken() (gas: 629840)
+[PASS] test_D3_ConfigureOperator_Reverts_NoCommunityRole() (gas: 49451)
+[PASS] test_D3_ConfigureOperator_Reverts_NoRole() (gas: 24778)
+[PASS] test_D3_ConfigureOperator_Reverts_UnknownBalanceModeVersion() (gas: 449436)
+[PASS] test_D3_ConfigureOperator_Reverts_WhenTokenNotFromFactory() (gas: 9520772)
+[PASS] test_D3_ConfigureOperator_Reverts_ZeroTreasury() (gas: 28749)
+[PASS] test_D6_IsEligibleForSponsorship_NotEligible() (gas: 20966)
+[PASS] test_D6_IsEligibleForSponsorship_SBTHolder() (gas: 18681)
+[PASS] test_D6_IsRegisteredAgent_ReturnsFalse_WhenNoRegistry() (gas: 23471)
+[PASS] test_D6_SetAgentRegistries_Reverts_NonContract() (gas: 22161)
+[PASS] test_D6_SetAgentRegistries_Zero_Disables() (gas: 34128)
+[PASS] test_D8_Validate_NotConfigured_ReturnsSigFailure() (gas: 66216)
+[PASS] test_D8b_Validate_PositiveControl_Succeeds() (gas: 303876)
+[PASS] test_D9_Validate_UserNotEligible_ReturnsSigFailure() (gas: 103568)
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 2.69ms (1.40ms CPU time)
+
+Ran 7 tests for contracts/test/security/CC48DomainSeparation.t.sol:CC48CombinedProposalTest
+[PASS] test_EmptyProposalShapeIsRejected() (gas: 25898)
+[PASS] test_LegitimateSlashOnlyShapesStillReachSignatureVerification() (gas: 48414)
+[PASS] test_RejectionPrecedesSignatureVerification() (gas: 26386)
+[PASS] test_ReputationBatchWithASlashLevelIsRejected() (gas: 26847)
+[PASS] test_ReputationBatchWithAnOperatorIsRejected() (gas: 26532)
+[PASS] test_SlashOnlyBranchRejectsUnsignedNewScores() (gas: 26067)
+[PASS] test_UnsignedNewScoresRejectionPrecedesSignatureVerification() (gas: 25984)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 511.25µs (141.83µs CPU time)
+
+Ran 10 tests for contracts/test/security/CC48DomainSeparation.t.sol:CC48DomainSeparatorTest
+[PASS] test_BlacklistTagIsPinned() (gas: 5102428)
+[PASS] test_DomainFollowsTheChain() (gas: 18975)
+[PASS] test_DomainFollowsTheRegistry() (gas: 5545381)
+[PASS] test_FieldsStillSeparateProposals() (gas: 18464)
+[PASS] test_MisWiredPairFailsClosed() (gas: 5104253)
+[PASS] test_PathTagsAreDistinct() (gas: 44743)
+[PASS] test_RegistryAndAggregatorAgreeByteForByte() (gas: 5101807)
+[PASS] test_ReputationMessageHashMatchesTheSchema() (gas: 5104580)
+[PASS] test_SeparatorMatchesThePublishedSchema() (gas: 15219)
+[PASS] test_TwoAggregatorsOnOneChainHaveDisjointDomains() (gas: 17886)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 1.74ms (904.75µs CPU time)
+
+Ran 18 tests for contracts/test/v3/V3_DynamicLevelThresholds.t.sol:V3_DynamicLevelThresholds_Test
+[PASS] test_AddLevelThreshold_MustBeHigherThanLast() (gas: 56614)
+[PASS] test_AddLevelThreshold_OnlyOwner() (gas: 20907)
+[PASS] test_AddLevelThreshold_Success() (gas: 109691)
+[PASS] test_BatchUpdateReputation_Exceeds200_Reverts() (gas: 140115)
+[PASS] test_BatchUpdateReputation_Max200() (gas: 15163614)
+[PASS] test_DynamicLevelSystem_CompleteFlow() (gas: 1234890)
+[PASS] test_GetCreditLimit_AfterAddingNewLevel() (gas: 1073903)
+[PASS] test_GetCreditLimit_AfterThresholdChange() (gas: 241128)
+[PASS] test_GetCreditLimit_BoundaryValues() (gas: 293319)
+[PASS] test_GetCreditLimit_Level1() (gas: 209380)
+[PASS] test_GetCreditLimit_Level2() (gas: 210984)
+[PASS] test_GetCreditLimit_Level6() (gas: 594244)
+[PASS] test_LevelThresholds_DefaultInitialization() (gas: 35019)
+[PASS] test_SetLevelThreshold_MustBeAscending() (gas: 95078)
+[PASS] test_SetLevelThreshold_OnlyOwner() (gas: 20280)
+[PASS] test_SetLevelThreshold_Success() (gas: 60821)
+[PASS] test_SetLevelThresholds_Exceeds20_Reverts() (gas: 26489)
+[PASS] test_SetLevelThresholds_MaxLength20() (gas: 815235)
+Suite result: ok. 18 passed; 0 failed; 0 skipped; finished in 5.48ms (4.98ms CPU time)
+
+Ran 6 tests for contracts/test/security/CC48DomainSeparation.t.sol:CC48FraudProofDomainTest
+[PASS] test_DigestFollowsTheChain() (gas: 16041)
+[PASS] test_DigestMatchesThePublishedSchema() (gas: 15075)
+[PASS] test_ProofBoundToAnotherAggregatorIsRefused() (gas: 61005)
+[PASS] test_ProofBoundToAnotherChainIsRefused() (gas: 56995)
+[PASS] test_QueueGuardianSlashHandsTheDigestToTheVerifier() (gas: 197152)
+[PASS] test_SameProofIdHasDifferentDigestsPerAggregator() (gas: 20186)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 684.58µs (192.50µs CPU time)
+
+Ran 1 test for contracts/test/v3/V3_Expansion_Boost.t.sol:V3_Reputation_SBT_BoostTest
+[PASS] test_SBT_BurnAndAdminSetters() (gas: 276208)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 776.96µs (57.25µs CPU time)
+
+Ran 37 tests for contracts/test/v3/GTokenStaking_Coverage.t.sol:GTokenStaking_Coverage
+[PASS] test_BalanceOf_ReflectsLock() (gas: 1251307)
+[PASS] test_BalanceOf_ZeroForNoStake() (gas: 14009)
+[PASS] test_GetEffectiveStake_ViaRegistry_AfterSlash() (gas: 1300720)
+[PASS] test_GetLockedStake_AfterRegistration() (gas: 1251948)
+[PASS] test_GetLockedStake_AfterSlash() (gas: 1294183)
+[PASS] test_GetLockedStake_NoStake_Zero() (gas: 13326)
+[PASS] test_GetStakeInfo_AfterSlash() (gas: 1299870)
+[PASS] test_GetStakeInfo_ReturnsRoleLockView() (gas: 1260677)
+[PASS] test_GetUserRoleLocks_MultipleRoles() (gas: 1606376)
+[PASS] test_HasRoleLock_FalseBeforeLock() (gas: 13138)
+[PASS] test_HasRoleLock_TrueAfterLock() (gas: 1251903)
+[PASS] test_LockStakeWithTicket_NonRegistry_Reverts() (gas: 17763)
+[PASS] test_LockStakeWithTicket_RoleAlreadyLocked_Reverts() (gas: 1260259)
+[PASS] test_PreviewExitFee_FeeExceedsAmount_CappedAtAmount() (gas: 1272198)
+[PASS] test_PreviewExitFee_MinFeeApplied() (gas: 1271834)
+[PASS] test_SetRoleExitFee_TooHigh_Reverts() (gas: 14039)
+[PASS] test_SetTreasury_NonOwner_Reverts() (gas: 14672)
+[PASS] test_SetTreasury_ZeroAddress_Reverts() (gas: 14709)
+[PASS] test_SlashByDVT_ExceedsLock_Reverts() (gas: 1260564)
+[PASS] test_SlashByDVT_ReducesRoleLock_AndSyncsRegistry() (gas: 1292754)
+[PASS] test_SlashByDVT_ToZero_ClearsLock() (gas: 1175616)
+[PASS] test_SlashByDVT_Unauthorized_Reverts() (gas: 1258178)
+[PASS] test_Slash_ByRegistry_Allowed() (gas: 1289236)
+[PASS] test_Slash_ExceedsAvailable_CappedAtBalance() (gas: 1178988)
+[PASS] test_Slash_MultipleRoles_ProportionalDeduction() (gas: 1651231)
+[PASS] test_Slash_RoundingDust_SumMayNotEqualSlash() (gas: 1649323)
+[PASS] test_Slash_Unauthorized_Reverts() (gas: 1257568)
+[PASS] test_TopUpStake_ExceedsGlobalCap_Reverts() (gas: 1392896)
+[PASS] test_TopUpStake_NoExistingLock_Reverts() (gas: 21911)
+[PASS] test_TopUpStake_NonRegistry_Reverts() (gas: 17116)
+[PASS] test_TopUpStake_Success() (gas: 1252941)
+[PASS] test_TotalStaked_AggregatesAllOperators() (gas: 2300092)
+[PASS] test_UnlockAndTransfer_NoLock_Reverts() (gas: 21666)
+[PASS] test_UnlockAndTransfer_OnlyRegistry_Reverts() (gas: 1255086)
+[PASS] test_UnlockAndTransfer_WithExitFee() (gas: 1055577)
+[PASS] test_UnlockAndTransfer_WithMultipleLocks_OnlyTargetExited() (gas: 1443872)
+[PASS] test_UnlockAndTransfer_ZeroBalanceAfterFullExit() (gas: 1045575)
+Suite result: ok. 37 passed; 0 failed; 0 skipped; finished in 18.06ms (17.11ms CPU time)
+
+Ran 14 tests for contracts/test/modules/GenericDVTProposal.t.sol:GenericDVTProposalTest
+[PASS] test_ExecuteProposal_AlreadyExecuted_Reverts() (gas: 234230)
+[PASS] test_ExecuteProposal_ExactMinThreshold_Success() (gas: 190874)
+[PASS] test_ExecuteProposal_MaxThreshold_Success() (gas: 377454)
+[PASS] test_ExecuteProposal_OwnerCanCall() (gas: 195344)
+[PASS] test_ExecuteProposal_Success() (gas: 230442)
+[PASS] test_ExecuteProposal_TargetReverts_PropagatesError() (gas: 183856)
+[PASS] test_ExecuteProposal_ThresholdBelowMin_Reverts() (gas: 28555)
+[PASS] test_ExecuteProposal_ThresholdExceedsMax_Reverts() (gas: 28423)
+[PASS] test_ExecuteProposal_Unauthorized_Reverts() (gas: 26069)
+[PASS] test_ExecuteProposal_ZeroTarget_Reverts() (gas: 21243)
+[PASS] test_SetDefaultThreshold() (gas: 24246)
+[PASS] test_SetDefaultThreshold_BelowMin_Reverts() (gas: 17138)
+[PASS] test_SetMinThreshold() (gas: 24488)
+[PASS] test_SetMinThreshold_TooLow_Reverts() (gas: 14664)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 2.14ms (1.01ms CPU time)
+
+Ran 7 tests for contracts/test/paymasters/superpaymaster/v3/SuperPaymasterV3_Security.t.sol:SuperPaymaster_SecurityTest
+[PASS] testBlocklist_DenyUser() (gas: 288482)
+[PASS] testRateLimiting_AllowAfterInterval() (gas: 433473)
+[PASS] testRateLimiting_DenySameBlock() (gas: 432041)
+[PASS] testRateLimiting_RevertTooSoon() (gas: 432581)
+[PASS] testRateLimiting_UpdatesOnRevert() (gas: 440349)
+[PASS] testSetOperatorLimits() (gas: 40709)
+[PASS] testUpdateBlockedStatus() (gas: 49695)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 26.23ms (2.21ms CPU time)
+
+Ran 14 tests for contracts/test/modules/GuardianSlash.t.sol:GuardianSlashTest
+[PASS] test_ApplyFraudProofVerifier_RequiresDelay() (gas: 52334)
+[PASS] test_ExitedGuardianDoesNotShieldColluder() (gas: 365596)
+[PASS] test_ProposeFraudProofVerifier_OnlyOwner() (gas: 16592)
+[PASS] test_ResolvedCaseCannotReplay() (gas: 326744)
+[PASS] test_RevertWhen_DuplicateGuardian() (gas: 92308)
+[PASS] test_RevertWhen_EmptyGuardians() (gas: 60958)
+[PASS] test_RevertWhen_TooManyGuardians() (gas: 62450)
+[PASS] test_RevertWhen_VerifierNotSet() (gas: 19763)
+[PASS] test_RevertWhen_VerifyFalse() (gas: 69696)
+[PASS] test_RevertWhen_ZeroAddress() (gas: 61371)
+[PASS] test_SkipsZeroLock() (gas: 217049)
+[PASS] test_SuccessMultipleGuardians() (gas: 405881)
+[PASS] test_SuccessSlashesFullLock() (gas: 328509)
+[PASS] test_VersionBumped() (gas: 9629)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 8.29ms (7.87ms CPU time)
+
+Ran 13 tests for contracts/test/security/CC48DomainSeparation.t.sol:CC48PoPBindingTest
+[PASS] test_DistinctKeysStillRegisterNormally() (gas: 384982)
+[PASS] test_DuplicateRejectionAppliesToTheOwnerPath() (gas: 227694)
+[PASS] test_KeyBindingIsPerAggregator() (gas: 392654)
+[PASS] test_OwnerCanReleaseABindingNoActiveSlotUses() (gas: 386648)
+[PASS] test_PoPDigestBindsTheAggregator() (gas: 21187)
+[PASS] test_PoPDigestBindsTheValidatorAddress() (gas: 18354)
+[PASS] test_PoPDigestMatchesThePublishedSchema() (gas: 16076)
+[PASS] test_ReleaseIsOwnerOnlyAndRejectsAnUnknownKey() (gas: 196530)
+[PASS] test_ReleaseIsRefusedWhenTheKeyIsLiveUnderAnotherAddress() (gas: 376679)
+[PASS] test_ReleaseIsRefusedWhileAnActiveSlotHoldsTheKey() (gas: 212088)
+[PASS] test_RevocationDoesNotReleaseTheKeyBinding() (gas: 253919)
+[PASS] test_SameKeyCannotBeRegisteredForTwoValidators() (gas: 223315)
+[PASS] test_ValidatorMayReRegisterItsOwnKey() (gas: 233824)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 2.71ms (1.58ms CPU time)
+
+Ran 25 tests for contracts/test/tokens/XPNTsOverIssue.t.sol:XPNTsOverIssueTest
+[PASS] test_Backing_IgnoresCommunityMutableSP() (gas: 152643)
+[PASS] test_Backing_RequiresConfiguredAndLinked() (gas: 94758)
+[PASS] test_CapRatioBps_TightensBaseline() (gas: 120492)
+[PASS] test_Category_EmptyFallsBackToDefault() (gas: 60342)
+[PASS] test_Category_GovernanceAssigned_ChangesBaseline() (gas: 144006)
+[PASS] test_CredibilityScore_CappedAt100() (gas: 87408)
+[PASS] test_CredibilityScore_PartialBacking() (gas: 87333)
+[PASS] test_Defaults() (gas: 70023)
+[PASS] test_ExceedsBaseline_OverIssued() (gas: 102997)
+[PASS] test_FactoryKnobs_OnlyOwner() (gas: 15478)
+[PASS] test_IssuanceCap_HardStop() (gas: 125859)
+[PASS] test_IssuanceCap_ZeroDisables() (gas: 103064)
+[PASS] test_RenounceFactory_ConservativelyFlags_NoCleanEscape() (gas: 110594)
+[PASS] test_RenounceFactory_ZeroSupply_NotFlagged() (gas: 27512)
+[PASS] test_SetCapRatioBps_Bounds() (gas: 24920)
+[PASS] test_SetIndustryScaleUSD_BoundedToPreventOverflow() (gas: 15924)
+[PASS] test_SetIndustryScaleUSD_Governance() (gas: 52323)
+[PASS] test_SetIssuanceCap_OnlyCommunityOwner() (gas: 15482)
+[PASS] test_SetTokenCategory_AllowsSeededCategory() (gas: 116198)
+[PASS] test_SetTokenCategory_OnlyGovernance() (gas: 16751)
+[PASS] test_SetTokenCategory_RejectsNonFactoryToken() (gas: 16964)
+[PASS] test_SetTokenCategory_RejectsUnseededCategory() (gas: 21069)
+[PASS] test_StakeAmplifiesCap_AdditiveBacking() (gas: 132450)
+[PASS] test_WithinBaseline_NotOverIssued() (gas: 103328)
+[PASS] test_ZeroBaselineCategory_RegisterableAndRequiresFullStakeBacking() (gas: 197647)
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 1.65ms (1.14ms CPU time)
+
+Ran 6 tests for contracts/test/v3/xPNTsEmergency.t.sol:xPNTsEmergencyTest
+[PASS] test_EmergencyRevoke_IdempotentWhenAlreadyEnabled() (gas: 82099)
+[PASS] test_EmergencyRevoke_OnlyOwner() (gas: 16595)
+[PASS] test_EmergencyRevoke_Success() (gas: 134190)
+[PASS] test_EmergencyRevoke_ThenReset() (gas: 103494)
+[PASS] test_EmergencyRevoke_WhenNotSet() (gas: 3481602)
+[PASS] test_SetSuperPaymaster_FactoryBlockedDuringEmergency() (gas: 108964)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 552.42µs (271.42µs CPU time)
+
+Ran 11 tests for contracts/test/tokens/xPNTsFactory.t.sol:xPNTsFactoryTest
+[PASS] test_Admin_Functions() (gas: 76204)
+[PASS] test_Constructor_Reverts() (gas: 69635)
+[PASS] test_Deployment_AlreadyDeployed() (gas: 465386)
+[PASS] test_Deployment_RevertIf_NotCommunity() (gas: 18062)
+[PASS] test_Deployment_Success() (gas: 915720)
+[PASS] test_Deployment_SwitchModes() (gas: 5852541)
+[PASS] test_Prediction_Calculation() (gas: 132469)
+[PASS] test_Prediction_Update() (gas: 133348)
+[PASS] test_PropagateSuperPaymaster() (gas: 923535)
+[PASS] test_PropagateSuperPaymaster_AccessControl() (gas: 14453)
+[PASS] test_View_Functions() (gas: 463501)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 1.29ms (866.83µs CPU time)
+
+Ran 8 tests for contracts/test/v3/xPNTsSecurityDeepAudit.t.sol:xPNTsSecurityDeepAuditTest
+[PASS] test_Security_Concurrency_NotCumulative() (gas: 122800)
+[PASS] test_Security_DebtRepayment_Limits() (gas: 116009)
+[PASS] test_Security_EmergencyRevoke() (gas: 130825)
+[PASS] test_Security_ExchangeRate_NonZero() (gas: 19570)
+[PASS] test_Security_FactoryRenunciation() (gas: 78378)
+[PASS] test_Security_RecordDebt_ZeroSP() (gas: 3462413)
+[PASS] test_Security_ReentrancyGuard() (gas: 352738)
+[PASS] test_Security_SingleTxLimit_Boundary() (gas: 118383)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 736.54µs (432.58µs CPU time)
+
+Ran 9 tests for contracts/test/v3/V3_Function_Boost.t.sol:V3_Function_BoostTest
+[PASS] test_Paymaster_AdminSetters() (gas: 51218)
+[PASS] test_Paymaster_OperatorPausing() (gas: 1183900)
+[PASS] test_Registry_AdminSetters() (gas: 88403)
+[PASS] test_Registry_CreditTierConfig() (gas: 33298)
+[PASS] test_Registry_CreditTierConfig_RejectsLevelBeyondTheHardCap() (gas: 20797)
+[PASS] test_Registry_HistoryAndMembers() (gas: 985050)
+[PASS] test_Registry_ReputationSource() (gas: 38896)
+[PASS] test_Staking_AdminSetters() (gas: 51156)
+[PASS] test_Staking_Getters() (gas: 380866)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 16.02ms (4.62ms CPU time)
+
+Ran 9 tests for contracts/test/modules/GuardianSlashE2E.t.sol:GuardianSlashE2ETest
+[PASS] test_Cap_AboveThreshold_SurvivesOneSlash() (gas: 547471)
+[PASS] test_Cap_AtExactlyMinStake_StillEjects() (gas: 544038)
+[PASS] test_Cap_BpsIsFrozenAtQueue_LoweringItCannotDiscountAQueuedCase() (gas: 551956)
+[PASS] test_Cap_BpsIsFrozenAtQueue_RaisingItCannotRepriceAQueuedCase() (gas: 553519)
+[PASS] test_Cap_IsPerFinding_SecondExecutionTakesFromWhatIsLeft() (gas: 711960)
+[PASS] test_E2E_A_CommitmentStoredAndReproducible() (gas: 306564)
+[PASS] test_E2E_B_FraudProofSlashesAndEjects() (gas: 632951)
+[PASS] test_E2E_B_RejectsUnanchoredProof() (gas: 364227)
+[PASS] test_E2E_VerifierNotSet_Reverts() (gas: 314858)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 5.02ms (4.14ms CPU time)
+
+Ran 3 tests for contracts/test/modules/GuardianSlashIntegration.t.sol:GuardianSlashIntegrationTest
+[PASS] test_Integration_ExitBeforeExecute_Skips() (gas: 234467)
+[PASS] test_Integration_RealSlashZerosLock() (gas: 312288)
+[PASS] test_Integration_UnauthorizedAggregator_SlashFailsButCaseSurvives() (gas: 344967)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 902.08µs (347.21µs CPU time)
+
+Ran 22 tests for contracts/test/v3/xPNTs_APNTs_Accounting.t.sol:xPNTs_APNTs_Accounting_Test
+[PASS] test_AutoRepay_HighRate_PartialMint() (gas: 215932)
+[PASS] test_AutoRepay_LowRate_ExcessMint() (gas: 215853)
+[PASS] test_AutoRepay_MaxRate_SmallMint_NoRepay() (gas: 230499)
+[PASS] test_BurnFromWithOpHash_ExactDivision_NoRoundUp() (gas: 232930)
+[PASS] test_BurnFromWithOpHash_ExceedsMaxLimit_Reverts() (gas: 103406)
+[PASS] test_BurnFromWithOpHash_HighFractionalRate_CeilRounding() (gas: 232801)
+[PASS] test_BurnFromWithOpHash_HighRate_ExactConversion() (gas: 234404)
+[PASS] test_BurnFromWithOpHash_LowRate_CeilConversion() (gas: 232847)
+[PASS] test_CrossPath_BurnBlocksDebt() (gas: 111220)
+[PASS] test_CrossPath_DebtBlocksBurn() (gas: 127987)
+[PASS] test_RecordDebtWithOpHash_ExceedsMaxLimit_Reverts() (gas: 22908)
+[PASS] test_RecordDebtWithOpHash_ReplayPrevented() (gas: 74730)
+[PASS] test_RecordDebtWithOpHash_Success() (gas: 75863)
+[PASS] test_RecordDebt_ExceedsMaxLimit_Reverts() (gas: 24771)
+[PASS] test_RepayDebt_ExceedsDebt_Reverts() (gas: 239935)
+[PASS] test_RepayDebt_HighRate_FloorConversion() (gas: 248718)
+[PASS] test_RequireRate_Zero_BurnFromReverts() (gas: 228032)
+[PASS] test_RequireRate_Zero_MintWithDebtReverts() (gas: 179296)
+[PASS] test_RequireRate_Zero_RepayDebtReverts() (gas: 280672)
+[PASS] test_RequireRate_Zero_TransferFromReverts() (gas: 198819)
+[PASS] test_SingleTxLimit_CheapXPNTs_Passes() (gas: 229410)
+[PASS] test_SingleTxLimit_ExpensiveXPNTs_Reverts() (gas: 200498)
+Suite result: ok. 22 passed; 0 failed; 0 skipped; finished in 3.29ms (2.75ms CPU time)
+
+Ran 7 tests for contracts/test/v3/xPNTs_AuditH2_TransferFromFirewall.t.sol:xPNTs_AuditH2_TransferFromFirewallTest
+[PASS] test_TransferFromSelf_BoundedByDailyCap() (gas: 154612)
+[PASS] test_TransferFromSelf_CapResetsAfter24h() (gas: 96899)
+[PASS] test_TransferFromSelf_HaltedByEmergency() (gas: 78349)
+[PASS] test_TransferFromSelf_WithinLimits_Succeeds() (gas: 87438)
+[PASS] test_TransferFromToSuperPaymaster_DoesNotConsumeCap() (gas: 193717)
+[PASS] test_TransferFromToSuperPaymaster_HaltedByEmergency() (gas: 80581)
+[PASS] test_TransferFromToSuperPaymaster_StillWorks() (gas: 61359)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 629.17µs (333.92µs CPU time)
+
+Ran 13 tests for contracts/test/v3/xPNTs_EmergencyDisabled.t.sol:xPNTs_EmergencyDisabledTest
+[PASS] test_AutoApprovedBurn_BlockedAfterRevoke() (gas: 125530)
+[PASS] test_BurnFromWithOpHash_BlockedAfterRevoke() (gas: 72438)
+[PASS] test_BurnFromWithOpHash_WorksBeforeRevoke() (gas: 64979)
+[PASS] test_EmergencyRevoke_OnlyCommunity() (gas: 14510)
+[PASS] test_EmergencyRevoke_RecordsRevokedAddress() (gas: 70331)
+[PASS] test_EmergencyRevoke_SetsFlag() (gas: 70141)
+[PASS] test_FullRecoveryFlow() (gas: 136242)
+[PASS] test_RecordDebt_BlockedAfterRevoke() (gas: 72480)
+[PASS] test_RecordDebt_WorksBeforeRevoke() (gas: 49703)
+[PASS] test_SelfBurn_AllowedAfterRevoke() (gas: 83458)
+[PASS] test_UnsetEmergencyDisabled_ClearsFlag_AfterRotation() (gas: 83891)
+[PASS] test_UnsetEmergencyDisabled_OnlyCommunity() (gas: 67074)
+[PASS] test_UnsetEmergencyDisabled_RevertsIfAddressNotRotated() (gas: 72505)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 588.54µs (283.58µs CPU time)
+
+Ran 21 tests for contracts/test/v3/xPNTs_SpenderRateLimit.t.sol:xPNTs_SpenderRateLimitTest
+[PASS] test_AutoApproved_AccumulatesAcrossCalls() (gas: 96459)
+[PASS] test_BurnAddressUint_EnforcesAllowance() (gas: 115896)
+[PASS] test_CapZero_BlocksAllThirdPartyBurns() (gas: 123810)
+[PASS] test_CapZero_DoesNotBlockSelfBurn() (gas: 36272)
+[PASS] test_DefaultDailyCap_Is50kEther() (gas: 14609)
+[PASS] test_DifferentSpenders_HaveIndependentCaps() (gas: 129813)
+[PASS] test_PerSpenderOverride_CanBeLooserThanGlobal() (gas: 149364)
+[PASS] test_PerSpenderOverride_EmitsEvent() (gas: 44573)
+[PASS] test_PerSpenderOverride_OnlyCommunityOwner() (gas: 19017)
+[PASS] test_PerSpenderOverride_RejectsAboveUint128Max() (gas: 19176)
+[PASS] test_PerSpenderOverride_RejectsZeroAddress() (gas: 17365)
+[PASS] test_PerSpenderOverride_TighterThanGlobal() (gas: 149761)
+[PASS] test_PerSpenderOverride_ZeroFallsBackToGlobal() (gas: 83417)
+[PASS] test_RateLimit_AppliesToExplicitlyApprovedSpenders() (gas: 107146)
+[PASS] test_SelfBurn_NotRateLimited() (gas: 46556)
+[PASS] test_SetSpenderDailyCap_AcceptsUint128Max() (gas: 24679)
+[PASS] test_SetSpenderDailyCap_RejectsAboveUint128Max() (gas: 23771)
+[PASS] test_SpenderDailyCap_BlocksWhenExceeded() (gas: 81841)
+[PASS] test_SpenderDailyCap_ConfigurableByCommunity() (gas: 34268)
+[PASS] test_SpenderDailyCap_ResetsAfter24h() (gas: 92785)
+[PASS] test_Sybil_NSpendersCollectivelyDrainNTimesCap() (gas: 248465)
+Suite result: ok. 21 passed; 0 failed; 0 skipped; finished in 1.05ms (679.00µs CPU time)
+
+Ran 25 tests for contracts/test/v3/LivenessRegistry.t.sol:LivenessRegistryTest
+[PASS] testFuzz_isOffline_matchesElapsedVsWindow(uint256,uint96) (runs: 256, μ: 55616, ~: 55743)
+[PASS] test_areOffline_batchMixedSet() (gas: 79606)
+[PASS] test_attest_preSignedReplayRejectedAfterAnchorExpires() (gas: 16938)
+[PASS] test_attest_recordsBlockAndEmits() (gas: 38834)
+[PASS] test_attest_revertsJustBeyondMaxAnchorAge() (gas: 12488)
+[PASS] test_attest_revertsOnCurrentAnchor() (gas: 11642)
+[PASS] test_attest_revertsOnWrongHash() (gas: 11737)
+[PASS] test_attest_updatesOnReattest() (gas: 41788)
+[PASS] test_attest_validAtMaxAnchorAge() (gas: 38195)
+[PASS] test_constructor_revertsOnWindowAboveMax() (gas: 68264)
+[PASS] test_constructor_revertsOnWindowBelowMin() (gas: 67935)
+[PASS] test_constructor_revertsOnZeroOwner() (gas: 36838)
+[PASS] test_constructor_setsOwnerAndWindow() (gas: 18794)
+[PASS] test_determinism_predicateFollowsExecutingBlock() (gas: 42843)
+[PASS] test_determinism_sameBlockAllCallersAgree() (gas: 118340)
+[PASS] test_isOffline_atExactlyWindowEdge_stillLive() (gas: 40156)
+[PASS] test_isOffline_liveImmediatelyAfterAttest() (gas: 38926)
+[PASS] test_isOffline_neverAttested_isTrue() (gas: 15028)
+[PASS] test_isOffline_oneBlockPastWindow_isOffline() (gas: 40649)
+[PASS] test_renounceOwnership_disabled() (gas: 14810)
+[PASS] test_selfHeal_reattestClearsOffline() (gas: 45489)
+[PASS] test_setWindow_boundsEnforced() (gas: 34404)
+[PASS] test_setWindow_onlyOwner() (gas: 13820)
+[PASS] test_setWindow_shrinkFlipsLiveToOffline() (gas: 52986)
+[PASS] test_setWindow_updatesAndEmits() (gas: 22463)
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 12.70ms (12.35ms CPU time)
+
+Ran 28 tests for contracts/test/v3/MicroPaymentChannel.t.sol:MicroPaymentChannelTest
+[PASS] testChannelIdDeterministic() (gas: 12923)
+[PASS] testCloseChannel() (gas: 209636)
+[PASS] testCloseWithNoNewSettlement() (gas: 200440)
+[PASS] testCumulativeVoucher() (gas: 211887)
+[PASS] testOpenChannel() (gas: 166424)
+[PASS] testOpenChannelRevertsZeroDeposit() (gas: 20890)
+[PASS] testOpenChannelRevertsZeroPayee() (gas: 19002)
+[PASS] testOpenChannelRevertsZeroToken() (gas: 19395)
+[PASS] testPayeeCanSettleDuringDisputeWindow() (gas: 219135)
+[PASS] testReopenAfterCloseReverts() (gas: 204514)
+[PASS] testRevertNonDecreasingSettlement() (gas: 198526)
+[PASS] testRevertOnDoubleOpen() (gas: 160763)
+[PASS] testRevertOnInvalidSignature() (gas: 166171)
+[PASS] testRevertOnNonexistentChannel() (gas: 18692)
+[PASS] testRevertOnSettleAfterFinalized() (gas: 169763)
+[PASS] testRevertOnlyPayeeCanSettle() (gas: 161422)
+[PASS] testRevertSettlementExceedsDeposit() (gas: 161875)
+[PASS] testRevertWithdrawBeforeTimeout() (gas: 185630)
+[PASS] testRevertWithdrawWithoutCloseRequest() (gas: 160191)
+[PASS] testSettleChannel() (gas: 198338)
+[PASS] testSettleWithDelegatedSigner() (gas: 223726)
+[PASS] testTopUp() (gas: 171176)
+[PASS] testTopUpRevertsForNonPayer() (gas: 159757)
+[PASS] testVersion() (gas: 10180)
+[PASS] testWithdrawAfterTimeout() (gas: 211079)
+[PASS] test_L9_NoCrossChannelDrain() (gas: 969307)
+[PASS] test_L9_OpenChannel_FeeOnTransfer_CreditsActual() (gas: 734012)
+[PASS] test_L9_TopUp_FeeOnTransfer_CreditsActual() (gas: 748127)
+Suite result: ok. 28 passed; 0 failed; 0 skipped; finished in 4.79ms (4.25ms CPU time)
+
+Ran 23 tests for contracts/test/security/CC48CreditScheduleControls.t.sol:CC48CreditScheduleControlsTest
+[PASS] testFuzz_SkippingTheOutageImpliesNobodyMoved(uint256,uint256) (runs: 256, μ: 399368, ~: 415579)
+[PASS] test_CeilingGuardIsVacuousInTheWindowAndTheRecountIsNot() (gas: 345460)
+[PASS] test_HigherReputationNeverLowersCredit() (gas: 473575)
+[PASS] test_InitializeTierDefaultsSurviveUntouched() (gas: 37550)
+[PASS] test_MissedMemberIsBackfilledWithoutTrippingThePerProposalCap() (gas: 274820)
+[PASS] test_PrePricedLevelIsInvalidatedWhenItBecomesReachable() (gas: 283963)
+[PASS] test_PricingAReachableLevelStillCostsTheOutage() (gas: 222192)
+[PASS] test_PricingAnUnreachableLevelCostsNoOutage() (gas: 368736)
+[PASS] test_PromotionBooksOnlyTheAboveFloorDelta() (gas: 232122)
+[PASS] test_RepricingAboveTheCeilingIsRefusedAtTheRecount() (gas: 334992)
+[PASS] test_RoleBootstrapMatrixUnchanged() (gas: 215936)
+[PASS] test_ScheduleCannotGrowOntoAnUnpricedLevel() (gas: 195382)
+[PASS] test_SchedulingBeforeAnyUserExistsDoesNotShutThePath() (gas: 260082)
+[PASS] test_SeedCanBeBatchedAndOnlyFinalizeOpensThePath() (gas: 346703)
+[PASS] test_SeedDerivesEachLevelFromStorage() (gas: 457604)
+[PASS] test_SeedRefusesAHeadcountItDidNotReach() (gas: 167729)
+[PASS] test_TheFloorIsNotAndCannotBeBoundedByTheCap() (gas: 103889)
+[PASS] test_ThresholdMoveCannotSilentlyDecoupleTheLedger() (gas: 302037)
+[PASS] test_TierLevelBoundsAreEnforced() (gas: 68879)
+[PASS] test_TierRepriceCannotSilentlyDecoupleTheLedger() (gas: 425179)
+[PASS] test_TierTableCannotBeMadeNonMonotonic() (gas: 74245)
+[PASS] test_UnseededProxyIssuesNothing() (gas: 44870)
+[PASS] test_UntouchedAddressHoldsTheFloorAndContributesNothing() (gas: 39893)
+Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 108.72ms (109.18ms CPU time)
+
+Ran 67 tests for contracts/test/v3/MySBT_Complete.t.sol:MySBT_Simplified_Test
+[PASS] test_AirdropMint_AddMembership() (gas: 383957)
+[PASS] test_AirdropMint_AlreadyActiveMembership_ReturnsEarly() (gas: 292505)
+[PASS] test_AirdropMint_MaxMemberships_51st_Revert() (gas: 6365481)
+[PASS] test_AirdropMint_MaxMemberships_ExactlyFifty_OK() (gas: 6455951)
+[PASS] test_AirdropMint_NewSBT() (gas: 283315)
+[PASS] test_AirdropMint_WithMetadata_Succeeds() (gas: 306752)
+[PASS] test_AirdropMint_ZeroUser_Reverts() (gas: 23205)
+[PASS] test_BurnSBT_MixedMemberships_OnlyActiveDeactivated() (gas: 329581)
+[PASS] test_BurnSBT_MultipleMemberships_AllCleaned() (gas: 438852)
+[PASS] test_BurnSBT_NoSBT() (gas: 23671)
+[PASS] test_BurnSBT_NonRegistry_Reverts() (gas: 285787)
+[PASS] test_BurnSBT_NotFound_Reverts() (gas: 23165)
+[PASS] test_BurnSBT_Success() (gas: 239796)
+[PASS] test_CompleteUserJourney() (gas: 334111)
+[PASS] test_DeactivateAllMemberships_MultipleCommunities() (gas: 367425)
+[PASS] test_DeactivateAllMemberships_NoSBT_NoRevert() (gas: 16085)
+[PASS] test_DeactivateAllMemberships_NonRegistry_Reverts() (gas: 13062)
+[PASS] test_DeactivateMembership_NonRegistry_Reverts() (gas: 283618)
+[PASS] test_DeactivateMembership_OnlyRegistry() (gas: 283332)
+[PASS] test_DeactivateMembership_ViaRegistry() (gas: 269838)
+[PASS] test_GetActiveMemberships() (gas: 376011)
+[PASS] test_GetCommunityMembership() (gas: 285742)
+[PASS] test_GetCommunityMembership_InvalidIndex_Reverts() (gas: 290993)
+[PASS] test_GetMemberships() (gas: 392661)
+[PASS] test_GetSBTData() (gas: 285666)
+[PASS] test_GetUserSBT() (gas: 288239)
+[PASS] test_LeaveCommunity_NoSBT_NoRevert() (gas: 21249)
+[PASS] test_LeaveCommunity_Success() (gas: 270173)
+[PASS] test_LeaveThenRejoin_AirdropMint_Reactivates() (gas: 305875)
+[PASS] test_LeaveThenRejoin_MintForRole_Reactivates() (gas: 304226)
+[PASS] test_MintForRole_AddMembership() (gas: 382417)
+[PASS] test_MintForRole_InvalidUser() (gas: 23090)
+[PASS] test_MintForRole_MaxMemberships_51st_Revert() (gas: 6332349)
+[PASS] test_MintForRole_MaxMemberships_ExactlyFifty_OK() (gas: 6424542)
+[PASS] test_MintForRole_NewSBT() (gas: 284051)
+[PASS] test_MintForRole_OnlyRegistry() (gas: 23288)
+[PASS] test_MintForRole_WithMetadata_Succeeds() (gas: 305916)
+[PASS] test_MintForRole_ZeroUser_Reverts() (gas: 22804)
+[PASS] test_MintWhenPaused_Reverts() (gas: 48206)
+[PASS] test_MultipleUsers() (gas: 544964)
+[PASS] test_Pause() (gas: 41441)
+[PASS] test_Pause_OnlyDAO() (gas: 14663)
+[PASS] test_RecordActivity_ActiveMembership() (gas: 316424)
+[PASS] test_RecordActivity_AfterMinInterval_Succeeds() (gas: 325016)
+[PASS] test_RecordActivity_InactiveMembership_Reverts() (gas: 273206)
+[PASS] test_RecordActivity_InvalidCommunity_Revert() (gas: 285871)
+[PASS] test_RecordActivity_NoSBT_Revert() (gas: 24132)
+[PASS] test_RecordActivity_RateLimit_Revert() (gas: 322705)
+[PASS] test_SafeTransferFromWithData_Blocked() (gas: 285933)
+[PASS] test_SafeTransferFrom_Blocked() (gas: 285098)
+[PASS] test_SetBaseURI_DAO() (gas: 38450)
+[PASS] test_SetBaseURI_NonDAO_Reverts() (gas: 15414)
+[PASS] test_SetDAOMultisig() (gas: 21829)
+[PASS] test_SetDAOMultisig_OnlyDAO() (gas: 13642)
+[PASS] test_SetDAOMultisig_ZeroAddress_Reverts() (gas: 14519)
+[PASS] test_SetMinLockAmount() (gas: 22104)
+[PASS] test_SetMinLockAmount_OnlyDAO() (gas: 14839)
+[PASS] test_SetMinLockAmount_ZeroReverts() (gas: 13979)
+[PASS] test_SetMintFee() (gas: 23292)
+[PASS] test_SetMintFee_OnlyDAO() (gas: 15936)
+[PASS] test_SetReputationCalculator() (gas: 40192)
+[PASS] test_SetReputationCalculator_OnlyDAO() (gas: 15632)
+[PASS] test_Transfer_Blocked() (gas: 285160)
+[PASS] test_Unpause() (gas: 31199)
+[PASS] test_Unpause_OnlyDAO() (gas: 42895)
+[PASS] test_VerifyCommunityMembership() (gas: 297844)
+[PASS] test_Version() (gas: 10056)
+Suite result: ok. 67 passed; 0 failed; 0 skipped; finished in 24.05ms (23.45ms CPU time)
+
+Ran 6 tests for contracts/test/security/CC48RegistryTimelockGovernance.t.sol:CC48RegistryTimelockGovernance
+[PASS] test_ATimelockIsNotAcceptedWhereMofNIsRequired() (gas: 10476)
+[PASS] test_FirstDeploymentBatchOmitsTheRevokeStep() (gas: 4747162)
+[PASS] test_GateAssertsOwnershipAndANonZeroMinDelay() (gas: 37854)
+[PASS] test_SameAggregatorIsGrantedAndNotRevoked() (gas: 4753090)
+[PASS] test_SplittingTheBatchLeavesTheCreditCeilingAtZero() (gas: 4830572)
+[PASS] test_UpgradeAndCapsLandInOneTransactionWithNoIntermediateWindow() (gas: 5210382)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 6.62ms (5.95ms CPU time)
+
+Ran 13 tests for contracts/test/security/CC48VerifierConformance.t.sol:CC48VerifierConformance
+[PASS] test_AlwaysFalseVerifierFailsConformance() (gas: 237721)
+[PASS] test_AlwaysFalseVerifierFailsSetBound() (gas: 227123)
+[PASS] test_DigestIsReproducibleOffChain() (gas: 33343)
+[PASS] test_DomainBoundVerifierPassesConformance() (gas: 42703)
+[PASS] test_DomainIgnoringVerifierFailsConformance() (gas: 42298)
+[PASS] test_ReferenceVerifierPassesSetBound() (gas: 65780)
+[PASS] test_SetBoundHandlesAMaximalFraudProofId() (gas: 78973)
+[PASS] test_SetBoundRefusesASingleGuardianSet() (gas: 15013)
+[PASS] test_SubsetLenientVerifierPassesDomainBoundButFailsSetBound() (gas: 363683)
+[PASS] test_SupersetLenientVerifierFailsSetBound() (gas: 438197)
+[PASS] test_SyntheticGuardiansNeverCollideWithTheAccusedSet() (gas: 81746)
+[PASS] test_SyntheticSetsArePairwiseDistinctByConstruction() (gas: 50660)
+[PASS] test_VerifierSelectorIsPinned() (gas: 4062)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 16.63ms (11.35ms CPU time)
+
+Ran 22 tests for contracts/test/security/Check11Classify.t.sol:Check11ClassifyTest
+[PASS] test_ArmedSplit_QueuedRotationToAnotherAddressIsNotOk() (gas: 10057)
+[PASS] test_Declared_ACodelessTargetIsRejected() (gas: 12213)
+[PASS] test_Declared_ATargetNothingIsMovingTowardIsRejected() (gas: 13071)
+[PASS] test_Declared_AThirdAddressAnywhereIsRejected() (gas: 12462)
+[PASS] test_Declared_AnUnsetPointerIsNotARotationState() (gas: 11672)
+[PASS] test_Declared_QueueToSomewhereElseIsRejected() (gas: 12026)
+[PASS] test_Declared_TheRealSepoliaRotationIsAccepted() (gas: 12775)
+[PASS] test_Declared_UnsetPointerRejectedEvenMidTransition() (gas: 10425)
+[PASS] test_Declared_UntouchedPointersHoldTheOldAddressNotZero() (gas: 12104)
+[PASS] test_LegacyNoTimelock_AgreementWithoutTheDelayIsNotPlainOk() (gas: 11433)
+[PASS] test_LegacyNoTimelock_DoesNotMaskUnconfiguredOrStaleRecord() (gas: 13346)
+[PASS] test_LegacyNoTimelock_SplitIsStillClassifiedWithoutAPendingRead() (gas: 9526)
+[PASS] test_NotAContract_ThreeAgreeOnACodelessAddress() (gas: 9729)
+[PASS] test_Ok_AllThreeAgreeAndNothingQueued() (gas: 9872)
+[PASS] test_Ok_QueuedRotationTargetsTheSameAddress() (gas: 9785)
+[PASS] test_RecordStale_ChainAgreesButConfigStillNamesTheOldAggregator() (gas: 10177)
+[PASS] test_RotationInFlight_MatchesTheRealIncidentShape() (gas: 9565)
+[PASS] test_SettledSplit_DvtValidatorAloneLagging() (gas: 9503)
+[PASS] test_SettledSplit_OnePointerMovedAndNothingPending() (gas: 9834)
+[PASS] test_SettledSplit_OnePointerZeroedWhileOthersSet() (gas: 9130)
+[PASS] test_Unconfigured_TakesPrecedenceOverMissingCode() (gas: 9905)
+[PASS] test_Unconfigured_ThreeZerosIsNotHealth() (gas: 10147)
+Suite result: ok. 22 passed; 0 failed; 0 skipped; finished in 1.26ms (381.79µs CPU time)
+
+Ran 1 test for contracts/test/paper7/CheckPrecompile.t.sol:CheckPrecompile
+[PASS] test_precompile_0x0b() (gas: 7565)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 76.71µs (22.96µs CPU time)
+
+Ran 35 tests for contracts/test/v4/PaymasterBase_Coverage.t.sol:PaymasterBase_Coverage_Test
+[PASS] test_E10_DepositFor_UnsupportedToken_Reverts() (gas: 40056)
+[PASS] test_E11_Withdraw_InsufficientBalance_Reverts() (gas: 43855)
+[PASS] test_E12_Validate_RejectsOverMaxGasCostCap() (gas: 184612)
+[PASS] test_E13_SetTokenPrice_Update_NoDuplicate() (gas: 41915)
+[PASS] test_E14_CalculateCost_Reverts_WhenNotSelf() (gas: 17238)
+[PASS] test_E15_PostOp_Refund_CreditedToUser() (gas: 171372)
+[PASS] test_E1_Initialize_ZeroMaxGasCostCap_Reverts() (gas: 2285815)
+[PASS] test_E2_PostOp_PostOpReverted_StillProcessesRefund() (gas: 170545)
+[PASS] test_E2b_PostOp_EmptyContext_IsNoop() (gas: 39266)
+[PASS] test_E3a_Validate_TooShortPaymasterData_Reverts() (gas: 49270)
+[PASS] test_E3b_Validate_UnsupportedToken_Reverts() (gas: 50966)
+[PASS] test_E3c_Validate_InsufficientBalance_Reverts() (gas: 65986)
+[PASS] test_E3d_Validate_PriceNotInitialized_Reverts() (gas: 2668303)
+[PASS] test_E3e_Validate_OnlyEntryPoint_Reverts() (gas: 23005)
+[PASS] test_E3f_Validate_WhenPaused_Reverts() (gas: 54700)
+[PASS] test_E4_PostOp_StaleCache_TriggersRefresh() (gas: 186636)
+[PASS] test_E4b_PostOp_StaleCache_StaleOracle_EmitsPriceUpdateFailed() (gas: 188427)
+[PASS] test_E5a_SetServiceFeeRate_AboveMax_Reverts() (gas: 17146)
+[PASS] test_E5b_SetServiceFeeRate_AtMax_Succeeds() (gas: 25107)
+[PASS] test_E5c_SetServiceFeeRate_Zero_Succeeds() (gas: 19801)
+[PASS] test_E6a_Pause_Idempotent() (gas: 45605)
+[PASS] test_E6b_Unpause_Idempotent() (gas: 21089)
+[PASS] test_E6c_Withdraw_WhenPaused_Reverts() (gas: 137246)
+[PASS] test_E6d_DeactivateFromRegistry() (gas: 42146)
+[PASS] test_E6e_ActivateInRegistry() (gas: 34093)
+[PASS] test_E7a_SetMaxGasCostCap_Zero_Reverts() (gas: 17053)
+[PASS] test_E7b_SetMaxGasCostCap_AboveMax_Reverts() (gas: 16900)
+[PASS] test_E7c_SetMaxGasCostCap_AtMax_Succeeds() (gas: 24729)
+[PASS] test_E8a_SetPriceStalenessThreshold_Below60_Reverts() (gas: 16682)
+[PASS] test_E8b_SetPriceStalenessThreshold_Above86400_Reverts() (gas: 17255)
+[PASS] test_E8c_SetPriceStalenessThreshold_Valid_Succeeds() (gas: 25431)
+[PASS] test_E9a_SetCachedPrice_FutureTimestamp_Reverts() (gas: 16792)
+[PASS] test_E9b_SetCachedPrice_BelowMin_Reverts() (gas: 16968)
+[PASS] test_E9c_SetCachedPrice_DeltaViolation_Reverts() (gas: 18401)
+[PASS] test_E9d_SetCachedPrice_WithinDelta_Succeeds() (gas: 25886)
+Suite result: ok. 35 passed; 0 failed; 0 skipped; finished in 13.44ms (1.20ms CPU time)
+
+Ran 17 tests for contracts/test/security/CC48MigrationPreflight.t.sol:CC48MigrationPreflight
+[PASS] test_AFallbackContractIsAmbiguousNotAbsent() (gas: 42907)
+[PASS] test_AMalformedVersionReturnDegradesInsteadOfReverting() (gas: 169900)
+[PASS] test_APartialGuardianSurfaceIsAmbiguous() (gas: 104412)
+[PASS] test_ASelectorWhitelistLiarIsNotDetectableAtTheProbeLayer() (gas: 216642)
+[PASS] test_ASizeDiscriminatingCatchAllCannotEvadeTheSentinelEither() (gas: 55544)
+[PASS] test_AWideReturningFallbackIsAmbiguousNotPresent() (gas: 46390)
+[PASS] test_AWrongWidthPendingAnswerIsAmbiguous() (gas: 100442)
+[PASS] test_AnArgStrictCatchAllCannotForgePresentOrZeroPending() (gas: 53012)
+[PASS] test_AnArgValueDiscriminatingCatchAllCannotEvadeTheSentinelEither() (gas: 54958)
+[PASS] test_AnEmptyAddressIsAmbiguous() (gas: 6170)
+[PASS] test_DeclaringFirstEverOnALiveRegistryIsRejected() (gas: 90163)
+[PASS] test_DeclaringTheWrongPredecessorIsRejected() (gas: 90095)
+[PASS] test_FirstEverIsAcceptedOnlyWhenRegistryHasNoAggregatorWired() (gas: 70974)
+[PASS] test_LegacyShapeIsProvablyIncapableOfHoldingACase() (gas: 114104)
+[PASS] test_ModernShapeIsScannedNotSkipped() (gas: 176302)
+[PASS] test_TheLivePredecessorIsAccepted() (gas: 88996)
+[PASS] test_TheRealSepolia43ShapeIsAbsentNotAmbiguous() (gas: 139721)
+Suite result: ok. 17 passed; 0 failed; 0 skipped; finished in 2.35ms (1.24ms CPU time)
+
+Ran 7 tests for contracts/test/paper7/CC48PragueStateMachine.t.sol:CC48PragueStateMachine
+[SKIP] test_Prague_CancelRestoresTheSignerAndImposesACooldown() (gas: 0)
+[SKIP] test_Prague_ExitNoticeDoesNotHaltAnInFlightProof() (gas: 0)
+[SKIP] test_Prague_MutableProxyVerifierCannotUndoAQueuedCase() (gas: 0)
+[SKIP] test_Prague_PreArmedRotationCannotKillAQueuedCase() (gas: 0)
+[SKIP] test_Prague_QueuedCaseFreezesTheRegistryExitPath() (gas: 0)
+[SKIP] test_Prague_SlashedGuardianIsEjectedFromTheNextRealProof() (gas: 0)
+[SKIP] test_Prague_TotalExposureCeilingSurvivesProposalSlicing() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 7 skipped; finished in 718.88µs (46.42µs CPU time)
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 18 tests for contracts/test/v2/SuperPaymasterV55.t.sol:SuperPaymasterV55Test
+[PASS] test_B1_no_oog_band_above_entry_guard() (gas: 52972799)
+[PASS] test_B1_postOp_bubbles_settlement_revert_direct_call() (gas: 103754)
+[PASS] test_B1_postOp_entry_gas_guard() (gas: 305550)
+[PASS] test_G_min_post_op_gas_covers_measured_postOp() (gas: 329864)
+[PASS] test_I10_release_refused_while_in_flight() (gas: 255853)
+[PASS] test_I10_stale_sponsorship_restores_operator() (gas: 440699)
+[PASS] test_I8_settle_failure_rolls_back_user_execution_e2e() (gas: 1074537)
+[PASS] test_R10M3_charge_uses_validation_price_snapshot() (gas: 323494)
+[PASS] test_TR1409_control_below_floor_rejected() (gas: 107747)
+[PASS] test_TR1409_settles_at_MIN_POST_OP_GAS_worst_path() (gas: 442092)
+[PASS] test_balance_mode_end_to_end() (gas: 431984)
+[PASS] test_both_renew_flags_rejected() (gas: 50230)
+[PASS] test_configureOperator_rejects_non_factory_token() (gas: 487786)
+[PASS] test_credit_fallback_only_on_insufficient() (gas: 533486)
+[PASS] test_lens_agrees_with_validation() (gas: 314585)
+[PASS] test_lens_version_mismatch_is_explicit() (gas: 992990)
+[PASS] test_token_mismatch_rejected() (gas: 819364)
+[PASS] test_version() (gas: 15316)
+Suite result: ok. 18 passed; 0 failed; 0 skipped; finished in 172.98ms (170.12ms CPU time)
+
+Ran 42 tests for contracts/test/v4/PaymasterFactory_Coverage.t.sol:PaymasterFactory_CoverageTest
+[PASS] testFuzz_DeployPaymaster_UniqueOperators(address,address) (runs: 256, μ: 739889, ~: 739889)
+[PASS] test_A1_Constructor_DefaultsEmpty() (gas: 17698)
+[PASS] test_A1_Constructor_OwnerIsSet() (gas: 14370)
+[PASS] test_A2_DeployPaymaster_EmitsEvent() (gas: 429595)
+[PASS] test_A2_DeployPaymaster_HappyPath() (gas: 436497)
+[PASS] test_A2_DeployPaymaster_MultipleOperators() (gas: 736348)
+[PASS] test_A3_DeployPaymaster_RevertIf_DuplicateOperator() (gas: 434153)
+[PASS] test_A3_DeployPaymaster_RevertIf_ImplementationNotFound() (gas: 30353)
+[PASS] test_A3_DeployPaymaster_RevertIf_InitDataTooShort() (gas: 230537)
+[PASS] test_A3_DeployPaymaster_RevertIf_InitFails() (gas: 233639)
+[PASS] test_A3_DeployPaymaster_RevertIf_OwnerMismatch() (gas: 429048)
+[PASS] test_A4_GetPaymasterByOperator_ReturnsZeroIfNone() (gas: 13447)
+[PASS] test_A4_GetPaymasterCount_IncrementsOnDeploy() (gas: 736926)
+[PASS] test_A4_GetPaymasterList_EmptyWhenNoneDeployed() (gas: 12728)
+[PASS] test_A4_GetPaymasterList_Pagination() (gas: 1048726)
+[PASS] test_A5_AddImplementation_HappyPath() (gas: 73800)
+[PASS] test_A5_AddImplementation_RevertIf_NoCode() (gas: 18092)
+[PASS] test_A5_AddImplementation_RevertIf_NonOwner() (gas: 16555)
+[PASS] test_A5_AddImplementation_RevertIf_VersionAlreadyExists() (gas: 75272)
+[PASS] test_A5_AddImplementation_RevertIf_ZeroAddress() (gas: 15164)
+[PASS] test_A5_AddSecondVersion_DoesNotChangeDefault() (gas: 103033)
+[PASS] test_A5_GetImplementation_HappyPath() (gas: 68595)
+[PASS] test_A5_GetImplementation_RevertIf_NotFound() (gas: 12645)
+[PASS] test_A5_SetDefaultVersion_HappyPath() (gas: 110515)
+[PASS] test_A5_SetDefaultVersion_RevertIf_NonOwner() (gas: 70737)
+[PASS] test_A5_SetDefaultVersion_RevertIf_NotFound() (gas: 17033)
+[PASS] test_A5_UpgradeImplementation_HappyPath() (gas: 81137)
+[PASS] test_A5_UpgradeImplementation_RevertIf_NonOwner() (gas: 72831)
+[PASS] test_A5_UpgradeImplementation_RevertIf_VersionNotFound() (gas: 22156)
+[PASS] test_A6_DeterministicDeploy_MappingsUpdated() (gas: 432042)
+[PASS] test_A6_DeterministicDeploy_RevertIf_DuplicateOperator() (gas: 435272)
+[PASS] test_A6_DeterministicDeploy_RevertIf_ImplNotFound() (gas: 30498)
+[PASS] test_A6_PredictAddress_MatchesActualDeployment() (gas: 429379)
+[PASS] test_A6_PredictAddress_RevertIf_ImplNotFound() (gas: 13078)
+[PASS] test_A7_GetOperatorByPaymaster_HappyPath() (gas: 428428)
+[PASS] test_A7_GetOperatorByPaymaster_RevertIf_NotFound() (gas: 11533)
+[PASS] test_A7_GetPaymasterInfo_InvalidPaymaster() (gas: 12252)
+[PASS] test_A7_GetPaymasterInfo_ValidPaymaster() (gas: 429764)
+[PASS] test_A7_HasImplementation_FalseWhenEmpty() (gas: 11852)
+[PASS] test_A7_HasPaymaster_FalseWhenNotDeployed() (gas: 13852)
+[PASS] test_A7_Version() (gas: 9639)
+[PASS] test_PaymasterListPublicAccessor() (gas: 428144)
+Suite result: ok. 42 passed; 0 failed; 0 skipped; finished in 92.15ms (89.43ms CPU time)
+
+Ran 6 tests for contracts/test/v4/PaymasterOptimizations.t.sol:PaymasterOptimizationsTest
+[PASS] test_CalculateCost_RespectsFlag() (gas: 32636)
+[PASS] test_PostOp_UsesCache_WhenFresh() (gas: 88922)
+[PASS] test_PostOp_UsesRealtime_WhenStale() (gas: 103578)
+[PASS] test_SetCachedPrice_ByOwner() (gas: 22883)
+[PASS] test_SetCachedPrice_RevertIfNotOwner() (gas: 13403)
+[PASS] test_UserDoesNotPayForUpdateGas() (gas: 118136)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 465.54µs (194.54µs CPU time)
+
+Ran 17 tests for contracts/test/v4/PaymasterV4.t.sol:PaymasterV4Test
+[PASS] test_DepositFor_Success() (gas: 202231)
+[PASS] test_GetSupportedTokensInfo() (gas: 239430)
+[PASS] test_GetSupportedTokens_Empty() (gas: 12598)
+[PASS] test_Initialize() (gas: 19027)
+[PASS] test_MaxTokensReached() (gas: 6007309)
+[PASS] test_PostOp_Refund() (gas: 268168)
+[PASS] test_RemoveToken() (gas: 271908)
+[PASS] test_RemoveToken_DepositReverts() (gas: 133326)
+[PASS] test_RemoveToken_RevertIfNotInList() (gas: 18261)
+[PASS] test_SetTokenPrice_AddsToList() (gas: 337013)
+[PASS] test_SetTokenPrice_UpdateDoesNotDuplicate() (gas: 140935)
+[PASS] test_SupportUSDC_Decimals() (gas: 233219)
+[PASS] test_SupportUSDT_DepositAndValidate() (gas: 235465)
+[PASS] test_USDT_FullFlow_ValidateAndPostOp() (gas: 268141)
+[PASS] test_ValidateUserOp_RevertIf_InsufficientBalance() (gas: 164168)
+[PASS] test_ValidateUserOp_RevertIf_TokenNotSupported() (gas: 34386)
+[PASS] test_ValidateUserOp_Success() (gas: 224463)
+Suite result: ok. 17 passed; 0 failed; 0 skipped; finished in 1.38ms (975.62µs CPU time)
+
+Ran 2 tests for contracts/test/v4/PaymasterV4Security.t.sol:PaymasterV4CriticalTest
+[PASS] test_Critical_ValidUntil() (gas: 132649)
+[PASS] test_Offset_Logic() (gas: 31632)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 331.79µs (63.21µs CPU time)
+
+Ran 12 tests for contracts/test/v4/PaymasterV4_Pause.t.sol:PaymasterV4_PauseTest
+[PASS] test_DepositFor_AllowedWhenPaused() (gas: 78998)
+[PASS] test_PauseUnpause_DefaultsToFalse() (gas: 14221)
+[PASS] test_Pause_Idempotent() (gas: 43546)
+[PASS] test_Pause_OnlyOwner() (gas: 14312)
+[PASS] test_Pause_SetsFlagAndEmits() (gas: 43064)
+[PASS] test_Unpause_Idempotent() (gas: 19985)
+[PASS] test_Unpause_OnlyOwner() (gas: 41508)
+[PASS] test_Unpause_SetsFlagAndEmits() (gas: 34210)
+[PASS] test_ValidatePaymasterUserOp_RevertsWhenPaused() (gas: 54415)
+[PASS] test_Withdraw_AllowedWhenUnpaused() (gas: 47147)
+[PASS] test_Withdraw_BlockedWhenPaused() (gas: 52261)
+[PASS] test_Withdraw_RestoredAfterUnpause() (gas: 58128)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 505.96µs (218.63µs CPU time)
+
+Ran 13 tests for contracts/test/v4/PaymasterV4_RegistryV3.t.sol:PaymasterV4_RegistryV3Test
+[PASS] test_Activate_EmitsAndUnpauses() (gas: 66538)
+[PASS] test_Activate_Idempotent() (gas: 22511)
+[PASS] test_Activate_OnlyOwner() (gas: 14818)
+[PASS] test_Activate_RoleStaysOnEOA() (gas: 57802)
+[PASS] test_Deactivate_DoesNotCallExitRole() (gas: 48414)
+[PASS] test_Deactivate_Idempotent() (gas: 45919)
+[PASS] test_Deactivate_OnlyOwner() (gas: 14180)
+[PASS] test_Deactivate_PausesContractAndEmits() (gas: 47769)
+[PASS] test_IsActive_FalseAfterOwnerExitsRole() (gas: 76499)
+[PASS] test_IsActive_FalseWhenContractHoldsRole() (gas: 47268)
+[PASS] test_IsActive_FalseWhenOwnerLacksRole() (gas: 21752)
+[PASS] test_IsActive_FalseWhenPaused() (gas: 70212)
+[PASS] test_IsActive_TrueWhenOwnerHoldsRoleAndNotPaused() (gas: 48489)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 463.29µs (237.54µs CPU time)
+
+Ran 6 tests for contracts/test/security/PoC_C01_CreditCeiling.t.sol:PoC_C01_CreditCeiling_Test
+[PASS] test_C01_autoPolicy_zeroTier_rejected() (gas: 226619)
+[PASS] test_C01_sameBundle_kthReservationRejected() (gas: 526462)
+[PASS] test_C01_sameBundle_settledDebtNeverExceedsCeiling() (gas: 717026)
+[PASS] test_C01_settledDebtCountsAgainstCeiling_exactBoundary() (gas: 566640)
+[PASS] test_C01_withinCeiling_reservesA0_atValidation() (gas: 363766)
+[PASS] test_PoC_validateDoesNotEnforceCreditCeiling() (gas: 127879)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 2.86ms (1.71ms CPU time)
+
+Ran 2 tests for contracts/test/security/PoC_C02_UnsignedDrain.t.sol:PoC_C02_UnsignedDrain_Test
+[PASS] test_Regression_directSettlementRejectsMissingVictimSignature() (gas: 44883)
+[PASS] test_Regression_directSettlementSucceedsWithVictimSignature() (gas: 176869)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 623.17µs (223.88µs CPU time)
+
+Ran 2 tests for contracts/test/security/PoC_C03_RecipientRedirect.t.sol:PoC_C03_RecipientRedirect_Test
+[PASS] test_Regression_expectedRecipientSettlementSucceeds() (gas: 146028)
+[PASS] test_Regression_redirectedRecipientInvalidatesAuthorization() (gas: 95258)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 590.38µs (359.83µs CPU time)
+
+Ran 6 tests for contracts/test/security/PoC_C04_ForcedPostOpOOG.t.sol:PoC_C04_ForcedPostOpOOG_Test
+[PASS] test_baseline_normalPostOp() (gas: 451778)
+[PASS] test_fix_lowPostOpGasRejected() (gas: 168713)
+[PASS] test_fix_minGasFloorIsSufficient() (gas: 479495)
+[PASS] test_fix_minGasFloorIsSufficient_creditPath() (gas: 563087)
+[PASS] test_fix_oneBelowFloorRejected() (gas: 165957)
+[PASS] test_fix_verdict() (gas: 511141)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 8.46ms (6.95ms CPU time)
+
+Ran 44 tests for contracts/test/v3/PolicyRegistry.t.sol:PolicyRegistryTest
+[PASS] testAdditiveSelectors() (gas: 115239)
+[PASS] testAllow() (gas: 35824)
+[PASS] testAssetConfiguredTargetUnconfigured() (gas: 33493)
+[PASS] testCheckPolicyWindowRollsView() (gas: 90386)
+[PASS] testConstructorRejectsZeroTimelockOrGuardian() (gas: 78390)
+[PASS] testConsumerAuthorizationOnlyTimelock() (gas: 98770)
+[PASS] testDvtTriggerBoundaryStillTriggers() (gas: 40217)
+[PASS] testDvtTriggerZeroDisablesAmountTrigger() (gas: 101618)
+[PASS] testEthSentinelAccepted() (gas: 251870)
+[PASS] testFreezeImmediateByGuardian() (gas: 41860)
+[PASS] testFreezeRevertsForStranger() (gas: 16656)
+[PASS] testFrozenRejectsEvenWhenUnconfigured() (gas: 45172)
+[PASS] testLooseningEndToEndViaTimelock() (gas: 107217)
+[PASS] testLooseningSetterRevertsForNonTimelock() (gas: 21839)
+[PASS] testRecordSpendAdvancesBothCounters() (gas: 82341)
+[PASS] testRecordSpendGatedToConsumer() (gas: 20885)
+[PASS] testRecordSpendWindowRolls() (gas: 86461)
+[PASS] testReject_dailyExhausted() (gas: 82996)
+[PASS] testReject_frozen() (gas: 46521)
+[PASS] testReject_overHardCap() (gas: 22834)
+[PASS] testReject_selectorNotAllowed() (gas: 32044)
+[PASS] testReject_velocityExhausted() (gas: 161267)
+[PASS] testRemainingDailyDecreasesAfterSpend() (gas: 91971)
+[PASS] testRequireDVTAlwaysWithUnconfiguredAsset() (gas: 137552)
+[PASS] testRequireDVT_byAmount() (gas: 35577)
+[PASS] testRequireDVT_byRequireDVTAlways() (gas: 147024)
+[PASS] testSetGuardianOnlyTimelock() (gas: 80262)
+[PASS] testTargetConfiguredAssetUnconfigured() (gas: 143229)
+[PASS] testTightenAssetImmediateByGuardian() (gas: 39681)
+[PASS] testTightenCanEnableDvtTriggerFromDisabledZero() (gas: 132572)
+[PASS] testTightenCannotDisableDvtTriggerViaZero() (gas: 42150)
+[PASS] testTightenContractScopeCannotReallow() (gas: 33881)
+[PASS] testTightenContractScopeRemovesSelector() (gas: 52326)
+[PASS] testTightenContractScopeVelocityLimitOrdering() (gas: 37214)
+[PASS] testTightenContractScopeVelocityWindowImmutable() (gas: 103276)
+[PASS] testTightenDvtTriggerNonZeroOrderingUnchanged() (gas: 40017)
+[PASS] testTightenNoOpDoesNotRevert() (gas: 113387)
+[PASS] testTightenRejectsLoosening() (gas: 23981)
+[PASS] testTightenRevertsForUnauthorized() (gas: 18403)
+[PASS] testTimelockAndGuardianViews() (gas: 22473)
+[PASS] testUnconfiguredSenderAllowsWithMaxRemaining() (gas: 21296)
+[PASS] testUnfreezeOnlyViaTimelock() (gas: 85641)
+[PASS] testZeroAddressAssetRejectedInCheck() (gas: 14493)
+[PASS] testZeroAddressAssetRejectedInSetter() (gas: 15357)
+Suite result: ok. 44 passed; 0 failed; 0 skipped; finished in 19.12ms (3.47ms CPU time)
+
+Ran 5 tests for contracts/test/crossrepo/VendoredProvenanceSelfCheck.t.sol:VendoredProvenanceSelfCheck
+[PASS] test_HeaderLineCountsArePinnedNotApproximate() (gas: 37860927)
+[PASS] test_ReversingTheDeviationIsWhatMakesItMatch() (gas: 4798742)
+[PASS] test_VendoredFilesAreByteExactIncludingTheirHeaders() (gas: 30480)
+[PASS] test_VendoredInterfaceStillHashesToUpstream() (gas: 1246172)
+[PASS] test_VendoredVerifierStillHashesToUpstreamOnceTheDeclaredDeviationIsReversed() (gas: 9461123)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 217.06ms (216.99ms CPU time)
+
+Ran 7 tests for contracts/test/v3/X402Direct_AssetWhitelist.t.sol:X402Direct_AssetWhitelistTest
+[PASS] test_Factory_IsXPNTsFalseForArbitraryToken() (gas: 24764)
+[PASS] test_Factory_IsXPNTsTrueAfterDeploy() (gas: 498367)
+[PASS] test_SettleDirect_AcceptsXPNTsAsset() (gas: 645476)
+[PASS] test_SettleDirect_NonceConsumed_OnAssetWhitelistFailure() (gas: 215319)
+[PASS] test_SettleDirect_NonceConsumed_OnSuccess() (gas: 659828)
+[PASS] test_SettleDirect_RejectsAPNTsAsset() (gas: 149936)
+[PASS] test_SettleDirect_RejectsNonXPNTsAsset() (gas: 151726)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 2.76ms (1.51ms CPU time)
+
+Ran 9 tests for contracts/test/paper7/CC48KeyScanPreflight.t.sol:CC48KeyScanPreflight
+[SKIP] test_AHealthySetPassesTheGate() (gas: 0)
+[SKIP] test_LegacyPredecessorIsScannableAndStillBlocksATaintedCarryOver() (gas: 0)
+[SKIP] test_ModernPredecessorStillGetsTheFullPendingScan() (gas: 0)
+[SKIP] test_PendingCaseOnTheOldAggregatorBlocksTheCutover() (gas: 0)
+[SKIP] test_RequiredThresholdCoversTheSlashPathsToo() (gas: 0)
+[SKIP] test_ScanRefusesToRunWithoutEip2537() (gas: 0)
+[SKIP] test_TaintedKeyCannotBeCarriedOverToTheNewAggregator() (gas: 0)
+[SKIP] test_UnderPopulatedFreshDeploymentFailsTheGate() (gas: 0)
+[SKIP] test_WeakScalarKeysFailTheGate() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 9 skipped; finished in 611.92µs (55.42µs CPU time)
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 5 tests for contracts/test/v2/SuperPaymasterV55Gas.t.sol:SuperPaymasterV55GasTest
+[PASS] test_G_sp_charge_covers_final_cost_large_limits() (gas: 18337215)
+[PASS] test_G_sp_charge_covers_final_cost_user_call_reverts() (gas: 18432606)
+[PASS] test_G_sp_charge_covers_final_cost_worst_postOp_at_floor() (gas: 18337280)
+[PASS] test_G_wrap_bound_canonical_entrypoint_bundle_positions() (gas: 3039298)
+[PASS] test_G_wrap_bound_canonical_entrypoint_single_ops() (gas: 2785769)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 32.24ms (31.16ms CPU time)
+
+Ran 7 tests for contracts/test/security/CC48GovernanceOwnerGate.t.sol:CC48GovernanceOwnerGate
+[PASS] test_GateBehaviourAcrossChainsAndOwnerShapes() (gas: 2401936)
+[PASS] test_MalformedAnswersAreAllRefused() (gas: 7041521)
+[PASS] test_NoSourceFileClaimsTheGateProvesACanonicalSafe() (gas: 532686659)
+[PASS] test_OwnerKindClassifiesDelegationDesignatorsExactly() (gas: 24345)
+[PASS] test_ReadMofNReportsTheConfigurationItAccepted() (gas: 25622)
+[PASS] test_ThresholdBoundaries() (gas: 429710)
+[PASS] test_TimelockGateAssertsBothOwnershipAndANonZeroDelay() (gas: 229384)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 2.32s (2.32s CPU time)
+
+Ran 27 tests for contracts/test/v2/SuperPaymasterV55Adversarial.t.sol:SuperPaymasterV55AdversarialTest
+[PASS] test_R13_repeated_pulls_bounded_by_caps() (gas: 1028394)
+[PASS] test_R13_revocation_user_disable_and_emergency_reject_via_entrypoint() (gas: 788713)
+[PASS] test_R13_sp_replacement_pending_cannot_lock_old_sp_fails_closed() (gas: 724017)
+[PASS] test_R13_stolen_owner_cannot_take_user_funds() (gas: 990382)
+[PASS] test_RouteA_maxCost_above_auto_cap_rejected_not_truncated() (gas: 1163309)
+[PASS] test_RouteA_maxCost_above_single_tx_limit_rejected_not_truncated() (gas: 929436)
+[PASS] test_RouteA_self_drain_blocked_by_escrow_user_still_pays() (gas: 1617803)
+[PASS] test_TR1401_sybil_each_account_pays_own_lock_unbacked_zero_flat_in_N() (gas: 5179396)
+[PASS] test_TR1402_same_account_multi_nonce_keys_kth_rejected_when_free_balance_below_x0() (gas: 2587140)
+[PASS] test_TR1403_stale_blacklist_admitted_ops_settle_new_op_rejected() (gas: 1012545)
+[PASS] test_TR1404_user_execution_revert_still_pays_and_clears_lock() (gas: 674233)
+[PASS] test_TR1405_postOp_revert_undoes_execution_operator_loss_le_a0_attacker_gain_zero() (gas: 1184708)
+[PASS] test_TR1406_credit_off_debts_never_increase_on_any_path() (gas: 1523003)
+[PASS] test_TR1407_bundler_gas_sweep_never_keeps_unpaid_execution() (gas: 46241896)
+[PASS] test_TR1407_direct_postOp_gas_sweep_returns_only_when_settled() (gas: 43706581)
+[PASS] test_TR1407_postOpGasLimit_sweep_via_entrypoint() (gas: 3198857)
+[PASS] test_TR1408_credit_bundle_over_cap_kth_rejected_at_validation() (gas: 2550738)
+[PASS] test_abi_fixture_matches_compiled_token_and_has_no_3x_debt_selectors() (gas: 43196268)
+[PASS] test_maliciousSP_current_calls_every_selector() (gas: 317144962)
+[PASS] test_maliciousSP_historical_calls_every_selector() (gas: 314821798)
+[PASS] test_maliciousSP_reserve_then_direct_debt_then_settle() (gas: 776076)
+[PASS] test_migration_legacy3x_token_operator_gets_sigFail_AA34_not_AA33() (gas: 4191541)
+[PASS] test_routing_invalid_renewal_never_falls_back_to_credit() (gas: 557149)
+[PASS] test_sweep_encoder_matches_abi_encode() (gas: 13583528)
+[PASS] test_token_malformed_credit_returns_get_sigFail_not_revert() (gas: 511788)
+[PASS] test_token_malformed_success_returns_get_sigFail_not_revert() (gas: 719933)
+[PASS] test_token_without_exchangeRate_gets_sigFail_not_revert() (gas: 371299)
+Suite result: ok. 27 passed; 0 failed; 0 skipped; finished in 5.75s (6.53s CPU time)
+
+Ran 9 tests for contracts/test/v2/xPNTsTokenV2Invariant.t.sol:xPNTsTokenV2InvariantTest
+[PASS] invariant_I1_balanceMovesOnlyOnLegitimatePaths() (runs: 64, calls: 4096, reverts: 0)
+
+╭--------------+--------------------+-------+---------+----------╮
+| Contract     | Selector           | Calls | Reverts | Discards |
++================================================================+
+| V2InvHandler | abandon            | 125   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | abandonAgain       | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | approveCredit      | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundle             | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleAgain        | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleOnceMore     | 120   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | burnSelf           | 112   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | designateStandby   | 93    | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | emergency          | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | forbiddenPull      | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | mint               | 133   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | recover            | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | relayed            | 128   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseAndDisable  | 124   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseStale       | 129   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | renewA             | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | repayDebt          | 126   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | requestCredit      | 110   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | rotateSP           | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setAutoAllowance   | 127   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setRenewalMode     | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setTier            | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setUserTotalCap    | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | spenderPull        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettle        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettleAgain   | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchPolicy       | 111   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchTierSource   | 136   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchToStandby    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | toggleSpender      | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transfer           | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transferAndCall    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | unsetEmergency     | 130   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | updateExchangeRate | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | warp               | 115   | 0       | 0        |
+╰--------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_I2_autoAllowanceBoundsAndK() (runs: 64, calls: 4096, reverts: 0)
+
+╭--------------+--------------------+-------+---------+----------╮
+| Contract     | Selector           | Calls | Reverts | Discards |
++================================================================+
+| V2InvHandler | abandon            | 125   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | abandonAgain       | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | approveCredit      | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundle             | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleAgain        | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleOnceMore     | 120   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | burnSelf           | 112   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | designateStandby   | 93    | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | emergency          | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | forbiddenPull      | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | mint               | 133   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | recover            | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | relayed            | 128   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseAndDisable  | 124   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseStale       | 129   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | renewA             | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | repayDebt          | 126   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | requestCredit      | 110   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | rotateSP           | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setAutoAllowance   | 127   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setRenewalMode     | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setTier            | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setUserTotalCap    | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | spenderPull        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettle        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettleAgain   | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchPolicy       | 111   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchTierSource   | 136   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchToStandby    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | toggleSpender      | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transfer           | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transferAndCall    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | unsetEmergency     | 130   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | updateExchangeRate | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | warp               | 115   | 0       | 0        |
+╰--------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_I3_debtOnlyFromAdmittedReservations() (runs: 64, calls: 4096, reverts: 0)
+
+╭--------------+--------------------+-------+---------+----------╮
+| Contract     | Selector           | Calls | Reverts | Discards |
++================================================================+
+| V2InvHandler | abandon            | 125   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | abandonAgain       | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | approveCredit      | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundle             | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleAgain        | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleOnceMore     | 120   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | burnSelf           | 112   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | designateStandby   | 93    | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | emergency          | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | forbiddenPull      | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | mint               | 133   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | recover            | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | relayed            | 128   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseAndDisable  | 124   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseStale       | 129   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | renewA             | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | repayDebt          | 126   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | requestCredit      | 110   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | rotateSP           | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setAutoAllowance   | 127   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setRenewalMode     | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setTier            | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setUserTotalCap    | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | spenderPull        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettle        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettleAgain   | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchPolicy       | 111   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchTierSource   | 136   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchToStandby    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | toggleSpender      | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transfer           | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transferAndCall    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | unsetEmergency     | 130   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | updateExchangeRate | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | warp               | 115   | 0       | 0        |
+╰--------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_I4_escrowSumsAndSolvencyAtTxEnd() (runs: 64, calls: 4096, reverts: 0)
+
+╭--------------+--------------------+-------+---------+----------╮
+| Contract     | Selector           | Calls | Reverts | Discards |
++================================================================+
+| V2InvHandler | abandon            | 125   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | abandonAgain       | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | approveCredit      | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundle             | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleAgain        | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleOnceMore     | 120   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | burnSelf           | 112   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | designateStandby   | 93    | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | emergency          | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | forbiddenPull      | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | mint               | 133   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | recover            | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | relayed            | 128   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseAndDisable  | 124   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseStale       | 129   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | renewA             | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | repayDebt          | 126   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | requestCredit      | 110   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | rotateSP           | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setAutoAllowance   | 127   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setRenewalMode     | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setTier            | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setUserTotalCap    | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | spenderPull        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettle        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettleAgain   | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchPolicy       | 111   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchTierSource   | 136   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchToStandby    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | toggleSpender      | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transfer           | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transferAndCall    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | unsetEmergency     | 130   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | updateExchangeRate | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | warp               | 115   | 0       | 0        |
+╰--------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_I5_staleRecordsOnlyReleasable() (runs: 64, calls: 4096, reverts: 0)
+
+╭--------------+--------------------+-------+---------+----------╮
+| Contract     | Selector           | Calls | Reverts | Discards |
++================================================================+
+| V2InvHandler | abandon            | 125   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | abandonAgain       | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | approveCredit      | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundle             | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleAgain        | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleOnceMore     | 120   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | burnSelf           | 112   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | designateStandby   | 93    | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | emergency          | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | forbiddenPull      | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | mint               | 133   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | recover            | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | relayed            | 128   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseAndDisable  | 124   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseStale       | 129   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | renewA             | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | repayDebt          | 126   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | requestCredit      | 110   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | rotateSP           | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setAutoAllowance   | 127   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setRenewalMode     | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setTier            | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setUserTotalCap    | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | spenderPull        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettle        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettleAgain   | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchPolicy       | 111   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchTierSource   | 136   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchToStandby    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | toggleSpender      | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transfer           | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transferAndCall    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | unsetEmergency     | 130   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | updateExchangeRate | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | warp               | 115   | 0       | 0        |
+╰--------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_I6_maliciousSPTokenSideBound() (runs: 64, calls: 4096, reverts: 0)
+
+╭--------------+--------------------+-------+---------+----------╮
+| Contract     | Selector           | Calls | Reverts | Discards |
++================================================================+
+| V2InvHandler | abandon            | 125   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | abandonAgain       | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | approveCredit      | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundle             | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleAgain        | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleOnceMore     | 120   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | burnSelf           | 112   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | designateStandby   | 93    | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | emergency          | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | forbiddenPull      | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | mint               | 133   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | recover            | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | relayed            | 128   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseAndDisable  | 124   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseStale       | 129   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | renewA             | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | repayDebt          | 126   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | requestCredit      | 110   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | rotateSP           | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setAutoAllowance   | 127   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setRenewalMode     | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setTier            | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setUserTotalCap    | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | spenderPull        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettle        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettleAgain   | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchPolicy       | 111   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchTierSource   | 136   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchToStandby    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | toggleSpender      | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transfer           | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transferAndCall    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | unsetEmergency     | 130   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | updateExchangeRate | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | warp               | 115   | 0       | 0        |
+╰--------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_I7_effectiveCreditCapIsTheOnlySource() (runs: 64, calls: 4096, reverts: 0)
+
+╭--------------+--------------------+-------+---------+----------╮
+| Contract     | Selector           | Calls | Reverts | Discards |
++================================================================+
+| V2InvHandler | abandon            | 125   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | abandonAgain       | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | approveCredit      | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundle             | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleAgain        | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleOnceMore     | 120   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | burnSelf           | 112   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | designateStandby   | 93    | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | emergency          | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | forbiddenPull      | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | mint               | 133   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | recover            | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | relayed            | 128   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseAndDisable  | 124   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseStale       | 129   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | renewA             | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | repayDebt          | 126   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | requestCredit      | 110   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | rotateSP           | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setAutoAllowance   | 127   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setRenewalMode     | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setTier            | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setUserTotalCap    | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | spenderPull        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettle        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettleAgain   | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchPolicy       | 111   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchTierSource   | 136   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchToStandby    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | toggleSpender      | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transfer           | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transferAndCall    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | unsetEmergency     | 130   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | updateExchangeRate | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | warp               | 115   | 0       | 0        |
+╰--------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_conformance_specPredictionsAndStateMachine() (runs: 64, calls: 4096, reverts: 0)
+
+╭--------------+--------------------+-------+---------+----------╮
+| Contract     | Selector           | Calls | Reverts | Discards |
++================================================================+
+| V2InvHandler | abandon            | 125   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | abandonAgain       | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | approveCredit      | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundle             | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleAgain        | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | bundleOnceMore     | 120   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | burnSelf           | 112   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | designateStandby   | 93    | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | emergency          | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | forbiddenPull      | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | mint               | 133   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | recover            | 107   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | relayed            | 128   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseAndDisable  | 124   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | releaseStale       | 129   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | renewA             | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | repayDebt          | 126   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | requestCredit      | 110   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | rotateSP           | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setAutoAllowance   | 127   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setRenewalMode     | 114   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setTier            | 108   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | setUserTotalCap    | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | spenderPull        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettle        | 113   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | staleSettleAgain   | 122   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchPolicy       | 111   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchTierSource   | 136   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | switchToStandby    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | toggleSpender      | 116   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transfer           | 117   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | transferAndCall    | 109   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | unsetEmergency     | 130   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | updateExchangeRate | 118   | 0       | 0        |
+|--------------+--------------------+-------+---------+----------|
+| V2InvHandler | warp               | 115   | 0       | 0        |
+╰--------------+--------------------+-------+---------+----------╯
+
+[PASS] test_I6_literalBurnBound_offByOneWei() (gas: 635389)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 17.57s (35.56s CPU time)
+
+Ran 1 test for contracts/test/invariant/XPNTsOpHashReplay.invariant.t.sol:XPNTsOpHashReplay_Invariant
+[PASS] invariant_opHashSettledAtMostOnce() (runs: 256, calls: 128000, reverts: 0)
+
+╭--------------------+---------------+-------+---------+----------╮
+| Contract           | Selector      | Calls | Reverts | Discards |
++=================================================================+
+| XPNTsReplayHandler | settleViaBurn | 63890 | 0       | 0        |
+|--------------------+---------------+-------+---------+----------|
+| XPNTsReplayHandler | settleViaDebt | 64110 | 0       | 0        |
+╰--------------------+---------------+-------+---------+----------╯
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 19.55s (19.55s CPU time)
+
+Ran 2 tests for contracts/test/invariant/XPNTsDebtRepay.invariant.t.sol:XPNTsDebtRepay_Invariant
+[PASS] invariant_noOverBurnOnMint() (runs: 256, calls: 128000, reverts: 0)
+
+╭------------------+--------------+-------+---------+----------╮
+| Contract         | Selector     | Calls | Reverts | Discards |
++==============================================================+
+| XPNTsDebtHandler | bumpRate     | 64125 | 0       | 0        |
+|------------------+--------------+-------+---------+----------|
+| XPNTsDebtHandler | mintToDebtor | 63875 | 0       | 0        |
+╰------------------+--------------+-------+---------+----------╯
+
+[PASS] testFuzz_repayNeverExceedsValue(uint256,uint256,uint256) (runs: 256, μ: 8756, ~: 9084)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 22.55s (22.57s CPU time)
+
+Ran 3 tests for contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest
+[PASS] testFuzz_G2_I8_I9_I10_conservation(uint256) (runs: 1000, μ: 11849247, ~: 11147244)
+[PASS] testFuzz_G2_noOOGBand_direct_postOp(uint256,bool) (runs: 1000, μ: 307938, ~: 327788)
+[PASS] test_G2_coverage_replay_fixed_seeds() (gas: 46016060)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 30.35s (47.62s CPU time)
+
+Ran 2 tests for contracts/test/invariant/SuperPaymasterFundConservation.invariant.t.sol:SuperPaymasterFundConservation_Invariant
+[PASS] invariant_solvency() (runs: 256, calls: 128000, reverts: 0)
+
+╭---------------------------+--------------------+-------+---------+----------╮
+| Contract                  | Selector           | Calls | Reverts | Discards |
++=============================================================================+
+| SuperPaymasterFundHandler | accrueProtocolFee  | 25545 | 0       | 0        |
+|---------------------------+--------------------+-------+---------+----------|
+| SuperPaymasterFundHandler | deposit            | 25617 | 0       | 0        |
+|---------------------------+--------------------+-------+---------+----------|
+| SuperPaymasterFundHandler | depositForOperator | 25535 | 0       | 0        |
+|---------------------------+--------------------+-------+---------+----------|
+| SuperPaymasterFundHandler | refundFromRevenue  | 25493 | 0       | 0        |
+|---------------------------+--------------------+-------+---------+----------|
+| SuperPaymasterFundHandler | withdraw           | 25810 | 0       | 0        |
+╰---------------------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_trackedBalanceEqualsSum() (runs: 256, calls: 128000, reverts: 0)
+
+╭---------------------------+--------------------+-------+---------+----------╮
+| Contract                  | Selector           | Calls | Reverts | Discards |
++=============================================================================+
+| SuperPaymasterFundHandler | accrueProtocolFee  | 25545 | 0       | 0        |
+|---------------------------+--------------------+-------+---------+----------|
+| SuperPaymasterFundHandler | deposit            | 25617 | 0       | 0        |
+|---------------------------+--------------------+-------+---------+----------|
+| SuperPaymasterFundHandler | depositForOperator | 25535 | 0       | 0        |
+|---------------------------+--------------------+-------+---------+----------|
+| SuperPaymasterFundHandler | refundFromRevenue  | 25493 | 0       | 0        |
+|---------------------------+--------------------+-------+---------+----------|
+| SuperPaymasterFundHandler | withdraw           | 25810 | 0       | 0        |
+╰---------------------------+--------------------+-------+---------+----------╯
+
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 46.13s (89.14s CPU time)
+
+Ran 126 test suites in 46.18s (145.44s CPU time): 1600 tests passed, 0 failed, 49 skipped (1649 total tests)

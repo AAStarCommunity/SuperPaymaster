@@ -1,0 +1,912 @@
+
+=== provenance ===
+  script commit: 045a896299cdb0119d2f53f709409806ea366f7b
+  contracts/src vs v5.5.0-rc.2 peeled commit 1ac0e1c5: IDENTICAL
+  forge: forge Version: 1.7.1; anvil: anvil Version: 1.7.1
+
+=== build reproduces the rc.2 attestation (artifact keccaks) ===
+  CHECK [local build == rc.2 attestation] PASS
+
+=== pre-state cross-check at Sepolia block 11884320 on two independent endpoints (read-only) ===
+  CHECK [pre-state endpoint A: 23 reads, 0 failed / empty / ill-typed] PASS: 23:0
+  CHECK [pre-state endpoint B: 23 reads, 0 failed / empty / ill-typed] PASS: 23:0
+  CHECK [pre-state @11884320 identical on two endpoints] PASS (IDENTICAL (23 values))
+
+=== fork Sepolia at block 11884320 (local anvil :28631) ===
+  chainId 11155111 head 11884320 forkBlockHash 0x00077efb242ec807041d51767ff3f2ef93cc83aaca8ebf8ddcc6111e31460478
+  CHECK [fork block hash well-formed: A is a 32-byte hash] PASS: hash32
+  CHECK [fork block hash well-formed: B is a 32-byte hash] PASS: hash32
+  CHECK [fork block hash well-formed: fork is a 32-byte hash] PASS: hash32
+  CHECK [fork block hash: endpoint A == endpoint B] PASS: 0x00077efb242ec807041d51767ff3f2ef93cc83aaca8ebf8ddcc6111e31460478
+  CHECK [fork block hash: local fork == endpoint A] PASS: 0x00077efb242ec807041d51767ff3f2ef93cc83aaca8ebf8ddcc6111e31460478
+  impersonated on the fork: OWNER, ANNI, Safe owners O1/O2 (EOAs). The Safe 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 is NOT impersonated.
+  readback [Safe.getThreshold] = 2 @block 11884320
+  CHECK [Safe threshold (fork)] PASS: 2
+  readback [Safe.getOwners] = [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6] @block 11884320
+  CHECK [Safe owners (fork)] PASS: [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+  readback [Safe guard slot] = 0x0000000000000000000000000000000000000000000000000000000000000000 @block 11884320
+  CHECK [Safe guard slot empty] PASS: 0x0000000000000000000000000000000000000000000000000000000000000000
+
+=== STAGE 0 (runbook 0): fork-level probes (public RPCs, read-only) + on-chain inventory ===
+  eth_config: "next": null
+
+=== STAGE I / G0 (GOV-1): deploy the ONE canonical Safe-only TimelockController (minDelay 172800; proposers=[Safe]; executors=[Safe]; admin=address(0) -> only the timelock administers itself) ===
+  constructor args: minDelay=172800 proposers=[0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114] executors=[0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114] admin=0x0 (artifact out/TimelockController.sol/TimelockController.default.json)
+  TX [G0 deploy canonical TimelockController] hash=0xec38dc5f75369bcea5898c9e3af0243d98c88266b47d3fd31563bb595e4e197f block=11884321 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  CANONICAL GOV-1 TIMELOCK = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c (deployed in block 11884321, tx 0xec38dc5f75369bcea5898c9e3af0243d98c88266b47d3fd31563bb595e4e197f)
+./script/evidence/a2-full-rehearsal.sh: line 436: codehash_at: command not found
+./script/evidence/a2-full-rehearsal.sh: line 436: codesize_at: command not found
+  runtime codehash  ( B)
+  readback [TL.getMinDelay] = 172800 @block 11884321
+  CHECK [G0 getMinDelay] PASS: 172800
+  readback [TL.hasRole(ADMIN,TL)] = true @block 11884321
+  CHECK [G0 hasRole(ADMIN, TL)] PASS: true
+  readback [TL.hasRole(PROPOSER,TL)] = false @block 11884321
+  CHECK [G0 hasRole(PROPOSER, TL)] PASS: false
+  readback [TL.hasRole(CANCELLER,TL)] = false @block 11884321
+  CHECK [G0 hasRole(CANCELLER, TL)] PASS: false
+  readback [TL.hasRole(EXECUTOR,TL)] = false @block 11884321
+  CHECK [G0 hasRole(EXECUTOR, TL)] PASS: false
+  readback [TL.hasRole(ADMIN,SAFE)] = false @block 11884321
+  CHECK [G0 hasRole(ADMIN, SAFE)] PASS: false
+  readback [TL.hasRole(PROPOSER,SAFE)] = true @block 11884321
+  CHECK [G0 hasRole(PROPOSER, SAFE)] PASS: true
+  readback [TL.hasRole(CANCELLER,SAFE)] = true @block 11884321
+  CHECK [G0 hasRole(CANCELLER, SAFE)] PASS: true
+  readback [TL.hasRole(EXECUTOR,SAFE)] = true @block 11884321
+  CHECK [G0 hasRole(EXECUTOR, SAFE)] PASS: true
+  readback [TL.hasRole(ADMIN,OWNER)] = false @block 11884321
+  CHECK [G0 hasRole(ADMIN, OWNER)] PASS: false
+  readback [TL.hasRole(PROPOSER,OWNER)] = false @block 11884321
+  CHECK [G0 hasRole(PROPOSER, OWNER)] PASS: false
+  readback [TL.hasRole(CANCELLER,OWNER)] = false @block 11884321
+  CHECK [G0 hasRole(CANCELLER, OWNER)] PASS: false
+  readback [TL.hasRole(EXECUTOR,OWNER)] = false @block 11884321
+  CHECK [G0 hasRole(EXECUTOR, OWNER)] PASS: false
+  readback [TL.hasRole(ADMIN,SAFE_O1)] = false @block 11884321
+  CHECK [G0 hasRole(ADMIN, SAFE_O1)] PASS: false
+  readback [TL.hasRole(PROPOSER,SAFE_O1)] = false @block 11884321
+  CHECK [G0 hasRole(PROPOSER, SAFE_O1)] PASS: false
+  readback [TL.hasRole(CANCELLER,SAFE_O1)] = false @block 11884321
+  CHECK [G0 hasRole(CANCELLER, SAFE_O1)] PASS: false
+  readback [TL.hasRole(EXECUTOR,SAFE_O1)] = false @block 11884321
+  CHECK [G0 hasRole(EXECUTOR, SAFE_O1)] PASS: false
+  readback [TL.hasRole(ADMIN,SAFE_O2)] = false @block 11884321
+  CHECK [G0 hasRole(ADMIN, SAFE_O2)] PASS: false
+  readback [TL.hasRole(PROPOSER,SAFE_O2)] = false @block 11884321
+  CHECK [G0 hasRole(PROPOSER, SAFE_O2)] PASS: false
+  readback [TL.hasRole(CANCELLER,SAFE_O2)] = false @block 11884321
+  CHECK [G0 hasRole(CANCELLER, SAFE_O2)] PASS: false
+  readback [TL.hasRole(EXECUTOR,SAFE_O2)] = false @block 11884321
+  CHECK [G0 hasRole(EXECUTOR, SAFE_O2)] PASS: false
+  readback [TL.hasRole(ADMIN,SAFE_O3)] = false @block 11884321
+  CHECK [G0 hasRole(ADMIN, SAFE_O3)] PASS: false
+  readback [TL.hasRole(PROPOSER,SAFE_O3)] = false @block 11884321
+  CHECK [G0 hasRole(PROPOSER, SAFE_O3)] PASS: false
+  readback [TL.hasRole(CANCELLER,SAFE_O3)] = false @block 11884321
+  CHECK [G0 hasRole(CANCELLER, SAFE_O3)] PASS: false
+  readback [TL.hasRole(EXECUTOR,SAFE_O3)] = false @block 11884321
+  CHECK [G0 hasRole(EXECUTOR, SAFE_O3)] PASS: false
+  readback [TL.hasRole(ADMIN,ZERO)] = false @block 11884321
+  CHECK [G0 hasRole(ADMIN, ZERO)] PASS: false
+  readback [TL.hasRole(PROPOSER,ZERO)] = false @block 11884321
+  CHECK [G0 hasRole(PROPOSER, ZERO)] PASS: false
+  readback [TL.hasRole(CANCELLER,ZERO)] = false @block 11884321
+  CHECK [G0 hasRole(CANCELLER, ZERO)] PASS: false
+  readback [TL.hasRole(EXECUTOR,ZERO)] = false @block 11884321
+  CHECK [G0 hasRole(EXECUTOR, ZERO)] PASS: false
+  role events [G0-deploy]: 4 RoleGranted/RoleRevoked logs since block 11884321 (role-events-G0-deploy.json)
+  CHECK [G0 deploy-block role events == exactly 4 grants (ADMIN->TL, PROPOSER/CANCELLER/EXECUTOR->Safe)] PASS: RoleGranted:0x0000000000000000000000000000000000000000000000000000000000000000:0x11cc8878c12dafee401ff4a3f5f7d2c4d4ed5d7c,RoleGranted:0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1:0x51edf11fdb0a4f66220efb8efa54eca77232e114,RoleGranted:0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63:0x51edf11fdb0a4f66220efb8efa54eca77232e114,RoleGranted:0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783:0x51edf11fdb0a4f66220efb8efa54eca77232e114
+  CHECK [roles G0-after-deploy: event-history holder sets == manifest] PASS (roles-G0-after-deploy.log)
+
+=== STAGE I / A1 (runbook 1①): cancel the pending 0xBb46 aPNTs switch ===
+  readback [SP.pendingAPNTsToken] = 0xBb46321545a91DB2F3B5c3e694F2f23aBe259883 @block 11884322
+  CHECK [A1 pre: pendingAPNTsToken] PASS: 0xBb46321545a91DB2F3B5c3e694F2f23aBe259883
+  readback [SP.pendingAPNTsToken] = 0x0000000000000000000000000000000000000000 @block 11884323
+  CHECK [A1 pendingAPNTsToken after cancel] PASS: 0x0000000000000000000000000000000000000000
+
+=== STAGE I / A1c (runbook 1②): deploy APNTsCapped (minter = capGuardian = Safe) and start the Ownable2Step handover to the CANONICAL timelock ===
+  APNTsCapped = 0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7
+  readback [APNTsCapped.owner] = 0xb5600060e6de5E11D3636731964218E53caadf0E @block 11884325
+  CHECK [A1c APNTsCapped.owner] PASS: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  readback [APNTsCapped.pendingOwner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884325
+  CHECK [A1c APNTsCapped.pendingOwner == canonical TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [APNTsCapped.minter] = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 @block 11884325
+  CHECK [A1c APNTsCapped.minter == Safe] PASS: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+  readback [APNTsCapped.capGuardian] = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 @block 11884325
+  CHECK [A1c APNTsCapped.capGuardian == Safe] PASS: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+  CHECK [codehash A1c-APNTsCapped == rc.2 attestation] PASS (codehash-A1c-APNTsCapped.log)
+
+=== STAGE I / A1d (GOV-1 accept): Safe -> TL.schedule(APNTsCapped.acceptOwnership) -> 48h -> Safe -> TL.execute ===
+  negative ok NEG-1 [A1d: deployer EOA cannot schedule on the canonical TL (not PROPOSER)]: reverted @block 11884325 (head after 11884325); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0eb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1'
+  negative ok NEG-2 [A1d: a Safe OWNER EOA acting directly (not through the Safe) cannot schedule]: reverted @block 11884325 (head after 11884325); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000871608cba092105b91e91295a1d79ffc539bfb48b09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1'
+  negative ok NEG-3 [A1d: Safe exec with ONE owner signature (threshold 2) -> GS020]: reverted @block 11884325 (head after 11884325); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303230000000000000000000000000000000000000000000000000000000'
+  readback [A1d schedule acceptOwnership: Safe.nonce before] = 1 @block 11884325
+  Safe tx [A1d schedule acceptOwnership]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=1 safeTxHash=0xb14c430973351e215b2bfac6adbfdd42a62bc7f3335db48c1eba20962e5a3b6a data=0x01d5062a0000000000000000000000009eb17fac022557f64924aa2f9e018db3a330e1e7…
+  TX [A1d schedule acceptOwnership: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x019c47217dc1981399acdbfdd0278ce63526e2101824771973b1ed545f0d1c77 block=11884326 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [A1d schedule acceptOwnership: approvedHashes] = 1 @block 11884326
+  CHECK [A1d schedule acceptOwnership: approvedHashes(O1,h)] PASS: 1
+  TX [A1d schedule acceptOwnership: execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x38ad71ead9dfeea11b4f2bd4dcbe7bb3219fc567c52255b93b2c2422151e8ec5 block=11884327 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [A1d schedule acceptOwnership: Safe ExecutionSuccess event in 0x38ad71ead9dfeea11b4f2bd4dcbe7bb3219fc567c52255b93b2c2422151e8ec5] PASS: 1
+  readback [A1d schedule acceptOwnership: Safe.nonce after] = 2 @block 11884327
+  CHECK [A1d schedule acceptOwnership: Safe.nonce incremented] PASS: 2
+  readback [TL.isOperationPending(acc)] = true @block 11884327
+  CHECK [A1d op pending] PASS: true
+  readback [TL.getTimestamp(acc)] = 1791805615 @block 11884327
+  op 0xcfe0031eb50fc32658fce240a3803451576a7fedbcc8f8320670811ee7f26eb3 ready at 1791805615
+  readback [A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState): Safe.nonce] = 2 @block 11884327
+  TX [A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0xcb2bb91ac7be4936c56c6d83aaca83507e3ba0430482deec6867fb75cd642413 block=11884328 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-4 [A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState) [inner call replayed as eth_call from the Safe]]: reverted @block 11884328 (head after 11884328); exact-revert-data expected == actual '0x5ead8eb5cfe0031eb50fc32658fce240a3803451576a7fedbcc8f8320670811ee7f26eb30000000000000000000000000000000000000000000000000000000000000004'
+  negative ok NEG-5 [A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState)]: reverted @block 11884328 (head after 11884328); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState): Safe.nonce after] = 2 @block 11884328
+  CHECK [A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState): Safe.nonce unchanged after the failed exec] PASS: 2
+  warp +172800 s -> block 11884329 ts 1791805619
+  negative ok NEG-6 [A1d: deployer EOA cannot execute (not EXECUTOR)]: reverted @block 11884329 (head after 11884329); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63'
+  readback [A1d execute acceptOwnership: Safe.nonce before] = 2 @block 11884329
+  Safe tx [A1d execute acceptOwnership]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=2 safeTxHash=0x3422f486be4d8b5dad8865d6d5a23980d8ae821c69471fde65f66e0dfd66f7b5 data=0x134008d30000000000000000000000009eb17fac022557f64924aa2f9e018db3a330e1e7…
+  TX [A1d execute acceptOwnership: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x0e924e5785ff3dcbadaf4043b3ef413b89a7d5c95948e0e74abe0bfe6f8fa5e0 block=11884330 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [A1d execute acceptOwnership: approvedHashes] = 1 @block 11884330
+  CHECK [A1d execute acceptOwnership: approvedHashes(O1,h)] PASS: 1
+  TX [A1d execute acceptOwnership: execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0xd3b65874c18fae8b6d210d29f0fdd52d7c9a465afb32583211ef1b09d6e7c47f block=11884331 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [A1d execute acceptOwnership: Safe ExecutionSuccess event in 0xd3b65874c18fae8b6d210d29f0fdd52d7c9a465afb32583211ef1b09d6e7c47f] PASS: 1
+  readback [A1d execute acceptOwnership: Safe.nonce after] = 3 @block 11884331
+  CHECK [A1d execute acceptOwnership: Safe.nonce incremented] PASS: 3
+  readback [TL.isOperationDone(acc)] = true @block 11884331
+  CHECK [A1d op done] PASS: true
+  readback [APNTsCapped.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884331
+  CHECK [A1d APNTsCapped.owner == canonical TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [APNTsCapped.pendingOwner] = 0x0000000000000000000000000000000000000000 @block 11884331
+  CHECK [A1d APNTsCapped.pendingOwner == 0] PASS: 0x0000000000000000000000000000000000000000
+  CHECK [A1d DeployAPNTsCapped.verify] PASS (I-A1d-verify-apnts-capped.log)
+
+=== STAGE I / A1e (runbook 1③): queue setAPNTsToken(APNTsCapped) ===
+  readback [SP.pendingAPNTsToken] = 0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7 @block 11884332
+  CHECK [A1e pendingAPNTsToken == APNTsCapped] PASS: 0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7
+  readback [SP.pendingAPNTsTokenEta] = 1792410431 @block 11884332
+  CHECK [A1e pendingAPNTsTokenEta == queue block ts + 7d] PASS: 1792410431
+  negative ok NEG-7 [A1e: executeAPNTsTokenChange before the 7-day ETA]: reverted @block 11884332 (head after 11884332); exact-revert-data expected == actual '0xc52a9bd3'
+  readback [SP slot 15] = 0x00000000000000000000000000000000000000000000009f0f50e4d0bd048900 @block 11884332
+  readback [SP.totalTrackedBalance] = 2934135941213700000000 @block 11884332
+  CHECK [A1e slot 15 == totalTrackedBalance()] PASS: 2934135941213700000000
+  readback [SP slot 16] = 0x000000000000000000000000000000000000000000000015a96083f6985a55c8 @block 11884332
+  readback [SP.protocolRevenue] = 399586525633215878600 @block 11884332
+  CHECK [A1e slot 16 == protocolRevenue()] PASS: 399586525633215878600
+  readback [SP slot 30] = 0x000000000000000000000000000000000000000000000000000000006ad6033f @block 11884332
+  readback [SP.pendingAPNTsTokenEta] = 1792410431 @block 11884332
+  CHECK [A1e slot 30 == pendingAPNTsTokenEta()] PASS: 1792410431
+  readback [SP.totalTrackedBalance] = 2934135941213700000000 @block 11884332
+  readback [SP.protocolRevenue] = 399586525633215878600 @block 11884332
+  CHECK [A1e drain branch is also live here (totalTrackedBalance != protocolRevenue)] PASS: True
+  negative ok NEG-8 [A1e discriminator (a): drain neutralised by state override, ETA real -> still InvalidConfiguration (ETA branch)]: reverted @block 11884332 (head after 11884332); exact-revert-data expected == actual '0xc52a9bd3'
+  CHECK [A1e discriminator (b) positive control: drain AND ETA neutralised -> eth_call succeeds @block 11884332] PASS
+  warp +604800 s -> block 11884333 ts 1792410438
+
+=== STAGE I / A1f: Safe (minter) mints APNTsCapped for the 1:1 redeposit — real Safe.execTransaction ===
+  snapshot: OWNER aPNTsBalance=1690008712737068326800 ANNI aPNTsBalance=844540702843415794600 @block 11884333
+  negative ok NEG-9 [A1f: deployer EOA cannot mint APNTsCapped (minter = Safe)]: reverted @block 11884333 (head after 11884333); exact-revert-data expected == actual '0x361c31f2000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e'
+  readback [A1f mint OWNER: Safe.nonce before] = 3 @block 11884333
+  Safe tx [A1f mint OWNER]: to=0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7 nonce=3 safeTxHash=0xe8ebebd1f9f6efd46c2445e1c64a5e7c4a40d7894ce338fc61a1fe4b3d5e3152 data=0x40c10f19000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e…
+  TX [A1f mint OWNER: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0xf887b21c3892ecfae99a5a954c66276e2c0b04aaa3f4b3ae8a97e8cb7bb3dec9 block=11884334 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [A1f mint OWNER: approvedHashes] = 1 @block 11884334
+  CHECK [A1f mint OWNER: approvedHashes(O1,h)] PASS: 1
+  TX [A1f mint OWNER: execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x16d025469c1bb27d59d97e507c8394c6b22907808cda0462753b797ad62ccbb1 block=11884335 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [A1f mint OWNER: Safe ExecutionSuccess event in 0x16d025469c1bb27d59d97e507c8394c6b22907808cda0462753b797ad62ccbb1] PASS: 1
+  readback [A1f mint OWNER: Safe.nonce after] = 4 @block 11884335
+  CHECK [A1f mint OWNER: Safe.nonce incremented] PASS: 4
+  readback [A1f mint ANNI: Safe.nonce before] = 4 @block 11884335
+  Safe tx [A1f mint ANNI]: to=0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7 nonce=4 safeTxHash=0xf441d61c7f2017a374907fe35b2d15b57f5c5639540993f43308996dd7352d17 data=0x40c10f19000000000000000000000000ecaacb915f7d92e9916f449f7ad42bd0408733c9…
+  TX [A1f mint ANNI: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x35be3bd019470cf3a5362f2254d3e192a1cdb8bae03c3524b3d22c02e263ff41 block=11884336 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [A1f mint ANNI: approvedHashes] = 1 @block 11884336
+  CHECK [A1f mint ANNI: approvedHashes(O1,h)] PASS: 1
+  TX [A1f mint ANNI: execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0xacd9ede91d1e5c3664d915d1748810c7e8bee55057f5a7ca1c728cb67724623f block=11884337 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [A1f mint ANNI: Safe ExecutionSuccess event in 0xacd9ede91d1e5c3664d915d1748810c7e8bee55057f5a7ca1c728cb67724623f] PASS: 1
+  readback [A1f mint ANNI: Safe.nonce after] = 5 @block 11884337
+  CHECK [A1f mint ANNI: Safe.nonce incremented] PASS: 5
+  readback [A1f mint SP buffer 0.1: Safe.nonce before] = 5 @block 11884337
+  Safe tx [A1f mint SP buffer 0.1]: to=0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7 nonce=5 safeTxHash=0x90cedb6628548c25eb381d1de82285a9cf431ff94e6a1d21b2642e0b88cacc27 data=0x40c10f1900000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [A1f mint SP buffer 0.1: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0xf931e58a8c812012e1fd91a612f181731ca975ef826fbdadb78eafb4bdec3430 block=11884338 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [A1f mint SP buffer 0.1: approvedHashes] = 1 @block 11884338
+  CHECK [A1f mint SP buffer 0.1: approvedHashes(O1,h)] PASS: 1
+  TX [A1f mint SP buffer 0.1: execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x9c933cc6b4b14ef84f539436bf23652b2ab9118a66a66d41abcf69613da6453c block=11884339 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [A1f mint SP buffer 0.1: Safe ExecutionSuccess event in 0x9c933cc6b4b14ef84f539436bf23652b2ab9118a66a66d41abcf69613da6453c] PASS: 1
+  readback [A1f mint SP buffer 0.1: Safe.nonce after] = 6 @block 11884339
+  CHECK [A1f mint SP buffer 0.1: Safe.nonce incremented] PASS: 6
+  readback [APNTsCapped.balanceOf(OWNER)] = 1690008712737068326800 @block 11884339
+  CHECK [A1f balanceOf(OWNER)] PASS: 1690008712737068326800
+  readback [APNTsCapped.balanceOf(ANNI)] = 844540702843415794600 @block 11884339
+  CHECK [A1f balanceOf(ANNI)] PASS: 844540702843415794600
+  readback [APNTsCapped.balanceOf(SP)] = 100000000000000000 @block 11884339
+  CHECK [A1f balanceOf(SP)] PASS: 100000000000000000
+
+=== STAGE I / A1g (runbook 1④, checkpoint P1): drain every operator, executeAPNTsTokenChange, redeposit 1:1 ===
+  readback [SP.APNTS_TOKEN] = 0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7 @block 11884347
+  CHECK [A1g APNTS_TOKEN == APNTsCapped] PASS: 0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7
+  readback [SP.pendingAPNTsToken] = 0x0000000000000000000000000000000000000000 @block 11884347
+  CHECK [A1g pendingAPNTsToken == 0] PASS: 0x0000000000000000000000000000000000000000
+  readback [SP.operators(OWNER).aPNTsBalance] = 1690008712737068326800 true false 0x696A73701b104c6cCBbAadDD2216788ea08EaB89 100 60 0xb5600060e6de5E11D3636731964218E53caadf0E 1174614808208040000000 6 @block 11884347
+  CHECK [A1g OWNER balance == snapshot x1] PASS: 1690008712737068326800
+  readback [SP.operators(ANNI).aPNTsBalance] = 844540702843415794600 true false 0xE6579A90dc498a710008de12119812D0FB7aA224 0 0 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 587307404104020000000 3 @block 11884347
+  CHECK [A1g ANNI balance == snapshot x1] PASS: 844540702843415794600
+  readback [SP.totalTrackedBalance] = 2534649415580484121400 @block 11884347
+  readback [SP.protocolRevenue] = 100000000000000000 @block 11884347
+  CHECK [A1g totalTrackedBalance == sum + revenue] PASS: 2534649415580484121400
+  readback [APNTsCapped.totalSupply] = 2534649415580484121400 @block 11884347
+  readback [APNTsCapped.cap] = 10000000000000000000000000 @block 11884347
+  CHECK [A1g totalSupply <= cap] PASS: True
+
+=== STAGE I / A1h (runbook 2): pendingDebts — inventory found none; clearPendingDebts is a read-back no-op ===
+  readback [SP.pendingDebts(OLD_APNTS,OWNER)] = 0 @block 11884347
+  CHECK [A1h pendingDebts(OLD_APNTS,OWNER)] PASS: 0
+  readback [SP.pendingDebts(ANNI_TOKEN,ANNI)] = 0 @block 11884347
+  CHECK [A1h pendingDebts(ANNI_TOKEN,ANNI)] PASS: 0
+
+=== STAGE I / A2 (runbook 3): pause both legacy operators ===
+  readback [SP.operators(OWNER).isPaused] = 1690008712737068326800 true true 0x696A73701b104c6cCBbAadDD2216788ea08EaB89 100 60 0xb5600060e6de5E11D3636731964218E53caadf0E 1174614808208040000000 6 @block 11884349
+  CHECK [A2 isPaused(OWNER)] PASS: true
+  readback [SP.operators(ANNI).isPaused] = 844540702843415794600 true true 0xE6579A90dc498a710008de12119812D0FB7aA224 0 0 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 587307404104020000000 3 @block 11884349
+  CHECK [A2 isPaused(ANNI)] PASS: true
+
+=== STAGE I / A3 (runbook 4, 5, 5b, 6): v2 stack + SP upgradeToAndCall -> 5.5.0 (rc.2 bytecode) + stake + setXPNTsFactory ===
+  readback [SP.version] = "SuperPaymaster-5.5.0" @block 11884362
+  CHECK [A3 SP.version] PASS: "SuperPaymaster-5.5.0"
+  CHECK [A3 SP impl slot == new impl] PASS: 0xf2b952f0e60c2ea3f433de260e0d45d12645eb88
+  readback [SP.EXTENSION] = 0xDE8cA238d17FF91E70c515bac90efB9ff952f7b6 @block 11884362
+  readback [SP.xpntsFactory] = 0xC85d2B918209E7b53613965A1e624E3759DC6224 @block 11884362
+  CHECK [A3 SP.xpntsFactory == factoryV2] PASS: 0xC85d2B918209E7b53613965A1e624E3759DC6224
+  readback [factoryV2.SUPERPAYMASTER] = 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9 @block 11884362
+  CHECK [A3 factoryV2.SUPERPAYMASTER == SP] PASS: 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
+  readback [AOAProtocolRegistry.owner] = 0xb5600060e6de5E11D3636731964218E53caadf0E @block 11884362
+  CHECK [A3 AOAProtocolRegistry.owner == deployer (pre-M1)] PASS: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  readback [xPNTsFactoryV2.owner] = 0xb5600060e6de5E11D3636731964218E53caadf0E @block 11884362
+  CHECK [A3 xPNTsFactoryV2.owner == deployer (pre-M1)] PASS: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  readback [EP.getDepositInfo(SP)] = (93470830000000000, true, 1000000000000000000, 86400, 0) @block 11884362
+  5b stake read-back (deposit, staked, stake, unstakeDelaySec, withdrawTime): (93470830000000000, true, 1000000000000000000, 86400, 0)
+  CHECK [A3/5b EntryPoint staked] PASS: true
+  CHECK [A3/5b stake >= 1 ETH] PASS: True
+  CHECK [A3/5b unstakeDelaySec >= 86400] PASS: True
+  CHECK [A3/5b withdrawTime == 0] PASS: 0
+  readback [SP.priceStalenessThreshold] = 4200 @block 11884362
+  CHECK [A3 priceStalenessThreshold in [60,86400]] PASS: True
+  CHECK [codehash A3-v55-stack == rc.2 attestation] PASS (codehash-A3-v55-stack.log)
+
+=== STAGE I / A4 (runbook 5c): Registry upgradeToAndCall -> Registry-5.9.0 (rc.2 bytecode), EOA path ===
+  readback [Registry.version] = "Registry-5.9.0" @block 11884364
+  CHECK [A4 Registry.version] PASS: "Registry-5.9.0"
+  readback [Registry.owner] = 0xb5600060e6de5E11D3636731964218E53caadf0E @block 11884364
+  CHECK [A4 Registry.owner unchanged] PASS: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  readback [Registry.pendingOwner] = 0x0000000000000000000000000000000000000000 @block 11884364
+  CHECK [A4 Registry.pendingOwner == 0] PASS: 0x0000000000000000000000000000000000000000
+  CHECK [codehash A4-registry == rc.2 attestation] PASS (codehash-A4-registry.log)
+
+=== STAGE I / A5 (runbook 7a): each community issues its v2 token (creditPolicy OFF), operators stay paused ===
+  AAStar v2 token = 0x50a3cc04208d6A4E2A3B443275c0adD139416DD8 ; Mycelium v2 token = 0xe443749BE2fdaA6826FeC2F5d3e7D29f3092f297
+  readback [AAStarV2.creditPolicy] = 0 @block 11884366
+  CHECK [A5 AAStar creditPolicy == OFF(0)] PASS: 0
+  readback [MyceliumV2.creditPolicy] = 0 @block 11884366
+  CHECK [A5 Mycelium creditPolicy == OFF(0)] PASS: 0
+  readback [factory.getTokenAddress(OWNER)] = 0x50a3cc04208d6A4E2A3B443275c0adD139416DD8 @block 11884366
+  CHECK [A5 factory.getTokenAddress(OWNER)] PASS: 0x50a3cc04208d6A4E2A3B443275c0adD139416DD8
+  readback [factory.getTokenAddress(ANNI)] = 0xe443749BE2fdaA6826FeC2F5d3e7D29f3092f297 @block 11884366
+  CHECK [A5 factory.getTokenAddress(ANNI)] PASS: 0xe443749BE2fdaA6826FeC2F5d3e7D29f3092f297
+  CHECK [codehash A5-tokens == rc.2 attestation] PASS (codehash-A5-tokens.log)
+
+=== STAGE I / A6 (runbook 7c): updatePrice (oracle refreshed on the frozen fork) -> configureOperatorV2 -> unpause, both communities ===
+  refresh_oracle (FORK-ONLY storage write): aggregator=0x719E22E3D4b690E5d96cCb40619180B5427F14AE round=36689 answer=249455887742 updatedAt 1791629832 -> 1792410581 (base slot 44)
+  TX [A6 SP.updatePrice] hash=0xf6b02d8f8e954c805a548b81fcfcb3b13487b6ebf9bd2d40d9345c08bdc723f1 block=11884368 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  readback [SP.cachedPrice] = 249455887742 1792410581 18446744073709588305 8 @block 11884368
+  CHECK [A6 cachedPrice.updatedAt == oracle latestRoundData.updatedAt (> 0)] PASS: 1792410581
+  CHECK [A6 cachedPrice fresh: updatePrice block ts - updatedAt <= priceStalenessThreshold] PASS: True
+  readback [SP.operators(AAStar)] = 1690008712737068326800 true false 0x50a3cc04208d6A4E2A3B443275c0adD139416DD8 100 60 0xb5600060e6de5E11D3636731964218E53caadf0E 1174614808208040000000 6 @block 11884376
+  CHECK [A6 AAStar isConfigured] PASS: true
+  CHECK [A6 AAStar isPaused == false] PASS: false
+  CHECK [A6 AAStar xPNTsToken == v2] PASS: 0x50a3cc04208d6A4E2A3B443275c0adD139416DD8
+  readback [AAStar V2.creditPolicy] = 0 @block 11884376
+  CHECK [A6 AAStar creditPolicy == OFF after unpause] PASS: 0
+  readback [SP.operators(Mycelium)] = 844540702843415794600 true false 0xe443749BE2fdaA6826FeC2F5d3e7D29f3092f297 0 0 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 587307404104020000000 3 @block 11884376
+  CHECK [A6 Mycelium isConfigured] PASS: true
+  CHECK [A6 Mycelium isPaused == false] PASS: false
+  CHECK [A6 Mycelium xPNTsToken == v2] PASS: 0xe443749BE2fdaA6826FeC2F5d3e7D29f3092f297
+  readback [Mycelium V2.creditPolicy] = 0 @block 11884376
+  CHECK [A6 Mycelium creditPolicy == OFF after unpause] PASS: 0
+
+=== STAGE I / A7 (runbook 7c acceptance): ONE real balance-mode UserOperation through EntryPoint.handleOps PER COMMUNITY (AAStar + Mycelium) ===
+  CHECK [A7 mycelium exactly one UserOperationEvent for userOpHash 0xa8b99bcb6f4be9f29ff4a8363b26d1558e2cc5949bafe2e38b40fbcb6dd5f3f0] PASS: 1
+  A7 mycelium: TxHash=0x5e14dc6b6d43f2c89518f4a52f718c5832815e4a367bb812b2cd4af4aa2a2e10 UserOpHash=0xa8b99bcb6f4be9f29ff4a8363b26d1558e2cc5949bafe2e38b40fbcb6dd5f3f0 block=11884382 sender=0x450c2a5058693296da7b816237c61d52aa102f93 paymaster=0x09df0d2e3722ec0e401fe3819e64278a42ae4de9 success=1 operator=0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 token=0xe443749BE2fdaA6826FeC2F5d3e7D29f3092f297
+  CHECK [A7 mycelium UserOperationEvent.success] PASS: 1
+  CHECK [A7 mycelium paymaster == SP] PASS: 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9
+  CHECK [A7 mycelium sender == AA account] PASS: 0x450c2a5058693296da7b816237c61d52aa102f93
+  CHECK [A7 mycelium L4 verify() from chain state @block 11884382] PASS
+  readback [mycelium V2.creditPolicy] = 0 @block 11884382
+  CHECK [A7 mycelium creditPolicy still OFF] PASS: 0
+  CHECK [A7 aastar exactly one UserOperationEvent for userOpHash 0xeb3adaf3c611f68dea59a42f919c054b3f989d4388b699f43906dd7ec3756b7f] PASS: 1
+  A7 aastar: TxHash=0xaf27186e3e37e9d51ff9fe4338431a00dac589ab4b988f2e44660acb1f688918 UserOpHash=0xeb3adaf3c611f68dea59a42f919c054b3f989d4388b699f43906dd7ec3756b7f block=11884388 sender=0xc9fab1d72a323c2fbbe7623ab09e3776429adcd1 paymaster=0x09df0d2e3722ec0e401fe3819e64278a42ae4de9 success=1 operator=0xb5600060e6de5E11D3636731964218E53caadf0E token=0x50a3cc04208d6A4E2A3B443275c0adD139416DD8
+  CHECK [A7 aastar UserOperationEvent.success] PASS: 1
+  CHECK [A7 aastar paymaster == SP] PASS: 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9
+  CHECK [A7 aastar sender == AA account] PASS: 0xc9fab1d72a323c2fbbe7623ab09e3776429adcd1
+  CHECK [A7 aastar L4 verify() from chain state @block 11884388] PASS
+  readback [aastar V2.creditPolicy] = 0 @block 11884388
+  CHECK [A7 aastar creditPolicy still OFF] PASS: 0
+
+=== STAGE II / M1 ① (EOA): SP + Registry transferOwnership(canonical TL) [two-step]; AOAProtocolRegistry + xPNTsFactoryV2 transferOwnership(canonical TL) [single-step OZ Ownable] ===
+  CHECK [roles before-M1: event-history holder sets == manifest] PASS (roles-before-M1.log)
+  TX [M1① SP.transferOwnership(TL)] hash=0xed564c8c97f6ff7e0a099574d203b986f01c87267e422b9c650fda84cb3368ef block=11884390 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  TX [M1① Registry.transferOwnership(TL)] hash=0xe5e9c415e07b3b4bad359ef395006a01d36ed2e961469d01f7683cd936a2fef5 block=11884391 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  readback [SP.pendingOwner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884391
+  readback [Registry.pendingOwner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884391
+  CHECK [M1① SP.pendingOwner == TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  CHECK [M1① Registry.pendingOwner == TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [SP.owner] = 0xb5600060e6de5E11D3636731964218E53caadf0E @block 11884391
+  CHECK [M1① SP.owner still deployer] PASS: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  CHECK [M1 address double-check 1: TL == SP.pendingOwner] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  CHECK [M1 address double-check 2: TL == Registry.pendingOwner] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [TL.getMinDelay] = 172800 @block 11884391
+  CHECK [M1 address double-check 3: TL minDelay] PASS: 172800
+  TX [M1 AOAProtocolRegistry.transferOwnership(TL)] hash=0x3022d7a9bda4ed93da9431a30e5874d5c23aaf4914d42cf0605375d60fa4978e block=11884392 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  readback [AOAProtocolRegistry.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884392
+  CHECK [M1 AOAProtocolRegistry.owner == TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  TX [M1 xPNTsFactoryV2.transferOwnership(TL)] hash=0xbd9b7974ca40b045f63701ee13137334f14b3b74cfc164c4cc7b8e1dec10abcb block=11884393 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  readback [xPNTsFactoryV2.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884393
+  CHECK [M1 xPNTsFactoryV2.owner == TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  negative ok NEG-10 [M1: deployer EOA AOAProtocolRegistry.revokeApproval after transfer]: reverted @block 11884393 (head after 11884393); exact-revert-data expected == actual '0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e'
+  negative ok NEG-11 [M1: deployer EOA xPNTsFactoryV2.setSuperPaymasterAddress after transfer]: reverted @block 11884393 (head after 11884393); exact-revert-data expected == actual '0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e'
+
+=== STAGE II / M1 negative: a MISCONFIGURED timelock cannot accept (wrong timelock: minDelay 0, deployer as proposer/executor) ===
+  TX [M1-neg deploy misconfigured timelock] hash=0xfceff77dc0f740e1c2c7a08e2655ee68cc2e4cbd99fee983629306bb8a25452b block=11884394 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  readback [BADTL.getMinDelay] = 0 @block 11884394
+  misconfigured timelock 0xb9E22422435D69EFB42258D4D165786681192303 (minDelay 0)
+  TX [M1-neg BADTL.schedule(SP.acceptOwnership)] hash=0xf41b4b8b43058c21302f0442f47a4a01580428817d9600b0fe8b115172f9be94 block=11884395 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  negative ok NEG-12 [M1: misconfigured timelock executes SP.acceptOwnership (pendingOwner is the canonical TL)]: reverted @block 11884395 (head after 11884395); exact-revert-data expected == actual '0x118cdaa7000000000000000000000000b9e22422435d69efb42258d4d165786681192303'
+  readback [SP.owner] = 0xb5600060e6de5E11D3636731964218E53caadf0E @block 11884395
+  CHECK [M1-neg SP.owner unchanged] PASS: 0xb5600060e6de5E11D3636731964218E53caadf0E
+
+=== STAGE II / M1 ② : Safe -> TL.scheduleBatch[SP.acceptOwnership, Registry.acceptOwnership, SP.setGuardian(Safe)] (calldata printed by UpgradeViaTimelock after its operator preflight) ===
+  negative ok NEG-13 [M1: UpgradeViaTimelock schedule-accept WITHOUT a roles attestation]: reverted @block 11884395 (head after 11884395); regex expected == actual 'roles attestation: missing'
+  CHECK [roles before-M1-schedule: event-history holder sets == manifest] PASS (roles-before-M1-schedule.log)
+  CHECK [M1 printed scheduleBatch calldata == independently encoded] PASS: 0x8f2a0bb000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001c00000000000000000000000000000000000000000000000000000000000000000ab592f397cec157cb7b5007cfe1490eab0355cb86fbc7990a68bcddf64fb75c4000000000000000000000000000000000000000000000000000000000002a300000000000000000000000000000000000000000000000000000000000000000300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e7100000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de900000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000479ba509700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000479ba50970000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000248a0dac4a00000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e11400000000000000000000000000000000000000000000000000000000
+  negative ok NEG-14 [M1: deployer EOA scheduleBatch directly (not PROPOSER)]: reverted @block 11884396 (head after 11884396); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0eb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1'
+  readback [M1② scheduleBatch: Safe.nonce before] = 6 @block 11884396
+  Safe tx [M1② scheduleBatch]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=6 safeTxHash=0xccf51b039d197306f284059d44bc9aba340f69813755d9937feecf74844ade0e data=0x8f2a0bb000000000000000000000000000000000000000000000000000000000000000c0…
+  TX [M1② scheduleBatch: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x4d326b0c6b280fa00bc3a76ba5822475220ad733c73025a9704e5f97740ff047 block=11884397 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [M1② scheduleBatch: approvedHashes] = 1 @block 11884397
+  CHECK [M1② scheduleBatch: approvedHashes(O1,h)] PASS: 1
+  TX [M1② scheduleBatch: execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x26f8a97e4daf6a3cf56a2cd111e4157d27e86fba71aca2ed274052d0edebc754 block=11884398 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [M1② scheduleBatch: Safe ExecutionSuccess event in 0x26f8a97e4daf6a3cf56a2cd111e4157d27e86fba71aca2ed274052d0edebc754] PASS: 1
+  readback [M1② scheduleBatch: Safe.nonce after] = 7 @block 11884398
+  CHECK [M1② scheduleBatch: Safe.nonce incremented] PASS: 7
+  readback [TL.isOperationPending(M1)] = true @block 11884398
+  CHECK [M1② batch pending] PASS: true
+  readback [M1: Safe executeBatch BEFORE 48h: Safe.nonce] = 7 @block 11884398
+  TX [M1: Safe executeBatch BEFORE 48h: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0xd606e4f87e3cf1a8f0ce6eea73e4be0af0a482974a675c5e6188584268f0a7be block=11884399 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-15 [M1: Safe executeBatch BEFORE 48h [inner call replayed as eth_call from the Safe]]: reverted @block 11884399 (head after 11884399); exact-revert-data expected == actual '0x5ead8eb50103401589cc18cb6750533ad0b4abdd605a106825e4c81a44fc26529b7565150000000000000000000000000000000000000000000000000000000000000004'
+  negative ok NEG-16 [M1: Safe executeBatch BEFORE 48h]: reverted @block 11884399 (head after 11884399); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [M1: Safe executeBatch BEFORE 48h: Safe.nonce after] = 7 @block 11884399
+  CHECK [M1: Safe executeBatch BEFORE 48h: Safe.nonce unchanged after the failed exec] PASS: 7
+  warp +172800 s -> block 11884400 ts 1792583665
+  negative ok NEG-17 [M1: non-multisig (deployer EOA) executeBatch after 48h (not EXECUTOR)]: reverted @block 11884400 (head after 11884400); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63'
+  negative ok NEG-18 [M1: non-multisig (Safe owner EOA directly) executeBatch after 48h]: reverted @block 11884400 (head after 11884400); exact-revert-data expected == actual '0xe2517d3f0000000000000000000000008c3499252232105a1615767c459db9bbbf1273d6d8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63'
+  CHECK [roles before-M1-execute: event-history holder sets == manifest] PASS (roles-before-M1-execute.log)
+  CHECK [M1 printed executeBatch calldata == independently encoded] PASS: 0xe38335e500000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001a00000000000000000000000000000000000000000000000000000000000000000ab592f397cec157cb7b5007cfe1490eab0355cb86fbc7990a68bcddf64fb75c4000000000000000000000000000000000000000000000000000000000000000300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e7100000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de900000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000479ba509700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000479ba50970000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000248a0dac4a00000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e11400000000000000000000000000000000000000000000000000000000
+  readback [M1② executeBatch: Safe.nonce before] = 7 @block 11884401
+  Safe tx [M1② executeBatch]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=7 safeTxHash=0x2484721dd06573cbaa909f546525c73f1ad055fbcf8c4b5c76822131be45d8a8 data=0xe38335e500000000000000000000000000000000000000000000000000000000000000a0…
+  TX [M1② executeBatch: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x5c2cf7aeac674bb9a2a40a4fa454aa053e1519c07b81669624aec45161a38496 block=11884402 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [M1② executeBatch: approvedHashes] = 1 @block 11884402
+  CHECK [M1② executeBatch: approvedHashes(O1,h)] PASS: 1
+  TX [M1② executeBatch: execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x5bfba5ef9bd55d99fd9a3efeb7f919c30caa0e3136256c583adbb16b772cb1c2 block=11884403 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [M1② executeBatch: Safe ExecutionSuccess event in 0x5bfba5ef9bd55d99fd9a3efeb7f919c30caa0e3136256c583adbb16b772cb1c2] PASS: 1
+  readback [M1② executeBatch: Safe.nonce after] = 8 @block 11884403
+  CHECK [M1② executeBatch: Safe.nonce incremented] PASS: 8
+  readback [TL.isOperationDone(M1)] = true @block 11884403
+  CHECK [M1 batch done] PASS: true
+  readback [SP.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884403
+  CHECK [M1 SP.owner == TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [SP.pendingOwner] = 0x0000000000000000000000000000000000000000 @block 11884403
+  CHECK [M1 SP.pendingOwner == 0] PASS: 0x0000000000000000000000000000000000000000
+  readback [Registry.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884403
+  CHECK [M1 Registry.owner == TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [Registry.pendingOwner] = 0x0000000000000000000000000000000000000000 @block 11884403
+  CHECK [M1 Registry.pendingOwner == 0] PASS: 0x0000000000000000000000000000000000000000
+  readback [SP.guardian] = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 @block 11884403
+  CHECK [M1/M2 SP.guardian == Safe] PASS: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+  readback [AOAProtocolRegistry.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884403
+  CHECK [M1 AOAProtocolRegistry.owner == TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [xPNTsFactoryV2.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884403
+  CHECK [M1 xPNTsFactoryV2.owner == TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [APNTsCapped.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884403
+  CHECK [M1 APNTsCapped.owner == TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [TL.getMinDelay] = 172800 @block 11884403
+  CHECK [M1 TL.getMinDelay] PASS: 172800
+  readback [TL.hasRole(EXECUTOR,0)] = false @block 11884403
+  CHECK [M1 executor not open (hasRole(EXECUTOR, 0))] PASS: false
+  CHECK [roles after-M1: event-history holder sets == manifest] PASS (roles-after-M1.log)
+  role events [after-M1]: 4 RoleGranted/RoleRevoked logs since block 11884321 (role-events-after-M1.json)
+  negative ok NEG-19 [M1: old EOA owner SP.upgradeToAndCall after M1]: reverted @block 11884404 (head after 11884404); exact-revert-data expected == actual '0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e'
+  negative ok NEG-20 [M1: old EOA owner Registry.upgradeToAndCall after M1]: reverted @block 11884404 (head after 11884404); exact-revert-data expected == actual '0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e'
+
+=== STAGE II / C (§10.7b C): timelock-aware upgrade drill, SP then Registry (re-deploys the SAME rc.2 bytecode: no rc1' dummy-bump impl exists; see README) ===
+  SP new impl 0x3a69C08A310bb62bEfdd03048C6Ec64235772e5b
+  CHECK [codehash C-SP-impl == rc.2 attestation] PASS (codehash-C-SP-impl.log)
+  negative ok NEG-21 [C SP: schedule-upgrade WITHOUT a roles attestation]: reverted @block 11884405 (head after 11884405); regex expected == actual 'roles attestation: missing'
+  CHECK [roles before-C-SP-schedule: event-history holder sets == manifest] PASS (roles-before-C-SP-schedule.log)
+  CHECK [C SP printed schedule calldata == independently encoded] PASS: 0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000000069e5db29d18c34c5439c222c0281193fe22cbba141f80f09c7a7318751594ac2000000000000000000000000000000000000000000000000000000000002a30000000000000000000000000000000000000000000000000000000000000000644f1ef2860000000000000000000000003a69c08a310bb62befdd03048c6ec64235772e5b0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  readback [C SP schedule(upgradeToAndCall): Safe.nonce before] = 8 @block 11884406
+  Safe tx [C SP schedule(upgradeToAndCall)]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=8 safeTxHash=0xf808a6be4543e3b37a3084d1c9b8ac954cd2e670256f19494bad47c50c53d8ec data=0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [C SP schedule(upgradeToAndCall): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x1cff9fd604fcfcbbadbec57c77bea1ec07c7e29cd50ee8c2897e3b8fbc4a684c block=11884407 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [C SP schedule(upgradeToAndCall): approvedHashes] = 1 @block 11884407
+  CHECK [C SP schedule(upgradeToAndCall): approvedHashes(O1,h)] PASS: 1
+  TX [C SP schedule(upgradeToAndCall): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x7a543c9854ed372b9e70a84ec14170866569d93b961a00043d935fc392220848 block=11884408 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [C SP schedule(upgradeToAndCall): Safe ExecutionSuccess event in 0x7a543c9854ed372b9e70a84ec14170866569d93b961a00043d935fc392220848] PASS: 1
+  readback [C SP schedule(upgradeToAndCall): Safe.nonce after] = 9 @block 11884408
+  CHECK [C SP schedule(upgradeToAndCall): Safe.nonce incremented] PASS: 9
+  readback [TL.isOperationPending(C-SP)] = true @block 11884408
+  CHECK [C SP op pending] PASS: true
+  readback [C SP: Safe execute BEFORE 48h: Safe.nonce] = 9 @block 11884408
+  TX [C SP: Safe execute BEFORE 48h: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0x6b39c16eca141fc588122b41cd74876196c8b514baccb61019cfc517e5aa6ef1 block=11884409 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-22 [C SP: Safe execute BEFORE 48h [inner call replayed as eth_call from the Safe]]: reverted @block 11884409 (head after 11884409); exact-revert-data expected == actual '0x5ead8eb59beb262c495ecd74d75fe4ba989d5465605de497c728c72068c6f8771df0c2920000000000000000000000000000000000000000000000000000000000000004'
+  negative ok NEG-23 [C SP: Safe execute BEFORE 48h]: reverted @block 11884409 (head after 11884409); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [C SP: Safe execute BEFORE 48h: Safe.nonce after] = 9 @block 11884409
+  CHECK [C SP: Safe execute BEFORE 48h: Safe.nonce unchanged after the failed exec] PASS: 9
+  warp +172800 s -> block 11884410 ts 1792756807
+  CHECK [roles before-C-SP-execute: event-history holder sets == manifest] PASS (roles-before-C-SP-execute.log)
+  CHECK [C SP printed execute calldata == independently encoded] PASS: 0x134008d300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000069e5db29d18c34c5439c222c0281193fe22cbba141f80f09c7a7318751594ac200000000000000000000000000000000000000000000000000000000000000644f1ef2860000000000000000000000003a69c08a310bb62befdd03048c6ec64235772e5b0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  readback [C SP execute(upgradeToAndCall): Safe.nonce before] = 9 @block 11884411
+  Safe tx [C SP execute(upgradeToAndCall)]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=9 safeTxHash=0xe1f971a081e014ca47fdd7c4027a8990cd2eb719c1b372369df7ce1c8fed3279 data=0x134008d300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [C SP execute(upgradeToAndCall): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0xb5ae5875ccff2bfb839da2ff8e94f6d9c2e9169e2302d6222aaf0c0671bf283c block=11884412 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [C SP execute(upgradeToAndCall): approvedHashes] = 1 @block 11884412
+  CHECK [C SP execute(upgradeToAndCall): approvedHashes(O1,h)] PASS: 1
+  TX [C SP execute(upgradeToAndCall): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0xfe0d8002602324b7765bc8a765f85b4797ed66487274f6c187f1325dab8a78ee block=11884413 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [C SP execute(upgradeToAndCall): Safe ExecutionSuccess event in 0xfe0d8002602324b7765bc8a765f85b4797ed66487274f6c187f1325dab8a78ee] PASS: 1
+  readback [C SP execute(upgradeToAndCall): Safe.nonce after] = 10 @block 11884413
+  CHECK [C SP execute(upgradeToAndCall): Safe.nonce incremented] PASS: 10
+  readback [TL.isOperationDone(C-SP)] = true @block 11884413
+  CHECK [C SP op done] PASS: true
+  CHECK [C SP ERC-1967 impl slot == new impl] PASS: 0x3a69c08a310bb62befdd03048c6ec64235772e5b
+  CHECK [C SP impl actually changed (old impl 0xf2b952f0e60c2ea3f433de260e0d45d12645eb88 != new impl)] PASS: changed
+  readback [SP.version] = "SuperPaymaster-5.5.0" @block 11884413
+  CHECK [C SP version] PASS: "SuperPaymaster-5.5.0"
+  readback [SP.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884413
+  CHECK [C SP owner == TL (unchanged across execute)] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  CHECK [C SP owner before execute was TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [SP.pendingOwner] = 0x0000000000000000000000000000000000000000 @block 11884413
+  CHECK [C SP pendingOwner == 0] PASS: 0x0000000000000000000000000000000000000000
+  readback [SP.BLS_AGGREGATOR] = 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D @block 11884413
+  CHECK [C SP BLS leg SP] PASS: 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+  readback [Registry.blsAggregator] = 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D @block 11884413
+  CHECK [C SP BLS leg Registry] PASS: 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+  CHECK [C SP slot dumps well-formed (65 words each, >= 1 non-zero)] PASS: 65:65:1
+  CHECK [C SP raw slots 0..64 byte-identical across execute (blocks 11884411 -> 11884413)] PASS: 3b6b22a38c53d9f5b498a1f42556399233de901ebafad82707994ef05f0b420e
+  REGISTRY new impl 0x6b1c9f8555FEE910C5c8CbdBac036D00bA94BB87
+  CHECK [codehash C-REGISTRY-impl == rc.2 attestation] PASS (codehash-C-REGISTRY-impl.log)
+  negative ok NEG-24 [C REGISTRY: schedule-upgrade WITHOUT a roles attestation]: reverted @block 11884414 (head after 11884414); regex expected == actual 'roles attestation: missing'
+  CHECK [roles before-C-REGISTRY-schedule: event-history holder sets == manifest] PASS (roles-before-C-REGISTRY-schedule.log)
+  CHECK [C REGISTRY printed schedule calldata == independently encoded] PASS: 0x01d5062a000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000514aa52b89a4319971803c25f7d7f6b73e7b8617b19176065f23a89af5490db4000000000000000000000000000000000000000000000000000000000002a30000000000000000000000000000000000000000000000000000000000000000644f1ef2860000000000000000000000006b1c9f8555fee910c5c8cbdbac036d00ba94bb870000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  readback [C REGISTRY schedule(upgradeToAndCall): Safe.nonce before] = 10 @block 11884415
+  Safe tx [C REGISTRY schedule(upgradeToAndCall)]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=10 safeTxHash=0x7b8eea65813065af9ed069364a03a7e12562b620447e3969a3e6f4702c47644a data=0x01d5062a000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71…
+  TX [C REGISTRY schedule(upgradeToAndCall): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x4fc1cd3a9a1dbe21e4272bf7b7ebe07719c6730348ec496858b6dc28401f1f7e block=11884416 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [C REGISTRY schedule(upgradeToAndCall): approvedHashes] = 1 @block 11884416
+  CHECK [C REGISTRY schedule(upgradeToAndCall): approvedHashes(O1,h)] PASS: 1
+  TX [C REGISTRY schedule(upgradeToAndCall): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x1a8fcab6e46a0836d011374193fb4b38f8f450c014abc0b1efedafb05ea5e570 block=11884417 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [C REGISTRY schedule(upgradeToAndCall): Safe ExecutionSuccess event in 0x1a8fcab6e46a0836d011374193fb4b38f8f450c014abc0b1efedafb05ea5e570] PASS: 1
+  readback [C REGISTRY schedule(upgradeToAndCall): Safe.nonce after] = 11 @block 11884417
+  CHECK [C REGISTRY schedule(upgradeToAndCall): Safe.nonce incremented] PASS: 11
+  readback [TL.isOperationPending(C-REGISTRY)] = true @block 11884417
+  CHECK [C REGISTRY op pending] PASS: true
+  readback [C REGISTRY: Safe execute BEFORE 48h: Safe.nonce] = 11 @block 11884417
+  TX [C REGISTRY: Safe execute BEFORE 48h: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0x0aa18d0008fdb428212d7552852d4ce5322360a99b406d4c9f30c2a8758416e6 block=11884418 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-25 [C REGISTRY: Safe execute BEFORE 48h [inner call replayed as eth_call from the Safe]]: reverted @block 11884418 (head after 11884418); exact-revert-data expected == actual '0x5ead8eb5278740ef5a1d3db3f2829ab67360681dc7105e9df8a4b5fb6c5250d85afbbcdc0000000000000000000000000000000000000000000000000000000000000004'
+  negative ok NEG-26 [C REGISTRY: Safe execute BEFORE 48h]: reverted @block 11884418 (head after 11884418); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [C REGISTRY: Safe execute BEFORE 48h: Safe.nonce after] = 11 @block 11884418
+  CHECK [C REGISTRY: Safe execute BEFORE 48h: Safe.nonce unchanged after the failed exec] PASS: 11
+  warp +172800 s -> block 11884419 ts 1792930319
+  CHECK [roles before-C-REGISTRY-execute: event-history holder sets == manifest] PASS (roles-before-C-REGISTRY-execute.log)
+  CHECK [C REGISTRY printed execute calldata == independently encoded] PASS: 0x134008d3000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000514aa52b89a4319971803c25f7d7f6b73e7b8617b19176065f23a89af5490db400000000000000000000000000000000000000000000000000000000000000644f1ef2860000000000000000000000006b1c9f8555fee910c5c8cbdbac036d00ba94bb870000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  readback [C REGISTRY execute(upgradeToAndCall): Safe.nonce before] = 11 @block 11884420
+  Safe tx [C REGISTRY execute(upgradeToAndCall)]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=11 safeTxHash=0x5b8625df2e5d2b6aa59173edad7862fee976192cdb921e7d15bbb8ddb17af72d data=0x134008d3000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71…
+  TX [C REGISTRY execute(upgradeToAndCall): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x79ca1d3a14ab8e908aa3d6dd01d10290c825214eb3f3b50807c6680b0ac47e1a block=11884421 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [C REGISTRY execute(upgradeToAndCall): approvedHashes] = 1 @block 11884421
+  CHECK [C REGISTRY execute(upgradeToAndCall): approvedHashes(O1,h)] PASS: 1
+  TX [C REGISTRY execute(upgradeToAndCall): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0xd014f202d900205bfe581ba203a9747d5dfd6f7095a18d6d37a0ec1344dbb9ad block=11884422 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [C REGISTRY execute(upgradeToAndCall): Safe ExecutionSuccess event in 0xd014f202d900205bfe581ba203a9747d5dfd6f7095a18d6d37a0ec1344dbb9ad] PASS: 1
+  readback [C REGISTRY execute(upgradeToAndCall): Safe.nonce after] = 12 @block 11884422
+  CHECK [C REGISTRY execute(upgradeToAndCall): Safe.nonce incremented] PASS: 12
+  readback [TL.isOperationDone(C-REGISTRY)] = true @block 11884422
+  CHECK [C REGISTRY op done] PASS: true
+  CHECK [C REGISTRY ERC-1967 impl slot == new impl] PASS: 0x6b1c9f8555fee910c5c8cbdbac036d00ba94bb87
+  CHECK [C REGISTRY impl actually changed (old impl 0xd71d988efdadef92e95c7c9d7c1a3f66dff671ad != new impl)] PASS: changed
+  readback [REGISTRY.version] = "Registry-5.9.0" @block 11884422
+  CHECK [C REGISTRY version] PASS: "Registry-5.9.0"
+  readback [REGISTRY.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884422
+  CHECK [C REGISTRY owner == TL (unchanged across execute)] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  CHECK [C REGISTRY owner before execute was TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [REGISTRY.pendingOwner] = 0x0000000000000000000000000000000000000000 @block 11884422
+  CHECK [C REGISTRY pendingOwner == 0] PASS: 0x0000000000000000000000000000000000000000
+  readback [SP.BLS_AGGREGATOR] = 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D @block 11884422
+  CHECK [C REGISTRY BLS leg SP] PASS: 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+  readback [Registry.blsAggregator] = 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D @block 11884422
+  CHECK [C REGISTRY BLS leg Registry] PASS: 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+  CHECK [C REGISTRY slot dumps well-formed (74 words each, >= 1 non-zero)] PASS: 74:74:1
+  CHECK [C REGISTRY raw slots 0..73 byte-identical across execute (blocks 11884420 -> 11884422)] PASS: 2c6ef92fe840ec6dc694b2f7ec417edcf911f184294374c5969eb2425c2c808f
+
+=== STAGE II / M2 (GOV-2): guardian (= Safe) pauses via Safe.execTransaction; validate -> sigFail; guardian cannot unpause / upgrade / move funds; timelock unpauses ===
+  probe validatePaymasterUserOp(real AAStar op, sender 0xc9faB1d72a323c2fbBE7623Ab09e3776429AdCD1) [before-pause] @block 11884422: validationData=737355018954270380481333805721570800513622797373633468111763446349955072 (raw: 0x00000000000000000000000050a3cc04208d6a4e2a3b443275c0add139416dd8000000000000000000000000c9fab1d72a323c2fbbe7623ab09e3776429adcd1000000000000000000000000000000)
+  CHECK [M2 probe BEFORE pause: sigFail bit == 0 (positive control)] PASS: 0
+  readback [M2 guardian setGlobalPaused(true): Safe.nonce before] = 12 @block 11884422
+  Safe tx [M2 guardian setGlobalPaused(true)]: to=0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9 nonce=12 safeTxHash=0x61e0c475d76de18bd242fe6e3cc9a413e4694daa0fbafa4532d26faf0bdea7c7 data=0x76cad8340000000000000000000000000000000000000000000000000000000000000001
+  TX [M2 guardian setGlobalPaused(true): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x9ece6cef12d60bccda9f6068f521ae9368e6b2b28ae68bc6908cc3a40e7616a9 block=11884423 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [M2 guardian setGlobalPaused(true): approvedHashes] = 1 @block 11884423
+  CHECK [M2 guardian setGlobalPaused(true): approvedHashes(O1,h)] PASS: 1
+  TX [M2 guardian setGlobalPaused(true): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x1339ef1c64f43901cb22cc41a89e1604e037b36bd60745dced3e10a6034f386d block=11884424 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [M2 guardian setGlobalPaused(true): Safe ExecutionSuccess event in 0x1339ef1c64f43901cb22cc41a89e1604e037b36bd60745dced3e10a6034f386d] PASS: 1
+  readback [M2 guardian setGlobalPaused(true): Safe.nonce after] = 13 @block 11884424
+  CHECK [M2 guardian setGlobalPaused(true): Safe.nonce incremented] PASS: 13
+  readback [SP.paused] = true @block 11884424
+  CHECK [M2 paused() == true] PASS: true
+  probe validatePaymasterUserOp(real AAStar op, sender 0xc9faB1d72a323c2fbBE7623Ab09e3776429AdCD1) [while-paused] @block 11884424: validationData=1 (raw: 0x 1 )
+  CHECK [M2 probe WHILE paused: sigFail bit == 1 (SIG_VALIDATION_FAILED)] PASS: 1
+  readback [M2: guardian (Safe) unpause setGlobalPaused(false): Safe.nonce] = 13 @block 11884424
+  TX [M2: guardian (Safe) unpause setGlobalPaused(false): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0x81be81e4ef64c997d754e94c38dc41f6c882e60387f8b46b5627456f6d2c8b1e block=11884425 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-27 [M2: guardian (Safe) unpause setGlobalPaused(false) [inner call replayed as eth_call from the Safe]]: reverted @block 11884425 (head after 11884425); exact-revert-data expected == actual '0x82b42900'
+  negative ok NEG-28 [M2: guardian (Safe) unpause setGlobalPaused(false)]: reverted @block 11884425 (head after 11884425); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [M2: guardian (Safe) unpause setGlobalPaused(false): Safe.nonce after] = 13 @block 11884425
+  CHECK [M2: guardian (Safe) unpause setGlobalPaused(false): Safe.nonce unchanged after the failed exec] PASS: 13
+  readback [M2: guardian (Safe) SP.upgradeToAndCall: Safe.nonce] = 13 @block 11884425
+  TX [M2: guardian (Safe) SP.upgradeToAndCall: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0xf5790b3e082730baf5070f704f18b3eda9fbab99aaec87a41ba9b167759fa467 block=11884426 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-29 [M2: guardian (Safe) SP.upgradeToAndCall [inner call replayed as eth_call from the Safe]]: reverted @block 11884426 (head after 11884426); exact-revert-data expected == actual '0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114'
+  negative ok NEG-30 [M2: guardian (Safe) SP.upgradeToAndCall]: reverted @block 11884426 (head after 11884426); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [M2: guardian (Safe) SP.upgradeToAndCall: Safe.nonce after] = 13 @block 11884426
+  CHECK [M2: guardian (Safe) SP.upgradeToAndCall: Safe.nonce unchanged after the failed exec] PASS: 13
+  readback [M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds): Safe.nonce] = 13 @block 11884426
+  TX [M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0x6c909717ec4a5616d09a04efccef166873702dea3b99b9d60bacc8ad9f0070d7 block=11884427 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-31 [M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds) [inner call replayed as eth_call from the Safe]]: reverted @block 11884427 (head after 11884427); exact-revert-data expected == actual '0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114'
+  negative ok NEG-32 [M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds)]: reverted @block 11884427 (head after 11884427); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds): Safe.nonce after] = 13 @block 11884427
+  CHECK [M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds): Safe.nonce unchanged after the failed exec] PASS: 13
+  readback [M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false): Safe.nonce] = 13 @block 11884427
+  TX [M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0x435afedfe63724bc9df4f23b11a574aa64dc3cf62267e0fdc5ff88b6389b046b block=11884428 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-33 [M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false) [inner call replayed as eth_call from the Safe]]: reverted @block 11884428 (head after 11884428); exact-revert-data expected == actual '0x82b42900'
+  negative ok NEG-34 [M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false)]: reverted @block 11884428 (head after 11884428); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false): Safe.nonce after] = 13 @block 11884428
+  CHECK [M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false): Safe.nonce unchanged after the failed exec] PASS: 13
+  negative ok NEG-35 [M2: old EOA unpause (neither owner nor guardian)]: reverted @block 11884428 (head after 11884428); exact-revert-data expected == actual '0x82b42900'
+  CHECK [roles before-M2-schedule: event-history holder sets == manifest] PASS (roles-before-M2-schedule.log)
+  CHECK [M2 printed schedule calldata == independently encoded] PASS: 0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000a792c11c37a5fe3cbe2a4b76e05ad21b17f103bb589be92f06755b0aed106bff000000000000000000000000000000000000000000000000000000000002a300000000000000000000000000000000000000000000000000000000000000002476cad834000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  readback [M2 schedule(unpause): Safe.nonce before] = 13 @block 11884429
+  Safe tx [M2 schedule(unpause)]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=13 safeTxHash=0x26e534d8bc8d1a0b93a54afad06ace00d8d730c367aae68ba859522bcf69d2e5 data=0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [M2 schedule(unpause): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x78b9a48764fb4005a9da980921959615b00a2cb9184b85cc2c404459aa3b1910 block=11884430 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [M2 schedule(unpause): approvedHashes] = 1 @block 11884430
+  CHECK [M2 schedule(unpause): approvedHashes(O1,h)] PASS: 1
+  TX [M2 schedule(unpause): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x499c0c5d13ac89308c388fd72bdf4be2f6f342c7cf9f82a28a7f9591d6b07b0e block=11884431 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [M2 schedule(unpause): Safe ExecutionSuccess event in 0x499c0c5d13ac89308c388fd72bdf4be2f6f342c7cf9f82a28a7f9591d6b07b0e] PASS: 1
+  readback [M2 schedule(unpause): Safe.nonce after] = 14 @block 11884431
+  CHECK [M2 schedule(unpause): Safe.nonce incremented] PASS: 14
+  readback [M2: Safe execute(unpause) BEFORE 48h: Safe.nonce] = 14 @block 11884431
+  TX [M2: Safe execute(unpause) BEFORE 48h: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0x82f1377f77478f3bf0c7af0b85962928ad4371dab183c36c731090b477fa6d0e block=11884432 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-36 [M2: Safe execute(unpause) BEFORE 48h [inner call replayed as eth_call from the Safe]]: reverted @block 11884432 (head after 11884432); exact-revert-data expected == actual '0x5ead8eb52643613799753f2403356e6e85d9ece98542bceba4af2d5f0e47345cda64be5c0000000000000000000000000000000000000000000000000000000000000004'
+  negative ok NEG-37 [M2: Safe execute(unpause) BEFORE 48h]: reverted @block 11884432 (head after 11884432); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [M2: Safe execute(unpause) BEFORE 48h: Safe.nonce after] = 14 @block 11884432
+  CHECK [M2: Safe execute(unpause) BEFORE 48h: Safe.nonce unchanged after the failed exec] PASS: 14
+  warp +172800 s -> block 11884433 ts 1793103356
+  readback [M2 execute(unpause): Safe.nonce before] = 14 @block 11884433
+  Safe tx [M2 execute(unpause)]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=14 safeTxHash=0x032ad9c46180d1457cfe6ab6d61475f697297ab9f928ad49a31328f202a92fa2 data=0x134008d300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [M2 execute(unpause): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x1e3d9ccf2ad9f41a0aab803898280bddfac7b5eef5f1bbdd7389627d731ca3fa block=11884434 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [M2 execute(unpause): approvedHashes] = 1 @block 11884434
+  CHECK [M2 execute(unpause): approvedHashes(O1,h)] PASS: 1
+  TX [M2 execute(unpause): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0xe408267bed49e0216423ef8b7b4f218555de188ee62e01c50b4fc76f4209da38 block=11884435 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [M2 execute(unpause): Safe ExecutionSuccess event in 0xe408267bed49e0216423ef8b7b4f218555de188ee62e01c50b4fc76f4209da38] PASS: 1
+  readback [M2 execute(unpause): Safe.nonce after] = 15 @block 11884435
+  CHECK [M2 execute(unpause): Safe.nonce incremented] PASS: 15
+  readback [SP.paused] = false @block 11884435
+  CHECK [M2 paused() == false after the timelock's unpause] PASS: false
+  probe validatePaymasterUserOp(real AAStar op, sender 0xc9faB1d72a323c2fbBE7623Ab09e3776429AdCD1) [after-unpause] @block 11884435: validationData=737355018954270380481333805721570800513622797373633468111763446349955072 (raw: 0x00000000000000000000000050a3cc04208d6a4e2a3b443275c0add139416dd8000000000000000000000000c9fab1d72a323c2fbbe7623ab09e3776429adcd1000000000000000000000000000000)
+  CHECK [M2 probe AFTER timelock unpause: sigFail bit == 0] PASS: 0
+
+=== STAGE II / M3 (GOV-3): setAPNTSPrice only via the timelock ===
+  readback [SP.aPNTsPriceUSD] = 20000000000000000 @block 11884435
+  aPNTsPriceUSD 20000000000000000 -> 21000000000000000 (+5%, inside the ±10% per-update band)
+  negative ok NEG-38 [M3: old EOA setAPNTSPrice]: reverted @block 11884435 (head after 11884435); exact-revert-data expected == actual '0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e'
+  readback [M3: Safe (guardian, not owner) setAPNTSPrice directly: Safe.nonce] = 15 @block 11884435
+  TX [M3: Safe (guardian, not owner) setAPNTSPrice directly: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0x2a8a62512729332cb19433f5205d67ccf46e8fd22eba6168d8090193e019c113 block=11884436 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-39 [M3: Safe (guardian, not owner) setAPNTSPrice directly [inner call replayed as eth_call from the Safe]]: reverted @block 11884436 (head after 11884436); exact-revert-data expected == actual '0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114'
+  negative ok NEG-40 [M3: Safe (guardian, not owner) setAPNTSPrice directly]: reverted @block 11884436 (head after 11884436); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [M3: Safe (guardian, not owner) setAPNTSPrice directly: Safe.nonce after] = 15 @block 11884436
+  CHECK [M3: Safe (guardian, not owner) setAPNTSPrice directly: Safe.nonce unchanged after the failed exec] PASS: 15
+  CHECK [roles before-M3-schedule: event-history holder sets == manifest] PASS (roles-before-M3-schedule.log)
+  CHECK [M3 printed schedule calldata == independently encoded] PASS: 0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000846923df1793a10b2e361251fa550e02d7eb606cf00845a00d16f9888cbbec85000000000000000000000000000000000000000000000000000000000002a3000000000000000000000000000000000000000000000000000000000000000024ec2123f1000000000000000000000000000000000000000000000000004a9b638448800000000000000000000000000000000000000000000000000000000000
+  readback [M3 schedule(setAPNTSPrice): Safe.nonce before] = 15 @block 11884437
+  Safe tx [M3 schedule(setAPNTSPrice)]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=15 safeTxHash=0x7e4913331b4815bcc0a7d22b93e4c44df672a8b0b05359a5038010107fc6a8e5 data=0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [M3 schedule(setAPNTSPrice): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0xa16451ef1669fb15241dc761bbab3117387ab97bc0041ab6b3f7f193f93b5dc7 block=11884438 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [M3 schedule(setAPNTSPrice): approvedHashes] = 1 @block 11884438
+  CHECK [M3 schedule(setAPNTSPrice): approvedHashes(O1,h)] PASS: 1
+  TX [M3 schedule(setAPNTSPrice): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x042babe283475dac57e135ee6d80c6f5427f69beb116cff4a7ea7030df7dd5f9 block=11884439 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [M3 schedule(setAPNTSPrice): Safe ExecutionSuccess event in 0x042babe283475dac57e135ee6d80c6f5427f69beb116cff4a7ea7030df7dd5f9] PASS: 1
+  readback [M3 schedule(setAPNTSPrice): Safe.nonce after] = 16 @block 11884439
+  CHECK [M3 schedule(setAPNTSPrice): Safe.nonce incremented] PASS: 16
+  readback [TL.isOperationPending(M3)] = true @block 11884439
+  CHECK [M3 op pending] PASS: true
+  readback [M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute): Safe.nonce] = 16 @block 11884439
+  TX [M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0xadecfe6ac9e369f3c5be8bb83a47b310047f8fc2b11b9f827c1e86d27f050fd8 block=11884440 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-41 [M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute) [inner call replayed as eth_call from the Safe]]: reverted @block 11884440 (head after 11884440); exact-revert-data expected == actual '0x5ead8eb5921600c831c165c329d624072ee9b81bb477de0a65197ae2bcb826cf6b6d441c0000000000000000000000000000000000000000000000000000000000000004'
+  negative ok NEG-42 [M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute)]: reverted @block 11884440 (head after 11884440); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute): Safe.nonce after] = 16 @block 11884440
+  CHECK [M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute): Safe.nonce unchanged after the failed exec] PASS: 16
+  readback [SP.aPNTsPriceUSD] = 20000000000000000 @block 11884440
+  CHECK [M3 price unchanged after the early execute] PASS: 20000000000000000
+  warp +172800 s -> block 11884441 ts 1793276237
+  negative ok NEG-43 [M3: deployer EOA execute after 48h (not EXECUTOR)]: reverted @block 11884441 (head after 11884441); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63'
+  CHECK [roles before-M3-execute: event-history holder sets == manifest] PASS (roles-before-M3-execute.log)
+  CHECK [M3 printed execute calldata == independently encoded] PASS: 0x134008d300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000846923df1793a10b2e361251fa550e02d7eb606cf00845a00d16f9888cbbec850000000000000000000000000000000000000000000000000000000000000024ec2123f1000000000000000000000000000000000000000000000000004a9b638448800000000000000000000000000000000000000000000000000000000000
+  readback [M3 execute(setAPNTSPrice): Safe.nonce before] = 16 @block 11884442
+  Safe tx [M3 execute(setAPNTSPrice)]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=16 safeTxHash=0xfd72b271c50922786af9bb11b046380039ac88dbafc84a8d7f0ebcba68811ff0 data=0x134008d300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [M3 execute(setAPNTSPrice): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x9b9bca2316e8ba3821bdcce2c50afa9939729fec88d6ad80ae7dd14e726264bd block=11884443 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [M3 execute(setAPNTSPrice): approvedHashes] = 1 @block 11884443
+  CHECK [M3 execute(setAPNTSPrice): approvedHashes(O1,h)] PASS: 1
+  TX [M3 execute(setAPNTSPrice): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x7dadd57511120e3bbd043410d643f10e797b1198a5de7e10dc5caf0f221bb8cb block=11884444 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [M3 execute(setAPNTSPrice): Safe ExecutionSuccess event in 0x7dadd57511120e3bbd043410d643f10e797b1198a5de7e10dc5caf0f221bb8cb] PASS: 1
+  readback [M3 execute(setAPNTSPrice): Safe.nonce after] = 17 @block 11884444
+  CHECK [M3 execute(setAPNTSPrice): Safe.nonce incremented] PASS: 17
+  readback [TL.isOperationDone(M3)] = true @block 11884444
+  CHECK [M3 op done] PASS: true
+  readback [SP.aPNTsPriceUSD] = 21000000000000000 @block 11884444
+  CHECK [M3 aPNTsPriceUSD == new price] PASS: 21000000000000000
+
+=== STAGE D (rc1 gate item 4, 03-final-spec.md L394 / §10.7b C): REAL changed-runtime upgrade rc.2 -> rc1' (TEST-ONLY dummy bump) through the Safe-only GOV-1 timelock, then roll back ===
+  The C drill above re-deployed the SAME rc.2 bytecode (routing only). Here the new implementation is
+  contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol: a TEST ARTIFACT (never a release artifact)
+  whose only change vs rc.2 SuperPaymaster is the version() string constant.
+  D0 test artifact: {"source":"contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol","sourceSha256":"516a20a473ddc622fce101d7ffd23a4eb7e5cbb25e0fde0e2db19a53c1a9a66c","artifactFileSha256":"cb743ce88a27d6e8638b58bb22ca920d632e1039e7346e8236c6a4b81e256f80","runtimeBytes":13782,"runtimeKeccak":"0xcb760244e1416530f8845e0651cb4efb90d0853a514d458db0614d4fa6e803d0","creationKeccak":"0xd105ba35a8a023675a8505e5c809a5c54778ff5f5029f66e21e1f7de0f9ce547","compiler":"0.8.33+commit.64118f21","evmVersion":"cancun","optimizerRuns":500,"viaIR":true} source state: committed
+  CHECK [D0 dummy source is committed (archive reproducible from the commit)] PASS: committed
+  CHECK [D0 dummy compiled with the release settings (cancun / 500 runs / via_ir)] PASS: cancun/500/true
+  CHECK [D0 local SuperPaymaster artifact == rc.2 attested runtime (the dummy's base is rc.2)] PASS: 0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222
+  CHECK [D0 dummy runtime keccak != rc.2 attested runtime keccak] PASS: different
+  CHECK [D0 dummy runtime <= EIP-170 24576 B] PASS: True
+  D0 fresh rebuild: Compiling 35 files with Solc 0.8.33 -> cache/evidence-a2/dummy-fresh/out/SuperPaymasterA2DrillDummyBump.sol/SuperPaymasterA2DrillDummyBump.json
+  PROVENANCE OK: 35/35 metadata sources == checkout; runtime 0xcb760244e1416530f8845e0651cb4efb90d0853a514d458db0614d4fa6e803d0 and creation 0xd105ba35a8a023675a8505e5c809a5c54778ff5f5029f66e21e1f7de0f9ce547 == fresh rebuild
+  CHECK [D0 dummy artifact provenance (metadata source keccaks == checkout; == fresh rebuild)] PASS: 0:PROVENANCE OK
+  negative ok NEG-44 [D0: stale artifact compiled from a DIFFERENT dummy source (metadata keccak != checkout) is refused]: reverted @block 11884444 (head after 11884444); regex expected == actual 'PROVENANCE MISMATCH: source keccak: contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol'
+  negative ok NEG-45 [D0: stale artifact whose runtime differs by one byte from the fresh rebuild is refused]: reverted @block 11884444 (head after 11884444); regex expected == actual 'PROVENANCE MISMATCH: runtime != fresh rebuild'
+  CHECK [D0 storage layout: dummy == rc.2 SuperPaymaster (compiler storageLayout, entries + types)] PASS: IDENTICAL
+  CHECK [D0 storage layout comparator control 1: SuperPaymaster vs Registry == DIFFERENT] PASS: DIFFERENT
+  CHECK [D0 storage layout comparator control 2: rc.2 layout with ONE member offset mutated (t_struct(GasParams)62427_storage.settleGasBound) == DIFFERENT] PASS: DIFFERENT
+  CHECK [D0 storage layout comparator control 3: rc.2 layout vs itself == IDENTICAL] PASS: IDENTICAL
+  D0 layout: 42 entries, last occupied slot incl. __gap = 64 (raw dumps below cover 0..64 + the ERC-7201 slots)
+  negative ok NEG-46 [D0: dump_slots with an injected read failure on slot 5 (one cast storage call fails) returns failure]: reverted @block 11884444 (head after 11884444); regex expected == actual 'READ-FAILED slot 5'
+  CHECK [D0: the injected slot-5-failure snapshot is rejected by slots_valid] PASS: INVALID(66 valid words, 1 bad lines)
+  CHECK [D0: injection was scoped (cast is no longer shadowed)] PASS: file
+  negative ok NEG-47 [D0: dump_slots with every read failing (RPC on a dead port) returns failure]: reverted @block 11884444 (head after 11884444); regex expected == actual 'READ-FAILED block number'
+  CHECK [D0: the dead-RPC snapshot is rejected by slots_valid] PASS: INVALID
+  CHECK [D0: a healthy snapshot is accepted by slots_valid (positive control)] PASS: valid
+  CHECK [D0: a snapshot with ONE empty word (the old swallowed-error shape 'slot 4 ') is rejected] PASS: INVALID
+  negative ok NEG-48 [D0: sp_state with an injected EMPTY getter (operators(OWNER) exit 0, blank) returns failure]: reverted @block 11884444 (head after 11884444); regex expected == actual 'FAILED operators(OWNER) @block 11884444: empty value'
+  negative ok NEG-49 [D0: sp_state with an injected FAILED getter (operators(OWNER) exit 1) returns failure]: reverted @block 11884444 (head after 11884444); regex expected == actual 'FAILED operators(OWNER) @block 11884444: Error: injected read failure'
+  CHECK [D0: injection was scoped (cast is no longer shadowed)] PASS: file
+  CHECK [D0: healthy getter snapshot accepted by state_ok (positive control)] PASS: valid
+  CHECK [D0: snapshot with the injected failed getter rejected] PASS: INVALID
+  CHECK [D0: snapshot with the injected empty getter rejected] PASS: INVALID
+  CHECK [D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot A rejected] PASS: INVALID(23 non-empty values, 1 bad lines)
+  CHECK [D0: Codex repro — operators(OWNER) blank in BOTH snapshots: snapshot B rejected] PASS: INVALID(23 non-empty values, 1 bad lines)
+  CHECK [D0: Codex repro — the OLD rule would have accepted it (documents the gap)] PASS: old-accepts
+
+=== STAGE D / D1: deploy the TEST dummy implementation (deployer EOA; constructor = the live SP proxy's three immutables) ===
+  readback [SP.entryPoint] = 0x0000000071727De22E5E9d8BAf0edAc6f37da032 @block 11884444
+  readback [SP.REGISTRY] = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71 @block 11884444
+  readback [SP.ETH_USD_PRICE_FEED] = 0x694AA1769357215DE4FAC081bf1f309aDC325306 @block 11884444
+  TX [D1 deploy TEST dummy impl SuperPaymasterA2DrillDummyBump] hash=0x16d70189cadc6470f994e96da4afe0d6bc3f71e5e9a8a06df31f9282b410013c block=11884445 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  TEST DUMMY IMPL = 0x90F740A94f8f7f441c1dD0C55FE2e11597E27ff6 (tx 0x16d70189cadc6470f994e96da4afe0d6bc3f71e5e9a8a06df31f9282b410013c block 11884445; 13782 B runtime; codehash 0xea5051d205a52644cad65acea4e19bc311fd22b6e97ddcd123ab4a574e985d79)
+  readback [DUMMY.version] = "SuperPaymaster-5.5.0-A2DRILL-DUMMY-NOT-A-RELEASE" @block 11884445
+  CHECK [D1 dummy.version() (impl, direct)] PASS: "SuperPaymaster-5.5.0-A2DRILL-DUMMY-NOT-A-RELEASE"
+  readback [DUMMY.entryPoint] = 0x0000000071727De22E5E9d8BAf0edAc6f37da032 @block 11884445
+  CHECK [D1 dummy.entryPoint == proxy's] PASS: 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+  readback [DUMMY.REGISTRY] = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71 @block 11884445
+  CHECK [D1 dummy.REGISTRY == proxy's] PASS: 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+  readback [DUMMY.ETH_USD_PRICE_FEED] = 0x694AA1769357215DE4FAC081bf1f309aDC325306 @block 11884445
+  CHECK [D1 dummy.ETH_USD_PRICE_FEED == proxy's] PASS: 0x694AA1769357215DE4FAC081bf1f309aDC325306
+  readback [DUMMY.proxiableUUID] = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc @block 11884445
+  CHECK [D1 dummy.proxiableUUID == ERC-1967 implementation slot] PASS: 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+  readback [DUMMY.EXTENSION] = 0x35e905E6730e94850725724E1F7C6Bcb3690Cc64 @block 11884445
+  CHECK [D1 deployed dummy runtime == dummy artifact (masked immutables)] PASS (ATTESTED RUNTIME CHECK PASS (1 targets, 0 clones, 0 negative controls) @block 11884445)
+  CHECK [codehash D1-dummy-ext-and-negative == rc.2 attestation] PASS (codehash-D1-dummy-ext-and-negative.log)
+  CHECK [D1 dummy's EXTENSION runtime == rc.2 attested SuperPaymasterAdmin (only the core changed)] PASS: 1
+  CHECK [D1 dummy core runtime != rc.2 attested SuperPaymaster (comparator says no)] PASS: 1
+  CHECK [roles before-D1-printer: event-history holder sets == manifest] PASS (roles-before-D1-printer.log)
+  negative ok NEG-50 [D1: the RELEASE tool (UpgradeViaTimelock schedule-upgrade) refuses the TEST dummy impl (DefaultArtifacts gate)]: reverted @block 11884446 (head after 11884446); regex expected == actual 'DefaultArtifacts: SuperPaymaster runtime != profile.default artifact'
+
+=== STAGE D / D2: pre-upgrade snapshot + positive control of the validate probe on rc.2 ===
+  readback [SP.version] = "SuperPaymaster-5.5.0" @block 11884446
+  readback [SP.EXTENSION] = 0xA497F738446fD823e15198bFa8157E6Aa50677C0 @block 11884446
+  before: impl=0x3a69c08a310bb62befdd03048c6ec64235772e5b version="SuperPaymaster-5.5.0" implCodehash=0x855c0e80217be18958cecb20582584966412ae98b5e357cd7e109dd37219dfbf EXTENSION=0xA497F738446fD823e15198bFa8157E6Aa50677C0 @block 11884446
+  CHECK [D2 current impl is the rc.2 attested SuperPaymaster] PASS: rc2
+  readback [SP.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884446
+  CHECK [D2 SP.owner == canonical TL] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  CHECK [D2 dummy codehash != current impl codehash] PASS: different
+  refresh_oracle (FORK-ONLY storage write): aggregator=0x719E22E3D4b690E5d96cCb40619180B5427F14AE round=36689 answer=249455887742 updatedAt 1792410581 -> 1793276378 (base slot 44)
+  TX [D updatePrice before probe (before-dummy)] hash=0xae52f31a05e5e13bf941e3701f308a5845d47f2422f7f0b30e7407896510152a block=11884448 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  probe validatePaymasterUserOp(real AAStar op, sender 0xc9faB1d72a323c2fbBE7623Ab09e3776429AdCD1) [D-before-dummy] @block 11884448: validationData=737355018954270381746697538817754554385618514484893157680810874260946944 (raw: 0x00000000000000000000000050a3cc04208d6a4e2a3b443275c0add139416dd8000000000000000000000000c9fab1d72a323c2fbbe7623ab09e3776429adcd1000000000000000000000000000000)
+  CHECK [D2 probe validate on rc.2 BEFORE the dummy upgrade: sigFail bit == 0 (positive control)] PASS: 0
+
+=== STAGE D / D3: negative controls before scheduling (nobody but the timelock can upgrade; EOAs cannot schedule) ===
+  negative ok NEG-51 [D3: old EOA owner SP.upgradeToAndCall(dummy) directly]: reverted @block 11884448 (head after 11884448); exact-revert-data expected == actual '0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e'
+  readback [D3: Safe (guardian, not owner) SP.upgradeToAndCall(dummy) directly: Safe.nonce] = 17 @block 11884448
+  TX [D3: Safe (guardian, not owner) SP.upgradeToAndCall(dummy) directly: approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0xfe5d04a8306caf490aeef4204c685e11c6030f7fbf3b789b566989fb754fe50b block=11884449 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-52 [D3: Safe (guardian, not owner) SP.upgradeToAndCall(dummy) directly [inner call replayed as eth_call from the Safe]]: reverted @block 11884449 (head after 11884449); exact-revert-data expected == actual '0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114'
+  negative ok NEG-53 [D3: Safe (guardian, not owner) SP.upgradeToAndCall(dummy) directly]: reverted @block 11884449 (head after 11884449); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [D3: Safe (guardian, not owner) SP.upgradeToAndCall(dummy) directly: Safe.nonce after] = 17 @block 11884449
+  CHECK [D3: Safe (guardian, not owner) SP.upgradeToAndCall(dummy) directly: Safe.nonce unchanged after the failed exec] PASS: 17
+  negative ok NEG-54 [D3: deployer EOA schedule(upgradeToAndCall(dummy)) on the TL (not PROPOSER)]: reverted @block 11884449 (head after 11884449); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0eb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1'
+  negative ok NEG-55 [D3: Safe owner EOA directly schedule (not through the Safe)]: reverted @block 11884449 (head after 11884449); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000871608cba092105b91e91295a1d79ffc539bfb48b09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1'
+  negative ok NEG-56 [D3: schedule with delay < minDelay (172799), replayed as eth_call from the Safe address (no tx)]: reverted @block 11884449 (head after 11884449); exact-revert-data expected == actual '0x54336609000000000000000000000000000000000000000000000000000000000002a2ff000000000000000000000000000000000000000000000000000000000002a300'
+
+=== STAGE D / D4: Safe -> TL.schedule(SP.upgradeToAndCall(dummy)) (calldata encoded independently: the release printer refuses test artifacts, D1) ===
+  CHECK [roles before-D-forward-schedule: event-history holder sets == manifest] PASS (roles-before-D-forward-schedule.log)
+  readback [D4 schedule(upgradeToAndCall(dummy)): Safe.nonce before] = 17 @block 11884450
+  Safe tx [D4 schedule(upgradeToAndCall(dummy))]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=17 safeTxHash=0x77a24c59fa68b976954871d2ac0dddd2b8317300172c97188fe0dcd6b8a006c8 data=0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [D4 schedule(upgradeToAndCall(dummy)): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0xc2ff09c84e0efa61b81b11d12e1169ff07d9258c82b6833c9981c211f93c2e7e block=11884451 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [D4 schedule(upgradeToAndCall(dummy)): approvedHashes] = 1 @block 11884451
+  CHECK [D4 schedule(upgradeToAndCall(dummy)): approvedHashes(O1,h)] PASS: 1
+  TX [D4 schedule(upgradeToAndCall(dummy)): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x41848de3308c1464353f0f8b1b34ba4a0a43bb1797a3b4cdb9a4e5942a3bf86e block=11884452 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [D4 schedule(upgradeToAndCall(dummy)): Safe ExecutionSuccess event in 0x41848de3308c1464353f0f8b1b34ba4a0a43bb1797a3b4cdb9a4e5942a3bf86e] PASS: 1
+  readback [D4 schedule(upgradeToAndCall(dummy)): Safe.nonce after] = 18 @block 11884452
+  CHECK [D4 schedule(upgradeToAndCall(dummy)): Safe.nonce incremented] PASS: 18
+  readback [TL.isOperationPending(D-fwd)] = true @block 11884452
+  CHECK [D4 op pending] PASS: true
+  readback [TL.isOperationReady(D-fwd)] = false @block 11884452
+  CHECK [D4 op NOT ready] PASS: false
+  readback [TL.getTimestamp(D-fwd)] = 1793449335 @block 11884452
+  CHECK [D4 getTimestamp == schedule block ts + 172800] PASS: 1793449335
+  readback [D4: Safe execute IMMEDIATELY (TimelockUnexpectedOperationState): Safe.nonce] = 18 @block 11884452
+  TX [D4: Safe execute IMMEDIATELY (TimelockUnexpectedOperationState): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0xed9519c3add277d244e03f1ba10f30adb3df859f110f6da1ece49f3d86075bec block=11884453 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-57 [D4: Safe execute IMMEDIATELY (TimelockUnexpectedOperationState) [inner call replayed as eth_call from the Safe]]: reverted @block 11884453 (head after 11884453); exact-revert-data expected == actual '0x5ead8eb5a2663637f1f0afe6e8f9af2739edbf3c47ea4c87186ef926b451bc312468528b0000000000000000000000000000000000000000000000000000000000000004'
+  negative ok NEG-58 [D4: Safe execute IMMEDIATELY (TimelockUnexpectedOperationState)]: reverted @block 11884453 (head after 11884453); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [D4: Safe execute IMMEDIATELY (TimelockUnexpectedOperationState): Safe.nonce after] = 18 @block 11884453
+  CHECK [D4: Safe execute IMMEDIATELY (TimelockUnexpectedOperationState): Safe.nonce unchanged after the failed exec] PASS: 18
+  warp +172000 s -> block 11884454 ts 1793448548
+  head ts 1793448548 < ready ts 1793449335 (boundary probe ~800 s before readiness)
+  readback [D4: Safe execute ~800 s BEFORE readiness (TimelockUnexpectedOperationState): Safe.nonce] = 18 @block 11884454
+  TX [D4: Safe execute ~800 s BEFORE readiness (TimelockUnexpectedOperationState): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0x0cd7cf3c7e216d2663054f4bfae14b4893274093122168aa22fbc45c6487f377 block=11884455 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-59 [D4: Safe execute ~800 s BEFORE readiness (TimelockUnexpectedOperationState) [inner call replayed as eth_call from the Safe]]: reverted @block 11884455 (head after 11884455); exact-revert-data expected == actual '0x5ead8eb5a2663637f1f0afe6e8f9af2739edbf3c47ea4c87186ef926b451bc312468528b0000000000000000000000000000000000000000000000000000000000000004'
+  negative ok NEG-60 [D4: Safe execute ~800 s BEFORE readiness (TimelockUnexpectedOperationState)]: reverted @block 11884455 (head after 11884455); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [D4: Safe execute ~800 s BEFORE readiness (TimelockUnexpectedOperationState): Safe.nonce after] = 18 @block 11884455
+  CHECK [D4: Safe execute ~800 s BEFORE readiness (TimelockUnexpectedOperationState): Safe.nonce unchanged after the failed exec] PASS: 18
+  CHECK [D4 impl still rc.2 after the early executes] PASS: 0x3a69c08a310bb62befdd03048c6ec64235772e5b
+  warp +800 s -> block 11884456 ts 1793449356
+  readback [TL.isOperationReady(D-fwd)] = true @block 11884456
+  CHECK [D4 op ready after 48h] PASS: true
+  negative ok NEG-61 [D4: deployer EOA execute after 48h (not EXECUTOR)]: reverted @block 11884456 (head after 11884456); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63'
+
+=== STAGE D / D5: Safe -> TL.execute(SP.upgradeToAndCall(dummy)) + read-backs ===
+  CHECK [D5-slots-before: slot snapshot well-formed (exactly 67 32-byte words, no READ-FAILED)] PASS: valid
+  CHECK [D5-state-before: getter snapshot well-formed (exactly 24 non-empty values, no FAILED/error/revert)] PASS: valid
+  readback [D5 execute(upgradeToAndCall(dummy)): Safe.nonce before] = 18 @block 11884456
+  Safe tx [D5 execute(upgradeToAndCall(dummy))]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=18 safeTxHash=0x5238691ca112942db3305141bc746859d774f1b5adabf8d22571567c0e87dfb8 data=0x134008d300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [D5 execute(upgradeToAndCall(dummy)): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x38cb448eca6038023679c4e68072d8671528fb230e7ef14052c9b3a8e7597d2b block=11884457 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [D5 execute(upgradeToAndCall(dummy)): approvedHashes] = 1 @block 11884457
+  CHECK [D5 execute(upgradeToAndCall(dummy)): approvedHashes(O1,h)] PASS: 1
+  TX [D5 execute(upgradeToAndCall(dummy)): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x4d3f8dc1017cf2f80a048d35f97a9b6dd2cc234b198fc55b008624c0390ae776 block=11884458 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [D5 execute(upgradeToAndCall(dummy)): Safe ExecutionSuccess event in 0x4d3f8dc1017cf2f80a048d35f97a9b6dd2cc234b198fc55b008624c0390ae776] PASS: 1
+  readback [D5 execute(upgradeToAndCall(dummy)): Safe.nonce after] = 19 @block 11884458
+  CHECK [D5 execute(upgradeToAndCall(dummy)): Safe.nonce incremented] PASS: 19
+  CHECK [D5-slots-after: slot snapshot well-formed (exactly 67 32-byte words, no READ-FAILED)] PASS: valid
+  CHECK [D5-state-after: getter snapshot well-formed (exactly 24 non-empty values, no FAILED/error/revert)] PASS: valid
+  CHECK [D5 Upgraded(dummy) event in the execute tx] PASS: 1
+  readback [TL.isOperationDone(D-fwd)] = true @block 11884458
+  CHECK [D5 op done] PASS: true
+  readback [SP ERC-1967 impl slot] = 0x00000000000000000000000090f740a94f8f7f441c1dd0c55fe2e11597e27ff6 @block 11884458
+  CHECK [D5 ERC-1967 implementation slot == dummy] PASS: 0x90f740a94f8f7f441c1dd0c55fe2e11597e27ff6
+  CHECK [D5 implementation changed (rc.2 0x3a69c08a310bb62befdd03048c6ec64235772e5b -> dummy)] PASS: changed
+  readback [SP.version] = "SuperPaymaster-5.5.0-A2DRILL-DUMMY-NOT-A-RELEASE" @block 11884458
+  CHECK [D5 SP.version() via proxy == dummy string] PASS: "SuperPaymaster-5.5.0-A2DRILL-DUMMY-NOT-A-RELEASE"
+  readback [codehash of the proxy's implementation] = 0xea5051d205a52644cad65acea4e19bc311fd22b6e97ddcd123ab4a574e985d79 @block 11884458 (before: 0x855c0e80217be18958cecb20582584966412ae98b5e357cd7e109dd37219dfbf)
+  CHECK [D5 runtime codehash of the proxy's impl == dummy codehash] PASS: 0xea5051d205a52644cad65acea4e19bc311fd22b6e97ddcd123ab4a574e985d79
+  CHECK [D5 runtime codehash of the proxy's impl CHANGED vs rc.2 impl] PASS: changed
+  CHECK [codehash D5-proxy-impl-is-NOT-rc2 == rc.2 attestation] PASS (codehash-D5-proxy-impl-is-NOT-rc2.log)
+  CHECK [D5 the proxy's implementation runtime != rc.2 attested SuperPaymaster (expected mismatch)] PASS: 1
+  readback [SP.EXTENSION] = 0x35e905E6730e94850725724E1F7C6Bcb3690Cc64 @block 11884458
+  CHECK [D5 SP.EXTENSION via proxy == dummy's extension (new extension instance, rc.2 code)] PASS: 0x35e905E6730e94850725724E1F7C6Bcb3690Cc64
+  readback [SP.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884458
+  CHECK [D5 SP.owner == TL (unchanged)] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+  readback [SP.pendingOwner] = 0x0000000000000000000000000000000000000000 @block 11884458
+  CHECK [D5 SP.pendingOwner == 0] PASS: 0x0000000000000000000000000000000000000000
+  readback [SP.guardian] = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 @block 11884458
+  CHECK [D5 SP.guardian == Safe (unchanged)] PASS: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+  CHECK [D5 getter snapshots well-formed (exactly 24 non-empty values each)] PASS: valid:valid
+  CHECK [D5 getters via proxy identical before/after (rc.2 decode vs dummy decode)] PASS: identical
+  CHECK [D5 slot snapshot not all-zero (>= 1 non-zero word)] PASS: 1
+  CHECK [D5 raw storage (slots 0..64 + ERC-7201) byte-identical across the dummy upgrade] PASS: identical
+  refresh_oracle (FORK-ONLY storage write): aggregator=0x719E22E3D4b690E5d96cCb40619180B5427F14AE round=36689 answer=249455887742 updatedAt 1793276378 -> 1793449381 (base slot 44)
+  TX [D updatePrice before probe (after-dummy)] hash=0x929a29a09b079dda46e6d3fda53389076ccfb19db86aed12b894af6e18b7bd44 block=11884460 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  probe validatePaymasterUserOp(real AAStar op, sender 0xc9faB1d72a323c2fbBE7623Ab09e3776429AdCD1) [D-on-dummy] @block 11884460: validationData=737355018954270381999541706580912751943610601599308268930346171993423872 (raw: 0x00000000000000000000000050a3cc04208d6a4e2a3b443275c0add139416dd8000000000000000000000000c9fab1d72a323c2fbbe7623ab09e3776429adcd1000000000000000000000000000000)
+  CHECK [D5 probe validate on the DUMMY: sigFail bit == 0 (the changed runtime still sponsors a real op)] PASS: 0
+  negative ok NEG-62 [D5: old EOA owner cannot upgrade the dummy back directly]: reverted @block 11884460 (head after 11884460); exact-revert-data expected == actual '0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e'
+
+=== STAGE D / D6: ROLL BACK dummy -> rc.2 impl 0x3a69c08a310bb62befdd03048c6ec64235772e5b through the same timelock flow (release printer accepts the rc.2 impl) ===
+  CHECK [roles before-D-rollback-schedule: event-history holder sets == manifest] PASS (roles-before-D-rollback-schedule.log)
+  CHECK [D6 release printer accepted the rc.2 impl and its schedule calldata == independently encoded] PASS: 0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000129f2ce9d4e2eb844591259b5af2c9eb503cbbaf84990c66c398af6f6a1b3f4f000000000000000000000000000000000000000000000000000000000002a30000000000000000000000000000000000000000000000000000000000000000644f1ef2860000000000000000000000003a69c08a310bb62befdd03048c6ec64235772e5b0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  readback [D6 schedule(upgradeToAndCall(rc.2 impl)): Safe.nonce before] = 19 @block 11884461
+  Safe tx [D6 schedule(upgradeToAndCall(rc.2 impl))]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=19 safeTxHash=0xfc65e7db881a016276b3140ce06fababc3b049c6462622569e1bab25291ba118 data=0x01d5062a00000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [D6 schedule(upgradeToAndCall(rc.2 impl)): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0x2154ac599cc5c2879575a5254f9cc15161108485e7a5b912cced38f4b7d70473 block=11884462 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [D6 schedule(upgradeToAndCall(rc.2 impl)): approvedHashes] = 1 @block 11884462
+  CHECK [D6 schedule(upgradeToAndCall(rc.2 impl)): approvedHashes(O1,h)] PASS: 1
+  TX [D6 schedule(upgradeToAndCall(rc.2 impl)): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x84d14a4d7369a6f0c6794062a32a7476cf53b5450eb2c7c279b8761473edb1f9 block=11884463 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [D6 schedule(upgradeToAndCall(rc.2 impl)): Safe ExecutionSuccess event in 0x84d14a4d7369a6f0c6794062a32a7476cf53b5450eb2c7c279b8761473edb1f9] PASS: 1
+  readback [D6 schedule(upgradeToAndCall(rc.2 impl)): Safe.nonce after] = 20 @block 11884463
+  CHECK [D6 schedule(upgradeToAndCall(rc.2 impl)): Safe.nonce incremented] PASS: 20
+  readback [TL.isOperationPending(D-rb)] = true @block 11884463
+  CHECK [D6 op pending] PASS: true
+  readback [TL.getTimestamp(D-rb)] = 1793622464 @block 11884463
+  CHECK [D6 getTimestamp == schedule block ts + 172800] PASS: 1793622464
+  readback [D6: Safe execute rollback BEFORE 48h (TimelockUnexpectedOperationState): Safe.nonce] = 20 @block 11884463
+  TX [D6: Safe execute rollback BEFORE 48h (TimelockUnexpectedOperationState): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48 (for a negative control)] hash=0x162bf2e0534d23c1dd348ac6d46b95434c94bf5bdc7fd4dcafee45b0347f014b block=11884464 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  negative ok NEG-63 [D6: Safe execute rollback BEFORE 48h (TimelockUnexpectedOperationState) [inner call replayed as eth_call from the Safe]]: reverted @block 11884464 (head after 11884464); exact-revert-data expected == actual '0x5ead8eb56003ae483b474aafa028db1cb1cff8cb859d71a699e96b988b06ba507f7cd0f50000000000000000000000000000000000000000000000000000000000000004'
+  negative ok NEG-64 [D6: Safe execute rollback BEFORE 48h (TimelockUnexpectedOperationState)]: reverted @block 11884464 (head after 11884464); exact-revert-data expected == actual '0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000'
+  readback [D6: Safe execute rollback BEFORE 48h (TimelockUnexpectedOperationState): Safe.nonce after] = 20 @block 11884464
+  CHECK [D6: Safe execute rollback BEFORE 48h (TimelockUnexpectedOperationState): Safe.nonce unchanged after the failed exec] PASS: 20
+  CHECK [D6 impl still the dummy after the early execute] PASS: 0x90f740a94f8f7f441c1dd0c55fe2e11597e27ff6
+  warp +172800 s -> block 11884465 ts 1793622469
+  negative ok NEG-65 [D6: deployer EOA execute rollback after 48h (not EXECUTOR)]: reverted @block 11884465 (head after 11884465); exact-revert-data expected == actual '0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63'
+  CHECK [roles before-D-rollback-execute: event-history holder sets == manifest] PASS (roles-before-D-rollback-execute.log)
+  CHECK [D6 release printer execute calldata == independently encoded] PASS: 0x134008d300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000129f2ce9d4e2eb844591259b5af2c9eb503cbbaf84990c66c398af6f6a1b3f4f00000000000000000000000000000000000000000000000000000000000000644f1ef2860000000000000000000000003a69c08a310bb62befdd03048c6ec64235772e5b0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  CHECK [D6-slots-before: slot snapshot well-formed (exactly 67 32-byte words, no READ-FAILED)] PASS: valid
+  CHECK [D6-state-before: getter snapshot well-formed (exactly 24 non-empty values, no FAILED/error/revert)] PASS: valid
+  readback [D6 execute(upgradeToAndCall(rc.2 impl)): Safe.nonce before] = 20 @block 11884466
+  Safe tx [D6 execute(upgradeToAndCall(rc.2 impl))]: to=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c nonce=20 safeTxHash=0xce1321096458f6b901f0d8aa4b364dbff8ac8826794a5fc40b74bb53a87c7371 data=0x134008d300000000000000000000000009df0d2e3722ec0e401fe3819e64278a42ae4de9…
+  TX [D6 execute(upgradeToAndCall(rc.2 impl)): approveHash by owner 0x871608cBA092105b91e91295A1d79fFC539BFb48] hash=0xabdd62bdecf0528336d2ce1f236befbc111cefbf11b817590702436cd3350e76 block=11884467 status=0x1 from=0x871608cBA092105b91e91295A1d79fFC539BFb48
+  readback [D6 execute(upgradeToAndCall(rc.2 impl)): approvedHashes] = 1 @block 11884467
+  CHECK [D6 execute(upgradeToAndCall(rc.2 impl)): approvedHashes(O1,h)] PASS: 1
+  TX [D6 execute(upgradeToAndCall(rc.2 impl)): execTransaction by owner 0x8c3499252232105A1615767C459DB9BBbf1273D6 (2-of-3)] hash=0x4f2f59645f672cdd67f5ed98fa4cf007c25787660e3fcaf3fd01254cb6337312 block=11884468 status=0x1 from=0x8c3499252232105A1615767C459DB9BBbf1273D6
+  CHECK [D6 execute(upgradeToAndCall(rc.2 impl)): Safe ExecutionSuccess event in 0x4f2f59645f672cdd67f5ed98fa4cf007c25787660e3fcaf3fd01254cb6337312] PASS: 1
+  readback [D6 execute(upgradeToAndCall(rc.2 impl)): Safe.nonce after] = 21 @block 11884468
+  CHECK [D6 execute(upgradeToAndCall(rc.2 impl)): Safe.nonce incremented] PASS: 21
+  CHECK [D6-slots-after: slot snapshot well-formed (exactly 67 32-byte words, no READ-FAILED)] PASS: valid
+  CHECK [D6-state-after: getter snapshot well-formed (exactly 24 non-empty values, no FAILED/error/revert)] PASS: valid
+  CHECK [D6 Upgraded(rc.2 impl) event in the execute tx] PASS: 1
+  readback [TL.isOperationDone(D-rb)] = true @block 11884468
+  CHECK [D6 op done] PASS: true
+  readback [SP ERC-1967 impl slot] = 0x0000000000000000000000003a69c08a310bb62befdd03048c6ec64235772e5b @block 11884468
+  CHECK [D6 ERC-1967 implementation slot == rc.2 impl] PASS: 0x3a69c08a310bb62befdd03048c6ec64235772e5b
+  readback [SP.version] = "SuperPaymaster-5.5.0" @block 11884468
+  CHECK [D6 SP.version() == SuperPaymaster-5.5.0] PASS: "SuperPaymaster-5.5.0"
+  readback [codehash of the proxy's implementation] = 0x855c0e80217be18958cecb20582584966412ae98b5e357cd7e109dd37219dfbf @block 11884468 (dummy: 0xea5051d205a52644cad65acea4e19bc311fd22b6e97ddcd123ab4a574e985d79; original rc.2: 0x855c0e80217be18958cecb20582584966412ae98b5e357cd7e109dd37219dfbf)
+  CHECK [D6 runtime codehash of the proxy's impl == original rc.2 impl codehash] PASS: 0x855c0e80217be18958cecb20582584966412ae98b5e357cd7e109dd37219dfbf
+  CHECK [codehash D6-proxy-impl-is-rc2-again == rc.2 attestation] PASS (codehash-D6-proxy-impl-is-rc2-again.log)
+  CHECK [D6 the proxy's implementation runtime == rc.2 attested SuperPaymaster again] PASS: 1
+  readback [SP.EXTENSION] = 0xA497F738446fD823e15198bFa8157E6Aa50677C0 @block 11884468
+  CHECK [D6 SP.EXTENSION == original rc.2 extension] PASS: 0xA497F738446fD823e15198bFa8157E6Aa50677C0
+  readback [SP.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884468
+  readback [SP.pendingOwner] = 0x0000000000000000000000000000000000000000 @block 11884468
+  readback [SP.guardian] = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 @block 11884468
+  CHECK [D6 SP.owner == TL; pendingOwner == 0; guardian == Safe] PASS: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c:0x0000000000000000000000000000000000000000:0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+  CHECK [D6 getter snapshots well-formed (exactly 24 non-empty values each)] PASS: valid:valid
+  CHECK [D6 getters via proxy identical before/after the rollback] PASS: identical
+  CHECK [D6 raw storage byte-identical across the rollback] PASS: identical
+  refresh_oracle (FORK-ONLY storage write): aggregator=0x719E22E3D4b690E5d96cCb40619180B5427F14AE round=36689 answer=249455887742 updatedAt 1793449381 -> 1793622641 (base slot 44)
+  TX [D updatePrice before probe (after-rollback)] hash=0x090f119f5b4cf0c212334c44e580a36bfd6d1d991918a2ca833d434571e4c2b6 block=11884470 status=0x1 from=0xb5600060e6de5E11D3636731964218E53caadf0E
+  probe validatePaymasterUserOp(real AAStar op, sender 0xc9faB1d72a323c2fbBE7623Ab09e3776429AdCD1) [D-after-rollback] @block 11884470: validationData=737355018954270382252761480264864991551581035715731464915933044389445632 (raw: 0x00000000000000000000000050a3cc04208d6a4e2a3b443275c0add139416dd8000000000000000000000000c9fab1d72a323c2fbbe7623ab09e3776429adcd1000000000000000000000000000000)
+  CHECK [D6 probe validate on rc.2 after the rollback: sigFail bit == 0] PASS: 0
+
+=== final state ===
+  CHECK [roles final: event-history holder sets == manifest] PASS (roles-final.log)
+  role events [final]: 4 RoleGranted/RoleRevoked logs since block 11884321 (role-events-final.json)
+  role manifest (final, replayed): {"DEFAULT_ADMIN_ROLE":["0x11cc8878c12dafee401ff4a3f5f7d2c4d4ed5d7c"],"PROPOSER_ROLE":["0x51edf11fdb0a4f66220efb8efa54eca77232e114"],"CANCELLER_ROLE":["0x51edf11fdb0a4f66220efb8efa54eca77232e114"],"EXECUTOR_ROLE":["0x51edf11fdb0a4f66220efb8efa54eca77232e114"]}
+  CHECK [final exact ADMIN set == [TL]] PASS: ["0x11cc8878c12dafee401ff4a3f5f7d2c4d4ed5d7c"]
+  CHECK [final exact PROPOSER set == [Safe]] PASS: ["0x51edf11fdb0a4f66220efb8efa54eca77232e114"]
+  CHECK [final exact CANCELLER set == [Safe]] PASS: ["0x51edf11fdb0a4f66220efb8efa54eca77232e114"]
+  CHECK [final exact EXECUTOR set == [Safe]] PASS: ["0x51edf11fdb0a4f66220efb8efa54eca77232e114"]
+  CHECK [codehash final == rc.2 attestation] PASS (codehash-final.log)
+
+=== fork tx ledger: EVERY transaction mined on the fork after block 11884320 (from, to, selector, status) ===
+  CHECK [ledger walked every block after the fork block] PASS: 151
+  CHECK [ledger contains EVERY tx hash recorded in receipts.jsonl] PASS: 0
+  ledger: 120 txs in blocks 11884321..11884471 (fork-tx-ledger.jsonl)
+  CHECK [ledger non-empty and every block accounted for (positive control: G0 deploy tx present)] PASS: 1
+  CHECK [ledger: NO tx sent FROM the Safe address (the Safe was never impersonated)] PASS: 0
+  CHECK [ledger: every Safe-targeted tx was sent by a Safe OWNER EOA (approveHash / execTransaction)] PASS: 0x871608cba092105b91e91295a1d79ffc539bfb48,0x8c3499252232105a1615767c459db9bbbf1273d6
+  CHECK [ledger: no mined tx reverted (negative controls never reach the chain)] PASS: 0
+  CHECK [ledger: no mined tx was sent directly to the canonical timelock (every schedule/execute is an internal call from the Safe)] PASS: 
+  readback [final SP.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884471
+  readback [final SP.guardian] = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 @block 11884471
+  readback [final SP.version] = "SuperPaymaster-5.5.0" @block 11884471
+  SP owner=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c guardian=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 impl=0x3a69c08a310bb62befdd03048c6ec64235772e5b version="SuperPaymaster-5.5.0" @block 11884471
+  readback [final Registry.owner] = 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c @block 11884471
+  readback [final Registry.version] = "Registry-5.9.0" @block 11884471
+  Registry owner=0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c impl=0x6b1c9f8555fee910c5c8cbdbac036d00ba94bb87 version="Registry-5.9.0" @block 11884471
+  negative controls executed: 65 (all reverted; neg-controls.jsonl)
+  CHECK lines: 370 PASS, 0 FAIL; !!! lines: 0
+RUN COMPLETED WITH 0 FAILURES (all) — this line is a tally, not evidence; see the per-step CHECK / TX / readback lines above

@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
+import {DefaultArtifacts} from "./DefaultArtifacts.sol";
 
 import "src/paymasters/superpaymaster/v3/X402Facilitator.sol";
 import "src/core/PolicyRegistry.sol";
@@ -52,7 +53,7 @@ interface IXPNTsWiring {
  *  authorized as initialConsumer at PolicyRegistry construction, so no SP -> PolicyRegistry
  *  wiring is performed here.
  */
-abstract contract V54Bootstrap is Script {
+abstract contract V54Bootstrap is DefaultArtifacts {
     // ERC-1967 implementation slot: bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)
     bytes32 internal constant V54_IMPL_SLOT =
         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
@@ -91,10 +92,10 @@ abstract contract V54Bootstrap is Script {
         address existingTimelock
     ) internal returns (V54Addresses memory a) {
         // --- 1. X402Facilitator (NEW, non-upgradeable). owner = broadcaster. ---
-        X402Facilitator facilitator = new X402Facilitator(
-            IRegistry(registryProxy),
-            IxPNTsFactory(xpntsFactory)
-        );
+        // T-4: profile.default artifact by explicit path (see DefaultArtifacts.sol)
+        X402Facilitator facilitator = X402Facilitator(_deployDefault(
+            "X402Facilitator", abi.encode(registryProxy, xpntsFactory)
+        ));
         a.facilitator = address(facilitator);
         console.log("  [v5.4] X402Facilitator:", a.facilitator);
         console.log("         version:", facilitator.version());
@@ -115,12 +116,10 @@ abstract contract V54Bootstrap is Script {
             proposers[0] = governor;
             address[] memory executors = new address[](1);
             executors[0] = governor;
-            TimelockController timelock = new TimelockController(
-                TIMELOCK_MIN_DELAY,
-                proposers,
-                executors,
-                governor // admin (bootstrap); renounce/transfer to multisig post-deploy
-            );
+            // T-4: profile.default artifact; admin = governor (bootstrap; renounce/transfer to multisig post-deploy)
+            TimelockController timelock = TimelockController(payable(_deployDefault(
+                "TimelockController", abi.encode(TIMELOCK_MIN_DELAY, proposers, executors, governor)
+            )));
             a.timelock = address(timelock);
             console.log("  [v5.4] TimelockController:", a.timelock);
             console.log("         minDelay (s):", TIMELOCK_MIN_DELAY);
@@ -128,11 +127,9 @@ abstract contract V54Bootstrap is Script {
         }
 
         // --- 3. PolicyRegistry (NEW, non-upgradeable). SP = initialConsumer. ---
-        PolicyRegistry policyRegistry = new PolicyRegistry(
-            a.timelock,
-            guardian,
-            spProxy
-        );
+        PolicyRegistry policyRegistry = PolicyRegistry(_deployDefault(
+            "PolicyRegistry", abi.encode(a.timelock, guardian, spProxy)
+        ));
         a.policyRegistry = address(policyRegistry);
         console.log("  [v5.4] PolicyRegistry:", a.policyRegistry);
         console.log("         version: ", policyRegistry.version());

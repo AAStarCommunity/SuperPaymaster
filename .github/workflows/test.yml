@@ -83,19 +83,37 @@ jobs:
         if: steps.changes.outputs.contract == 'true'
         run: python3 scripts/check_storage_layout.py
 
+      - name: D5b release gates (SP core headroom >= 1,024; core/extension layout + selector routing; GOV-2 placement)
+        # D5b-design §2 item 7 / §5: `forge build --sizes` only enforces EIP-170 itself, so "tests green but
+        # the next fix no longer fits" was invisible. check-sp-size.py fails below 1,024 B of SuperPaymaster
+        # core headroom (spec 03 §5 release gate) and on any listed deployable over 24,576 B, measuring only
+        # profile.default artifacts of the current sources. Every checker runs its --self-test (positive
+        # control) first, and the storage gate must reject an OZ Ownable2Step base (GOV-2 D negative control).
+        if: steps.changes.outputs.contract == 'true'
+        run: |
+          python3 -m pip install --quiet pycryptodome
+          python3 scripts/check-sp-size.py --self-test
+          python3 scripts/check-sp-layout.py --self-test
+          python3 scripts/check-sp-selectors.py --self-test
+          python3 scripts/check_storage_layout.py --self-test
+          python3 scripts/check_storage_layout.py --negative-control
+
       - name: Run Tests
         if: steps.changes.outputs.contract == 'true'
         run: forge test -v
 
       - name: Check EIP-170 Contract Sizes
         if: steps.changes.outputs.contract == 'true'
-        run: |
-          REGISTRY_SIZE=$(forge build --sizes 2>&1 | grep "^| Registry " | awk '{print $4}')
-          echo "Registry runtime size: ${REGISTRY_SIZE}B"
-          if [ "$REGISTRY_SIZE" -gt 24576 ]; then
-            echo "::error::Registry exceeds EIP-170 limit (24576B)"
-            exit 1
-          fi
+        # This step used to parse `forge build --sizes`. That was wrong twice over (CC-125, 2026-10-20):
+        #  1. forge prints "23,306"; `[ "$X" -gt 24576 ]` errored on the comma ("integer expression
+        #     expected", run 39392135141 log L6208), the `if` was false, and the step passed for ANY size.
+        #  2. The table is not a reliable gauge even when parsed: when a contract is compiled under both
+        #     profiles (default 500 runs = what deploy-core ships; registry-size 200 runs), forge lists
+        #     the row with a path suffix and may report the 200-runs variant — BLSAggregator 23,940 B
+        #     instead of the shipped 24,345 B — depending on what is in out/ (verified locally).
+        # scripts/check-sp-size.py selects the profile.default artifact by its metadata (runs) and fails
+        # closed if any of the 7 deployables exceeds 24,576 B or SP core headroom drops below 1,024 B.
+        run: python3 scripts/check-sp-size.py
 
       - name: Gate not applicable (no contract-path changes)
         if: steps.changes.outputs.contract != 'true'

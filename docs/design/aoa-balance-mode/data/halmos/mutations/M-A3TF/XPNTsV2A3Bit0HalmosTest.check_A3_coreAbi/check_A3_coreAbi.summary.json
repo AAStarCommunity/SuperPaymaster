@@ -1,0 +1,22 @@
+{
+ "contract": "XPNTsV2A3Bit0HalmosTest",
+ "check": "check_A3_coreAbi",
+ "abi": "xPNTsTokenV2",
+ "parts": 1,
+ "verdict": "NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)",
+ "wall_s": 17,
+ "profile": "xp-fail",
+ "results": [
+  {
+   "part": "transferFrom-23b872dd",
+   "D5C1_PART": 599290589,
+   "exit": 1,
+   "wall_s": 17,
+   "log": "check_A3_coreAbi.transferFrom-23b872dd.log",
+   "result": "FAIL",
+   "paths": 11,
+   "time_s": 0.84,
+   "counterexample": true
+  }
+ ]
+}

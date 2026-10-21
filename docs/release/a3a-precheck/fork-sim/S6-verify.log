@@ -1,0 +1,21 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    cap = TEST_CAP_SEPOLIA = 10000000000000000000000000 (TEST VALUE - not a production cap)
+  === verify APNTsCapped === 0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B
+    [artifact] APNTsCapped current default profile (cancun, solc 0.8.33, runs 500, via_ir): out/APNTsCapped.sol/APNTsCapped.json
+    [artifact] default artifact OK: APNTsCapped 0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B 5346
+    [timelock] OK 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+      minDelay 172800; multisig proposer+canceller+executor; executor open: false
+    [final] owner (timelock) 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+    [final] pendingOwner 0x0000000000000000000000000000000000000000
+    [final] cap / totalSupply 10000000000000000000000000 0
+    [final] minter / capGuardian 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [neg] reverted as expected: deployer mint
+    [neg] reverted as expected: deployer raiseCap
+    [neg] reverted as expected: deployer lowerCap
+    [neg] reverted as expected: deployer transferOwnership
+    [neg] reverted as expected: timelock renounceOwnership
+    [pos] minter mint-to-cap / +1 wei rejected / owner raise / guardian lower: OK (rolled back)
+  === verify: ALL PASS ===

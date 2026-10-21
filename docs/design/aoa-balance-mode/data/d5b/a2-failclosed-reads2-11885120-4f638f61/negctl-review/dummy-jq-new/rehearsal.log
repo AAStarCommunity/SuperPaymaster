@@ -1,0 +1,2 @@
+!!! READ FAILED [D0 dummy runtime keccak]: exit 4, value ''
+!!! CHECK [D0 dummy runtime keccak != rc.2 attested runtime keccak] FAIL: SAME != different

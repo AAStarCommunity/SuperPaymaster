@@ -1,0 +1,19 @@
+
+checker column 0 (unmutated self-test): TIMELOCK ROLE CHECKER SELF-TEST OK (76 steps); red = []
+
+== u-checker-canonical-bytes-check-removed: Codex re-check of 48cba3bd: the checker no longer requires manifest bytes == canonical serialization
+   self-test red (9):
+     - non-canonical bytes: esc-key (exit 0, expected 1)
+     - non-canonical bytes: esc-value (exit 0, expected 1)
+     - non-canonical bytes: dup-key (exit 0, expected 1)
+     - non-canonical bytes: nested-decoy — failed, but not with "manifest: bytes are not the canonical serialization"
+     - non-canonical bytes: reorder (exit 0, expected 1)
+     - non-canonical bytes: trailing-space (exit 0, expected 1)
+     - non-canonical bytes: crlf (exit 0, expected 1)
+     - non-canonical bytes: bom (exit 0, expected 1)
+     - non-canonical bytes: no-final-newline (exit 0, expected 1)
+   expected red ['non-canonical bytes: esc-key', 'non-canonical bytes: esc-value', 'non-canonical bytes: dup-key', 'non-canonical bytes: reorder', 'non-canonical bytes: trailing-space', 'non-canonical bytes: crlf', 'non-canonical bytes: bom', 'non-canonical bytes: no-final-newline'] -> missing []
+   (red = the self-test step now PASSES the non-canonical file: exit 0 where 1 is required)
+   still refused for another reason ['non-canonical bytes: nested-decoy'] -> not so []
+   blind steps ['correct M1 timelock == manifest', 'the committed example'] -> turned red []
+   RESULT: OK

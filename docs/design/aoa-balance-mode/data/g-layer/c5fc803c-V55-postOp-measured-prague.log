@@ -1,0 +1,14 @@
+# tree: git archive c5fc803c8a3fa4ccc7fb8b52591d57aef9751ebc (full commit, unmodified; submodules solady/chainlink copied from the main checkout)
+# command (run at the tree root): forge test --match-path contracts/test/v2/SuperPaymasterV55.t.sol --match-test test_G_min_post_op_gas_covers_measured_postOp -vv --evm-version prague
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:46:09Z
+# exit code: 0
+# (compiler output before line 32 omitted)
+Ran 1 test for contracts/test/v2/SuperPaymasterV55.t.sol:SuperPaymasterV55Test
+[PASS] test_G_min_post_op_gas_covers_measured_postOp() (gas: 329891)
+Logs:
+  measured postOp gas (worst-ish, warm-in-test) 140770
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.60ms (446.67µs CPU time)
+
+Ran 1 test suite in 11.76ms (2.60ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

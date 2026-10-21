@@ -1,0 +1,272 @@
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src 7ec94350fdc58099 harness 56f8867c316ed12d bytecode 5e9bd6dbc55d8ff5 dirty_src 0 head 2cf0925daf25
+current tree [apnts]: src 67724a36829dbded harness 56f8867c316ed12d bytecode 82f5592948afe88a dirty_src 0 head 2cf0925daf25
+tree         out/ [xpnts]                                                                        the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                                        the build of the current sources (metadata keccak256)  OK        fresh
+suite        logs:cap1.log                                                                       == mandatory suite                        OK        equal
+suite        logs:cap1-witness.log                                                               == mandatory suite                        OK        equal
+suite        logs:rate-base.log                                                                  == mandatory suite                        OK        equal
+suite        logs:i4b-base.log                                                                   == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2RateHalmosTest.check_RATE_step_coreAbi                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2RateHalmosTest.check_RATE_step_extAbi                            == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3HalmosTest.check_A3_coreAbi                                    == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3HalmosTest.check_A3_extAbi                                     == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi                          == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi                                == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi                                == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3HalmosTest.check_A3_selfBurnDiscrepancy                        == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I2HalmosTest.check_I2_coreAbi                                    == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I2HalmosTest.check_I2_extAbi                                     == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I4BHalmosTest.check_I4B_coreAbi                                  == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I4BHalmosTest.check_I4B_extAbi                                   == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I4BMintNoDebtHalmosTest.check_I4B_extAbi                         == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6HalmosTest.check_I6_coreAbi                                    == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6HalmosTest.check_I6_extAbi                                     == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6HalmosTest.check_I6J_coreAbi                                   == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6HalmosTest.check_I6J_extAbi                                    == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi                           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi                          == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2I2NoRHalmosTest.check_I2_coreAbi                                 == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim     == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements             == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull             == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I2_explicitPull                  == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I4B_outgoingWithLock             == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted           == mandatory suite                        OK        equal
+suite        partitioned:XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows                     == mandatory suite                        OK        equal
+suite        partitioned:MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint            == mandatory suite                        OK        equal
+suite        partitioned:MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor            == mandatory suite                        OK        equal
+suite        partitioned:MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct                 == mandatory suite                        OK        equal
+suite        partitioned:MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant               == mandatory suite                        OK        equal
+suite        mutations:M-CAP1                                                                    == mandatory suite                        OK        equal
+suite        mutations:M-A3                                                                      == mandatory suite                        OK        equal
+suite        mutations:M-A3TF                                                                    == mandatory suite                        OK        equal
+suite        mutations:M-A3BF                                                                    == mandatory suite                        OK        equal
+suite        mutations:M-I2                                                                      == mandatory suite                        OK        equal
+suite        mutations:M-I4B                                                                     == mandatory suite                        OK        equal
+suite        mutations:M-I6                                                                      == mandatory suite                        OK        equal
+suite        mutations:M-F1                                                                      == mandatory suite                        OK        equal
+suite        archives:artifact-parity.log                                                        == mandatory suite                        OK        equal
+suite        archives:verify-selftest.log                                                        == mandatory suite                        OK        equal
+suite        archives:forge-halmos-suite.log                                                     == mandatory suite                        OK        equal
+suite        archives:cap1.log                                                                   == mandatory suite                        OK        equal
+suite        fuzz_liveness                                                                       == mandatory suite                        OK        equal
+binding      cap1.log                                                                            meta/argv/contract/binding/exit (apnts, cap1)  OK        bound, fresh, dirty_src=0, argv and contract match
+log          cap1.log:check_CAP1_a_supplyIncreaseStaysUnderCap                                   PASS                                      OK        PASS
+log          cap1.log:check_CAP1_b_onlyMinterMintIncreasesSupply                                 PASS                                      OK        PASS
+log          cap1.log:check_CAP1_c_mintDoesNotMoveCap                                            PASS                                      OK        PASS
+binding      cap1-witness.log                                                                    meta/argv/contract/binding/exit (apnts, cap1-fail)  OK        bound, fresh, dirty_src=0, argv and contract match
+log          cap1-witness.log:check_witness_CAP1_supplyCanIncrease                               FAIL                                      OK        FAIL
+binding      rate-base.log                                                                       meta/argv/contract/binding/exit (xpnts, xp)  OK        bound, fresh, dirty_src=0, argv and contract match
+log          rate-base.log:check_RATE_base_initialize                                            PASS                                      OK        PASS
+log          rate-base.log:check_RATE_base_realFactory                                           PASS                                      OK        PASS
+binding      i4b-base.log                                                                        meta/argv/contract/binding/exit (xpnts, xp)  OK        bound, fresh, dirty_src=0, argv and contract match
+log          i4b-base.log:check_I4B_base_initialize                                              PASS                                      OK        PASS
+log          i4b-base.log:check_I4B_base_realFactory                                             PASS                                      OK        PASS
+partitioned  XPNTsV2RateHalmosTest.check_RATE_step_coreAbi: partition set                        exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2RateHalmosTest.check_RATE_step_coreAbi                                       15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2RateHalmosTest.check_RATE_step_coreAbi                                       PASS                                      OK        PASS (15/15)
+partitioned  XPNTsV2RateHalmosTest.check_RATE_step_extAbi: partition set                         exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2RateHalmosTest.check_RATE_step_extAbi                                        44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2RateHalmosTest.check_RATE_step_extAbi                                        PASS                                      OK        PASS (44/44)
+partitioned  XPNTsV2A3HalmosTest.check_A3_coreAbi: partition set                                 exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2A3HalmosTest.check_A3_coreAbi                                                15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3HalmosTest.check_A3_coreAbi                                                PASS (ceiling: settleLocked-7e48bbce,tryLockForGas-ec290731)  OK        14/15 PASS; DISCREPANCY-FAIL burn-9dc29fac
+  discrepancy XPNTsV2A3HalmosTest.check_A3_coreAbi:burn-9dc29fac                                  FAIL+cex (documented spec-vs-code discrepancy)  OK        FAIL+cex — D-A3-2: spec 03 §2.3 A-3 rejects burn(address,uint256) for any current/historical SP caller; xPNTsTokenV2.sol:134 skips _spendV2 (and with it the firewall) when from == msg.sender, so an SP can burn its OWN balance. Reported, not weakened (replay: test_D5c1_DISCREPANCY_A3_2_spBurnsOwnBalance)
+partitioned  XPNTsV2A3HalmosTest.check_A3_extAbi: partition set                                  exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2A3HalmosTest.check_A3_extAbi                                                 44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3HalmosTest.check_A3_extAbi                                                 PASS (ceiling: mint-40c10f19)             OK        43/44 PASS; BOUNDED mint-40c10f19
+  bounded    XPNTsV2A3HalmosTest.check_A3_extAbi:mint-40c10f19                                   BOUNDED (allowed)                         OK        TIMEOUT — mint auto-repay non-linearity (lemma M); substitute: XPNTsV2A3MintNoDebtHalmosTest (debts = 0, symbolic) + MintRepayLemmaFuzzTest (debts > 0, 10,000 runs) + paper proof
+partitioned  XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi: partition set                       exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi                                      1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi                                      PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi: partition set                             exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi                                            1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi                                            PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi: partition set                             exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi                                            1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi                                            PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2A3HalmosTest.check_A3_selfBurnDiscrepancy: partition set                     exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3HalmosTest.check_A3_selfBurnDiscrepancy                                    1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3HalmosTest.check_A3_selfBurnDiscrepancy                                    FAIL                                      OK        FAIL+cex in burn-9dc29fac
+partitioned  XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi: partition set                        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi                                       1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3MintNoDebtHalmosTest.check_A3_extAbi                                       PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound: partition set                        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound                                       1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound                                       PASS (ceiling: settleLocked-7e48bbce)     OK        0/1 PASS; BOUNDED settleLocked-7e48bbce
+  bounded    XPNTsV2A3xHalmosTest.check_A3x_exactCeilBound:settleLocked-7e48bbce                 BOUNDED (allowed)                         OK        TIMEOUT-WALL — non-linear exact ceil bound (mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked asserts the A3x bitmask (10,000 runs)
+partitioned  XPNTsV2I2HalmosTest.check_I2_coreAbi: partition set                                 exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2I2HalmosTest.check_I2_coreAbi                                                15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I2HalmosTest.check_I2_coreAbi                                                PASS (ceiling: burn-9dc29fac,settleLocked-7e48bbce,transferFrom-23b872dd,tryLockForGas-ec290731)  OK        11/15 PASS; BOUNDED burn-9dc29fac,settleLocked-7e48bbce,transferFrom-23b872dd,tryLockForGas-ec290731
+  bounded    XPNTsV2I2HalmosTest.check_I2_coreAbi:burn-9dc29fac                                  BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered burn(from): mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_burnFrom (10,000 runs) + boundary cases
+  bounded    XPNTsV2I2HalmosTest.check_I2_coreAbi:settleLocked-7e48bbce                          BOUNDED (allowed)                         OK        TIMEOUT-WALL — solver / wall cap (mulDiv in settle); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked (10,000 runs) + boundary cases
+  bounded    XPNTsV2I2HalmosTest.check_I2_coreAbi:transferFrom-23b872dd                          BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered pull: mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom (10,000 runs) + boundary cases
+  bounded    XPNTsV2I2HalmosTest.check_I2_coreAbi:tryLockForGas-ec290731                         BOUNDED (allowed)                         OK        TIMEOUT-WALL — solver / wall cap (mulDiv in the lock path); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_tryLockForGas (10,000 runs) + boundary cases
+partitioned  XPNTsV2I2HalmosTest.check_I2_extAbi: partition set                                  exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2I2HalmosTest.check_I2_extAbi                                                 44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I2HalmosTest.check_I2_extAbi                                                 PASS (ceiling: mint-40c10f19,transferFrom-23b872dd)  OK        42/44 PASS; BOUNDED mint-40c10f19,transferFrom-23b872dd
+  bounded    XPNTsV2I2HalmosTest.check_I2_extAbi:mint-40c10f19                                   BOUNDED (allowed)                         OK        TIMEOUT-WALL — mint auto-repay non-linearity (lemma M); substitute: XPNTsV2I2MintNoDebtHalmosTest + MintRepayLemmaFuzzTest + paper proof
+  bounded    XPNTsV2I2HalmosTest.check_I2_extAbi:transferFrom-23b872dd                           BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered pull: mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom (10,000 runs) + boundary cases
+partitioned  XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi: partition set                        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi                                       1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi                                       PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2I4BHalmosTest.check_I4B_coreAbi: partition set                               exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2I4BHalmosTest.check_I4B_coreAbi                                              15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I4BHalmosTest.check_I4B_coreAbi                                              PASS (ceiling: burn-9dc29fac,settleLocked-7e48bbce,transferFrom-23b872dd,tryLockForGas-ec290731)  OK        11/15 PASS; BOUNDED burn-9dc29fac,settleLocked-7e48bbce,transferFrom-23b872dd,tryLockForGas-ec290731
+  bounded    XPNTsV2I4BHalmosTest.check_I4B_coreAbi:burn-9dc29fac                                BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered burn(from): mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_burnFrom asserts the I4-B bitmask (10,000 runs)
+  bounded    XPNTsV2I4BHalmosTest.check_I4B_coreAbi:settleLocked-7e48bbce                        BOUNDED (allowed)                         OK        TIMEOUT-WALL — solver / wall cap (mulDiv in settle); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_settleLocked asserts the I4-B bitmask (10,000 runs)
+  bounded    XPNTsV2I4BHalmosTest.check_I4B_coreAbi:transferFrom-23b872dd                        BOUNDED (allowed)                         OK        TIMEOUT-WALL — wall cap (metered pull: mulDiv); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_transferFrom asserts the I4-B bitmask (10,000 runs)
+  bounded    XPNTsV2I4BHalmosTest.check_I4B_coreAbi:tryLockForGas-ec290731                       BOUNDED (allowed)                         OK        TIMEOUT-WALL — solver / wall cap (mulDiv in the lock path); substitute: D5c1BoundedFuzzTest.testFuzz_D5c1_I2_tryLockForGas asserts the I4-B bitmask (10,000 runs)
+partitioned  XPNTsV2I4BHalmosTest.check_I4B_extAbi: partition set                                exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2I4BHalmosTest.check_I4B_extAbi                                               44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I4BHalmosTest.check_I4B_extAbi                                               PASS (ceiling: mint-40c10f19,transferFrom-23b872dd)  OK        PASS (44/44)
+partitioned  XPNTsV2I4BMintNoDebtHalmosTest.check_I4B_extAbi: partition set                      exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I4BMintNoDebtHalmosTest.check_I4B_extAbi                                     1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I4BMintNoDebtHalmosTest.check_I4B_extAbi                                     PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2I6HalmosTest.check_I6_coreAbi: partition set                                 exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2I6HalmosTest.check_I6_coreAbi                                                15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6HalmosTest.check_I6_coreAbi                                                PASS                                      OK        PASS (15/15)
+partitioned  XPNTsV2I6HalmosTest.check_I6_extAbi: partition set                                  exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2I6HalmosTest.check_I6_extAbi                                                 44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6HalmosTest.check_I6_extAbi                                                 PASS (ceiling: mint-40c10f19)             OK        PASS (44/44)
+partitioned  XPNTsV2I6HalmosTest.check_I6J_coreAbi: partition set                                exactly 15 (from current ABI)             OK        equal
+binding      XPNTsV2I6HalmosTest.check_I6J_coreAbi                                               15 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6HalmosTest.check_I6J_coreAbi                                               PASS                                      OK        PASS (15/15)
+partitioned  XPNTsV2I6HalmosTest.check_I6J_extAbi: partition set                                 exactly 44 (from current ABI)             OK        equal
+binding      XPNTsV2I6HalmosTest.check_I6J_extAbi                                                44 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6HalmosTest.check_I6J_extAbi                                                PASS (ceiling: mint-40c10f19)             OK        PASS (44/44)
+partitioned  XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi: partition set                        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi                                       1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6MintNoDebtHalmosTest.check_I6_extAbi                                       PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi: partition set                       exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi                                      1 logs: meta/argv/contract/binding/exit (xp)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I6MintNoDebtHalmosTest.check_I6J_extAbi                                      PASS                                      OK        PASS (1/1)
+partitioned  XPNTsV2I2NoRHalmosTest.check_I2_coreAbi: partition set                              exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2I2NoRHalmosTest.check_I2_coreAbi                                             1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2I2NoRHalmosTest.check_I2_coreAbi                                             FAIL                                      OK        FAIL+cex in tryLockForGas-ec290731
+partitioned  XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim: partition set  exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim                 1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim                 FAIL                                      OK        FAIL+cex in settleLocked-7e48bbce
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements: partition set          exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements                         1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I2_spRenewIncrements                         FAIL                                      OK        FAIL+cex in tryLockForGas-ec290731
+partitioned  XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull: partition set          exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull                         1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull                         FAIL                                      OK        FAIL+cex in transferFrom-23b872dd
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I2_explicitPull: partition set               exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I2_explicitPull                              1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I2_explicitPull                              FAIL                                      OK        FAIL+cex in transferFrom-23b872dd
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I4B_outgoingWithLock: partition set          exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I4B_outgoingWithLock                         1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I4B_outgoingWithLock                         FAIL                                      OK        FAIL+cex in transfer-a9059cbb
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted: partition set        exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted                       1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I6_reservationAdmitted                       FAIL                                      OK        FAIL+cex in tryReserveCredit-de9e4cae
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows: partition set                  exactly 1 (from current ABI)              OK        equal
+binding      XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows                                 1 logs: meta/argv/contract/binding/exit (xp-fail)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  XPNTsV2WitnessHalmosTest.check_witness_I6_debtGrows                                 FAIL                                      OK        FAIL+cex in settleCredit-1baf4408
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint: partition set         exactly 1 (from current ABI)              OK        equal
+binding      MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint                        1 logs: meta/argv/contract/binding/exit (lemma)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint                        PASS (ceiling: OTHER)                     OK        0/1 PASS; BOUNDED OTHER
+  bounded    MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint:OTHER                  BOUNDED (allowed)                         OK        TIMEOUT — 256-bit division / product beyond the solver (540 s assertion timeout); substitute: paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10,000 runs)
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor: partition set         exactly 1 (from current ABI)              OK        equal
+binding      MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor                        1 logs: meta/argv/contract/binding/exit (lemma)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor                        PASS (ceiling: OTHER)                     OK        0/1 PASS; BOUNDED OTHER
+  bounded    MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor:OTHER                  BOUNDED (allowed)                         OK        TIMEOUT — 256-bit division / product beyond the solver (540 s assertion timeout); substitute: paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10,000 runs)
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct: partition set              exactly 1 (from current ABI)              OK        equal
+binding      MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct                             1 logs: meta/argv/contract/binding/exit (lemma)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct                             PASS (ceiling: OTHER)                     OK        0/1 PASS; BOUNDED OTHER
+  bounded    MintRepayLemmaHalmosTest.check_LEMMA_M2_monotoneProduct:OTHER                       BOUNDED (allowed)                         OK        TIMEOUT — 256-bit division / product beyond the solver (540 s assertion timeout); substitute: paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10,000 runs)
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant: partition set            exactly 1 (from current ABI)              OK        equal
+binding      MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant                           1 logs: meta/argv/contract/binding/exit (lemma)  OK        all bound, fresh, dirty_src=0, argv/label/selector match
+partitioned  MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant                           PASS (ceiling: OTHER)                     OK        0/1 PASS; BOUNDED OTHER
+  bounded    MintRepayLemmaHalmosTest.check_LEMMA_M3_ceilDivByConstant:OTHER                     BOUNDED (allowed)                         OK        TIMEOUT — 256-bit division / product beyond the solver (540 s assertion timeout); substitute: paper proof (D5c-1-halmos.md §2.5) + MintRepayLemmaFuzzTest (10,000 runs)
+mutation     M-CAP1 halmos check_CAP1_a_supplyIncreaseStaysUnderCap                              FAIL+cex                                  OK        FAIL
+mutation     M-CAP1 scenario test_D5c1_CAP1_scenario_mintBeyondCapReverts                        red (next call did not revert as expected)  OK        next call did not revert as expected
+mutation     M-CAP1 binding (mutated)                                                            logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-CAP1 restored tree                                                                src/lib/harness/bytecode == current       OK        equal
+mutation     M-CAP1 source restored                                                              pristine == reverted == current file      OK        d868f95fbb00
+mutation     M-A3 halmos XPNTsV2A3HalmosTest.check_A3_extAbi:spPull-20992765                     exactly these parts, all FAIL+cex         OK        red ['spPull-20992765']
+mutation     M-A3 halmos XPNTsV2A3HalmosTest.check_A3_coreAbi:OTHER                              exactly these parts, all FAIL+cex         OK        red ['OTHER']
+mutation     M-A3 scenario test_D5c1_A3_scenario_spCannotMoveUserTokens                          red (28 != 0)                             OK        A-3 predicate bitmask on the SP pull attempt: 28 != 0
+mutation     M-A3 binding (mutated)                                                              logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-A3 restored tree                                                                  src/lib/harness/bytecode == current       OK        equal
+mutation     M-A3 source restored                                                                pristine == reverted == current file      OK        c536cd8f025e
+mutation     M-A3TF halmos XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi:transferFrom-23b872dd        exactly these parts, all FAIL+cex         OK        red ['transferFrom-23b872dd']
+mutation     M-A3TF halmos XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi:burn-9dc29fac                exactly these parts, still PASS (independence)  OK        green ['burn-9dc29fac']
+mutation     M-A3TF scenario test_D5c1_A3_scenario_spFirewallBits                                red (A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 1 != 0)  OK        A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 1 != 0
+mutation     M-A3TF binding (mutated)                                                            logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-A3TF restored tree                                                                src/lib/harness/bytecode == current       OK        equal
+mutation     M-A3TF source restored                                                              pristine == reverted == current file      OK        3e1b80d8a900
+mutation     M-A3BF halmos XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi:burn-9dc29fac                exactly these parts, all FAIL+cex         OK        red ['burn-9dc29fac']
+mutation     M-A3BF halmos XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi:transferFrom-23b872dd        exactly these parts, still PASS (independence)  OK        green ['transferFrom-23b872dd']
+mutation     M-A3BF scenario test_D5c1_A3_scenario_spFirewallBits                                red (A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 2 != 0)  OK        A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 2 != 0
+mutation     M-A3BF binding (mutated)                                                            logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-A3BF restored tree                                                                src/lib/harness/bytecode == current       OK        equal
+mutation     M-A3BF source restored                                                              pristine == reverted == current file      OK        3e1b80d8a900
+mutation     M-I2 halmos XPNTsV2I2HalmosTest.check_I2_coreAbi:tryLockForGas-ec290731             exactly these parts, all FAIL+cex         OK        red ['tryLockForGas-ec290731']
+mutation     M-I2 scenario test_D5c1_I2_scenario_lockBeyondSpCapRejected                         red (I2 predicate bitmask on the over-cap lock attempt: 32769 != 0)  OK        I2 predicate bitmask on the over-cap lock attempt: 32769 != 0
+mutation     M-I2 binding (mutated)                                                              logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-I2 restored tree                                                                  src/lib/harness/bytecode == current       OK        equal
+mutation     M-I2 source restored                                                                pristine == reverted == current file      OK        3e1b80d8a900
+mutation     M-I4B halmos XPNTsV2I4BHalmosTest.check_I4B_coreAbi:transfer-a9059cbb               exactly these parts, all FAIL+cex         OK        red ['transfer-a9059cbb']
+mutation     M-I4B scenario test_D5c1_I4B_scenario_transferBelowLockedRejected                   red (I4-B predicate bitmask on the over-lock transfer: 1 != 0)  OK        I4-B predicate bitmask on the over-lock transfer: 1 != 0
+mutation     M-I4B binding (mutated)                                                             logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-I4B restored tree                                                                 src/lib/harness/bytecode == current       OK        equal
+mutation     M-I4B source restored                                                               pristine == reverted == current file      OK        20d1bbda5cc7
+mutation     M-I6 halmos XPNTsV2I6HalmosTest.check_I6_coreAbi:tryReserveCredit-de9e4cae          exactly these parts, all FAIL+cex         OK        red ['tryReserveCredit-de9e4cae']
+mutation     M-I6 halmos XPNTsV2I6HalmosTest.check_I6J_coreAbi:tryReserveCredit-de9e4cae         exactly these parts, all FAIL+cex         OK        red ['tryReserveCredit-de9e4cae']
+mutation     M-I6 scenario test_D5c1_I6_scenario_reservationBoundedByRequestedCap                red (1 != 0)                              OK        I6 predicate bitmask on the over-request reservation: 1 != 0
+mutation     M-I6 binding (mutated)                                                              logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-I6 restored tree                                                                  src/lib/harness/bytecode == current       OK        equal
+mutation     M-I6 source restored                                                                pristine == reverted == current file      OK        3e1b80d8a900
+mutation     M-F1 halmos check_RATE_base_initialize                                              FAIL+cex                                  OK        FAIL
+mutation     M-F1 halmos check_RATE_base_realFactory                                             FAIL+cex                                  OK        FAIL
+mutation     M-F1 scenario test_D5c1_REGRESSION_F1_rateOutOfRangeRejectedAtInit                  red (next call did not revert as expected)  OK        next call did not revert as expected
+mutation     M-F1 binding (mutated)                                                              logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-F1 restored tree                                                                  src/lib/harness/bytecode == current       OK        equal
+mutation     M-F1 source restored                                                                pristine == reverted == current file      OK        3e1b80d8a900
+binding      fuzz-liveness/fuzz-bounded-partitions.log                                           bound to current tree (xpnts)             OK        bound, fresh, dirty_src=0
+fuzz         unmutated testFuzz_D5c1_I2_tryLockForGas                                            PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_I2_settleLocked                                             PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_I2_transferFrom                                             PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_I2_burnFrom                                                 PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_I4B_mintWithDebt                                            PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         unmutated testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance                       PASS (>=10000 runs)                       OK        PASS runs=10000
+fuzz         M-I2 reddens testFuzz_D5c1_I2_tryLockForGas                                         red                                       OK        red
+fuzz         M-I2 binding (mutated)                                                              log bound to current src + diff           OK        ok
+fuzz         M-I2 restored tree                                                                  src/lib/harness/bytecode == current       OK        equal
+fuzz         M-I2 source restored                                                                pristine == reverted == current file      OK        3e1b80d8a900
+fuzz         M-PULL reddens testFuzz_D5c1_I2_transferFrom                                        red                                       OK        red
+fuzz         M-PULL reddens testFuzz_D5c1_I2_burnFrom                                            red                                       OK        red
+fuzz         M-PULL binding (mutated)                                                            log bound to current src + diff           OK        ok
+fuzz         M-PULL restored tree                                                                src/lib/harness/bytecode == current       OK        equal
+fuzz         M-PULL source restored                                                              pristine == reverted == current file      OK        3e1b80d8a900
+fuzz         M-EXPL reddens testFuzz_D5c1_I2_transferFrom                                        red                                       OK        red
+fuzz         M-EXPL reddens testFuzz_D5c1_I2_burnFrom                                            red                                       OK        red
+fuzz         M-EXPL binding (mutated)                                                            log bound to current src + diff           OK        ok
+fuzz         M-EXPL restored tree                                                                src/lib/harness/bytecode == current       OK        equal
+fuzz         M-EXPL source restored                                                              pristine == reverted == current file      OK        3e1b80d8a900
+fuzz         M-BURNALL reddens testFuzz_D5c1_I2_settleLocked                                     red                                       OK        red
+fuzz         M-BURNALL binding (mutated)                                                         log bound to current src + diff           OK        ok
+fuzz         M-BURNALL restored tree                                                             src/lib/harness/bytecode == current       OK        equal
+fuzz         M-BURNALL source restored                                                           pristine == reverted == current file      OK        3e1b80d8a900
+fuzz         M-REPAY reddens testFuzz_D5c1_lemmaM_mintWithDebtNeverLowersBalance                 red                                       OK        red
+fuzz         M-REPAY binding (mutated)                                                           log bound to current src + diff           OK        ok
+fuzz         M-REPAY restored tree                                                               src/lib/harness/bytecode == current       OK        equal
+fuzz         M-REPAY source restored                                                             pristine == reverted == current file      OK        20d1bbda5cc7
+fuzz         M-REPAYLOCK reddens testFuzz_D5c1_I4B_mintWithDebt                                  red                                       OK        red
+fuzz         M-REPAYLOCK binding (mutated)                                                       log bound to current src + diff           OK        ok
+fuzz         M-REPAYLOCK restored tree                                                           src/lib/harness/bytecode == current       OK        equal
+fuzz         M-REPAYLOCK source restored                                                         pristine == reverted == current file      OK        20d1bbda5cc7
+archive      artifact-parity.log                                                                 two passes RESULT: OK, bound to the current tree + harness build  OK        2/2 OK (2026-09-16T06:54:09Z; 2026-09-16T06:54:09Z)
+archive      verify-selftest.log                                                                 self-test of THESE scripts, all controls behave, count quoted in the report  OK        57/57 controls behave
+archive      forge-halmos-suite.log                                                              replay/layout/priming/boundary forge suite green, bound  OK        green (28 tests), 11 named tests present
+archive      cap1.log numbers in D5c-1-halmos.md                                                 paths/times quoted = the final log        OK        equal
+
+VERDICT: ALL EXPECTATIONS MET (266 rows); mandatory suite builtin

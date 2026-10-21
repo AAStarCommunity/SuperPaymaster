@@ -1,0 +1,34 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    roles attestation: head block hash verified against blockhash() 28
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 28
+    [artifact] default artifact OK: Registry 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23306
+    Registry impl ready (default build, runs=200): 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23306
+    scheduled; ready at: 1789993749
+  0x6aca9ea9645cf3484a92f4b5e5680664ce05ef04fcaf0c2d4126447192a113e0
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.068539071 gwei
+
+Estimated total gas used for script: 78698
+
+Estimated amount required: 0.000005393887809558 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/broadcast/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/cache/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+

@@ -1,0 +1,51 @@
+{
+  "schema": "d5b-timelock-roles-attestation/2",
+  "result": "PASS",
+  "chainId": 11155111,
+  "rpc2ChainId": null,
+  "manifestChainId": "11155111",
+  "timelock": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+  "manifestPath": "deployments/timelock-roles.d5b-rehearsal.json",
+  "manifestSha256": "2e9c037bdeb7e6e49def1fab0cd9ceb253ccfef46a324af8236d64c276c7b811",
+  "manifestKeccak256": "0x653da4d6dc2a6217d0ff66e9b74e14ab731542e5dc68f4cfb24d9ec5dbdab7c4",
+  "deploymentBlock": "6",
+  "headBlock": 37,
+  "headBlockHash": "0x388270f2a75eb0617abd677fd23d1e5ab0cec04e36d8be752464c640cf7c2d06",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+    ],
+    "PROPOSER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "CANCELLER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ]
+  },
+  "unknownRoles": [],
+  "mustHoldNothing": [
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  ],
+  "mustHoldNothingLabels": [
+    "deployer / old SP and Registry owner"
+  ],
+  "logs": 4,
+  "depthProbe": true,
+  "rpc2DepthProbe": null,
+  "constructorControl": "constructor grants found in deployment block 6",
+  "completeness": "completeness NOT independently verified (no --rpc2)",
+  "rpc2Used": false,
+  "endpoint": "http://127.0.0.1:18791",
+  "endpoint2": null,
+  "problems": [],
+  "checker": {
+    "path": "script/governance/check-timelock-roles.mjs",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "48cba3bde3e78df9593ec82f34635742cbdacce9",
+    "gitDirty": true
+  },
+  "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs."
+}

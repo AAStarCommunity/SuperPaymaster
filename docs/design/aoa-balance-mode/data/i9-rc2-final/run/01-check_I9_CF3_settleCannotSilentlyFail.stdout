@@ -1,0 +1,1 @@
+# VERDICT: ACCEPT (expected [PASS] with statistics: [PASS][0m check_I9_CF3_settleCannotSilentlyFail(bool,address,uint256,bytes32,address,uint8,uint128,uint128,uint256,uint256) (paths: 1502, time: 55.80s (paths: 55.26s, models: 0.54s), bounds: [])); wall_seconds=74; log=$SCRATCH/out/i9/01-check_I9_CF3_settleCannotSilentlyFail.log

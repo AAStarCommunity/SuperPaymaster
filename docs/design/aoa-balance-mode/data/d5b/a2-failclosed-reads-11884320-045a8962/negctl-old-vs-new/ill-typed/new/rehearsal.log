@@ -1,0 +1,60 @@
+=== provenance ===
+  script commit: 045a896299cdb0119d2f53f709409806ea366f7b
+  contracts/src vs v5.5.0-rc.2 peeled commit 1ac0e1c5: IDENTICAL
+  forge: forge Version: 1.7.1; anvil: anvil Version: 1.7.1
+=== build reproduces the rc.2 attestation (artifact keccaks) ===
+    MATCH    SuperPaymaster runtime 0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222 creation 0x4edff578ddfb3875aa057f690fb68b85df24332aa0023a115aadad07107a0e4e
+    MATCH    SuperPaymasterAdmin runtime 0xefc71c67b20fd21111e50808ee8d60bec6f1f47ec30aaa1729dcf293e7e178d2 creation 0x7c5fd9a30e1d2fdb53f0512bca8e5f60fd2047fd71a575f084c57ac59b453e66
+    MATCH    SuperPaymasterLens runtime 0x4435e4a51e3293245ec1856bc9aa8d5606b9dc45b9a3dbd9742cf625e3cad3c1 creation 0xb2b98f672229d0bdb0efa903210564c3d5e9b7edb4756b86e9bf7c7d5e0a61d5
+    MATCH    Registry runtime 0xde3d06d860890b9e95a1e80202833efea49175a417958d3362d32e0231406e8b creation 0x4a8d5d6caaf74891030344efe069995e597a0e4447a3d34798e9647aea1762c3
+    MATCH    xPNTsTokenV2 runtime 0xb15c14c49929505baa68328af7638d60f87ebbfc0b6c80ee412ebbfc86850474 creation 0xedaaecbb8107e098860fa862476c2b98ecb60f6ce16071b2a95cf8eed3515730
+    MATCH    xPNTsTokenV2Ext runtime 0x449f651a10251b654334a475b20f4220e784dc98c6867a8a48c07803b10d2604 creation 0x956b078162d53178417ecd4e1242f90140f4e2c3b15fb1c577886d7cfb171e04
+    MATCH    xPNTsFactoryV2 runtime 0xc5c8222627d1d42f755459671acb338e2c47fee775128a07e8d3552789d91776 creation 0xb236ad223c88047ad1be002c1752d1be589e8281ca6c0a171544e6d058113b61
+    MATCH    AOAProtocolRegistry runtime 0x14b95e6c2b6630b835f4253ac5d667980288de98461dcda9580e25df78fb5551 creation 0x8342ddc6b8e0d50225fd41573c0ad191a7e2d8d3145288d04d96de17ca15c2e0
+    MATCH    GlobalTierSource runtime 0x73c8f2f26dcf342874cc68b8e8b766d18269b302ae04334a166f8ae1b58e84f7 creation 0xf2237df8b5de2d2ec50096a92ccf527455a803ad1e6e9e43c748f663ae998ae9
+    MATCH    APNTsCapped runtime 0x16a1a114c5c16b566e056ef5d9701652cb647926a7cde85432ff6b79692c1304 creation 0xf6b8ecabe2090bfdb7ca86ede5394dc46acdd7043899fbe48e7bdedb9e176f11
+    BUILD == ATTESTATION (10/10 runtime+creation)
+  CHECK [local build == rc.2 attestation] PASS
+=== pre-state cross-check at Sepolia block 11884270 on two independent endpoints (read-only) ===
+  !!! CHECK [pre-state endpoint A: 23 reads, 0 failed / empty / ill-typed] FAIL: got '23:1' expected '23:0'
+  !!! CHECK [pre-state endpoint B: 23 reads, 0 failed / empty / ill-typed] FAIL: got '23:1' expected '23:0'
+  !!! pre-state cross-check differs, errored or had failed reads (0-prestate-crosscheck.log, 0-prestate-read-failures.log)
+    xread: READ-FAILED SP.owner (expected address): exit 0, value '0x1234' 
+    xread: READ-FAILED SP.owner (expected address): exit 0, value '0x1234' 
+    blockHash=0x6b0d91b865fb278ec8898762d48d9057151f472fe1ddc21ed1cfc29532bf363c
+    SP.version="SuperPaymaster-5.4.2"
+    SP.owner=READ-FAILED
+    SP.implSlot=0x000000000000000000000000e25f88dbeafc64200270a948df8e9dd2f9b22c27
+    SP.APNTS_TOKEN=0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+    SP.pendingAPNTsToken=0xBb46321545a91DB2F3B5c3e694F2f23aBe259883
+    SP.pendingAPNTsTokenEta=1789099908
+    SP.totalTrackedBalance=2934135941213700000000
+    SP.operators(OWNER)=1690008712737068326800,true,false,0x696A73701b104c6cCBbAadDD2216788ea08EaB89,100,60,0xb5600060e6de5E11D3636731964218E53caadf0E,1174614808208040000000,6,
+    SP.operators(ANNI)=844540702843415794600,true,false,0xE6579A90dc498a710008de12119812D0FB7aA224,0,0,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9,587307404104020000000,3,
+    EP.depositInfo(SP)=(93470830000000000, true, 100000000000000000, 86400, 0)
+    Registry.version="Registry-5.8.0"
+    Registry.owner=0xb5600060e6de5E11D3636731964218E53caadf0E
+    Registry.implSlot=0x0000000000000000000000009bed0f58d6001b0006923eb8c4b1cc548d42ccee
+    Safe.VERSION="1.4.1"
+    Safe.owners=[0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    Safe.threshold=2
+    Safe.nonce=1
+    Safe.guardSlot=0x0000000000000000000000000000000000000000000000000000000000000000
+    Safe.modules=[] 0x0000000000000000000000000000000000000001 
+    OLD_TL.minDelay=172800
+    OLD_TL.proposer(Safe)=false
+    OLD_TL.admin(OWNER)=true
+=== fork Sepolia at block 11884270 (local anvil :28652) ===
+  chainId 11155111 head 11884270 forkBlockHash 0x6b0d91b865fb278ec8898762d48d9057151f472fe1ddc21ed1cfc29532bf363c
+  CHECK [fork block hash well-formed: A is a 32-byte hash] PASS: hash32
+  CHECK [fork block hash well-formed: B is a 32-byte hash] PASS: hash32
+  CHECK [fork block hash well-formed: fork is a 32-byte hash] PASS: hash32
+  CHECK [fork block hash: endpoint A == endpoint B] PASS: 0x6b0d91b865fb278ec8898762d48d9057151f472fe1ddc21ed1cfc29532bf363c
+  CHECK [fork block hash: local fork == endpoint A] PASS: 0x6b0d91b865fb278ec8898762d48d9057151f472fe1ddc21ed1cfc29532bf363c
+  impersonated on the fork: OWNER, ANNI, Safe owners O1/O2 (EOAs). The Safe 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 is NOT impersonated.
+  readback [Safe.getThreshold] = 2 @block 11884270
+  CHECK [Safe threshold (fork)] PASS: 2
+  readback [Safe.getOwners] = [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6] @block 11884270
+  CHECK [Safe owners (fork)] PASS: [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+  readback [Safe guard slot] = 0x0000000000000000000000000000000000000000000000000000000000000000 @block 11884270
+  CHECK [Safe guard slot empty] PASS: 0x0000000000000000000000000000000000000000000000000000000000000000

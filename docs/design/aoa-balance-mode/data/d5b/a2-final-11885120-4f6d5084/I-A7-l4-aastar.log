@@ -1,0 +1,43 @@
+# command: forge script contracts/script/v3/L4GaslessTest.s.sol:L4GaslessTest --rpc-url http://127.0.0.1:28613 --broadcast --slow --gas-estimate-multiplier 400
+# git HEAD: 4f6d50842c51678f79c1246dde86282f3b37b74f
+# forge: forge Version: 1.7.1
+# utc: 2026-10-20T08:48:39Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+  -----------------------------------------
+  L4 Gasless (balance mode) on sepolia-fork-aastar
+  -----------------------------------------
+    AA account: 0x110EDB6A468eCf28eA68C892Bb7f92B8bAc68076
+    lens.dryRunValidation ok: true
+    user xPNTs burned      : 65969027662783190407
+    lockedOf(user) after   : 0
+    operator aPNTs decrease: 65969027662783190407
+    protocolRevenue delta  : 65969027662783190407
+    snapshot written: /Users/jason/Dev/aastar/sp-wt/final/cache/evidence-a2/l4-aastar.json
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.001000014 gwei
+
+Estimated total gas used for script: 5659516
+
+Estimated amount required: 0.000005659595233224 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/sp-wt/final/broadcast/L4GaslessTest.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/sp-wt/final/cache/L4GaslessTest.s.sol/11155111/run-latest.json
+

@@ -51,10 +51,13 @@ async function main() {
 
   const config = loadConfig();
   const SUPER_PAYMASTER_ADDRESS = config.superPaymaster;
-  // SP aPNTs path: this test exercises the operator whose xPNTsToken == aPNTs
-  // (deployer/AAStar). The token being transferred AND used in postOp burn/debt
-  // is the SAME token, so the operator must match the token.
-  const XPNTS_TOKEN_ADDRESS = config.aPNTs;
+  // SP 5.5.0: the deployer operator's configured xPNTsToken is the v2 token
+  // (config.aastarXPNTsV2), NOT config.aPNTs — the 3.x token stays only as SP's
+  // operator-deposit collateral asset (APNTS_TOKEN). validatePaymasterUserOp sig-fails
+  // if the paymasterAndData token doesn't match operators[operator].xPNTsToken exactly
+  // (TestAccountPrepare.s.sol; verified on anvil: SP.operators(deployer).xPNTsToken ==
+  // aastarXPNTsV2, not aPNTs).
+  const XPNTS_TOKEN_ADDRESS = config.aastarXPNTsV2;
   const ENTRYPOINT_ADDRESS = config.entryPoint;
 
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
@@ -75,7 +78,9 @@ async function main() {
   console.log(`  EntryPoint: ${ENTRYPOINT_ADDRESS}`);
   console.log(`  Operator: ${operatorAddress}\n`);
 
-  const provider = makeProvider(rpcUrl);
+  // CHAIN_ID override: makeProvider's staticNetwork default (11155111) makes anvil (31337)
+  // reject every signed tx at the mempool unless overridden.
+  const provider = makeProvider(rpcUrl, Number(process.env.CHAIN_ID) || 11155111);
   const wallet = new ethers.Wallet(senderPrivateKey, provider);
 
   const senderAAAccount = process.env.TEST_AA_ACCOUNT_ADDRESS_B || process.env.TEST_AA_ACCOUNT_ADDRESS_1;
@@ -115,14 +120,24 @@ async function main() {
     const nonce = await simpleAccount.getNonce();
     console.log(`  Nonce: ${nonce}`);
 
-    const pmVerificationGasLimit = 150000n;
-    // SP's postOp runs the burn → recordDebt → pendingDebts fallback chain
-    // (~120K gas with xPNTsToken._update + event emits). 100K was OOG on Sepolia,
-    // surfacing as `PostOpReverted("")` with empty inner bytes.
+    // 5.5.0: validatePaymasterUserOp does more work than 3.x (exchangeRate low-level call +
+    // tryLockForGas external call, on top of the existing checks) — 150K measured AA36
+    // (over paymasterVerificationGasLimit) on a cold-storage anvil account; 400K verified OK.
+    const pmVerificationGasLimit = 400000n;
+    // SP's postOp runs settleLocked/settleCredit on the v2 token (~120K gas with
+    // xPNTsToken._update + event emits). 100K was OOG on Sepolia, surfacing as
+    // `PostOpReverted("")` with empty inner bytes.
     const pmPostOpGasLimit = 200000n;
+    // 5.5.0 paymasterAndData layout (SuperPaymasterStorage.sol:177-180):
+    // [paymaster(20)][pmVerGas(16)][pmPostGas(16)][operator(20)][maxRate(32)][token(20)][flags(1)]
+    // maxRate = ethers.MaxUint256: this test isn't exercising the rate-commitment guard, so
+    // accept whatever the live exchangeRate is instead of hand-picking a value that could go
+    // stale between signing and inclusion.
+    const maxRate = ethers.MaxUint256;
+    const flags = 0; // no SP_RENEW / ACCOUNT_RENEW
     const paymasterAndData = ethers.solidityPacked(
-      ['address', 'uint128', 'uint128', 'address'],
-      [SUPER_PAYMASTER_ADDRESS, pmVerificationGasLimit, pmPostOpGasLimit, operatorAddress]
+      ['address', 'uint128', 'uint128', 'address', 'uint256', 'address', 'uint8'],
+      [SUPER_PAYMASTER_ADDRESS, pmVerificationGasLimit, pmPostOpGasLimit, operatorAddress, maxRate, XPNTS_TOKEN_ADDRESS, flags]
     );
 
     const userOp = {

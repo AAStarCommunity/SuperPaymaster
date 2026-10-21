@@ -1,0 +1,25 @@
+none old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 0
+none new (045a896299cdb0119d2f53f709409806ea366f7b) exit 0
+both-empty old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 0
+both-empty new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+both-empty-endpoints old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 1
+both-empty-endpoints new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+both-fail old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 1
+both-fail new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+single-endpoint-fail old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 1
+single-endpoint-fail new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+ill-typed old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 0
+ill-typed new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+none old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 0
+none new (045a896299cdb0119d2f53f709409806ea366f7b) exit 0
+both-empty old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 0
+both-empty new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+both-empty-endpoints old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 1
+both-empty-endpoints new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+both-fail old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 1
+both-fail new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+single-endpoint-fail old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 1
+single-endpoint-fail new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+ill-typed old (252ffe3879487158a148fa37183ba3e810fd26e4) exit 0
+ill-typed new (045a896299cdb0119d2f53f709409806ea366f7b) exit 1
+# old ref 252ffe3879487158a148fa37183ba3e810fd26e4, new ref 045a896299cdb0119d2f53f709409806ea366f7b, fork block 11884270

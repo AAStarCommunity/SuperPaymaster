@@ -1,0 +1,2 @@
+XPNTsV2WitnessPinnedHalmosTest.check_witness_A3_spSettleBurnsVictim over xPNTsTokenV2: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 40 s)
+  settleLocked-7e48bbce                    FAIL            paths=105 time=22.88s exit=1

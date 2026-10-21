@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -12,6 +14,8 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
 
 // --- Mocks ---
 
@@ -60,19 +64,6 @@ contract MockGTokenV3 is ERC20 {
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }
-}
-
-contract MockXPNTsTokenV3 is ERC20 {
-    address public FACTORY;
-    uint256 public exchangeRateVal = 1e18; // 1:1
-
-    constructor() ERC20("Mock", "M") { 
-        FACTORY = msg.sender;
-    }
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
-    function exchangeRate() external view returns (uint256) { return exchangeRateVal; }
-    function getDebt(address) external pure returns (uint256) { return 0; }
-    function recordDebt(address user, uint256 debt) external {}
 }
 
 
@@ -128,7 +119,7 @@ contract SuperPaymasterV3_Pricing_Test is Test {
     MockEntryPointV3 public entryPoint;
     MockPriceFeedV3 public priceFeed;
     MockAPNTsV3 public apnts;
-    MockXPNTsTokenV3 public xpntsToken;
+    xPNTsTokenV2 public xpntsToken;
     MockXPNTsFactory public mockFactory;
 
     address public owner = address(0x1);
@@ -146,8 +137,7 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         entryPoint = new MockEntryPointV3();
         priceFeed = new MockPriceFeedV3();
         apnts = new MockAPNTsV3();
-        xpntsToken = new MockXPNTsTokenV3();
-        
+
         // Mock Registry
         registry = new MockRegistry();
         
@@ -178,13 +168,19 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         // 3. Fund Operator
         apnts.mint(operator1, 10000 ether);
 
-        // Deploy mock factory and register operator token (P1-4 fix)
+        // Deploy mock factory (P1-4 fix); operator token bound below
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
-        mockFactory.setToken(operator1, address(xpntsToken));
 
         vm.stopPrank(); // End Owner Prank
-        
+
+        // 5.5.0: operator token must be an xPNTs v2 (balance-mode) token; rate 1:1.
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xpntsToken = V2TokenDeployer.newToken(st, operator1, operator1, address(paymaster), 1e18);
+        mockFactory.setToken(operator1, address(xpntsToken));
+        // Balance mode: the user pays from escrowed xPNTs (credit is OFF by default).
+        IxPNTsV2Admin(address(xpntsToken)).mint(user1, 1_000 ether);
+
         // 4. Mock Registry Update (SBT check) - Must be called by Registry
         vm.prank(address(registry));
         paymaster.updateSBTStatus(user1, true); 
@@ -216,17 +212,8 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         // validatePaymasterUserOp uses _extractOperator logic.
         // It slices userOp.paymasterAndData[52:72].
         
-        bytes memory paymasterAndData = abi.encodePacked(
-            address(paymaster), // 20 bytes
-            uint128(0),
-            uint128(200000),
-            operator1           // 20 bytes (The Operator!)
-        );
-        // Padding for maxRate? offset 72. 20+32+20 = 72. Perfect.
-        // Add maxRate
-        paymasterAndData = abi.encodePacked(paymasterAndData, type(uint256).max);
-        
-        op.paymasterAndData = paymasterAndData;
+        // 5.5.0 layout: [pm 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
+        op.paymasterAndData = _pmd();
         
         
         // --- Step 1: Validation (Cache + Buffer) ---
@@ -249,8 +236,17 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         // Initial Deposit: 5000 ether (5000 * 1e18)
         // We charged 1.1 * 1e8 roughly.
         assertEq(5000 ether - balAfter, expectedPreCharge, "Operator balance should reduce by Cost + Buffer");
-        
-        // --- Step 2: PostOp (Realtime - No Buffer) ---
+        // 5.5.0 (R10-M1b): a0 is IN FLIGHT, not revenue, until postOp settles
+        (address fOp, uint256 fA0) = paymaster.inflightOf(bytes32(0));
+        assertEq(fOp, operator1, "in-flight operator");
+        assertEq(fA0, expectedPreCharge, "in-flight a0");
+        assertEq(paymaster.protocolRevenue(), 0, "a0 is not revenue while in flight");
+        // user side: a0 escrowed as xPNTs at 1:1 (x0 = ceil(a0 * rate / 1e18))
+        assertEq(xpntsToken.lockedOf(user1), expectedPreCharge, "x0 escrowed at validation");
+        uint256 userBal0 = xpntsToken.balanceOf(user1);
+
+        // --- Step 2: PostOp (5.5.0: validation-time price snapshot from context, R10-M3) ---
+        // actualUserOpFeePerGas = 0 -> bufWei = 0, so charge = ceil(calc(actualGasCost) * 1.1)
         // Actual Cost = 1.0x (No Buffer, Price same)
         // Protocol Fee = 10% (Set in contract default)
         
@@ -278,6 +274,11 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         
         assertEq(balFinal, balAfter + 10000000, "Refund expected (Buffer was pre-charged but not in final)");
         assertEq(paymaster.protocolRevenue(), 110000000, "Protocol Revenue should be Cost + Fee");
+        // user pays exactly the charge in xPNTs (xc = ceil(c * x0 / a0) = c at 1:1); escrow cleared
+        assertEq(userBal0 - xpntsToken.balanceOf(user1), 110000000, "burned xPNTs == aPNTs charge");
+        assertEq(xpntsToken.lockedOf(user1), 0, "escrow cleared");
+        (fOp, fA0) = paymaster.inflightOf(bytes32(0));
+        assertEq(fOp, address(0), "in-flight record deleted");
     }
 
     function test_V3_Pricing_Refund_When_Gas_Low() public {
@@ -291,16 +292,9 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         uint256 actualCost = 500;
         
         // Setup UserOp (Same as above)
-        bytes memory paymasterAndData = abi.encodePacked(
-            address(paymaster), // 20 bytes
-            uint128(0),
-            uint128(200000),
-            operator1,          // 20 bytes
-            type(uint256).max   // 32 bytes (maxRate)
-        );
         PackedUserOperation memory op;
         op.sender = user1;
-        op.paymasterAndData = paymasterAndData;
+        op.paymasterAndData = _pmd();
         
         // 1. Validate
         vm.prank(address(entryPoint));
@@ -321,5 +315,126 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         
         (uint128 balFinal,,,,,,,,) = paymaster.operators(operator1);
         assertEq(balFinal, balAfterVal + 65000000, "Should refund unused gas cost + buffer part");
+        assertEq(paymaster.protocolRevenue(), 55000000, "revenue == charge (no a0 left as revenue)");
+    }
+
+    // ─── 5.5.0 postOp formula (spec 03 §10.3 / R10-M3) ─────────────────────────
+
+    function _pmd() internal view returns (bytes memory) {
+        return V2TokenDeployer.pmd(address(paymaster), 0, 200000, operator1, type(uint256).max, address(xpntsToken), 0);
+    }
+
+    function _opWithCallGas(uint128 callGas) internal view returns (PackedUserOperation memory op) {
+        op.sender = user1;
+        op.accountGasLimits = bytes32((uint256(0) << 128) | uint256(callGas)); // [verif 16][call 16]
+        op.paymasterAndData = _pmd();
+    }
+
+    /// @notice R10-M3 (exp/buffer): bufWei = (C_POSTOP + ceil((callGas + postOpGas) * 10 / 100) + C_WRAP) * feePerGas,
+    ///         charge = min(a0, ceil(calc_snap(actualGasCost + bufWei) * (BPS + fee) / BPS)).
+    ///         C_POSTOP = 175_000 (exp/params default), postOpGas = 200_000, callGas = 100_000, C_WRAP = 5_000, feePerGas = 1 gwei:
+    ///         bufWei = (175_000 + 30_000 + 5_000) * 1e9 = 2.1e14 wei.
+    ///         calc(1e14 + 2.1e14) at $2000 / $0.02 = 3.1e19 aPNTs; charge = 3.41e19.
+    ///         a0 = ceil(calc(1e15) * 1.2) = 1.2e20, so the refund is 8.59e19.
+    ///         Discriminates the buffer: with bufWei = 0 the charge would be 1.1e19.
+    function test_PostOp_ConservativeBuffer_R10M3() public {
+        uint256 maxCost = 1e15;
+        PackedUserOperation memory op = _opWithCallGas(100_000);
+        bytes32 h = keccak256("buf");
+
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd) = paymaster.validatePaymasterUserOp(op, h, maxCost);
+        assertEq(uint160(vd), 0, "validation passes");
+        (uint128 balAfterVal,,,,,,,,) = paymaster.operators(operator1);
+        assertEq(5000 ether - balAfterVal, 1.2e20, "a0 = ceil(calc(maxCost) * 1.2)");
+
+        vm.expectEmit(true, true, false, true, address(paymaster));
+        emit ISuperPaymaster.TransactionSponsored(operator1, user1, 3.1e19, 3.41e19);
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei);
+
+        (uint128 balFinal,,,,,,,,) = paymaster.operators(operator1);
+        assertEq(uint256(balFinal) - balAfterVal, 1.2e20 - 3.41e19, "operator refund = a0 - charge");
+        assertEq(paymaster.protocolRevenue(), 3.41e19, "revenue = charge");
+    }
+
+    /// @notice §10.3: c = min(a0, ...). An actualGasCost far above maxCost is charged exactly a0
+    ///         (the user never pays more than the reservation it committed to); no refund.
+    function test_PostOp_ChargeCappedAtReservation() public {
+        PackedUserOperation memory op;
+        op.sender = user1;
+        op.paymasterAndData = _pmd();
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
+        (uint128 balAfterVal,,,,,,,,) = paymaster.operators(operator1);
+        uint256 userBal0 = xpntsToken.balanceOf(user1);
+
+        vm.prank(address(entryPoint));
+        // D3-M: low-level call — without the cap the refund (a0 - charge) underflows and postOp
+        // reverts; report that through a named assertion.
+        (bool ok,) = address(paymaster).call(
+            abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 10_000, 0)) // uncapped: 1.1e9
+        );
+        assertTrue(ok, "actual >> maxCost must still settle (charge capped at a0), not revert");
+
+        (uint128 balFinal,,,,,,,,) = paymaster.operators(operator1);
+        assertEq(balFinal, balAfterVal, "no refund when charge == a0");
+        assertEq(paymaster.protocolRevenue(), 120000000, "charge capped at a0");
+        assertEq(userBal0 - xpntsToken.balanceOf(user1), 120000000, "user burns at most x0");
+    }
+
+    /// @notice D3-M: every other test in this file uses round numbers, so the Ceil rounding
+    ///         directions of spec §10.3 were never observable. aPNTs at $0.021 makes both the
+    ///         conversion and the markups inexact:
+    ///           aGas = ceil(1001 * 2000e8 * 1e18 / (1e8 * 0.021e18)) = ceil(95,333,333.3) = 95,333,334
+    ///           a0   = ceil(aGas * 1.2)  = ceil(114,400,000.8) = 114,400,001
+    ///           c    = ceil(aGas * 1.1)  = ceil(104,866,667.4) = 104,866,668   (feePerGas = 0)
+    function test_A0_And_Charge_RoundUp() public {
+        vm.prank(owner);
+        paymaster.setAPNTSPrice(0.021 ether);
+        PackedUserOperation memory op = _opWithCallGas(0);
+
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd) = paymaster.validatePaymasterUserOp(op, keccak256("round"), 1001);
+        assertEq(uint160(vd), 0);
+        (uint128 b0,,,,,,,,) = paymaster.operators(operator1);
+        assertEq(5000 ether - uint256(b0), 114400001, "a0 rounds up at both steps");
+
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1001, 0);
+        assertEq(paymaster.protocolRevenue(), 104866668, "charge rounds up at both steps");
+    }
+
+    /// @notice R10-M3: postOp prices with the VALIDATION-time snapshot carried in context, not
+    ///         the cache at postOp time. Positive control: after the cache moves to $3000 a new
+    ///         validation reserves a different a0, so the price change is live.
+    function test_PostOp_UsesValidationPriceSnapshot() public {
+        uint256 maxCost = 1e15;
+        PackedUserOperation memory op = _opWithCallGas(0);
+
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(op, keccak256("snap1"), maxCost);
+        (uint128 b0,,,,,,,,) = paymaster.operators(operator1);
+        assertEq(5000 ether - b0, 1.2e20, "a0 at $2000");
+
+        priceFeed.setPrice(3000e8);
+        paymaster.updatePrice();
+
+        // control: the cache really moved (a0 at $3000 = ceil(1.5e20 * 1.2) = 1.8e20)
+        vm.prank(address(entryPoint));
+        paymaster.validatePaymasterUserOp(op, keccak256("snap2"), maxCost);
+        (uint128 b1,,,,,,,,) = paymaster.operators(operator1);
+        assertEq(uint256(b0) - b1, 1.8e20, "control: a0 at $3000");
+
+        // D3-M: the aPNTs USD price is part of the snapshot too (OpCtx.aPriceUSD). Move it (+5%,
+        // inside the ±10% setter band) so a postOp that read the live aPNTsPriceUSD would differ.
+        vm.prank(owner);
+        paymaster.setAPNTSPrice(0.021 ether);
+        assertEq(paymaster.aPNTsPriceUSD(), 0.021 ether, "control: aPNTs price really moved");
+
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 0);
+        // snapshot price $2000: ceil(1e19 * 1.1) = 1.1e19 (at $3000 it would be 1.65e19)
+        assertEq(paymaster.protocolRevenue(), 1.1e19, "charge priced at the validation snapshot");
     }
 }

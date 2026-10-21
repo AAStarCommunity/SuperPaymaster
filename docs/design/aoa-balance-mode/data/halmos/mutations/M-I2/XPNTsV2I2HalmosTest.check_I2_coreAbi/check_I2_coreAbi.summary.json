@@ -1,0 +1,22 @@
+{
+ "contract": "XPNTsV2I2HalmosTest",
+ "check": "check_I2_coreAbi",
+ "abi": "xPNTsTokenV2",
+ "parts": 1,
+ "verdict": "NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)",
+ "wall_s": 370,
+ "profile": "xp-fail",
+ "results": [
+  {
+   "part": "tryLockForGas-ec290731",
+   "D5C1_PART": 3962111793,
+   "exit": 1,
+   "wall_s": 370,
+   "log": "check_I2_coreAbi.tryLockForGas-ec290731.log",
+   "result": "FAIL",
+   "paths": 248,
+   "time_s": 353.07,
+   "counterexample": true
+  }
+ ]
+}

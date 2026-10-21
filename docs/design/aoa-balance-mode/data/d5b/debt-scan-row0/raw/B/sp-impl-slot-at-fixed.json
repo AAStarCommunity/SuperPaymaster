@@ -1,0 +1,12 @@
+{
+ "endpoint": "B (sepolia.gateway.tenderly.co)",
+ "request": {
+  "method": "eth_getStorageAt",
+  "params": [
+   "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+   "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc",
+   "0xb54a28"
+  ]
+ },
+ "response": "0x000000000000000000000000e25f88dbeafc64200270a948df8e9dd2f9b22c27"
+}

@@ -1,0 +1,6 @@
+APNTsCappedHalmosTest: [31m[FAIL][0m check_CAP1_a_supplyIncreaseStaysUnderCap() (paths: 75, time: 0.90s (paths: 0.90s, models: 0.00s), bounds: [])
+APNTsCappedHalmosTest: [32m[PASS][0m check_CAP1_b_onlyMinterMintIncreasesSupply() (paths: 104, time: 2.12s (paths: 2.12s, models: 0.00s), bounds: [])
+APNTsCappedHalmosTest: [32m[PASS][0m check_CAP1_c_mintDoesNotMoveCap() (paths: 104, time: 1.19s (paths: 1.19s, models: 0.00s), bounds: [])
+APNTsCappedHalmosTest: # exit_code: 1  wall_seconds: 20
+scenario (CAP1_scenario): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.32ms (551.00µs CPU time)
+reverted M-CAP1: contracts/src/tokens/APNTsCapped.sol sha256 d868f95fbb0005b34e9dbd0ab8202c7a33c09aeb9b195eca01d500a5da996798

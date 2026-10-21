@@ -5,9 +5,8 @@
  * Verifies the unified aPNTs accounting introduced in PR #200:
  * - xPNTsToken.exchangeRate() is the live rate used by SuperPaymaster (not stale config)
  * - operators() returns 9-tuple (no exchangeRate field)
- * - getAvailableCredit returns aPNTs values
- * - getDebt returns aPNTs (not xPNTs)
- * - burnFromWithOpHash and recordDebtWithOpHash both use aPNTs as input
+ * - effectiveCreditCap / debts (5.5.0: getAvailableCredit/getDebt moved off SP onto the
+ *   token itself — see IxPNTsTokenV2) both return aPNTs values
  *
  * Prerequisites: run A1 + B1 first (operator configured, registry roles set).
  */
@@ -54,8 +53,10 @@ async function main() {
   printStep(2, 'Read live exchangeRate from xPNTsToken');
   const xPNTsAbi = [
     'function exchangeRate() view returns (uint256)',
-    'function getDebt(address user) view returns (uint256)',
+    'function debts(address user) view returns (uint256)',
     'function maxSingleTxLimit() view returns (uint256)',
+    'function effectiveCreditCap(address user) view returns (uint256)',
+    'function creditReservedOf(address user) view returns (uint256)',
   ];
   let xPNTsTokenAddr = null;
   try {
@@ -79,39 +80,40 @@ async function main() {
   }
 
   // ──────────────────────────────────────────
-  // Step 3: getAvailableCredit returns aPNTs
+  // Step 3: effectiveCreditCap (5.5.0: replaces SP.getAvailableCredit, moved onto the token)
   // ──────────────────────────────────────────
-  printStep(3, 'getAvailableCredit returns aPNTs denomination');
+  printStep(3, 'token.effectiveCreditCap returns aPNTs denomination');
   try {
     if (!xPNTsTokenAddr || xPNTsTokenAddr === ethers.ZeroAddress) {
       printSkip('xPNTsToken not set, skipping credit check');
     } else {
-      const credit = await sp.getAvailableCredit(deployerAddr, xPNTsTokenAddr);
-      printKeyValue('Available credit (aPNTs)', ethers.formatEther(credit));
-      assertGte(credit, 0n, 'getAvailableCredit must return non-negative');
-      printSuccess('getAvailableCredit returns aPNTs value');
+      const token = new ethers.Contract(xPNTsTokenAddr, xPNTsAbi, deployer);
+      const cap = await token.effectiveCreditCap(deployerAddr);
+      printKeyValue('effectiveCreditCap (aPNTs)', ethers.formatEther(cap));
+      assertGte(cap, 0n, 'effectiveCreditCap must return non-negative');
+      printSuccess('effectiveCreditCap returns aPNTs value');
     }
   } catch (e) {
-    catchStep(`getAvailableCredit`, e);
+    catchStep(`effectiveCreditCap`, e);
   }
 
   // ──────────────────────────────────────────
-  // Step 4: getDebt returns aPNTs
+  // Step 4: debts() returns aPNTs
   // ──────────────────────────────────────────
-  printStep(4, 'xPNTsToken.getDebt() returns aPNTs (not xPNTs)');
+  printStep(4, 'xPNTsToken.debts() returns aPNTs (not xPNTs)');
   try {
     if (!xPNTsTokenAddr || xPNTsTokenAddr === ethers.ZeroAddress) {
       printSkip('xPNTsToken not set, skipping debt check');
     } else {
       const token = new ethers.Contract(xPNTsTokenAddr, xPNTsAbi, deployer);
-      const debt = await token.getDebt(deployerAddr);
+      const debt = await token.debts(deployerAddr);
       printKeyValue('Deployer debt (aPNTs)', ethers.formatEther(debt));
       // If any debt exists, it should be in sane aPNTs range (< 1M aPNTs)
       assertTrue(debt <= ethers.parseEther('1000000'), 'Debt value must be in reasonable aPNTs range');
-      printSuccess('getDebt() returns aPNTs denomination');
+      printSuccess('debts() returns aPNTs denomination');
     }
   } catch (e) {
-    catchStep(`getDebt`, e);
+    catchStep(`debts`, e);
   }
 
   // ──────────────────────────────────────────

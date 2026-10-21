@@ -1,0 +1,25 @@
+{
+ "onchainBytes": 23569,
+ "artifactRuntimeBytes": 23569,
+ "onchainCodehash": "0x63a66dc03dfe0a16788f2f14625d661affac311f7b11e3a7a4acffd5b4435135",
+ "maskedKeccak": "0xdd83d0f73f61abf13de7e3792f57e6c2af109345bf80eb8e904ca34ad7afd20b",
+ "artifactRuntimeKeccak": "0xdd83d0f73f61abf13de7e3792f57e6c2af109345bf80eb8e904ca34ad7afd20b",
+ "equalAfterMaskingImmutables": true,
+ "immutableRefCount": 4,
+ "immutableValuesOnChain": {
+  "189032": [
+   "0x000000000000000000000000e25f88dbeafc64200270a948df8e9dd2f9b22c27"
+  ],
+  "53765": [
+   "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+  ],
+  "55026": [
+   "0x000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71"
+  ],
+  "55033": [
+   "0x000000000000000000000000694aa1769357215de4fac081bf1f309adc325306"
+  ]
+ },
+ "fixtureEqualsArtifactCreation": true,
+ "artifactCreationKeccak": "0x1650ed800e099aeafe4353be14e7b4a4074c0cefdc2f14cdc0a0e8dc75f88033"
+}

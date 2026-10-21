@@ -1,0 +1,104 @@
+{
+  "attestation": "docs/release/v5.5.0-rc.2-attestation.json",
+  "attestedCommit": "1ac0e1c595dc84e684b540ca6a936168e922194f",
+  "block": "11882025",
+  "results": [
+    {
+      "mode": "target",
+      "contract": "SuperPaymaster",
+      "address": "0x3a69C08A310bb62bEfdd03048C6Ec64235772e5b",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.json",
+      "attestedRuntimeKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+      "artifactRuntimeKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+      "buildReproducesAttestation": true,
+      "onchainBytes": 13744,
+      "artifactBytes": 13744,
+      "onchainCodehash": "0x855c0e80217be18958cecb20582584966412ae98b5e357cd7e109dd37219dfbf",
+      "immutables": [
+        {
+          "astId": "55406",
+          "start": 968,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "55406",
+          "start": 1524,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "55406",
+          "start": 2887,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "55406",
+          "start": 3904,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "55406",
+          "start": 4690,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "55406",
+          "start": 4965,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "55406",
+          "start": 5157,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "55406",
+          "start": 5293,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "55406",
+          "start": 5868,
+          "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+        },
+        {
+          "astId": "56657",
+          "start": 2428,
+          "value": "0x000000000000000000000000a497f738446fd823e15198bfa8157e6aa50677c0"
+        },
+        {
+          "astId": "56657",
+          "start": 11680,
+          "value": "0x000000000000000000000000a497f738446fd823e15198bfa8157e6aa50677c0"
+        },
+        {
+          "astId": "62447",
+          "start": 1101,
+          "value": "0x000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71"
+        },
+        {
+          "astId": "62447",
+          "start": 11935,
+          "value": "0x000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71"
+        },
+        {
+          "astId": "62454",
+          "start": 4757,
+          "value": "0x000000000000000000000000694aa1769357215de4fac081bf1f309adc325306"
+        },
+        {
+          "astId": "84357",
+          "start": 2988,
+          "value": "0x0000000000000000000000003a69c08a310bb62befdd03048c6ec64235772e5b"
+        },
+        {
+          "astId": "84357",
+          "start": 6900,
+          "value": "0x0000000000000000000000003a69c08a310bb62befdd03048c6ec64235772e5b"
+        }
+      ],
+      "maskedOnchainKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+      "match": true
+    }
+  ],
+  "result": "PASS"
+}

@@ -1,0 +1,21 @@
+PASS T1 one 32-byte word decodes (42)
+PASS T1 an explicit zero word decodes to 0
+PASS T1 rejects '0x'
+PASS T1 rejects ''
+PASS T1 rejects 31 bytes
+PASS T1 rejects 33 bytes
+PASS T1 rejects two words
+PASS T1 rejects non-hex
+PASS T1 rejects no 0x prefix
+PASS T1 rejects revert object
+PASS T1 rejects None
+PASS T1 (context) the lenient u() still maps '0x' to 0 -> getters must not use it
+PASS T2 same-block record(logIndex 5, tx 0xff..) -> repay(logIndex 9, tx 0x00..) reconciles: ['DebtRecorded@block 100 logIndex 5 data is exactly 1 word', 'DebtRepaid@block 100 logIndex 9 data is exactly 2 words', 'user 0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c DebtRepaid@block 100 logIndex 9 remainingDebt 0 == replayed balance 0']
+PASS T2 discrimination: the old (block, txHash, logIndex) key puts the repay first
+PASS T2 discrimination: under the old key the repay check is red (balance -400e18 at repay)
+PASS T2 ord_key = (blockNumber, logIndex)
+PASS T3 replay rejects DebtRecorded with empty data
+PASS T3 replay rejects DebtRecorded with 2 words
+PASS T3 replay rejects DebtRepaid with 1 word
+SELFTEST OK
+exit=0

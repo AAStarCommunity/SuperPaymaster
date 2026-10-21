@@ -14,7 +14,7 @@ const {
   sendTxSafe, catchStep, ABI,
 } = require('./test-helpers');
 
-function buildDummyUserOp(sender, paymaster, operator) {
+function buildDummyUserOp(sender, paymaster, operator, token) {
   const iface = new ethers.Interface(ABI.SimpleAccount);
   const callData = iface.encodeFunctionData('execute', [
     ethers.ZeroAddress,
@@ -22,11 +22,20 @@ function buildDummyUserOp(sender, paymaster, operator) {
     '0x',
   ]);
 
-  const pmVerificationGasLimit = 150000n;
+  // 400K, not 150K: high enough that AA36 (over paymasterVerificationGasLimit) never masks
+  // the condition actually under test — see test-case-2-fixed.js for the measurement.
+  const pmVerificationGasLimit = 400000n;
   const pmPostOpGasLimit = 100000n;
+  // 5.5.0 paymasterAndData layout (SuperPaymasterStorage.sol:177-180). Every case here is
+  // expected to revert on an EARLIER check (SBT/pause/operator-config), before validation
+  // ever reaches the token-binding check at TOKEN_OFFSET — but a well-formed token/maxRate/
+  // flags tail keeps this a true isolation test of the condition under test, not an
+  // accidental pass from malformed paymasterAndData.
+  const maxRate = ethers.MaxUint256;
+  const flags = 0;
   const paymasterAndData = ethers.solidityPacked(
-    ['address', 'uint128', 'uint128', 'address'],
-    [paymaster, pmVerificationGasLimit, pmPostOpGasLimit, operator]
+    ['address', 'uint128', 'uint128', 'address', 'uint256', 'address', 'uint8'],
+    [paymaster, pmVerificationGasLimit, pmPostOpGasLimit, operator, maxRate, token, flags]
   );
 
   return {
@@ -62,7 +71,7 @@ async function main() {
   // Step 1: UserOp from sender with no SBT -> revert
   // ──────────────────────────────────────────
   printStep(1, 'UserOp from sender with no SBT -> expect revert');
-  const userOp1 = buildDummyUserOp(noSBTAddress, config.superPaymaster, operatorAddr);
+  const userOp1 = buildDummyUserOp(noSBTAddress, config.superPaymaster, operatorAddr, config.aastarXPNTsV2);
   await expectRevert(
     () => entryPoint.handleOps.estimateGas([userOp1], deployerAddr),
     'No SBT sender should revert'
@@ -79,18 +88,30 @@ async function main() {
     printSkip('Deployer not configured as operator; skipping pause test');
   } else {
     // Pause
-    await sendTxSafe(sp, 'setOperatorPaused', [deployerAddr, true], 'Pause deployer operator');
+    const pauseSent = await sendTxSafe(sp, 'setOperatorPaused', [deployerAddr, true], 'Pause deployer operator');
+    if (!pauseSent) {
+      // sendTxSafe returns null on skip/failure (nonce conflict exhausted, revert, ...) — the
+      // operator was never actually paused, so asserting "should revert" here would be testing
+      // the wrong causal state (DSR review, 2026-09-17: same gap found in G3's setCreditTier).
+      printSkip('Pause deployer operator: write did not land — paused-operator revert check skipped');
+    } else {
+      // Try UserOp with paused operator
+      const aaAccount = process.env.TEST_AA_ACCOUNT_ADDRESS_A || noSBTAddress;
+      const userOp2 = buildDummyUserOp(aaAccount, config.superPaymaster, deployerAddr, config.aastarXPNTsV2);
+      await expectRevert(
+        () => entryPoint.handleOps.estimateGas([userOp2], deployerAddr),
+        'Paused operator should revert'
+      );
+    }
 
-    // Try UserOp with paused operator
-    const aaAccount = process.env.TEST_AA_ACCOUNT_ADDRESS_A || noSBTAddress;
-    const userOp2 = buildDummyUserOp(aaAccount, config.superPaymaster, deployerAddr);
-    await expectRevert(
-      () => entryPoint.handleOps.estimateGas([userOp2], deployerAddr),
-      'Paused operator should revert'
-    );
-
-    // Unpause
-    await sendTxSafe(sp, 'setOperatorPaused', [deployerAddr, false], 'Unpause deployer operator');
+    // Unpause — always attempted regardless of whether the pause above landed, so a real
+    // pause is never left in place for later scripts sharing this operator's on-chain state
+    // (run-all-e2e-tests.sh runs many scripts against one deployment). Loud, not a soft skip:
+    // unlike the read-back assertions above, a failed unpause has a lasting side effect.
+    const unpauseSent = await sendTxSafe(sp, 'setOperatorPaused', [deployerAddr, false], 'Unpause deployer operator');
+    if (!unpauseSent) {
+      printError('Unpause deployer operator: write did not land — operator may be left PAUSED for later tests');
+    }
   }
 
   // ──────────────────────────────────────────
@@ -99,7 +120,7 @@ async function main() {
   printStep(3, 'Unconfigured operator -> expect revert');
   const unconfiguredAddr = '0x' + '11'.repeat(20);
   const aaAccount = process.env.TEST_AA_ACCOUNT_ADDRESS_A || noSBTAddress;
-  const userOp3 = buildDummyUserOp(aaAccount, config.superPaymaster, unconfiguredAddr);
+  const userOp3 = buildDummyUserOp(aaAccount, config.superPaymaster, unconfiguredAddr, config.aastarXPNTsV2);
   await expectRevert(
     () => entryPoint.handleOps.estimateGas([userOp3], deployerAddr),
     'Unconfigured operator should revert'

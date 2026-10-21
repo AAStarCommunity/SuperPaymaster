@@ -1,0 +1,637 @@
+### NEG-1 [A1d: deployer EOA cannot schedule on the canonical TL (not PROPOSER)] expect=0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0eb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1 head block before=11877941 after=11877941 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0xe2517d3f: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0eb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, data: "0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0eb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1": AccessControlUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1)
+
+### NEG-2 [A1d: a Safe OWNER EOA acting directly (not through the Safe) cannot schedule] expect=0xe2517d3f000000000000000000000000871608cba092105b91e91295a1d79ffc539bfb48b09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1 head block before=11877941 after=11877941 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0xe2517d3f: 000000000000000000000000871608cba092105b91e91295a1d79ffc539bfb48b09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, data: "0xe2517d3f000000000000000000000000871608cba092105b91e91295a1d79ffc539bfb48b09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1": AccessControlUnauthorizedAccount(0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1)
+
+### NEG-3 [A1d: Safe exec with ONE owner signature (threshold 2) -> GS020] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303230000000000000000000000000000000000000000000000000000000 head block before=11877941 after=11877941 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS020, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303230000000000000000000000000000000000000000000000000000000": Error("GS020")
+
+### NEG-4 [A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState) [inner call replayed as eth_call from the Safe]] expect=0x5ead8eb5cfe0031eb50fc32658fce240a3803451576a7fedbcc8f8320670811ee7f26eb30000000000000000000000000000000000000000000000000000000000000004 head block before=11877944 after=11877944 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x5ead8eb5: cfe0031eb50fc32658fce240a3803451576a7fedbcc8f8320670811ee7f26eb30000000000000000000000000000000000000000000000000000000000000004, data: "0x5ead8eb5cfe0031eb50fc32658fce240a3803451576a7fedbcc8f8320670811ee7f26eb30000000000000000000000000000000000000000000000000000000000000004"
+
+### NEG-5 [A1d: Safe execute BEFORE 48h (TimelockUnexpectedOperationState)] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11877944 after=11877944 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-6 [A1d: deployer EOA cannot execute (not EXECUTOR)] expect=0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63 head block before=11877945 after=11877945 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0xe2517d3f: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, data: "0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63": AccessControlUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E, 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63)
+
+### NEG-7 [A1e: executeAPNTsTokenChange before the 7-day ETA] expect=0xc52a9bd3 head block before=11877948 after=11877948 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0xc52a9bd3, data: "0xc52a9bd3": InvalidConfiguration
+
+### NEG-8 [A1e discriminator (a): drain neutralised by state override, ETA real -> still InvalidConfiguration (ETA branch)] expect=0xc52a9bd3 head block before=11877948 after=11877948 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0xc52a9bd3, data: "0xc52a9bd3"
+
+### NEG-9 [A1f: deployer EOA cannot mint APNTsCapped (minter = Safe)] expect=0x361c31f2000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e head block before=11877949 after=11877949 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x361c31f2: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e, data: "0x361c31f2000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e": NotMinter(0xb5600060e6de5E11D3636731964218E53caadf0E)
+
+### NEG-10 [M1: deployer EOA AOAProtocolRegistry.revokeApproval after transfer] expect=0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e head block before=11878009 after=11878009 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e, data: "0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e": OwnableUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E)
+
+### NEG-11 [M1: deployer EOA xPNTsFactoryV2.setSuperPaymasterAddress after transfer] expect=0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e head block before=11878009 after=11878009 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e, data: "0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e": OwnableUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E)
+
+### NEG-12 [M1: misconfigured timelock executes SP.acceptOwnership (pendingOwner is the canonical TL)] expect=0x118cdaa7000000000000000000000000b9e22422435d69efb42258d4d165786681192303 head block before=11878011 after=11878011 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 000000000000000000000000b9e22422435d69efb42258d4d165786681192303, data: "0x118cdaa7000000000000000000000000b9e22422435d69efb42258d4d165786681192303": OwnableUnauthorizedAccount(0xb9E22422435D69EFB42258D4D165786681192303)
+
+### NEG-13 [M1: UpgradeViaTimelock schedule-accept WITHOUT a roles attestation] expect=roles attestation: missing head block before=11878011 after=11878011 exit=1
+Compiling 18 files with Solc 0.8.33
+Compiling 137 files with Solc 0.8.33
+Solc 0.8.33 finished in 2.58s
+Solc 0.8.33 finished in 28.53s
+Compiler run successful with warnings:
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Traces:
+  [11034839] → new UpgradeViaTimelock@0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519
+    ├─ [2240900] → new T4ArtifactReader@0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141
+    │   └─ ← [Return] 11082 bytes of code
+    └─ ← [Return] 42498 bytes of code
+
+  [176386] UpgradeViaTimelock::run()
+    ├─ [0] VM::envString("TL_MODE") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("ENV", "anvil") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2"
+    ├─ [0] VM::readFile("/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2/deployments/config.sepolia.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".superPaymaster") [staticcall]
+    │   └─ ← [Return] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".registry") [staticcall]
+    │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".entryPoint") [staticcall]
+    │   └─ ← [Return] 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".priceFeed") [staticcall]
+    │   └─ ← [Return] 0x694AA1769357215DE4FAC081bf1f309aDC325306
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".dvtValidator") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".dvtValidator") [staticcall]
+    │   └─ ← [Return] 0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".timelockController") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelockController") [staticcall]
+    │   └─ ← [Return] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+    ├─ [0] VM::envOr("TIMELOCK", 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("TL_SALT", 0xc622d2f64c74019f79e31c718b7213be7512d7cc9270ae1e458dcefbf2859ce3) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("ENV", "anvil") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2"
+    ├─ [0] VM::readFile("/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2/deployments/timelock-roles.sepolia.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::keyExistsJson("<JSON file>", "._placeholder") [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".network") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".chainId") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".timelock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".network") [staticcall]
+    │   └─ ← [Return] "sepolia"
+    ├─ [0] VM::parseJsonKeys("{\n  \"network\": \"sepolia\",\n  \"chainId\": \"11155111\",\n  \"timelock\": \"0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c\",\n  \"deploymentBlock\": \"11877937\",\n  \"roles\": {\n    \"DEFAULT_ADMIN_ROLE\": [\n      \"0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c\"\n    ],\n    \"PROPOSER_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ],\n    \"CANCELLER_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ],\n    \"EXECUTOR_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ]\n  },\n  \"mustHoldNothing\": [\n    \"0xb5600060e6de5E11D3636731964218E53caadf0E\",\n    \"0x86C86c789EDc099801cc6a5F48334F1D67dC9564\"\n  ],\n  \"mustHoldNothingLabels\": [\n    \"deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock\",\n    \"old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one\"\n  ]\n}\n", ".roles") [staticcall]
+    │   └─ ← [Return] ["DEFAULT_ADMIN_ROLE", "PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE"]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+    │   └─ ← [Return] 11155111 [1.115e7]
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelock") [staticcall]
+    │   └─ ← [Return] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] 11877937 [1.187e7]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] [0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564]
+    ├─ [0] VM::parseJsonStringArray("<stringified JSON>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] ["deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock", "old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one"]
+    ├─ [0] VM::envOr("TL_ROLES_ATTESTATION", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("TL_ALLOW_NO_ATTESTATION", false) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("SAFE", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("ENV", "anvil") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2"
+    ├─ [0] VM::readFile("/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2/deployments/timelock-roles.sepolia.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::keyExistsJson("<JSON file>", "._placeholder") [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".network") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".chainId") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".timelock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".network") [staticcall]
+    │   └─ ← [Return] "sepolia"
+    ├─ [0] VM::parseJsonKeys("{\n  \"network\": \"sepolia\",\n  \"chainId\": \"11155111\",\n  \"timelock\": \"0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c\",\n  \"deploymentBlock\": \"11877937\",\n  \"roles\": {\n    \"DEFAULT_ADMIN_ROLE\": [\n      \"0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c\"\n    ],\n    \"PROPOSER_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ],\n    \"CANCELLER_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ],\n    \"EXECUTOR_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ]\n  },\n  \"mustHoldNothing\": [\n    \"0xb5600060e6de5E11D3636731964218E53caadf0E\",\n    \"0x86C86c789EDc099801cc6a5F48334F1D67dC9564\"\n  ],\n  \"mustHoldNothingLabels\": [\n    \"deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock\",\n    \"old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one\"\n  ]\n}\n", ".roles") [staticcall]
+    │   └─ ← [Return] ["DEFAULT_ADMIN_ROLE", "PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE"]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+    │   └─ ← [Return] 11155111 [1.115e7]
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelock") [staticcall]
+    │   └─ ← [Return] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] 11877937 [1.187e7]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] [0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564]
+    ├─ [0] VM::parseJsonStringArray("<stringified JSON>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] ["deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock", "old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one"]
+    ├─ [0] VM::envOr("TL_ROLES_ATTESTATION", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("TL_ALLOW_NO_ATTESTATION", false) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [2838] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::getMinDelay() [staticcall]
+    │   └─ ← [Return] 172800 [1.728e5]
+    ├─ [497] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::PROPOSER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    ├─ [563] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::CANCELLER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783
+    ├─ [189] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::EXECUTOR_ROLE() [staticcall]
+    │   └─ ← [Return] 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63
+    ├─ [540] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::DEFAULT_ADMIN_ROLE() [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    └─ ← [Revert] roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)
+
+
+Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)
+
+### NEG-14 [M1: deployer EOA scheduleBatch directly (not PROPOSER)] expect=0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0eb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1 head block before=11878012 after=11878012 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0xe2517d3f: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0eb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, data: "0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0eb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1": AccessControlUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1)
+
+### NEG-15 [M1: Safe executeBatch BEFORE 48h [inner call replayed as eth_call from the Safe]] expect=0x5ead8eb50103401589cc18cb6750533ad0b4abdd605a106825e4c81a44fc26529b7565150000000000000000000000000000000000000000000000000000000000000004 head block before=11878015 after=11878015 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x5ead8eb5: 0103401589cc18cb6750533ad0b4abdd605a106825e4c81a44fc26529b7565150000000000000000000000000000000000000000000000000000000000000004, data: "0x5ead8eb50103401589cc18cb6750533ad0b4abdd605a106825e4c81a44fc26529b7565150000000000000000000000000000000000000000000000000000000000000004"
+
+### NEG-16 [M1: Safe executeBatch BEFORE 48h] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878015 after=11878015 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-17 [M1: non-multisig (deployer EOA) executeBatch after 48h (not EXECUTOR)] expect=0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63 head block before=11878016 after=11878016 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0xe2517d3f: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, data: "0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63": AccessControlUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E, 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63)
+
+### NEG-18 [M1: non-multisig (Safe owner EOA directly) executeBatch after 48h] expect=0xe2517d3f0000000000000000000000008c3499252232105a1615767c459db9bbbf1273d6d8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63 head block before=11878016 after=11878016 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0xe2517d3f: 0000000000000000000000008c3499252232105a1615767c459db9bbbf1273d6d8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, data: "0xe2517d3f0000000000000000000000008c3499252232105a1615767c459db9bbbf1273d6d8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63": AccessControlUnauthorizedAccount(0x8c3499252232105A1615767C459DB9BBbf1273D6, 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63)
+
+### NEG-19 [M1: old EOA owner SP.upgradeToAndCall after M1] expect=0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e head block before=11878020 after=11878020 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e, data: "0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e": OwnableUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E)
+
+### NEG-20 [M1: old EOA owner Registry.upgradeToAndCall after M1] expect=0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e head block before=11878020 after=11878020 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e, data: "0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e": OwnableUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E)
+
+### NEG-21 [C SP: schedule-upgrade WITHOUT a roles attestation] expect=roles attestation: missing head block before=11878021 after=11878021 exit=1
+Compiling 137 files with Solc 0.8.33
+Compiling 18 files with Solc 0.8.33
+Solc 0.8.33 finished in 2.84s
+Solc 0.8.33 finished in 34.76s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traces:
+  [11034839] → new UpgradeViaTimelock@0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519
+    ├─ [2240900] → new T4ArtifactReader@0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141
+    │   └─ ← [Return] 11082 bytes of code
+    └─ ← [Return] 42498 bytes of code
+
+  [138823] UpgradeViaTimelock::run()
+    ├─ [0] VM::envString("TL_MODE") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("ENV", "anvil") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2"
+    ├─ [0] VM::readFile("/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2/deployments/config.sepolia.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".superPaymaster") [staticcall]
+    │   └─ ← [Return] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".registry") [staticcall]
+    │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".entryPoint") [staticcall]
+    │   └─ ← [Return] 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".priceFeed") [staticcall]
+    │   └─ ← [Return] 0x694AA1769357215DE4FAC081bf1f309aDC325306
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".dvtValidator") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".dvtValidator") [staticcall]
+    │   └─ ← [Return] 0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".timelockController") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelockController") [staticcall]
+    │   └─ ← [Return] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+    ├─ [0] VM::envOr("TIMELOCK", 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("TL_SALT", 0xc622d2f64c74019f79e31c718b7213be7512d7cc9270ae1e458dcefbf2859ce3) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envString("TL_TARGET") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envAddress("TL_NEW_IMPL") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("ENV", "anvil") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2"
+    ├─ [0] VM::readFile("/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2/deployments/timelock-roles.sepolia.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::keyExistsJson("<JSON file>", "._placeholder") [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".network") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".chainId") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".timelock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".network") [staticcall]
+    │   └─ ← [Return] "sepolia"
+    ├─ [0] VM::parseJsonKeys("{\n  \"network\": \"sepolia\",\n  \"chainId\": \"11155111\",\n  \"timelock\": \"0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c\",\n  \"deploymentBlock\": \"11877937\",\n  \"roles\": {\n    \"DEFAULT_ADMIN_ROLE\": [\n      \"0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c\"\n    ],\n    \"PROPOSER_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ],\n    \"CANCELLER_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ],\n    \"EXECUTOR_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ]\n  },\n  \"mustHoldNothing\": [\n    \"0xb5600060e6de5E11D3636731964218E53caadf0E\",\n    \"0x86C86c789EDc099801cc6a5F48334F1D67dC9564\"\n  ],\n  \"mustHoldNothingLabels\": [\n    \"deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock\",\n    \"old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one\"\n  ]\n}\n", ".roles") [staticcall]
+    │   └─ ← [Return] ["DEFAULT_ADMIN_ROLE", "PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE"]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+    │   └─ ← [Return] 11155111 [1.115e7]
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelock") [staticcall]
+    │   └─ ← [Return] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] 11877937 [1.187e7]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] [0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564]
+    ├─ [0] VM::parseJsonStringArray("<stringified JSON>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] ["deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock", "old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one"]
+    ├─ [0] VM::envOr("TL_ROLES_ATTESTATION", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("TL_ALLOW_NO_ATTESTATION", false) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [2838] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::getMinDelay() [staticcall]
+    │   └─ ← [Return] 172800 [1.728e5]
+    ├─ [497] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::PROPOSER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    ├─ [563] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::CANCELLER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783
+    ├─ [189] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::EXECUTOR_ROLE() [staticcall]
+    │   └─ ← [Return] 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63
+    ├─ [540] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::DEFAULT_ADMIN_ROLE() [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    └─ ← [Revert] roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)
+
+
+Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)
+
+### NEG-22 [C SP: Safe execute BEFORE 48h [inner call replayed as eth_call from the Safe]] expect=0x5ead8eb59beb262c495ecd74d75fe4ba989d5465605de497c728c72068c6f8771df0c2920000000000000000000000000000000000000000000000000000000000000004 head block before=11878025 after=11878025 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x5ead8eb5: 9beb262c495ecd74d75fe4ba989d5465605de497c728c72068c6f8771df0c2920000000000000000000000000000000000000000000000000000000000000004, data: "0x5ead8eb59beb262c495ecd74d75fe4ba989d5465605de497c728c72068c6f8771df0c2920000000000000000000000000000000000000000000000000000000000000004"
+
+### NEG-23 [C SP: Safe execute BEFORE 48h] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878025 after=11878025 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-24 [C REGISTRY: schedule-upgrade WITHOUT a roles attestation] expect=roles attestation: missing head block before=11878030 after=11878030 exit=1
+Compiling 137 files with Solc 0.8.33
+Compiling 18 files with Solc 0.8.33
+Solc 0.8.33 finished in 3.03s
+Solc 0.8.33 finished in 37.05s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traces:
+  [11034839] → new UpgradeViaTimelock@0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519
+    ├─ [2240900] → new T4ArtifactReader@0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141
+    │   └─ ← [Return] 11082 bytes of code
+    └─ ← [Return] 42498 bytes of code
+
+  [138848] UpgradeViaTimelock::run()
+    ├─ [0] VM::envString("TL_MODE") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("ENV", "anvil") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2"
+    ├─ [0] VM::readFile("/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2/deployments/config.sepolia.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".superPaymaster") [staticcall]
+    │   └─ ← [Return] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".registry") [staticcall]
+    │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".entryPoint") [staticcall]
+    │   └─ ← [Return] 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".priceFeed") [staticcall]
+    │   └─ ← [Return] 0x694AA1769357215DE4FAC081bf1f309aDC325306
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".dvtValidator") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".dvtValidator") [staticcall]
+    │   └─ ← [Return] 0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".timelockController") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelockController") [staticcall]
+    │   └─ ← [Return] 0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+    ├─ [0] VM::envOr("TIMELOCK", 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("TL_SALT", 0xc622d2f64c74019f79e31c718b7213be7512d7cc9270ae1e458dcefbf2859ce3) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envString("TL_TARGET") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envAddress("TL_NEW_IMPL") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("ENV", "anvil") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2"
+    ├─ [0] VM::readFile("/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2/deployments/timelock-roles.sepolia.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::keyExistsJson("<JSON file>", "._placeholder") [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".network") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".chainId") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".timelock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".network") [staticcall]
+    │   └─ ← [Return] "sepolia"
+    ├─ [0] VM::parseJsonKeys("{\n  \"network\": \"sepolia\",\n  \"chainId\": \"11155111\",\n  \"timelock\": \"0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c\",\n  \"deploymentBlock\": \"11877937\",\n  \"roles\": {\n    \"DEFAULT_ADMIN_ROLE\": [\n      \"0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c\"\n    ],\n    \"PROPOSER_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ],\n    \"CANCELLER_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ],\n    \"EXECUTOR_ROLE\": [\n      \"0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114\"\n    ]\n  },\n  \"mustHoldNothing\": [\n    \"0xb5600060e6de5E11D3636731964218E53caadf0E\",\n    \"0x86C86c789EDc099801cc6a5F48334F1D67dC9564\"\n  ],\n  \"mustHoldNothingLabels\": [\n    \"deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock\",\n    \"old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one\"\n  ]\n}\n", ".roles") [staticcall]
+    │   └─ ← [Return] ["DEFAULT_ADMIN_ROLE", "PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE"]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+    │   └─ ← [Return] 11155111 [1.115e7]
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".timelock") [staticcall]
+    │   └─ ← [Return] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".deploymentBlock") [staticcall]
+    │   └─ ← [Return] 11877937 [1.187e7]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.DEFAULT_ADMIN_ROLE") [staticcall]
+    │   └─ ← [Return] [0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.PROPOSER_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.CANCELLER_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".roles.EXECUTOR_ROLE") [staticcall]
+    │   └─ ← [Return] [0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".mustHoldNothing") [staticcall]
+    │   └─ ← [Return] [0xb5600060e6de5E11D3636731964218E53caadf0E, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564]
+    ├─ [0] VM::parseJsonStringArray("<stringified JSON>", ".mustHoldNothingLabels") [staticcall]
+    │   └─ ← [Return] ["deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock", "old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one"]
+    ├─ [0] VM::envOr("TL_ROLES_ATTESTATION", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("TL_ALLOW_NO_ATTESTATION", false) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [2838] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::getMinDelay() [staticcall]
+    │   └─ ← [Return] 172800 [1.728e5]
+    ├─ [497] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::PROPOSER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    ├─ [563] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::CANCELLER_ROLE() [staticcall]
+    │   └─ ← [Return] 0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783
+    ├─ [189] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::EXECUTOR_ROLE() [staticcall]
+    │   └─ ← [Return] 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63
+    ├─ [540] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::DEFAULT_ADMIN_ROLE() [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0x0000000000000000000000000000000000000000000000000000000000000000, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [2850] 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c::hasRole(0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, 0x86C86c789EDc099801cc6a5F48334F1D67dC9564) [staticcall]
+    │   └─ ← [Return] false
+    └─ ← [Revert] roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)
+
+
+Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)
+
+### NEG-25 [C REGISTRY: Safe execute BEFORE 48h [inner call replayed as eth_call from the Safe]] expect=0x5ead8eb5278740ef5a1d3db3f2829ab67360681dc7105e9df8a4b5fb6c5250d85afbbcdc0000000000000000000000000000000000000000000000000000000000000004 head block before=11878034 after=11878034 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x5ead8eb5: 278740ef5a1d3db3f2829ab67360681dc7105e9df8a4b5fb6c5250d85afbbcdc0000000000000000000000000000000000000000000000000000000000000004, data: "0x5ead8eb5278740ef5a1d3db3f2829ab67360681dc7105e9df8a4b5fb6c5250d85afbbcdc0000000000000000000000000000000000000000000000000000000000000004"
+
+### NEG-26 [C REGISTRY: Safe execute BEFORE 48h] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878034 after=11878034 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-27 [M2: guardian (Safe) unpause setGlobalPaused(false) [inner call replayed as eth_call from the Safe]] expect=0x82b42900 head block before=11878041 after=11878041 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x82b42900, data: "0x82b42900"
+
+### NEG-28 [M2: guardian (Safe) unpause setGlobalPaused(false)] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878041 after=11878041 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-29 [M2: guardian (Safe) SP.upgradeToAndCall [inner call replayed as eth_call from the Safe]] expect=0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114 head block before=11878042 after=11878042 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 00000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114, data: "0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114"
+
+### NEG-30 [M2: guardian (Safe) SP.upgradeToAndCall] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878042 after=11878042 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-31 [M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds) [inner call replayed as eth_call from the Safe]] expect=0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114 head block before=11878043 after=11878043 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 00000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114, data: "0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114"
+
+### NEG-32 [M2: guardian (Safe) SP.withdrawProtocolRevenue (move funds)] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878043 after=11878043 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-33 [M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false) [inner call replayed as eth_call from the Safe]] expect=0x82b42900 head block before=11878044 after=11878044 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x82b42900, data: "0x82b42900"
+
+### NEG-34 [M2: guardian (Safe) unpause an operator setOperatorPaused(OWNER,false)] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878044 after=11878044 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-35 [M2: old EOA unpause (neither owner nor guardian)] expect=0x82b42900 head block before=11878044 after=11878044 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x82b42900, data: "0x82b42900": Unauthorized
+
+### NEG-36 [M2: Safe execute(unpause) BEFORE 48h [inner call replayed as eth_call from the Safe]] expect=0x5ead8eb52643613799753f2403356e6e85d9ece98542bceba4af2d5f0e47345cda64be5c0000000000000000000000000000000000000000000000000000000000000004 head block before=11878048 after=11878048 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x5ead8eb5: 2643613799753f2403356e6e85d9ece98542bceba4af2d5f0e47345cda64be5c0000000000000000000000000000000000000000000000000000000000000004, data: "0x5ead8eb52643613799753f2403356e6e85d9ece98542bceba4af2d5f0e47345cda64be5c0000000000000000000000000000000000000000000000000000000000000004"
+
+### NEG-37 [M2: Safe execute(unpause) BEFORE 48h] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878048 after=11878048 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-38 [M3: old EOA setAPNTSPrice] expect=0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e head block before=11878051 after=11878051 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e, data: "0x118cdaa7000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e": OwnableUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E)
+
+### NEG-39 [M3: Safe (guardian, not owner) setAPNTSPrice directly [inner call replayed as eth_call from the Safe]] expect=0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114 head block before=11878052 after=11878052 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 00000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114, data: "0x118cdaa700000000000000000000000051edf11fdb0a4f66220efb8efa54eca77232e114"
+
+### NEG-40 [M3: Safe (guardian, not owner) setAPNTSPrice directly] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878052 after=11878052 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-41 [M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute) [inner call replayed as eth_call from the Safe]] expect=0x5ead8eb5921600c831c165c329d624072ee9b81bb477de0a65197ae2bcb826cf6b6d441c0000000000000000000000000000000000000000000000000000000000000004 head block before=11878056 after=11878056 exit=1
+Error: server returned an error response: error code 3: execution reverted: custom error 0x5ead8eb5: 921600c831c165c329d624072ee9b81bb477de0a65197ae2bcb826cf6b6d441c0000000000000000000000000000000000000000000000000000000000000004, data: "0x5ead8eb5921600c831c165c329d624072ee9b81bb477de0a65197ae2bcb826cf6b6d441c0000000000000000000000000000000000000000000000000000000000000004"
+
+### NEG-42 [M3: Safe execute(setAPNTSPrice) BEFORE 48h (early execute)] expect=0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000 head block before=11878056 after=11878056 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: GS013, data: "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753303133000000000000000000000000000000000000000000000000000000": Error("GS013")
+
+### NEG-43 [M3: deployer EOA execute after 48h (not EXECUTOR)] expect=0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63 head block before=11878057 after=11878057 exit=1
+Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0xe2517d3f: 000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63, data: "0xe2517d3f000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0ed8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63": AccessControlUnauthorizedAccount(0xb5600060e6de5E11D3636731964218E53caadf0E, 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63)
+

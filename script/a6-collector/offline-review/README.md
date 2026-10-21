@@ -1,0 +1,99 @@
+# A6 offline review
+
+DSR has decided scope (a), Seeder `dc7d0fab` (2026-10-15). These controls establish
+offline internal consistency within the [decided trust root and scope](../README.md#信任根与范围).
+They do not establish chain authenticity or independent on-chain replay. Round-6
+whole-row forgery with recomputed hashes is outside validator scope and is controlled
+by on-chain re-fetch, not claimed as rejected by this validator. Formal acceptance
+follows [A6-SOP.md](../A6-SOP.md); author A3a go and A4 complete are both required.
+A3a is currently NO-GO. Merged #477/#479 local Anvil results prove gauge mechanics
+only, are not real-chain A6 data, and do not block A2.
+
+Run from the worktree root with Node and `viem` installed:
+
+```sh
+node script/a6-collector/offline-review/run.mjs
+```
+
+This runs all ten suites sequentially without RPC access:
+
+- `check.mjs`: archive-derived offline positive control, every emitted passport leaf deleted independently, original tampering controls, collector argument gates, and tracked archives outside this generated fixture directory. `results.tsv`, `archives.tsv`, and `passport-fields.txt` are regenerated.
+- `check-library.mjs`: valid success/postOp conservation, missing-lock evaluation, independent reservation, inflight state, persistent validation writes, unchanged xPNTs/supply, both lock identity topics, and source citations.
+- `check-round2.mjs`: 57 JSONL mutations of the current positive/N=50/drop-op archive. Every mutation must exit **0** under the round-2 comparator and **1, 2, or 3** under the fixed validator. `round2-results.tsv` records each rejection reason. A valid synthetic postOp branch and inflight regressions are also checked.
+
+`validate-old.mjs` is the immutable round-1 comparator, pinned by SHA256 in `check-library.mjs`. It is intentionally unrelated to the moving HEAD. `validate-round2-old.mjs` is the validator before this repair, SHA256 `8bab958d2675c3b37696fd775fd19f4d973b90d168eb8208e5ea4b5fd5a0e1fa`, matching the current archive's recorded validator source hash. Neither snapshot is used in production validation.
+
+The round-2 rules bind each arm's paymaster to both the packed operation and passport, require the expected packed operation in its bundle, and require distinct paymasters, transactions, and op hashes within each triplet. Extra EntryPoint UserOperationEvents stay in the raw logs and are copied into the validator report. Non-fixture receipts containing extra operations are rejected because aggregate deposit deltas cannot be attributed by this single-op gauge. Deliberate drop-op/wrong-hash fixtures remain consistent failures and cannot match triplets.
+
+The offline endpoint check uses normalized host and effective port, ignoring transport and URL decoration. Its `distinctEndpoints` predicate requires different non-loopback hosts; this is a URL check, not evidence of different operators or backends. Formal A6 requires that independent evidence as described in the SOP. Different ports on the same/local host require the recorded `allowSameEndpointLocal` override, which disqualifies conformance. Loopback aliases (`localhost`, `localhost.`, `*.localhost`, `127.0.0.0/8`, `[::1]`, IPv4-mapped IPv6 loopback, `0.0.0.0`) share an identity; credentials, paths, queries, and fragments cannot manufacture distinct endpoints. For count 50, offline acceptance requires recomputed conformance true and a matching recorded flag; a false recorded flag does not waive that check. Offline acceptance and `protocolConformant` do not establish formal A6 acceptance. Small local mechanism checks require the explicit override and different ports; even local N=50 remains nonconformant. Counts must be positive integers; the offline conformance predicate requires exactly 50.
+
+Both passports require typed, non-empty config leaves, including the local override flag. EntryPoint address/code/arm bindings, canonical-address flag, account sender, token and SP references must agree. Rows must bind to those addresses and passport gas/callData. Success locks bind user/locker to sender/SP. Failed postOp checks preserve `totalSpent += a0`, the inflight reservation and lock, while user xPNTs, supply, sponsorship count, and revenue remain unchanged.
+
+The current local archive was regenerated in `58a8eb44` from collector `0988a589` and includes all-arm operatorBalance readbacks, the effective gas floor and transaction timestamps. Current ordered exits (positive / exec-revert / drop-op / wrong-hash / tamper-B / conservation-injected / missing-field / N=50) are **0/3/3/3/2/1/2/3**. See `round4-archives.tsv`. The end passport uses a distinct later block; balance is checked against the chronological last after-read. The archive remains untouched by the offline suite.
+
+Offline controls use `a.invalid` / `b.invalid` labels only; no endpoints are contacted. Round-3 and round-4 conformance fixtures clear the local override at both passports and run_start, and explicitly set N=50 conformance true. `synthetic-anchors.mjs` adds the missing end-block operator-balance field to **test fixtures only**, using the known separate-arm synthetic scenario. These fixtures are not provider evidence or regenerated archives. Round-2 override controls toggle the existing value so they cannot become no-ops when an archive changes.
+
+Round 3 adds `check-round3.mjs` and `round3-results.tsv`: each tampered JSONL must exit 0 under the frozen `validate-round3-old.mjs` and reject under the current validator. The comparator SHA256 is `a6eccc76bc7c6f71a8edaa3c7dd79bffd1be0f6598739acafbbf25f665ce0598`. Valid synthetic credit and local-override records are also exercised.
+
+Run-wide transaction/op/block uniqueness prevents triplet replay. Each before block must equal the preceding after block, anchored at the start passport. Deposits are tracked per arm; persistent SP balances/counters must equal the preceding SP after values, since the other arms use separate paymasters and tokens. `lockXLocked`, `inflightA0`, and `inflightOperator` are op-hash-specific and start empty for each new op; this expected change from a previous failed op is checked by the per-row reservation rules. No unexplained state delta is allowed.
+
+Only `fixture === null` means no fixture; all counting and fixture exclusions use that predicate. Success requires cleared inflight operator/a0; balance settlement preserves debts/credit reservations and binds LockSettled user/hash to LockCreated user/hash/locker (LockSettled has no locker topic). Credit settlement checks reservation bounds, totalSpent, reserved/settled identities and debt bounds. Failed postOp requires no settlement events and unchanged debt; validation-time CREDIT reservations persist with creditReservedOf increased by a0. Collector conservation mirrors these checks while validator decoding remains independent.
+
+End passports must retain chainId, use a distinct hash and be strictly after the last attempt block. The collector mines the later block only for chain 31337 with the local override; otherwise it waits up to 60 seconds. `run_end.exitCode` must equal `stop.code`.
+
+Round 4 adds `check-round4.mjs`, frozen `validate-round4-old.mjs` (SHA256 checked by the harness), and `round4-results.tsv`. Every new tampering control requires old exit 0, new rejection, and the specific rejection reason. Already-rejected IPv4 unspecified addresses remain a separate old=1/new=1 regression. The controls cover malformed DNS and IPv6 unspecified hosts, cross-arm and cross-attempt nonce reuse/decrease, each sponsorship flag and stale quote, both passport balances and missing same-hash anchor, sponsorship cost/fee consistency, balance-lock bounds/rate/available balance, both packed tails, and both block checks without a UOE. Independent nonce keys remain valid.
+
+Rules were checked using `git show 1ac0e1c5:<path>`, with line assertions in the harness:
+
+| Finding | Pinned source / rule |
+| --- | --- |
+| 1. Endpoint identity | Offline URL-identity rule; no Solidity endpoint concept. URL parsing plus DNS-label validation; unspecified IPv4/IPv6 share loopback identity. This does not prove operator/backend independence. |
+| 2. Nonce | `singleton-paymaster/lib/account-abstraction-v7/contracts/core/NonceManager.sol:36-40`: sender + uint192 key, uint64 sequence; EntryPoint `:650-652` enforces it. Require strict increase across successes, not contiguous increments. |
+| 3. Sponsor-able state | `SuperPaymaster.sol:233,242,248,252,257`; `tokens/v2/xPNTsTokenV2.sol:194`; EntryPoint `:605`; `Helpers.sol:47-50` maps zero validUntil to max uint48. Start cached quote must stay fresh through the end passport's timestamp; end cache must also be fresh at its block. This is conservative if a quote expires and refreshes mid-run. |
+| 4. Passport balance | `SuperPaymaster.sol:313,322,447`: operator balance is mutable accounting state. Require independently recorded A/B readbacks at the **same block hash**, never carry a different block's value into archive validation. Collector now includes operatorBalance on baseline arms too. |
+| 5. Event cost | `SuperPaymaster.sol:426-434,450`: first event data word is aGas; charge = min(ceil(aGas*(10000+feeBps)/10000), a0). Check this forward relation, including clamping; inversion is not unique at the cap. |
+| 6. Lock admission | `SuperPaymaster.sol:313-324`, `tokens/v2/xPNTsTokenV2.sol:196,210-212`: a0 <= single-tx limit; xLocked = ceil(a0*rate/1e18); balance - alreadyLocked >= xLocked. Gauge additionally requires a0 < 2^96 so the inflight representation is lossless. **The explicit Solidity cast truncates; it does not revert**, contrary to the review's explanation. Apply admission checks to retained postOp-revert locks too. |
+| 7. Packed tails | EntryPoint `:427-430` rejects initCode for an existing account. `SuperPaymaster.sol:486-489` / `SuperPaymasterStorage.sol:176` extracts operator at byte 52; it must match passport and sponsored event. |
+| 8. No UOE blocks | Gauge isolation/bracketing rule, independent of whether EntryPoint emitted an operation event. Before+1 = after = receipt height, and after hash = receipt block hash, including sent stopped rows. |
+
+The full suite regenerates offline fixture files and result tables. No chain, deployment, or contract source changes are involved.
+
+## Shared operator-balance regression
+
+`check-shared-balance.mjs` exercises the collector's production shared-balance checks
+and the independently implemented validator. Its explicit synthetic N=50 fixture
+includes operatorBalance on all baseline readbacks. Legitimate SP charges between
+baseline attempts pass; an unexplained boundary jump (including coherent later
+A/B and end-passport shifts) and a mutation inside a baseline transaction both fail.
+`shared-balance-results.tsv` records the results.
+
+The failing round-4 regeneration stopped at attemptIndex **4 (VPM)**, after the
+second SP attempt (index 3). The first VPM after-read at block 188 had balance
+19892333099569332400000. SP's second operation at block 190 reduced it from that
+value (before block 189) to 19784666199138664800000. VPM's next before-read at block
+190 matched SP's after-read exactly on both A/B endpoints, but the collector
+incorrectly compared it with VPM's stale block-188 value. The setup top-up preceded
+the start passport (block 186); no setup/deposit transaction intervened in these
+consecutive isolated attempt blocks. The round-4 all-arm readback exposed this
+per-arm/shared-state ownership error; the end passport itself was consistent.
+
+The collector now follows operatorBalance in chronological attempt order, anchored
+at the start passport. Baseline transactions must leave it unchanged; SP deltas
+still require event-backed conservation. Per-arm deposit and persistent SP-state
+checks, A/B agreement, same-hash passport anchors and all prior rules remain.
+No allowance for unrecorded top-ups was added.
+
+`A6_REVIEW_ARCHIVE=/path/to/recorded/archive node script/a6-collector/offline-review/run.mjs`
+selects an alternate recorded input archive without rewriting it. Test fixtures
+remain explicitly synthetic. During the earlier shared-balance repair, local regeneration was attempted but
+the sandbox denied Anvil's socket bind and loopback RPC connections (`Operation
+not permitted`). The full offline run uses an exact copy of the tracked HEAD
+archive at `/private/tmp/a6-offline-input`; it is not a fresh chain run.
+
+Verified results: 116 base controls (112 newly rejected), library checks, 57 round-2,
+44 round-3, 36 round-4, and all three shared-balance controls passed.
+`shared-balance-verification.log` records this offline verification. That historical run did not verify fresh chain results. The subsequent `58a8eb44` archive regeneration from collector `0988a589` supplies the current recorded evidence; offline replay verifies its exit matrix without claiming a new chain run.
+
+PR #477 false-rejection controls are in `check-review.mjs`; old/new exits and rejection proofs are in `review-results.tsv`. See `REVIEW-FIXES.md` for source citations, verdict semantics and the aGas evidence limit.
+
+Final N1–N5 controls are in `check-followups.mjs`, wired into `run.mjs`. See `FOLLOWUPS.md` and `followup-results.tsv` for reviewed-head comparisons, shell publication checks and current archive provenance.

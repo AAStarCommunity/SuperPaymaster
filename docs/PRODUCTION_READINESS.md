@@ -3,7 +3,7 @@
 **Repo**: `AAStarCommunity/SuperPaymaster` (repo:sp)
 **Role in ecosystem**: Gas-abstraction infra (ERC-4337 Paymaster + Registry + xPNTs + BLS/DVT slash). A **dependency hub** — YAAA(Cos72) gasless, SDK canonical addresses, and airaccount aPNTs all depend on SP being two-network ready.
 **Current version**: `SuperPaymaster-5.4.2` (main == Sepolia).
-**Last updated**: 2026-07-09.
+**Last updated**: 2026-07-09（2026-09-13 只改了第 9 项、主网阻塞清单第 5 条与依赖表的"外部审计"，依据 CC-122 与 `03-final-spec.md` v4.0 §10.8 / §10.8c；其余内容未复核）.
 
 > **Legend** — `[测]` testnet-only enough to ship · `[主]` must fix before mainnet · `[配]` two networks differ only by config.
 > Core principle: **testnet vs mainnet = configuration only; contract logic is identical.**
@@ -22,7 +22,7 @@
 | 6 | `slashPolicyAdmin` / 合约 owner 交多签 | 现 = deployer EOA；需交社区 Safe（CC-31 `0x51eD…E114`）/ Timelock | 🟠 待做 | 是（GA 门禁） | [主] |
 | 7 | aPNTs 主网地址 + SP 充值 | airaccount / yaaa / SDK 都等 aPNTs 主网地址 + SP 主网充值 | 🟠 待做 | 是 | [主]+[配] |
 | 8 | G10 · `config.op-mainnet.json` vs `config.optimism.json` 去冗余 | 两者都 chain 10、`paymasterV4` 值不同 → 定权威删冗余 | 🟠 待做 | 否 | [配] |
-| 9 | 外部安全审计（V5.4.2 全栈） | GA 硬门禁（与 airaccount #29 同级）；主网前应过外部审计 | 🔴 待 jason | 是（GA） | [主] |
+| 9 | 安全复核 / 审计（2026-09-13 更新，取代原"外部安全审计（V5.4.2 全栈）"） | **研究部署**（OP 主网受控实验，协议控制账户、押金有上限）：研究部署复核闸门 RDR-1…7（`docs/design/aoa-balance-mode/03-final-spec.md` §10.8）；**产品上线**（面向真实用户、真实资金流入）：产品上线审计闸门（03 §10.8c，外部审计在这里） | 🟠 RDR 未完成（CC-122 M-7；RDR-2 的 D5c-1 已产出两条发现 `3c28ec21`、`cbcb7045`）；产品上线审计未启动 | 研究部署：RDR 是 A6 硬前置；产品上线（GA）：是 | [主] |
 | 10 | 版本命名规范（CC-14 / #256） | 对外版本号带产品名（禁裸数字） | 🟡 约定 | 否 | [测] |
 | 11 | 审计 Low 追踪 #328（L-1~L-14 + M-6） | 追踪伞，多数已修（audit H/M 批次 #245-#250/#203-#214 已闭） | 🟡 盘点 | 否 | [测] |
 | 12 | 测试 gap #257 | 剩余测试补充 | 🟡 backlog | 否 | [测] |
@@ -55,7 +55,7 @@
 | **@repo:dvt** | 主网 DVT validator 地址 + 生产节点（BLS quorum 是 slash 前置）；CC-13 slash 真 E2E |
 | **@repo:airaccount-contract** | 主网账户工厂 / validator 地址（如 SP 交互点需要） |
 | **@repo:kms** | （间接）DVT 生产节点密钥 provision |
-| **jason / 配置** | OP 主网 Safe（CC-31 已有 `0x51eD…E114`）、主网 RPC、部署 keystore、**外部审计** |
+| **jason / 配置** | OP 主网 Safe（CC-31 已有 `0x51eD…E114`）、主网 RPC、部署 keystore、**RDR-4/5/7（公开征求复核、人工复核、风险接受签字，03 §10.8）；产品上线时的外部审计（03 §10.8c）** |
 
 ---
 
@@ -69,7 +69,7 @@ V5.4.2 全栈已发；CC-28 / CC-29 已上；SDK 侧 ABI 门禁（G2/G3/G4）已
 2. 主网 config + 多签 wiring（第 5 项）
 3. `slashPolicyAdmin` / owner 交社区 Safe（第 6 项）
 4. aPNTs 主网地址 + SP 充值（第 7 项）
-5. 外部安全审计（第 9 项，jason）
+5. 研究部署：研究部署复核闸门 RDR-1…7（03 §10.8）；产品上线：产品上线审计闸门（03 §10.8c）（第 9 项；2026-09-13 取代原"外部安全审计"）
 6. G10 config 去冗余（第 8 项）
 
 ### SP 能独立先做（不等外部，已排序）

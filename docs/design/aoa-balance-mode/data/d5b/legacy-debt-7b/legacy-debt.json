@@ -1,0 +1,321 @@
+{
+ "endpoints": [
+  {
+   "host": "eth-sepolia.g.alchemy.com",
+   "label": "A"
+  },
+  {
+   "host": "sepolia.gateway.tenderly.co",
+   "label": "B"
+  }
+ ],
+ "factories": [
+  {
+   "creationBlock": 11631079,
+   "deployedCountA": 1,
+   "deployedCountB": 1,
+   "factory": "0x0e54b9e2c2032dce6ce14e12ea70b4e6eff2a244",
+   "tokens": [
+    "0xbb46321545a91db2f3b5c3e694f2f23abe259883"
+   ]
+  },
+  {
+   "creationBlock": 11151003,
+   "deployedCountA": 2,
+   "deployedCountB": 2,
+   "factory": "0x67422d2e44a33c8da99b3b776841bf316bd209a2",
+   "tokens": [
+    "0x696a73701b104c6ccbbaaddd2216788ea08eab89",
+    "0xe6579a90dc498a710008de12119812d0fb7aa224"
+   ]
+  },
+  {
+   "creationBlock": 11230569,
+   "deployedCountA": 1,
+   "deployedCountB": 1,
+   "factory": "0x9f426568f16e81144f3ebf6f07e497fb9f160d11",
+   "tokens": [
+    "0x4680bf1a4c72814abf090e7fa2b17c07c2407714"
+   ]
+  }
+ ],
+ "fixedBlock": {
+  "hash": "0xf785a1efed005453e054f35adf4877eac985fafdd500407595fb4ff6640595af",
+  "number": 11881000,
+  "timestamp": 1791592836
+ },
+ "grandTotalOutstanding_aPNTsWei": "0",
+ "schema": "a2-7b-legacy-debt/1",
+ "tokens": [
+  {
+   "DebtRecorded": {
+    "countA": 0,
+    "countB": 0
+   },
+   "DebtRepaid": {
+    "countA": 0,
+    "countB": 0
+   },
+   "Transfer_positiveControl": {
+    "countA": 1,
+    "countB": 1
+   },
+   "creationBlock": 11230570,
+   "debtsMappingSlot": 22,
+   "implementation": "0x04a99009aa257ee11a4630c5b518dde4c0dd56b7",
+   "instrument": {
+    "PUSH32_DebtRecordFailed_absent": true,
+    "PUSH32_DebtRecorded": true,
+    "PUSH32_DebtRepaid": true,
+    "PUSH4_getDebt": true
+   },
+   "range": [
+    11230570,
+    11881000
+   ],
+   "symbol": "cc28PNT",
+   "token": "0x4680bf1a4c72814abf090e7fa2b17c07c2407714",
+   "totalOutstandingDebt_aPNTsWei": "0",
+   "unfilteredLogCountA": 5,
+   "unfilteredLogCountB": 5,
+   "unfilteredPerEvent": {
+    "AutoApprovedSpenderAdded(address)": 2,
+    "Initialized(uint64)": 1,
+    "SuperPaymasterAddressUpdated(address)": 1,
+    "Transfer(address,address,uint256)": 1
+   },
+   "users": [],
+   "version": "XPNTs-3.5.0",
+   "why_in_scope": [
+    "factory 0x9f426568f16e81144f3ebf6f07e497fb9f160d11 xPNTsTokenDeployed"
+   ]
+  },
+  {
+   "DebtRecorded": {
+    "countA": 2,
+    "countB": 2
+   },
+   "DebtRepaid": {
+    "countA": 2,
+    "countB": 2
+   },
+   "Transfer_positiveControl": {
+    "countA": 100,
+    "countB": 100
+   },
+   "creationBlock": 11151014,
+   "debtsMappingSlot": 22,
+   "implementation": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+   "instrument": {
+    "PUSH32_DebtRecordFailed_absent": true,
+    "PUSH32_DebtRecorded": true,
+    "PUSH32_DebtRepaid": true,
+    "PUSH4_getDebt": true
+   },
+   "range": [
+    11151014,
+    11881000
+   ],
+   "symbol": "aPNTs",
+   "token": "0x696a73701b104c6ccbbaaddd2216788ea08eab89",
+   "totalOutstandingDebt_aPNTsWei": "0",
+   "unfilteredLogCountA": 153,
+   "unfilteredLogCountB": 153,
+   "unfilteredPerEvent": {
+    "Approval(address,address,uint256)": 25,
+    "AutoApprovedSpenderAdded(address)": 6,
+    "AutoApprovedSpenderRemoved(address)": 4,
+    "CommunityOwnerUpdated(address,address)": 1,
+    "DebtRecorded(address,uint256)": 2,
+    "DebtRepaid(address,uint256,uint256)": 2,
+    "FacilitatorApproved(address)": 4,
+    "Initialized(uint64)": 1,
+    "SpenderDailyCapForUpdated(address,uint256,uint256)": 2,
+    "SpenderRateLimitWindowReset(address,uint64)": 1,
+    "SuperPaymasterAddressUpdated(address)": 5,
+    "Transfer(address,address,uint256)": 100
+   },
+   "users": [
+    {
+     "eventDerived": "0",
+     "getDebtAtFixed": "0",
+     "recorded": [
+      {
+       "amount": "400000000000000000000",
+       "block": 11222201,
+       "logIndex": 698,
+       "tx": "0xbbbed5700fe4c4b74b4f66b5d67e90f3e7acc7550c5249cd996f7f417230082c"
+      },
+      {
+       "amount": "400000000000000000000",
+       "block": 11228400,
+       "logIndex": 853,
+       "tx": "0x92d34a5f374a1723e13d3f2f466764d8623c3add7a82574a94551ee015847540"
+      }
+     ],
+     "repaid": [
+      {
+       "amountRepaid": "400000000000000000000",
+       "block": 11223367,
+       "logIndex": 465,
+       "remainingDebt": "0",
+       "tx": "0xc42c64afadb2d8ef2013f04f28f0fdd8fc3805eaa571cbdc34403c2514871f82"
+      },
+      {
+       "amountRepaid": "400000000000000000000",
+       "block": 11228500,
+       "logIndex": 1228,
+       "remainingDebt": "0",
+       "tx": "0x0ca81567f1625122bb39c89774d0be5fb830d4795fddfbd27c06bb25d35f4e63"
+      }
+     ],
+     "user": "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c"
+    }
+   ],
+   "version": "XPNTs-3.4.0",
+   "why_in_scope": [
+    "SP.OperatorConfigured data",
+    "SP.operators(0xb5600060e6de5e11d3636731964218e53caadf0e).xPNTsToken",
+    "aPNTs (current SP.APNTS_TOKEN; AAStar operator token)",
+    "factory 0x67422d2e44a33c8da99b3b776841bf316bd209a2 xPNTsTokenDeployed"
+   ]
+  },
+  {
+   "DebtRecorded": {
+    "countA": 0,
+    "countB": 0
+   },
+   "DebtRepaid": {
+    "countA": 0,
+    "countB": 0
+   },
+   "Transfer_positiveControl": {
+    "countA": 1,
+    "countB": 1
+   },
+   "creationBlock": 11611635,
+   "debtsMappingSlot": 22,
+   "implementation": "0x3d78d4bcd8f871dc890223bf9c1d46abcd48daf4",
+   "instrument": {
+    "PUSH32_DebtRecordFailed_absent": true,
+    "PUSH32_DebtRecorded": true,
+    "PUSH32_DebtRepaid": true,
+    "PUSH4_getDebt": true
+   },
+   "range": [
+    11611635,
+    11881000
+   ],
+   "symbol": "aPNTs",
+   "token": "0x948c9d1bd99b39dee482c23d6a3bd26210b56040",
+   "totalOutstandingDebt_aPNTsWei": "0",
+   "unfilteredLogCountA": 3,
+   "unfilteredLogCountB": 3,
+   "unfilteredPerEvent": {
+    "CommunityOwnerUpdated(address,address)": 1,
+    "Initialized(uint64)": 1,
+    "Transfer(address,address,uint256)": 1
+   },
+   "users": [],
+   "version": "XPNTs-3.5.0",
+   "why_in_scope": [
+    "SP.APNTsTokenChangeQueued"
+   ]
+  },
+  {
+   "DebtRecorded": {
+    "countA": 0,
+    "countB": 0
+   },
+   "DebtRepaid": {
+    "countA": 0,
+    "countB": 0
+   },
+   "Transfer_positiveControl": {
+    "countA": 1,
+    "countB": 1
+   },
+   "creationBlock": 11631079,
+   "debtsMappingSlot": 22,
+   "implementation": "0x921098220d569cd0fc152b81da34769c6f592502",
+   "instrument": {
+    "PUSH32_DebtRecordFailed_absent": true,
+    "PUSH32_DebtRecorded": true,
+    "PUSH32_DebtRepaid": true,
+    "PUSH4_getDebt": true
+   },
+   "range": [
+    11631079,
+    11881000
+   ],
+   "symbol": "aPNTs",
+   "token": "0xbb46321545a91db2f3b5c3e694f2f23abe259883",
+   "totalOutstandingDebt_aPNTsWei": "0",
+   "unfilteredLogCountA": 6,
+   "unfilteredLogCountB": 6,
+   "unfilteredPerEvent": {
+    "AutoApprovedSpenderAdded(address)": 2,
+    "CommunityOwnerUpdated(address,address)": 1,
+    "Initialized(uint64)": 1,
+    "SuperPaymasterAddressUpdated(address)": 1,
+    "Transfer(address,address,uint256)": 1
+   },
+   "users": [],
+   "version": "XPNTs-3.5.0",
+   "why_in_scope": [
+    "SP.APNTsTokenChangeQueued",
+    "aPNTs v3.5 (SP.pendingAPNTsToken, to be cancelled)",
+    "factory 0x0e54b9e2c2032dce6ce14e12ea70b4e6eff2a244 xPNTsTokenDeployed"
+   ]
+  },
+  {
+   "DebtRecorded": {
+    "countA": 0,
+    "countB": 0
+   },
+   "DebtRepaid": {
+    "countA": 0,
+    "countB": 0
+   },
+   "Transfer_positiveControl": {
+    "countA": 23,
+    "countB": 23
+   },
+   "creationBlock": 11151051,
+   "debtsMappingSlot": 22,
+   "implementation": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+   "instrument": {
+    "PUSH32_DebtRecordFailed_absent": true,
+    "PUSH32_DebtRecorded": true,
+    "PUSH32_DebtRepaid": true,
+    "PUSH4_getDebt": true
+   },
+   "range": [
+    11151051,
+    11881000
+   ],
+   "symbol": "PNTs",
+   "token": "0xe6579a90dc498a710008de12119812d0fb7aa224",
+   "totalOutstandingDebt_aPNTsWei": "0",
+   "unfilteredLogCountA": 37,
+   "unfilteredLogCountB": 37,
+   "unfilteredPerEvent": {
+    "AutoApprovedSpenderAdded(address)": 3,
+    "FacilitatorApproved(address)": 5,
+    "Initialized(uint64)": 1,
+    "SpenderDailyCapForUpdated(address,uint256,uint256)": 1,
+    "SpenderRateLimitWindowReset(address,uint64)": 3,
+    "SuperPaymasterAddressUpdated(address)": 1,
+    "Transfer(address,address,uint256)": 23
+   },
+   "users": [],
+   "version": "XPNTs-3.4.0",
+   "why_in_scope": [
+    "PNTs (Mycelium / ANNI operator token)",
+    "SP.OperatorConfigured data",
+    "SP.operators(0xecaacb915f7d92e9916f449f7ad42bd0408733c9).xPNTsToken",
+    "factory 0x67422d2e44a33c8da99b3b776841bf316bd209a2 xPNTsTokenDeployed"
+   ]
+  }
+ ]
+}

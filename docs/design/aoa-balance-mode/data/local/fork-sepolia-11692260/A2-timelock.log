@@ -1,0 +1,2 @@
+# command: cast send --create <out/TimelockController.sol/TimelockController.default.json bytecode> abi.encode(172800,[0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114],[0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114],0x0) --unlocked --from 0xb5600060e6de5E11D3636731964218E53caadf0E
+# timelock 0x3e3fb7c518d749faf6f6f09fb57cbd0718e7d680 tx 0x38d3b0d86a2545ef1d6185fc9aacb9cd70887286361fad7e01a235ea41a5b048

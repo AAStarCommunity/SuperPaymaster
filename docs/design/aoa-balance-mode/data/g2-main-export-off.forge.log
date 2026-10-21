@@ -1,0 +1,48 @@
+# command: /Users/jason/.foundry/bin/forge test --match-path contracts/test/v2/SuperPaymasterV55Fuzz.t.sol -vv
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:41:30Z
+# exit code: 0
+# (compiler output before line 18 omitted)
+Ran 3 tests for contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest
+[PASS] testFuzz_G2_I8_I9_I10_conservation(uint256) (runs: 1000, μ: 11673687, ~: 11035998)
+[PASS] testFuzz_G2_noOOGBand_direct_postOp(uint256,bool) (runs: 1000, μ: 307817, ~: 327788)
+[PASS] test_G2_coverage_replay_fixed_seeds() (gas: 46016060)
+Logs:
+  G2 campaign: seeds 1000 bundles executed 2530
+    campaigns with a low-balance operator 594
+    ops planned / rejected (AA34, verified one by one) 10486 4431
+    rejected: postOpGasLimit == MIN-1 / operator solvency 787 687
+    settled BALANCE / CREDIT 3268 1121
+    exact charge checks (from postOp calldata) 4389
+    settled after mid-bundle ETH move / aPNTs move 817 835
+    injected settle failures (BALANCE / CREDIT) 787 879
+    stale releases lock / credit 787 879
+    ... with a same-user same-token record alive (lock / credit) 55 68
+    bundles with a repeated sender 1202
+    single-op groups settled: per user+token / per token 2842 1425
+    ops at postOpGasLimit == MIN: admitted / settled 1962 1412
+    opReverted settled (of which OOG) 1695 806
+    executions kept 2694
+    events: blacklist / policy / tier 528 411 498
+    events: pause / top-up / E-1 disable 287 341 467
+    events: emergency / rate / price 42 780 702
+    I9 unbacked count / amount 0 0
+    EP deposit delta (wei) / sum G settled / sum G injected 4836421833058103176 3598567523286642411 1237854309771460765
+    sum net charge (ETH wei) over settled ops 6855201064478057183
+    R1-8 overcharge (chargeEthNet - G)/G, all settled ops, ppm; n = 4389
+      mean ppm 831541
+      p95  ppm 2696041
+      max  ppm 3711360
+      min  ppm 218436
+      median ppm 449113
+    R1-8 overcharge, settled ops with postOpGasLimit <= MIN+50k, ppm; n = 3489
+      mean ppm 418291
+      p95  ppm 613227
+      max  ppm 815045
+      min  ppm 218436
+      median ppm 412226
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 21.70s (27.48s CPU time)
+
+Ran 1 test suite in 21.70s (21.70s CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)

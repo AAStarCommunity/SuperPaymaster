@@ -1,0 +1,2 @@
+XPNTsV2WitnessPinnedHalmosTest.check_witness_I2_meteredPull over xPNTsTokenV2: NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR) (1 parts, wall 89 s)
+  transferFrom-23b872dd                    FAIL            paths=1135 time=71.63s exit=1

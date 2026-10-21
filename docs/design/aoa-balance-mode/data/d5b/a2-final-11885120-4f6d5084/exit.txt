@@ -1,0 +1,1 @@
+argv: RPC_URL_X=https://sepolia.gateway.tenderly.co script/evidence/a2-full-rehearsal.sh <env: RPC_URL=archive Sepolia (Alchemy), PRIVATE_KEY, PRIVATE_KEY_ANNI> 11885120 docs/design/aoa-balance-mode/data/d5b/a2-final-11885120-4f6d5084 all | start 2026-10-20T08:45:09Z end 2026-10-20T08:59:29Z | exit 0

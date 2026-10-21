@@ -1,0 +1,86 @@
+{
+  "label": "rundler-v0.11.0@geth-prague",
+  "bundlerUrl": "http://127.0.0.1:14344",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-09-12T23:22:28.122Z",
+  "cases": {
+    "control": {
+      "expected": "accept",
+      "verdict": "accept",
+      "pass": true,
+      "userOpHash": "0x7c83641c52d28d054141119521aded51b09550b30cb0f917edfa844d63fcd90f",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x4f929ff85d9398dddd9f34c583486041c5bc794ac1c95650cff517621c4710e5"
+      }
+    },
+    "op011_timestamp": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x5ab3a377239090547559ca17eba3adc22bf28d5999c0bea70ea109d7e3c9c3a0",
+      "error": {
+        "code": -32502,
+        "message": "paymaster uses banned opcode: TIMESTAMP"
+      },
+      "included": null
+    },
+    "sto031_unstakedOwnStorage": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0xbd9d2af3ed687942080f53bbcae8c130bc909e229594f935685f13aadd5f243e",
+      "error": {
+        "code": -32502,
+        "message": "entity stake/unstake delay too low",
+        "data": {
+          "needsStake": {
+            "paymaster": "0x09635F643e140090A9A8Dcd712eD6285858ceBef"
+          },
+          "accessingEntity": "paymaster",
+          "accessedAddress": "0x09635f643e140090a9a8dcd712ed6285858cebef",
+          "accessedEntity": "paymaster",
+          "slot": "0x0",
+          "minimumStake": "0xde0b6b3a7640000",
+          "minimumUnstakeDelay": "0x15180"
+        }
+      },
+      "included": null
+    },
+    "op070_unstakedTstore": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0xa9a9cff78778c4107357a819e769c07ed5f35e3da3ac062105fd6de926cd3b81",
+      "error": {
+        "code": -32502,
+        "message": "entity stake/unstake delay too low",
+        "data": {
+          "needsStake": {
+            "paymaster": "0xc5a5C42992dECbae36851359345FE25997F5C42d"
+          },
+          "accessingEntity": "paymaster",
+          "accessedAddress": "0xc5a5c42992decbae36851359345fe25997f5c42d",
+          "accessedEntity": "paymaster",
+          "slot": "0x0",
+          "minimumStake": "0xde0b6b3a7640000",
+          "minimumUnstakeDelay": "0x15180"
+        }
+      },
+      "included": null
+    },
+    "sto021_stakedExternalWrite": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x60f5181c691406b1885891bf7cf58ac093107f23cdc397801eaa26db5631a4b2",
+      "error": {
+        "code": -32502,
+        "message": "paymaster accesses inaccessible storage at address: 0xa85233c63b9ee964add6f2cffe00fd84eb32338f slot: 0xaa61a9c58711f8ef9414761bfa1a325a02e83bd4955fe4296afaf0165b1d4f90"
+      },
+      "included": null
+    }
+  },
+  "allPass": true
+}

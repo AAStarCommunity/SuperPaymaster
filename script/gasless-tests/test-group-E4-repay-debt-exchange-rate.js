@@ -2,15 +2,21 @@
 /**
  * Test Group E4: xPNTs Debt Repayment & Exchange Rate Accounting
  *
- * Verifies the repayDebt() mechanism and exchange rate math in xPNTsToken:
+ * Verifies the repayDebt() mechanism and exchange rate math in xPNTsToken v2:
  *   - exchangeRate() is live and non-zero
  *   - repayDebt(xPNTsAmount) repays floor(xPNTs * 1e18 / rate) aPNTs of debt
- *   - burnFromWithOpHash uses ceil(aPNTs * rate / 1e18) xPNTs (opposite direction)
+ *   - tryLockForGas's lock-time conversion uses ceil(aPNTs * rate / 1e18) xPNTs (opposite
+ *     direction; 5.5.0 renamed home for the math previously illustrated via
+ *     burnFromWithOpHash — that function is gone, but the ceil formula itself is
+ *     unchanged, it now lives in xPNTsTokenV2._lockDecision, xPNTsTokenV2.sol:209)
  *   - exchange rate has bounds [1e14, 1e22] and a 1h cooldown between updates
- *   - getAvailableCredit reflects debt changes after repayDebt
+ *   - effectiveCreditCap/debts/creditReservedOf reflect debt changes after repayDebt
  *
- * This is NOT a UserOp test — it directly calls xPNTsToken and SuperPaymaster
- * view/write functions using the deployer wallet.
+ * This is NOT a UserOp test — it directly calls the xPNTs v2 token's view/write
+ * functions using the deployer wallet. 5.5.0: the token under test is
+ * config.aastarXPNTsV2 (the actual balance-mode token), NOT config.aPNTs — that address
+ * is now SP's own operator-deposit collateral asset and doesn't implement debts/
+ * effectiveCreditCap/tryLockForGas at all (see test-case-2-fixed.js for the same note).
  *
  * Prerequisites: run A1 + B1 first (operator configured, deployer has xPNTs).
  */
@@ -23,19 +29,20 @@ const {
 } = require('./test-helpers');
 
 // ============================================================
-// xPNTs debt/rate ABI extension
-// (test-helpers only exposes basic ERC20 for aPNTs; we layer on debt functions)
+// xPNTs v2 debt/rate ABI extension
+// (test-helpers' shared ABI.xPNTsToken already covers this, but this file predates
+// that addition and manages its own contract instance against aastarXPNTsV2 directly)
 // ============================================================
 
 const XPNTS_DEBT_ABI = [
-  "function getDebt(address user) view returns (uint256)",
+  "function debts(address user) view returns (uint256)",
   "function repayDebt(uint256 amountXPNTs)",
   "function exchangeRate() view returns (uint256)",
   "function updateExchangeRate(uint256 newRate)",
   "function maxSingleTxLimit() view returns (uint256)",
   "function exchangeRateUpdatedAt() view returns (uint256)",
-  "function burnFromWithOpHash(address from, uint256 amountAPNTs, bytes32 opHash)",
-  "function recordDebtWithOpHash(address user, uint256 amountAPNTs, bytes32 opHash)",
+  "function effectiveCreditCap(address user) view returns (uint256)",
+  "function creditReservedOf(address user) view returns (uint256)",
   // Also include ERC20 basics needed here
   "function balanceOf(address) view returns (uint256)",
   "function symbol() view returns (string)",
@@ -66,12 +73,15 @@ async function main() {
   resetCounters();
 
   const { config, deployer } = initTestEnv();
-  const c           = getContracts(config, deployer);
-  const sp          = c.superPaymaster;
   const deployerAddr = deployer.address;
 
-  // Build the extended xPNTs contract instance with debt functions
-  const xpnts = new ethers.Contract(config.aPNTs, XPNTS_DEBT_ABI, deployer);
+  if (!config.aastarXPNTsV2) {
+    printSkip('config.aastarXPNTsV2 missing — this deployment predates 5.5.0 balance mode');
+    process.exit(finishTest('E4: repayDebt & Exchange Rate'));
+  }
+
+  // Build the extended xPNTs v2 contract instance with debt functions
+  const xpnts = new ethers.Contract(config.aastarXPNTsV2, XPNTS_DEBT_ABI, deployer);
 
   // ──────────────────────────────────────────────────────────
   // Step 1: Read xPNTs exchange rate and debt accounting state
@@ -84,14 +94,14 @@ async function main() {
       xpnts.exchangeRate(),
       xpnts.maxSingleTxLimit(),
       xpnts.exchangeRateUpdatedAt(),
-      xpnts.getDebt(deployerAddr),
+      xpnts.debts(deployerAddr),
     ]);
   } catch (e) {
     catchStep(`Failed to read xPNTs state`, e);
     process.exit(finishTest('E4: repayDebt & Exchange Rate'));
   }
 
-  printKeyValue('xPNTs token address', config.aPNTs);
+  printKeyValue('xPNTs token address', config.aastarXPNTsV2);
   printKeyValue('exchangeRate (live)', ethers.formatEther(rate) + ' (xPNTs per aPNTs, 18-dec fixed point)');
   printKeyValue('maxSingleTxLimit (aPNTs)', ethers.formatEther(txLimit));
   printKeyValue('exchangeRateUpdatedAt (unix)', lastUpdate.toString());
@@ -147,9 +157,9 @@ async function main() {
 
     if (receipt) {
       try {
-        debtAfterRepay = await xpnts.getDebt(deployerAddr);
+        debtAfterRepay = await xpnts.debts(deployerAddr);
       } catch (e) {
-        catchStep(`getDebt after repay`, e);
+        catchStep(`debts() after repay`, e);
         debtAfterRepay = debtBeforeStep3; // fallback: assume unchanged
       }
       const actualRepaid = debtBeforeStep3 - debtAfterRepay;
@@ -198,22 +208,31 @@ async function main() {
   printKeyValue('Next allowed rate update (approx)', nextAllowedDate);
 
   // ──────────────────────────────────────────────────────────
-  // Step 5: Verify getAvailableCredit reflects debt changes
+  // Step 5: Verify effectiveCreditCap-derived headroom reflects debt changes
+  // 5.5.0: SP.getAvailableCredit is gone — headroom is now computed client-side from
+  // the token's own effectiveCreditCap/debts/creditReservedOf (spec C-0/C-1), same
+  // as recomputeAvailableCredit() in test-case-4-superpaymaster-credit-path.js.
   // ──────────────────────────────────────────────────────────
-  printStep(5, 'Verify getAvailableCredit reflects debt changes');
+  printStep(5, 'Verify effectiveCreditCap - debts - creditReservedOf reflects debt changes');
 
   let creditNow;
   try {
-    creditNow = await sp.getAvailableCredit(deployerAddr, config.aPNTs);
+    const [cap, debtNow, reserved] = await Promise.all([
+      xpnts.effectiveCreditCap(deployerAddr),
+      xpnts.debts(deployerAddr),
+      xpnts.creditReservedOf(deployerAddr),
+    ]);
+    const spent = debtNow + reserved;
+    creditNow = cap > spent ? cap - spent : 0n;
   } catch (e) {
-    catchStep(`getAvailableCredit`, e);
+    catchStep(`effectiveCreditCap headroom`, e);
     creditNow = null;
   }
 
   if (creditNow !== null) {
     printKeyValue('Available credit (aPNTs)', ethers.formatEther(creditNow));
 
-    assertTrue(creditNow >= 0n, 'getAvailableCredit must be non-negative');
+    assertTrue(creditNow >= 0n, 'available credit must be non-negative');
 
     const repairedAPNTs = debtBeforeStep3 - debtAfterRepay;
     if (repairedAPNTs > 0n) {
@@ -222,14 +241,17 @@ async function main() {
       printSuccess('Credit reflects debt repayment (increased after repayDebt)');
     } else {
       printInfo('No debt was repaid in Step 3 — credit baseline verified');
-      printSuccess('getAvailableCredit returns non-negative value');
+      printSuccess('Available credit computation returns non-negative value');
     }
   }
 
   // ──────────────────────────────────────────────────────────
-  // Step 6: aPNTs accounting — burnFromWithOpHash ceil conversion (read-only)
+  // Step 6: aPNTs accounting — lock-time ceil conversion (read-only)
+  // 5.5.0: this math used to be illustrated via the now-removed burnFromWithOpHash;
+  // the identical ceil(aPNTs * rate / 1e18) formula lives on in tryLockForGas's
+  // internal _lockDecision (xPNTsTokenV2.sol:209) — same rounding direction, new home.
   // ──────────────────────────────────────────────────────────
-  printStep(6, 'aPNTs accounting: burnFromWithOpHash aPNTs→xPNTs ceil conversion (math verification)');
+  printStep(6, 'aPNTs accounting: tryLockForGas aPNTs→xPNTs ceil conversion (math verification)');
 
   // Re-read rate in case it changed (unlikely in same block, but be safe)
   let rateNow;
@@ -249,7 +271,7 @@ async function main() {
   printInfo(`Burn 10 aPNTs at rate ${ethers.formatEther(rateNow)}:`);
   printInfo(`  xPNTs to burn (ceil) = ceil(10 * rate / 1e18) = ${ethers.formatEther(xPNTsToBurn)} xPNTs`);
   printInfo(`  cross-check (floor)  = floor(10 * rate / 1e18) = ${ethers.formatEther(xPNTsToBurnFloor)} xPNTs`);
-  printInfo('SuperPaymaster uses ceil so the operator is never under-compensated by rounding.');
+  printInfo('tryLockForGas uses ceil so the operator is never under-compensated by rounding.');
 
   // Sanity: ceil >= floor always
   assertTrue(xPNTsToBurn >= xPNTsToBurnFloor, 'ceil(aPNTs * rate / 1e18) >= floor — ceil never less than floor');
@@ -259,7 +281,7 @@ async function main() {
     printInfo('Rate is 1:1 (1e18) — ceil == floor == aPNTs amount (as expected)');
   }
 
-  printSuccess('burnFromWithOpHash ceil math verified (read-only)');
+  printSuccess('tryLockForGas ceil math verified (read-only)');
 
   // ──────────────────────────────────────────────────────────
   // Summary

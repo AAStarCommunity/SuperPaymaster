@@ -1,0 +1,156 @@
+{
+  "kind": "alto",
+  "bundlerUrl": "http://127.0.0.1:18660",
+  "at": "2026-09-13T01:56:44.878Z",
+  "scenarios": {
+    "gSig": {
+      "sender": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A",
+      "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+      "jointHandleOps": {
+        "reverted": true,
+        "error": {
+          "name": "FailedOp",
+          "args": [
+            "1",
+            "AA24 signature error"
+          ]
+        }
+      },
+      "subs": [
+        {
+          "userOpHash": "0x357d95c0c9b537dcd0e4838589c5931b1c8a622779f4703689e966da77c61fa4",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x357d95c0c9b537dcd0e4838589c5931b1c8a622779f4703689e966da77c61fa4"
+          }
+        },
+        {
+          "userOpHash": "0x65dc9f17f40d247166c0921f712ca034920b2a309eede159d1e89672f69bb3c9",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA24 signature error",
+              "code": -32507
+            }
+          }
+        },
+        {
+          "userOpHash": "0x7522e0efebdaa995c7e022ae769aa85b82779d572e665aefb6057b72b8d53c1a",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA24 signature error",
+              "code": -32507
+            }
+          }
+        }
+      ],
+      "bundles": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        }
+      ],
+      "outs": [
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0x2e7d2fd88203a11b3159634b68839e115cb5d1b44e308940dfc84b1d69ac4546"
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0x2e7d2fd88203a11b3159634b68839e115cb5d1b44e308940dfc84b1d69ac4546"
+            }
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA24 signature error",
+            "code": -32507
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA24 signature error",
+            "code": -32507
+          }
+        }
+      ],
+      "repBefore": {
+        "raw": null,
+        "entries": []
+      },
+      "repAfter": {
+        "raw": null,
+        "entries": [
+          {
+            "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "opsSeen": "0x1",
+            "opsIncluded": "0x1",
+            "status": "0x0"
+          },
+          {
+            "address": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A",
+            "opsSeen": "0x0",
+            "opsIncluded": "0x1",
+            "status": "0x0"
+          }
+        ]
+      },
+      "after": {
+        "sender": "0x2ef8B0700Dfb15c022df5eD5252A1fc27F9aD4f8",
+        "sub": {
+          "userOpHash": "0x8240f8a9d63aaf97c4f01120a4907b1d28af61a646d01e16af67ebebc56858dd",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x8240f8a9d63aaf97c4f01120a4907b1d28af61a646d01e16af67ebebc56858dd"
+          }
+        },
+        "bundle": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        "verdict": "included",
+        "receipt": {
+          "success": true,
+          "tx": "0x692c7d8492b373479f475727b7d4baa0b96311c312a2bc88946ed766b5b6383a"
+        },
+        "status": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "status": "included",
+            "transactionHash": "0x692c7d8492b373479f475727b7d4baa0b96311c312a2bc88946ed766b5b6383a"
+          }
+        }
+      }
+    }
+  },
+  "bundlingMode": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+  }
+}

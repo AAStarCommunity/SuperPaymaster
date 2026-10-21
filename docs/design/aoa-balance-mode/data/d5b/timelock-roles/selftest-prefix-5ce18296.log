@@ -1,0 +1,49 @@
+== A: role history (timelock 0x5fbdb2315678afecb367f032d93f642f64180aa3 deployed in block 1)
+  step 1 ok: correct M1 timelock == manifest (exit 0)
+  step 2 ok: unlisted DEFAULT_ADMIN granted (exit 1; "DEFAULT_ADMIN_ROLE: history holders")
+  step 3 ok: unlisted admin revoked (exit 0)
+  step 4 ok: PROPOSER granted to an address not in the manifest (exit 1; "PROPOSER_ROLE: history holders")
+  step 5 ok: that proposer revoked (exit 0)
+  step 6 ok: EXECUTOR granted to a mustHoldNothing account (old owner) (exit 1; "mustHoldNothing account")
+  step 7 ok: that executor revoked (exit 0)
+  step 8 ok: manifest deploymentBlock wrong (exit 1; "depth probe failed")
+== B: chain id (Codex re-check M1)
+SELF-TEST FAILED at step 9: manifest chainId 31338 vs primary 31337 (exit 0, expected 1)
+SELF-TEST FAILED at step 10: --rpc2 on another chain (31338) (exit 2, expected 1)
+== C: second endpoint pinned to the same head (Codex re-check M2)
+SELF-TEST FAILED at step 11: --rpc2 = fork of the primary at the head (control) — failed, but not with "served the same head"
+SELF-TEST FAILED at step 12: --rpc2 lagging one block (exit 0, expected 1)
+SELF-TEST FAILED at step 13: --rpc2 = faithful proxy (control) — failed, but not with "served the same head"
+SELF-TEST FAILED at step 14: --rpc2 drops a role log (payload) — failed, but not with "returned a different role-log list"
+SELF-TEST FAILED at step 15: --rpc2 rewrites the indexed sender (payload; not in the old blockNumber:logIndex:txHash key) (exit 0, expected 1)
+== D: constructor control restricted to the deployment block (Codex re-check M2)
+SELF-TEST FAILED at step 16: P/C/E granted after the deployment block (holders == manifest, hasRole agrees) (exit 0, expected 1)
+    (only the deploy-block control fired: holders == manifest, depth probe and hasRole clean)
+== E: vacuous / incomplete manifest (Codex re-check M3)
+SELF-TEST FAILED at step 17: manifest without .network (exit 0, expected 1)
+SELF-TEST FAILED at step 18: manifest without .chainId (exit 0, expected 1)
+SELF-TEST FAILED at step 19: manifest without .timelock: attestation result none, expected FAIL
+SELF-TEST FAILED at step 20: manifest without .deploymentBlock: attestation result none, expected FAIL
+SELF-TEST FAILED at step 21: manifest without .roles.DEFAULT_ADMIN_ROLE — failed, but not with "manifest: missing field .roles.DEFAULT_ADMIN_ROLE"
+SELF-TEST FAILED at step 22: manifest without .roles.PROPOSER_ROLE — failed, but not with "manifest: missing field .roles.PROPOSER_ROLE"
+SELF-TEST FAILED at step 23: manifest without .roles.CANCELLER_ROLE — failed, but not with "manifest: missing field .roles.CANCELLER_ROLE"
+SELF-TEST FAILED at step 24: manifest without .roles.EXECUTOR_ROLE — failed, but not with "manifest: missing field .roles.EXECUTOR_ROLE"
+SELF-TEST FAILED at step 25: manifest without .mustHoldNothing (exit 0, expected 1)
+SELF-TEST FAILED at step 26: manifest without .mustHoldNothingLabels (exit 0, expected 1)
+SELF-TEST FAILED at step 27: empty EXECUTOR_ROLE set — failed, but not with "manifest: .roles.EXECUTOR_ROLE must be a non-empty array"
+SELF-TEST FAILED at step 28: empty mustHoldNothing (exit 0, expected 1)
+SELF-TEST FAILED at step 29: duplicate mustHoldNothing (exit 0, expected 1)
+SELF-TEST FAILED at step 30: zero address in mustHoldNothing (exit 0, expected 1)
+SELF-TEST FAILED at step 31: no label for a mustHoldNothing account (exit 0, expected 1)
+SELF-TEST FAILED at step 32: blank label (exit 0, expected 1)
+SELF-TEST FAILED at step 33: the committed example (FAKE placeholders) (exit 2, expected 1)
+SELF-TEST FAILED at step 34: the example minus _placeholder: complete schema, fails only on its chain (exit 2, expected 1)
+== F: --chunk must be a strictly positive integer (Codex re-check L2)
+scripts/d5b-timelock-roles-selftest.sh: line 169: 32347 Alarm clock: 14         $CHECK --rpc "$RPC" --manifest "$M" --attest "$W/att$n.json" --chunk "$c" > "$W/step$n.log" 2>&1
+SELF-TEST FAILED at step 35: --chunk '0' (exit 142)
+SELF-TEST FAILED at step 36: --chunk '-5' (exit 2)
+SELF-TEST FAILED at step 37: --chunk '1.5' (exit 1)
+SELF-TEST FAILED at step 38: --chunk 'abc' (exit 1)
+SELF-TEST FAILED at step 39: --chunk '' (exit 1)
+  step 40 ok: --chunk 1 (smallest valid; control) (exit 0)
+TIMELOCK ROLE CHECKER SELF-TEST FAILED: 31 of 40 steps

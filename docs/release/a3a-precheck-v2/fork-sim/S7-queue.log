@@ -1,0 +1,33 @@
+Compiling 2 files with Solc 0.8.33
+Solc 0.8.33 finished in 14.00s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Script ran successfully.
+
+== Logs ==
+    step 1 (queue): pendingAPNTsToken = 0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7
+    step 1 (queue): queued at / eta   = 1791703683 1792308483
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.010000034 gwei
+
+Estimated total gas used for script: 111046
+
+Estimated amount required: 0.000001110463775564 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a824300490519000d/broadcast/UpgradeToV5_5_0.s.sol/11155111/queueAPNTs-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a824300490519000d/cache/UpgradeToV5_5_0.s.sol/11155111/queueAPNTs-latest.json
+

@@ -1,0 +1,66 @@
+column 0 (unmutated): 67 tests, red = []
+
+== j-manifest-validation-skipped: Codex re-check M1/M3: m1Preflight no longer runs validateManifest (chainId, non-vacuous manifest)
+   red (3/33):
+     - test_manifest_chainid_mismatch_reverts: next call did not revert as expected
+     - test_manifest_vacuous_fields_each_rejected: next call did not revert as expected
+     - test_manifest_whitespace_only_label_rejected: next call did not revert as expected
+   expected red ['test_manifest_chainid_mismatch_reverts', 'test_manifest_vacuous_fields_each_rejected'] -> missing []
+   blind columns ['test_preflight_rejects_72h_delay', 'test_attestation_stale_head_reverts', 'test_preflight_correct_timelock_passes_and_M1_completes'] -> turned red []
+   RESULT: OK
+
+== k-placeholder-manifest-accepted: Codex re-check M3: parseManifest accepts the committed example (FAKE placeholder addresses)
+   red (1/33):
+     - test_manifest_example_placeholder_refused: next call did not revert as expected
+   expected red ['test_manifest_example_placeholder_refused'] -> missing []
+   blind columns ['test_manifest_file_missing_field_each_rejected'] -> turned red []
+   RESULT: OK
+
+== l-governed-call-accepts-upgrade: Codex re-check L1: schedule-call no longer refuses upgradeToAndCall (bypassing the upgrade read-backs)
+   red (1/33):
+     - test_governed_call_refuses_upgrade: next call did not revert as expected
+   expected red ['test_governed_call_refuses_upgrade'] -> missing []
+   blind columns ['test_governed_call_unpause_runs_operator_preflight'] -> turned red []
+   RESULT: OK
+
+== m-governed-call-skips-operator-preflight: Codex re-check L1: scheduleCallWith (the M2 unpause path) skips operatorPreflight
+   red (1/33):
+     - test_governed_call_unpause_runs_operator_preflight: next call did not revert as expected
+   expected red ['test_governed_call_unpause_runs_operator_preflight'] -> missing []
+   blind columns ['test_governed_call_refuses_upgrade', 'test_attestation_missing_reverts'] -> turned red []
+   RESULT: OK
+
+== n-attestation-schema-unchecked: Codex re-check of 626b6ea8 (Medium): the attestation .schema is no longer checked
+   red (1/33):
+     - test_attestation_wrong_schema_reverts: next call did not revert as expected
+   expected red ['test_attestation_wrong_schema_reverts'] -> missing []
+   blind columns ['test_attestation_result_fail_reverts', 'test_preflight_correct_timelock_passes_and_M1_completes'] -> turned red []
+   RESULT: OK
+
+== o-whitespace-label-accepted: Codex re-check of 626b6ea8 (Medium): labels are no longer trimmed (whitespace-only accepted)
+   red (1/33):
+     - test_manifest_whitespace_only_label_rejected: next call did not revert as expected
+   expected red ['test_manifest_whitespace_only_label_rejected'] -> missing []
+   blind columns ['test_manifest_vacuous_fields_each_rejected'] -> turned red []
+   RESULT: OK
+
+== p-extra-role-key-accepted: Codex re-check of 626b6ea8 (Medium): an extra key under .roles is no longer rejected
+   red (1/33):
+     - test_manifest_extra_role_key_rejected: next call did not revert as expected
+   expected red ['test_manifest_extra_role_key_rejected'] -> missing []
+   blind columns ['test_manifest_file_missing_field_each_rejected'] -> turned red []
+   RESULT: OK
+
+== q-head-block-hash-unchecked: Codex re-check of 626b6ea8 (operator safety): headBlockHash is no longer compared with blockhash()
+   red (1/33):
+     - test_attestation_head_block_hash_checked_when_available: next call did not revert as expected
+   expected red ['test_attestation_head_block_hash_checked_when_available'] -> missing []
+   blind columns ['test_attestation_stale_head_reverts', 'test_attestation_wrong_chainid_reverts'] -> turned red []
+   RESULT: OK
+
+== r-max-age-raise-anywhere: Codex re-check of 626b6ea8 (operator safety): TL_ATTEST_MAX_AGE may be raised on a live chain
+   red (1/33):
+     - test_attest_max_age_raise_is_local_only: next call did not revert as expected
+   expected red ['test_attest_max_age_raise_is_local_only'] -> missing []
+   blind columns ['test_attestation_stale_head_reverts'] -> turned red []
+   RESULT: OK

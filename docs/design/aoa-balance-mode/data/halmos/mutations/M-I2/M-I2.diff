@@ -1,0 +1,13 @@
+--- a/contracts/src/tokens/v2/xPNTsTokenV2.sol
++++ b/contracts/src/tokens/v2/xPNTsTokenV2.sol
+@@ -203,9 +203,7 @@
+         }
+         usedA = spRenew ? 0 : _auto[spender][user].used;
+         usedB = spRenew ? 0 : _budget[user].used;
+-        if (_remainingWith(spender, user, usedA, usedB) < reserveAPNTs) {
+-            return (IxPNTsTokenV2.LockResult.INSUFFICIENT, 0, 0, 0, 0);
+-        }
++        // D5c-1 M-I2: remaining-cap admission check removed
+         x = Math.mulDiv(reserveAPNTs, exchangeRate, 1e18, Math.Rounding.Ceil);
+         uint256 bal = balanceOf(user);
+         if (bal < locked || bal - locked < x) return (IxPNTsTokenV2.LockResult.INSUFFICIENT, 0, 0, 0, 0);

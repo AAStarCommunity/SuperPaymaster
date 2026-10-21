@@ -1,0 +1,3 @@
+XPNTsV2I4BHalmosTest.check_I4B_coreAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+scenario (I4B_scenario): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.39ms (871.12µs CPU time)
+reverted M-I4B: contracts/src/tokens/v2/xPNTsV2Base.sol sha256 20d1bbda5cc769de35e5c82030779831fec7408a01ac4a50d63e9b7450d7292d

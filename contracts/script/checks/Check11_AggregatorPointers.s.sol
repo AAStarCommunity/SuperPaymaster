@@ -226,7 +226,7 @@ contract Check11_AggregatorPointers is Script {
         console.log("  Someone moved one pointer and not the others. Rotating requires ALL THREE:");
         console.log("    Registry.setBLSAggregator(new)");
         console.log("    DVTValidator.setBLSAggregator(new)");
-        console.log("    SuperPaymaster.queueBLSAggregator(new) -> 24h -> applyBLSAggregator()");
+        console.log("    SuperPaymasterAdmin.queueBLSAggregator(new) -> 24h -> applyBLSAggregator()");
         revert("Check11: aggregator pointers disagree");
     }
 

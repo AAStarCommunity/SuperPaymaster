@@ -1,0 +1,77 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --rpc-url http://127.0.0.1:28563 --unlocked --sender 0xb5600060e6de5E11D3636731964218E53caadf0E --broadcast
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:56:30Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+  === UpgradeToV5_5_0 on sepolia ===
+    SP proxy: 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
+    SP owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+    pre version: SuperPaymaster-5.4.2
+    pre impl   : 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27
+  --- Step 4: GlobalTierSource -> AOAProtocolRegistry (bootstrap+seal) -> ext -> template -> factoryV2 -> lens ---
+    [artifact] default artifact OK: GlobalTierSource 0x245D274eEB165F7b141179b79369a6C73179D12D 542
+    [v55] new   GlobalTierSource    0x245D274eEB165F7b141179b79369a6C73179D12D
+    [artifact] default artifact OK: AOAProtocolRegistry 0xAD7A9c8BC655c3F2914eEF86d9c3F2636464C196 2554
+    [v55] new   AOAProtocolRegistry 0xAD7A9c8BC655c3F2914eEF86d9c3F2636464C196
+    [artifact] default artifact OK: xPNTsTokenV2Ext 0x42B5eCddC278f560E32C4322f66c18e6E17f2d2A 21922
+    [v55] new   xPNTsTokenV2Ext     0x42B5eCddC278f560E32C4322f66c18e6E17f2d2A
+    [artifact] default artifact OK: xPNTsTokenV2 0x40902201B582eDEd5c4AF1918fdD0db14853a26d 19851
+    [v55] new   xPNTsTokenV2 impl   0x40902201B582eDEd5c4AF1918fdD0db14853a26d
+    [artifact] default artifact OK: xPNTsFactoryV2 0x499D594b2090dA8b86D3eEE0c2511fcDc4f7D962 6899
+    [v55] new   xPNTsFactoryV2      0x499D594b2090dA8b86D3eEE0c2511fcDc4f7D962
+    [artifact] default artifact OK: SuperPaymasterLens 0x7b698c292b93a93Bef6Ab508aF4356b2869513Bc 4731
+    [v55] new   SuperPaymasterLens  0x7b698c292b93a93Bef6Ab508aF4356b2869513Bc
+    [artifact] default artifact OK: GlobalTierSource 0x245D274eEB165F7b141179b79369a6C73179D12D 542
+    [artifact] default artifact OK: AOAProtocolRegistry 0xAD7A9c8BC655c3F2914eEF86d9c3F2636464C196 2554
+    [artifact] default artifact OK: xPNTsTokenV2Ext 0x42B5eCddC278f560E32C4322f66c18e6E17f2d2A 21922
+    [artifact] default artifact OK: xPNTsTokenV2 0x40902201B582eDEd5c4AF1918fdD0db14853a26d 19851
+    [artifact] default artifact OK: xPNTsFactoryV2 0x499D594b2090dA8b86D3eEE0c2511fcDc4f7D962 6899
+    [artifact] default artifact OK: SuperPaymasterLens 0x7b698c292b93a93Bef6Ab508aF4356b2869513Bc 4731
+    [v55] step-4 read-back OK (sealed registry, approvals, template codehash, factory->SP)
+  --- Step 5: new SP impl with the LIVE immutables, upgradeToAndCall ---
+    [artifact] default artifact OK: SuperPaymaster 0x0C0eAbA28e28D96512fF7cCfC1847E0f9A3CE3Bb 22915
+    new impl: 0x0C0eAbA28e28D96512fF7cCfC1847E0f9A3CE3Bb
+    new impl runtime bytes: 22915
+    sample ok 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 true
+    sample ok 0xb5600060e6de5E11D3636731964218E53caadf0E true
+    sample ok 0x92EA8b02D34A4D5d10f0Db9Ea894e8bC72e292e8 false
+    step-5 read-back OK: 5.5.0, immutables, BLS legs, named state, EP stake; raw slots: 96
+  --- Step 5b: SP EntryPoint stake >= target, unstakeDelay >= 86400, locked ---
+    before: staked / stake / unstakeDelay / withdrawTime: true 100000000000000000 86400
+            withdrawTime: 0
+    addStake shortfall (wei) / delay: 900000000000000000 86400
+    step-5b read-back OK: stake (wei) / delay: 1000000000000000000 86400
+  --- Step 6: setXPNTsFactory(factoryV2) ---
+    config written: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/cache/evidence-fork/config.sepolia-fork.json
+  === Steps 4-5b-6 complete; SP version: SuperPaymaster-5.5.0 ===
+  NEXT (per community): issueCommunityToken -> configureOperatorV2 -> unpauseOperator (step 7a/7c)
+  REMINDER: hand AOAProtocolRegistry + xPNTsFactoryV2 ownership to governance;
+            notify repo:sdk / repo:dvt (new paymasterAndData, lens, v2 token ABI).
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 1.483082124 gwei
+
+Estimated total gas used for script: 24190239
+
+Estimated amount required: 0.035876111036187636 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/broadcast/UpgradeToV5_5_0.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/cache/UpgradeToV5_5_0.s.sol/11155111/run-latest.json
+

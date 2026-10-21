@@ -1,0 +1,1 @@
+VERDICT PASS: old leaves tier1=100 (defect reproduced), new raises tiers 1,2 to 300

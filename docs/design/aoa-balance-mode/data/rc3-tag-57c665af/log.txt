@@ -1,0 +1,24 @@
+warning: refs/tags/v5.5.0-rc.3 5e57c27e325f682a6aa447ba36f1c34329071885 is not a commit!
+Note: switching to '57c665afd2809879f5545b40dbd895b4ddf6a4e8'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+clone HEAD 57c665afd2809879f5545b40dbd895b4ddf6a4e8 describe v5.5.0-rc.3
+build rc=0
+hasher sha256 7b9591168dbba84e2af1e7507db2a9f637910aa3f637065f9cebd4cca5bc5ae8
+attest rc=0
+rc3 tag build == pre-tag build1 byte-identical
+vs rc.2 attestation: 10/10 runtime+creation keccak equal

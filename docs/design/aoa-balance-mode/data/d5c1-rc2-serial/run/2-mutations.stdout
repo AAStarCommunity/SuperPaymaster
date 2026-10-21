@@ -1,0 +1,203 @@
+applied M-CAP1 to contracts/src/tokens/APNTsCapped.sol (pristine sha256 07e1cf5b3d34ec0e34c4d6cdb6c85a15e65ac4354553d9b76f452116093b6638; diff in cache/d5c1-mutations/M-CAP1.diff)
+APNTsCappedHalmosTest: [31m[FAIL][0m check_CAP1_a_supplyIncreaseStaysUnderCap() (paths: 73, time: 1.91s (paths: 1.91s, models: 0.00s), bounds: [])
+APNTsCappedHalmosTest: [32m[PASS][0m check_CAP1_b_onlyMinterMintIncreasesSupply() (paths: 103, time: 1.31s (paths: 1.31s, models: 0.00s), bounds: [])
+APNTsCappedHalmosTest: [32m[PASS][0m check_CAP1_c_mintDoesNotMoveCap() (paths: 104, time: 1.29s (paths: 1.29s, models: 0.00s), bounds: [])
+APNTsCappedHalmosTest: # exit_code: 1  wall_seconds: 21
+scenario (CAP1_scenario): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 7.23ms (1.25ms CPU time)
+reverted M-CAP1: contracts/src/tokens/APNTsCapped.sol sha256 07e1cf5b3d34ec0e34c4d6cdb6c85a15e65ac4354553d9b76f452116093b6638
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src -1 head <no git>
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src -1 head <no git>
+tree         out/ [xpnts]                                                  the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                  the build of the current sources (metadata keccak256)  OK        fresh
+mutation     M-CAP1 halmos check_CAP1_a_supplyIncreaseStaysUnderCap        FAIL+cex                                  OK        FAIL
+mutation     M-CAP1 scenario test_D5c1_CAP1_scenario_mintBeyondCapReverts  red (next call did not revert as expected)  OK        next call did not revert as expected
+mutation     M-CAP1 binding (mutated)                                      logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-CAP1 restored tree                                          src/lib/harness/bytecode == current       OK        equal
+mutation     M-CAP1 source restored                                        pristine == reverted == current file      OK        07e1cf5b3d34
+
+VERDICT: ALL EXPECTATIONS MET (7 rows) [partial: --only mutations]; mandatory suite builtin
+applied M-A3 to contracts/src/tokens/v2/xPNTsTokenV2Ext.sol (pristine sha256 ed46ee6bc1c84933b3bbd5fe8b7b8ff64fdcca94b9bcf1d2ea2f49dfb2d6b714; diff in cache/d5c1-mutations/M-A3.diff)
+XPNTsV2A3HalmosTest.check_A3_extAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+XPNTsV2A3HalmosTest.check_A3_coreAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+scenario (A3_scenario_spCannotMove): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 3.31ms (1.42ms CPU time)
+reverted M-A3: contracts/src/tokens/v2/xPNTsTokenV2Ext.sol sha256 ed46ee6bc1c84933b3bbd5fe8b7b8ff64fdcca94b9bcf1d2ea2f49dfb2d6b714
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src -1 head <no git>
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src -1 head <no git>
+tree         out/ [xpnts]                                                     the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                     the build of the current sources (metadata keccak256)  OK        fresh
+mutation     M-A3 halmos XPNTsV2A3HalmosTest.check_A3_extAbi:spPull-20992765  exactly these parts, all FAIL+cex         OK        red ['spPull-20992765']
+mutation     M-A3 halmos XPNTsV2A3HalmosTest.check_A3_coreAbi:OTHER           exactly these parts, all FAIL+cex         OK        red ['OTHER']
+mutation     M-A3 scenario test_D5c1_A3_scenario_spCannotMoveUserTokens       red (28 != 0)                             OK        A-3 predicate bitmask on the SP pull attempt: 28 != 0
+mutation     M-A3 binding (mutated)                                           logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-A3 restored tree                                               src/lib/harness/bytecode == current       OK        equal
+mutation     M-A3 source restored                                             pristine == reverted == current file      OK        ed46ee6bc1c8
+
+VERDICT: ALL EXPECTATIONS MET (8 rows) [partial: --only mutations]; mandatory suite builtin
+applied M-A3TF to contracts/src/tokens/v2/xPNTsTokenV2.sol (pristine sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4; diff in cache/d5c1-mutations/M-A3TF.diff)
+XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi (green): PASS
+scenario (A3_scenario_spFirewallBits): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.24ms (662.58µs CPU time)
+reverted M-A3TF: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src -1 head <no git>
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src -1 head <no git>
+tree         out/ [xpnts]                                                                  the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                                  the build of the current sources (metadata keccak256)  OK        fresh
+mutation     M-A3TF halmos XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi:transferFrom-23b872dd  exactly these parts, all FAIL+cex         OK        red ['transferFrom-23b872dd']
+mutation     M-A3TF halmos XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi:burn-9dc29fac          exactly these parts, still PASS (independence)  OK        green ['burn-9dc29fac']
+mutation     M-A3TF scenario test_D5c1_A3_scenario_spFirewallBits                          red (A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 1 != 0)  OK        A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 1 != 0
+mutation     M-A3TF binding (mutated)                                                      logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-A3TF restored tree                                                          src/lib/harness/bytecode == current       OK        equal
+mutation     M-A3TF source restored                                                        pristine == reverted == current file      OK        6ddccb29160f
+
+VERDICT: ALL EXPECTATIONS MET (8 rows) [partial: --only mutations]; mandatory suite builtin
+applied M-A3BF to contracts/src/tokens/v2/xPNTsTokenV2.sol (pristine sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4; diff in cache/d5c1-mutations/M-A3BF.diff)
+XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi (green): PASS
+scenario (A3_scenario_spFirewallBits): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.19ms (684.42µs CPU time)
+reverted M-A3BF: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src -1 head <no git>
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src -1 head <no git>
+tree         out/ [xpnts]                                                                  the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                                  the build of the current sources (metadata keccak256)  OK        fresh
+mutation     M-A3BF halmos XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi:burn-9dc29fac          exactly these parts, all FAIL+cex         OK        red ['burn-9dc29fac']
+mutation     M-A3BF halmos XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi:transferFrom-23b872dd  exactly these parts, still PASS (independence)  OK        green ['transferFrom-23b872dd']
+mutation     M-A3BF scenario test_D5c1_A3_scenario_spFirewallBits                          red (A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 2 != 0)  OK        A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 2 != 0
+mutation     M-A3BF binding (mutated)                                                      logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-A3BF restored tree                                                          src/lib/harness/bytecode == current       OK        equal
+mutation     M-A3BF source restored                                                        pristine == reverted == current file      OK        6ddccb29160f
+
+VERDICT: ALL EXPECTATIONS MET (8 rows) [partial: --only mutations]; mandatory suite builtin
+applied M-I2 to contracts/src/tokens/v2/xPNTsTokenV2.sol (pristine sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4; diff in cache/d5c1-mutations/M-I2.diff)
+XPNTsV2I2HalmosTest.check_I2_coreAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+scenario (I2_scenario): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.15ms (624.58µs CPU time)
+reverted M-I2: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src -1 head <no git>
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src -1 head <no git>
+tree         out/ [xpnts]                                                             the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                             the build of the current sources (metadata keccak256)  OK        fresh
+mutation     M-I2 halmos XPNTsV2I2HalmosTest.check_I2_coreAbi:tryLockForGas-ec290731  exactly these parts, all FAIL+cex         OK        red ['tryLockForGas-ec290731']
+mutation     M-I2 scenario test_D5c1_I2_scenario_lockBeyondSpCapRejected              red (I2 predicate bitmask on the over-cap lock attempt: 32769 != 0)  OK        I2 predicate bitmask on the over-cap lock attempt: 32769 != 0
+mutation     M-I2 binding (mutated)                                                   logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-I2 restored tree                                                       src/lib/harness/bytecode == current       OK        equal
+mutation     M-I2 source restored                                                     pristine == reverted == current file      OK        6ddccb29160f
+
+VERDICT: ALL EXPECTATIONS MET (7 rows) [partial: --only mutations]; mandatory suite builtin
+applied M-I4B to contracts/src/tokens/v2/xPNTsV2Base.sol (pristine sha256 20d1bbda5cc769de35e5c82030779831fec7408a01ac4a50d63e9b7450d7292d; diff in cache/d5c1-mutations/M-I4B.diff)
+XPNTsV2I4BHalmosTest.check_I4B_coreAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+scenario (I4B_scenario): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.05ms (553.12µs CPU time)
+reverted M-I4B: contracts/src/tokens/v2/xPNTsV2Base.sol sha256 20d1bbda5cc769de35e5c82030779831fec7408a01ac4a50d63e9b7450d7292d
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src -1 head <no git>
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src -1 head <no git>
+tree         out/ [xpnts]                                                           the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                           the build of the current sources (metadata keccak256)  OK        fresh
+mutation     M-I4B halmos XPNTsV2I4BHalmosTest.check_I4B_coreAbi:transfer-a9059cbb  exactly these parts, all FAIL+cex         OK        red ['transfer-a9059cbb']
+mutation     M-I4B scenario test_D5c1_I4B_scenario_transferBelowLockedRejected      red (I4-B predicate bitmask on the over-lock transfer: 1 != 0)  OK        I4-B predicate bitmask on the over-lock transfer: 1 != 0
+mutation     M-I4B binding (mutated)                                                logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-I4B restored tree                                                    src/lib/harness/bytecode == current       OK        equal
+mutation     M-I4B source restored                                                  pristine == reverted == current file      OK        20d1bbda5cc7
+
+VERDICT: ALL EXPECTATIONS MET (7 rows) [partial: --only mutations]; mandatory suite builtin
+applied M-I6 to contracts/src/tokens/v2/xPNTsTokenV2.sol (pristine sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4; diff in cache/d5c1-mutations/M-I6.diff)
+XPNTsV2I6HalmosTest.check_I6_coreAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+XPNTsV2I6HalmosTest.check_I6J_coreAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+scenario (I6_scenario): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.11ms (605.38µs CPU time)
+reverted M-I6: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src -1 head <no git>
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src -1 head <no git>
+tree         out/ [xpnts]                                                                 the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                                 the build of the current sources (metadata keccak256)  OK        fresh
+mutation     M-I6 halmos XPNTsV2I6HalmosTest.check_I6_coreAbi:tryReserveCredit-de9e4cae   exactly these parts, all FAIL+cex         OK        red ['tryReserveCredit-de9e4cae']
+mutation     M-I6 halmos XPNTsV2I6HalmosTest.check_I6J_coreAbi:tryReserveCredit-de9e4cae  exactly these parts, all FAIL+cex         OK        red ['tryReserveCredit-de9e4cae']
+mutation     M-I6 scenario test_D5c1_I6_scenario_reservationBoundedByRequestedCap         red (1 != 0)                              OK        I6 predicate bitmask on the over-request reservation: 1 != 0
+mutation     M-I6 binding (mutated)                                                       logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-I6 restored tree                                                           src/lib/harness/bytecode == current       OK        equal
+mutation     M-I6 source restored                                                         pristine == reverted == current file      OK        6ddccb29160f
+
+VERDICT: ALL EXPECTATIONS MET (8 rows) [partial: --only mutations]; mandatory suite builtin
+applied M-F1 to contracts/src/tokens/v2/xPNTsTokenV2.sol (pristine sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4; diff in cache/d5c1-mutations/M-F1.diff)
+XPNTsV2RateHalmosTest: [31m[FAIL][0m check_RATE_base_initialize() (paths: 3, time: 0.06s (paths: 0.06s, models: 0.00s), bounds: [])
+XPNTsV2RateHalmosTest: [31m[FAIL][0m check_RATE_base_realFactory() (paths: 3, time: 1.79s (paths: 1.79s, models: 0.00s), bounds: [])
+XPNTsV2RateHalmosTest: # exit_code: 1  wall_seconds: 20
+scenario (REGRESSION_F1_rateOutOfRange): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 1.99ms (296.71µs CPU time)
+reverted M-F1: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 6ddccb29160f41e77178c6139629e384b39ffa053e32d81f18388c55dba88ef4
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src -1 head <no git>
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src -1 head <no git>
+tree         out/ [xpnts]                                                        the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                        the build of the current sources (metadata keccak256)  OK        fresh
+mutation     M-F1 halmos check_RATE_base_initialize                              FAIL+cex                                  OK        FAIL
+mutation     M-F1 halmos check_RATE_base_realFactory                             FAIL+cex                                  OK        FAIL
+mutation     M-F1 scenario test_D5c1_REGRESSION_F1_rateOutOfRangeRejectedAtInit  red (next call did not revert as expected)  OK        next call did not revert as expected
+mutation     M-F1 binding (mutated)                                              logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-F1 restored tree                                                  src/lib/harness/bytecode == current       OK        equal
+mutation     M-F1 source restored                                                pristine == reverted == current file      OK        6ddccb29160f
+
+VERDICT: ALL EXPECTATIONS MET (8 rows) [partial: --only mutations]; mandatory suite builtin
+mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+current tree [xpnts]: src f81c71d5f61e846f harness 204df7566b326c11 bytecode d13cd8269b3350a5 dirty_src -1 head <no git>
+current tree [apnts]: src 702a7e293cc12242 harness 204df7566b326c11 bytecode 82f5592948afe88a dirty_src -1 head <no git>
+tree         out/ [xpnts]                                                                  the build of the current sources (metadata keccak256)  OK        fresh
+tree         out/ [apnts]                                                                  the build of the current sources (metadata keccak256)  OK        fresh
+mutation     M-CAP1 halmos check_CAP1_a_supplyIncreaseStaysUnderCap                        FAIL+cex                                  OK        FAIL
+mutation     M-CAP1 scenario test_D5c1_CAP1_scenario_mintBeyondCapReverts                  red (next call did not revert as expected)  OK        next call did not revert as expected
+mutation     M-CAP1 binding (mutated)                                                      logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-CAP1 restored tree                                                          src/lib/harness/bytecode == current       OK        equal
+mutation     M-CAP1 source restored                                                        pristine == reverted == current file      OK        07e1cf5b3d34
+mutation     M-A3 halmos XPNTsV2A3HalmosTest.check_A3_extAbi:spPull-20992765               exactly these parts, all FAIL+cex         OK        red ['spPull-20992765']
+mutation     M-A3 halmos XPNTsV2A3HalmosTest.check_A3_coreAbi:OTHER                        exactly these parts, all FAIL+cex         OK        red ['OTHER']
+mutation     M-A3 scenario test_D5c1_A3_scenario_spCannotMoveUserTokens                    red (28 != 0)                             OK        A-3 predicate bitmask on the SP pull attempt: 28 != 0
+mutation     M-A3 binding (mutated)                                                        logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-A3 restored tree                                                            src/lib/harness/bytecode == current       OK        equal
+mutation     M-A3 source restored                                                          pristine == reverted == current file      OK        ed46ee6bc1c8
+mutation     M-A3TF halmos XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi:transferFrom-23b872dd  exactly these parts, all FAIL+cex         OK        red ['transferFrom-23b872dd']
+mutation     M-A3TF halmos XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi:burn-9dc29fac          exactly these parts, still PASS (independence)  OK        green ['burn-9dc29fac']
+mutation     M-A3TF scenario test_D5c1_A3_scenario_spFirewallBits                          red (A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 1 != 0)  OK        A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 1 != 0
+mutation     M-A3TF binding (mutated)                                                      logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-A3TF restored tree                                                          src/lib/harness/bytecode == current       OK        equal
+mutation     M-A3TF source restored                                                        pristine == reverted == current file      OK        6ddccb29160f
+mutation     M-A3BF halmos XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi:burn-9dc29fac          exactly these parts, all FAIL+cex         OK        red ['burn-9dc29fac']
+mutation     M-A3BF halmos XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi:transferFrom-23b872dd  exactly these parts, still PASS (independence)  OK        green ['transferFrom-23b872dd']
+mutation     M-A3BF scenario test_D5c1_A3_scenario_spFirewallBits                          red (A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 2 != 0)  OK        A-3 firewall bits (bit0 transferFrom, bit1 burn(from)): 2 != 0
+mutation     M-A3BF binding (mutated)                                                      logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-A3BF restored tree                                                          src/lib/harness/bytecode == current       OK        equal
+mutation     M-A3BF source restored                                                        pristine == reverted == current file      OK        6ddccb29160f
+mutation     M-I2 halmos XPNTsV2I2HalmosTest.check_I2_coreAbi:tryLockForGas-ec290731       exactly these parts, all FAIL+cex         OK        red ['tryLockForGas-ec290731']
+mutation     M-I2 scenario test_D5c1_I2_scenario_lockBeyondSpCapRejected                   red (I2 predicate bitmask on the over-cap lock attempt: 32769 != 0)  OK        I2 predicate bitmask on the over-cap lock attempt: 32769 != 0
+mutation     M-I2 binding (mutated)                                                        logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-I2 restored tree                                                            src/lib/harness/bytecode == current       OK        equal
+mutation     M-I2 source restored                                                          pristine == reverted == current file      OK        6ddccb29160f
+mutation     M-I4B halmos XPNTsV2I4BHalmosTest.check_I4B_coreAbi:transfer-a9059cbb         exactly these parts, all FAIL+cex         OK        red ['transfer-a9059cbb']
+mutation     M-I4B scenario test_D5c1_I4B_scenario_transferBelowLockedRejected             red (I4-B predicate bitmask on the over-lock transfer: 1 != 0)  OK        I4-B predicate bitmask on the over-lock transfer: 1 != 0
+mutation     M-I4B binding (mutated)                                                       logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-I4B restored tree                                                           src/lib/harness/bytecode == current       OK        equal
+mutation     M-I4B source restored                                                         pristine == reverted == current file      OK        20d1bbda5cc7
+mutation     M-I6 halmos XPNTsV2I6HalmosTest.check_I6_coreAbi:tryReserveCredit-de9e4cae    exactly these parts, all FAIL+cex         OK        red ['tryReserveCredit-de9e4cae']
+mutation     M-I6 halmos XPNTsV2I6HalmosTest.check_I6J_coreAbi:tryReserveCredit-de9e4cae   exactly these parts, all FAIL+cex         OK        red ['tryReserveCredit-de9e4cae']
+mutation     M-I6 scenario test_D5c1_I6_scenario_reservationBoundedByRequestedCap          red (1 != 0)                              OK        I6 predicate bitmask on the over-request reservation: 1 != 0
+mutation     M-I6 binding (mutated)                                                        logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-I6 restored tree                                                            src/lib/harness/bytecode == current       OK        equal
+mutation     M-I6 source restored                                                          pristine == reverted == current file      OK        6ddccb29160f
+mutation     M-F1 halmos check_RATE_base_initialize                                        FAIL+cex                                  OK        FAIL
+mutation     M-F1 halmos check_RATE_base_realFactory                                       FAIL+cex                                  OK        FAIL
+mutation     M-F1 scenario test_D5c1_REGRESSION_F1_rateOutOfRangeRejectedAtInit            red (next call did not revert as expected)  OK        next call did not revert as expected
+mutation     M-F1 binding (mutated)                                                        logs bound to current src + diff, mutated harness build  OK        ok
+mutation     M-F1 restored tree                                                            src/lib/harness/bytecode == current       OK        equal
+mutation     M-F1 source restored                                                          pristine == reverted == current file      OK        6ddccb29160f
+
+VERDICT: ALL EXPECTATIONS MET (47 rows) [partial: --only mutations]; mandatory suite builtin

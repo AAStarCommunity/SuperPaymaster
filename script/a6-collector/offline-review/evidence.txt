@@ -1,0 +1,25 @@
+A6 round-2 adversarial repair evidence (offline only)
+Branch: cc125/a6-gauge
+
+Reproduce from the worktree root with viem available:
+  node script/a6-collector/offline-review/run.mjs
+
+Current archive is used directly, without synthetic tx.from or citation repairs.
+116 original controls pass; 112 demonstrate round-1 OLD exit 0 -> fixed reject.
+The passport sweep includes all 99 emitted leaves, including allowSameEndpointLocal.
+57 round-2 controls demonstrate immediate pre-fix exit 0 -> fixed reject.
+See results.tsv and round2-results.tsv for every exit pair and round-2 rejection reason.
+check-library.mjs verifies valid success/postOp conservation and the immutable comparator pins.
+Historical comparator SHA256: b260ae9c8ac06ba02044de4e99a045d0a186a64156b48bed4c5ff7c403820d00
+Round-2 comparator SHA256: 8bab958d2675c3b37696fd775fd19f4d973b90d168eb8208e5ea4b5fd5a0e1fa
+The round-2 digest equals the source hash recorded by the current archive.
+Snapshots are historical evidence, not copies of moving HEAD.
+
+Archive not regenerated; no record-format change was required. Raw receipt logs already
+record extra events. The fixed validator also reports those logs and rejects extra operations
+outside deliberate negative fixtures. The collector stops on unexpected extra operations.
+Positive: exit 0, three successes, one matched triplet, conformance false.
+N=50: exit 0, 150 successes, 50 matched triplets, conformance true.
+All tracked archives outside offline-review/fixtures are rechecked in archives.tsv.
+The archived README/EVIDENCE and all chain evidence remain unchanged.
+No public/local chain requests, contracts/src edits, commits, or pushes were needed.

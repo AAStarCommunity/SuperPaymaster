@@ -1,0 +1,36 @@
+# tree: git archive 31921fbc75258e577bfcaf108aa8c50eee889333 (full commit, unmodified; submodules solady/chainlink copied from the main checkout)
+# command (run at the tree root): forge test --match-path contracts/test/v2/SuperPaymasterV55PostOpBound.t.sol -vv
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:44:56Z
+# exit code: 0
+# (compiler output before line 32 omitted)
+Ran 2 tests for contracts/test/v2/SuperPaymasterV55PostOpBound.t.sol:SuperPaymasterV55PostOpBoundTest
+[PASS] test_each_path_within_C_POSTOP() (gas: 14545085)
+[PASS] test_rule_C_POSTOP_ge_W_postop_times_1_plus_m() (gas: 16430432)
+Logs:
+  BALANCE first-time user, cold lastTimestamp
+      consumed (W_postop candidate) / minLimit 132589 167388
+  CREDIT  first-time user, cold lastTimestamp, first debt
+      consumed (W_postop candidate) / minLimit 146600 167388
+  BALANCE during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 132589 167388
+  CREDIT  during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 146600 167388
+  BALANCE old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 132589 167388
+  CREDIT  old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 146600 167388
+  BALANCE no rate-limit write (control)
+      consumed (W_postop candidate) / minLimit 112257 167388
+  BALANCE charge clamped at a0 (control)
+      consumed (W_postop candidate) / minLimit 131237 167388
+  W_postop (max over paths) 146600
+  observed C_POSTOP + C_WRAP / C_POSTOP_obs 175000 170000
+  W_postop x (1 + m), m bps 168590 1500
+  margin of C_POSTOP over W_postop (bps) 1596
+  EntryPoint wrap upper bound / C_WRAP spec 1702 5000
+  max minLimit (entry-guard bound) / MIN_POST_OP_GAS 167388 200000
+
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 15.36ms (20.71ms CPU time)
+
+Ran 1 test suite in 16.22ms (15.36ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)

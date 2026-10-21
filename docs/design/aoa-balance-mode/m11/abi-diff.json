@@ -1,0 +1,1175 @@
+{
+ "generatedAt": "2026-09-27T06:19:51.617Z",
+ "onchainBlock": "11791473",
+ "chainId": 11155111,
+ "rows": [
+  {
+   "contract": "SuperPaymaster (proxy)",
+   "rollout": "UUPS upgrade 5.4.2 -> 5.5.0 (runbook step 5)",
+   "versionOnChain": "SuperPaymaster-5.4.2",
+   "oldSource": "SuperPaymaster-5.4.2",
+   "newSource": "SuperPaymaster-5.5.0 (core + SuperPaymasterAdmin via fallback)",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 23569,
+    "chainSize": 23569
+   },
+   "newRuntimeKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+   "abi": {
+    "functions": {
+     "added": [
+      "EXTENSION()",
+      "acceptOwnership()",
+      "cancelGasParams()",
+      "executeGasParams()",
+      "gasParams()",
+      "guardian()",
+      "inflightOf(bytes32)",
+      "paused()",
+      "pendingOwner()",
+      "queueGasParams(uint32,uint32,uint32,uint32)",
+      "releaseStaleSponsorship(bytes32)",
+      "setGlobalPaused(bool)",
+      "setGuardian(address)"
+     ],
+     "removed": [
+      "clearPendingDebt(address,address)",
+      "dryRunValidation((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),uint256)",
+      "pendingDebts(address,address)",
+      "retryPendingDebt(address,address,uint256)"
+     ],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [
+      "GasParamsCancelled()",
+      "GasParamsExecuted(uint32,uint32,uint32,uint32)",
+      "GasParamsQueued(uint32,uint32,uint32,uint32,uint64)",
+      "GlobalPauseSet(address,bool)",
+      "GuardianSet(address,address)",
+      "OwnershipTransferStarted(address,address)",
+      "SponsorshipReleased(bytes32,address,uint256)"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [
+      "GasParamsTimelock()",
+      "InvalidContextLength()",
+      "OwnershipRenounceDisabled()",
+      "PendingOwnershipTransfer(address)",
+      "PostOpGasTooLow()",
+      "SponsorshipInFlight()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable",
+      "fallback:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 90,
+     "newFunctions": 99
+    }
+   },
+   "note": "NEW ABI = SuperPaymaster core UNION SuperPaymasterAdmin (EXTENSION deployed in the SP constructor, reached through fallback()). newRuntimeKeccak is of the artifact (immutables zero-filled)."
+  },
+  {
+   "contract": "Registry (proxy)",
+   "rollout": "UUPS upgrade 5.8.0 -> 5.9.0 (runbook step 5c)",
+   "versionOnChain": "Registry-5.8.0",
+   "oldSource": "Registry-5.8.0",
+   "newSource": "Registry-5.9.0",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 23038,
+    "chainSize": 23038
+   },
+   "newRuntimeKeccak": "0xde3d06d860890b9e95a1e80202833efea49175a417958d3362d32e0231406e8b",
+   "abi": {
+    "functions": {
+     "added": [
+      "acceptOwnership()",
+      "pendingOwner()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [
+      "OwnershipTransferStarted(address,address)"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [
+      "OwnershipRenounceDisabled()",
+      "PendingOwnershipTransfer(address)"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 50,
+     "newFunctions": 52
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "BLSAggregator",
+   "rollout": "NOT redeployed by the 5.5.0 runbook (BLS three legs unchanged)",
+   "versionOnChain": "BLSAggregator-4.11.0",
+   "oldSource": "BLSAggregator-4.11.0 (pinned abis/BLSAggregator-4.11.0.deployed.json)",
+   "newSource": "BLSAggregator-4.12.0 (source only, not deployed)",
+   "oldArtifactMatchesChain": {
+    "checked": false,
+    "reason": "OLD ABI taken from the pinned deployed-ABI file (#423); OLD source on main is 4.12.0, not the deployed 4.11.0"
+   },
+   "newRuntimeKeccak": null,
+   "abi": {
+    "functions": {
+     "added": [
+      "GUARDIAN_SLASH_BPS_MAX()",
+      "GUARDIAN_SLASH_BPS_MIN()",
+      "guardianSlashBps()",
+      "setGuardianSlashBps(uint16)"
+     ],
+     "removed": [],
+     "shapeChanged": [
+      {
+       "sig": "guardianSlashCases(uint256)",
+       "selector": "0xee02231c",
+       "old": "bytes32,bytes32,uint64,uint8,uint16,uint16,address|view",
+       "new": "bytes32,bytes32,uint64,uint8,uint16,uint16,uint16,address|view"
+      }
+     ]
+    },
+    "events": {
+     "added": [
+      "GuardianSlashBpsUpdated(uint16,uint16)"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 72,
+     "newFunctions": 76
+    }
+   },
+   "note": "Only relevant if/when 4.12.0 is deployed; not part of 5.5.0."
+  },
+  {
+   "contract": "xPNTsToken v1 -> xPNTsTokenV2 (+Ext)",
+   "rollout": "NEW template; communities issue new v2 tokens (runbook step 7a); old v1 clones stay",
+   "versionOnChain": null,
+   "oldSource": "XPNTs-3.5.0 (source on main); live official aPNTs/PNTs clones report XPNTs-3.4.0",
+   "newSource": "xPNTsTokenV2 core UNION xPNTsTokenV2Ext",
+   "oldArtifactMatchesChain": {
+    "checked": false,
+    "reason": "EIP-1167 clones; the live aPNTs/PNTs are 3.4.0 while main source is 3.5.0 -> OLD ABI is approximate for them"
+   },
+   "newRuntimeKeccak": "0xb15c14c49929505baa68328af7638d60f87ebbfc0b6c80ee412ebbfc86850474",
+   "abi": {
+    "functions": {
+     "added": [
+      "ACTION_TYPEHASH()",
+      "ACT_DISABLE()",
+      "ACT_ENABLE()",
+      "ACT_RENEW()",
+      "ACT_REQUEST_CREDIT()",
+      "ACT_REVOKE_CREDIT()",
+      "ACT_SET_ALLOWANCE()",
+      "ACT_SET_MODE()",
+      "ACT_SET_TOTAL()",
+      "BALANCE_MODE_VERSION()",
+      "EXTENSION()",
+      "K()",
+      "MODE_ACCOUNT_ONLY()",
+      "MODE_SP_K()",
+      "POLICY_AUTO()",
+      "POLICY_MANUAL()",
+      "POLICY_OFF()",
+      "PROTOCOL_CREDIT_CEILING()",
+      "PROTOCOL_MAX_CAP()",
+      "PROTOCOL_REGISTRY()",
+      "SP_CAP_FLOOR()",
+      "SP_DEFAULT_CAP()",
+      "TIER_SOURCE_GAS()",
+      "TIMELOCK()",
+      "USER_TOTAL_DEFAULT()",
+      "actionDigest(address,uint8,bytes,uint256,uint256)",
+      "actionNonce(address)",
+      "activateSP()",
+      "activateSpender(address)",
+      "activateStandbyDesignation()",
+      "approveCredit(address,uint256)",
+      "autoAllowance(address,address)",
+      "autoRenewUsed(address)",
+      "cancelCreditPolicy()",
+      "cancelSP()",
+      "community()",
+      "creditPolicy()",
+      "creditReq(address)",
+      "creditReservationOf(bytes32,address)",
+      "creditReservedOf(address)",
+      "creditTierSource()",
+      "disableSpenderForSelf(address)",
+      "effectiveCreditCap(address)",
+      "emergencySwitchToStandby()",
+      "enableSpenderForSelf(address)",
+      "executeBySig(address,uint8,bytes,uint256,bytes)",
+      "executeCreditPolicy()",
+      "executeTierSource()",
+      "hasPendingPolicy()",
+      "historicalSP(address)",
+      "initialize((string,string,address,address,string,string,uint256,address,address,address))",
+      "lockOf(bytes32,address)",
+      "lockedOf(address)",
+      "pendingPolicy()",
+      "pendingPolicyEta()",
+      "pendingSP()",
+      "pendingSPByFactory()",
+      "pendingSPEta()",
+      "pendingStandby()",
+      "pendingStandbyEta()",
+      "pendingTierSource()",
+      "pendingTierSourceEta()",
+      "policyEpoch()",
+      "previewCredit(address,address,bytes32,uint256)",
+      "previewLock(address,address,bytes32,uint256,bool)",
+      "proposeSP(address)",
+      "proposeSpender(address)",
+      "proposeStandby(address)",
+      "queueCreditPolicy(uint8)",
+      "queueTierSource(address)",
+      "releaseAndDisable(address,bytes32)",
+      "releaseStaleCredit(address,bytes32)",
+      "releaseStaleLock(address,bytes32)",
+      "renewForSelf(address)",
+      "renewalMode(address)",
+      "requestCredit(uint256)",
+      "revokeCredit()",
+      "setAutoAllowance(address,uint256)",
+      "setRenewalMode(uint8)",
+      "setUserTotalCap(uint256)",
+      "settleCredit(address,bytes32,uint256)",
+      "settleLocked(address,bytes32,uint256)",
+      "spenderActivatesAt(address)",
+      "spenderDisabled(address,address)",
+      "standbySP()",
+      "tryLockForGas(address,bytes32,uint256,bool)",
+      "tryReserveCredit(address,bytes32,uint256)",
+      "userTotal(address)"
+     ],
+     "removed": [
+      "addAutoApprovedSpender(address)",
+      "burnFromWithOpHash(address,uint256,bytes32)",
+      "credibilityScore()",
+      "getDebt(address)",
+      "initialize(string,string,address,string,string,uint256)",
+      "needsApproval(address,address,uint256)",
+      "recordDebt(address,uint256)",
+      "recordDebtWithOpHash(address,uint256,bytes32)",
+      "setSuperPaymasterAddress(address)",
+      "usedDebtHashes(bytes32)"
+     ],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [
+      "AllowanceRenewed(address,address,bool)",
+      "AutoAllowanceSet(address,address,uint256)",
+      "CreditApproved(address,uint256,uint32)",
+      "CreditPolicyCancelled()",
+      "CreditPolicyExecuted(uint8,uint32)",
+      "CreditPolicyQueued(uint8,uint64)",
+      "CreditReleased(address,bytes32,uint256)",
+      "CreditRequested(address,uint256,uint32)",
+      "CreditReserved(address,bytes32,address,uint256)",
+      "CreditSettled(address,bytes32,uint256)",
+      "LockCreated(address,bytes32,address,uint256,uint256)",
+      "LockReleased(address,bytes32,uint256)",
+      "LockSettled(address,bytes32,uint256,uint256)",
+      "RenewalModeSet(address,uint8)",
+      "SPProposalCancelled(address)",
+      "SPProposed(address,uint64,bool)",
+      "SpenderDisabledByUser(address,address,bool)",
+      "SpenderProposed(address,uint64)",
+      "StandbyDesignated(address)",
+      "StandbyProposed(address,uint64)",
+      "SuperPaymasterAddressUpdated(address,address)",
+      "TierSourceExecuted(address,uint32)",
+      "TierSourceQueued(address,uint64)",
+      "UserTotalCapSet(address,uint256)"
+     ],
+     "removed": [
+      "DebtRecorded(address,uint256)",
+      "SuperPaymasterAddressUpdated(address)"
+     ],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [
+      "AboveCeiling()",
+      "AutoAllowanceExceeded()",
+      "BalanceLocked(address,uint256)",
+      "BelowFloor()",
+      "InvalidSignature()",
+      "NoLock()",
+      "NotApproved(address)",
+      "NotLive()",
+      "NothingPending()",
+      "RenewBlocked()",
+      "SPCannotTransfer()",
+      "SignatureExpired()",
+      "SpenderIsDisabled()",
+      "StillLive()",
+      "TimelockActive(uint64)",
+      "UnknownAction(uint8)"
+     ],
+     "removed": [
+      "DebtAlreadyRecorded(bytes32)",
+      "MustUseBurnFromWithOpHash()",
+      "OperationAlreadyProcessed(bytes32)",
+      "SuperPaymasterNotConfigured()"
+     ],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable",
+      "fallback:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 70,
+     "newFunctions": 148
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "xPNTsFactory -> xPNTsFactoryV2",
+   "rollout": "NEW contract (runbook step 4); SP.setXPNTsFactory switches to it (step 6)",
+   "versionOnChain": "xPNTsFactory-2.3.0-clone-optimized",
+   "oldSource": "xPNTsFactory-2.3.0-clone-optimized",
+   "newSource": "xPNTsFactoryV2",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": false,
+    "artifactSize": 6802,
+    "chainSize": 5221,
+    "reason": "size differs"
+   },
+   "newRuntimeKeccak": "0xc5c8222627d1d42f755459671acb338e2c47fee775128a07e8d3552789d91776",
+   "abi": {
+    "functions": {
+     "added": [
+      "defaultTierSource()",
+      "extensionCodehash()",
+      "implementationCodehash()",
+      "setDefaultTierSource(address)"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [
+      "InitializationFailed()",
+      "InvalidTemplate()",
+      "TemplateCodehashChanged()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 42,
+     "newFunctions": 46
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "APNTsCapped",
+   "rollout": "NEW token replacing aPNTs as SP.APNTS_TOKEN (runbook step 1)",
+   "versionOnChain": null,
+   "oldSource": "(none)",
+   "newSource": "APNTsCapped",
+   "oldArtifactMatchesChain": {
+    "checked": false,
+    "reason": "new deployment"
+   },
+   "newRuntimeKeccak": "0x16a1a114c5c16b566e056ef5d9701652cb647926a7cde85432ff6b79692c1304",
+   "abi": {
+    "functions": {
+     "added": [
+      "DOMAIN_SEPARATOR()",
+      "acceptOwnership()",
+      "allowance(address,address)",
+      "approve(address,uint256)",
+      "balanceOf(address)",
+      "burn(uint256)",
+      "cap()",
+      "capGuardian()",
+      "decimals()",
+      "eip712Domain()",
+      "isOverIssued()",
+      "issuanceCap()",
+      "lowerCap(uint256)",
+      "mint(address,uint256)",
+      "minter()",
+      "name()",
+      "nonces(address)",
+      "owner()",
+      "pendingOwner()",
+      "permit(address,address,uint256,uint256,uint8,bytes32,bytes32)",
+      "raiseCap(uint256)",
+      "renounceOwnership()",
+      "setCapGuardian(address)",
+      "setMinter(address)",
+      "symbol()",
+      "totalSupply()",
+      "transfer(address,uint256)",
+      "transferAndCall(address,uint256)",
+      "transferAndCall(address,uint256,bytes)",
+      "transferFrom(address,address,uint256)",
+      "transferOwnership(address)",
+      "version()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [
+      "Approval(address,address,uint256)",
+      "CapGuardianSet(address,address)",
+      "CapLowered(uint256,uint256,address)",
+      "CapRaised(uint256,uint256)",
+      "EIP712DomainChanged()",
+      "Minted(address,uint256,uint256,uint256)",
+      "MinterSet(address,address)",
+      "OwnershipTransferStarted(address,address)",
+      "OwnershipTransferred(address,address)",
+      "Transfer(address,address,uint256)"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [
+      "CapExceeded(uint256,uint256,uint256)",
+      "CapNotLowered(uint256,uint256)",
+      "CapNotRaised(uint256,uint256)",
+      "ECDSAInvalidSignature()",
+      "ECDSAInvalidSignatureLength(uint256)",
+      "ECDSAInvalidSignatureS(bytes32)",
+      "ERC20InsufficientAllowance(address,uint256,uint256)",
+      "ERC20InsufficientBalance(address,uint256,uint256)",
+      "ERC20InvalidApprover(address)",
+      "ERC20InvalidReceiver(address)",
+      "ERC20InvalidSender(address)",
+      "ERC20InvalidSpender(address)",
+      "ERC2612ExpiredSignature(uint256)",
+      "ERC2612InvalidSigner(address,address)",
+      "InvalidAccountNonce(address,uint256)",
+      "InvalidShortString()",
+      "NotCapGuardian(address)",
+      "NotMinter(address)",
+      "OwnableInvalidOwner(address)",
+      "OwnableUnauthorizedAccount(address)",
+      "ReceiverNotContract(address)",
+      "ReceiverRejected(address,bytes4)",
+      "RenounceDisabled()",
+      "StringTooLong(string)",
+      "ZeroAddress()",
+      "ZeroCap()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 0,
+     "newFunctions": 32
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "SuperPaymasterLens",
+   "rollout": "NEW read-only helper (dryRunValidation) (runbook step 4)",
+   "versionOnChain": null,
+   "oldSource": "(none)",
+   "newSource": "SuperPaymasterLens",
+   "oldArtifactMatchesChain": {
+    "checked": false,
+    "reason": "new deployment"
+   },
+   "newRuntimeKeccak": "0x4435e4a51e3293245ec1856bc9aa8d5606b9dc45b9a3dbd9742cf625e3cad3c1",
+   "abi": {
+    "functions": {
+     "added": [
+      "DRYRUN_CREDIT_REJECTED()",
+      "DRYRUN_INSUFFICIENT_BALANCE()",
+      "DRYRUN_LOCK_REJECTED()",
+      "DRYRUN_OK()",
+      "DRYRUN_OPERATOR_NOT_CONFIGURED()",
+      "DRYRUN_OPERATOR_PAUSED()",
+      "DRYRUN_POSTOP_GAS_TOO_LOW()",
+      "DRYRUN_RATE_COMMITMENT_VIOLATED()",
+      "DRYRUN_RATE_LIMITED()",
+      "DRYRUN_SPONSORSHIP_PAUSED()",
+      "DRYRUN_STALE_PRICE()",
+      "DRYRUN_TOKEN_MISMATCH()",
+      "DRYRUN_USER_BLOCKED()",
+      "DRYRUN_USER_NOT_ELIGIBLE()",
+      "DRYRUN_VERSION_MISMATCH()",
+      "EXPECTED_SP_VERSION()",
+      "dryRunValidation(address,(address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),uint256)",
+      "version()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [
+      "MathOverflowedMulDiv()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [],
+     "new": []
+    },
+    "counts": {
+     "oldFunctions": 0,
+     "newFunctions": 18
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "AOAProtocolRegistry",
+   "rollout": "NEW whitelist registry (SP / spender / tier-source kinds) (runbook step 4)",
+   "versionOnChain": null,
+   "oldSource": "(none)",
+   "newSource": "AOAProtocolRegistry",
+   "oldArtifactMatchesChain": {
+    "checked": false,
+    "reason": "new deployment"
+   },
+   "newRuntimeKeccak": "0x14b95e6c2b6630b835f4253ac5d667980288de98461dcda9580e25df78fb5551",
+   "abi": {
+    "functions": {
+     "added": [
+      "KIND_SP()",
+      "KIND_SPENDER()",
+      "KIND_TIER_SOURCE()",
+      "TIMELOCK()",
+      "approved(uint8,bytes32)",
+      "bootstrapApprove(uint8,bytes32)",
+      "executeApproval(uint8,bytes32)",
+      "implCodehash(address)",
+      "isApprovedImpl(uint8,address)",
+      "isApprovedSP(address)",
+      "owner()",
+      "pendingAt(uint8,bytes32)",
+      "proposeApproval(uint8,bytes32)",
+      "renounceOwnership()",
+      "revokeApproval(uint8,bytes32)",
+      "seal()",
+      "sealed_()",
+      "spKey(address)",
+      "transferOwnership(address)",
+      "version()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [
+      "ApprovalExecuted(uint8,bytes32)",
+      "ApprovalProposed(uint8,bytes32,uint64)",
+      "ApprovalRevoked(uint8,bytes32)",
+      "OwnershipTransferred(address,address)",
+      "Sealed()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [
+      "AlreadySealed()",
+      "InvalidKey()",
+      "InvalidKind()",
+      "NotPending()",
+      "OwnableInvalidOwner(address)",
+      "OwnableUnauthorizedAccount(address)",
+      "TimelockActive(uint64)",
+      "TimelockTimestampOverflow(uint256)"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 0,
+     "newFunctions": 20
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "GlobalTierSource",
+   "rollout": "NEW default tier source -> Registry.getCreditLimit (runbook step 4)",
+   "versionOnChain": null,
+   "oldSource": "(none)",
+   "newSource": "GlobalTierSource",
+   "oldArtifactMatchesChain": {
+    "checked": false,
+    "reason": "new deployment"
+   },
+   "newRuntimeKeccak": "0x73c8f2f26dcf342874cc68b8e8b766d18269b302ae04334a166f8ae1b58e84f7",
+   "abi": {
+    "functions": {
+     "added": [
+      "REGISTRY()",
+      "tierOf(address,address)",
+      "version()"
+     ],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 0,
+     "newFunctions": 3
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "DVTValidator",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "DVTValidator-0.6.0",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 6326,
+    "chainSize": 6326
+   },
+   "newRuntimeKeccak": "0xa1a0963a5fa9757c12b84eef4de35b638a48db48253b35ff7bbe1e3ebfa99b41",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 18,
+     "newFunctions": 18
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "GTokenStaking",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "Staking-4.2.0",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 9061,
+    "chainSize": 9061
+   },
+   "newRuntimeKeccak": "0x605e439eec3f849398d59979ad1cb8b5e578780ca44e5bc7d8cad7b098987114",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 29,
+     "newFunctions": 29
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "GToken",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "GToken-2.2.0",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": false,
+    "artifactSize": 2583,
+    "chainSize": 6113,
+    "reason": "size differs"
+   },
+   "newRuntimeKeccak": "0x1cce2ee901f2d86c95e403e9ad43b0f01f518ade51c34a36c33a3a11b64a7fae",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 18,
+     "newFunctions": 18
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "MySBT",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "MySBT-3.2.0",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 12111,
+    "chainSize": 12111
+   },
+   "newRuntimeKeccak": "0xb8d154994531d835a55477b6df9e4b6da8cc91c46ec02c160906cc1a6c1a6df7",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 48,
+     "newFunctions": 48
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "ReputationSystem",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "Reputation-0.3.2",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 7044,
+    "chainSize": 7044
+   },
+   "newRuntimeKeccak": "0x48860f08e516ba386a1f3a6b7456bd268fdb2316ef42050bf74415720ee3af67",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 24,
+     "newFunctions": 24
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "PaymasterFactory",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "PaymasterFactory-1.0.2",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": false,
+    "artifactSize": 6158,
+    "chainSize": 6093,
+    "reason": "size differs"
+   },
+   "newRuntimeKeccak": "0x1a5f811399fb659edd354ff615a94be79f0c024551c641cf5eb8c8d750c41fd4",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 26,
+     "newFunctions": 26
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "Paymaster (V4)",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "PMV4-Deposit-4.5.1",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 10492,
+    "chainSize": 10492
+   },
+   "newRuntimeKeccak": "0x1a338d5e1327679556333bd26e493eae61f7d4bfb8caee41c3d9426eb358d623",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable",
+      "receive:payable"
+     ],
+     "new": [
+      "constructor:nonpayable",
+      "receive:payable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 54,
+     "newFunctions": 54
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "X402Facilitator",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "X402Facilitator-1.0.0",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 4332,
+    "chainSize": 4332
+   },
+   "newRuntimeKeccak": "0x47d5e239d1c2d91686911c672558a2203233a6ba697d68683c9acfc63c8b88d1",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 17,
+     "newFunctions": 17
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "LivenessRegistry",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "LivenessRegistry-1.0.0",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 1533,
+    "chainSize": 1533
+   },
+   "newRuntimeKeccak": "0x22536f866a4a7269495db93a4c6d79e9008b05507b207782a9d13b5c74c56612",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 13,
+     "newFunctions": 13
+    }
+   },
+   "note": null
+  },
+  {
+   "contract": "PolicyRegistry",
+   "rollout": "not redeployed by the 5.5.0 runbook",
+   "versionOnChain": "PolicyRegistry-1.0.0",
+   "oldSource": "main",
+   "newSource": "feat HEAD",
+   "oldArtifactMatchesChain": {
+    "checked": true,
+    "match": true,
+    "artifactSize": 6349,
+    "chainSize": 6349
+   },
+   "newRuntimeKeccak": "0xa7149a899b43ae967d4540523403c567454016cc8e5b871365b847892754da34",
+   "abi": {
+    "functions": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "errors": {
+     "added": [],
+     "removed": [],
+     "shapeChanged": []
+    },
+    "special": {
+     "old": [
+      "constructor:nonpayable"
+     ],
+     "new": [
+      "constructor:nonpayable"
+     ]
+    },
+    "counts": {
+     "oldFunctions": 21,
+     "newFunctions": 21
+    }
+   },
+   "note": null
+  }
+ ]
+}

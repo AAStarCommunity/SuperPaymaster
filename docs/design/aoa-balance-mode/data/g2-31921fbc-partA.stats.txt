@@ -1,0 +1,9 @@
+file: docs/design/aoa-balance-mode/data/g2-31921fbc-partA.jsonl
+formula tag(s): A_Cpostop170k_Cwrap5k
+admitted ops: 6069; settled BALANCE/CREDIT: 3271/1127; injected BALANCE/CREDIT: 785/886
+settled after mid-bundle ETH move / aPNTs move: 820/838; settled at postOpGasLimit == MIN: 1415
+internal consistency (charge / charge_eth / ppm / bufWei re-derived, no subsidy): OK (0 mismatches)
+overpay (charge_eth - G)/G   [mean = floor(sum ppm / n); P95 = nearest-rank a[ceil(0.95n)-1]]
+  ALL settled: n = 4398; mean 22.6% / P95 37.4% / max 45.6%  (ppm 225775 / 373858 / 455503; min 8.9%, median 22.3%)
+  postOpGasLimit <= MIN+50k (<= 250000): n = 3492; mean 23.7% / P95 38.3% / max 45.6%  (ppm 236841 / 383058 / 455503; min 10.9%, median 23.8%)
+  postOpGasLimit >= 1,000,000 (1.0M-1.5M band): n = 906; mean 18.3% / P95 28.8% / max 32.5%  (ppm 183123 / 287797 / 325254; min 8.9%, median 18.5%)

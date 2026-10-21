@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -77,7 +79,7 @@ contract SetAPNTsToken_TimelockTest is Test {
 
     function test_SetAPNTsToken_RevertsOnZeroAddress() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidAddress.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidAddress.selector);
         paymaster.setAPNTsToken(address(0));
     }
 
@@ -122,13 +124,13 @@ contract SetAPNTsToken_TimelockTest is Test {
         // Just before the timelock elapses.
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK() - 1);
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
 
     function test_ExecuteAPNTsTokenChange_RevertsWhenNothingPending() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
 
@@ -144,7 +146,7 @@ contract SetAPNTsToken_TimelockTest is Test {
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
 
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
 
@@ -156,11 +158,11 @@ contract SetAPNTsToken_TimelockTest is Test {
 
         // Expect the dedicated timelock event (distinguishable from legacy APNTsTokenUpdated).
         vm.expectEmit(true, true, false, true, address(paymaster));
-        emit SuperPaymaster.APNTsTokenChangeExecuted(address(initialToken), address(newToken), block.timestamp);
+        emit SuperPaymasterStorage.APNTsTokenChangeExecuted(address(initialToken), address(newToken), block.timestamp);
 
         // Also expect the backward-compatible event for existing listeners.
         vm.expectEmit(true, true, false, false, address(paymaster));
-        emit SuperPaymaster.APNTsTokenUpdated(address(initialToken), address(newToken));
+        emit SuperPaymasterStorage.APNTsTokenUpdated(address(initialToken), address(newToken));
 
         // Balances are zero in this test setup → execute should land. Only owner can execute.
         vm.prank(owner);
@@ -231,7 +233,7 @@ contract SetAPNTsToken_TimelockTest is Test {
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
 
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
 

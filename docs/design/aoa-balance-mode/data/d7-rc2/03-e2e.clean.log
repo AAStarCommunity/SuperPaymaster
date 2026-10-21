@@ -1,0 +1,2325 @@
+
+================================================================
+  SuperPaymaster - Full E2E Test Suite
+  2026-10-15 21:20:41
+================================================================
+
+Configuration loaded: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env
+Tx broadcast fallback: http://127.0.0.1:9
+
+
+================================================================
+  Phase 0: Preflight Checks
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [1] Check Contracts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+═══════════════════════════════════════════════════════════
+Contract Deployment Check (from config.sepolia.json)
+═══════════════════════════════════════════════════════════
+
+  Registry (UUPS Proxy): 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 ... OK (100 bytes)
+  SuperPaymaster (UUPS Proxy): 0x68B1D87F95878fE05B998F19b66F4baba5De1aed ... OK (100 bytes)
+  GToken: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707 ... OK (6113 bytes)
+  GTokenStaking: 0x0165878A594ca255338adfa4d48449f69242Eb8F ... OK (9061 bytes)
+  MySBT: 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853 ... OK (12111 bytes)
+  aPNTs (xPNTs): 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3 ... OK (45 bytes)
+  xPNTsFactory: 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9 ... OK (6802 bytes)
+  PaymasterFactory: 0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690 ... OK (6158 bytes)
+  PaymasterV4 Impl: 0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB ... OK (10492 bytes)
+  BLSAggregator: 0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E ... OK (24345 bytes)
+  DVTValidator: 0x67d269191c92Caf3cD7723F116c85e6E9bf55933 ... OK (6326 bytes)
+  ReputationSystem: 0xc5a5C42992dECbae36851359345FE25997F5C42d ... OK (7044 bytes)
+  EntryPoint v0.7: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 ... OK (12143 bytes)
+
+  All contracts deployed!
+
+═══════════════════════════════════════════════════════════
+Version String Verification
+═══════════════════════════════════════════════════════════
+
+  Registry: Registry-5.9.0 (MISMATCH, expected Registry-5.4.1)
+  SuperPaymaster: SuperPaymaster-5.5.0 (MISMATCH, expected SuperPaymaster-5.4.2)
+  GTokenStaking: Staking-4.2.0 (OK)
+  MySBT: MySBT-3.2.0 (OK)
+  GToken: GToken-2.2.0 (OK)
+  [1] Check Contracts: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [2] Check Balances
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌁ auth for agents [www.vestauth.com]
+═══════════════════════════════════════════════════════════
+Token Balance Check (from config.sepolia.json)
+═══════════════════════════════════════════════════════════
+
+
+  aPNTs (deployer xPNTs) (0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3)
+   Symbol: aPNTs, Total Supply: 23000.0
+     Deployer: 20000.0 aPNTs
+     AA Account A: 0.0 aPNTs
+     AA Account B: 0.0 aPNTs
+     AA Account C: 0.0 aPNTs
+
+  PNTs Token (0x2C477DFdB744E3BAf87bbdE078e21D382bc40700)
+   Symbol: dPNTs, Total Supply: 500.0
+     Deployer: 0.0 dPNTs
+     AA Account A: 0.0 dPNTs
+     AA Account B: 0.0 dPNTs
+     AA Account C: 0.0 dPNTs
+
+═══════════════════════════════════════════════════════════
+EntryPoint ETH Deposits
+═══════════════════════════════════════════════════════════
+
+  SuperPaymaster: 10.0 ETH
+  [2] Check Balances: PASSED
+
+================================================================
+  Phase 1: Foundation - Registry
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [3] A1: Registry Roles
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+============================================================
+  Test Group A1: Registry Role Lifecycle
+============================================================
+
+    Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    AA Account A: 0x03611cefB15C3321DdfAf46814fee1A687235e8A
+
+  [Step 1] Check GToken balance for staking
+  --------------------------------------------------
+    GToken balance: 1873.0
+    PASS: GToken balance sufficient: 1873.0
+
+  [Step 2] Approve GTokenStaking for GToken
+  --------------------------------------------------
+    Approve GTokenStaking: TX confirmed (gas: 29169) tx=0xef418562a9ff370815aaceb69e880add412c1df0c0214957a07d17ed6823143a https://sepolia.etherscan.io/tx/0xef418562a9ff370815aaceb69e880add412c1df0c0214957a07d17ed6823143a
+
+  [Step 3] Register ROLE_COMMUNITY for deployer
+  --------------------------------------------------
+    SKIP: Deployer already has ROLE_COMMUNITY
+
+  [Step 4] Verify community registration
+  --------------------------------------------------
+    PASS: deployer has ROLE_COMMUNITY
+    PASS: Deployer SBT balance: 1 >= 1
+
+  [Step 5] Register ROLE_ENDUSER for AA Account
+  --------------------------------------------------
+    safeMintForRole(ENDUSER): TX confirmed (gas: 631249) tx=0x07bc103934f89cf2296c3726fdb4ab8ecfaed096542edd34bd5f047781fea873 https://sepolia.etherscan.io/tx/0x07bc103934f89cf2296c3726fdb4ab8ecfaed096542edd34bd5f047781fea873
+    PASS: Registered ENDUSER for 0x03611cefB15C3321DdfAf46814fee1A687235e8A
+
+  [Step 6] Verify sbtHolders in SuperPaymaster
+  --------------------------------------------------
+    sbtHolders(0x03611cefB15C3321DdfAf46814fee1A687235e8A): true
+
+  [Step 7] Query getUserRoles and getRoleMembers
+  --------------------------------------------------
+    Deployer roles count: 3
+      Role: COMMUNITY
+      Role: PAYMASTER_SUPER
+      Role: PAYMASTER_AOA
+    PASS: Deployer has at least one role
+    COMMUNITY members count: 2
+    PASS: At least 1 COMMUNITY member: 2 >= 1
+
+============================================================
+  A1: Registry Roles Summary
+  Total: 7 | Passed: 6 | Failed: 0 | Skipped: 1
+============================================================
+
+  [3] A1: Registry Roles: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [4] A2: Registry Queries
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ enable debugging { debug: true }
+
+============================================================
+  Test Group A2: Registry View Queries
+============================================================
+
+
+  [Step 1] Verify ROLE constants match keccak256
+  --------------------------------------------------
+    PASS: ROLE_COMMUNITY keccak256 == 0xe94d78b6d8fb99b2c21131eb4552924a60f564d8515a3cc90ef300fc9735c074
+    PASS: ROLE_ENDUSER keccak256 == 0x0c34ecc75d3bf122e0609d2576e167f53fb42429262ce8c9b33cab91ff670e3a
+    PASS: ROLE_PAYMASTER_SUPER keccak256 == 0x2024516755f401845808190bb830b0e4523d0df0845503cab52130a794699a0f
+    PASS: ROLE_PAYMASTER_AOA keccak256 == 0xf86d13979a91272f2c54c4147e588ecbeaad32dd1e0a5332a77356847049a70e
+    PASS: ROLE_DVT keccak256 == 0x3b5016dc6721b132ddcb7027030b137a739df81e419695dae0899a866c1c514d
+    PASS: ROLE_ANODE keccak256 == 0x3aa2e9509f29532b71f822e18bcde843a8070a508d564188ec8a6adf59eff28a
+    PASS: ROLE_KMS keccak256 == 0x6fb2b25080d21c908f32ff8ff99eb1d552c210854f7de48a40406764c09c68f8
+
+  [Step 2] getRoleConfig for all 7 roles
+  --------------------------------------------------
+    COMMUNITY isActive: true
+    COMMUNITY minStake: 0.0
+    ENDUSER isActive: true
+    ENDUSER minStake: 0.0
+    PAYMASTER_SUPER isActive: true
+    PAYMASTER_SUPER minStake: 50.0
+    PAYMASTER_AOA isActive: true
+    PAYMASTER_AOA minStake: 30.0
+    DVT isActive: true
+    DVT minStake: 30.0
+    ANODE isActive: true
+    ANODE minStake: 20.0
+    KMS isActive: true
+    KMS minStake: 100.0
+
+  [Step 3] getRoleUserCount for each role
+  --------------------------------------------------
+    COMMUNITY members: 2
+    PASS: COMMUNITY count >= 0: 2 >= 0
+    ENDUSER members: 1
+    PASS: ENDUSER count >= 0: 1 >= 0
+    PAYMASTER_SUPER members: 2
+    PASS: PAYMASTER_SUPER count >= 0: 2 >= 0
+    PAYMASTER_AOA members: 2
+    PASS: PAYMASTER_AOA count >= 0: 2 >= 0
+    DVT members: 0
+    PASS: DVT count >= 0: 0 >= 0
+    ANODE members: 0
+    PASS: ANODE count >= 0: 0 >= 0
+    KMS members: 0
+    PASS: KMS count >= 0: 0 >= 0
+
+  [Step 4] getUserRoles for deployer
+  --------------------------------------------------
+    Deployer role count: 3
+      Role: COMMUNITY
+      Role: PAYMASTER_SUPER
+      Role: PAYMASTER_AOA
+    PASS: Deployer has at least one role
+
+  [Step 5] creditTierConfig for levels 1-6
+  --------------------------------------------------
+    Tier 1 limit: 100.0
+    Tier 2 limit: 100.0
+    Tier 3 limit: 300.0
+    Tier 4 limit: 600.0
+    Tier 5 limit: 1000.0
+    Tier 6 limit: 2000.0
+
+  [Step 6] Verify wiring addresses match config.json
+  --------------------------------------------------
+    PASS: GTOKEN_STAKING == 0x0165878a594ca255338adfa4d48449f69242eb8f
+    PASS: MYSBT == 0xa513e6e4b8f2a923d98304ec87f64353c4d5c853
+    PASS: SUPER_PAYMASTER == 0x68b1d87f95878fe05b998f19b66f4baba5de1aed
+
+============================================================
+  A2: Registry Queries Summary
+  Total: 18 | Passed: 18 | Failed: 0 | Skipped: 0
+============================================================
+
+  [4] A2: Registry Queries: PASSED
+
+================================================================
+  Phase 2: Operator Management
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [5] B1: Operator Config
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+============================================================
+  Test Group B1: Operator Configuration
+============================================================
+
+
+  [Step 1] Read Anni operator config
+  --------------------------------------------------
+    isConfigured: true
+    isPaused: false
+    aPNTsBalance: 1000.0
+    reputation: 0
+    xPNTsToken: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    treasury: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    PASS: Anni operator is configured
+
+  [Step 2] Read deployer operator config
+  --------------------------------------------------
+    isConfigured: true
+    aPNTsBalance: 1000.0
+    PASS: Deployer operator already configured
+
+  [Step 3] Ensure deployer has ROLE_PAYMASTER_SUPER
+  --------------------------------------------------
+    PASS: Deployer already has ROLE_PAYMASTER_SUPER
+
+  [Step 4] configureOperator
+  --------------------------------------------------
+    SKIP: Deployer operator already configured
+
+  [Step 5] setOperatorLimits
+  --------------------------------------------------
+    setOperatorLimits(60): TX confirmed (gas: 49530) tx=0x1910d38a82e3f960619c4ec25cbef9b611ce5ab00e076707d82e02b39a6d0b4b https://sepolia.etherscan.io/tx/0x1910d38a82e3f960619c4ec25cbef9b611ce5ab00e076707d82e02b39a6d0b4b
+    PASS: minTxInterval == 60
+
+  [Step 6] setOperatorPaused (pause/unpause cycle)
+  --------------------------------------------------
+    Pause operator: TX confirmed (gas: 40730) tx=0x1a0480a7b029aabde51dee795b73c8f432896e4d87a793ac6634e9c0251493bc https://sepolia.etherscan.io/tx/0x1a0480a7b029aabde51dee795b73c8f432896e4d87a793ac6634e9c0251493bc
+    PASS: Operator is paused
+    Unpause operator: TX confirmed (gas: 40719) tx=0x155fb78689d07f162583d705fe69bb78499d556e4961896bcdc8100a714890ab https://sepolia.etherscan.io/tx/0x155fb78689d07f162583d705fe69bb78499d556e4961896bcdc8100a714890ab
+    PASS: Operator is unpaused
+
+============================================================
+  B1: Operator Config Summary
+  Total: 7 | Passed: 6 | Failed: 0 | Skipped: 1
+============================================================
+
+  [5] B1: Operator Config: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [6] B2: Operator Deposit/Withdraw
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+
+============================================================
+  Test Group B2: Operator Deposit & Withdraw
+============================================================
+
+
+  [Step 1] Read pre-balances
+  --------------------------------------------------
+    aPNTs ERC20 balance: 20000.0
+    Operator aPNTsBalance: 1000.0
+
+  [Step 2] deposit(10 ether)
+  --------------------------------------------------
+    deposit(10): TX confirmed (gas: 82492) tx=0x15f99ec62b7bc3d96e0a61ddb762793945d13d0a2a05cf79e384f43bcc311f51 https://sepolia.etherscan.io/tx/0x15f99ec62b7bc3d96e0a61ddb762793945d13d0a2a05cf79e384f43bcc311f51
+    PASS: aPNTsBalance after deposit == 1010000000000000000000
+
+  [Step 3] depositFor(deployer, 5 ether)
+  --------------------------------------------------
+    depositFor(5): TX confirmed (gas: 82209) tx=0x41d836afd15907ba36a20b7f680bc70a2b475e036ab40a67328bc0efc16a1c70 https://sepolia.etherscan.io/tx/0x41d836afd15907ba36a20b7f680bc70a2b475e036ab40a67328bc0efc16a1c70
+    PASS: aPNTsBalance after depositFor == 1015000000000000000000
+
+  [Step 4] withdraw(3 ether)
+  --------------------------------------------------
+    withdraw(3): TX confirmed (gas: 64975) tx=0x45db330b0ed4831958f3a98a905e0baaf9842bffc67fcc353615f41d679e1649 https://sepolia.etherscan.io/tx/0x45db330b0ed4831958f3a98a905e0baaf9842bffc67fcc353615f41d679e1649
+    PASS: aPNTsBalance after withdraw == 1012000000000000000000
+    PASS: APNTS_TOKEN (0xb0279Db6…) balance after withdraw == 19988000000000000000000
+
+  [Step 5] withdraw excess -> expect revert
+  --------------------------------------------------
+    PASS: Withdraw excess amount: reverted (execution reverted (unknown custom error))
+
+  [Step 6] Cleanup: withdraw remaining deposited amount
+  --------------------------------------------------
+    withdraw(12.0): TX confirmed (gas: 64975) tx=0x345acfc541ca08a60f8fb549c0d16bd074aedb17e89bd5c9827f3a0a9788dc88 https://sepolia.etherscan.io/tx/0x345acfc541ca08a60f8fb549c0d16bd074aedb17e89bd5c9827f3a0a9788dc88
+    PASS: Restored to original balance == 1000000000000000000000
+
+============================================================
+  B2: Operator Deposit/Withdraw Summary
+  Total: 6 | Passed: 6 | Failed: 0 | Skipped: 0
+============================================================
+
+  [6] B2: Operator Deposit/Withdraw: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [7] B3: configureOperator v2 (2-arg, PR#200)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ suppress logs { quiet: true }
+
+============================================================
+  Test Group B3: configureOperator v2 (2-arg, PR #200)
+============================================================
+
+
+  [Step 1] Verify ROLE_PAYMASTER_SUPER
+  --------------------------------------------------
+    PASS: Deployer has ROLE_PAYMASTER_SUPER
+
+  [Step 2] Read current operator state before configure
+  --------------------------------------------------
+    isConfigured: true
+    xPNTsToken: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    treasury: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    aPNTsBalance: 1000.0
+
+  [Step 3] Get xPNTsToken for deployer from factory
+  --------------------------------------------------
+    xPNTsToken from factory: 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3
+
+  [Step 4] Call configureOperator(xPNTs, treasury) — 2-arg signature
+  --------------------------------------------------
+    FAIL: configureOperator(xPNTs, treasury): TX failed (execution reverted (unknown custom error))
+    FAIL: xPNTsToken must be stored after configure: expected 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3, got 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    PASS: treasury must be updated == 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    PASS: isConfigured must be true
+    PASS: configureOperator 2-arg signature works (no exchangeRate param)
+
+  [Step 5] Verify exchangeRate is read live from xPNTsToken (not in OperatorConfig)
+  --------------------------------------------------
+    Live rate from xPNTsToken: 1.0
+    PASS: operators() must return 9 fields (no exchangeRate) == 9
+    PASS: Live rate from token must be non-zero
+    PASS: SuperPaymaster uses live rate from xPNTsToken — no stale config rate
+
+  [Step 6] Re-configure with original treasury — verify idempotent
+  --------------------------------------------------
+    FAIL: configureOperator (restore treasury): TX failed (execution reverted (unknown custom error))
+    PASS: Treasury must be restored == 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    PASS: Re-configure is idempotent — treasury updated without breaking state
+
+============================================================
+  B3: configureOperator v2 Summary
+  Total: 12 | Passed: 9 | Failed: 3 | Skipped: 0
+============================================================
+
+  [7] B3: configureOperator v2 (2-arg, PR#200): FAILED (exit 1)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [8] B4: SP Governance Admin
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+============================================================
+  Test Group B4: SP Governance / Admin
+============================================================
+
+
+  [Step 1] setTreasury — set deployer + verify + restore
+  --------------------------------------------------
+    Current treasury: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    setTreasury(deployer): TX confirmed (gas: 38109) tx=0x7b4cceab242a129497ba56d6cb6a1dd2cc021257b77f90bf02f6ede448c50fd9 https://sepolia.etherscan.io/tx/0x7b4cceab242a129497ba56d6cb6a1dd2cc021257b77f90bf02f6ede448c50fd9
+    PASS: treasury == deployer == 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+    Treasury was already deployer — no restore needed
+
+  [Step 2] updateSBTStatus — read state (write is onlyRegistry)
+  --------------------------------------------------
+    sbtHolders(testUser): true
+    SKIP: updateSBTStatus write requires msg.sender == REGISTRY — cannot call directly from E2E. Covered by Registry unit tests.
+
+  [Step 3] updateBlockedStatus — read state (write is onlyRegistry)
+  --------------------------------------------------
+    userOpState.isBlocked: false
+    SKIP: updateBlockedStatus write requires msg.sender == REGISTRY — cannot call directly from E2E. Covered by Registry unit tests.
+
+  [Step 4] setAgentRegistries — set a valid contract + verify + restore
+  --------------------------------------------------
+    agentIdentityRegistry before: 0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8
+    agentReputationRegistry before: 0x851356ae760d987E095750cCeb3bC6014560891C
+    setAgentRegistries(contract): TX confirmed (gas: 45464) tx=0xebd46c6b5f40be0e45c930a36e186a93d7655626f58fc8b753f7999f21e86ff3 https://sepolia.etherscan.io/tx/0xebd46c6b5f40be0e45c930a36e186a93d7655626f58fc8b753f7999f21e86ff3
+    PASS: agentIdentityRegistry == test contract == 0x68b1d87f95878fe05b998f19b66f4baba5de1aed
+    setAgentRegistries(restore): TX confirmed (gas: 50464) tx=0x91e3dee7e38cb67f76c2bee1762fdb0265a6c9046b23183f74516c48f6eb15a3 https://sepolia.etherscan.io/tx/0x91e3dee7e38cb67f76c2bee1762fdb0265a6c9046b23183f74516c48f6eb15a3
+    PASS: agentIdentityRegistry restored == 0x1613beb3b2c4f22ee086b2b38c1476a3ce7f78e8
+
+  [Step 5] setFacilitatorFeeBPS — set 100 (1%) + verify + restore
+  --------------------------------------------------
+    facilitatorFeeBPS before: 0
+    setFacilitatorFeeBPS(100): TX confirmed (gas: 46971) tx=0xa2b921c7600bdc1ac3e1f0d10ffde2a592b85435585d50842bae2fbabe4dbb38 https://sepolia.etherscan.io/tx/0xa2b921c7600bdc1ac3e1f0d10ffde2a592b85435585d50842bae2fbabe4dbb38
+    PASS: facilitatorFeeBPS == 100 == 100
+    setFacilitatorFeeBPS(restore): TX confirmed (gas: 25059) tx=0xf095ea78b80ba036ca21e331caf13c63a01aebbb2ff0c157756df919d1702245 https://sepolia.etherscan.io/tx/0xf095ea78b80ba036ca21e331caf13c63a01aebbb2ff0c157756df919d1702245
+    PASS: facilitatorFeeBPS restored == 0
+
+  [Step 6] setOperatorFacilitatorFee — set 50 + verify + restore
+  --------------------------------------------------
+    operatorFacilitatorFees(deployer) before: 0
+    setOpFacFee(50): TX confirmed (gas: 46422) tx=0xd6dc4f3c4f9474ca1f383319097f28b3a94daac4b0777d9e64ead87d7fb17c83 https://sepolia.etherscan.io/tx/0xd6dc4f3c4f9474ca1f383319097f28b3a94daac4b0777d9e64ead87d7fb17c83
+    PASS: operatorFacilitatorFees(deployer) == 50 == 50
+    setOpFacFee(restore): TX confirmed (gas: 24510) tx=0x56aa07dee6822ab1f1da083b591e00bfbb9e283e0f36dd36948fa92f3a5dea32 https://sepolia.etherscan.io/tx/0x56aa07dee6822ab1f1da083b591e00bfbb9e283e0f36dd36948fa92f3a5dea32
+    PASS: operatorFacilitatorFees restored == 0
+
+  [Step 7] dryRunValidation (via SuperPaymasterLens) — static call with minimal UserOp
+  --------------------------------------------------
+    SKIP: dryRunValidation returned ok=false (reasonCode=0x494e53554646494349454e545f42414c414e4345000000000000000000000000) — minimal UserOp not expected to validate; not asserting
+
+  [Step 8] queueBLSAggregator — queue deployer as test address + verify
+  --------------------------------------------------
+    pendingBLSAgg before: 0x0000000000000000000000000000000000000000
+    pendingBLSAggEta before: 0
+    queue BLS agg (deployer as test address): TX confirmed (gas: 57489) tx=0x54b82a1a9b0a271131500cf59a244b2243bd2659e975771f5b238b4ffc7ef053 https://sepolia.etherscan.io/tx/0x54b82a1a9b0a271131500cf59a244b2243bd2659e975771f5b238b4ffc7ef053
+    PASS: pendingBLSAgg == deployer == 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+    PASS: pendingBLSAggEta > 0 (timelock set)
+    Note: applyBLSAggregator skipped — requires 24h timelock
+
+  [Step 9] withdrawProtocolRevenue — check balance + withdraw if above buffer
+  --------------------------------------------------
+    protocolRevenue: 0.0
+    totalTrackedBalance: 2000.0
+    available (above buffer): 0.0
+    SKIP: protocolRevenue at or below PROTOCOL_REVENUE_BUFFER (0.1 ether) — withdrawal skipped
+
+  [Step 10] withdrawFacilitatorEarnings — check earnings + withdraw if available
+  --------------------------------------------------
+    facilitatorEarnings(deployer, aPNTs): 0.0
+    SKIP: No facilitator earnings to withdraw (facilitatorEarnings == 0)
+
+============================================================
+  B4: SP Governance Summary
+  Total: 14 | Passed: 9 | Failed: 0 | Skipped: 5
+============================================================
+
+  [8] B4: SP Governance Admin: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [9] B5: Dry Run & Pending Debt
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ enable debugging { debug: true }
+
+============================================================
+  Test Group B5: dryRunValidation and Debt Accounting (5.5.0)
+============================================================
+
+
+  [Step 1] dryRunValidation (via SuperPaymasterLens) — construct minimal UserOp and call
+  --------------------------------------------------
+    AA account nonce: 0
+    sender: 0x03611cefB15C3321DdfAf46814fee1A687235e8A
+    operator: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    token: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    dryRunValidation ok: false
+    reasonCode (bytes32): 0x494e53554646494349454e545f42414c414e4345000000000000000000000000
+    dryRunValidation returned ok=false — reasonCode: 0x494e53554646494349454e545f42414c414e4345000000000000000000000000
+    PASS: dryRunValidation call succeeded (returned false with reason code)
+
+  [Step 2] token.debts(deployer) — 5.5.0's unified debt accounting
+  --------------------------------------------------
+    token.debts(deployer): 0.0
+    PASS: debts() query succeeded — returned 0 (no outstanding debt)
+
+  [Step 3] token.repayDebt() — user self-service debt repayment (only path left)
+  --------------------------------------------------
+    SKIP: No outstanding debt — repayDebt not applicable
+
+  [Step 4] Owner debt forgiveness — retired in 5.5.0, nothing to exercise
+  --------------------------------------------------
+    3.x clearPendingDebt (owner-only emergency forgiveness) has no 5.5.0 replacement.
+    Debt only shrinks via repayDebt (Step 3) or automatic offset on mint (xPNTsV2Base A-1).
+    SKIP: No admin recovery function to test — intentional 5.5.0 design change, not a gap
+
+============================================================
+  B5: dryRunValidation and Debt Accounting Summary
+  Total: 4 | Passed: 2 | Failed: 0 | Skipped: 2
+============================================================
+
+  [9] B5: Dry Run & Pending Debt: PASSED
+
+================================================================
+  Phase 3: Negative / Boundary Cases
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [10] C1: SuperPaymaster Negative
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+============================================================
+  Test Group C1: SuperPaymaster Negative Cases
+============================================================
+
+
+  [Step 1] UserOp from sender with no SBT -> expect revert
+  --------------------------------------------------
+    PASS: No SBT sender should revert: reverted (require(false))
+
+  [Step 2] Paused operator -> UserOp should fail
+  --------------------------------------------------
+    Pause deployer operator: TX confirmed (gas: 40730) tx=0xf7d0ffc1c27154eb6e5032d49b05649316f821c9f51645fda9ae561d898fc325 https://sepolia.etherscan.io/tx/0xf7d0ffc1c27154eb6e5032d49b05649316f821c9f51645fda9ae561d898fc325
+    PASS: Paused operator should revert: reverted (execution reverted (unknown custom error))
+    Unpause deployer operator: TX confirmed (gas: 40719) tx=0x1608f416bb7c79377166a083819721aa08973466bcaba203773c0c1c74e7687b https://sepolia.etherscan.io/tx/0x1608f416bb7c79377166a083819721aa08973466bcaba203773c0c1c74e7687b
+
+  [Step 3] Unconfigured operator -> expect revert
+  --------------------------------------------------
+    PASS: Unconfigured operator should revert: reverted (execution reverted (unknown custom error))
+
+  [Step 4] Query userOpState
+  --------------------------------------------------
+    lastTimestamp: 0
+    isBlocked: false
+    PASS: userOpState returned valid data
+
+============================================================
+  C1: SuperPaymaster Negative Cases Summary
+  Total: 4 | Passed: 4 | Failed: 0 | Skipped: 0
+============================================================
+
+  [10] C1: SuperPaymaster Negative: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [11] C2: PaymasterV4 Negative
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+============================================================
+  Test Group C2: PaymasterV4 Negative Cases
+============================================================
+
+
+  [Step 1] Find operator's PaymasterV4
+  --------------------------------------------------
+    PaymasterV4 address: 0xa37aE2b259D35aF4aBdde122eC90B204323ED304
+    PASS: Found PaymasterV4: 0xa37aE2b259D35aF4aBdde122eC90B204323ED304
+
+  [Step 2] UserOp with zero-balance user -> expect revert
+  --------------------------------------------------
+    PASS: Zero-balance user should revert: reverted (require(false))
+
+  [Step 3] Query supported tokens
+  --------------------------------------------------
+    Supported tokens count: 1
+      Token: 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3
+    PASS: getSupportedTokens returned
+
+============================================================
+  C2: PaymasterV4 Negative Cases Summary
+  Total: 3 | Passed: 3 | Failed: 0 | Skipped: 0
+============================================================
+
+  [11] C2: PaymasterV4 Negative: PASSED
+
+================================================================
+  Phase 4: Reputation & Credit
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [12] D1: Reputation Rules
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+
+============================================================
+  Test Group D1: Reputation Rules & Scoring
+============================================================
+
+
+  [Step 1] Read defaultRule
+  --------------------------------------------------
+    baseScore: 10
+    activityBonus: 1
+    maxBonus: 100
+    description: Default
+    PASS: defaultRule has valid baseScore
+
+  [Step 2] setRule("E2E_ACTIVITY")
+  --------------------------------------------------
+    setRule(E2E_ACTIVITY): TX confirmed (gas: 170343) tx=0xd93781163f4b0847e94cbf54b718a0f908326620f0d0b47b359a16a0d32eb012 https://sepolia.etherscan.io/tx/0xd93781163f4b0847e94cbf54b718a0f908326620f0d0b47b359a16a0d32eb012
+    PASS: E2E_ACTIVITY baseScore == 20
+    PASS: E2E_ACTIVITY activityBonus == 5
+    PASS: E2E_ACTIVITY maxBonus == 200
+
+  [Step 3] getActiveRules
+  --------------------------------------------------
+    Active rules count: 1
+    PASS: Active rules include E2E_ACTIVITY
+
+  [Step 4] computeScore
+  --------------------------------------------------
+    Computed score: 70
+    PASS: Score is non-negative: 70 >= 0
+
+  [Step 5] setEntropyFactor and recompute
+  --------------------------------------------------
+    setEntropyFactor(1.5): TX confirmed (gas: 47717) tx=0xbe568d7fffb6acceb24acc3bc82f0e94f94ae37f9d7b6a404312668cd130e711 https://sepolia.etherscan.io/tx/0xbe568d7fffb6acceb24acc3bc82f0e94f94ae37f9d7b6a404312668cd130e711
+    PASS: entropyFactor stored == 1500000000000000000
+    Score with entropy=1.5: 105
+    Restore entropyFactor(1): TX confirmed (gas: 30617) tx=0x9de6afa585264d785c82d2c25148858a7db466e8d790c3755d4381323e588d69 https://sepolia.etherscan.io/tx/0x9de6afa585264d785c82d2c25148858a7db466e8d790c3755d4381323e588d69
+    PASS: entropyFactor restored to 1e18
+
+  [Step 6] setCommunityReputation
+  --------------------------------------------------
+    setCommunityReputation(42): TX confirmed (gas: 48442) tx=0xb5d3e6a75f1b4ae267c62f0fd28c3aaee74a2b2957c9d8ca5e5ab1493531e419 https://sepolia.etherscan.io/tx/0xb5d3e6a75f1b4ae267c62f0fd28c3aaee74a2b2957c9d8ca5e5ab1493531e419
+    PASS: communityReputation set to 42 == 42
+
+  [Step 7] Cleanup: remove test rule (set to zero)
+  --------------------------------------------------
+    Remove E2E_ACTIVITY rule: TX confirmed (gas: 45497) tx=0x2a634a2242026e7b2e489a5e40361950ad7c0c706d43fb90f6de36d8831ce8ce https://sepolia.etherscan.io/tx/0x2a634a2242026e7b2e489a5e40361950ad7c0c706d43fb90f6de36d8831ce8ce
+    PASS: Test rule removed
+
+============================================================
+  D1: Reputation Rules Summary
+  Total: 10 | Passed: 10 | Failed: 0 | Skipped: 0
+============================================================
+
+  [12] D1: Reputation Rules: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [13] D2: Credit Tiers
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+
+============================================================
+  Test Group D2: Credit Tier Configuration
+============================================================
+
+
+  [Step 1] creditTierConfig for levels 1-6
+  --------------------------------------------------
+    Tier 1: 100.0 aPNTs
+    Tier 2: 100.0 aPNTs
+    Tier 3: 300.0 aPNTs
+    Tier 4: 600.0 aPNTs
+    Tier 5: 1000.0 aPNTs
+    Tier 6: 2000.0 aPNTs
+    PASS: creditTierConfig read completed
+
+  [Step 2] setCreditTier(7, 5000 ether)
+  --------------------------------------------------
+    setCreditTier(7, 5000): TX confirmed (gas: 56744) tx=0xdfb729bdad432a734e3fa274219ef58f319c37de9248e1ce441d37c138006653 https://sepolia.etherscan.io/tx/0xdfb729bdad432a734e3fa274219ef58f319c37de9248e1ce441d37c138006653
+    PASS: Tier 7 limit == 5000000000000000000000
+
+  [Step 3] Read levelThresholds
+  --------------------------------------------------
+    Threshold[0]: 13
+    Threshold[1]: 34
+    Threshold[2]: 89
+    Threshold[3]: 233
+    Threshold[4]: 610
+    PASS: levelThresholds read completed
+
+  [Step 4] getCreditLimit for deployer
+  --------------------------------------------------
+    Deployer credit limit: 100.0
+    PASS: Credit limit >= 0: 100000000000000000000 >= 0
+
+  [Step 5] getCreditLimit for unregistered address
+  --------------------------------------------------
+    Random addr credit limit: 100.0
+    creditTierConfig[1] (expected): 100.0
+    PASS: Unregistered user credit limit matches tier-1 config == 100000000000000000000
+
+  [Step 6] Cleanup: setCreditTier(7, 0)
+  --------------------------------------------------
+    FAIL: setCreditTier(7, 0): TX failed (execution reverted (unknown custom error))
+    Cleanup skipped (nonce conflict) — tier 7 may remain set until next run
+
+============================================================
+  D2: Credit Tiers Summary
+  Total: 6 | Passed: 5 | Failed: 1 | Skipped: 0
+============================================================
+
+  [13] D2: Credit Tiers: FAILED (exit 1)
+
+================================================================
+  Phase 5: Pricing & Fees
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [14] E1: Pricing & Oracle
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+============================================================
+  Test Group E1: Pricing & Oracle
+============================================================
+
+
+  [Step 1] Read cachedPrice
+  --------------------------------------------------
+    Price (raw): 200000000000
+    Updated at: 2026-10-15T14:20:30.000Z
+    Round ID: 1
+    Decimals: 8
+    ETH/USD: $2000.00
+    PASS: Cached price > 0
+
+  [Step 2] updatePrice
+  --------------------------------------------------
+    updatePrice(): TX confirmed (gas: 51833) tx=0xf67931586c8dc62ae6d152485219acee0d79063ff951abb1ab1a39e0d8327c4c https://sepolia.etherscan.io/tx/0xf67931586c8dc62ae6d152485219acee0d79063ff951abb1ab1a39e0d8327c4c
+    New updatedAt: 2026-10-15T14:20:52.000Z
+    PASS: Price cache updated
+
+  [Step 3] Read aPNTsPriceUSD
+  --------------------------------------------------
+    aPNTsPriceUSD: 0.02
+    PASS: aPNTsPriceUSD >= 0: 20000000000000000 >= 0
+
+  [Step 4] setAPNTSPrice (set -> verify -> restore)
+  --------------------------------------------------
+    setAPNTSPrice(0.03): TX confirmed (gas: 40557) tx=0xa72c3f474a03b9f80edd152b4518887e00ae96604e67e1926bc3541747856062 https://sepolia.etherscan.io/tx/0xa72c3f474a03b9f80edd152b4518887e00ae96604e67e1926bc3541747856062
+    PASS: aPNTsPriceUSD set to 0.03 == 21000000000000000
+    Restore aPNTsPriceUSD(0.02): TX confirmed (gas: 40545) tx=0x83309c2e040bc17c4b3c858b452e20273bdaaf0ee24f01e22d2f3bb0eebddea4 https://sepolia.etherscan.io/tx/0x83309c2e040bc17c4b3c858b452e20273bdaaf0ee24f01e22d2f3bb0eebddea4
+    PASS: aPNTsPriceUSD restored == 20000000000000000
+
+  [Step 5] Chainlink priceFeed.latestRoundData()
+  --------------------------------------------------
+    FAIL: priceFeed: execution reverted (no data present; likely require(false) occurred (action="call", data="0x", reaso
+
+  [Step 6] PaymasterV4 updatePrice
+  --------------------------------------------------
+    PaymasterV4.updatePrice(): TX confirmed (gas: 38692) tx=0x90c430c8e001f4674aaf6c9a27925694ba37ce9a99fbd44dd59988b912d10640 https://sepolia.etherscan.io/tx/0x90c430c8e001f4674aaf6c9a27925694ba37ce9a99fbd44dd59988b912d10640
+    V4 cached price: 200000000000
+    V4 cached updatedAt: 2026-10-15T14:20:52.000Z
+    PASS: PaymasterV4 price updated
+
+============================================================
+  E1: Pricing & Oracle Summary
+  Total: 7 | Passed: 6 | Failed: 1 | Skipped: 0
+============================================================
+
+  [14] E1: Pricing & Oracle: FAILED (exit 1)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [15] E2: Protocol Fees
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+
+============================================================
+  Test Group E2: Protocol Fee Configuration
+============================================================
+
+
+  [Step 1] Read protocolFeeBPS
+  --------------------------------------------------
+    protocolFeeBPS: 1000
+    Protocol fee %: 10%
+    PASS: Fee is non-negative
+
+  [Step 2] setProtocolFee (500 -> verify -> restore)
+  --------------------------------------------------
+    setProtocolFee(500): TX confirmed (gas: 39399) tx=0x4a833653aaa67d0886c57e6744af4f9a2e92381ffc13d48a9b6aefb2397786e4 https://sepolia.etherscan.io/tx/0x4a833653aaa67d0886c57e6744af4f9a2e92381ffc13d48a9b6aefb2397786e4
+    PASS: protocolFeeBPS set to 500 == 500
+    Restore protocolFeeBPS(1000): TX confirmed (gas: 39399) tx=0x79d2f8add266e3fbb20ee210c1483361bd5900ae3b2663b4624c79b66f297a0e https://sepolia.etherscan.io/tx/0x79d2f8add266e3fbb20ee210c1483361bd5900ae3b2663b4624c79b66f297a0e
+    PASS: protocolFeeBPS restored == 1000
+
+  [Step 3] setProtocolFee(2001) -> expect revert
+  --------------------------------------------------
+    MAX_PROTOCOL_FEE (hardcoded): 2000
+    PASS: setProtocolFee exceeding max: reverted (execution reverted (unknown custom error))
+
+  [Step 4] Read protocolRevenue and totalTrackedBalance
+  --------------------------------------------------
+    protocolRevenue: 0.0
+    PASS: protocolRevenue >= 0: 0 >= 0
+    totalTrackedBalance: 2000.0
+    PASS: totalTrackedBalance >= 0: 2000000000000000000000 >= 0
+
+============================================================
+  E2: Protocol Fees Summary
+  Total: 6 | Passed: 6 | Failed: 0 | Skipped: 0
+============================================================
+
+  [15] E2: Protocol Fees: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [16] E3: aPNTs Exchange Rate Accounting (PR#200)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+
+============================================================
+  Test Group E3: aPNTs Exchange Rate Accounting (PR #200)
+============================================================
+
+
+  [Step 1] Verify operators() 9-tuple (no exchangeRate in v5.3.3)
+  --------------------------------------------------
+    Tuple field count: 9
+    aPNTsBalance: 1000.0
+    isConfigured: true
+    isPaused: false
+    xPNTsToken: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    reputation: 0
+    PASS: operators() must return 9 fields (exchangeRate removed) == 9
+
+  [Step 2] Read live exchangeRate from xPNTsToken
+  --------------------------------------------------
+    xPNTsToken: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    exchangeRate (live): 1.0
+    maxSingleTxLimit (aPNTs): 5000.0
+    PASS: exchangeRate must be non-zero: 1000000000000000000 > 0
+    PASS: maxSingleTxLimit must be at least 1000 aPNTs: 5000000000000000000000 >= 1000000000000000000000
+    PASS: Live exchange rate verified from xPNTsToken
+
+  [Step 3] token.effectiveCreditCap returns aPNTs denomination
+  --------------------------------------------------
+    effectiveCreditCap (aPNTs): 0.0
+    PASS: effectiveCreditCap must return non-negative: 0 >= 0
+    PASS: effectiveCreditCap returns aPNTs value
+
+  [Step 4] xPNTsToken.debts() returns aPNTs (not xPNTs)
+  --------------------------------------------------
+    Deployer debt (aPNTs): 0.0
+    PASS: Debt value must be in reasonable aPNTs range
+    PASS: debts() returns aPNTs denomination
+
+  [Step 5] Read Anni's operator state (9-tuple)
+  --------------------------------------------------
+    aPNTsBalance: 1000.0
+    isConfigured: true
+    xPNTsToken: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    treasury: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    PASS: Anni must be configured as operator
+    PASS: Anni operator state read successfully with new 9-tuple ABI
+
+============================================================
+  E3: aPNTs Exchange Rate Accounting Summary
+  Total: 10 | Passed: 10 | Failed: 0 | Skipped: 0
+============================================================
+
+  [16] E3: aPNTs Exchange Rate Accounting (PR#200): PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [17] E4: repayDebt & Exchange Rate Settlement
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+============================================================
+  Test Group E4: repayDebt & Exchange Rate Accounting
+============================================================
+
+
+  [Step 1] Read xPNTs exchange rate and debt accounting state
+  --------------------------------------------------
+    xPNTs token address: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    exchangeRate (live): 1.0 (xPNTs per aPNTs, 18-dec fixed point)
+    maxSingleTxLimit (aPNTs): 5000.0
+    exchangeRateUpdatedAt (unix): 0
+    deployer's current debt (aPNTs): 0.0
+    PASS: exchangeRate must be non-zero: 1000000000000000000 > 0
+
+  [Step 2] Read deployer's xPNTs balance available for repayment
+  --------------------------------------------------
+    xPNTs balance: 0.0 xPNTs
+    exchangeRate: 1.0
+    If deployer repays ALL 0.0 xPNTs,
+      that clears floor(0.0 * 1e18 / rate) = 0.0 aPNTs of debt
+    PASS: Balance and repayment illustration computed
+
+  [Step 3] Verify repayDebt math: xPNTs → aPNTs floor conversion
+  --------------------------------------------------
+    SKIP: Deployer has no debt — repayDebt TX skipped (no-op)
+    Tip: run a TC4 UserOp with 0-balance AA account to accumulate debt first
+
+  [Step 4] Exchange rate bounds verification (read-only)
+  --------------------------------------------------
+    Current rate: 1.0
+    Min allowed rate (1e14): 0.0001
+    Max allowed rate (1e22): 10000.0
+    PASS: rate >= 1e14 (min bound)
+    PASS: rate <= 1e22 (max bound)
+    Rate changes require a 1-hour cooldown between calls; max ±20% per update
+    Next allowed rate update (approx): 1970-01-01T01:00:00.000Z
+
+  [Step 5] Verify effectiveCreditCap - debts - creditReservedOf reflects debt changes
+  --------------------------------------------------
+    Available credit (aPNTs): 0.0
+    PASS: available credit must be non-negative
+    No debt was repaid in Step 3 — credit baseline verified
+    PASS: Available credit computation returns non-negative value
+
+  [Step 6] aPNTs accounting: tryLockForGas aPNTs→xPNTs ceil conversion (math verification)
+  --------------------------------------------------
+    Example charge (aPNTs): 10.0
+    exchangeRate: 1.0
+    Burn 10 aPNTs at rate 1.0:
+      xPNTs to burn (ceil) = ceil(10 * rate / 1e18) = 10.0 xPNTs
+      cross-check (floor)  = floor(10 * rate / 1e18) = 10.0 xPNTs
+    tryLockForGas uses ceil so the operator is never under-compensated by rounding.
+    PASS: ceil(aPNTs * rate / 1e18) >= floor — ceil never less than floor
+    Rate is 1:1 (1e18) — ceil == floor == aPNTs amount (as expected)
+    PASS: tryLockForGas ceil math verified (read-only)
+
+============================================================
+  E4: repayDebt & Exchange Rate Summary
+  Total: 9 | Passed: 8 | Failed: 0 | Skipped: 1
+============================================================
+
+  [17] E4: repayDebt & Exchange Rate Settlement: PASSED
+
+================================================================
+  Phase 6: Staking & Slash
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [18] F1: Staking Queries
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+============================================================
+  Test Group F1: Staking Queries
+============================================================
+
+
+  [Step 1] totalStaked
+  --------------------------------------------------
+    Total staked: 160.0
+    PASS: totalStaked >= 0: 160000000000000000000 >= 0
+
+  [Step 2] GToken totalSupply
+  --------------------------------------------------
+    GToken totalSupply: 2300.0
+    GToken cap: 21000000.0
+    PASS: Supply <= cap
+
+  [Step 3] stakes(deployer)
+  --------------------------------------------------
+    amount: 80.0
+    slashedAmount: 0.0
+    stakedAt: 2026-10-15T14:19:43.000Z
+    PASS: Stake amount valid
+
+  [Step 4] balanceOf(deployer) - net stake balance
+  --------------------------------------------------
+    Net stake balance: 80.0
+    PASS: Balance >= 0: 80000000000000000000 >= 0
+
+  [Step 5] getLockedStake(deployer, ROLE_COMMUNITY)
+  --------------------------------------------------
+    Locked for COMMUNITY: 0.0
+    PASS: Locked stake >= 0: 0 >= 0
+
+  [Step 6] previewExitFee(deployer, ROLE_COMMUNITY)
+  --------------------------------------------------
+    No role lock for COMMUNITY, skipping previewExitFee
+    PASS: previewExitFee check complete
+
+  [Step 7] Verify staking wiring
+  --------------------------------------------------
+    PASS: REGISTRY == 0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9
+    PASS: GTOKEN == 0x5fc8d32690cc91d4c39d9d3abcbd16989f875707
+    Treasury: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    PASS: Treasury is set
+
+============================================================
+  F1: Staking Queries Summary
+  Total: 9 | Passed: 9 | Failed: 0 | Skipped: 0
+============================================================
+
+  [18] F1: Staking Queries: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [19] F2: Slash History
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+============================================================
+  Test Group F2: Slash History & WARNING Test
+============================================================
+
+
+  [Step 1] getSlashCount
+  --------------------------------------------------
+    Deployer slash count: 0
+    PASS: Deployer slash count >= 0: 0 >= 0
+
+  [Step 2] getSlashHistory
+  --------------------------------------------------
+    History entries: 0
+    PASS: getSlashHistory read completed
+
+  [Step 3] slashOperator (WARNING level, 0 penalty)
+  --------------------------------------------------
+    Reputation before: 0
+    queueSlash(deployer): TX confirmed (gas: 59207) tx=0x4883d0c4026c95bb774f0d8176ee2b2e5867a1526c3e8b275c47def5a89e77a1 https://sepolia.etherscan.io/tx/0x4883d0c4026c95bb774f0d8176ee2b2e5867a1526c3e8b275c47def5a89e77a1
+    slashOperator(WARNING, 0): TX confirmed (gas: 160193) tx=0xf386207a179dbf69ac2a07c5d45c50728e84e1ad865b93fa31ccaa37d6b9fec1 https://sepolia.etherscan.io/tx/0xf386207a179dbf69ac2a07c5d45c50728e84e1ad865b93fa31ccaa37d6b9fec1
+    PASS: Slash count incremented == 1
+
+  [Step 4] Verify latest slash record
+  --------------------------------------------------
+    PASS: Latest slash level = WARNING == 0
+    PASS: Latest slash amount = 0 == 0
+    PASS: Reason contains E2E
+
+  [Step 5] updateReputation to restore
+  --------------------------------------------------
+    updateReputation(100): TX confirmed (gas: 41091) tx=0x6b08409ce57ede8a2b8b216490dd054acf36bb71d356d3ac7853620d638fe41a https://sepolia.etherscan.io/tx/0x6b08409ce57ede8a2b8b216490dd054acf36bb71d356d3ac7853620d638fe41a
+    PASS: Reputation restored to 100 == 100
+
+  [Step 6] Query userOpState(operator, user)
+  --------------------------------------------------
+    lastTimestamp: 0
+    isBlocked: false
+    PASS: userOpState query completed
+
+============================================================
+  F2: Slash History Summary
+  Total: 8 | Passed: 8 | Failed: 0 | Skipped: 0
+============================================================
+
+  [19] F2: Slash History: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [20] F3: Staking & Registry Admin
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+============================================================
+  Test Group F3: GTokenStaking & Registry Admin Functions
+============================================================
+
+
+  [Step 1] setRoleExitFee(COMMUNITY) — set + verify via roleExitConfigs + restore
+  --------------------------------------------------
+    staking.owner(): 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    current feePercent: 0
+    current minFee: 0.0
+    Setting COMMUNITY exit fee: feePercent=5, minFee=1 GToken...
+    setRoleExitFee(COMMUNITY): TX confirmed (gas: 70790) tx=0x01e3944f69c0a723ad7041182605490442ee61ce6e664d7c4464cf0bf6b4e8ba https://sepolia.etherscan.io/tx/0x01e3944f69c0a723ad7041182605490442ee61ce6e664d7c4464cf0bf6b4e8ba
+    PASS: feePercent updated == 5
+    PASS: minFee updated == 1000000000000000000
+    Deployer has no COMMUNITY role-lock — previewExitFee skipped
+    Restoring original exit fee config...
+    restoreExitFee(COMMUNITY): TX confirmed (gas: 29205) tx=0xe7753c3107d9f1f69bc82c67cbba02bc3064e9499708679b5a4c5cc0ae26929c https://sepolia.etherscan.io/tx/0xe7753c3107d9f1f69bc82c67cbba02bc3064e9499708679b5a4c5cc0ae26929c
+    PASS: feePercent restored == 0
+    PASS: minFee restored == 0
+
+  [Step 2] setAuthorizedSlasher — add deployer + verify + remove
+  --------------------------------------------------
+    authorizedSlashers(deployer) before: false
+    addSlasher: TX confirmed (gas: 47667) tx=0x9bc0171abe93936aa1d6a153f4e00f662e53ade4e90edf46e6761f155a923e6f https://sepolia.etherscan.io/tx/0x9bc0171abe93936aa1d6a153f4e00f662e53ade4e90edf46e6761f155a923e6f
+    PASS: authorized after add
+    removeSlasher: TX confirmed (gas: 25755) tx=0xadf33bfe8a56425b501b6f2620096c32f8b99568f80bcde6f09efc51af7235db https://sepolia.etherscan.io/tx/0xadf33bfe8a56425b501b6f2620096c32f8b99568f80bcde6f09efc51af7235db
+    PASS: not authorized after remove
+
+  [Step 3] topUpStake — check deployer stake state
+  --------------------------------------------------
+    stakes.amount: 80.0
+    stakes.slashedAmount: 0.0
+    stakes.stakedAt: 1792073983
+    balanceOf(deployer): 80.0
+    hasRoleLock(COMMUNITY): false
+    hasRoleLock(PAYMASTER_SUPER): true
+    Deployer has active stake. topUpStake is onlyRegistry — calling via Registry.registerRole
+    Skipping topUpStake direct call (would revert with OnlyRegistry error)
+    PASS: Stake state read successfully — topUpStake path is valid for Registry to call
+
+  [Step 4] setReputationSource — add + verify + remove
+  --------------------------------------------------
+    registry.owner(): 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    isReputationSource(deployer) before: true
+    Deployer already reputation source — testing remove+restore
+    removeRepSource: TX confirmed (gas: 30898) tx=0x82beafc241c34f3c7866b8a4ef046659e5b586f30821b874e8e9df9ac779389e https://sepolia.etherscan.io/tx/0x82beafc241c34f3c7866b8a4ef046659e5b586f30821b874e8e9df9ac779389e
+    PASS: not rep source after remove
+    restoreRepSource: TX confirmed (gas: 52810) tx=0xa0939af537c448bd1efc49f25d6d6f1cfa17ffd74befcd0d044f882df81fd66e https://sepolia.etherscan.io/tx/0xa0939af537c448bd1efc49f25d6d6f1cfa17ffd74befcd0d044f882df81fd66e
+    PASS: rep source restored
+
+  [Step 5] setLevelThresholds — set custom + verify + restore original
+  --------------------------------------------------
+    Current levelThresholds: 13, 34, 89, 233, 610
+    Setting levelThresholds to [100, 200, 400, 800, 1600]...
+    setLevelThresholds: TX confirmed (gas: 79759) tx=0xdb046cddeca44b749caae81db6183d568ea4ba956c985c47411bbe356d7a6a9f https://sepolia.etherscan.io/tx/0xdb046cddeca44b749caae81db6183d568ea4ba956c985c47411bbe356d7a6a9f
+    PASS: levelThresholds[0] == 100 == 100
+    PASS: levelThresholds[2] == 400 == 400
+    Restoring original levelThresholds...
+    restoreLevelThresholds: TX confirmed (gas: 79735) tx=0x043d6c054f526922031a1a516a2fc3c8300161d303ea20fda883ae63f57f9eba https://sepolia.etherscan.io/tx/0x043d6c054f526922031a1a516a2fc3c8300161d303ea20fda883ae63f57f9eba
+    PASS: levelThresholds[0] restored == 13
+
+  [Step 6] batchUpdateGlobalReputation — BLS proof required
+  --------------------------------------------------
+    blsAggregator: 0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E
+    globalReputation(deployer) before: 0
+    batchUpdateGlobalReputation requires a valid BLS proof (proposalId, signerMask, sigG2Bytes)
+    SKIP: Skipping write — no test BLS proof available. Read path verified successfully.
+
+  [Step 7] setCreditTier — set + verify + restore
+  --------------------------------------------------
+    creditTierConfig[3] before: 300.0
+    Setting creditTierConfig[3] to 350 ether...
+    setCreditTier(3, 350e18): TX confirmed (gas: 43989) tx=0xcc6c9ced86836a478f716400fb0d1f3ae3d64dfbf1b13a0cf36c36f702f13b20 https://sepolia.etherscan.io/tx/0xcc6c9ced86836a478f716400fb0d1f3ae3d64dfbf1b13a0cf36c36f702f13b20
+    PASS: creditTierConfig[3] updated to 350 ether == 350000000000000000000
+    Restoring original credit tier...
+    restoreCreditTier: TX confirmed (gas: 43989) tx=0xe4a3f1c1250857183b66b086f042da38a3eacaa79a6de6df7cc0da26f64fb428 https://sepolia.etherscan.io/tx/0xe4a3f1c1250857183b66b086f042da38a3eacaa79a6de6df7cc0da26f64fb428
+    PASS: creditTierConfig[3] restored == 300000000000000000000
+
+============================================================
+  F3: Staking & Registry Admin Summary
+  Total: 15 | Passed: 14 | Failed: 0 | Skipped: 1
+============================================================
+
+  [20] F3: Staking & Registry Admin: PASSED
+
+================================================================
+  Phase 7: V5.3 Agent Economy Scenarios
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [21] G1: Reputation-Gated Sponsorship
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+
+============================================================
+  Test Group G1: Reputation-Gated Sponsorship
+============================================================
+
+    SuperPaymaster: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    Non-SBT address: 0x563cdf259A8DEB2f453f0475E82BBA1b4d32aa4e
+
+
+  [Step 1] Check sbtHolders state
+  --------------------------------------------------
+    Deployer is SBT holder: true
+    Random addr is SBT holder: false
+    PASS: Random address must NOT be SBT holder
+    PASS: Deployer is SBT holder
+
+  [Step 2] isEligibleForSponsorship — SBT path
+  --------------------------------------------------
+    Deployer eligible: true
+    Random addr eligible: false
+    PASS: Non-SBT non-agent address must be ineligible
+    PASS: Eligibility gate: random address correctly rejected
+    PASS: Deployer is eligible (SBT holder or registered agent)
+
+  [Step 3] isRegisteredAgent — dual-channel check
+  --------------------------------------------------
+    agentIdentityRegistry: 0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8
+    Deployer is agent: false
+    Random addr is agent: false
+    PASS: Random address must not be registered agent
+    PASS: Agent check: random address is not a registered agent
+
+  [Step 4] globalReputation from Registry
+  --------------------------------------------------
+    Deployer reputation: 0
+    Random addr reputation: 0
+    PASS: New address starts at reputation 0 == 0
+    PASS: Reputation read from Registry
+
+  [Step 5] levelThresholds — reputation → tier mapping
+  --------------------------------------------------
+    Tier | Min Rep Score | Credit Limit
+    -----|---------------|-------------
+    Tier 1 |     (default) | 100.0 aPNTs
+    Tier 2 |       13        | 100.0 aPNTs
+    Tier 3 |       34        | 300.0 aPNTs
+    Tier 4 |       89        | 600.0 aPNTs
+    Tier 5 |       233       | 1000.0 aPNTs
+    Tier 6 |       610       | 2000.0 aPNTs
+    PASS: At least one tier threshold configured
+    PASS: 5 tier thresholds configured above default
+
+  [Step 6] getCreditLimit — compute tier for current users
+  --------------------------------------------------
+    Deployer reputation: 0
+    Deployer credit limit: 100.0 aPNTs
+    Random addr limit: 100.0 aPNTs
+    Expected tier: 1
+    Expected limit: 100.0 aPNTs
+    PASS: getCreditLimit matches tier formula == 100000000000000000000
+    PASS: Credit limit correctly derived from reputation tier
+
+  [Step 7] effectiveCreditCap — reputation-tier ceiling as seen by the token
+  --------------------------------------------------
+    xPNTs v2 token: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    Deployer effectiveCreditCap: 0.0 aPNTs
+    Random addr effectiveCreditCap: 0.0 aPNTs
+    0 here (even with reputation > 0) means creditPolicy is OFF or the user has no active requestCredit() for this epoch — not a bug.
+    PASS: effectiveCreditCap call succeeded
+
+  [Step 8] Tier escalation simulation (read-only)
+  --------------------------------------------------
+    Reputation needed → tier → credit limit (simulation):
+      rep =  0 → Tier 1 → 100.0 aPNTs (default)
+      rep = 13  → Tier 2 → 100.0 aPNTs
+      rep = 34  → Tier 3 → 300.0 aPNTs
+      rep = 89  → Tier 4 → 600.0 aPNTs
+      rep = 233 → Tier 5 → 1000.0 aPNTs
+      rep = 610 → Tier 6 → 2000.0 aPNTs
+    PASS: Tier escalation path validated (globalReputation updated via BLS consensus in production)
+    To reach a higher tier: accumulate community reputation → BLS-signed batchUpdateGlobalReputation
+
+============================================================
+  G1: Reputation-Gated Sponsorship Summary
+  Total: 15 | Passed: 15 | Failed: 0 | Skipped: 0
+============================================================
+
+  [21] G1: Reputation-Gated Sponsorship: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [22] G2: Agent Identity Sponsorship (ERC-8004)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+
+============================================================
+  Test Group G2: Agent Identity Sponsorship (ERC-8004)
+============================================================
+
+    SuperPaymaster: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    Deployer (operator): 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+
+
+  [Step 1] Check agentIdentityRegistry + agentReputationRegistry
+  --------------------------------------------------
+    agentIdentityRegistry: 0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8
+    agentReputationRegistry: 0x851356ae760d987E095750cCeb3bC6014560891C
+    PASS: agentIdentityRegistry is set
+    PASS: agentReputationRegistry is set
+
+  [Step 2] isRegisteredAgent — various addresses
+  --------------------------------------------------
+    Deployer isRegisteredAgent: false
+    Random addr isRegisteredAgent: false
+    PASS: Random address must not be a registered agent
+    PASS: Agent check returns false for random address (as expected)
+    Deployer is not a registered agent (normal for EOA operators)
+
+  [Step 3] isEligibleForSponsorship — dual-channel (SBT OR agent)
+  --------------------------------------------------
+    Deployer has SBT: true
+    Deployer is agent: false
+    Deployer isEligibleForSponsorship: true
+    PASS: Eligibility = sbtHolders[user] || isRegisteredAgent(user) == true
+    PASS: Dual-channel eligibility logic verified
+    PASS: Random address with no SBT and no agent NFT is ineligible
+    PASS: Non-SBT non-agent address correctly rejected
+
+  [Step 4] facilitatorFeeBPS — default x402 fee
+  --------------------------------------------------
+    Default facilitatorFeeBPS: 0
+    Default fee: 0%
+    Operator override fee: (none — uses default)
+    PASS: facilitatorFeeBPS is non-negative: 0 >= 0
+    PASS: Facilitator fee configuration verified
+
+============================================================
+  G2: Agent Identity Sponsorship (ERC-8004) Summary
+  Total: 10 | Passed: 10 | Failed: 0 | Skipped: 0
+============================================================
+
+  [22] G2: Agent Identity Sponsorship (ERC-8004): PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [23] G3: Credit Tier Escalation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ enable debugging { debug: true }
+
+============================================================
+  Test Group G3: Credit Tier Escalation
+============================================================
+
+    Registry: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+    SuperPaymaster: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    Fresh user (rep=0): 0x139E9F6f91b16c1aD323fE352Eb49135B86448EB
+
+
+  [Step 1] creditTierConfig — tier credit limits (levels 1-6)
+  --------------------------------------------------
+    Level | Credit Limit
+    ------|-------------
+    Tier 1 | 100.0 aPNTs
+    Tier 2 | 100.0 aPNTs
+    Tier 3 | 300.0 aPNTs
+    Tier 4 | 600.0 aPNTs
+    Tier 5 | 1000.0 aPNTs
+    Tier 6 | 2000.0 aPNTs
+    PASS: Tier 6 limit > Tier 1 limit
+    PASS: Credit tier limits read successfully
+
+  [Step 2] levelThresholds — reputation score thresholds
+  --------------------------------------------------
+    Index | Threshold | Grants Tier
+    ------|-----------|------------
+    [0]   | 13        | Tier 2
+    [1]   | 34        | Tier 3
+    [2]   | 89        | Tier 4
+    [3]   | 233       | Tier 5
+    [4]   | 610       | Tier 6
+    PASS: At least 4 thresholds configured (Fibonacci-like defaults)
+    PASS: 5 thresholds configured
+    PASS: Threshold[1] > Threshold[0]
+    PASS: Threshold[2] > Threshold[1]
+    PASS: Threshold[3] > Threshold[2]
+    PASS: Threshold[4] > Threshold[3]
+    PASS: Thresholds are strictly increasing
+
+  [Step 3] getCreditLimit — current credit for deployer and fresh user
+  --------------------------------------------------
+    Deployer reputation: 0
+    Deployer credit limit: 100.0 aPNTs
+    Fresh user reputation: 0
+    Fresh user credit limit: 100.0 aPNTs
+    PASS: Fresh user starts at reputation 0 == 0
+    PASS: Fresh user (rep=0) gets tier 1 limit == 100000000000000000000
+    PASS: getCreditLimit returns tier 1 for users with reputation 0
+
+  [Step 4] Tier escalation simulation — expected credit at each threshold
+  --------------------------------------------------
+    Scenario        | Rep Score | Tier | Credit Limit
+    ----------------|-----------|------|-------------
+    Fresh user      |         0 |    1 | 100.0 aPNTs
+    New contributor | 13        | 2    | 100.0 aPNTs
+    Active member   | 34        | 3    | 300.0 aPNTs
+    Power user      | 89        | 4    | 600.0 aPNTs
+    Community lead  | 233       | 5    | 1000.0 aPNTs
+    Tier 6 user     | 610       | 6    | 2000.0 aPNTs
+    PASS: Escalation path simulated (actual escalation requires BLS-signed reputation update)
+    Production: users earn reputation via community activity → BLSAggregator → batchUpdateGlobalReputation
+
+  [Step 5] setCreditTier — owner expands tier ceiling (tier 7)
+  --------------------------------------------------
+    setCreditTier(7, 5000 aPNTs): TX confirmed (gas: 35349) tx=0x9ee3b624f1321fd71c246dc8942a518a9863e860e36fa7e4f1d2461e24ce1ab6 https://sepolia.etherscan.io/tx/0x9ee3b624f1321fd71c246dc8942a518a9863e860e36fa7e4f1d2461e24ce1ab6
+    PASS: Tier 7 limit == 5000000000000000000000
+    PASS: Tier 7 set to 5000 aPNTs — admin can expand credit ceiling
+    Reset tier 7 to tier 6 limit (monotonicity floor): TX confirmed (gas: 39632) tx=0xeb35359f8b754ef539e06aea58157313143f26b246b673a031ff6f34244b5989 https://sepolia.etherscan.io/tx/0xeb35359f8b754ef539e06aea58157313143f26b246b673a031ff6f34244b5989
+    Tier 7 reset to 2000.0 aPNTs (cleanup; cannot go back to 0 under monotonicity)
+
+  [Step 6] effectiveCreditCap — reputation-tier ceiling as seen by the token
+  --------------------------------------------------
+    xPNTs v2 token: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    Deployer effectiveCreditCap: 0.0 aPNTs
+    Fresh user effectiveCreditCap: 0.0 aPNTs
+    PASS: Fresh user getCreditLimit == tier 1 == 100000000000000000000
+    PASS: effectiveCreditCap read successfully
+
+  [Step 7] Production escalation path summary
+  --------------------------------------------------
+
+    How a user escalates credit tiers:
+    ┌─────────────────────────────────────────────────────────┐
+    │ 1. User gets ENDUSER SBT (community registration)       │
+    │ 2. User participates in community (activities logged)    │
+    │ 3. Community sets reputation via ReputationSystem        │
+    │ 4. BLSAggregator reaches consensus (≥3 DVT validators)   │
+    │ 5. batchUpdateGlobalReputation() called on Registry      │
+    │ 6. getCreditLimit returns higher tier automatically      │
+    │ 7. SuperPaymaster postOp honors the new credit ceiling   │
+    └─────────────────────────────────────────────────────────┘
+
+    PASS: Credit tier escalation path documented
+
+============================================================
+  G3: Credit Tier Escalation Summary
+  Total: 18 | Passed: 18 | Failed: 0 | Skipped: 0
+============================================================
+
+  [23] G3: Credit Tier Escalation: PASSED
+
+================================================================
+  Phase 8: DVT / BLS / Reputation Infrastructure
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [24] H1: DVT & BLS Aggregator Queries
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+
+============================================================
+  Test Group H1: DVT Validator & BLS Aggregator Queries
+============================================================
+
+
+  [Step 1] DVTValidator wiring: REGISTRY, BLS_AGGREGATOR, version
+  --------------------------------------------------
+    DVT REGISTRY: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+    DVT BLS_AGGREGATOR: 0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E
+    DVT version: DVTValidator-0.6.0
+    PASS: DVT REGISTRY == config.registry == 0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9
+    PASS: DVT BLS_AGGREGATOR == config.blsAggregator == 0xe6e340d132b5f46d1e472debcd681b2abc16e57e
+    PASS: DVT version non-empty
+
+  [Step 2] DVTValidator state: isValidator, nextProposalId
+  --------------------------------------------------
+    isValidator(deployer): false
+    nextProposalId: 1
+    PASS: nextProposalId >= 1 (starts at 1): 1 >= 1
+
+  [Step 3] BLSAggregator wiring: REGISTRY, SUPERPAYMASTER, DVT_VALIDATOR, version
+  --------------------------------------------------
+    BLS REGISTRY: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+    BLS SUPERPAYMASTER: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    BLS DVT_VALIDATOR: 0x67d269191c92Caf3cD7723F116c85e6E9bf55933
+    BLS version: BLSAggregator-4.12.0
+    PASS: BLS REGISTRY == config.registry == 0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9
+    PASS: BLS SUPERPAYMASTER == config.superPaymaster == 0x68b1d87f95878fe05b998f19b66f4baba5de1aed
+    PASS: BLS DVT_VALIDATOR == config.dvtValidator == 0x67d269191c92caf3cd7723f116c85e6e9bf55933
+    PASS: BLS version non-empty
+
+  [Step 4] BLSAggregator thresholds: minThreshold, defaultThreshold, MAX_VALIDATORS
+  --------------------------------------------------
+    minThreshold: 3
+    defaultThreshold: 7
+    MAX_VALIDATORS: 13
+    PASS: minThreshold == 3 (security floor) == 3
+    PASS: defaultThreshold == 7 (default) == 7
+    PASS: MAX_VALIDATORS == 13 == 13
+    PASS: defaultThreshold >= minThreshold
+
+  [Step 5] BLSAggregator validator slots (scan first 5 slots)
+  --------------------------------------------------
+    Slots with validators (first 5): 0
+    PASS: Validator slot scan completed
+
+  [Step 6] DVTValidator addValidator / removeValidator (deployer as owner)
+  --------------------------------------------------
+    Deployer does not have ROLE_DVT — skipping addValidator mutation (expected on fresh deploy)
+    SKIP: addValidator skipped: deployer lacks ROLE_DVT
+
+  [Step 7] BLSAggregator executedProposals(0) — zero index baseline
+  --------------------------------------------------
+    executedProposals(0): false
+    PASS: BLS proposal state query OK
+
+============================================================
+  H1: DVT Validator & BLS Aggregator Queries Summary
+  Total: 15 | Passed: 14 | Failed: 0 | Skipped: 1
+============================================================
+
+  [24] H1: DVT & BLS Aggregator Queries: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [25] H2: ReputationSystem Community Scoring & BLS Sync
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌁ auth for agents [www.vestauth.com]
+
+============================================================
+  Test Group H2: ReputationSystem — Community Scoring & BLS Sync Pipeline
+============================================================
+
+
+  [Step 1] ReputationSystem wiring: version, REGISTRY, owner
+  --------------------------------------------------
+    version: Reputation-0.3.2
+    REGISTRY: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+    owner: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    PASS: version non-empty
+    PASS: REGISTRY == config.registry == 0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9
+    PASS: owner set
+    PASS: ReputationSystem wiring OK
+
+  [Step 2] entropyFactors(deployer community)
+  --------------------------------------------------
+    entropyFactor (raw): 1000000000000000000
+    entropyFactor (display): 1
+    PASS: entropyFactor >= 0: 1000000000000000000 >= 0
+    PASS: entropyFactors query OK
+
+  [Step 3] communityRules — query a known ruleId for deployer community
+  --------------------------------------------------
+    E2E_ACTIVITY baseScore: 0
+    E2E_ACTIVITY activityBonus: 0
+    E2E_ACTIVITY maxBonus: 0
+    E2E_ACTIVITY description: (empty after cleanup)
+    PASS: communityRules query completed (zeroed after D1 cleanup)
+
+  [Step 4] communityReputations(deployer, deployer) — persistent from D1 Step 6
+  --------------------------------------------------
+    communityReputations: 0
+    PASS: communityReputation >= 0: 0 >= 0
+    communityReputation == 0 (may differ if D1 ran multiple times)
+    PASS: communityReputations query OK
+
+  [Step 5] getReputationBreakdown(deployer, deployer, 0)
+  --------------------------------------------------
+    baseScore: 0
+    nftBonus: 0
+    activityBonus: 0
+    multiplier (raw): 1000000000000000000
+    PASS: baseScore >= 0: 0 >= 0
+    PASS: multiplier >= 0: 1000000000000000000 >= 0
+    PASS: getReputationBreakdown OK
+
+  [Step 6] calculateReputation(deployer, deployer, 0) — IReputationCalculator
+  --------------------------------------------------
+    calculateReputation: 10
+    PASS: calculateReputation >= 0: 10 >= 0
+    PASS: calculateReputation OK
+
+  [Step 7] computeScore — deployer community, defaultRule, 10 activities
+  --------------------------------------------------
+    computeScore (DEFAULT rule, 10 activities): 20
+    PASS: computeScore >= 0: 20 >= 0
+    PASS: computeScore OK
+
+  [Step 8] syncToRegistry — requires BLS proof (DVT consensus infrastructure)
+  --------------------------------------------------
+    syncToRegistry calls REGISTRY.batchUpdateGlobalReputation(proposalId, users, scores, epoch, proof)
+    The Registry verifies an aggregate BLS-12-381 signature from ≥3 DVT validators.
+    Without a running DVT cluster, the call reverts with InvalidProof — expected behavior.
+    SKIP: syncToRegistry: BLS infrastructure dependency — requires DVT node cluster with ≥3 validators
+    
+      Production pipeline (how globalReputation is updated):
+      1. Community operator calls setCommunityReputation(community, user, score)
+      2. DVT validators observe the score update, each signs a proposal
+      3. BLSAggregator collects signatures until threshold (≥3) reached
+      4. batchUpdateGlobalReputation called with BLS aggregate proof
+      5. Registry writes globalReputation[user] = score
+      6. getCreditLimit(user) now returns higher credit tier
+      7. SuperPaymaster postOp honors the higher credit ceiling
+
+  [Step 9] getActiveRules(deployer) — should be empty after D1 cleanup
+  --------------------------------------------------
+    Active rules count: 1
+      Rule ID: 0xe94ca802e358b938771f4f9e5f7abffba64b41d10462c15bf66cdee126ddf199
+    PASS: 1 active rule(s) found
+
+============================================================
+  H2: ReputationSystem — Community Scoring & BLS Sync Pipeline Summary
+  Total: 18 | Passed: 17 | Failed: 0 | Skipped: 1
+============================================================
+
+  [25] H2: ReputationSystem Community Scoring & BLS Sync: PASSED
+
+================================================================
+  Phase 9: Legacy Gasless Transfer Tests
+================================================================
+
+  Running pre-flight setup for gasless tests...
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ enable debugging { debug: true }
+╔═══════════════════════════════════════════════════════════╗
+║         Gasless Tests Pre-Flight Setup                    ║
+╚═══════════════════════════════════════════════════════════╝
+
+Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+Anni:     0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+Network:  chain 31337
+
+━━━ Step 1: SuperPaymaster Price Cache ━━━
+  ✅ Price cache fresh: valid for 4190s
+
+━━━ Step 2: PaymasterV4 (Test 1) ━━━
+  ✅ PaymasterV4 deployed: 0xa37aE2b259D35aF4aBdde122eC90B204323ED304
+  ✅ PaymasterV4 ETH in EntryPoint: 0.05 ETH
+  ✅ PaymasterV4 price cache fresh: valid for 86390s
+  ✅ aPNTs is a supported PaymasterV4 gas token
+  ⚠️  AA_A V4 deposit 0.0 aPNTs — funding 500.0...
+  approve aPNTs→PaymasterV4: TX confirmed (gas: 49038) tx=0x9f269ba651cee27b4eda84c463d1fad94bdbae10c6136079cf54afe863c1f251 https://sepolia.etherscan.io/tx/0x9f269ba651cee27b4eda84c463d1fad94bdbae10c6136079cf54afe863c1f251
+  pmV4.depositFor(AA_A): TX confirmed (gas: 115296) tx=0x97acfa40d16361f1b76c36d2b4ed97a38622c755c4009c3088ab47e1c3d23ad7 https://sepolia.etherscan.io/tx/0x97acfa40d16361f1b76c36d2b4ed97a38622c755c4009c3088ab47e1c3d23ad7
+  ✅ AA_A token deposit in PaymasterV4: 500.0 aPNTs
+
+━━━ Step 3: SuperPaymaster Deployer Operator (Test 2) ━━━
+  ✅ Deployer operator configured
+  ✅ Deployer operator not paused
+  ❌ Deployer xPNTsToken = aPNTs
+  ✅ Deployer aPNTs in SuperPaymaster: 1000.0 aPNTs
+
+━━━ Step 4: SuperPaymaster Anni Operator (Test 3) ━━━
+  ✅ Anni operator configured
+  ✅ Anni xPNTsToken = PNTs
+  ✅ Anni aPNTs in SuperPaymaster: 1000.0 aPNTs
+
+━━━ Step 4.5: Ensure Base Credit Tier (Registry) ━━━
+  ⚠️  creditTierConfig[2] below threshold — raising to 300.0...
+  registry.setCreditTier(2, 300): TX confirmed (gas: 43989) tx=0x10716fe08279e749dfba078febc60cf2f697fb3b542a187f1b0b82466952b0da https://sepolia.etherscan.io/tx/0x10716fe08279e749dfba078febc60cf2f697fb3b542a187f1b0b82466952b0da
+  ✅ creditTierConfig[2] set to 300.0 aPNTs
+  ⚠️  creditTierConfig[1] below threshold — raising to 300.0...
+  registry.setCreditTier(1, 300): TX confirmed (gas: 41775) tx=0x5aa7ea06899371959f70b272f6ac5d8df8bb056ba9e8b13d0a013fb0e9ed0790 https://sepolia.etherscan.io/tx/0x5aa7ea06899371959f70b272f6ac5d8df8bb056ba9e8b13d0a013fb0e9ed0790
+  ✅ creditTierConfig[1] set to 300.0 aPNTs
+━━━ Step 5: Fund AA Account Token Balances ━━━
+  mint AA_A aPNTs: TX confirmed (gas: 60864) tx=0x51edd49029d96af4eff21043d3fb6296b7734b746a049f7093c4636771092e0f https://sepolia.etherscan.io/tx/0x51edd49029d96af4eff21043d3fb6296b7734b746a049f7093c4636771092e0f
+  ✅ AA_A aPNTs: 1000.0 (minted 1000.0)
+  mint AA_B aPNTs: TX confirmed (gas: 60864) tx=0x798c61ffe6b632f9cd99e45fb9a515b48e0739b4f10549ff4c49509507ecfeee https://sepolia.etherscan.io/tx/0x798c61ffe6b632f9cd99e45fb9a515b48e0739b4f10549ff4c49509507ecfeee
+  ✅ AA_B aPNTs: 1000.0 (minted 1000.0)
+  mint AA_C aPNTs: TX confirmed (gas: 60864) tx=0xa369cd66ed96e20fb8bb1dc0cd55a8186c975fee94dd9b1e31473b34b6ed55db https://sepolia.etherscan.io/tx/0xa369cd66ed96e20fb8bb1dc0cd55a8186c975fee94dd9b1e31473b34b6ed55db
+  ✅ AA_C aPNTs: 1000.0 (minted 1000.0)
+  mint AA_A PNTs: TX confirmed (gas: 65917) tx=0xa8dda04209873e2f321b58ac242371e09ddc74d032e238ffeac8f9cc00311f6f https://sepolia.etherscan.io/tx/0xa8dda04209873e2f321b58ac242371e09ddc74d032e238ffeac8f9cc00311f6f
+  ✅ AA_A PNTs: 1000.0 (minted 1000.0)
+  mint AA_B PNTs: TX confirmed (gas: 65917) tx=0x99ef252ef94b7a1ded3541aeb4eecb84932005eb07724c5f27e912c8ff73179a https://sepolia.etherscan.io/tx/0x99ef252ef94b7a1ded3541aeb4eecb84932005eb07724c5f27e912c8ff73179a
+  ✅ AA_B PNTs: 1000.0 (minted 1000.0)
+  mint AA_C PNTs: TX confirmed (gas: 65917) tx=0xdf056868acde3e77c97e235d229f1749cc06f4c2df1f9682459c6ab67271cdde https://sepolia.etherscan.io/tx/0xdf056868acde3e77c97e235d229f1749cc06f4c2df1f9682459c6ab67271cdde
+  ✅ AA_C PNTs: 1000.0 (minted 1000.0)
+
+━━━ Summary ━━━
+❌ 1 prerequisite(s) not met. See above.
+  Setup failed (exit 1) — gasless tests may fail due to missing prerequisites.
+  Continuing anyway (test results will reflect actual state).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [26] Gasless: PaymasterV4
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ enable debugging { debug: true }
+╔═══════════════════════════════════════════════════════════╗
+║     Gasless Transfer Test Case 1 - PaymasterV4           ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  RPC: http://127.0.0.1:8624...
+  PaymasterV4: 0xa37aE2b259D35aF4aBdde122eC90B204323ED304
+  aPNTs Token: 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3
+  EntryPoint: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+
+  Sender AA Account: 0x03611cefB15C3321DdfAf46814fee1A687235e8A
+  Sender EOA: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  Recipient: 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+
+📊 Step 1: Check aPNTs Balance
+  Balance: 1000.0 aPNTs
+
+📝 Step 2: Prepare Transfer CallData
+  Transfer Amount: 1 aPNTs
+
+🔨 Step 3: Build UserOperation
+  Nonce: 0
+
+✍️  Step 4: Sign UserOperation
+  UserOp Hash: 0x73c8a2ae07c4b7c5f29902fafbd81b24f58163157a7a0c3503e14c54be92b3a6
+
+🚀 Step 5: Submit UserOp to EntryPoint
+  Estimated gas: 424873
+  Sending transaction...
+  TX Hash: 0xff8bc80d42ee1f75412bbe4b4867d36e20b81bda680f6d5a9e7e1f92791f0eaf
+  Etherscan: https://sepolia.etherscan.io/tx/0xff8bc80d42ee1f75412bbe4b4867d36e20b81bda680f6d5a9e7e1f92791f0eaf
+  ✅ Transaction confirmed!
+
+📊 Final Balances:
+  Sender: 999.0 aPNTs
+  Recipient: 1.0 aPNTs
+
+╔═══════════════════════════════════════════════════════════╗
+║                    Test Completed                         ║
+╚═══════════════════════════════════════════════════════════╝
+  [26] Gasless: PaymasterV4: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [27] Gasless: SuperPaymaster xPNTs1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+╔═══════════════════════════════════════════════════════════╗
+║  Gasless Transfer Test Case 2 - FIXED Implementation     ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  SuperPaymaster: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+  aPNTs Token: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+  EntryPoint: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+  Operator: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+
+  Sender AA Account: 0x03611cefB15C3321DdfAf46814fee1A687235e8A
+  Sender EOA: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  Recipient: 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+
+📊 Step 1: Check aPNTs Balance and Approval
+  Balance: 0.0 aXPNTs
+  Allowance: 0.0 aXPNTs
+  ⚠️  SKIP: Zero token balance — fund TEST_AA_ACCOUNT_ADDRESS_B with aPNTs first.
+  Use: node transfer-tokens.js  (or run ./prepare-test sepolia)
+
+  [27] Gasless: SuperPaymaster xPNTs1: SKIPPED (precondition not met)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [28] Gasless: SuperPaymaster xPNTs2
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌁ auth for agents [www.vestauth.com]
+╔═══════════════════════════════════════════════════════════╗
+║  Gasless Transfer Test Case 3 - SuperPaymaster + PNTs    ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  RPC: http://127.0.0.1:8624...
+  SuperPaymaster: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+  PNTs Token: 0x2C477DFdB744E3BAf87bbdE078e21D382bc40700
+  EntryPoint: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+  Operator: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+
+  Sender AA Account: 0x03611cefB15C3321DdfAf46814fee1A687235e8A
+  Sender EOA: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  Recipient: 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+
+📊 Step 1: Check PNTs Balance
+  Balance: 1000.0 dPNTs
+
+📝 Step 2: Prepare Transfer CallData
+  Transfer Amount: 1 dPNTs
+
+🔨 Step 3: Build UserOperation
+  Nonce: 1
+
+✍️  Step 4: Sign UserOperation
+  UserOp Hash: 0xb0bc2ae6e87b94301c...
+
+🚀 Step 5: Submit UserOp to EntryPoint
+  Estimated gas: 729408
+  Sending transaction...
+  TX Hash: 0x9534fe00dfaf32d60fce6b73449ca88a52eced6b05525b2867f0321e34a1a875
+  Etherscan: https://sepolia.etherscan.io/tx/0x9534fe00dfaf32d60fce6b73449ca88a52eced6b05525b2867f0321e34a1a875
+  ✅ Transaction confirmed!
+
+📊 Final Balances:
+  Sender: 862.9498 dPNTs
+  Recipient: 1.0 dPNTs
+
+╔═══════════════════════════════════════════════════════════╗
+║                    Test Completed                         ║
+╚═══════════════════════════════════════════════════════════╝
+  [28] Gasless: SuperPaymaster xPNTs2: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [29] Gasless: SP Credit/Debt Path
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ◈ secrets for agents [www.dotenvx.com]
+╔═══════════════════════════════════════════════════════════╗
+║  Gasless Transfer Test Case 4 - Credit/Debt Path         ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  SuperPaymaster:  0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+  aPNTs Token:     0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+  EntryPoint:      0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+  Operator:        0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  Sender AA:       0x03611cefB15C3321DdfAf46814fee1A687235e8A
+  Recipient:       0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+
+📊 Step 1: Read current credit/debt state
+  xPNTs balance:        0.0 aXPNTs
+  Debt (aPNTs):         0.0 aPNTs
+  Available credit:     0.0 aPNTs
+  Operator configured:  true
+  Operator aPNTs bal:   1000.0 aPNTs
+
+📊 Step 2: Credit precondition check
+  ❌ SKIP: creditPolicy was OFF — queued AUTO, executable at 2026-10-17T14:21:34.000Z (48h TIMELOCK). Re-run this test after that time.
+  [29] Gasless: SP Credit/Debt Path: SKIPPED (precondition not met)
+
+================================================================
+  Phase 10: Streaming & x402 Settlement
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [30] MicroPaymentChannel: Open / Settle / Close
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+╔═══════════════════════════════════════════════════════════╗
+║     MicroPaymentChannel E2E Test (Streaming Vouchers)    ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  MicroPaymentChannel: 0x9E545E3C0baAB3E08CdfD552C960A1050f373042
+  Version: MicroPaymentChannel-1.3.0
+  aPNTs: 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3
+  Payer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  Payee: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+
+📊 Step 1: Check Balances & Approve
+  Payer aPNTs: 19500.0
+  Approving MPC to spend aPNTs...
+  approve: TX confirmed (gas: 49038) tx=0x0a831d3f9bf77fca4b93f7d0313d36dfd4c29ff0b8d2bdcd632d49af3edab0b6 https://sepolia.etherscan.io/tx/0x0a831d3f9bf77fca4b93f7d0313d36dfd4c29ff0b8d2bdcd632d49af3edab0b6
+  ✅ Approved
+
+🔓 Step 2: Open Channel (10 aPNTs deposit)
+  openChannel: TX confirmed (gas: 168925) tx=0x44efea280b30540bc0fb2ea3d9ea352a3a873b519875c71989aacaffebc05578 https://sepolia.etherscan.io/tx/0x44efea280b30540bc0fb2ea3d9ea352a3a873b519875c71989aacaffebc05578
+  TX: 0x44efea280b30540bc0fb2ea3d9ea352a3a873b519875c71989aacaffebc05578
+  ✅ Channel opened! Gas: 168925
+  Channel ID: 0xc0fd215bfe4df504bac834a48eb943c1f6a7bac2e2539e8fcaa57624a123a638
+  Deposit: 10.0 aPNTs
+  Settled: 0.0 aPNTs
+
+✍️  Step 3: Settle Partial Voucher (3 aPNTs)
+  Voucher signed: cumulative = 3 aPNTs
+  settleChannel: TX confirmed (gas: 68126) tx=0x4980733ad2c66f824a6e2844bab110ed9cbedaacb29f5e21d26e4bd04b85f8c4 https://sepolia.etherscan.io/tx/0x4980733ad2c66f824a6e2844bab110ed9cbedaacb29f5e21d26e4bd04b85f8c4
+  ✅ Settled! Gas: 68126
+  TX: 0x4980733ad2c66f824a6e2844bab110ed9cbedaacb29f5e21d26e4bd04b85f8c4
+  Settled so far: 3.0 aPNTs
+
+🔒 Step 4: Close Channel (7 aPNTs final)
+  closeChannel: TX confirmed (gas: 108010) tx=0xb172b1c6f38df57870ef7ec5d42114625e92a1eda9f78fa3afb8a03deed9cd67 https://sepolia.etherscan.io/tx/0xb172b1c6f38df57870ef7ec5d42114625e92a1eda9f78fa3afb8a03deed9cd67
+  ✅ Channel closed! Gas: 108010
+  TX: 0xb172b1c6f38df57870ef7ec5d42114625e92a1eda9f78fa3afb8a03deed9cd67
+
+📊 Step 5: Verify Results
+  Payee received:   7.0 aPNTs
+  Expected payee:   7.0 aPNTs
+  Payer net cost:   7.0 aPNTs
+  Expected payer cost: 7.0 aPNTs (= cumulative settled)
+  Channel struct after close: payer=0x0000000000000000000000000000000000000000 (zero = deleted ✓)
+  ✅ All assertions passed!
+
+🛡️  Step 6: Test Finalization Protection
+  ✅ Finalized channel correctly rejects settlement
+
+╔═══════════════════════════════════════════════════════════╗
+║                    Test Completed                         ║
+╚═══════════════════════════════════════════════════════════╝
+  [30] MicroPaymentChannel: Open / Settle / Close: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [31] x402: EIP-3009 Settlement
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ◈ secrets for agents [www.dotenvx.com]
+╔═══════════════════════════════════════════════════════════╗
+║  x402 Payment Settlement Test (EIP-3009 — USDC Native)  ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  X402Facilitator: 0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f
+  Version: X402Facilitator-1.0.0
+  USDC: 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
+  Payer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  Facilitator: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+  Payee: 0x000000000000000000000000000000000000dEaD
+
+📊 Step 1: Check USDC Balance
+Fatal error: Error: could not decode result data (value="0x", info={ "method": "decimals", "signature": "decimals()" }, code=BAD_DATA, version=6.17.0)
+    at makeError (/Users/jason/Dev/aastar/sp-wt/d7fix/script/gasless-tests/node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.commonjs/utils/errors.js:137:21)
+    at assert (/Users/jason/Dev/aastar/sp-wt/d7fix/script/gasless-tests/node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.commonjs/utils/errors.js:157:15)
+    at Interface.decodeFunctionResult (/Users/jason/Dev/aastar/sp-wt/d7fix/script/gasless-tests/node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.commonjs/abi/interface.js:780:31)
+    at staticCallResult (/Users/jason/Dev/aastar/sp-wt/d7fix/script/gasless-tests/node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.commonjs/contract/contract.js:254:35)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async staticCall (/Users/jason/Dev/aastar/sp-wt/d7fix/script/gasless-tests/node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.commonjs/contract/contract.js:219:24)
+    at async Proxy.decimals (/Users/jason/Dev/aastar/sp-wt/d7fix/script/gasless-tests/node_modules/.pnpm/ethers@6.17.0/node_modules/ethers/lib.commonjs/contract/contract.js:259:20)
+    at async main (/Users/jason/Dev/aastar/sp-wt/d7fix/script/gasless-tests/test-x402-eip3009-settlement.js:113:20) {
+  code: 'BAD_DATA',
+  value: '0x',
+  info: { method: 'decimals', signature: 'decimals()' },
+  shortMessage: 'could not decode result data'
+}
+  [31] x402: EIP-3009 Settlement: FAILED (exit 1)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [32] x402: Direct Settle (C-02 signed auth)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+╔═══════════════════════════════════════════════════════════╗
+║  x402 Direct Settlement Test (C-02 — xPNTs transferFrom) ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  X402Facilitator: 0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f  (X402Facilitator-1.0.0)
+  xPNTs (asset):  0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3
+  Community owner:0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  Facilitator:    0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+  Payer (fresh):  0x5073F3DB7013648AA7317D422C81312e367295d0
+  Payee:          0x000000000000000000000000000000000000dEaD
+
+🔧 Step 1: Provision payer balance + facilitator approval
+  mint: TX confirmed (gas: 60852) tx=0xb4a9e202ab2d4a3ef4ef6c7481580316f2bab72c6b64d852896121fe61040c64 https://sepolia.etherscan.io/tx/0xb4a9e202ab2d4a3ef4ef6c7481580316f2bab72c6b64d852896121fe61040c64
+  Payer xPNTs balance: 10.0
+  addApprovedFacilitator: TX confirmed (gas: 50640) tx=0xbe8d9dcb7b7349ca4a52cc73f6a47200695dc549ad043ab4725f663958c4896f https://sepolia.etherscan.io/tx/0xbe8d9dcb7b7349ca4a52cc73f6a47200695dc549ad043ab4725f663958c4896f
+  Added facilitator to approvedFacilitators
+  X402Facilitator autoApprovedSpender: true
+
+✍️  Step 2: Sign EIP-712 X402PaymentAuthorization
+  effectiveFeeBPS: 0  expectedFee: 0.0
+  Nonce: 0x0f810730777af5790d00ce318a0e2a390abf906115e575bcfb329d9a33d602bc
+
+🚀 Step 3: settleX402PaymentDirect (valid signature)
+  settleX402PaymentDirect: TX confirmed (gas: 168866) tx=0xa79fbc3221a262c209a940858ae7df0a09a9dfed2e23635ba759766675432e5b https://sepolia.etherscan.io/tx/0xa79fbc3221a262c209a940858ae7df0a09a9dfed2e23635ba759766675432e5b
+  TX: https://sepolia.etherscan.io/tx/0xa79fbc3221a262c209a940858ae7df0a09a9dfed2e23635ba759766675432e5b
+  Payee received: 1.0 xPNTs
+  Fee collected:  0.0 xPNTs
+  ✅ PASS: payee received amount - fee (1.0)
+  ✅ PASS: facilitator earnings += fee
+  ✅ PASS: nonce consumed
+
+🛡️  Step 4: Replay protection (reuse same nonce)
+  ✅ PASS: replay rejected with NonceAlreadyUsed
+
+🛡️  Step 5: Recipient binding (C-02 drain prevention)
+  ✅ PASS: redirect to attacker → InvalidX402Signature
+  settleX402PaymentDirect(5b): TX confirmed (gas: 133167) tx=0x6cab4d4f41461d073b54b686ed618541bec00d933fcca662153495c974dfab3e https://sepolia.etherscan.io/tx/0x6cab4d4f41461d073b54b686ed618541bec00d933fcca662153495c974dfab3e
+  ✅ PASS: same signature settles to the AUTHORIZED recipient — binding isolated, C-02 verified
+
+╔═══════════════════════════════════════════════════════════╗
+║                    Test Completed                         ║
+╚═══════════════════════════════════════════════════════════╝
+  [32] x402: Direct Settle (C-02 signed auth): PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [33] BLS: Permissionless Switch (H-02)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ override existing { override: true }
+╔═══════════════════════════════════════════════════════════╗
+║  BLS Permissionless-Registration Switch Test (H-02)       ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  BLSAggregator: 0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E
+  Caller (non-owner): 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+
+📊 Step 1: Read switch + owner
+  permissionlessBLSRegistration: false
+  owner: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  ✅ PASS: switch is OFF (deployed default)
+  ✅ PASS: caller is not the owner
+
+🛡️  Step 2: Non-owner registerBLSPublicKey must revert (switch OFF)
+  ✅ PASS: reverted with PermissionlessRegistrationDisabled — H-02 gate verified
+
+╔═══════════════════════════════════════════════════════════╗
+║                    Test Completed                         ║
+╚═══════════════════════════════════════════════════════════╝
+  [33] BLS: Permissionless Switch (H-02): PASSED
+
+================================================================
+  Phase 11: PaymasterV4 Lifecycle
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [34] P2: PaymasterV4 Lifecycle (deposit/withdraw/activate)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+============================================================
+  Test Group P2: PaymasterV4 Lifecycle
+============================================================
+
+
+  [Step 1] Read deployer's PaymasterV4 state
+  --------------------------------------------------
+    PaymasterV4 address: 0xa37aE2b259D35aF4aBdde122eC90B204323ED304
+    version: PMV4-Deposit-4.5.1
+    owner: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    isActiveInRegistry: true
+    supported tokens count: 1
+      token: 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3
+    PASS: Read PaymasterV4 state
+
+  [Step 2] deactivateFromRegistry + activateInRegistry (lifecycle toggle)
+  --------------------------------------------------
+    paused before: false
+    deactivate: TX confirmed (gas: 50631) tx=0xaded5083fe2ceb4e545e520a2955c568cdeaf802bbc351da429f21aa6b2c3cd0 https://sepolia.etherscan.io/tx/0xaded5083fe2ceb4e545e520a2955c568cdeaf802bbc351da429f21aa6b2c3cd0
+    paused after deactivateFromRegistry: true
+    PASS: paused == true after deactivate
+    activate: TX confirmed (gas: 29586) tx=0x3d99498408c61a2b604def3af63e4c16f2a48ffebb84d04e06cd36ad734b88b5 https://sepolia.etherscan.io/tx/0x3d99498408c61a2b604def3af63e4c16f2a48ffebb84d04e06cd36ad734b88b5
+    paused after activateInRegistry: false
+    PASS: paused == false after activate
+    isActiveInRegistry after full toggle: true
+    PASS: Lifecycle toggle completed without error
+
+  [Step 3] depositFor — deposit tokens for a user
+  --------------------------------------------------
+    aPNTs supported by this PMV4: true
+    deployer aPNTs balance: 19493.0
+    Allowance already sufficient, skipping approve
+    user PM balance before: 450.137912
+    depositFor(user, aPNTs, 1): TX confirmed (gas: 61184) tx=0x5a6ce12822082267ecc2558c487c858424cebf57492687b836826c7eebfdf6c5 https://sepolia.etherscan.io/tx/0x5a6ce12822082267ecc2558c487c858424cebf57492687b836826c7eebfdf6c5
+    user PM balance after: 451.137912
+    PASS: balance increased by depositAmount after depositFor
+
+  [Step 4] withdraw — withdraw tokens back
+  --------------------------------------------------
+    deployer PMV4 balance: 49.862088
+    withdraw(aPNTs, amount): TX confirmed (gas: 57013) tx=0x2fd82ac265671e410746820cffaf85d8574755775ea83503ba076ceac9618c1d https://sepolia.etherscan.io/tx/0x2fd82ac265671e410746820cffaf85d8574755775ea83503ba076ceac9618c1d
+    deployer PMV4 balance after withdraw: 48.862088
+    PASS: balance decreased after withdraw
+
+  [Step 5] updatePrice — refresh PaymasterV4 price cache
+  --------------------------------------------------
+    cachedPrice.updatedAt before: 1792074052
+    cachedPrice.price before: 200000000000
+    updatePrice: TX confirmed (gas: 38692) tx=0x04d8d97b702c1caf74cb72e05f183380728a46f1fb55136f241a036bb8364600 https://sepolia.etherscan.io/tx/0x04d8d97b702c1caf74cb72e05f183380728a46f1fb55136f241a036bb8364600
+    cachedPrice.updatedAt after: 1792074139
+    cachedPrice.price after: 200000000000
+    PASS: updatePrice synced a valid Chainlink price+timestamp (updatedAt reflects the real round, may be < an admin-set value)
+
+============================================================
+  P2: PaymasterV4 Lifecycle Summary
+  Total: 7 | Passed: 7 | Failed: 0 | Skipped: 0
+============================================================
+
+  [34] P2: PaymasterV4 Lifecycle (deposit/withdraw/activate): PASSED
+
+================================================================
+  Phase 12: xPNTs Token Admin
+================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [35] X1: xPNTs Token Admin (limits/spenders/exchange-rate)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+============================================================
+  Test Group X1: xPNTs Token Admin Functions
+============================================================
+
+
+  [Step 1] Read xPNTs admin state
+  --------------------------------------------------
+    communityOwner: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    FACTORY: 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
+    SUPERPAYMASTER_ADDRESS: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    maxSingleTxLimit: 5000.0 aPNTs
+    spenderDailyCapTokens: 50000.0 xPNTs
+    exchangeRate: 1000000000000000000
+    exchangeRateUpdatedAt: 0
+    emergencyDisabled: false
+    PASS: communityOwner is non-zero
+    PASS: Deployer is communityOwner — write tests should proceed
+
+  [Step 2] setMaxSingleTxLimit — set + verify + restore
+  --------------------------------------------------
+    currentMaxSingleTxLimit: 5000.0 aPNTs
+    Setting maxSingleTxLimit to 6000.0 aPNTs...
+    setMaxSingleTxLimit: TX confirmed (gas: 33113) tx=0x92b87168fcbfb3a5c16f1ab28ff49330ce9550427d3723cbd3f479dfbddb2d9f https://sepolia.etherscan.io/tx/0x92b87168fcbfb3a5c16f1ab28ff49330ce9550427d3723cbd3f479dfbddb2d9f
+    PASS: maxSingleTxLimit updated == 6000000000000000000000
+    Restoring original limit...
+    restoreMaxSingleTxLimit: TX confirmed (gas: 33113) tx=0xa1096c59867f14c6b18a3b1317444befe97b8bcfdd7ca7c413e5175e9d878f5d https://sepolia.etherscan.io/tx/0xa1096c59867f14c6b18a3b1317444befe97b8bcfdd7ca7c413e5175e9d878f5d
+    PASS: maxSingleTxLimit restored == 5000000000000000000000
+
+  [Step 3] setSpenderDailyCap — set + verify + restore
+  --------------------------------------------------
+    currentSpenderDailyCap: 50000.0 xPNTs
+    Setting spenderDailyCap to 50500.0 xPNTs...
+    setSpenderDailyCap: TX confirmed (gas: 32717) tx=0x0cabf1eacb4efe176f90999cf7e5dd2cc05046b8429417e61e1f2ddec751ac53 https://sepolia.etherscan.io/tx/0x0cabf1eacb4efe176f90999cf7e5dd2cc05046b8429417e61e1f2ddec751ac53
+    PASS: spenderDailyCapTokens updated == 50500000000000000000000
+    Restoring original daily cap...
+    restoreSpenderDailyCap: TX confirmed (gas: 32717) tx=0xce5420f8958ce4bb22bb4f08f454bc3971c10360eabb32f89cba80a203cc8f0c https://sepolia.etherscan.io/tx/0xce5420f8958ce4bb22bb4f08f454bc3971c10360eabb32f89cba80a203cc8f0c
+    PASS: spenderDailyCapTokens restored == 50000000000000000000000
+
+  [Step 4] addAutoApprovedSpender + removeAutoApprovedSpender
+  --------------------------------------------------
+    isAutoApproved(testSpender) before: false
+    addAutoApprovedSpender: TX confirmed (gas: 52961) tx=0x1fefc23a7eaedf357f1eb74da510823f6b8d80d3ef80292ab8c1e53decfab108 https://sepolia.etherscan.io/tx/0x1fefc23a7eaedf357f1eb74da510823f6b8d80d3ef80292ab8c1e53decfab108
+    PASS: isAutoApproved true after add
+    removeAutoApprovedSpender: TX confirmed (gas: 29115) tx=0xb58759b7a5b22efa7bf0a9b99164b0363d38803902c86b375f0568b5c4280763 https://sepolia.etherscan.io/tx/0xb58759b7a5b22efa7bf0a9b99164b0363d38803902c86b375f0568b5c4280763
+    PASS: isAutoApproved false after remove
+
+  [Step 5] addApprovedFacilitator + removeApprovedFacilitator
+  --------------------------------------------------
+    isApprovedFacilitator(testSpender) before: false
+    addApprovedFacilitator: TX confirmed (gas: 50628) tx=0x7acc9becde06e8d6d899d506bc1c424ceefdb369913db999809361c4dd964fae https://sepolia.etherscan.io/tx/0x7acc9becde06e8d6d899d506bc1c424ceefdb369913db999809361c4dd964fae
+    PASS: isApprovedFacilitator true after add
+    removeApprovedFacilitator: TX confirmed (gas: 28719) tx=0xebaa71b957c308eaed58bd91e77c72b201e3043c75d570313da8cc9259e20b88 https://sepolia.etherscan.io/tx/0xebaa71b957c308eaed58bd91e77c72b201e3043c75d570313da8cc9259e20b88
+    PASS: isApprovedFacilitator false after remove
+
+  [Step 6] burn(1 wei) — minimal self-burn
+  --------------------------------------------------
+    deployer xPNTs balance: 19493.0
+    Burning 1 wei xPNTs (irreversible)...
+    burn(1 wei): TX confirmed (gas: 36714) tx=0x6dd5a4b8535dc538e5c8993f3dfbf57fbe4b96b902e8ff3b663fdc73c76924b1 https://sepolia.etherscan.io/tx/0x6dd5a4b8535dc538e5c8993f3dfbf57fbe4b96b902e8ff3b663fdc73c76924b1
+    PASS: balance decreased by 1 wei after burn == 19492999999999999999999
+
+  [Step 7] updateExchangeRate — cooldown-aware
+  --------------------------------------------------
+    exchangeRate: 1000000000000000000
+    lastRateUpdate: 0
+    Updating exchange rate: 1000000000000000000 → 1010000000000000000 (+1%)...
+    updateExchangeRate(+1%): TX confirmed (gas: 58299) tx=0x42edb2e7c5e897a207800b0c7a1c240c2363d5877b50efe833c57d5a5a999c86 https://sepolia.etherscan.io/tx/0x42edb2e7c5e897a207800b0c7a1c240c2363d5877b50efe833c57d5a5a999c86
+    PASS: exchangeRate updated to +1% == 1010000000000000000
+    Attempting to restore rate (cooldown active — failure is expected and OK)...
+    Restore reverted (1h cooldown active) — rate left at +1%, this is expected
+
+  [Step 8] transferAndCall → SuperPaymaster (ERC1363 push deposit)
+  --------------------------------------------------
+    deployer xPNTs balance: 19492.999999999999999999
+    transferAmount: 1.0
+    SP.APNTS_TOKEN: 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3
+    config.aPNTs: 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3
+    SP operator.aPNTsBalance before: 1000000000000000000000
+    Calling transferAndCall(superPaymaster, 1 aPNTs)...
+    transferAndCall→SP: TX confirmed (gas: 96180) tx=0x1431162ba73f30e086b65115367d90f854cdc5373194a82f84efebd52705a56a https://sepolia.etherscan.io/tx/0x1431162ba73f30e086b65115367d90f854cdc5373194a82f84efebd52705a56a
+    SP operator.aPNTsBalance after: 1001000000000000000000
+    PASS: SP operator aPNTsBalance >= before (onTransferReceived accepted push)
+
+============================================================
+  X1: xPNTs Admin Summary
+  Total: 13 | Passed: 13 | Failed: 0 | Skipped: 0
+============================================================
+
+  [35] X1: xPNTs Token Admin (limits/spenders/exchange-rate): PASSED
+
+── Phase 13: Beta.3 Audit Fix Verification ──────────────────────────────────────
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [36] I1: Credit Ceiling H-1 Fix
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ suppress logs { quiet: true }
+
+============================================================
+  Test Group I1: Credit Ceiling Enforcement (5.5.0)
+============================================================
+
+    SuperPaymaster: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    Registry: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+    aastarXPNTsV2 (xPNTs v2 token): 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+    Operator: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    Test user: 0x03611cefB15C3321DdfAf46814fee1A687235e8A
+
+
+  [Step 1] creditTierConfig — tier credit limits (levels 1-6)
+  --------------------------------------------------
+    Level | Credit Limit
+    ------|-------------
+    Tier 1 | 300.0 aPNTs
+    Tier 2 | 300.0 aPNTs
+    Tier 3 | 300.0 aPNTs
+    Tier 4 | 600.0 aPNTs
+    Tier 5 | 1000.0 aPNTs
+    Tier 6 | 2000.0 aPNTs
+    PASS: Tier 1 limit readable
+    PASS: Tier 6 limit >= Tier 1 limit
+    PASS: Credit tier limits read — ceiling config is on-chain
+
+  [Step 2] getCreditLimit — credit limit for operator and test user
+  --------------------------------------------------
+    Operator credit limit: 300.0 aPNTs
+    Test user credit limit: 300.0 aPNTs
+    Fresh address limit (rep=0): 300.0 aPNTs
+    PASS: Fresh address gets Tier 1 credit limit == 300000000000000000000
+    PASS: getCreditLimit reads correctly from Registry
+
+  [Step 3] token.debts / creditReservedOf / effectiveCreditCap — 5.5.0 ceiling accounting
+  --------------------------------------------------
+    debts(user): 0.0 aPNTs
+    creditReservedOf(user): 0.0 aPNTs (in-flight, same-tx reservations)
+    effectiveCreditCap(user): 0.0 aPNTs
+    PASS: 5.5.0 ceiling accounting readable on the token
+
+  [Step 4] userOpState — isBlocked flag per operator+user pair (5.5.0: admin-only)
+  --------------------------------------------------
+    lastTimestamp: 0
+    isBlocked: false
+    5.5.0: isBlocked is only ever written by Registry.updateBlockedStatus (onlyRegistry) —
+      SP itself never sets it anymore. Credit-ceiling breaches now fail closed atomically
+      inside tryReserveCredit (no state written, L-1) instead of flagging the user.
+    PASS: Fresh operator+user pair is not blocked
+    PASS: userOpState mapping readable
+
+  [Step 5] Ceiling enforcement — a new reservation past headroom is rejected with EXCEEDS_CAP (C-1, live check)
+  --------------------------------------------------
+    effectiveCreditCap: 300.0 aPNTs
+    debts + creditReservedOf: 0.0 aPNTs
+    headroom: 300.0 aPNTs
+    maxSingleTxLimit: 5000.0 aPNTs
+    previewCredit(headroom + 1 aPNTs = 301.0): EXCEEDS_CAP
+    PASS: Reservation past headroom is rejected with EXCEEDS_CAP specifically (got EXCEEDS_CAP) == 2
+    PASS: Credit ceiling enforced — the EXCEEDS_CAP branch itself is exercised live (spec C-1)
+
+  [Step 6] dryRunValidation (via SuperPaymasterLens) — minimal-op smoke check
+  --------------------------------------------------
+    ok: false
+    reasonCode: 0x5354414c455f5052494345000000000000000000000000000000000000000000
+    PASS: dryRunValidation call succeeded via SuperPaymasterLens
+
+  [Step 7] Version assertion — confirm SuperPaymaster-5.5.0 is deployed
+  --------------------------------------------------
+    SuperPaymaster version: SuperPaymaster-5.5.0
+    PASS: version contains "5.5.0" (got "SuperPaymaster-5.5.0")
+    PASS: 5.5.0 confirmed deployed — balance-mode credit ceiling accounting is live
+    Ceiling enforcement now lives in xPNTsTokenV2.tryReserveCredit (C-1), atomic,
+      no state written on rejection — no isBlocked flag needed to prevent overrun.
+
+============================================================
+  I1: Credit Ceiling H-1 Fix Verification Summary
+  Total: 13 | Passed: 13 | Failed: 0 | Skipped: 0
+============================================================
+
+  [36] I1: Credit Ceiling H-1 Fix: PASSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [37] I2: Emergency Halt H-2 Fix
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+◇ injected env (0) from ../../../../../../private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/d7/run8/e2e.env // tip: ⌘ enable debugging { debug: true }
+
+============================================================
+  Test Group I2: Emergency Halt H-2 Fix Verification
+============================================================
+
+    aPNTs token: 0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3
+    pnts token: 0x2C477DFdB744E3BAf87bbdE078e21D382bc40700
+    SuperPaymaster: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    Anni: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+
+
+  [Step 1] Read emergencyDisabled state on aPNTs and pnts tokens
+  --------------------------------------------------
+    aPNTs.emergencyDisabled: false
+    aPNTs.communityOwner: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    aPNTs.SUPERPAYMASTER_ADDRESS: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    aPNTs.FACTORY: 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
+    aPNTs.autoApprovedSpenders[SP]: true
+    pnts.emergencyDisabled: false
+    pnts.communityOwner: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+    PASS: Emergency state readable on both tokens
+
+  [Step 2] Verify emergency is not active (normal ops assertion)
+  --------------------------------------------------
+    PASS: aPNTs.emergencyDisabled == false (normal ops)
+    PASS: pnts.emergencyDisabled == false (normal ops)
+    PASS: Tokens are not in emergency state — system is operational
+    PASS: SP is autoApprovedSpender on aPNTs (H-2 path is active for SP)
+    H-2 path wired: SP calls to transferFrom will be intercepted by the emergency check
+
+  [Step 3] Toggle emergency on (requires deployer to be communityOwner of aPNTs)
+  --------------------------------------------------
+    communityOwner: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    deployer is owner: true
+    originalSP: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    Deployer is communityOwner — proceeding with emergency toggle test...
+    emergencyRevokePaymaster(): TX confirmed (gas: 75377) tx=0xb2d5b717b46c7515d31b58e6abcccc3ae11f48e44d7dfd362379dd4c1c78166d https://sepolia.etherscan.io/tx/0xb2d5b717b46c7515d31b58e6abcccc3ae11f48e44d7dfd362379dd4c1c78166d
+    PASS: emergencyDisabled == true after emergencyRevokePaymaster() == true
+    PASS: Emergency activated — H-2 circuit breaker is now ON
+
+  [Step 4] Verify transferFrom self-pull reverts with EmergencyStop (eth_call)
+  --------------------------------------------------
+    addAutoApprovedSpender(deployer) [temp, for H-2 test]: TX confirmed (gas: 52973) tx=0x962df12cbdde6f2247a70902f079072fe6e5074d84da4b7175dc96bb37b677ea https://sepolia.etherscan.io/tx/0x962df12cbdde6f2247a70902f079072fe6e5074d84da4b7175dc96bb37b677ea
+    transferFrom self-pull reverted (not EmergencyStop): execution reverted (unknown custom error) (action="call", data="0x4e97bcfc", rea
+    PASS: transferFrom self-pull reverted (H-2 guard or other check active)
+
+  [Step 5] Verify transferFrom to SP is not blocked by EmergencyStop (SP carve-out)
+  --------------------------------------------------
+    PASS: H-2 carve-out: transferFrom to SP reverted with non-Emergency reason (expected if no balance): execution reverted (unknown custom error) (action="call", da
+    removeAutoApprovedSpender(deployer) [cleanup]: TX confirmed (gas: 29127) tx=0xfb696c4910f90b92244327b1d54539b6c2b76ebc9c6fa768a398d5ca23195226 https://sepolia.etherscan.io/tx/0xfb696c4910f90b92244327b1d54539b6c2b76ebc9c6fa768a398d5ca23195226
+    PASS: deployer removed from autoApprovedSpenders (cleanup)
+
+  [Step 6] Restore emergency state (setSuperPaymasterAddress + unsetEmergencyDisabled)
+  --------------------------------------------------
+    Restoring: originalSP = 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+      Step A: setSuperPaymasterAddress(deployer) — makes deployer the temp SP
+            (required: SUPERPAYMASTER_ADDRESS must differ from emergencyRevokedAddress)
+    setSuperPaymasterAddress(deployer) [temp]: TX confirmed (gas: 61198) tx=0x0fb8c0ab026b45d9296299f03623082f300c084121c8b6247bb4e190f5d5f53d https://sepolia.etherscan.io/tx/0x0fb8c0ab026b45d9296299f03623082f300c084121c8b6247bb4e190f5d5f53d
+    unsetEmergencyDisabled(): TX confirmed (gas: 31674) tx=0xe23b0e882c339be9db6a806d9c594d6240a52759ef4e974082728835185d973c https://sepolia.etherscan.io/tx/0xe23b0e882c339be9db6a806d9c594d6240a52759ef4e974082728835185d973c
+    PASS: emergencyDisabled == false after restore == false
+    setSuperPaymasterAddress(originalSP) [restore]: TX confirmed (gas: 62799) tx=0xc1c64bca36099887af9832e33ba9db2f5a9bc0189a4fa316f035a6b01605b0fc https://sepolia.etherscan.io/tx/0xc1c64bca36099887af9832e33ba9db2f5a9bc0189a4fa316f035a6b01605b0fc
+    PASS: SUPERPAYMASTER_ADDRESS restored to original == 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+    PASS: originalSP is autoApprovedSpender after restore (setSuperPaymasterAddress auto-adds)
+    PASS: Emergency state fully restored — aPNTs token is operational again
+
+  [Step 7] H-2 fix structural verification — xPNTs version and guard presence
+  --------------------------------------------------
+    xPNTsToken version: XPNTs-3.5.0
+    PASS: aPNTs.emergencyDisabled == false (system operational after test)
+    PASS: SP is autoApprovedSpender (H-2 path active for SP)
+    PASS: H-2 fix confirmed — emergencyDisabled firewall wired into transferFrom
+    Fix summary: xPNTsToken.transferFrom() self-pull path now checks emergencyDisabled.
+      SP carve-out (to == SUPERPAYMASTER_ADDRESS) preserved for settle/deposit flow.
+
+============================================================
+  I2: Emergency Halt H-2 Fix Verification Summary
+  Total: 17 | Passed: 17 | Failed: 0 | Skipped: 0
+============================================================
+
+  [37] I2: Emergency Halt H-2 Fix: PASSED
+
+
+================================================================
+  E2E Test Suite Summary
+  2026-10-15 21:22:27
+================================================================
+
+  PASS  Check Contracts
+  PASS  Check Balances
+  PASS  A1: Registry Roles
+  PASS  A2: Registry Queries
+  PASS  B1: Operator Config
+  PASS  B2: Operator Deposit/Withdraw
+  FAIL  B3: configureOperator v2 (2-arg, PR#200)
+  PASS  B4: SP Governance Admin
+  PASS  B5: Dry Run & Pending Debt
+  PASS  C1: SuperPaymaster Negative
+  PASS  C2: PaymasterV4 Negative
+  PASS  D1: Reputation Rules
+  FAIL  D2: Credit Tiers
+  FAIL  E1: Pricing & Oracle
+  PASS  E2: Protocol Fees
+  PASS  E3: aPNTs Exchange Rate Accounting (PR#200)
+  PASS  E4: repayDebt & Exchange Rate Settlement
+  PASS  F1: Staking Queries
+  PASS  F2: Slash History
+  PASS  F3: Staking & Registry Admin
+  PASS  G1: Reputation-Gated Sponsorship
+  PASS  G2: Agent Identity Sponsorship (ERC-8004)
+  PASS  G3: Credit Tier Escalation
+  PASS  H1: DVT & BLS Aggregator Queries
+  PASS  H2: ReputationSystem Community Scoring & BLS Sync
+  PASS  Gasless: PaymasterV4
+  SKIP  Gasless: SuperPaymaster xPNTs1
+  PASS  Gasless: SuperPaymaster xPNTs2
+  SKIP  Gasless: SP Credit/Debt Path
+  PASS  MicroPaymentChannel: Open / Settle / Close
+  FAIL  x402: EIP-3009 Settlement
+  PASS  x402: Direct Settle (C-02 signed auth)
+  PASS  BLS: Permissionless Switch (H-02)
+  PASS  P2: PaymasterV4 Lifecycle (deposit/withdraw/activate)
+  PASS  X1: xPNTs Token Admin (limits/spenders/exchange-rate)
+  PASS  I1: Credit Ceiling H-1 Fix
+  PASS  I2: Emergency Halt H-2 Fix
+
+────────────────────────────────────────────────────────────────
+  Total: 37  |  Passed: 31  |  Failed: 4  |  Skipped: 2
+────────────────────────────────────────────────────────────────
+
+
+📁 Results saved to: /Users/jason/Dev/aastar/sp-wt/d7fix/script/gasless-tests/results/2026-10-15_21-22-27_run-all-e2e-tests.md
+
+4 test(s) failed.

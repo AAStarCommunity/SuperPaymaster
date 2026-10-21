@@ -1,0 +1,13 @@
+Warning: Dependency 'standards/permit2' revision mismatch: expected 'cc56ad0f3439c502c246fc5cfcc3db92bb8b7219', found '6cf7af89d01cdff4efc4851f0b53e89fc01ca1b9'
+Warning: Dependency 'standards/x402' revision mismatch: expected 'b054f423400f0b972dbd9032120f172350110a59', found '6cf7af89d01cdff4efc4851f0b53e89fc01ca1b9'
+Warning: Dependency 'standards/mpp-specs' revision mismatch: expected '0c438bdd24b831abafc22b2a99f7562e414dcf4f', found '6cf7af89d01cdff4efc4851f0b53e89fc01ca1b9'
+Warning: Dependency 'standards/ercs' revision mismatch: expected 'c6d2d5e3ac261769cec2fb49b3e382fe2bf21e88', found '6cf7af89d01cdff4efc4851f0b53e89fc01ca1b9'
+Compiling 35 files with Solc 0.8.33
+Solc 0.8.33 finished in 4.89s
+Compiler run successful with warnings:
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+

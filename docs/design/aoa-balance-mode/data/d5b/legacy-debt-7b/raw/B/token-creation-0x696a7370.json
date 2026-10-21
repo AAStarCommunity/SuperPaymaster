@@ -1,0 +1,16 @@
+{
+ "endpoint": "B (sepolia.gateway.tenderly.co)",
+ "request": {
+  "address": "0x696a73701b104c6ccbbaaddd2216788ea08eab89",
+  "blocks": [
+   11151013,
+   11151014
+  ],
+  "method": "eth_getCode boundary"
+ },
+ "response": {
+  "codeAtCreationMinus1": "0x",
+  "codeAtCreation_keccak": "0x15f1b4b625c382410612c75252997218c927fc8fe5060a7e76a1df8461bc3993",
+  "codeAtCreation_len": 45
+ }
+}

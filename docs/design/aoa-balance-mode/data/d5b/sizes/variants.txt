@@ -1,0 +1,11 @@
+D5b-design §1.1 size variants (measurement only, never committed as source). Each is the c30854f9
+SuperPaymaster.sol / BasePaymasterUpgradeable.sol compiled alone in a scratch copy of the tree with this
+repo's foundry.toml (profile.default: solc 0.8.33, runs 500, via_ir, cancun, bytecode_hash none),
+runtime = len(deployedBytecode.object) of out/SuperPaymaster.sol/SuperPaymaster.json.
+
+row 1  2cb89b61 SuperPaymaster.sol + its BasePaymasterUpgradeable.sol                     22,942
+row 2  c30854f9 as is                                                                    23,568
+row 3  c30854f9 SP + D5b BasePaymasterUpgradeable (inherits Ownable2StepNamespaced)       24,987
+row 4  c30854f9 SP patched by gov2-monolith-variant.py, c30854f9 base (Ownable)           25,257
+row 5  c30854f9 SP patched by gov2-monolith-variant.py + D5b base (full GOV-2, unsplit)   24,270
+rows 6-8: the committed D5b tree, see sizes-d5b.json and ../gates/check-sp-size.log

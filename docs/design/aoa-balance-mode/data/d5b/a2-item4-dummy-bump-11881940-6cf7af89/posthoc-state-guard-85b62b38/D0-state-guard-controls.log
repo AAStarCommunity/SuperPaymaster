@@ -1,0 +1,105 @@
+# getter-snapshot guard controls @block 11881942 (sp_state / state_ok, Codex #462 round 2)
+## ok: state_ok -> valid
+  # SP getters via proxy @block 11881942
+  owner()(address) = 0xb5600060e6de5E11D3636731964218E53caadf0E
+  pendingOwner()(address) = 0x0000000000000000000000000000000000000000
+  guardian()(address) = 0x0000000000000000000000000000000000000000
+  paused()(bool) = false
+  APNTS_TOKEN()(address) = 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  pendingAPNTsToken()(address) = 0xBb46321545a91DB2F3B5c3e694F2f23aBe259883
+  pendingAPNTsTokenEta()(uint256) = 1789099908 [1.789e9]
+  xpntsFactory()(address) = 0x67422d2e44a33c8dA99b3b776841bF316bD209a2
+  treasury()(address) = 0xb5600060e6de5E11D3636731964218E53caadf0E
+  aPNTsPriceUSD()(uint256) = 20000000000000000 [2e16]
+  cachedPrice()(int256,uint256,uint80,uint8) = 270428050000 [2.704e11] 1790488836 [1.79e9] 18446744073709587983 [1.844e19] 8
+  protocolFeeBPS()(uint256) = 1000
+  BLS_AGGREGATOR()(address) = 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+  totalTrackedBalance()(uint256) = 2934135941213700000000 [2.934e21]
+  protocolRevenue()(uint256) = 399586525633215878600 [3.995e20]
+  priceStalenessThreshold()(uint256) = 4200
+  priceMode()(uint8) = 0
+  entryPoint()(address) = 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+  REGISTRY()(address) = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+  ETH_USD_PRICE_FEED()(address) = 0x694AA1769357215DE4FAC081bf1f309aDC325306
+  operators(OWNER) = 1690008712737068326800 [1.69e21] true false 0x696A73701b104c6cCBbAadDD2216788ea08EaB89 100 60 0xb5600060e6de5E11D3636731964218E53caadf0E 1174614808208040000000 [1.174e21] 6
+  operators(ANNI) = 844540702843415794600 [8.445e20] true false 0xE6579A90dc498a710008de12119812D0FB7aA224 0 0 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 587307404104020000000 [5.873e20] 3
+  EP.getDepositInfo(SP) = (93470830000000000 [9.347e16], true, 100000000000000000 [1e17], 86400 [8.64e4], 0)
+  APNTsCapped.balanceOf(SP) = 2934135941213700000000 [2.934e21]
+## blank: state_ok -> INVALID(24 non-empty values, 0 bad lines, FAILED/error/revert present)
+  # SP getters via proxy @block 11881942
+  owner()(address) = 0xb5600060e6de5E11D3636731964218E53caadf0E
+  pendingOwner()(address) = 0x0000000000000000000000000000000000000000
+  guardian()(address) = 0x0000000000000000000000000000000000000000
+  paused()(bool) = false
+  APNTS_TOKEN()(address) = 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  pendingAPNTsToken()(address) = 0xBb46321545a91DB2F3B5c3e694F2f23aBe259883
+  pendingAPNTsTokenEta()(uint256) = 1789099908 [1.789e9]
+  xpntsFactory()(address) = 0x67422d2e44a33c8dA99b3b776841bF316bD209a2
+  treasury()(address) = 0xb5600060e6de5E11D3636731964218E53caadf0E
+  aPNTsPriceUSD()(uint256) = 20000000000000000 [2e16]
+  cachedPrice()(int256,uint256,uint80,uint8) = 270428050000 [2.704e11] 1790488836 [1.79e9] 18446744073709587983 [1.844e19] 8
+  protocolFeeBPS()(uint256) = 1000
+  BLS_AGGREGATOR()(address) = 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+  totalTrackedBalance()(uint256) = 2934135941213700000000 [2.934e21]
+  protocolRevenue()(uint256) = 399586525633215878600 [3.995e20]
+  priceStalenessThreshold()(uint256) = 4200
+  priceMode()(uint8) = 0
+  entryPoint()(address) = 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+  REGISTRY()(address) = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+  ETH_USD_PRICE_FEED()(address) = 0x694AA1769357215DE4FAC081bf1f309aDC325306
+  operators(OWNER) = FAILED
+  operators(ANNI) = 844540702843415794600 [8.445e20] true false 0xE6579A90dc498a710008de12119812D0FB7aA224 0 0 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 587307404104020000000 [5.873e20] 3
+  EP.getDepositInfo(SP) = (93470830000000000 [9.347e16], true, 100000000000000000 [1e17], 86400 [8.64e4], 0)
+  APNTsCapped.balanceOf(SP) = 2934135941213700000000 [2.934e21]
+## fail: state_ok -> INVALID(24 non-empty values, 0 bad lines, FAILED/error/revert present)
+  # SP getters via proxy @block 11881942
+  owner()(address) = 0xb5600060e6de5E11D3636731964218E53caadf0E
+  pendingOwner()(address) = 0x0000000000000000000000000000000000000000
+  guardian()(address) = 0x0000000000000000000000000000000000000000
+  paused()(bool) = false
+  APNTS_TOKEN()(address) = 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  pendingAPNTsToken()(address) = 0xBb46321545a91DB2F3B5c3e694F2f23aBe259883
+  pendingAPNTsTokenEta()(uint256) = 1789099908 [1.789e9]
+  xpntsFactory()(address) = 0x67422d2e44a33c8dA99b3b776841bF316bD209a2
+  treasury()(address) = 0xb5600060e6de5E11D3636731964218E53caadf0E
+  aPNTsPriceUSD()(uint256) = 20000000000000000 [2e16]
+  cachedPrice()(int256,uint256,uint80,uint8) = 270428050000 [2.704e11] 1790488836 [1.79e9] 18446744073709587983 [1.844e19] 8
+  protocolFeeBPS()(uint256) = 1000
+  BLS_AGGREGATOR()(address) = 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+  totalTrackedBalance()(uint256) = 2934135941213700000000 [2.934e21]
+  protocolRevenue()(uint256) = 399586525633215878600 [3.995e20]
+  priceStalenessThreshold()(uint256) = 4200
+  priceMode()(uint8) = 0
+  entryPoint()(address) = 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+  REGISTRY()(address) = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+  ETH_USD_PRICE_FEED()(address) = 0x694AA1769357215DE4FAC081bf1f309aDC325306
+  operators(OWNER) = FAILED
+  operators(ANNI) = 844540702843415794600 [8.445e20] true false 0xE6579A90dc498a710008de12119812D0FB7aA224 0 0 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 587307404104020000000 [5.873e20] 3
+  EP.getDepositInfo(SP) = (93470830000000000 [9.347e16], true, 100000000000000000 [1e17], 86400 [8.64e4], 0)
+  APNTsCapped.balanceOf(SP) = 2934135941213700000000 [2.934e21]
+## blankA: state_ok -> INVALID(23 non-empty values, 1 bad lines)
+  # SP getters via proxy @block 11881942
+  owner()(address) = 0xb5600060e6de5E11D3636731964218E53caadf0E
+  pendingOwner()(address) = 0x0000000000000000000000000000000000000000
+  guardian()(address) = 0x0000000000000000000000000000000000000000
+  paused()(bool) = false
+  APNTS_TOKEN()(address) = 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  pendingAPNTsToken()(address) = 0xBb46321545a91DB2F3B5c3e694F2f23aBe259883
+  pendingAPNTsTokenEta()(uint256) = 1789099908 [1.789e9]
+  xpntsFactory()(address) = 0x67422d2e44a33c8dA99b3b776841bF316bD209a2
+  treasury()(address) = 0xb5600060e6de5E11D3636731964218E53caadf0E
+  aPNTsPriceUSD()(uint256) = 20000000000000000 [2e16]
+  cachedPrice()(int256,uint256,uint80,uint8) = 270428050000 [2.704e11] 1790488836 [1.79e9] 18446744073709587983 [1.844e19] 8
+  protocolFeeBPS()(uint256) = 1000
+  BLS_AGGREGATOR()(address) = 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+  totalTrackedBalance()(uint256) = 2934135941213700000000 [2.934e21]
+  protocolRevenue()(uint256) = 399586525633215878600 [3.995e20]
+  priceStalenessThreshold()(uint256) = 4200
+  priceMode()(uint8) = 0
+  entryPoint()(address) = 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+  REGISTRY()(address) = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+  ETH_USD_PRICE_FEED()(address) = 0x694AA1769357215DE4FAC081bf1f309aDC325306
+  operators(OWNER) = 
+  operators(ANNI) = 844540702843415794600 [8.445e20] true false 0xE6579A90dc498a710008de12119812D0FB7aA224 0 0 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 587307404104020000000 [5.873e20] 3
+  EP.getDepositInfo(SP) = (93470830000000000 [9.347e16], true, 100000000000000000 [1e17], 86400 [8.64e4], 0)
+  APNTsCapped.balanceOf(SP) = 2934135941213700000000 [2.934e21]

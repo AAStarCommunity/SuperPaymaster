@@ -1,0 +1,4 @@
+control	collector_check	validator_exit
+legitimate-n50	pass	0
+unexplained-jump	reject	1
+baseline-mutation	reject	1

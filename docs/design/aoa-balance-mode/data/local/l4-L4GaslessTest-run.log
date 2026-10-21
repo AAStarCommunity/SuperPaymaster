@@ -1,0 +1,41 @@
+Compiling 2 files with Solc 0.8.33
+Solc 0.8.33 finished in 2.44s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Script ran successfully.
+
+== Logs ==
+  -----------------------------------------
+  L4 Gasless (balance mode) on anvil
+  -----------------------------------------
+    AA account: 0x299C29D4f46657D41860c9f0fE90b9e1307958b4
+    lens.dryRunValidation ok: true
+    user xPNTs burned      : 70852547863511370000
+    lockedOf(user) after   : 0
+    operator aPNTs decrease: 70852547863511370000
+    protocolRevenue delta  : 70852547863511370000
+    snapshot written: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/cache/l4-gasless.anvil.json
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 31337
+
+Estimated gas price: 0.000034379 gwei
+
+Estimated total gas used for script: 5765956
+
+Estimated amount required: 0.000000198227801324 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/broadcast/L4GaslessTest.s.sol/31337/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/cache/L4GaslessTest.s.sol/31337/run-latest.json
+

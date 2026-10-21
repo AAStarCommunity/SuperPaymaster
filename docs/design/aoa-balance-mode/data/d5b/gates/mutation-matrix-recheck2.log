@@ -1,0 +1,30 @@
+column 0 (unmutated): 61 tests, red = []
+
+== j-manifest-validation-skipped: Codex re-check M1/M3: m1Preflight no longer runs validateManifest (chainId, non-vacuous manifest)
+   red (2/27):
+     - test_manifest_chainid_mismatch_reverts: next call did not revert as expected
+     - test_manifest_vacuous_fields_each_rejected: next call did not revert as expected
+   expected red ['test_manifest_chainid_mismatch_reverts', 'test_manifest_vacuous_fields_each_rejected'] -> missing []
+   blind columns ['test_preflight_rejects_72h_delay', 'test_attestation_stale_head_reverts', 'test_preflight_correct_timelock_passes_and_M1_completes'] -> turned red []
+   RESULT: OK
+
+== k-placeholder-manifest-accepted: Codex re-check M3: parseManifest accepts the committed example (FAKE placeholder addresses)
+   red (1/27):
+     - test_manifest_example_placeholder_refused: next call did not revert as expected
+   expected red ['test_manifest_example_placeholder_refused'] -> missing []
+   blind columns ['test_manifest_file_missing_field_each_rejected'] -> turned red []
+   RESULT: OK
+
+== l-governed-call-accepts-upgrade: Codex re-check L1: schedule-call no longer refuses upgradeToAndCall (bypassing the upgrade read-backs)
+   red (1/27):
+     - test_governed_call_refuses_upgrade: next call did not revert as expected
+   expected red ['test_governed_call_refuses_upgrade'] -> missing []
+   blind columns ['test_governed_call_unpause_goes_through_gate'] -> turned red []
+   RESULT: OK
+
+== m-governed-call-ungated: Codex re-check L1: scheduleCallWith (the M2 unpause path) skips governedGate
+   red (1/27):
+     - test_governed_call_unpause_goes_through_gate: next call did not revert as expected
+   expected red ['test_governed_call_unpause_goes_through_gate'] -> missing []
+   blind columns ['test_governed_call_refuses_upgrade', 'test_attestation_missing_reverts'] -> turned red []
+   RESULT: OK

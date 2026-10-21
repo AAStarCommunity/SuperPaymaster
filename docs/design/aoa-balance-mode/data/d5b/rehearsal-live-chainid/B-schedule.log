@@ -1,0 +1,32 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    roles attestation: head block hash verified against blockhash() 16
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 16
+    M1 batch scheduled; ready at: 1789648125
+  0x321972a6451f193637afcec5d53a80129cb545e2bdc3916686a0cd0c11773e88
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.302118019 gwei
+
+Estimated total gas used for script: 102589
+
+Estimated amount required: 0.000030993985451191 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/broadcast/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/cache/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+

@@ -1,0 +1,11 @@
+--- a/contracts/src/tokens/v2/xPNTsV2Base.sol
++++ b/contracts/src/tokens/v2/xPNTsV2Base.sol
+@@ -236,7 +236,7 @@
+             uint256 locked = lockedOf[from];
+             if (locked != 0) {
+                 uint256 bal = balanceOf(from);
+-                if (bal < value || bal - value < locked) revert BalanceLocked(from, locked);
++                // D5c-1 M-I4B: A-1 lock check removed
+             }
+         }
+         if (from == address(0) && to != address(0) && value > 0) {

@@ -1,0 +1,5 @@
+13520 27331 27307 S    bash script/halmos/run-all-d5c1.sh all 4
+40153 13520 27307 S    /Users/jason/.pyenv/versions/3.11.9/bin/python3 script/halmos/run-partitioned.py XPNTsV2RateHalmosTest check_RATE_step_coreAbi core docs/design/aoa-balance-mode/data/halmos/XPNTsV2RateHalmosTest.check_RATE_step_coreAbi --profile xp --jobs 4
+69543 40153 69543 Rs   /Users/jason/.local/share/uv/tools/halmos/bin/python /Users/jason/.local/bin/halmos --contract XPNTsV2RateHalmosTest --function check_RATE_step_coreAbi --panic-error-codes * --loop 2 --default-bytes-lengths 0,65 --statistics --solver-timeout-assertion 300000
+81984 40153 81984 Rs   /Users/jason/.local/share/uv/tools/halmos/bin/python /Users/jason/.local/bin/halmos --contract XPNTsV2RateHalmosTest --function check_RATE_step_coreAbi --panic-error-codes * --loop 2 --default-bytes-lengths 0,65 --statistics --solver-timeout-assertion 300000
+98111 40153 98111 Rs   /Users/jason/.local/share/uv/tools/halmos/bin/python /Users/jason/.local/bin/halmos --contract XPNTsV2RateHalmosTest --function check_RATE_step_coreAbi --panic-error-codes * --loop 2 --default-bytes-lengths 0,65 --statistics --solver-timeout-assertion 300000

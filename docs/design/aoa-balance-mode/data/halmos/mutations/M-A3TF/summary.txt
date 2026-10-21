@@ -1,0 +1,4 @@
+XPNTsV2A3Bit0HalmosTest.check_A3_coreAbi (red): NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)
+XPNTsV2A3Bit1HalmosTest.check_A3_coreAbi (green): PASS
+scenario (A3_scenario_spFirewallBits): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.69ms (906.92µs CPU time)
+reverted M-A3TF: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 3e1b80d8a900412c5a12175416fbe36ab476dcc68f88a7ed7406ab33841bbb04

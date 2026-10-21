@@ -1,0 +1,12 @@
+{
+ "endpoint": "A (eth-sepolia.g.alchemy.com)",
+ "request": {
+  "method": "eth_getStorageAt",
+  "params": [
+   "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71",
+   "0x98749e2e875deb2d1539f12e464358e41c9f0fb32c70845e586556ea12c74e3d",
+   "0xb54a28"
+  ]
+ },
+ "response": "0x000000000000000000000000ecaacb915f7d92e9916f449f7ad42bd0408733c9"
+}

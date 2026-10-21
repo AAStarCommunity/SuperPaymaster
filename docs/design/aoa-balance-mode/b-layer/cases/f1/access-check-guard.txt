@@ -1,0 +1,32 @@
+== rundler-gSig-traces.jsonl
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig-after     acct:spAfter1    R1=6 R2=19 R3=2 R4=0 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig-after     acct:spAfter1    R1=6 R2=19 R3=2 R4=0 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+== rundler-gRev-traces.jsonl
+gRev           acct:gRev        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev           acct:gRev        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev           acct:gRev        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev           acct:gRev        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev           acct:gRev        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev           acct:gRev        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev-after     acct:spAfter2    R1=6 R2=19 R3=2 R4=0 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev-after     acct:spAfter2    R1=6 R2=19 R3=2 R4=0 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+== alto-gSig-traces.jsonl
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=0 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=0 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig           acct:gSig        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig-after     acct:spAfter1    R1=6 R2=19 R3=2 R4=0 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gSig-after     acct:spAfter1    R1=6 R2=19 R3=2 R4=0 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+== alto-gRev-traces.jsonl
+gRev           acct:gRev        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev           acct:gRev        R1=0 R2=0 R3=0 R4=2 reg=0/0 spOwn=0 acctOwn=0 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev           acct:gRev        R1=0 R2=0 R3=0 R4=2 reg=0/0 spOwn=0 acctOwn=0 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev           acct:gRev        R1=6 R2=19 R3=2 R4=2 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev-after     acct:spAfter2    R1=6 R2=19 R3=2 R4=0 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
+gRev-after     acct:spAfter2    R1=6 R2=19 R3=2 R4=0 reg=0/0 spOwn=26 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0

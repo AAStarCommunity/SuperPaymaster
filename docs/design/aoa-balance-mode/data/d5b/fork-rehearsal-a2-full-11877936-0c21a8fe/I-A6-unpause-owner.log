@@ -1,0 +1,34 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig unpauseOperator(address) 0xb5600060e6de5E11D3636731964218E53caadf0E --rpc-url http://127.0.0.1:28613 --unlocked --sender 0xb5600060e6de5E11D3636731964218E53caadf0E --broadcast --slow
+# git HEAD: 0c21a8fe6da29027ed31951e9125889c40ab8f41
+# forge: forge Version: 1.7.1
+# utc: 2026-10-09T14:32:28Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    step 7c-2: operator unpaused (balance mode only; credit stays OFF) 0xb5600060e6de5E11D3636731964218E53caadf0E
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.01 gwei
+
+Estimated total gas used for script: 154352
+
+Estimated amount required: 0.00000154352 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2/broadcast/UpgradeToV5_5_0.s.sol/11155111/unpauseOperator-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a4f8bd89707b261f2/cache/UpgradeToV5_5_0.s.sol/11155111/unpauseOperator-latest.json
+

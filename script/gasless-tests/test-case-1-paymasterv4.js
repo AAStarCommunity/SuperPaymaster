@@ -76,7 +76,9 @@ async function main() {
   if (!senderPrivateKey) throw new Error('OWNER_PRIVATE_KEY not found in .env.sepolia');
   if (!recipientAddress) throw new Error('OWNER2_ADDRESS not found in .env.sepolia');
 
-  const provider = makeProvider(rpcUrl);
+  // CHAIN_ID override: makeProvider's staticNetwork default (11155111) makes anvil (31337)
+  // reject every signed tx at the mempool unless overridden.
+  const provider = makeProvider(rpcUrl, Number(process.env.CHAIN_ID) || 11155111);
   const wallet = new ethers.Wallet(senderPrivateKey, provider);
 
   // Look up PaymasterV4 instance for deployer via factory

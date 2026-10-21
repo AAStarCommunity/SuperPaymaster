@@ -60,9 +60,23 @@ async function main() {
 
       // Restore
       if (currentTreasury.toLowerCase() !== deployerAddr.toLowerCase()) {
-        await sendTxSafe(sp, 'setTreasury', [currentTreasury], 'setTreasury(restore)', { critical: false });
-        const afterRestore = await sp.treasury();
-        assertEqual(afterRestore.toLowerCase(), currentTreasury.toLowerCase(), 'treasury restored');
+        // Codex stop-gate (2026-09-17): this is a GOVERNANCE RESTORE, not optional cleanup —
+        // if it never lands, treasury stays pointed at deployerAddr instead of its original
+        // value. { critical: false } would let sendTxSafe's skip go uncounted and the whole
+        // run exit 0 with production-relevant state left modified. Must stay critical (the
+        // default) so an exhausted-retry skip here makes the run INCONCLUSIVE, never a clean
+        // PASS. The dependent read-back assertion below is still correctly skipped on `null`
+        // (DSR's causal-chain fix) — those are two separate concerns.
+        const restoreSent = await sendTxSafe(sp, 'setTreasury', [currentTreasury], 'setTreasury(restore)');
+        if (restoreSent) {
+          const afterRestore = await sp.treasury();
+          assertEqual(afterRestore.toLowerCase(), currentTreasury.toLowerCase(), 'treasury restored');
+        } else {
+          // sendTxSafe returns null on skip/failure — the restore never landed, so reading
+          // back and asserting here would fail for a reason unrelated to setTreasury's
+          // correctness (DSR review, 2026-09-17: same causal-chain gap found in G3).
+          printSkip('setTreasury(restore): write did not land — read-back assertion skipped');
+        }
       } else {
         printInfo('Treasury was already deployer — no restore needed');
       }
@@ -149,9 +163,15 @@ async function main() {
       assertEqual(feeAfter, 100n, 'facilitatorFeeBPS == 100');
 
       // Restore
-      await sendTxSafe(x402, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)', { critical: false });
-      const feeRestored = await x402.facilitatorFeeBPS();
-      assertEqual(feeRestored, currentFacFee, 'facilitatorFeeBPS restored');
+      // Same reasoning as the setTreasury restore above: a facilitator-fee restore that
+      // never lands leaves a governance parameter modified, which must not exit 0.
+      const facRestoreSent = await sendTxSafe(x402, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)');
+      if (facRestoreSent) {
+        const feeRestored = await x402.facilitatorFeeBPS();
+        assertEqual(feeRestored, currentFacFee, 'facilitatorFeeBPS restored');
+      } else {
+        printSkip('setFacilitatorFeeBPS(restore): write did not land — read-back assertion skipped');
+      }
     }
   } catch (e) {
     catchStep('setFacilitatorFeeBPS', e);
@@ -178,13 +198,17 @@ async function main() {
       assertEqual(opFeeAfter, 50n, 'operatorFacilitatorFees(deployer) == 50');
 
       // Restore
-      await sendTxSafe(
+      const opFeeRestoreSent = await sendTxSafe(
         x402, 'setOperatorFacilitatorFee',
         [deployerAddr, currentOpFacFee],
         'setOpFacFee(restore)'
       );
-      const opFeeRestored = await x402.operatorFacilitatorFees(deployerAddr);
-      assertEqual(opFeeRestored, currentOpFacFee, 'operatorFacilitatorFees restored');
+      if (opFeeRestoreSent) {
+        const opFeeRestored = await x402.operatorFacilitatorFees(deployerAddr);
+        assertEqual(opFeeRestored, currentOpFacFee, 'operatorFacilitatorFees restored');
+      } else {
+        printSkip('setOpFacFee(restore): write did not land — read-back assertion skipped');
+      }
     }
   } catch (e) {
     catchStep('setOperatorFacilitatorFee', e);
@@ -192,9 +216,15 @@ async function main() {
 
   // ──────────────────────────────────────────────────────────────
   // Step 7: dryRunValidation — construct minimal UserOp + dry-run
+  // 5.5.0: dryRunValidation moved from SuperPaymaster to SuperPaymasterLens (EIP-170
+  // headroom, spec F1/§5) — new signature takes a leading `sp` address param.
   // ──────────────────────────────────────────────────────────────
-  printStep(7, 'dryRunValidation — static call with minimal UserOp');
+  printStep(7, 'dryRunValidation (via SuperPaymasterLens) — static call with minimal UserOp');
   try {
+    const lens = c.superPaymasterLens;
+    if (!lens) {
+      printSkip('config.superPaymasterLens missing — dryRunValidation moved there in 5.5.0');
+    } else {
     const senderAcc = process.env.TEST_AA_ACCOUNT_ADDRESS_A || deployerAddr;
 
     // Try to read nonce from the AA account; fall back to 0 on any error
@@ -207,12 +237,17 @@ async function main() {
       printInfo('getNonce() failed (not an AA account or not deployed) — using nonce=0');
     }
 
-    const pmVerificationGasLimit = 150000n;
+    // 5.5.0 validation does more external-call work than 3.x (exchangeRate + tryLockForGas),
+    // 150K measured AA36 on a cold account — see test-case-2-fixed.js for the same bump.
+    const pmVerificationGasLimit = 400000n;
     const pmPostOpGasLimit = 200000n;
-    // paymasterAndData: [paymaster(20)] [verGasLimit(16)] [postOpGasLimit(16)] [operator(20)]
+    // paymasterAndData (SuperPaymasterStorage.sol:177-180):
+    // [paymaster(20)][pmVerGas(16)][pmPostGas(16)][operator(20)][maxRate(32)][token(20)][flags(1)]
+    const deployerOp = await sp.operators(deployerAddr);
     const paymasterAndData = ethers.solidityPacked(
-      ['address', 'uint128', 'uint128', 'address'],
-      [config.superPaymaster, pmVerificationGasLimit, pmPostOpGasLimit, deployerAddr]
+      ['address', 'uint128', 'uint128', 'address', 'uint256', 'address', 'uint8'],
+      [config.superPaymaster, pmVerificationGasLimit, pmPostOpGasLimit, deployerAddr,
+       ethers.MaxUint256, deployerOp.xPNTsToken, 0]
     );
 
     const userOp = {
@@ -231,7 +266,7 @@ async function main() {
 
     try {
       // dryRunValidation is `view` — use staticCall
-      const [ok, reasonCode] = await sp.dryRunValidation.staticCall(userOp, maxCost);
+      const [ok, reasonCode] = await lens.dryRunValidation.staticCall(config.superPaymaster, userOp, maxCost);
       if (ok) {
         printSuccess('dryRunValidation returned ok=true (validation would pass)');
       } else {
@@ -247,6 +282,7 @@ async function main() {
       // revert. A caught error is unexpected: infra → inconclusive skip, anything
       // else → FAIL. Do NOT treat "contains 0x" as a clean pass (masks failures).
       catchStep('dryRunValidation', innerErr);
+    }
     }
   } catch (e) {
     catchStep('dryRunValidation setup', e);

@@ -1,0 +1,221 @@
+{
+ "timelock": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B",
+ "deployBlock": "11875849",
+ "scannedTo": "11875858",
+ "roleGrantedEvents": 4,
+ "roleRevokedEvents": 0,
+ "roles": {
+  "ADMIN": [
+   "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B"
+  ],
+  "PROPOSER": [
+   "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+  ],
+  "CANCELLER": [
+   "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+  ],
+  "EXECUTOR": [
+   "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+  ]
+ },
+ "roleAdmins": {
+  "ADMIN": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "PROPOSER": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "CANCELLER": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "EXECUTOR": "0x0000000000000000000000000000000000000000000000000000000000000000"
+ },
+ "hasRoleCrossCheck": [
+  {
+   "role": "ADMIN",
+   "account": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B",
+   "hasRole": true,
+   "expected": true
+  },
+  {
+   "role": "PROPOSER",
+   "account": "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114",
+   "hasRole": true,
+   "expected": true
+  },
+  {
+   "role": "CANCELLER",
+   "account": "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114",
+   "hasRole": true,
+   "expected": true
+  },
+  {
+   "role": "EXECUTOR",
+   "account": "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114",
+   "hasRole": true,
+   "expected": true
+  },
+  {
+   "role": "ADMIN",
+   "account": "0x0000000000000000000000000000000000000000",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "PROPOSER",
+   "account": "0x0000000000000000000000000000000000000000",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "CANCELLER",
+   "account": "0x0000000000000000000000000000000000000000",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "EXECUTOR",
+   "account": "0x0000000000000000000000000000000000000000",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "ADMIN",
+   "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "PROPOSER",
+   "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "CANCELLER",
+   "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "EXECUTOR",
+   "account": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "ADMIN",
+   "account": "0x871608cBA092105b91e91295A1d79fFC539BFb48",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "PROPOSER",
+   "account": "0x871608cBA092105b91e91295A1d79fFC539BFb48",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "CANCELLER",
+   "account": "0x871608cBA092105b91e91295A1d79fFC539BFb48",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "EXECUTOR",
+   "account": "0x871608cBA092105b91e91295A1d79fFC539BFb48",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "ADMIN",
+   "account": "0x8c3499252232105A1615767C459DB9BBbf1273D6",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "PROPOSER",
+   "account": "0x8c3499252232105A1615767C459DB9BBbf1273D6",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "CANCELLER",
+   "account": "0x8c3499252232105A1615767C459DB9BBbf1273D6",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "EXECUTOR",
+   "account": "0x8c3499252232105A1615767C459DB9BBbf1273D6",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "ADMIN",
+   "account": "0xBB05d2E9890BceC6141e40A1066bf8927169b75E",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "PROPOSER",
+   "account": "0xBB05d2E9890BceC6141e40A1066bf8927169b75E",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "CANCELLER",
+   "account": "0xBB05d2E9890BceC6141e40A1066bf8927169b75E",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "EXECUTOR",
+   "account": "0xBB05d2E9890BceC6141e40A1066bf8927169b75E",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "ADMIN",
+   "account": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "PROPOSER",
+   "account": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "CANCELLER",
+   "account": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "EXECUTOR",
+   "account": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "ADMIN",
+   "account": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "PROPOSER",
+   "account": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "CANCELLER",
+   "account": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+   "hasRole": false,
+   "expected": false
+  },
+  {
+   "role": "EXECUTOR",
+   "account": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+   "hasRole": false,
+   "expected": false
+  }
+ ]
+}

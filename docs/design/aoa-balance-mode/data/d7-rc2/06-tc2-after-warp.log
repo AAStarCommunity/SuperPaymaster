@@ -1,0 +1,21 @@
+◇ injected env (0) from ../../.env.sepolia // tip: ◈ secrets for agents [www.dotenvx.com]
+╔═══════════════════════════════════════════════════════════╗
+║  Gasless Transfer Test Case 2 - FIXED Implementation     ║
+╚═══════════════════════════════════════════════════════════╝
+
+📌 Configuration:
+  SuperPaymaster: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+  aPNTs Token: 0xDC17C27Ae8bE831AF07CC38C02930007060020F4
+  EntryPoint: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+  Operator: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+
+  Sender AA Account: 0x03611cefB15C3321DdfAf46814fee1A687235e8A
+  Sender EOA: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  Recipient: 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+
+📊 Step 1: Check aPNTs Balance and Approval
+  Balance: 0.0 aXPNTs
+  Allowance: 0.0 aXPNTs
+  ⚠️  SKIP: Zero token balance — fund TEST_AA_ACCOUNT_ADDRESS_B with aPNTs first.
+  Use: node transfer-tokens.js  (or run ./prepare-test sepolia)
+

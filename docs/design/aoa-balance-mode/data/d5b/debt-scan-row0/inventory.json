@@ -1,0 +1,689 @@
+{
+ "endpoints": [
+  {
+   "host": "eth-sepolia.g.alchemy.com",
+   "label": "A",
+   "requests": 584
+  },
+  {
+   "host": "sepolia.gateway.tenderly.co",
+   "label": "B",
+   "requests": 584
+  }
+ ],
+ "fixedBlock": {
+  "hash": "0xf785a1efed005453e054f35adf4877eac985fafdd500407595fb4ff6640595af",
+  "number": 11881000,
+  "timestamp": 1791592836
+ },
+ "operators": [
+  {
+   "aPNTsBalance": "0",
+   "basis": [
+    "Registry.RoleGranted(PAYMASTER_SUPER)",
+    "Registry.RoleRegistered(PAYMASTER_SUPER)",
+    "Registry.roleMembers[PAYMASTER_SUPER]@fixed"
+   ],
+   "hasRole_PAYMASTER_SUPER": true,
+   "isConfigured": false,
+   "isPaused": false,
+   "minTxInterval": 0,
+   "operator": "0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00",
+   "reputation": 0,
+   "totalSpent": "0",
+   "totalTxSponsored": 0,
+   "treasury": "0x0000000000000000000000000000000000000000",
+   "xPNTsToken": "0x0000000000000000000000000000000000000000"
+  },
+  {
+   "aPNTsBalance": "0",
+   "basis": [
+    "Registry.RoleGranted(PAYMASTER_SUPER)",
+    "Registry.RoleRegistered(PAYMASTER_SUPER)",
+    "Registry.roleMembers[PAYMASTER_SUPER]@fixed"
+   ],
+   "hasRole_PAYMASTER_SUPER": true,
+   "isConfigured": false,
+   "isPaused": false,
+   "minTxInterval": 0,
+   "operator": "0x368f8cb8cca42174b03156cea761bae31cee5c94",
+   "reputation": 0,
+   "totalSpent": "0",
+   "totalTxSponsored": 0,
+   "treasury": "0x0000000000000000000000000000000000000000",
+   "xPNTsToken": "0x0000000000000000000000000000000000000000"
+  },
+  {
+   "aPNTsBalance": "1690008712737068326800",
+   "basis": [
+    "Registry.RoleGranted(PAYMASTER_SUPER)",
+    "Registry.RoleRegistered(PAYMASTER_SUPER)",
+    "Registry.roleMembers[PAYMASTER_SUPER]@fixed",
+    "SP.OperatorConfigured",
+    "SP.OperatorDeposited",
+    "SP.OperatorMinTxIntervalUpdated",
+    "SP.OperatorPaused",
+    "SP.OperatorSlashed",
+    "SP.OperatorUnpaused",
+    "SP.OperatorWithdrawn",
+    "SP.ReputationUpdated",
+    "SP.SlashQueued",
+    "SP.TransactionSponsored"
+   ],
+   "hasRole_PAYMASTER_SUPER": true,
+   "isConfigured": true,
+   "isPaused": false,
+   "minTxInterval": 60,
+   "operator": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+   "reputation": 100,
+   "totalSpent": "1174614808208040000000",
+   "totalTxSponsored": 6,
+   "treasury": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+   "xPNTsToken": "0x696a73701b104c6ccbbaaddd2216788ea08eab89"
+  },
+  {
+   "aPNTsBalance": "844540702843415794600",
+   "basis": [
+    "Registry.RoleGranted(PAYMASTER_SUPER)",
+    "Registry.RoleRegistered(PAYMASTER_SUPER)",
+    "Registry.roleMembers[PAYMASTER_SUPER]@fixed",
+    "SP.OperatorConfigured",
+    "SP.OperatorDeposited",
+    "SP.TransactionSponsored"
+   ],
+   "hasRole_PAYMASTER_SUPER": true,
+   "isConfigured": true,
+   "isPaused": false,
+   "minTxInterval": 0,
+   "operator": "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
+   "reputation": 0,
+   "totalSpent": "587307404104020000000",
+   "totalTxSponsored": 3,
+   "treasury": "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
+   "xPNTsToken": "0xe6579a90dc498a710008de12119812d0fb7aa224"
+  },
+  {
+   "aPNTsBalance": "0",
+   "basis": [
+    "SP.OperatorSlashed",
+    "SP.ReputationUpdated",
+    "SP.SlashExecutedWithProof",
+    "SP.SlashQueued"
+   ],
+   "hasRole_PAYMASTER_SUPER": false,
+   "isConfigured": false,
+   "isPaused": false,
+   "minTxInterval": 0,
+   "operator": "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c",
+   "reputation": 0,
+   "totalSpent": "0",
+   "totalTxSponsored": 0,
+   "treasury": "0x0000000000000000000000000000000000000000",
+   "xPNTsToken": "0x0000000000000000000000000000000000000000"
+  },
+  {
+   "aPNTsBalance": "0",
+   "basis": [
+    "Registry.RoleGranted(PAYMASTER_SUPER)",
+    "Registry.RoleRegistered(PAYMASTER_SUPER)",
+    "Registry.roleMembers[PAYMASTER_SUPER]@fixed"
+   ],
+   "hasRole_PAYMASTER_SUPER": true,
+   "isConfigured": false,
+   "isPaused": false,
+   "minTxInterval": 0,
+   "operator": "0xf92dc383c74ea30d7791b929d5872dad18679516",
+   "reputation": 0,
+   "totalSpent": "0",
+   "totalTxSponsored": 0,
+   "treasury": "0x0000000000000000000000000000000000000000",
+   "xPNTsToken": "0x0000000000000000000000000000000000000000"
+  }
+ ],
+ "pendingDebts": {
+  "nonZero": [],
+  "pairsChecked": 10,
+  "rows": [
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0x4680bf1a4c72814abf090e7fa2b17c07c2407714",
+    "user": "0xecd9c07f648b09cfb78906302822ec52ab87dd70"
+   },
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0x4680bf1a4c72814abf090e7fa2b17c07c2407714",
+    "user": "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c"
+   },
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0x696a73701b104c6ccbbaaddd2216788ea08eab89",
+    "user": "0xecd9c07f648b09cfb78906302822ec52ab87dd70"
+   },
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0x696a73701b104c6ccbbaaddd2216788ea08eab89",
+    "user": "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c"
+   },
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0x948c9d1bd99b39dee482c23d6a3bd26210b56040",
+    "user": "0xecd9c07f648b09cfb78906302822ec52ab87dd70"
+   },
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0x948c9d1bd99b39dee482c23d6a3bd26210b56040",
+    "user": "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c"
+   },
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0xbb46321545a91db2f3b5c3e694f2f23abe259883",
+    "user": "0xecd9c07f648b09cfb78906302822ec52ab87dd70"
+   },
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0xbb46321545a91db2f3b5c3e694f2f23abe259883",
+    "user": "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c"
+   },
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0xe6579a90dc498a710008de12119812d0fb7aa224",
+    "user": "0xecd9c07f648b09cfb78906302822ec52ab87dd70"
+   },
+   {
+    "eventDerived": "0",
+    "pendingDebtsAtFixed": "0",
+    "source": "cross-product (tokens x users)",
+    "token": "0xe6579a90dc498a710008de12119812d0fb7aa224",
+    "user": "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c"
+   }
+  ]
+ },
+ "positiveControls": {
+  "NC_unknown_selector_reverts": true,
+  "PC1_Upgraded_at_range_start": {
+   "countA": 3,
+   "countB": 3,
+   "firstBlock": 11151016
+  },
+  "PC2_TransactionSponsored": {
+   "countA": 9,
+   "countB": 9
+  },
+  "PC3_Registry_RoleRegistered_PAYMASTER_SUPER": {
+   "accounts": [
+    "0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00",
+    "0x368f8cb8cca42174b03156cea761bae31cee5c94",
+    "0xb5600060e6de5e11d3636731964218e53caadf0e",
+    "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
+    "0xf92dc383c74ea30d7791b929d5872dad18679516"
+   ],
+   "countA": 5,
+   "countB": 5
+  },
+  "PC4_roleMembers_storage_len_eq_getRoleUserCount": 5,
+  "PC5_pendingDebts_getter_state_override_slot": 17
+ },
+ "registry": {
+  "creationBlock": 11151002,
+  "proxy": "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71",
+  "roleLogs": {
+   "RoleExited/COMMUNITY": {
+    "accounts": [],
+    "countA": 0,
+    "countB": 0
+   },
+   "RoleExited/PAYMASTER_SUPER": {
+    "accounts": [],
+    "countA": 0,
+    "countB": 0
+   },
+   "RoleGranted/COMMUNITY": {
+    "accounts": [
+     "0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00",
+     "0x368f8cb8cca42174b03156cea761bae31cee5c94",
+     "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
+     "0xf92dc383c74ea30d7791b929d5872dad18679516"
+    ],
+    "countA": 4,
+    "countB": 4
+   },
+   "RoleGranted/PAYMASTER_SUPER": {
+    "accounts": [
+     "0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00",
+     "0x368f8cb8cca42174b03156cea761bae31cee5c94",
+     "0xb5600060e6de5e11d3636731964218e53caadf0e",
+     "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
+     "0xf92dc383c74ea30d7791b929d5872dad18679516"
+    ],
+    "countA": 5,
+    "countB": 5
+   },
+   "RoleRegistered/COMMUNITY": {
+    "accounts": [
+     "0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00",
+     "0x368f8cb8cca42174b03156cea761bae31cee5c94",
+     "0xb5600060e6de5e11d3636731964218e53caadf0e",
+     "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
+     "0xf92dc383c74ea30d7791b929d5872dad18679516"
+    ],
+    "countA": 5,
+    "countB": 5
+   },
+   "RoleRegistered/PAYMASTER_SUPER": {
+    "accounts": [
+     "0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00",
+     "0x368f8cb8cca42174b03156cea761bae31cee5c94",
+     "0xb5600060e6de5e11d3636731964218e53caadf0e",
+     "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
+     "0xf92dc383c74ea30d7791b929d5872dad18679516"
+    ],
+    "countA": 5,
+    "countB": 5
+   },
+   "RoleRevoked/COMMUNITY": {
+    "accounts": [],
+    "countA": 0,
+    "countB": 0
+   },
+   "RoleRevoked/PAYMASTER_SUPER": {
+    "accounts": [],
+    "countA": 0,
+    "countB": 0
+   }
+  },
+  "roleMembers_PAYMASTER_SUPER_atFixed": [
+   "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
+   "0xb5600060e6de5e11d3636731964218e53caadf0e",
+   "0xf92dc383c74ea30d7791b929d5872dad18679516",
+   "0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00",
+   "0x368f8cb8cca42174b03156cea761bae31cee5c94"
+  ]
+ },
+ "scans": {
+  "DebtRecordFailed": {
+   "countA": 0,
+   "countB": 0,
+   "logs": [],
+   "topic0": "0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f"
+  },
+  "PendingDebtCleared": {
+   "countA": 0,
+   "countB": 0,
+   "logs": [],
+   "topic0": "0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287"
+  },
+  "PendingDebtRetried": {
+   "countA": 0,
+   "countB": 0,
+   "logs": [],
+   "topic0": "0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed"
+  },
+  "TransactionSponsored": {
+   "countA": 9,
+   "countB": 9,
+   "logs": [
+    {
+     "block": 11155147,
+     "data": "0x000000000000000000000000000000000000000000000002581f85666d32dc000000000000000000000000000000000000000000000000029422ac5711b7f200",
+     "logIndex": 745,
+     "topics": [
+      "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "0x000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e",
+      "0x000000000000000000000000ecd9c07f648b09cfb78906302822ec52ab87dd70"
+     ],
+     "tx": "0x2c3bf99d198e9e94e0252a9bf22021cba2083ebcd395a95c2ed144a2839eb0ce"
+    },
+    {
+     "block": 11155148,
+     "data": "0x00000000000000000000000000000000000000000000000232cca96b185fcc000000000000000000000000000000000000000000000000026b1453f5ce02fa00",
+     "logIndex": 769,
+     "topics": [
+      "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "0x000000000000000000000000ecaacb915f7d92e9916f449f7ad42bd0408733c9",
+      "0x000000000000000000000000ecd9c07f648b09cfb78906302822ec52ab87dd70"
+     ],
+     "tx": "0x3d989f6658a3cbe85f9ab9eeeed67750cc69ff6b4436fb290e8d27ed3333d90f"
+    },
+    {
+     "block": 11155149,
+     "data": "0x0000000000000000000000000000000000000000000000020d79cd6fc38cbc000000000000000000000000000000000000000000000000024205fb948a4e0200",
+     "logIndex": 849,
+     "topics": [
+      "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "0x000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e",
+      "0x000000000000000000000000ecd9c07f648b09cfb78906302822ec52ab87dd70"
+     ],
+     "tx": "0x06f9234e713f8ca6dbabd8680d11b691123a8f1cd0fd5f8a1b3092f58c7a135a"
+    },
+    {
+     "block": 11228356,
+     "data": "0x000000000000000000000000000000000000000000000002434b1b87f1646e800000000000000000000000000000000000000000000000027d3904af2321acc0",
+     "logIndex": 732,
+     "topics": [
+      "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "0x000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e",
+      "0x000000000000000000000000ecd9c07f648b09cfb78906302822ec52ab87dd70"
+     ],
+     "tx": "0x0b7ef6ced1d9ccb310b9d9b80de6bf7bcc765c706cbee38bd9bf79645c764264"
+    },
+    {
+     "block": 11228357,
+     "data": "0x00000000000000000000000000000000000000000000000243393ef7d084f1400000000000000000000000000000000000000000000000027d255edd655f0960",
+     "logIndex": 805,
+     "topics": [
+      "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "0x000000000000000000000000ecaacb915f7d92e9916f449f7ad42bd0408733c9",
+      "0x000000000000000000000000ecd9c07f648b09cfb78906302822ec52ab87dd70"
+     ],
+     "tx": "0x55ca152051ee19b8aa06ab305431c4911546ffdc8a9acbb65c28e700eab18d63"
+    },
+    {
+     "block": 11228364,
+     "data": "0x0000000000000000000000000000000000000000000000024371e907ab9090400000000000000000000000000000000000000000000000027d63b3886febd1e0",
+     "logIndex": 873,
+     "topics": [
+      "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "0x000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e",
+      "0x000000000000000000000000ecd9c07f648b09cfb78906302822ec52ab87dd70"
+     ],
+     "tx": "0xdf02079fc6671c6fa76c4b5dd38d93ed8db0b0a061e6b2d192f4675b6437e818"
+    },
+    {
+     "block": 11612056,
+     "data": "0x000000000000000000000000000000000000000000000003339748b18a77c930000000000000000000000000000000000000000000000003858ccff67eb6f6e8",
+     "logIndex": 143,
+     "topics": [
+      "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "0x000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e",
+      "0x000000000000000000000000ecd9c07f648b09cfb78906302822ec52ab87dd70"
+     ],
+     "tx": "0xab400362804e99c73ea3b20427204a418a309dc1bcd810ed078f4ee8f3bd23a9"
+    },
+    {
+     "block": 11612057,
+     "data": "0x000000000000000000000000000000000000000000000003334728413902eb100000000000000000000000000000000000000000000000038534ac47beb668f8",
+     "logIndex": 119,
+     "topics": [
+      "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "0x000000000000000000000000ecaacb915f7d92e9916f449f7ad42bd0408733c9",
+      "0x000000000000000000000000ecd9c07f648b09cfb78906302822ec52ab87dd70"
+     ],
+     "tx": "0xa6cd86e7441aaccca6adb83a87f68d9e6e0298e37033d953d43baae192afc981"
+    },
+    {
+     "block": 11612063,
+     "data": "0x000000000000000000000000000000000000000000000003339748b18a77c930000000000000000000000000000000000000000000000003858ccff67eb6f6e8",
+     "logIndex": 165,
+     "topics": [
+      "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "0x000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e",
+      "0x000000000000000000000000ecd9c07f648b09cfb78906302822ec52ab87dd70"
+     ],
+     "tx": "0x9e66bca2e51b1dfc8bab0ce94e12c50ba9b91dad1af23cc2ad45ce6f6da62150"
+    }
+   ],
+   "topic0": "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0"
+  },
+  "Upgraded": {
+   "countA": 3,
+   "countB": 3,
+   "logs": [
+    {
+     "block": 11151016,
+     "data": "0x",
+     "logIndex": 812,
+     "topics": [
+      "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+      "0x000000000000000000000000168a7be0abb0c3b90cfd2ad30061fb3d61f9c700"
+     ],
+     "tx": "0x082600baff8a1bf1c4159150fc6f102e3f3fd4b8f0a87c153c7bbc189221eea0"
+    },
+    {
+     "block": 11151219,
+     "data": "0x",
+     "logIndex": 828,
+     "topics": [
+      "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+      "0x0000000000000000000000000274811e93b4aae027c1a7dbf592e2b2d37e0250"
+     ],
+     "tx": "0xa57d6007cd98522b641286815a9501f193eb2fedddc773b38e502b78ab446771"
+    },
+    {
+     "block": 11228202,
+     "data": "0x",
+     "logIndex": 900,
+     "topics": [
+      "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+      "0x000000000000000000000000e25f88dbeafc64200270a948df8e9dd2f9b22c27"
+     ],
+     "tx": "0xae0399f86c25b1b4cfe95c396488feadfc11c80319862e6292c89560ecc33ec6"
+    }
+   ],
+   "topic0": "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b"
+  }
+ },
+ "schema": "a2-row0-debt-scan/1",
+ "sources": {
+  "declarations": {
+   "d04b83cf6423cc874185366209195aa2ed4552e6": [
+    {
+     "declaration": "return \"XPNTs-3.4.0\";",
+     "path": "contracts/src/tokens/xPNTsToken.sol"
+    },
+    {
+     "declaration": "event DebtRecorded(address indexed user, uint256 amount);",
+     "path": "contracts/src/tokens/xPNTsToken.sol"
+    },
+    {
+     "declaration": "event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);",
+     "path": "contracts/src/tokens/xPNTsToken.sol"
+    },
+    {
+     "declaration": "function getDebt(address user) external view returns (uint256)",
+     "path": "contracts/src/tokens/xPNTsToken.sol"
+    }
+   ],
+   "v5.4.2": [
+    {
+     "declaration": "event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);",
+     "path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol"
+    },
+    {
+     "declaration": "mapping(address => mapping(address => uint256)) public pendingDebts;",
+     "path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol"
+    },
+    {
+     "declaration": "event DebtRecorded(address indexed user, uint256 amount);",
+     "path": "contracts/src/tokens/xPNTsToken.sol"
+    },
+    {
+     "declaration": "event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);",
+     "path": "contracts/src/tokens/xPNTsToken.sol"
+    },
+    {
+     "declaration": "function getDebt(address user) external view returns (uint256)",
+     "path": "contracts/src/tokens/xPNTsToken.sol"
+    }
+   ],
+   "v5.5.0-rc.2": [
+    {
+     "declaration": "event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);",
+     "path": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol"
+    }
+   ]
+  },
+  "tags": {
+   "v5.4.2": "78364b12f42f1d3043ae992472ab6bdb6de82377",
+   "v5.5.0-rc.2": "1ac0e1c595dc84e684b540ca6a936168e922194f"
+  }
+ },
+ "superPaymaster": {
+  "creationBlock": 11151016,
+  "implAtFixed": "0xe25f88dbeafc64200270a948df8e9dd2f9b22c27",
+  "implHistory": [
+   {
+    "PUSH32_DebtRecordFailed": true,
+    "PUSH32_DebtRecorded_absent": true,
+    "PUSH32_OperatorConfigured": true,
+    "PUSH32_PendingDebtCleared": true,
+    "PUSH32_PendingDebtRetried": true,
+    "PUSH32_TransactionSponsored": true,
+    "PUSH4_pendingDebts": true,
+    "impl": "0x168a7be0abb0c3b90cfd2ad30061fb3d61f9c700",
+    "runtimeBytes": 21938,
+    "runtimeKeccak": "0x6e3e2dfad72a682d3c04dc2b0a03ac86846a4c36fed7bd94569ab0a07d3a77fb",
+    "upgradedAtBlock": 11151016,
+    "version": "SuperPaymaster-5.4.0"
+   },
+   {
+    "PUSH32_DebtRecordFailed": true,
+    "PUSH32_DebtRecorded_absent": true,
+    "PUSH32_OperatorConfigured": true,
+    "PUSH32_PendingDebtCleared": true,
+    "PUSH32_PendingDebtRetried": true,
+    "PUSH32_TransactionSponsored": true,
+    "PUSH4_pendingDebts": true,
+    "impl": "0x0274811e93b4aae027c1a7dbf592e2b2d37e0250",
+    "runtimeBytes": 21938,
+    "runtimeKeccak": "0x987284b18b9a389f5bcfcec7d200d9b19f1adcd993d4c9d4cd6c8bf5b614ce8e",
+    "upgradedAtBlock": 11151219,
+    "version": "SuperPaymaster-5.4.1"
+   },
+   {
+    "PUSH32_DebtRecordFailed": true,
+    "PUSH32_DebtRecorded_absent": true,
+    "PUSH32_OperatorConfigured": true,
+    "PUSH32_PendingDebtCleared": true,
+    "PUSH32_PendingDebtRetried": true,
+    "PUSH32_TransactionSponsored": true,
+    "PUSH4_pendingDebts": true,
+    "impl": "0xe25f88dbeafc64200270a948df8e9dd2f9b22c27",
+    "runtimeBytes": 23569,
+    "runtimeKeccak": "0x63a66dc03dfe0a16788f2f14625d661affac311f7b11e3a7a4acffd5b4435135",
+    "upgradedAtBlock": 11228202,
+    "version": "SuperPaymaster-5.4.2"
+   }
+  ],
+  "proxy": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+  "range": [
+   11151016,
+   11881000
+  ],
+  "unfilteredLogCount": {
+   "A": 73,
+   "B": 73
+  },
+  "unfilteredPerEvent": {
+   "APNTsPriceUpdated(uint256,uint256)": 2,
+   "APNTsTokenChangeQueued(address,uint256)": 2,
+   "AgentRegistriesUpdated(address,address)": 3,
+   "BLSAggregatorQueued(address,uint48)": 4,
+   "BLSAggregatorUpdated(address,address)": 4,
+   "BlsSlashCooldownPrimed(uint48)": 1,
+   "Initialized(uint64)": 1,
+   "OperatorConfigured(address,address,address)": 4,
+   "OperatorDeposited(address,uint256)": 5,
+   "OperatorMinTxIntervalUpdated(address,uint48)": 1,
+   "OperatorPaused(address)": 2,
+   "OperatorSlashed(address,uint256,uint8)": 3,
+   "OperatorUnpaused(address)": 2,
+   "OperatorWithdrawn(address,uint256)": 2,
+   "OwnershipTransferred(address,address)": 1,
+   "PriceUpdated(int256,uint256)": 7,
+   "ProtocolFeeUpdated(uint256,uint256)": 2,
+   "ProtocolRevenueWithdrawn(address,uint256)": 1,
+   "ReputationUpdated(address,uint256)": 6,
+   "SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)": 2,
+   "SlashQueued(address)": 3,
+   "TransactionSponsored(address,address,uint256,uint256)": 9,
+   "TreasuryUpdated(address,address)": 2,
+   "Upgraded(address)": 3,
+   "XPNTsFactoryUpdated(address,address)": 1
+  },
+  "versionAtFixed": "SuperPaymaster-5.4.2"
+ },
+ "topics": {
+  "APNTsTokenChangeQueued": {
+   "signature": "APNTsTokenChangeQueued(address,uint256)",
+   "topic0": "0x98f60c65a2b39c6b97ac2ab59944af0f43d99c0d1756339e5c607fd64341971c"
+  },
+  "DebtRecordFailed": {
+   "signature": "DebtRecordFailed(address,address,uint256)",
+   "topic0": "0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f"
+  },
+  "DebtRecorded": {
+   "signature": "DebtRecorded(address,uint256)",
+   "topic0": "0x99cf5cc1e3146bd15204f8eae4fe16c690d6123fbdac32515502fe688b86b8f5"
+  },
+  "DebtRepaid": {
+   "signature": "DebtRepaid(address,uint256,uint256)",
+   "topic0": "0x798353030d4251a345706609acf9ea7527f2ace26f73150a098c0fae89e5886d"
+  },
+  "OperatorConfigured": {
+   "signature": "OperatorConfigured(address,address,address)",
+   "topic0": "0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1"
+  },
+  "PendingDebtCleared": {
+   "signature": "PendingDebtCleared(address,address,uint256)",
+   "topic0": "0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287"
+  },
+  "PendingDebtRetried": {
+   "signature": "PendingDebtRetried(address,address,uint256)",
+   "topic0": "0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed"
+  },
+  "RoleExited": {
+   "signature": "RoleExited(bytes32,address,uint256,uint256)",
+   "topic0": "0x0d9361411a652b66cd4aed24a96d36c0b048899896c927d879a9d3ba2790d9c6"
+  },
+  "RoleGranted": {
+   "signature": "RoleGranted(bytes32,address,address)",
+   "topic0": "0x2f8788117e7eff1d82e926ec794901d17c78024a50270940304540a733656f0d"
+  },
+  "RoleRegistered": {
+   "signature": "RoleRegistered(bytes32,address,uint256,uint256)",
+   "topic0": "0x2c48d754bbf59f20e71c13710fac35aa1ea020da58dcbb366de0ef7f75c9377d"
+  },
+  "RoleRevoked": {
+   "signature": "RoleRevoked(bytes32,address,address)",
+   "topic0": "0xf6391f5c32d9c69d2a47ea670b442974b53935d1edc7fd64eb21e047a839171b"
+  },
+  "TransactionSponsored": {
+   "signature": "TransactionSponsored(address,address,uint256,uint256)",
+   "topic0": "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0"
+  },
+  "Transfer": {
+   "signature": "Transfer(address,address,uint256)",
+   "topic0": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+  },
+  "Upgraded": {
+   "signature": "Upgraded(address)",
+   "topic0": "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b"
+  },
+  "XPNTsFactoryUpdated": {
+   "signature": "XPNTsFactoryUpdated(address,address)",
+   "topic0": "0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990"
+  },
+  "xPNTsTokenDeployed": {
+   "signature": "xPNTsTokenDeployed(address,address,string,string)",
+   "topic0": "0xabfc2cb9c596be68324e2badae1694b9003727b1c82695e6c2cfa7ad8a587592"
+  }
+ }
+}

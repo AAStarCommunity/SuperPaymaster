@@ -1,0 +1,7 @@
+timelock 0x5FbDB2315678afecb367f032d93F642f64180aa3 (chain 31337, rpc2 chain 31337): 10 role logs in [1, 7] from http://127.0.0.1:18792; depth probe ok; second endpoint http://127.0.0.1:18795 served the same head 7 (0x8d2824378d97d7d2caba21bc1558c7579a922a86a7edf5f3bad60bac4d7601c5), passed its depth probe and returned the identical 10 role logs (canonical fields)
+  DEFAULT_ADMIN_ROLE: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+  PROPOSER_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+  CANCELLER_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+  EXECUTOR_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/att13.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest

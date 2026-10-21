@@ -1,0 +1,36 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig inventory(address[]) [0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9] --rpc-url http://127.0.0.1:28563
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:56:23Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+  === Step 0: inventory ===
+    SP proxy          : 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
+    version           : SuperPaymaster-5.4.2
+    impl              : 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27
+    owner             : 0xb5600060e6de5E11D3636731964218E53caadf0E
+    APNTS_TOKEN       : 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+    pendingAPNTsToken : 0xBb46321545a91DB2F3B5c3e694F2f23aBe259883
+    pendingAPNTsTokenEta: 1789099908
+    xpntsFactory      : 0x67422d2e44a33c8dA99b3b776841bF316bD209a2
+    cachedPrice       : 245148531651
+    cachedUpdatedAt   : 1788255708
+    staleness (s)     : 4200
+    block.timestamp   : 1789257384
+    totalTracked      : 2934135941213700000000
+    protocolRevenue   : 399586525633215878600
+    EP deposit / stake: 93470830000000000 100000000000000000
+    EP staked / delay : true 86400
+    operator 0xb5600060e6de5E11D3636731964218E53caadf0E
+      configured/paused: true false
+      aPNTsBalance     : 1690008712737068326800
+      token            : 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+      token is v2      : false
+    operator 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+      configured/paused: true false
+      aPNTsBalance     : 844540702843415794600
+      token            : 0xE6579A90dc498a710008de12119812D0FB7aA224
+      token is v2      : false

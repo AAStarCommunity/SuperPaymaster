@@ -1,0 +1,57 @@
+No files changed, compilation skipped
+
+Ran 3 tests for contracts/test/v2/SuperPaymasterV55PostOpBound.t.sol:SuperPaymasterV55PostOpBoundTest
+[PASS] test_each_path_within_C_POSTOP() (gas: 12905855)
+[PASS] test_rule_C_POSTOP_ge_W_postop_times_1_plus_m() (gas: 14872629)
+Logs:
+  BALANCE first-time user, cold lastTimestamp
+      consumed (W_postop candidate) / minLimit 132842 167487
+  CREDIT  first-time user, cold lastTimestamp, first debt
+      consumed (W_postop candidate) / minLimit 146853 167487
+  BALANCE during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 132842 167487
+  CREDIT  during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 146853 167487
+  BALANCE old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 132842 167487
+  CREDIT  old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 146853 167487
+  BALANCE no rate-limit write (control)
+      consumed (W_postop candidate) / minLimit 112507 167487
+  BALANCE charge clamped at a0 (control)
+      consumed (W_postop candidate) / minLimit 131490 167487
+  W_postop (max over paths) 146853
+  observed C_POSTOP + C_WRAP / C_POSTOP_obs 180000 175000
+  W_postop x (1 + m), m bps 168881 1500
+  margin of C_POSTOP over W_postop (bps) 1916
+  EntryPoint wrap upper bound / C_WRAP 1770 5000
+  max minLimit (entry-guard bound) / MIN_POST_OP_GAS 167487 200000
+
+[PASS] test_rule_under_all_floor_params() (gas: 15635715)
+Logs:
+  BALANCE first-time user, cold lastTimestamp
+      consumed (W_postop candidate) / minLimit 132842 162407
+  CREDIT  first-time user, cold lastTimestamp, first debt
+      consumed (W_postop candidate) / minLimit 146853 162407
+  BALANCE during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 132842 162407
+  CREDIT  during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 146853 162407
+  BALANCE old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 132842 162407
+  CREDIT  old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 146853 162407
+  BALANCE no rate-limit write (control)
+      consumed (W_postop candidate) / minLimit 112507 162407
+  BALANCE charge clamped at a0 (control)
+      consumed (W_postop candidate) / minLimit 131490 162407
+  W_postop (max over paths) 146853
+  observed C_POSTOP + C_WRAP / C_POSTOP_obs 180000 175000
+  W_postop x (1 + m), m bps 168881 1500
+  margin of C_POSTOP over W_postop (bps) 1916
+  EntryPoint wrap upper bound / C_WRAP 1770 5000
+  max minLimit (entry-guard bound) / MIN_POST_OP_GAS 162407 175000
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 29.05ms (49.23ms CPU time)
+
+Ran 1 test suite in 44.97ms (29.05ms CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)

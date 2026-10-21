@@ -1,0 +1,11 @@
+--- a/contracts/src/tokens/v2/xPNTsTokenV2.sol
++++ b/contracts/src/tokens/v2/xPNTsTokenV2.sol
+@@ -131,7 +131,7 @@
+     }
+ 
+     function burn(address from, uint256 amount) external {
+-        if (msg.sender != from) _spendV2(from, msg.sender, amount, msg.sender);
++        if (msg.sender != from && !historicalSP[msg.sender]) _spendV2(from, msg.sender, amount, msg.sender); // D5c-1 M-A3BF
+         _burn(from, amount);
+     }
+ 

@@ -1,0 +1,29 @@
+
+=== provenance ===
+  script commit: 045a896299cdb0119d2f53f709409806ea366f7b
+  contracts/src vs v5.5.0-rc.2 peeled commit 1ac0e1c5: IDENTICAL
+  forge: forge Version: 1.7.1; anvil: anvil Version: 1.7.1
+
+=== build reproduces the rc.2 attestation (artifact keccaks) ===
+  CHECK [local build == rc.2 attestation] PASS
+
+=== pre-state cross-check at Sepolia block 11884270 on two independent endpoints (read-only) ===
+  CHECK [pre-state endpoint A: 23 reads, 0 failed / empty / ill-typed] PASS: 23:0
+  CHECK [pre-state endpoint B: 23 reads, 0 failed / empty / ill-typed] PASS: 23:0
+  CHECK [pre-state @11884270 identical on two endpoints] PASS (IDENTICAL (23 values))
+
+=== fork Sepolia at block 11884270 (local anvil :28642) ===
+  chainId 11155111 head 11884270 forkBlockHash 0x6b0d91b865fb278ec8898762d48d9057151f472fe1ddc21ed1cfc29532bf363c
+  CHECK [fork block hash well-formed: A is a 32-byte hash] PASS: hash32
+  CHECK [fork block hash well-formed: B is a 32-byte hash] PASS: hash32
+  CHECK [fork block hash well-formed: fork is a 32-byte hash] PASS: hash32
+  CHECK [fork block hash: endpoint A == endpoint B] PASS: 0x6b0d91b865fb278ec8898762d48d9057151f472fe1ddc21ed1cfc29532bf363c
+  CHECK [fork block hash: local fork == endpoint A] PASS: 0x6b0d91b865fb278ec8898762d48d9057151f472fe1ddc21ed1cfc29532bf363c
+  impersonated on the fork: OWNER, ANNI, Safe owners O1/O2 (EOAs). The Safe 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 is NOT impersonated.
+  readback [Safe.getThreshold] = 2 @block 11884270
+  CHECK [Safe threshold (fork)] PASS: 2
+  readback [Safe.getOwners] = [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6] @block 11884270
+  CHECK [Safe owners (fork)] PASS: [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+  readback [Safe guard slot] = 0x0000000000000000000000000000000000000000000000000000000000000000 @block 11884270
+  CHECK [Safe guard slot empty] PASS: 0x0000000000000000000000000000000000000000000000000000000000000000
+HARNESS VERDICT: FAILURES=0 bang-lines=0

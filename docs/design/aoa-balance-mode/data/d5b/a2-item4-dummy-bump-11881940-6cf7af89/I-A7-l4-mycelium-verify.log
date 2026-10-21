@@ -1,0 +1,15 @@
+# command: forge script contracts/script/v3/L4GaslessTest.s.sol:L4GaslessTest --sig verify() --rpc-url http://127.0.0.1:28631
+# git HEAD: 6cf7af89d01cdff4efc4851f0b53e89fc01ca1b9
+# forge: forge Version: 1.7.1
+# utc: 2026-10-10T04:02:05Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    user xPNTs burned      : 75595326208835377359
+    lockedOf(user) after   : 0
+    operator aPNTs decrease: 75595326208835377359
+    protocolRevenue delta  : 75595326208835377359
+    (simulated burn was 65799565204493525808 )
+    L4 verify: settlement read back from chain state OK

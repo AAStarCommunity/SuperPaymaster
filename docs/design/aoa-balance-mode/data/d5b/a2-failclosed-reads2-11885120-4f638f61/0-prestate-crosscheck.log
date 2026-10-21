@@ -1,0 +1,3 @@
+# endpoint A = the anvil --fork-url provider; endpoint B = independent read-only provider
+# block 11885120; identical lines below are equal on both endpoints
+IDENTICAL (23 values)

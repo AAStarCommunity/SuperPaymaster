@@ -1,0 +1,18 @@
+{
+  "timelock": "0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c",
+  "deploymentBlock": 11881531,
+  "headBlock": 11881681,
+  "source": "RoleGranted/RoleRevoked replay (role-events-final.json); cross-checked by check-timelock-roles.mjs (roles-final.json)",
+  "DEFAULT_ADMIN_ROLE": [
+    "0x11cc8878c12dafee401ff4a3f5f7d2c4d4ed5d7c"
+  ],
+  "PROPOSER_ROLE": [
+    "0x51edf11fdb0a4f66220efb8efa54eca77232e114"
+  ],
+  "CANCELLER_ROLE": [
+    "0x51edf11fdb0a4f66220efb8efa54eca77232e114"
+  ],
+  "EXECUTOR_ROLE": [
+    "0x51edf11fdb0a4f66220efb8efa54eca77232e114"
+  ]
+}

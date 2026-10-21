@@ -1,0 +1,9 @@
+# mutation b-nolen-asm on contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol at 8241349b (patch: b-nolen-asm.patch)
+# forge forge Version: 1.7.1
+## columns: forward + rollback (UpgradeRace), param-race (ParamRace), exact charge (GasParams::test_c_postop*)
+[PASS] test_mid_bundle_rollback_to_5_5_0_settles_contexts_of_the_new_impl() (gas: 25706043)
+[PASS] test_mid_bundle_upgrade_from_5_5_0_settles_contexts_of_the_old_impl() (gas: 25479317)
+[PASS] test_open_executor_param_change_mid_bundle_does_not_harm_admitted_ops() (gas: 1037048)
+[PASS] test_c_postop_and_c_wrap_parameters_drive_the_charge() (gas: 507995)
+## G2 exact oracle (fixed-seed coverage replay)
+[PASS] test_G2_coverage_replay_fixed_seeds() (gas: 51067067)

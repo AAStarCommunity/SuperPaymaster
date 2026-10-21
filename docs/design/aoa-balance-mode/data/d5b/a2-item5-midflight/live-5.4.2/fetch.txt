@@ -1,0 +1,21 @@
+Read-only fetch, 2026-10-10, Sepolia block 11882092 (eth_getCode / eth_call / eth_getStorageAt only; no transaction sent)
+
+cast block-number --rpc-url https://ethereum-sepolia-rpc.publicnode.com                  -> 11882092
+cast storage 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9 <ERC-1967 impl slot> --block 11882092
+    publicnode -> 0x...e25f88dbeafc64200270a948df8e9dd2f9b22c27
+    1rpc.io    -> 0x...e25f88dbeafc64200270a948df8e9dd2f9b22c27   (proxy 0x09DF = deployments/config.sepolia.json superPaymaster)
+cast call 0x09DF...4DE9 "version()(string)" --block 11882092            -> "SuperPaymaster-5.4.2"
+cast call 0xe25f...2c27 "version()(string)" --block 11882092            -> "SuperPaymaster-5.4.2"
+cast call 0xe25f...2c27 REGISTRY() / ETH_USD_PRICE_FEED() / entryPoint() -> 0xf5Bf37ca…8E71 / 0x694AA176…5306 / 0x00000000…a032
+cast code 0xe25f...2c27 --block 11882092 --rpc-url https://ethereum-sepolia-rpc.publicnode.com > impl-code-publicnode-11882092.hex
+cast code 0xe25f...2c27 --block 11882092 --rpc-url https://1rpc.io/sepolia                   > impl-code-1rpc-11882092.hex
+cmp of the two files: IDENTICAL (two independent endpoints, same block)
+(sepolia.drpc.org refused: "chain is not available on free plan"; not used)
+
+Comparison: live-compare.py <v5.4.2 artifact> <code> <fixture>
+    compare-publicnode.json / compare-1rpc.json : equalAfterMaskingImmutables = true, fixtureEqualsArtifactCreation = true
+    on-chain codehash 0x63a66dc03dfe0a16788f2f14625d661affac311f7b11e3a7a4acffd5b4435135 (23,569 B)
+    masked keccak == artifact runtime keccak 0xdd83d0f73f61abf13de7e3792f57e6c2af109345bf80eb8e904ca34ad7afd20b
+    the 4 immutable slots on chain: __self = 0xe25f…2c27, entryPoint = 0x0000…a032, REGISTRY = 0xf5Bf…8E71, ETH_USD_PRICE_FEED = 0x694A…5306
+Negative control: the c30854f9 artifact (23,568 B, a 5.5.0 pre-release) vs the same live code -> equal = false, exit 1
+    (compare-negative-control-c30854f9.json)

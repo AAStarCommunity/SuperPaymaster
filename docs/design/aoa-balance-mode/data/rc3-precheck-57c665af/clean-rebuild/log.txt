@@ -1,0 +1,6 @@
+pinned script sha256 7b9591168dbba84e2af1e7507db2a9f637910aa3f637065f9cebd4cca5bc5ae8
+build1 commit 57c665afd2809879f5545b40dbd895b4ddf6a4e8 build rc=0
+build2 commit 57c665afd2809879f5545b40dbd895b4ddf6a4e8 build rc=0
+attest build1 rc=0
+attest build2 rc=0
+build1 == build2 byte-identical

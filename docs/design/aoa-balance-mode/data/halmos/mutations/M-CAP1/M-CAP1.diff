@@ -1,0 +1,11 @@
+--- a/contracts/src/tokens/APNTsCapped.sol
++++ b/contracts/src/tokens/APNTsCapped.sol
+@@ -90,7 +90,7 @@
+         if (msg.sender != minter) revert NotMinter(msg.sender);
+         uint256 supply = totalSupply();
+         // Overflow-free form of `supply + amount > cap`.
+-        if (amount > cap || supply > cap - amount) revert CapExceeded(supply, amount, cap);
++        // D5c-1 M-CAP1: cap check removed
+         _mint(to, amount);
+         emit Minted(to, amount, supply + amount, cap);
+     }

@@ -1,0 +1,77 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --rpc-url http://127.0.0.1:28571 --unlocked --sender 0xb5600060e6de5E11D3636731964218E53caadf0E --broadcast --slow
+# git HEAD: b3e2d3eba32016ea7f3d2f101e22112a7e283749
+# forge: forge Version: 1.7.1
+# utc: 2026-09-27T05:32:37Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+  === UpgradeToV5_5_0 on sepolia ===
+    SP proxy: 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
+    SP owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+    pre version: SuperPaymaster-5.4.2
+    pre impl   : 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27
+  --- Step 4: GlobalTierSource -> AOAProtocolRegistry (bootstrap+seal) -> ext -> template -> factoryV2 -> lens ---
+    [artifact] default artifact OK: GlobalTierSource 0xDed8cDC73cb1394be41C7D75a212bB4B3363f78B 542
+    [v55] new   GlobalTierSource    0xDed8cDC73cb1394be41C7D75a212bB4B3363f78B
+    [artifact] default artifact OK: AOAProtocolRegistry 0x24F75955Ec391181CCD778A1D519CD45E46e48F9 2746
+    [v55] new   AOAProtocolRegistry 0x24F75955Ec391181CCD778A1D519CD45E46e48F9
+    [artifact] default artifact OK: xPNTsTokenV2Ext 0x8B17379Ee5D9712fdbD841F152157Be838F7A87C 22005
+    [v55] new   xPNTsTokenV2Ext     0x8B17379Ee5D9712fdbD841F152157Be838F7A87C
+    [artifact] default artifact OK: xPNTsTokenV2 0x158843Cf81441e44bfD448e91D54FF3a1e0512cd 20008
+    [v55] new   xPNTsTokenV2 impl   0x158843Cf81441e44bfD448e91D54FF3a1e0512cd
+    [artifact] default artifact OK: xPNTsFactoryV2 0xaEF3757562a86CBBFd0A790e296f740f0AD7451a 8537
+    [v55] new   xPNTsFactoryV2      0xaEF3757562a86CBBFd0A790e296f740f0AD7451a
+    [artifact] default artifact OK: SuperPaymasterLens 0xf9868961f06A54D725Ce22209a426Cd830b5c01d 5413
+    [v55] new   SuperPaymasterLens  0xf9868961f06A54D725Ce22209a426Cd830b5c01d
+    [artifact] default artifact OK: GlobalTierSource 0xDed8cDC73cb1394be41C7D75a212bB4B3363f78B 542
+    [artifact] default artifact OK: AOAProtocolRegistry 0x24F75955Ec391181CCD778A1D519CD45E46e48F9 2746
+    [artifact] default artifact OK: xPNTsTokenV2Ext 0x8B17379Ee5D9712fdbD841F152157Be838F7A87C 22005
+    [artifact] default artifact OK: xPNTsTokenV2 0x158843Cf81441e44bfD448e91D54FF3a1e0512cd 20008
+    [artifact] default artifact OK: xPNTsFactoryV2 0xaEF3757562a86CBBFd0A790e296f740f0AD7451a 8537
+    [artifact] default artifact OK: SuperPaymasterLens 0xf9868961f06A54D725Ce22209a426Cd830b5c01d 5413
+    [v55] step-4 read-back OK (sealed registry, approvals, template codehash, factory->SP)
+  --- Step 5: new SP impl with the LIVE immutables, upgradeToAndCall ---
+    [artifact] default artifact OK: SuperPaymaster 0x915ee1212Ab7c6C4e470B9e5Df846A884829e3f6 13744
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xa76186f0E0E3b3373f239030F9383c2A19feFe4E
+    new impl: 0x915ee1212Ab7c6C4e470B9e5Df846A884829e3f6
+    new impl runtime bytes: 13744
+    [artifact] default artifact OK: SuperPaymaster 0x915ee1212Ab7c6C4e470B9e5Df846A884829e3f6 13744
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xa76186f0E0E3b3373f239030F9383c2A19feFe4E
+    step-5 read-back OK: 5.5.0, immutables, BLS legs, named state, EP stake; raw slots: 96
+  --- Step 5b: SP EntryPoint stake >= target, unstakeDelay >= 86400, locked ---
+    before: staked / stake / unstakeDelay / withdrawTime: true 100000000000000000 86400
+            withdrawTime: 0
+    addStake shortfall (wei) / delay: 900000000000000000 86400
+    step-5b read-back OK: stake (wei) / delay: 1000000000000000000 86400
+  --- Step 6: setXPNTsFactory(factoryV2) ---
+    config written: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73755366ec7cff8f/cache/evidence-d5b-fork/config.sepolia-fork.json
+  === Steps 4-5b-6 complete; SP version: SuperPaymaster-5.5.0 ===
+  NEXT (per community): issueCommunityToken -> configureOperatorV2 -> unpauseOperator (step 7a/7c)
+  REMINDER: hand AOAProtocolRegistry + xPNTsFactoryV2 ownership to governance;
+            notify repo:sdk / repo:dvt (new paymasterAndData, lens, v2 token ABI).
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.1327124 gwei
+
+Estimated total gas used for script: 28033418
+
+Estimated amount required: 0.0037203821829832 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73755366ec7cff8f/broadcast/UpgradeToV5_5_0.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73755366ec7cff8f/cache/UpgradeToV5_5_0.s.sol/11155111/run-latest.json
+

@@ -35,7 +35,7 @@ require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '.
 
 // Constants
 const USDC_SEPOLIA = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
-const CHAIN_ID = 11155111;
+const CHAIN_ID = Number(process.env.CHAIN_ID) || 11155111; // signing domain must match the target chain
 
 // ABIs
 const ERC20_ABI = [

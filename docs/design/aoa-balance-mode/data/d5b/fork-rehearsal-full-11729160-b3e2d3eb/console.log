@@ -1,0 +1,194 @@
+
+=== forge build --force (once, up front) ===
+
+=== fork Sepolia at block 11729160 ===
+  chainId 11155111 head 11729160
+  pre-fork inventory: SP="SuperPaymaster-5.4.2" Registry="Registry-5.8.0"
+
+=== STAGE 0: fork-level check (real public RPCs, read-only, not fork-scoped) + on-chain inventory ===
+"next": null
+    pendingAPNTsToken : 0xBb46321545a91DB2F3B5c3e694F2f23aBe259883
+    pendingAPNTsTokenEta: 1789099908
+    operator 0xb5600060e6de5E11D3636731964218E53caadf0E
+    operator 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+    pendingDebts 0x696A73701b104c6cCBbAadDD2216788ea08EaB89 0xb5600060e6de5E11D3636731964218E53caadf0E 0
+    pendingDebts 0xE6579A90dc498a710008de12119812D0FB7aA224 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 0
+    total pendingDebts: 0
+
+=== STAGE I / A1: cancel the pending APNTsCapped switch (0xBb46...), orthogonal to D5b ===
+  pendingAPNTsToken after cancel: 0x0000000000000000000000000000000000000000
+
+=== STAGE I / A1b: deploy a FRESH GOV-1-shaped TimelockController (172800; proposer=canceller=executor=GOV_MULTISIG; no admin) for the APNTsCapped handover ===
+  fresh GOV-1-shaped TimelockController: 0x4e0d6a71fc6a4799e2528a174d9c8adc834ec14f
+
+=== STAGE I / A1c (runbook 1②): deploy APNTsCapped, start the Ownable2Step handover to the fresh TimelockController ===
+  APNTsCapped deployed: 0x2151878c43d37Aa2dc8b15b5E4173ad5e1920f1F (owner=0xb5600060e6de5E11D3636731964218E53caadf0E pendingOwner=0x4e0D6A71Fc6a4799e2528a174d9C8ADc834Ec14f)
+
+=== STAGE I / A1d: governance multisig accepts ownership of APNTsCapped via the fresh TimelockController (real schedule -> +48h -> execute on the fork, committed to the fork's persisted state -- not the script's own internal vm.prank simulation, which never leaves the simulation and would NOT be visible to a later plain cast call) ===
+  negative ok: execute acceptOwnership before 48h reverted (Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x5ead8eb5: 8a)
+  APNTsCapped after accept: owner=0x4e0D6A71Fc6a4799e2528a174d9C8ADc834Ec14f pendingOwner=0x0000000000000000000000000000000000000000
+
+=== STAGE I / A1e (runbook 1③): queue the aPNTs switch to APNTsCapped ===
+  pendingAPNTsToken=0x2151878c43d37Aa2dc8b15b5E4173ad5e1920f1F eta=1790493071 [1.79e9]
+
+=== STAGE I: fast-forward 7 days (APNTS_TOKEN_TIMELOCK) so the queued switch is executable ===
+error: unexpected argument 'timestamp' found
+
+Usage: cast block [OPTIONS] [BLOCK]
+
+For more information, try '--help'.
+  block.timestamp now  >= eta 1790493071 [1.79e9]
+
+=== STAGE I / A1f: pre-fund OWNER *and ANNI* with APNTsCapped before the redeposit ===
+  minted for 1:1 redeposit: OWNER 1690008712737068326800, ANNI 844540702843415794600, SP buffer 0.1e18; APNTsCapped balances now OWNER=1690008712737068326800 [1.69e21] ANNI=844540702843415794600 [8.445e20] SP=100000000000000000 [1e17]
+
+=== STAGE I / A1g (runbook 1④): execute the full aPNTs migration -- drain EVERY operator's balance in its OLD token (not just aPNTs holders, see A1f's finding), executeAPNTsTokenChange, redeposit 1:1 in APNTsCapped ===
+  APNTS_TOKEN=0x2151878c43d37Aa2dc8b15b5E4173ad5e1920f1F pendingAPNTsToken=0x0000000000000000000000000000000000000000
+
+=== STAGE I / A1h (runbook step 2): clearPendingDebts (D-21 write-off; confirmed 0 for both known token/user pairs at Stage 0 -- this call is a no-op read-back, not a real write-off, since inventoryDebts already found nothing pending) ===
+
+=== STAGE I / A2: pauseOperators([Owner,Anni]) (runbook step 3 precondition for run()) ===
+
+=== STAGE I / A3: run() -- land CURRENT HEAD SuperPaymaster (5.5.0 AOA balance mode, D5b core+extension split already included) via a plain EOA upgradeToAndCall ===
+  SP version after run(): "SuperPaymaster-5.5.0"
+  SP EXTENSION (D5b core/ext split marker): 0xa76186f0E0E3b3373f239030F9383c2A19feFe4E
+
+=== STAGE I / A4: UpgradeRegistryD5b -- land CURRENT HEAD Registry (5.9.0, GOV-2 two-step ownership) via a plain EOA upgradeToAndCall ===
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    [artifact] default artifact OK: Registry 0x2eEE4B5501e8E6716D323a5cd2c99b759A16A51B 23306
+    [artifact] default artifact OK: Registry 0x2eEE4B5501e8E6716D323a5cd2c99b759A16A51B 23306
+    Registry impl ready (default build, runs=200): 0x2eEE4B5501e8E6716D323a5cd2c99b759A16A51B 23306
+    [artifact] default artifact OK: Registry 0x2eEE4B5501e8E6716D323a5cd2c99b759A16A51B 23306
+    Registry read-back OK: impl / version / owner / pendingOwner == 0; version = Registry-5.9.0
+    BLS three legs unchanged (SP / Registry / DVT): 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+    Registry: raw slots 0..N-1 byte-identical, N = 74
+    5c done. Registry impl: 0x2eEE4B5501e8E6716D323a5cd2c99b759A16A51B
+  Registry version after UpgradeRegistryD5b: "Registry-5.9.0"
+
+=== STAGE I / A5 (runbook 7a): each community issues its own v2 token; operator stays paused (creditPolicy starts OFF) ===
+  OWNER v2 token=0x32dffc77d72745b6DBD39FFA356786e0b870f5c1 creditPolicy=0  ANNI v2 token=0xbDb3A078205D12545acdd93ADbD4845d3e0D31ef creditPolicy=0
+
+=== STAGE I / A6 (runbook 7c): updatePrice -> configureOperatorV2 -> unpauseOperator for both communities (balance mode only; creditPolicy stays OFF) ===
+  refresh_oracle: aggregator=0x719E22E3D4b690E5d96cCb40619180B5427F14AE round=36140 answer=248734837246 updatedAt 1789715436 -> 1790493110 (base slot 44)
+  post-unpause creditPolicy: OWNER_V2=0 ANNI_V2=0; OWNER paused=false ANNI paused=false
+
+=== STAGE I / A7: real UserOp through EntryPoint (runbook 7c acceptance: one balance-mode op succeeds per community). Scoped to ANNI/Mycelium -- L4GaslessTest.s.sol is written specifically around the ANNI identity (PRIVATE_KEY_ANNI), not parameterized per-operator; extending it to cover OWNER/AAStar too is future work, not done here. ===
+    AA account: 0xB7ECd71c543282375736ccEA5Bf850cc0263792E
+    user xPNTs burned      : 65857295918029683369
+
+=== STAGE II / precondition: renounce the deployer's leftover DEFAULT_ADMIN_ROLE on the live TimelockController ===
+  BEFORE: admin(OWNER)=true admin(timelock itself)=true
+  >>> FINDING (real, live Sepolia): the deployer EOA still holds DEFAULT_ADMIN_ROLE on the already-deployed TimelockController 0x86C86c789EDc099801cc6a5F48334F1D67dC9564.
+  >>> check-timelock-roles.mjs's validateManifest HARD-REQUIRES DEFAULT_ADMIN_ROLE == [timelock] exactly (the M1 policy),
+  >>> so the REAL M1 batch cannot be scheduled at all until the deployer renounces this role for real. Demonstrated here on the fork:
+  renounceRole tx (fork only) 0x3d17c18e0ff67d7a827580aa88aceec6f5aead07db187714d0d15bfa91f83e04
+  AFTER : admin(OWNER)=false admin(timelock itself)=true
+
+=== STAGE II / manifest: build + canonicalize the M1-policy manifest for the now-corrected role shape ===
+  verified: retired SP proxy 0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a holds none of the four roles on 0x86C86c789EDc099801cc6a5F48334F1D67dC9564 (live check, not assumed)
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "timelock": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+  "deploymentBlock": "11151057",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
+    ],
+    "PROPOSER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "CANCELLER_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "EXECUTOR_ROLE": [
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ]
+  },
+  "mustHoldNothing": [
+    "0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a"
+  ],
+  "mustHoldNothingLabels": [
+    "retired SuperPaymaster proxy from this same project's Sepolia deployment history (superseded by the current 0x09DF0d2e... proxy); used because an exhaustive on-chain check (current + 4 prior SP deployments, all owner() reads) found no distinct EOA anywhere in this project's history -- see the script comment above for the full reasoning and the open question this leaves for the schema owner"
+  ]
+}
+
+=== STAGE II / M1: two-step transferOwnership(timelock) on SP + Registry, then ONE scheduleBatch (accept + setGuardian) ===
+  after transferOwnership: SP.pendingOwner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564 Registry.pendingOwner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+  negative ok: schedule-accept WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+  EXECUTOR_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+attestation written: deployments/attestations/timelock-roles.sepolia.fork-rehearsal-before-M1.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+    M1 batch scheduled; ready at: 1790665963
+  negative ok: execute-accept before 48h reverted (Error: script failed: M1: batch not ready)
+  EXECUTOR_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+attestation written: deployments/attestations/timelock-roles.sepolia.fork-rehearsal-before-M1-execute.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+    M1/M2 read-back OK: owners == timelock, pendingOwner == 0, guardian == SAFE, minDelay == 48h 0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+  M1 read-back OK
+  negative ok: old EOA owner upgradeToAndCall after M1 reverted (Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 00)
+  SP.owner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564 guardian=0xb5600060e6de5E11D3636731964218E53caadf0E
+  Registry.owner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+
+=== STAGE II / C: timelock-aware upgrade drill (SP then Registry) -- demo cycle, redeploys the same implementation to exercise the mechanism ===
+    SP impl ready (default build, immutables == live, headroom >= 1,024): 0x75cCF1423D707842a6C88709357565F8b7b9548c 13744
+    new implementation (pass as TL_NEW_IMPL): 0x75cCF1423D707842a6C88709357565F8b7b9548c
+  negative ok: schedule-upgrade SP WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+  EXECUTOR_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+attestation written: deployments/attestations/timelock-roles.sepolia.fork-rehearsal-before-SP-upgrade.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+    scheduled; ready at: 1790838874
+  negative ok: execute-upgrade SP before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
+  EXECUTOR_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+attestation written: deployments/attestations/timelock-roles.sepolia.fork-rehearsal-before-SP-execute.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xfc58960aE5c43779c04d65CE63a61a0effCceE0e
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xfc58960aE5c43779c04d65CE63a61a0effCceE0e
+    SuperPaymaster read-back OK: impl / version / owner / pendingOwner == 0; version = SuperPaymaster-5.5.0
+    BLS three legs unchanged (SP / Registry / DVT): 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+    SuperPaymaster: raw slots 0..N-1 byte-identical, N = 65
+  SP timelock-aware upgrade: read-back OK
+    Registry impl ready (default build, runs=200): 0x762a750dA60F691aF0933524DAFc41DD494875a7 23306
+    new implementation (pass as TL_NEW_IMPL): 0x762a750dA60F691aF0933524DAFc41DD494875a7
+  negative ok: schedule-upgrade REGISTRY WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+  EXECUTOR_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+attestation written: deployments/attestations/timelock-roles.sepolia.fork-rehearsal-before-REGISTRY-upgrade.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+    scheduled; ready at: 1791011781
+  negative ok: execute-upgrade REGISTRY before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
+  EXECUTOR_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+attestation written: deployments/attestations/timelock-roles.sepolia.fork-rehearsal-before-REGISTRY-execute.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    Registry read-back OK: impl / version / owner / pendingOwner == 0; version = Registry-5.9.0
+    BLS three legs unchanged (SP / Registry / DVT): 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D
+    Registry: raw slots 0..N-1 byte-identical, N = 74
+  REGISTRY timelock-aware upgrade: read-back OK
+
+=== STAGE II / M2: guardian (owner) pauses; guardian cannot unpause; timelock unpauses after 48h ===
+  paused() = true
+  negative ok: guardian unpause reverted (Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x82b42900)
+  negative ok: schedule-call (unpause) WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
+  EXECUTOR_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+attestation written: deployments/attestations/timelock-roles.sepolia.fork-rehearsal-before-M2-unpause.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+    roles attestation: head block hash verified against blockhash() 11729235
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11729235
+    call scheduled; ready at: 1791184670
+  negative ok: execute-call (unpause) before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
+  EXECUTOR_ROLE: 0xb5600060e6de5E11D3636731964218E53caadf0E
+attestation written: deployments/attestations/timelock-roles.sepolia.fork-rehearsal-before-M2-unpause-execute.json (result PASS)
+TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
+    roles attestation: head block hash verified against blockhash() 11729238
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 11729238
+    governed call executed 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
+  governed unpause executed
+  paused() after the timelock's unpause = false
+
+=== final state ===
+  SP owner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564 guardian=0xb5600060e6de5E11D3636731964218E53caadf0E impl=0x75ccf1423d707842a6c88709357565f8b7b9548c version="SuperPaymaster-5.5.0"
+  Registry owner=0x86C86c789EDc099801cc6a5F48334F1D67dC9564 impl=0x762a750da60f691af0933524dafc41dd494875a7 version="Registry-5.9.0"
+REHEARSAL OK (all)
+
+[exited with code 0]

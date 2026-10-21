@@ -1,0 +1,111 @@
+{
+  "tree": "git archive 3e7ddd9a6e15cf5d7862822794645492a8e5a642 + forge build",
+  "eip170": 24576,
+  "rows": [
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 21857,
+      "headroom": 2719,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 21679,
+      "headroom": 2897,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterLens",
+      "artifact": "out/SuperPaymasterLens.sol/SuperPaymasterLens.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 4731,
+      "headroom": 19845,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterLens",
+      "artifact": "out/SuperPaymasterLens.sol/SuperPaymasterLens.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 4714,
+      "headroom": 19862,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "xPNTsTokenV2",
+      "artifact": "out/xPNTsTokenV2.sol/xPNTsTokenV2.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 19851,
+      "headroom": 4725,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "xPNTsTokenV2",
+      "artifact": "out/xPNTsTokenV2.sol/xPNTsTokenV2.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 19435,
+      "headroom": 5141,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "xPNTsTokenV2Ext",
+      "artifact": "out/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 21922,
+      "headroom": 2654,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "xPNTsTokenV2Ext",
+      "artifact": "out/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 21649,
+      "headroom": 2927,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "APNTsCapped",
+      "source": "contracts/src/tokens/APNTsCapped.sol",
+      "note": "source not in this tree"
+    },
+    {
+      "contract": "BLSAggregator",
+      "artifact": "out/BLSAggregator.sol/BLSAggregator.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 24345,
+      "headroom": 231,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "BLSAggregator",
+      "artifact": "out/BLSAggregator.sol/BLSAggregator.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 23940,
+      "headroom": 636,
+      "sourceKeccakMatchesTree": true
+    }
+  ]
+}

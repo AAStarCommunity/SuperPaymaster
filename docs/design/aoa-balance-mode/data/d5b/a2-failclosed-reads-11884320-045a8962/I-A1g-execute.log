@@ -1,0 +1,42 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig executePendingAPNTs(address[]) [0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9] --rpc-url http://127.0.0.1:28631 --unlocked --sender 0xb5600060e6de5E11D3636731964218E53caadf0E --broadcast --slow
+# git HEAD: 045a896299cdb0119d2f53f709409806ea366f7b
+# forge: forge Version: 1.7.1
+# utc: 2026-10-10T11:49:37Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    (1) snapshot 0xb5600060e6de5E11D3636731964218E53caadf0E 1690008712737068326800
+    (1) snapshot 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 844540702843415794600
+    (1) totalTracked / protocolRevenue: 2934135941213700000000 399586525633215878600
+    (3) protocol revenue withdrawn to treasury: 0xb5600060e6de5E11D3636731964218E53caadf0E 399486525633215878600
+    (4) totalTracked == protocolRevenue <= buffer: 100000000000000000
+    (5) APNTS_TOKEN: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89 -> 0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7
+    (7) operator re-deposited 0xb5600060e6de5E11D3636731964218E53caadf0E 1690008712737068326800
+    (7) operator re-deposited 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 844540702843415794600
+    (7) totalTracked == sum + protocolRevenue: 2534649415580484121400
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.001000014 gwei
+
+Estimated total gas used for script: 645115
+
+Estimated amount required: 0.00000064512403161 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/broadcast/UpgradeToV5_5_0.s.sol/11155111/executePendingAPNTs-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-adad403f7d313eb09/cache/UpgradeToV5_5_0.s.sol/11155111/executePendingAPNTs-latest.json
+

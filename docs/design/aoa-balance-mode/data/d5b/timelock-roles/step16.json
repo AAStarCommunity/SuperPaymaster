@@ -1,0 +1,126 @@
+{
+  "schema": "d5b-timelock-roles-attestation/2",
+  "result": "FAIL",
+  "chainId": 31337,
+  "rpc2ChainId": null,
+  "manifestChainId": "31337",
+  "timelock": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/manifest-late.json",
+  "manifestSha256": "d3644b93e93cddb291baae5a9c5f0b6d5093fe697d9eb542347e1f4a1395fa2e",
+  "manifestKeccak256": "0x2bf60f206023cff9dfd5bd52589ae7b6e1a94db7cc595d0d5072100aa9bffee8",
+  "deploymentBlock": "8",
+  "headBlock": 11,
+  "headBlockHash": "0x15788df5d24a80616977a1e8597df9c6f44d99d331dcff49a63383065db02463",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+    ],
+    "PROPOSER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "CANCELLER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ]
+  },
+  "unknownRoles": [],
+  "mustHoldNothing": [
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  ],
+  "mustHoldNothingLabels": [
+    "deployer/old owner"
+  ],
+  "logs": 4,
+  "depthProbe": true,
+  "rpc2DepthProbe": null,
+  "constructorControl": "MISSING in deployment block 8: PROPOSER_ROLE -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8; CANCELLER_ROLE -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8; EXECUTOR_ROLE -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "completeness": "completeness NOT independently verified (no --rpc2)",
+  "rpc2Used": false,
+  "endpoint": "http://127.0.0.1:18792",
+  "endpoint2": null,
+  "problems": [
+    "positive control failed: constructor grant PROPOSER_ROLE -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 not found in deployment block 8",
+    "positive control failed: constructor grant CANCELLER_ROLE -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 not found in deployment block 8",
+    "positive control failed: constructor grant EXECUTOR_ROLE -> 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 not found in deployment block 8"
+  ],
+  "checker": {
+    "path": "script/governance/check-timelock-roles.mjs",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "48cba3bde3e78df9593ec82f34635742cbdacce9",
+    "gitDirty": true
+  },
+  "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs.",
+  "holders": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+    ],
+    "PROPOSER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "CANCELLER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ]
+  },
+  "expected": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+    ],
+    "PROPOSER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "CANCELLER_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    ]
+  },
+  "liveHasRole": [
+    {
+      "role": "DEFAULT_ADMIN_ROLE",
+      "account": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "hasRole": true
+    },
+    {
+      "role": "DEFAULT_ADMIN_ROLE",
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hasRole": false
+    },
+    {
+      "role": "PROPOSER_ROLE",
+      "account": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "hasRole": true
+    },
+    {
+      "role": "PROPOSER_ROLE",
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hasRole": false
+    },
+    {
+      "role": "CANCELLER_ROLE",
+      "account": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "hasRole": true
+    },
+    {
+      "role": "CANCELLER_ROLE",
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hasRole": false
+    },
+    {
+      "role": "EXECUTOR_ROLE",
+      "account": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "hasRole": true
+    },
+    {
+      "role": "EXECUTOR_ROLE",
+      "account": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hasRole": false
+    }
+  ],
+  "ok": false
+}

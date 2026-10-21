@@ -1,0 +1,51 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    cap = TEST_CAP_SEPOLIA = 10000000000000000000000000 (TEST VALUE - not a production cap)
+  === DeployAPNTsCapped ===  mode: sepolia (TEST_CAP_SEPOLIA)
+    chainid 11155111
+    deployer 0xb5600060e6de5E11D3636731964218E53caadf0E
+    governance multisig (minter + capGuardian + timelock proposer) 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [artifact] APNTsCapped current default profile (cancun, solc 0.8.33, runs 500, via_ir): out/APNTsCapped.sol/APNTsCapped.json
+    [timelock] OK 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+      minDelay 172800; multisig proposer+canceller+executor; executor open: false
+    [artifact] default artifact OK: APNTsCapped 0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B 5346
+    artifact out/APNTsCapped.sol/APNTsCapped.json
+    runtime codehash
+  0x641659e6f52d0f7d4e64de9ed656fd6ab2df4cd6e4e06f06aeb41fbc5807f462
+    [phase A] version APNTsCapped-1.0.0
+    [phase A] cap 10000000000000000000000000
+    [phase A] owner (deployer) / pendingOwner (timelock) 0xb5600060e6de5E11D3636731964218E53caadf0E 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c
+    --- governance multisig -> timelock payloads (to: 0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c ) ---
+    1) schedule (now), then wait >= 48h:
+  0x01d5062a000000000000000000000000ccdf8e0d29fb2c3061910d79484a2b653757c34b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000f11f070957a0e534b6d069d538b46e504303e413a6f6624a0569520761ac74f0000000000000000000000000000000000000000000000000000000000002a300000000000000000000000000000000000000000000000000000000000000000479ba509700000000000000000000000000000000000000000000000000000000
+    2) execute (after 48h):
+  0x134008d3000000000000000000000000ccdf8e0d29fb2c3061910d79484a2b653757c34b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000f11f070957a0e534b6d069d538b46e504303e413a6f6624a0569520761ac74f0000000000000000000000000000000000000000000000000000000000000000479ba509700000000000000000000000000000000000000000000000000000000
+    operation id:
+  0x2772187be6e34a32eefab1991d5d16691b43c2b05088bae97e366bddb7ed4ca6
+  === Phase A done. Ownership is PENDING until the timelock executes acceptOwnership() ===
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 1.848217834 gwei
+
+Estimated total gas used for script: 1873290
+
+Estimated amount required: 0.00346224798625386 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-ab39733bb8812f8d9/broadcast/DeployAPNTsCapped.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-ab39733bb8812f8d9/cache/DeployAPNTsCapped.s.sol/11155111/run-latest.json
+

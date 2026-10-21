@@ -1,0 +1,5 @@
+attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/att19.json (result FAIL)
+TIMELOCK ROLE CHECK FAILED:
+  - manifest: missing field .timelock
+  - manifest: not the M1 policy: DEFAULT_ADMIN_ROLE must be exactly [timelock]
+  - manifest: bytes are not the canonical serialization (first difference at byte 564; run: node script/governance/check-timelock-roles.mjs --canonicalize /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/manifest-mut.json)

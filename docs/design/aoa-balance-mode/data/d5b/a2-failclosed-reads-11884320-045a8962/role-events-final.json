@@ -1,0 +1,42 @@
+{
+  "label": "final",
+  "headBlock": 11884471,
+  "events": [
+    {
+      "event": "RoleGranted",
+      "role": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "account": "0x11cc8878c12dafee401ff4a3f5f7d2c4d4ed5d7c",
+      "sender": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+      "blockNumber": 11884321,
+      "logIndex": 0,
+      "tx": "0xec38dc5f75369bcea5898c9e3af0243d98c88266b47d3fd31563bb595e4e197f"
+    },
+    {
+      "event": "RoleGranted",
+      "role": "0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1",
+      "account": "0x51edf11fdb0a4f66220efb8efa54eca77232e114",
+      "sender": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+      "blockNumber": 11884321,
+      "logIndex": 1,
+      "tx": "0xec38dc5f75369bcea5898c9e3af0243d98c88266b47d3fd31563bb595e4e197f"
+    },
+    {
+      "event": "RoleGranted",
+      "role": "0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783",
+      "account": "0x51edf11fdb0a4f66220efb8efa54eca77232e114",
+      "sender": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+      "blockNumber": 11884321,
+      "logIndex": 2,
+      "tx": "0xec38dc5f75369bcea5898c9e3af0243d98c88266b47d3fd31563bb595e4e197f"
+    },
+    {
+      "event": "RoleGranted",
+      "role": "0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63",
+      "account": "0x51edf11fdb0a4f66220efb8efa54eca77232e114",
+      "sender": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+      "blockNumber": 11884321,
+      "logIndex": 3,
+      "tx": "0xec38dc5f75369bcea5898c9e3af0243d98c88266b47d3fd31563bb595e4e197f"
+    }
+  ]
+}

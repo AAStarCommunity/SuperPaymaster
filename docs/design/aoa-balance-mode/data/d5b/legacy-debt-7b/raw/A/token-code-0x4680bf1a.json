@@ -1,0 +1,11 @@
+{
+ "endpoint": "A (eth-sepolia.g.alchemy.com)",
+ "request": {
+  "method": "eth_getCode",
+  "params": [
+   "0x4680bf1a4c72814abf090e7fa2b17c07c2407714",
+   "0xb54a28"
+  ]
+ },
+ "response": "0x363d3d373d3d3d363d7304a99009aa257ee11a4630c5b518dde4c0dd56b75af43d82803e903d91602b57fd5bf3"
+}

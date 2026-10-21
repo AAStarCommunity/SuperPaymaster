@@ -1,0 +1,50 @@
+forge Version: 1.7.1
+Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
+Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
+Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
+Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
+| APNTsCapped                                | 5,346            | 7,683             | 19,230             | 41,469              |
+| BLSAggregator                              | 24,345           | 24,976            | 231                | 24,176              |
+| GTokenStaking                              | 9,061            | 9,520             | 15,515             | 39,632              |
+| MySBT                                      | 12,111           | 13,332            | 12,465             | 35,820              |
+| Registry                                   | 23,306           | 23,670            | 1,270              | 25,482              |
+| SuperPaymaster                             | 13,744           | 34,551            | 10,832             | 14,601              |
+| SuperPaymasterLens                         | 5,413            | 5,439             | 19,163             | 43,713              |
+| xPNTsFactoryV2                             | 8,537            | 10,756            | 16,039             | 38,396              |
+| xPNTsTokenV2                               | 20,008           | 22,172            | 4,568              | 26,980              |
+##[group]Run python3 -m pip install --quiet pycryptodome
+^[[36;1mpython3 -m pip install --quiet pycryptodome^[[0m
+^[[36;1mpython3 scripts/check-sp-size.py --self-test^[[0m
+^[[36;1mpython3 scripts/check-sp-layout.py --self-test^[[0m
+^[[36;1mpython3 scripts/check-sp-selectors.py --self-test^[[0m
+^[[36;1mpython3 scripts/check_storage_layout.py --self-test^[[0m
+^[[36;1mpython3 scripts/check_storage_layout.py --negative-control^[[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+  SuperPaymaster          13744 B  headroom  10832  (out/SuperPaymaster.sol/SuperPaymaster.json)
+  SuperPaymasterAdmin     19214 B  headroom   5362  (out/SuperPaymasterAdmin.sol/SuperPaymasterAdmin.json)
+  SuperPaymasterLens       5413 B  headroom  19163  (out/SuperPaymasterLens.sol/SuperPaymasterLens.json)
+  Registry                23306 B  headroom   1270  (out/Registry.sol/Registry.json)
+  BLSAggregator           24345 B  headroom    231  (out/BLSAggregator.sol/BLSAggregator.json)
+  xPNTsTokenV2            20008 B  headroom   4568  (out/xPNTsTokenV2.sol/xPNTsTokenV2.json)
+  xPNTsTokenV2Ext         22005 B  headroom   2571  (out/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json)
+self-test ok: headroom 1,023 and an over-limit extension are rejected; exactly 1,024 passes
+OK: SuperPaymaster core headroom 10832 B >= 1024; all 7 deployables <= EIP-170
+self-test ok: a shifted slot and a shifted struct member are detected
+OK: SuperPaymaster core and SuperPaymasterAdmin storage layouts identical (42 entries, last = __gap@41)
+self-test ok: shadowing, an override only in the extension, a missing onlyOwner, a missing _transferOwnership override and a GOV-2 selector served by the extension are all detected
+OK: base 45 ⊆ core 56; extension-only 43 selectors, none shadowed; 18 hot-path selectors in core; GOV-2 effective definitions (SP and Registry): {'transferOwnership': 'Ownable2StepNamespaced', 'acceptOwnership': 'Ownable2StepNamespaced', 'renounceOwnership': 'Ownable2StepNamespaced', 'pendingOwner': 'Ownable2StepNamespaced', '_transferOwnership': 'Ownable2StepNamespaced'}
+   C3(SuperPaymaster) = SuperPaymaster > IVersioned > SuperPaymasterStorage > ReentrancyGuard > BasePaymasterUpgradeable > UUPSUpgradeable > IERC1822Proxiable > Initializable > Ownable2StepNamespaced > Ownable > Context > IPaymaster
+   C3(Registry)       = Registry > IRegistry > IVersioned > UUPSUpgradeable > IERC1822Proxiable > Initializable > ReentrancyGuard > Ownable2StepNamespaced > Ownable > Context
+   extension-only: APNTS_TOKEN_TIMELOCK(), EMERGENCY_TIMELOCK(), applyBLSAggregator(), cancelAPNTsTokenChange(), cancelEmergencyPrice(), cancelGasParams(), cancelSlash(address), configureOperator(address,address), emergencySetPrice(int256), executeAPNTsTokenChange(), executeEmergencyPrice(), executeGasParams(), executeSlashWithBLS(address,uint8,bytes), gasParams(), getAvailableCredit(address,address), getLatestSlash(address), getSlashCount(address), getSlashHistory(address), initBLSAggregator(address), isChainlinkStale(), isSlashPending(address), priceValidUntil(), primeBlsSlashCooldown(), queueBLSAggregator(address), queueGasParams(uint32,uint32,uint32,uint32), queueSlash(address), setAPNTSPrice(uint256), setAPNTsToken(address), setAgentRegistries(address,address), setGlobalPaused(bool), setGuardian(address), setOperatorLimits(uint48), setOperatorPaused(address,bool), setProtocolFee(uint256), setTreasury(address), setXPNTsFactory(address), slashOperator(address,uint8,uint256,string), updateBlockedStatus(address,address[],bool[]), updatePrice(), updatePriceDVT(int256,uint256,bytes,uint8), updateReputation(address,uint256), updateSBTStatus(address,bool), withdrawProtocolRevenue(address,uint256)
+self-test ok: allowed append passes; 8 mutations rejected
+OK  SuperPaymaster storage layout = snapshot + 2 allowed appended entries (42 entries)
+OK  Registry storage layout = snapshot (unchanged) (32 entries)
+Ownable2Step as the base —
+DRIFT  SuperPaymaster storage layout differs from snapshot + allowed changes — UUPS-upgrade-UNSAFE:
+    entry 1 changed: _status@1/0 -> _pendingOwner@1/0
+DRIFT  Registry storage layout differs from snapshot + allowed changes — UUPS-upgrade-UNSAFE:
+    entry 1 changed: _status@1/0 -> _pendingOwner@1/0
+Ownable2Step base
+Ran 149 test suites in 140.36s (426.93s CPU time): 1791 tests passed, 0 failed, 49 skipped (1840 total tests)
+Registry runtime size: 23,306B

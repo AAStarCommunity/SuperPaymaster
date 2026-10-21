@@ -1,0 +1,1674 @@
+{
+  "rundler-tpm-traces.jsonl": [
+    {
+      "label": "tpm1",
+      "sender": "acct:t1",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:t1",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:t1][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:t1][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:t1]",
+          "associatedWith": "acct:t1",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:t1]",
+          "associatedWith": "acct:t1",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm1",
+      "sender": "acct:t1",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:t1",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:t1][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:t1][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:t1]",
+          "associatedWith": "acct:t1",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:t1]",
+          "associatedWith": "acct:t1",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    }
+  ],
+  "alto-tpm-traces.jsonl": [
+    {
+      "label": "tpm1",
+      "sender": "acct:t1",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:t1",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:t1][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:t1][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:t1]",
+          "associatedWith": "acct:t1",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:t1]",
+          "associatedWith": "acct:t1",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm1",
+      "sender": "acct:t1",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:t1",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:t1][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:t1][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:t1]",
+          "associatedWith": "acct:t1",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:t1]",
+          "associatedWith": "acct:t1",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3",
+      "sender": "acct:tpm3",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tpm3",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tpm3][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tpm3]",
+          "associatedWith": "acct:tpm3",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3-after",
+      "sender": "acct:tAfter",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tAfter",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tAfter][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tAfter][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tAfter]",
+          "associatedWith": "acct:tAfter",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tAfter]",
+          "associatedWith": "acct:tAfter",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    },
+    {
+      "label": "tpm3-after",
+      "sender": "acct:tAfter",
+      "accesses": [
+        {
+          "phase": "account",
+          "contract": "acct:tAfter",
+          "op": "SLOAD",
+          "var": "slot0",
+          "associatedWith": "sender (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot9",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot10",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 2
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot3",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_allowances[acct:tAfter][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_allowances[acct:tAfter][TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[acct:tAfter]",
+          "associatedWith": "acct:tAfter",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[acct:tAfter]",
+          "associatedWith": "acct:tAfter",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SLOAD",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "F1TestToken",
+          "op": "SSTORE",
+          "var": "_balances[TokenPaymaster]",
+          "associatedWith": "TokenPaymaster",
+          "n": 1
+        },
+        {
+          "phase": "paymaster",
+          "contract": "TokenPaymaster",
+          "op": "SLOAD",
+          "var": "slot4",
+          "associatedWith": "TokenPaymaster (own storage)",
+          "n": 1
+        }
+      ],
+      "bannedOps": [
+        {
+          "op": "SELFBALANCE",
+          "ctx": "TokenPaymaster"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+Compiling 103 files with Solc 0.8.33
+Compiling 97 files with Solc 0.8.33
+Solc 0.8.33 finished in 19.79s
+Solc 0.8.33 finished in 27.53s
+Compiler run successful with warnings:
+702 |         bytes calldata proof,
+313 |         PostOpMode mode,
+230 |     function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
+294 |     function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
+Ran 1 test for contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest
+[PASS] test_G2_coverage_replay_fixed_seeds() (gas: 51019617)
+Logs:
+  G2 campaign: seeds 1000 bundles executed 2531
+    campaigns with a low-balance operator 594
+    ops planned / rejected (AA34, verified one by one) 10483 4414
+    rejected: postOpGasLimit == MIN-1 / operator solvency 789 655
+    settled BALANCE / CREDIT 3271 1127
+    exact charge checks (from postOp calldata) 4398
+    settled after mid-bundle ETH move / aPNTs move 820 838
+    injected settle failures (BALANCE / CREDIT) 785 886
+    stale releases lock / credit 785 886
+    ... with a same-user same-token record alive (lock / credit) 54 69
+    bundles with a repeated sender 1209
+    single-op groups settled: per user+token / per token 2851 1428
+    ops at postOpGasLimit == MIN: admitted / settled 1962 1415
+    opReverted settled (of which OOG) 1702 806
+    executions kept 2696
+    events: blacklist / policy / tier 530 413 496
+    events: pause / top-up / E-1 disable 285 341 469
+    events: emergency / rate / price 43 782 703
+    I9 unbacked count / amount 0 0
+    EP deposit delta (wei) / sum G settled / sum G injected 4845404946027083857 3605144763874309776 1240260182152774081
+    sum net charge (ETH wei) over settled ops 4383097431940625716
+    R1-8 overcharge (chargeEthNet - G)/G, all settled ops, ppm; n = 4398
+      mean ppm 225775
+      p95  ppm 373858
+      max  ppm 455503
+      min  ppm 89293
+      median ppm 222845
+    R1-8 overcharge, settled ops with postOpGasLimit <= MIN+50k, ppm; n = 3492
+      mean ppm 236841
+      p95  ppm 383058
+      max  ppm 455503
+      min  ppm 109167
+      median ppm 238332
+    R1-8 overcharge, settled ops with postOpGasLimit in [1.0M, 1.5M], ppm; n = 906
+      mean ppm 183123
+      p95  ppm 287797
+      max  ppm 325254
+      min  ppm 89293
+      median ppm 185312
+    buffer: C_POSTOP / C_WRAP / old formula 170000 5000 0
+    SUBSIDY: ops / total wei / max ppm 0 0 0
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 27.53s (27.53s CPU time)
+Ran 1 test suite in 27.55s (27.53s CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

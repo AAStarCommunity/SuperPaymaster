@@ -385,7 +385,7 @@ contract RegistryUpgradeTo580Test is Test {
             "the batch ARMED the new aggregator to slash, in the same transaction"
         );
 
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.8.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.9.0"));
         assertEq(registry.blsAggregator(), address(rotatedAggregator));
         assertEq(
             registry.totalCreditExposure(),

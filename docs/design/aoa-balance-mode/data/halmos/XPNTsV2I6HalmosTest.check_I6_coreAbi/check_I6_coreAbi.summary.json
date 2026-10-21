@@ -1,0 +1,176 @@
+{
+ "contract": "XPNTsV2I6HalmosTest",
+ "check": "check_I6_coreAbi",
+ "abi": "xPNTsTokenV2",
+ "parts": 15,
+ "verdict": "PASS",
+ "wall_s": 329,
+ "profile": "xp",
+ "results": [
+  {
+   "part": "OTHER",
+   "D5C1_PART": 1,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6_coreAbi.OTHER.log",
+   "result": "PASS",
+   "paths": 2,
+   "time_s": 0.91,
+   "counterexample": false
+  },
+  {
+   "part": "approve-095ea7b3",
+   "D5C1_PART": 157198259,
+   "exit": 0,
+   "wall_s": 18,
+   "log": "check_I6_coreAbi.approve-095ea7b3.log",
+   "result": "PASS",
+   "paths": 4,
+   "time_s": 0.46,
+   "counterexample": false
+  },
+  {
+   "part": "burn-42966c68",
+   "D5C1_PART": 1117154408,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6_coreAbi.burn-42966c68.log",
+   "result": "PASS",
+   "paths": 7,
+   "time_s": 0.64,
+   "counterexample": false
+  },
+  {
+   "part": "burn-9dc29fac",
+   "D5C1_PART": 2646777772,
+   "exit": 0,
+   "wall_s": 253,
+   "log": "check_I6_coreAbi.burn-9dc29fac.log",
+   "result": "PASS",
+   "paths": 3570,
+   "time_s": 235.6,
+   "counterexample": false
+  },
+  {
+   "part": "initialize-dd1ea56c",
+   "D5C1_PART": 3709773164,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6_coreAbi.initialize-dd1ea56c.log",
+   "result": "PASS",
+   "paths": 2,
+   "time_s": 0.35,
+   "counterexample": false
+  },
+  {
+   "part": "permit-d505accf",
+   "D5C1_PART": 3573918927,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6_coreAbi.permit-d505accf.log",
+   "result": "PASS",
+   "paths": 9,
+   "time_s": 0.67,
+   "counterexample": false
+  },
+  {
+   "part": "releaseStaleCredit-de4880ca",
+   "D5C1_PART": 3729293514,
+   "exit": 0,
+   "wall_s": 20,
+   "log": "check_I6_coreAbi.releaseStaleCredit-de4880ca.log",
+   "result": "PASS",
+   "paths": 5,
+   "time_s": 2.14,
+   "counterexample": false
+  },
+  {
+   "part": "releaseStaleLock-f7b3d30d",
+   "D5C1_PART": 4155757325,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6_coreAbi.releaseStaleLock-f7b3d30d.log",
+   "result": "PASS",
+   "paths": 11,
+   "time_s": 1.14,
+   "counterexample": false
+  },
+  {
+   "part": "renewForSelf-e8c122c7",
+   "D5C1_PART": 3904971463,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6_coreAbi.renewForSelf-e8c122c7.log",
+   "result": "PASS",
+   "paths": 5,
+   "time_s": 0.46,
+   "counterexample": false
+  },
+  {
+   "part": "settleCredit-1baf4408",
+   "D5C1_PART": 464471048,
+   "exit": 0,
+   "wall_s": 22,
+   "log": "check_I6_coreAbi.settleCredit-1baf4408.log",
+   "result": "PASS",
+   "paths": 18,
+   "time_s": 3.02,
+   "counterexample": false
+  },
+  {
+   "part": "settleLocked-7e48bbce",
+   "D5C1_PART": 2118695886,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6_coreAbi.settleLocked-7e48bbce.log",
+   "result": "PASS",
+   "paths": 4,
+   "time_s": 0.4,
+   "counterexample": false
+  },
+  {
+   "part": "transfer-a9059cbb",
+   "D5C1_PART": 2835717307,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6_coreAbi.transfer-a9059cbb.log",
+   "result": "PASS",
+   "paths": 9,
+   "time_s": 0.9,
+   "counterexample": false
+  },
+  {
+   "part": "transferFrom-23b872dd",
+   "D5C1_PART": 599290589,
+   "exit": 0,
+   "wall_s": 261,
+   "log": "check_I6_coreAbi.transferFrom-23b872dd.log",
+   "result": "PASS",
+   "paths": 3738,
+   "time_s": 242.69,
+   "counterexample": false
+  },
+  {
+   "part": "tryLockForGas-ec290731",
+   "D5C1_PART": 3962111793,
+   "exit": 0,
+   "wall_s": 79,
+   "log": "check_I6_coreAbi.tryLockForGas-ec290731.log",
+   "result": "PASS",
+   "paths": 776,
+   "time_s": 61.36,
+   "counterexample": false
+  },
+  {
+   "part": "tryReserveCredit-de9e4cae",
+   "D5C1_PART": 3734916270,
+   "exit": 0,
+   "wall_s": 52,
+   "log": "check_I6_coreAbi.tryReserveCredit-de9e4cae.log",
+   "result": "PASS",
+   "paths": 90,
+   "time_s": 34.22,
+   "counterexample": false
+  }
+ ]
+}

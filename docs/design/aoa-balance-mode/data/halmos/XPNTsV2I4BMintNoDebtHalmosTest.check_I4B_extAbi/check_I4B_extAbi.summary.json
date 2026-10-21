@@ -1,0 +1,22 @@
+{
+ "contract": "XPNTsV2I4BMintNoDebtHalmosTest",
+ "check": "check_I4B_extAbi",
+ "abi": "xPNTsTokenV2Ext",
+ "parts": 1,
+ "verdict": "PASS",
+ "wall_s": 22,
+ "profile": "xp",
+ "results": [
+  {
+   "part": "mint-40c10f19",
+   "D5C1_PART": 1086394137,
+   "exit": 0,
+   "wall_s": 22,
+   "log": "check_I4B_extAbi.mint-40c10f19.log",
+   "result": "PASS",
+   "paths": 74,
+   "time_s": 5.13,
+   "counterexample": false
+  }
+ ]
+}

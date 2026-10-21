@@ -32,7 +32,7 @@ const { loadConfig } = require('./load-config');
 const { sendAndWait, makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
-const CHAIN_ID = 11155111;
+const CHAIN_ID = Number(process.env.CHAIN_ID) || 11155111; // signing domain must match the target chain
 
 const XPNTS_ABI = [
   'function balanceOf(address account) view returns (uint256)',

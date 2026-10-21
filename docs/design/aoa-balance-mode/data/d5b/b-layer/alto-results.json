@@ -1,0 +1,1400 @@
+{
+  "kind": "alto",
+  "bundlerUrl": "http://127.0.0.1:18860",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-09-13T09:28:05.976Z",
+  "cases": {
+    "B9-below": {
+      "expected": "reject (SP stake below threshold, specific reason)",
+      "spStake": {
+        "stake": "100000000000000000",
+        "delay": 86400
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xe9283352731d6f2bdf33c8d3fbc8142a0243f12d62264e863744b59bf208ff3a",
+        "actualGasCost": "0x3b8514055d1ca",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xe9283352731d6f2bdf33c8d3fbc8142a0243f12d62264e863744b59bf208ff3a"
+        }
+      },
+      "sent": {
+        "userOpHash": "0xf37abc2e9e22a66ec769ce97347c43b310cce34b6fff9db49ad1dc37de04f364",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0xf37abc2e9e22a66ec769ce97347c43b310cce34b6fff9db49ad1dc37de04f364"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": false,
+      "summary": "included"
+    },
+    "B9-above": {
+      "expected": "accept + include (SP stake 1 ETH / 86400)",
+      "spStake": {
+        "stake": "1000000000000000000",
+        "delay": 86400
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x610565ac48525fca638f4e60ea931247d0e9f2d0f71415d143d774813637f04c",
+        "actualGasCost": "0x303e8f619bf2c",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x610565ac48525fca638f4e60ea931247d0e9f2d0f71415d143d774813637f04c"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x85952ace73213e1dba5dd8733a4545b76c9d7d070153357a4de245087c14a53e",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x85952ace73213e1dba5dd8733a4545b76c9d7d070153357a4de245087c14a53e"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "summary": "included"
+    },
+    "B1": {
+      "expected": "accept + include; burn>0, lockedOf==0, operator Δ == −revenue Δ",
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x32ecd2bfacf59b6f1d67303be996863ab6f7e06439953f24e3c3df5f05ba45ff",
+        "actualGasCost": "0x3613962a54902",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x32ecd2bfacf59b6f1d67303be996863ab6f7e06439953f24e3c3df5f05ba45ff"
+        }
+      },
+      "sent": {
+        "userOpHash": "0xd1a224d5ae360ff4a42d0ee641652c028d94b7d0fc0e815a714046274b3cec54",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0xd1a224d5ae360ff4a42d0ee641652c028d94b7d0fc0e815a714046274b3cec54"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "before": {
+        "bal": "3000000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40481797551257409990000",
+        "opBalance": "39753797551257409990000",
+        "revenue": "246202448742590010000"
+      },
+      "after": {
+        "bal": "2873136776511261450000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40354934327768671440000",
+        "opBalance": "39626934327768671440000",
+        "revenue": "373065672231328560000"
+      },
+      "post": {
+        "burn": "126863223488738550000",
+        "operatorDelta": "-126863223488738550000",
+        "revenueDelta": "126863223488738550000",
+        "supplyDelta": "-126863223488738550000"
+      },
+      "tokenEvents": [
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockCreated",
+          "args": {
+            "user": "0x5C00b79536bfbF68FD22C5eB63eb664527B6c7e8",
+            "opHash": "0xd1a224d5ae360ff4a42d0ee641652c028d94b7d0fc0e815a714046274b3cec54",
+            "locker": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "xLocked": "345600000000000000000",
+            "aReserved": "345600000000000000000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "Transfer",
+          "args": {
+            "from": "0x5C00b79536bfbF68FD22C5eB63eb664527B6c7e8",
+            "to": "0x0000000000000000000000000000000000000000",
+            "value": "126863223488738550000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockSettled",
+          "args": {
+            "user": "0x5C00b79536bfbF68FD22C5eB63eb664527B6c7e8",
+            "opHash": "0xd1a224d5ae360ff4a42d0ee641652c028d94b7d0fc0e815a714046274b3cec54",
+            "xBurned": "126863223488738550000",
+            "aCharged": "126863223488738550000"
+          }
+        }
+      ],
+      "pass": true,
+      "summary": "included; burn=126863223488738550000 lockedOf=0 opΔ=-126863223488738550000 revΔ=126863223488738550000"
+    },
+    "B3": {
+      "expected": "3 senders, one bundle, all included; locks independent (3 distinct LockSettled, each lockedOf==0)",
+      "subs": [
+        {
+          "userOpHash": "0x0f66902823653f636ce4cad40389331904e92bc26fd1946f931d57d6b02eab1a",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x0f66902823653f636ce4cad40389331904e92bc26fd1946f931d57d6b02eab1a"
+          }
+        },
+        {
+          "userOpHash": "0x2124d8f4374608a49f0cdd95c7e9defc002653793f0ca5c015c578ec0b2f047d",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "unstaked account accessed 0xe73c3242e033239a0425c86399d3a1b793108640 slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "data": {
+                "account": "0x038793728F8fae96bf95b632F2a2Dc55b86d544e"
+              },
+              "code": -32502
+            }
+          }
+        },
+        {
+          "userOpHash": "0xb22d07f0ffb7be386ceb348a315c48bcdf7e6640d17a0bb9ff44231a5203cae9",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "unstaked account accessed 0xe73c3242e033239a0425c86399d3a1b793108640 slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "data": {
+                "account": "0xD238FebC192ce93a60de82D6B8BC0a013A54798b"
+              },
+              "code": -32502
+            }
+          }
+        }
+      ],
+      "outs": [
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0xfc907a49594b1a4811963d61094ef53dd13d07259217516b8ffe924bbb18f2f4",
+            "actualGasCost": "0x361396279bcae",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0xfc907a49594b1a4811963d61094ef53dd13d07259217516b8ffe924bbb18f2f4"
+            }
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "unstaked account accessed 0xe73c3242e033239a0425c86399d3a1b793108640 slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+            "data": {
+              "account": "0x038793728F8fae96bf95b632F2a2Dc55b86d544e"
+            },
+            "code": -32502
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "unstaked account accessed 0xe73c3242e033239a0425c86399d3a1b793108640 slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+            "data": {
+              "account": "0xD238FebC192ce93a60de82D6B8BC0a013A54798b"
+            },
+            "code": -32502
+          }
+        }
+      ],
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "txs": [
+        "0xfc907a49594b1a4811963d61094ef53dd13d07259217516b8ffe924bbb18f2f4"
+      ],
+      "before": {
+        "b3a": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40354934327768671440000",
+          "opBalance": "39626934327768671440000",
+          "revenue": "373065672231328560000"
+        },
+        "b3b": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40354934327768671440000",
+          "opBalance": "39626934327768671440000",
+          "revenue": "373065672231328560000"
+        },
+        "b3c": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40354934327768671440000",
+          "opBalance": "39626934327768671440000",
+          "revenue": "373065672231328560000"
+        }
+      },
+      "after": {
+        "b3a": {
+          "bal": "2873136776891851110000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40228071104660522550000",
+          "opBalance": "39500071104660522550000",
+          "revenue": "499928895339477450000"
+        },
+        "b3b": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40228071104660522550000",
+          "opBalance": "39500071104660522550000",
+          "revenue": "499928895339477450000"
+        },
+        "b3c": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40228071104660522550000",
+          "opBalance": "39500071104660522550000",
+          "revenue": "499928895339477450000"
+        }
+      },
+      "tokenEvents": [
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockCreated",
+          "args": {
+            "user": "0xE73C3242e033239a0425c86399d3a1B793108640",
+            "opHash": "0x0f66902823653f636ce4cad40389331904e92bc26fd1946f931d57d6b02eab1a",
+            "locker": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "xLocked": "345600000000000000000",
+            "aReserved": "345600000000000000000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "Transfer",
+          "args": {
+            "from": "0xE73C3242e033239a0425c86399d3a1B793108640",
+            "to": "0x0000000000000000000000000000000000000000",
+            "value": "126863223108148890000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockSettled",
+          "args": {
+            "user": "0xE73C3242e033239a0425c86399d3a1B793108640",
+            "opHash": "0x0f66902823653f636ce4cad40389331904e92bc26fd1946f931d57d6b02eab1a",
+            "xBurned": "126863223108148890000",
+            "aCharged": "126863223108148890000"
+          }
+        }
+      ],
+      "pass": false,
+      "summary": "included,reject,reject in 1 tx; LockSettled users=1"
+    },
+    "B5": {
+      "expected": "accept + include; AllowanceRenewed(user, SP, spRelayed=true)",
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xf91c216104f8428a6ab6357b6637a30f225938f0741b17d5f98629533c9da251",
+        "actualGasCost": "0x39506f3c3fd3c",
+        "logs": 6
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xf91c216104f8428a6ab6357b6637a30f225938f0741b17d5f98629533c9da251"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x8cf7e7bee3183ed2395551ae61bd07eb4227048347724baaddd9cbbb430b26a1",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x8cf7e7bee3183ed2395551ae61bd07eb4227048347724baaddd9cbbb430b26a1"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "tokenEvents": [
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "AllowanceRenewed",
+          "args": {
+            "user": "0xcf3624e0c7a51575359B745E514f7aD475E8f389",
+            "spender": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "bySP": "true"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockCreated",
+          "args": {
+            "user": "0xcf3624e0c7a51575359B745E514f7aD475E8f389",
+            "opHash": "0x8cf7e7bee3183ed2395551ae61bd07eb4227048347724baaddd9cbbb430b26a1",
+            "locker": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "xLocked": "345600000000000000000",
+            "aReserved": "345600000000000000000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "Transfer",
+          "args": {
+            "from": "0xcf3624e0c7a51575359B745E514f7aD475E8f389",
+            "to": "0x0000000000000000000000000000000000000000",
+            "value": "133128602928829200000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockSettled",
+          "args": {
+            "user": "0xcf3624e0c7a51575359B745E514f7aD475E8f389",
+            "opHash": "0x8cf7e7bee3183ed2395551ae61bd07eb4227048347724baaddd9cbbb430b26a1",
+            "xBurned": "133128602928829200000",
+            "aCharged": "133128602928829200000"
+          }
+        }
+      ],
+      "pass": true,
+      "summary": "included; renewedEvent={\"user\":\"0xcf3624e0c7a51575359B745E514f7aD475E8f389\",\"spender\":\"0x0B306BF915C4d645ff596e518fAf3F9669b97016\",\"bySP\":\"true\"}"
+    },
+    "B6": {
+      "expected": "accept + include; AllowanceRenewed(user, SP, spRelayed=false) from the account frame",
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x4fba33cde3beace562d0e83ac2eaa02906185f40f9edf1ed257a6bf0e2104c28",
+        "actualGasCost": "0x37bc4c7636b49",
+        "logs": 6
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x4fba33cde3beace562d0e83ac2eaa02906185f40f9edf1ed257a6bf0e2104c28"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x8a17455644b42ca2e9665f78985f625f89b5fe0c18e380bd97e519ea75f4a820",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x8a17455644b42ca2e9665f78985f625f89b5fe0c18e380bd97e519ea75f4a820"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "tokenEvents": [
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "AllowanceRenewed",
+          "args": {
+            "user": "0x66C8954C5F541C292c98457dCFeC51F18b470E54",
+            "spender": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "bySP": "false"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockCreated",
+          "args": {
+            "user": "0x66C8954C5F541C292c98457dCFeC51F18b470E54",
+            "opHash": "0x8a17455644b42ca2e9665f78985f625f89b5fe0c18e380bd97e519ea75f4a820",
+            "locker": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "xLocked": "345600000000000000000",
+            "aReserved": "345600000000000000000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "Transfer",
+          "args": {
+            "from": "0x66C8954C5F541C292c98457dCFeC51F18b470E54",
+            "to": "0x0000000000000000000000000000000000000000",
+            "value": "130073682536436760000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockSettled",
+          "args": {
+            "user": "0x66C8954C5F541C292c98457dCFeC51F18b470E54",
+            "opHash": "0x8a17455644b42ca2e9665f78985f625f89b5fe0c18e380bd97e519ea75f4a820",
+            "xBurned": "130073682536436760000",
+            "aCharged": "130073682536436760000"
+          }
+        }
+      ],
+      "pass": true,
+      "summary": "included; renewedEvent={\"user\":\"0x66C8954C5F541C292c98457dCFeC51F18b470E54\",\"spender\":\"0x0B306BF915C4d645ff596e518fAf3F9669b97016\",\"bySP\":\"false\"}"
+    },
+    "B7": {
+      "expected": "accept + include; CREDIT path (CreditReserved → CreditSettled), debts>0, creditReservedOf==0",
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xd60a18bde082c0a4226eb4f65e2889c2154289388ca65d564e67a6dbc01bf066",
+        "actualGasCost": "0x37d34a69ca30f",
+        "logs": 4
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xd60a18bde082c0a4226eb4f65e2889c2154289388ca65d564e67a6dbc01bf066"
+        }
+      },
+      "sent": {
+        "userOpHash": "0xa56e520e2fc13f98a445d5ba71933b6442d4355813e8f46dc85b49ff11889e38",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0xa56e520e2fc13f98a445d5ba71933b6442d4355813e8f46dc85b49ff11889e38"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "before": {
+        "bal": "0",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "39964868819195256590000",
+        "opBalance": "39236868819195256590000",
+        "revenue": "763131180804743410000"
+      },
+      "after": {
+        "bal": "0",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "128964002256870000000",
+        "supply": "39964868819195256590000",
+        "opBalance": "39107904816938386590000",
+        "revenue": "892095183061613410000"
+      },
+      "tokenEvents": [
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "CreditReserved",
+          "args": {
+            "user": "0xF2C21A36e91330D23a9f361cc5313a188e5705B8",
+            "opHash": "0xa56e520e2fc13f98a445d5ba71933b6442d4355813e8f46dc85b49ff11889e38",
+            "locker": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "amount": "345600000000000000000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "CreditSettled",
+          "args": {
+            "user": "0xF2C21A36e91330D23a9f361cc5313a188e5705B8",
+            "opHash": "0xa56e520e2fc13f98a445d5ba71933b6442d4355813e8f46dc85b49ff11889e38",
+            "debtAdded": "128964002256870000000"
+          }
+        }
+      ],
+      "pass": true,
+      "summary": "included; debts 0→128964002256870000000; reserved=0"
+    },
+    "B8": {
+      "expected": "accept + include with SP staked (TSTORE of token live marker + SP in-flight marker in validation; OP-070 → storage rules)",
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x35195d9553db4246ca35d70fcbc7f9888cfd29be3a82f6b4ab0bbbaa1626df96",
+        "actualGasCost": "0x3613961f717b2",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x35195d9553db4246ca35d70fcbc7f9888cfd29be3a82f6b4ab0bbbaa1626df96"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x13c331f005a036dcba14303f63c1bdbf0b3f8a15a00a3bcf1a63d8e0615ba739",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x13c331f005a036dcba14303f63c1bdbf0b3f8a15a00a3bcf1a63d8e0615ba739"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "summary": "included"
+    },
+    "B4-unstaked": {
+      "expected": "reject with factory stake reason",
+      "factory": {
+        "address": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+        "stake": "0",
+        "unstakeDelaySec": 0,
+        "staked": false
+      },
+      "verdict": "reject",
+      "error": {
+        "message": "unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+        "data": {
+          "factory": "0xc351628EB244ec633d5f21fBD6621e1a683B1181"
+        },
+        "code": -32502
+      },
+      "sent": {
+        "userOpHash": "0xcd41fdd35b0398efe799ed9b77bb58c2184115b7516bb3a4490adc81e0b9b22d",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+            "data": {
+              "factory": "0xc351628EB244ec633d5f21fBD6621e1a683B1181"
+            },
+            "code": -32502
+          }
+        }
+      },
+      "bundle": null,
+      "pass": true,
+      "summary": "reject [-32502] unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "B4-lowStake": {
+      "expected": "reject with factory stake reason",
+      "factory": {
+        "address": "0xFD471836031dc5108809D173A067e8486B9047A3",
+        "stake": "500000000000000000",
+        "unstakeDelaySec": 86400,
+        "staked": true
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xfc5454a3da344c48de29c19cd1035aaa2ae14209002f6cb305cae8202940d6fc",
+        "actualGasCost": "0x74e15b835c758",
+        "logs": 6
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xfc5454a3da344c48de29c19cd1035aaa2ae14209002f6cb305cae8202940d6fc"
+        }
+      },
+      "sent": {
+        "userOpHash": "0xbbf6adcfa285cb3d6440583d78c4bbbaa151185bf5d653bd9ab963ec2394bca9",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0xbbf6adcfa285cb3d6440583d78c4bbbaa151185bf5d653bd9ab963ec2394bca9"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": false,
+      "summary": "included"
+    },
+    "B4-shortDelay": {
+      "expected": "Rundler (min delay 86400): reject; Alto: per configured --min-entity-unstake-delay",
+      "factory": {
+        "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+        "stake": "1000000000000000000",
+        "unstakeDelaySec": 3600,
+        "staked": true
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x4ea3d897daceda05a00055eed530b9a7c4ac8ec726fdebae3a59b6811eadf8a0",
+        "actualGasCost": "0x74e15b806b76a",
+        "logs": 6
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x4ea3d897daceda05a00055eed530b9a7c4ac8ec726fdebae3a59b6811eadf8a0"
+        }
+      },
+      "sent": {
+        "userOpHash": "0xb6c118a7f4e8392b338c4413c2d8d1a9d3458f9eb6211bd85d539df569cf24a5",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0xb6c118a7f4e8392b338c4413c2d8d1a9d3458f9eb6211bd85d539df569cf24a5"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "summary": "included"
+    },
+    "B4-ok": {
+      "expected": "accept + include",
+      "factory": {
+        "address": "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
+        "stake": "1000000000000000000",
+        "unstakeDelaySec": 86400,
+        "staked": true
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x23da2ed9595fe7a65855066612b0eff0a6831830b7923f5be05a7b0194bc3400",
+        "actualGasCost": "0x72efae9076722",
+        "logs": 6
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x23da2ed9595fe7a65855066612b0eff0a6831830b7923f5be05a7b0194bc3400"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x1ed692c29adf6d0a9e5af69a67185aecf3e42d2137b755906ece9048d0ce815d",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x1ed692c29adf6d0a9e5af69a67185aecf3e42d2137b755906ece9048d0ce815d"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "summary": "included"
+    },
+    "B10": {
+      "expected": "estimation succeeds and estimated paymasterPostOpGasLimit ≥ 200000",
+      "est": {
+        "suppliedPostOpMin": {
+          "request": {
+            "sender": "0xf9832498095c06246296d2e43CC73f06cc8f0A4c",
+            "nonce": "0x0",
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "signature": "0x02a72e08ba8ff1dd0e3086126d735e564047055bcc9f078f02e1264e886d79c1172ffaf61b7a3e8b76602c9a3211f9c293bf09ed678976ccc5b141765bb34e8f1c",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x493e0",
+            "paymasterPostOpGasLimit": "0x30d40",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800"
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "preVerificationGas": "0xd6c6",
+              "verificationGasLimit": "0xc277",
+              "callGasLimit": "0x3fc3",
+              "paymasterVerificationGasLimit": "0x4897e",
+              "paymasterPostOpGasLimit": "0x3a980"
+            }
+          },
+          "paymasterPostOpGasLimit": "0x3a980",
+          "postOpGeMin": true
+        },
+        "omittedPmGas": {
+          "request": {
+            "sender": "0xf9832498095c06246296d2e43CC73f06cc8f0A4c",
+            "nonce": "0x0",
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "signature": "0x02a72e08ba8ff1dd0e3086126d735e564047055bcc9f078f02e1264e886d79c1172ffaf61b7a3e8b76602c9a3211f9c293bf09ed678976ccc5b141765bb34e8f1c",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800"
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "preVerificationGas": "0xd6c6",
+              "verificationGasLimit": "0xc277",
+              "callGasLimit": "0x3fc3",
+              "paymasterVerificationGasLimit": "0x4897e",
+              "paymasterPostOpGasLimit": "0x1c62c"
+            }
+          },
+          "paymasterPostOpGasLimit": "0x1c62c",
+          "postOpGeMin": false
+        },
+        "omittedPostOpOnly": {
+          "request": {
+            "sender": "0xf9832498095c06246296d2e43CC73f06cc8f0A4c",
+            "nonce": "0x0",
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "signature": "0x02a72e08ba8ff1dd0e3086126d735e564047055bcc9f078f02e1264e886d79c1172ffaf61b7a3e8b76602c9a3211f9c293bf09ed678976ccc5b141765bb34e8f1c",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x493e0",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800"
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "preVerificationGas": "0xd6c6",
+              "verificationGasLimit": "0xc277",
+              "callGasLimit": "0x3fc3",
+              "paymasterVerificationGasLimit": "0x4897e",
+              "paymasterPostOpGasLimit": "0x1c62c"
+            }
+          },
+          "paymasterPostOpGasLimit": "0x1c62c",
+          "postOpGeMin": false
+        }
+      },
+      "pass": true,
+      "summary": "suppliedPostOpMin: pmPostOp=0x3a980 pmVerif=0x4897e | omittedPmGas: pmPostOp=0x1c62c pmVerif=0x4897e | omittedPostOpOnly: pmPostOp=0x1c62c pmVerif=0x4897e"
+    },
+    "B2a": {
+      "expected": "same sender, 2 ops (nonce keys 0,1) that fit: accepted, ONE bundle, both included",
+      "userBalance": "864000000000000000000",
+      "a0": "345600000000000000000",
+      "u": "0x9291B277D28C0A7DE1367A1857aF6eC9E1c91dBF",
+      "before": {
+        "bal": "864000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "39096575447833039240000",
+        "opBalance": "38239611445576169240000",
+        "revenue": "1760388554423830760000"
+      },
+      "after": {
+        "bal": "617797557534213600000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "38850373005367252840000",
+        "opBalance": "37993409003110382840000",
+        "revenue": "2006590996889617160000"
+      },
+      "handleOpsAll": {
+        "reverted": false
+      },
+      "subs": [
+        {
+          "userOpHash": "0x7b3c5815ead0bd316add3a44a4929656c90d8051630c2bfe57f36b7062efa8a6",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x7b3c5815ead0bd316add3a44a4929656c90d8051630c2bfe57f36b7062efa8a6"
+          }
+        },
+        {
+          "userOpHash": "0xebe333af3673d83fc349a0df42164fbabd18e73c36b43c9858c052eb5a982f49",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0xebe333af3673d83fc349a0df42164fbabd18e73c36b43c9858c052eb5a982f49"
+          }
+        }
+      ],
+      "mempool": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": [
+          {
+            "sender": "0x9291B277D28C0A7DE1367A1857aF6eC9E1c91dBF",
+            "nonce": "0x0",
+            "factory": null,
+            "factoryData": null,
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "callGasLimit": "0xea60",
+            "verificationGasLimit": "0x3d090",
+            "preVerificationGas": "0x186a0",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x493e0",
+            "paymasterPostOpGasLimit": "0x3d090",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800",
+            "signature": "0x09fd2838e4f890d2ceafb16a52b8ecb1fa58c492abead224c6bd95cbf34af9072b9fead9269e73cf5e33f401f9d54b9c71edaedeebe1a01fc08bd01bf07c3c681c"
+          },
+          {
+            "sender": "0x9291B277D28C0A7DE1367A1857aF6eC9E1c91dBF",
+            "nonce": "0x10000000000000000",
+            "factory": null,
+            "factoryData": null,
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "callGasLimit": "0xea60",
+            "verificationGasLimit": "0x3d090",
+            "preVerificationGas": "0x186a0",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x493e0",
+            "paymasterPostOpGasLimit": "0x3d090",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800",
+            "signature": "0xd848ea8d248f25c2705d60817168be26831703dbf06052c2718342880ce41a434531f907f2d4f9107f753dcccc5820389bd48b3bcde2641286787a407ad743c11c"
+          }
+        ]
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "bundle2": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "outs": [
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0xa874bd28506198545baeb5b26442cdf3b7690ebd68b6ca1806019e5a8fe56f57",
+            "actualGasCost": "0x3613961ae8326",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0xa874bd28506198545baeb5b26442cdf3b7690ebd68b6ca1806019e5a8fe56f57"
+            }
+          }
+        },
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0x0fbe8935d07b0d1696c291b598062c6aa155e32342e1400089273cdc63090e4b",
+            "actualGasCost": "0x32303c3e234c2",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0x0fbe8935d07b0d1696c291b598062c6aa155e32342e1400089273cdc63090e4b"
+            }
+          }
+        }
+      ],
+      "included": 2,
+      "txs": [
+        "0xa874bd28506198545baeb5b26442cdf3b7690ebd68b6ca1806019e5a8fe56f57",
+        "0x0fbe8935d07b0d1696c291b598062c6aa155e32342e1400089273cdc63090e4b"
+      ],
+      "pass": false,
+      "summary": "included=2 in 2 tx; lockedOf=0"
+    },
+    "B2b": {
+      "expected": "same sender, 3 ops, balance 2.5·x0: op 3 rejected (the EntryPoint says FailedOp(2, AA34)); ops 1–2 included",
+      "userBalance": "864000000000000000000",
+      "a0": "345600000000000000000",
+      "u": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+      "before": {
+        "bal": "864000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "38850373005367252840000",
+        "opBalance": "37993409003110382840000",
+        "revenue": "2006590996889617160000"
+      },
+      "after": {
+        "bal": "617797558026618480000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "38604170563393871320000",
+        "opBalance": "37747206561137001320000",
+        "revenue": "2252793438862998680000"
+      },
+      "handleOpsAll": {
+        "reverted": true,
+        "error": {
+          "name": "FailedOp",
+          "args": [
+            "2",
+            "AA34 signature error"
+          ]
+        }
+      },
+      "subs": [
+        {
+          "userOpHash": "0x63f6ea0f15152f98c6610a40ebf152788c8147c7e90825b94b8f36d04e75a7cb",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x63f6ea0f15152f98c6610a40ebf152788c8147c7e90825b94b8f36d04e75a7cb"
+          }
+        },
+        {
+          "userOpHash": "0x038d8e46d5129490a3db8981cb243816313670b1795f9141b5e7e51dbbae392b",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x038d8e46d5129490a3db8981cb243816313670b1795f9141b5e7e51dbbae392b"
+          }
+        },
+        {
+          "userOpHash": "0x9fcbe9ce8a2dde9115ad9754c5a8401fd22e1fcf6b52564f6eafe5539f2c6d9b",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA34 signature error",
+              "code": -32500
+            }
+          }
+        }
+      ],
+      "mempool": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": [
+          {
+            "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+            "nonce": "0x0",
+            "factory": null,
+            "factoryData": null,
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "callGasLimit": "0xea60",
+            "verificationGasLimit": "0x3d090",
+            "preVerificationGas": "0x186a0",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x493e0",
+            "paymasterPostOpGasLimit": "0x3d090",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800",
+            "signature": "0xa609cdf466d7527a2e4a51f6b7b9d809c27059ba07c11e97a79ee74e14ac16155b887805683a098d49c56d5aed753736a264e11a84dbb93dfae5f9fe656457ee1b"
+          },
+          {
+            "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+            "nonce": "0x10000000000000000",
+            "factory": null,
+            "factoryData": null,
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "callGasLimit": "0xea60",
+            "verificationGasLimit": "0x3d090",
+            "preVerificationGas": "0x186a0",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x493e0",
+            "paymasterPostOpGasLimit": "0x3d090",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800",
+            "signature": "0xbcd06645f153b7966eedd3f763a9434350fdeb4fda0921dfa6f698145aaeae41498599f62812d227bbb3d9da4ddfa6162f4dac43eb778d98723f0b8e6002c9fd1c"
+          }
+        ]
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "bundle2": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "outs": [
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0x55cb746d33d5767442ae8e6ffc4b6ea0deb966fc2f07cbd487c3bc6f1220e7bd",
+            "actualGasCost": "0x3613961917aee",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0x55cb746d33d5767442ae8e6ffc4b6ea0deb966fc2f07cbd487c3bc6f1220e7bd"
+            }
+          }
+        },
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0xd2928c37e0020d1304664e847ae49d28675bf98131478db88512195d3caf3344",
+            "actualGasCost": "0x32303c3c742ea",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0xd2928c37e0020d1304664e847ae49d28675bf98131478db88512195d3caf3344"
+            }
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA34 signature error",
+            "code": -32500
+          }
+        }
+      ],
+      "included": 2,
+      "txs": [
+        "0x55cb746d33d5767442ae8e6ffc4b6ea0deb966fc2f07cbd487c3bc6f1220e7bd",
+        "0xd2928c37e0020d1304664e847ae49d28675bf98131478db88512195d3caf3344"
+      ],
+      "firstTwoIncluded": true,
+      "pass": true,
+      "summary": "handleOps(all)={\"name\":\"FailedOp\",\"args\":[\"2\",\"AA34 signature error\"]}; verdicts=included | included | reject[-32500] AA34 signature error"
+    },
+    "B2-aftermath": {
+      "expected": "observation: can a normal op from the same SP still enter after B2?",
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xbeb0e26ba774ca43d76ec307ea452e313cc8e94f9d2bdae8919ae36ddc1395f2",
+        "actualGasCost": "0x303e8f4e2ef4c",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xbeb0e26ba774ca43d76ec307ea452e313cc8e94f9d2bdae8919ae36ddc1395f2"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x36919194c2a7a3488270c075e3d25e00fb38428fc0f38c6d390ec790be0d3dd3",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x36919194c2a7a3488270c075e3d25e00fb38428fc0f38c6d390ec790be0d3dd3"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "informational": true,
+      "summary": "included"
+    }
+  },
+  "bundlingMode": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+  },
+  "reputationBeforeB2": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": [
+      {
+        "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+        "opsSeen": "0xb",
+        "opsIncluded": "0xb",
+        "status": "0x0"
+      },
+      {
+        "address": "0xB3FD5b0eB9D14b2b927c76042723F33c815F1Ad0",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x2",
+        "status": "0x0"
+      },
+      {
+        "address": "0x5C00b79536bfbF68FD22C5eB63eb664527B6c7e8",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xE73C3242e033239a0425c86399d3a1B793108640",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xcf3624e0c7a51575359B745E514f7aD475E8f389",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x66C8954C5F541C292c98457dCFeC51F18b470E54",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xF2C21A36e91330D23a9f361cc5313a188e5705B8",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xcBCF21E09D83fD75053eede464a56a39CA1A3936",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xFD471836031dc5108809D173A067e8486B9047A3",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x517C0EF3Db6207f54E25a102F5D7B828182bD435",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xB46809370876E1A5ec08c12b1fe70fD11EDF4cc6",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      }
+    ]
+  },
+  "reputationAfterB2": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": [
+      {
+        "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+        "opsSeen": "0xf",
+        "opsIncluded": "0xf",
+        "status": "0x0"
+      },
+      {
+        "address": "0xB3FD5b0eB9D14b2b927c76042723F33c815F1Ad0",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x2",
+        "status": "0x0"
+      },
+      {
+        "address": "0x5C00b79536bfbF68FD22C5eB63eb664527B6c7e8",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xE73C3242e033239a0425c86399d3a1B793108640",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xcf3624e0c7a51575359B745E514f7aD475E8f389",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x66C8954C5F541C292c98457dCFeC51F18b470E54",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xF2C21A36e91330D23a9f361cc5313a188e5705B8",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xcBCF21E09D83fD75053eede464a56a39CA1A3936",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xFD471836031dc5108809D173A067e8486B9047A3",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x517C0EF3Db6207f54E25a102F5D7B828182bD435",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xB46809370876E1A5ec08c12b1fe70fD11EDF4cc6",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x9291B277D28C0A7DE1367A1857aF6eC9E1c91dBF",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x2",
+        "status": "0x0"
+      },
+      {
+        "address": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x2",
+        "status": "0x0"
+      }
+    ]
+  },
+  "stakeStatus": {
+    "sp": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "stakeInfo": {
+          "addr": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+          "stake": "1000000000000000000",
+          "unstakeDelaySec": "86400"
+        },
+        "isStaked": true
+      }
+    },
+    "factoryOk": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "stakeInfo": {
+          "addr": "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
+          "stake": "1000000000000000000",
+          "unstakeDelaySec": "86400"
+        },
+        "isStaked": true
+      }
+    }
+  },
+  "allPass": false
+}

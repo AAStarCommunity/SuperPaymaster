@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -12,6 +14,8 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -47,7 +51,14 @@ contract CovMockAPNTs is ERC20 {
     function mint(address to, uint256 amount) external { _mint(to, amount); }
 }
 
-// xPNTs mock that supports approvedFacilitators
+/// @dev Shaped like a v2 token but reports a future balance-mode version (!= 1).
+contract CovMockFutureVersionToken is ERC20 {
+    constructor() ERC20("xPNTs-v3", "xPNT3") {}
+    function BALANCE_MODE_VERSION() external pure returns (uint16) { return 2; }
+}
+
+// 3.x-shaped xPNTs mock (burnFromWithOpHash / recordDebt, no BALANCE_MODE_VERSION).
+// 5.5.0 must refuse it in configureOperator (D3f).
 contract CovMockXPNTs is ERC20 {
     address public FACTORY;
     uint256 public exchangeRateVal = 1e18;
@@ -226,7 +237,9 @@ contract CovMockRegistry is IRegistry {
  * @notice Branch coverage improvements for SuperPaymaster:
  *   D1  executeAPNTsTokenChange — protocolRevenue == PROTOCOL_REVENUE_BUFFER (passes)
  *   D2  withdrawProtocolRevenue — exact available, above available, buffer boundary
- *   D3  configureOperator — factory token mismatch revert, zero exchangeRate revert
+ *   D3  configureOperator — factory token mismatch revert, 5.5.0 BALANCE_MODE_VERSION probe
+ *       (3.x token / unknown version rejected)
+ *   D8–D12 validatePaymasterUserOp sigFail paths (5.5.0 paymasterAndData layout) + positive control
  *   D4/D5  (REMOVED) settleX402Payment / settleX402PaymentDirect — v5.4 god-split
  *          phase 1 extracted x402 into X402Facilitator; coverage now lives in
  *          test/v3/X402Facilitator.t.sol plus the X402Direct and PoC_C0x suites.
@@ -240,7 +253,7 @@ contract SuperPaymaster_Coverage_Test is Test {
     CovMockEntryPoint public entryPoint;
     CovMockPriceFeed public priceFeed;
     CovMockAPNTs public apnts;
-    CovMockXPNTs public xpnts;
+    xPNTsTokenV2 public xpnts;
     CovMockXPNTsFactory public mockFactory;
 
     address public owner     = address(0x1);
@@ -264,7 +277,6 @@ contract SuperPaymaster_Coverage_Test is Test {
         entryPoint = new CovMockEntryPoint();
         priceFeed  = new CovMockPriceFeed();
         apnts      = new CovMockAPNTs();
-        xpnts      = new CovMockXPNTs();
         registry   = new CovMockRegistry();
 
         paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
@@ -287,10 +299,14 @@ contract SuperPaymaster_Coverage_Test is Test {
         // Deploy factory
         mockFactory = new CovMockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
-        mockFactory.setToken(operator1, address(xpnts));
 
         apnts.mint(operator1, 100_000 ether);
         vm.stopPrank();
+
+        // 5.5.0: operator1's factory-bound token is a real xPNTs v2 clone (genesis SP = paymaster)
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xpnts = V2TokenDeployer.newToken(st, operator1, operator1, address(paymaster), 1e18);
+        mockFactory.setToken(operator1, address(xpnts));
 
         // Give SBT to user1
         vm.prank(address(registry));
@@ -306,22 +322,25 @@ contract SuperPaymaster_Coverage_Test is Test {
 
     // ─── Helper ────────────────────────────────────────────────────────────────
 
-    function _buildPaymasterData() internal view returns (bytes memory) {
-        return abi.encodePacked(
-            address(paymaster), // 20 bytes
-            uint128(0),
-            uint128(200000),
-            operator1,          // 20 bytes (operator)
-            type(uint256).max   // 32 bytes (maxRate)
-        );
+    /// @dev 5.5.0 layout: [pm 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
+    function _buildPaymasterDataFor(address op) internal view returns (bytes memory) {
+        return V2TokenDeployer.pmd(address(paymaster), 0, 200000, op, type(uint256).max, address(xpnts), 0);
     }
 
-    function _runValidate(address user) internal returns (bytes memory ctx) {
+    function _buildPaymasterData() internal view returns (bytes memory) {
+        return _buildPaymasterDataFor(operator1);
+    }
+
+    function _validate(address user, bytes memory pmd) internal returns (uint256 validationData) {
         PackedUserOperation memory op;
         op.sender = user;
-        op.paymasterAndData = _buildPaymasterData();
+        op.paymasterAndData = pmd;
         vm.prank(address(entryPoint));
-        (ctx,) = paymaster.validatePaymasterUserOp(op, bytes32(uint256(block.timestamp)), 1000);
+        // D3-M: low-level call so "reverts instead of failing closed" is a named failure.
+        (bool ok, bytes memory ret) =
+            address(paymaster).call(abi.encodeCall(paymaster.validatePaymasterUserOp, (op, bytes32(0), 1000)));
+        assertTrue(ok, "validatePaymasterUserOp must fail closed (sigFail), never revert");
+        (, validationData) = abi.decode(ret, (bytes, uint256));
     }
 
     // ─── D1: executeAPNTsTokenChange ───────────────────────────────────────────
@@ -378,7 +397,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // Must revert because protocolRevenue != 0
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
 
@@ -397,7 +416,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // Do NOT warp — timelock has not elapsed
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
 
@@ -443,7 +462,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         uint256 tooMuch = revenue - PROTOCOL_REVENUE_BUFFER + 1;
 
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InsufficientRevenue.selector);
+        vm.expectRevert(SuperPaymasterStorage.InsufficientRevenue.selector);
         paymaster.withdrawProtocolRevenue(treasury, tooMuch);
     }
 
@@ -461,7 +480,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // protocolRevenue < BUFFER → available == 0
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InsufficientRevenue.selector);
+        vm.expectRevert(SuperPaymasterStorage.InsufficientRevenue.selector);
         paymaster.withdrawProtocolRevenue(treasury, 1);
     }
 
@@ -470,7 +489,7 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D2_WithdrawProtocolRevenue_Reverts_ZeroAddress() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidAddress.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidAddress.selector);
         paymaster.withdrawProtocolRevenue(address(0), 1 ether);
     }
 
@@ -480,12 +499,42 @@ contract SuperPaymaster_Coverage_Test is Test {
      * @notice D3a: configureOperator reverts when token does not match factory mapping
      */
     function test_D3_ConfigureOperator_Reverts_WhenTokenNotFromFactory() public {
-        address wrongToken = address(new CovMockXPNTs());
+        // A genuine v2 token (passes the BALANCE_MODE_VERSION probe) that is NOT the one the
+        // factory maps to operator1 -> only the factory binding can reject it.
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        address wrongToken = address(V2TokenDeployer.newToken(st, operator1, operator1, address(paymaster), 1e18));
         // mockFactory.getTokenAddress(operator1) == address(xpnts), not wrongToken
 
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
         paymaster.configureOperator(wrongToken, address(0x999));
+    }
+
+    /**
+     * @notice D3f (5.5.0 §3.3): factory-bound 3.x-shaped token (no BALANCE_MODE_VERSION) is
+     *         rejected by the probe's catch branch. The factory binding is satisfied, so the
+     *         probe is the only check that can fire.
+     */
+    function test_D3_ConfigureOperator_Reverts_Legacy3xToken() public {
+        address legacy = address(new CovMockXPNTs());
+        mockFactory.setToken(operator1, legacy);
+
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
+        paymaster.configureOperator(legacy, address(0x999));
+    }
+
+    /**
+     * @notice D3g (5.5.0 §3.3): factory-bound token reporting BALANCE_MODE_VERSION() == 2 is
+     *         rejected by the `v != 1` branch (only version 1 is understood by 5.5.0).
+     */
+    function test_D3_ConfigureOperator_Reverts_UnknownBalanceModeVersion() public {
+        address future = address(new CovMockFutureVersionToken());
+        mockFactory.setToken(operator1, future);
+
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
+        paymaster.configureOperator(future, address(0x999));
     }
 
     /**
@@ -493,7 +542,7 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D3_ConfigureOperator_Reverts_ZeroTreasury() public {
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         paymaster.configureOperator(address(xpnts), address(0));
     }
 
@@ -502,7 +551,7 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D3_ConfigureOperator_Reverts_NoRole() public {
         vm.prank(user1);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         paymaster.configureOperator(address(xpnts), address(0x999));
     }
 
@@ -516,7 +565,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         // Note: ROLE_COMMUNITY is NOT set for op2
 
         vm.prank(op2);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         paymaster.configureOperator(address(xpnts), address(0x999));
     }
 
@@ -536,7 +585,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         );
 
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         fresh.configureOperator(address(xpnts), address(0x999));
     }
 
@@ -570,7 +619,7 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D6_SetAgentRegistries_Reverts_NonContract() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidAddress.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidAddress.selector);
         paymaster.setAgentRegistries(address(0xDEAD), address(0));
     }
 
@@ -598,43 +647,35 @@ contract SuperPaymaster_Coverage_Test is Test {
         address op9 = address(0x999);
         registry.setRole(ROLE_PAYMASTER_SUPER, op9, true);
 
-        PackedUserOperation memory op;
-        op.sender = user1;
-        op.paymasterAndData = abi.encodePacked(
-            address(paymaster),
-            uint128(0),
-            uint128(200000),
-            op9, // operator without configureOperator called
-            type(uint256).max
-        );
-
-        vm.prank(address(entryPoint));
-        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
+        // operator without configureOperator called
+        uint256 validationData = _validate(user1, _buildPaymasterDataFor(op9));
 
         // Sig failure is encoded as address(1) in lower 160 bits
         address authorizer = address(uint160(validationData));
         assertEq(authorizer, address(1), "Should return SIG_FAILURE for unconfigured operator");
+
+        // D3-M: with the token field = xpnts, the 5.5.0 token binding (config.xPNTsToken == 0 for
+        // an unconfigured operator) ALSO rejects, masking the isConfigured gate. With a zero token
+        // field the binding passes, so isConfigured is the only gate left: without it validation
+        // would call exchangeRate() on address(0) and revert instead of failing closed.
+        PackedUserOperation memory op;
+        op.sender = user1;
+        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200000, op9, type(uint256).max, address(0), 0);
+        vm.prank(address(entryPoint));
+        (bool ok, bytes memory ret) =
+            address(paymaster).call(abi.encodeCall(paymaster.validatePaymasterUserOp, (op, bytes32(0), 1000)));
+        assertTrue(ok, "unconfigured operator + zero token field must fail closed, not revert");
+        (, uint256 vd0) = abi.decode(ret, (bytes, uint256));
+        assertEq(address(uint160(vd0)), address(1), "SIG_FAILURE from the isConfigured gate alone");
     }
 
     /**
      * @notice D9: validatePaymasterUserOp returns sig failure when user not eligible
      */
     function test_D9_Validate_UserNotEligible_ReturnsSigFailure() public {
-        PackedUserOperation memory op;
-        op.sender = user2; // no SBT, no agent
-        op.paymasterAndData = _buildPaymasterData();
-
-        // Override operator in paymasterAndData to operator1 (already configured)
-        op.paymasterAndData = abi.encodePacked(
-            address(paymaster),
-            uint128(0),
-            uint128(200000),
-            operator1,
-            type(uint256).max
-        );
-
-        vm.prank(address(entryPoint));
-        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
+        // user2: no SBT, no agent. Give it xPNTs so eligibility is the ONLY failing check.
+        IxPNTsV2Admin(address(xpnts)).mint(user2, 1_000 ether);
+        uint256 validationData = _validate(user2, _buildPaymasterData());
 
         address authorizer = address(uint160(validationData));
         assertEq(authorizer, address(1), "Should return SIG_FAILURE when user not eligible");
@@ -644,18 +685,40 @@ contract SuperPaymaster_Coverage_Test is Test {
      * @notice D10: validatePaymasterUserOp returns sig failure when operator is paused
      */
     function test_D10_Validate_OperatorPaused_ReturnsSigFailure() public {
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether); // pause is the only failing check
         vm.prank(owner);
         paymaster.setOperatorPaused(operator1, true);
 
-        PackedUserOperation memory op;
-        op.sender = user1;
-        op.paymasterAndData = _buildPaymasterData();
-
-        vm.prank(address(entryPoint));
-        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
+        uint256 validationData = _validate(user1, _buildPaymasterData());
 
         address authorizer = address(uint160(validationData));
         assertEq(authorizer, address(1), "Should return SIG_FAILURE when operator is paused");
+    }
+
+    /**
+     * @notice D8b: positive control for D8–D10 / D12 — the same builder, an eligible funded
+     *         user and an unpaused configured operator validate successfully, so each sigFail
+     *         above is attributable to the one condition that test changes.
+     */
+    function test_D8b_Validate_PositiveControl_Succeeds() public {
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
+        uint256 validationData = _validate(user1, _buildPaymasterData());
+        assertEq(address(uint160(validationData)), address(0), "control: validation passes");
+        assertGt(xpnts.lockedOf(user1), 0, "control: balance-mode escrow taken");
+    }
+
+    /**
+     * @notice D12 (R4-H1 / §3.2): a pre-5.5.0 paymasterAndData (no token field) fails closed
+     *         with sigFail instead of reverting; nothing is escrowed.
+     */
+    function test_D12_Validate_LegacyLayoutWithoutToken_ReturnsSigFailure() public {
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
+        bytes memory legacy = abi.encodePacked(
+            address(paymaster), uint128(0), uint128(200000), operator1, type(uint256).max
+        );
+        uint256 validationData = _validate(user1, legacy);
+        assertEq(address(uint160(validationData)), address(1), "legacy layout -> SIG_FAILURE");
+        assertEq(xpnts.lockedOf(user1), 0, "nothing escrowed");
     }
 
     // ─── D11: Protocol revenue buffer boundary ─────────────────────────────────
@@ -677,7 +740,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         uint256 rev = paymaster.protocolRevenue();
         if (rev <= PROTOCOL_REVENUE_BUFFER) {
             vm.prank(owner);
-            vm.expectRevert(SuperPaymaster.InsufficientRevenue.selector);
+            vm.expectRevert(SuperPaymasterStorage.InsufficientRevenue.selector);
             paymaster.withdrawProtocolRevenue(treasury, 1);
         } else {
             // More than buffer: verify we can only withdraw the excess

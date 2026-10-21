@@ -1,0 +1,12 @@
+# command: /Users/jason/.foundry/bin/forge test --match-path contracts/test/halmos/D5c1Replay.t.sol --match-test FINDING -vvv
+# git HEAD: 275abaefa62eec2b0ae3d9fe9c92f2792f5759fc
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T05:47:32Z
+# exit code: 0
+# (compiler output before line 3 omitted)
+# (trimmed: 0 lines of compiler / Halmos parse warnings omitted)
+Ran 1 test for contracts/test/halmos/D5c1Replay.t.sol:D5c1ReplayTest
+[PASS] test_D5c1_FINDING_xLockedTruncation_realFactory() (gas: 2597274)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.01ms (375.33µs CPU time)
+
+Ran 1 test suite in 19.15ms (2.01ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

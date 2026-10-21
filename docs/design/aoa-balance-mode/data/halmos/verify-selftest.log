@@ -1,0 +1,117 @@
+# scripts: {"d5c1_binding.py": "0e76857a6165fb8c1a4833a9120b5012b0affaf430ffa5ccce9b2e8f4c37f065", "verify-d5c1.py": "3d9fcbb405315f370d6355a2737faf4332d98f17b91883b7ea7bf72d1529c638", "verify-selftest.py": "d3312fdeee4ab4dfcc9319051f7b501bf15e3c6a2687406dd457a3c2bd7b80a7"}
+ok    P1_all_met (rc=0, wanted 0)
+ok    N1_pass_check_fails (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (ceiling: bar-00000002) MISMATCH 2/3 PASS; FAIL foo-00000001
+ok    N2_witness_passes (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned W.check_W FAIL MISMATCH no counterexample (vacuous?)
+ok    N3_witness_no_cex (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned W.check_W FAIL MISMATCH no counterexample (vacuous?)
+ok    N4_timeout_not_on_ceiling (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (ceiling: bar-00000002) MISMATCH 2/3 PASS; BOUNDED foo-00000001
+ok    P2_timeout_on_ceiling_with_reason (rc=0, wanted 0)
+ok    N5_aborted_part (rc=1, wanted !=0, 2 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (ceiling: bar-00000002) MISMATCH 2/3 PASS; ABORTED/ERROR/LOOP foo-00000001=ABORTED
+ok    N6_mutation_survives (rc=1, wanted !=0, 2 mismatch row(s), reason matched: True)
+      mutation M-X scenario test_scen red (1 != 0) MISMATCH green / missing
+ok    N7_not_restored (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      mutation M-X source restored pristine == reverted == current file MISMATCH cccccccccccc (pristine 14d7672c36aa, current 14d7672c36aa)
+ok    N8_fuzz_mutation_survives (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      fuzz M-Y reddens testFuzz_t red MISMATCH green / missing
+ok    N9_unmutated_fuzz_red (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      fuzz unmutated testFuzz_t PASS (>=10000 runs) MISMATCH not green
+ok    N10_mutation_green_part_goes_red (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      mutation M-X halmos Q.check_Q:bar-00000002 exactly these parts, still PASS (independence) MISMATCH green []
+ok    N11_mutation_log_bound_to_pristine (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      mutation M-X binding (mutated) logs bound to current src + diff, mutated harness build MISMATCH C.check_P/foo-00000001: STALE (src_sha (!= current src + diff),bytecode_sha (!= binding-mutate
+ok    N12_mutation_log_on_pristine_harness_build (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      mutation M-X binding (mutated) logs bound to current src + diff, mutated harness build MISMATCH C.check_P/foo-00000001: STALE (bytecode_sha (!= binding-mutated.json) differ from the current 
+ok    N13_missing_partition (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P: partition set exactly 3 (from current ABI) MISMATCH missing ['bar-00000002'] extra []
+ok    N14_extra_partition (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P: partition set exactly 3 (from current ABI) MISMATCH missing [] extra ['baz-00000009']
+ok    N15_leftover_retry_log (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P: partition set exactly 3 (from current ABI) MISMATCH missing [] extra ['check_P.foo-00000001.retry.log']
+ok    N16_source_hash_mismatch (rc=1, wanted !=0, 13 mismatch row(s), reason matched: True)
+      binding u.log meta/argv/contract/binding/exit (xpnts, xp) MISMATCH STALE (src_sha differ from the current tree; files: X.sol)
+ok    N17_dirty_src (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH OTHER: DIRTY (dirty_src=1)
+ok    N18_bytecode_hash_mismatch (rc=1, wanted !=0, 9 mismatch row(s), reason matched: True)
+      binding u.log meta/argv/contract/binding/exit (xpnts, xp) MISMATCH STALE (bytecode_sha differ from the current tree)
+ok    N19_unbound_log (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH OTHER: UNBOUND (no # binding: trailer)
+ok    N20_out_not_built_from_sources (rc=1, wanted !=0, 11 mismatch row(s), reason matched: True)
+      tree out/ [xpnts] the build of the current sources (metadata keccak256) MISMATCH stale: ['contracts/src/tokens/v2/X.sol']
+ok    N21_header_trailer_drift (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH OTHER: DRIFT (header and trailer bindings differ on src_sha)
+ok    N22_harness_artifact_rebuilt_differently (rc=1, wanted !=0, 5 mismatch row(s), reason matched: True)
+      binding u.log meta/argv/contract/binding/exit (xpnts, xp) MISMATCH HARNESS-ARTIFACT (creation bytecode of U differs from the current build)
+ok    N23_trailer_names_another_harness_contract (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH OTHER: HARNESS-CONTRACT (trailer names D, item is C)
+ok    N24_log_copied_under_another_partition (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH bar-00000002: meta.label='foo-00000001' != 'bar-00000002'; bar-00000002: meta.part=1 != 2
+ok    N25_log_copied_from_another_check (rc=1, wanted !=0, 2 mismatch row(s), reason matched: True)
+      binding W.check_W 1 logs: meta/argv/contract/binding/exit (xp-fail) MISMATCH OTHER: meta.contract='C' != 'W'; OTHER: meta.check='check_P' != 'check_W'; OTHER: meta.argv=['--contract', 'C', '
+ok    N26_wrong_halmos_args (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH foo-00000001: meta.argv=['--contract', 'C', '--function', 'check_P', '--panic-error-codes', '*', '--loop', '2', '--def
+ok    N27_early_exit_on_a_pass_item (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH foo-00000001: meta.argv=['--contract', 'C', '--function', 'check_P', '--panic-error-codes', '*', '--loop', '2', '--def
+ok    N28_fail_item_without_early_exit (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding W.check_W 1 logs: meta/argv/contract/binding/exit (xp-fail) MISMATCH OTHER: meta.argv=['--contract', 'W', '--function', 'check_W', '--panic-error-codes', '*', '--loop', '2', '--defau
+ok    N29_halmos_ran_another_contract (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH OTHER: halmos ran ['D'] (want C)
+ok    N30_partition_selector_differs_from_abi (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH bar-00000002: meta.part=1 != 2
+ok    N31_wall_cap_differs (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH OTHER: meta.wall_cap_s=3600 != 600
+ok    N32_exit_code_inconsistent (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      binding C.check_P 3 logs: meta/argv/contract/binding/exit (xp) MISMATCH OTHER: exit_code 1 inconsistent with PASS (want [0])
+ok    N33_pass_with_loop_bound_hit (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (ceiling: bar-00000002) MISMATCH 2/3 PASS; ABORTED/ERROR/LOOP OTHER=PASS-LOOP-BOUNDED
+ok    N34_unpartitioned_extra_check (rc=1, wanted !=0, 2 mismatch row(s), reason matched: True)
+      binding u.log meta/argv/contract/binding/exit (xpnts, xp) MISMATCH result lines for other checks: ['check_Extra']; exit_code 0 inconsistent with FAIL (want [1])
+ok    N35_mandatory_item_removed_with_its_evidence (rc=1, wanted !=0, 2 mismatch row(s), reason matched: True)
+      suite partitioned:W.check_W in the expectation file MISMATCH MISSING (mandatory item)
+ok    N36_item_not_in_the_mandatory_suite (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      suite partitioned:Z.check_Z only mandatory items MISMATCH NOT in the mandatory suite
+ok    N37_allow_bounded_beyond_ceiling (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      suite partitioned:C.check_P == mandatory suite MISMATCH allow_bounded beyond the mandatory ceiling: ['foo-00000001']
+ok    N38_pinned_field_changed_in_json (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      suite partitioned:W.check_W == mandatory suite MISMATCH fields differ: ['expect']
+ok    N39_bounded_without_substitute (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      suite partitioned:C.check_P == mandatory suite MISMATCH allow_bounded without reason+substitute: ['bar-00000002']
+ok    N40_ceiling_label_not_a_partition (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P: ceiling/discrepancy labels ⊆ expected partitions MISMATCH not a partition: ['zzz-000000ff']
+ok    N41_ceiling_on_a_fail_expectation (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned W.check_W: allow_bounded none on a FAIL expectation MISMATCH a witness / negative control must produce a counterexample
+ok    N42_discrepancy_part_passes (rc=1, wanted !=0, 2 mismatch row(s), reason matched: True)
+      partitioned D.check_D PASS MISMATCH 3/3 PASS; DISCREPANCY-FAIL bar-00000002; discrepancy part not FAIL+cex: ['bar-00000002']
+ok    N43_result_after_wall_cap (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (ceiling: bar-00000002) MISMATCH 2/3 PASS; BOUNDED foo-00000001
+ok    P4_result_inside_cap_teardown_killed (rc=0, wanted 0)
+ok    N44_archive_missing (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      archive suite.log forge-suite MISMATCH MISSING
+ok    N45_parity_log_single_pass (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      archive parity.log two passes RESULT: OK, bound to the current tree + harness build MISMATCH passes ['1'] results ['OK'] (want two passes, both OK)
+ok    N46_selftest_log_of_other_scripts (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      archive selftest.log self-test of THESE scripts, all controls behave, count quoted in the report MISMATCH tested scripts differ from the current ones: verify-d5c1.py
+ok    N47_selftest_count_mismatch (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      archive selftest.log self-test of THESE scripts, all controls behave, count quoted in the report MISMATCH final line 'SELFTEST: all 2 controls behave', ok-lines 1, FAIL-lines 0; docs/design/
+ok    N48_report_quotes_another_control_count (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      archive selftest.log self-test of THESE scripts, all controls behave, count quoted in the report MISMATCH docs/design/aoa-balance-mode/D5c-1-halmos.md quotes 29 controls, the log has 2
+ok    N49_forge_suite_not_green (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      archive suite.log replay/layout/priming/boundary forge suite green, bound MISMATCH not all green; missing / not green: ['test_a']
+ok    N50_report_quotes_other_cap1_numbers (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      archive cap.log numbers in D5c-1-halmos.md paths/times quoted = the final log MISMATCH doc lacks '(a) PASS，5 条路径，1.00 s'
+ok    N51_parity_log_for_another_harness_build (rc=1, wanted !=0, 5 mismatch row(s), reason matched: True)
+      archive parity.log two passes RESULT: OK, bound to the current tree + harness build MISMATCH xpnts: harness artifacts differ from the current build; apnts: harness artifacts differ from the 
+ok    O1_orchestrator_propagates (rc=1, wanted !=0, 1 mismatch row(s), reason matched: True)
+      partitioned C.check_P PASS (ceiling: bar-00000002) MISMATCH 2/3 PASS; FAIL OTHER
+ok    O2_orchestrator_clean (rc=0, wanted 0)
+ok    P3_real_evidence_except_archives (rc=0, wanted 0)
+      mandatory suite: builtin sha256 d61dd46ef91917c352b66950a16e84e978f86efdadcd68ebe793e68700c2e0eb
+      expectations: script/halmos/d5c1-expectations.json sha256 e02667aeedb755e86992028f48a87e41aca5affd8c30c99dcc9d104de15004ce
+      current tree [xpnts]: src 7ec94350fdc58099 harness 56f8867c316ed12d bytecode 5e9bd6dbc55d8ff5 dirty_src 0 head 2cf0925daf25
+      current tree [apnts]: src 67724a36829dbded harness 56f8867c316ed12d bytecode 82f5592948afe88a dirty_src 0 head 2cf0925daf25
+      VERDICT: ALL EXPECTATIONS MET (262 rows) [partial: --only suite,logs,partitioned,mutations,fuzz]; mandatory suite builtin
+
+SELFTEST: all 57 controls behave

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "../../src/core/Registry.sol";
@@ -12,6 +14,8 @@ import "./MockSBT.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
 
 contract V3_Function_BoostTest is Test {
     using Clones for address;
@@ -22,6 +26,7 @@ contract V3_Function_BoostTest is Test {
     xPNTsToken aPNTs;
     MockSBT mockSBT;
     MockXPNTsFactory mockFactory;
+    xPNTsTokenV2 managerToken;
 
     address owner = address(this);
     address user = address(0x2);
@@ -52,7 +57,11 @@ contract V3_Function_BoostTest is Test {
         // owner = address(this), so no prank needed for setXPNTsFactory
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
-        mockFactory.setToken(manager, address(aPNTs));
+        // SP 5.5.0: the operator's token must be an xPNTs v2 clone (BALANCE_MODE_VERSION()==1);
+        // the 3.x `aPNTs` clone above keeps only its aPNTs (APNTS_TOKEN) role.
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        managerToken = V2TokenDeployer.newToken(st, manager, manager, address(paymaster), 1e18);
+        mockFactory.setToken(manager, address(managerToken));
     }
 
     // --- Registry Function Boost ---
@@ -196,7 +205,7 @@ contract V3_Function_BoostTest is Test {
         registry.registerRole(keccak256("PAYMASTER_SUPER"), manager, opData);
 
         // 2. Configure in Paymaster
-        paymaster.configureOperator(address(aPNTs), treasury);
+        paymaster.configureOperator(address(managerToken), treasury);
         vm.stopPrank();
 
         // 3. Pause as OWNER

@@ -1,0 +1,19 @@
+{
+  "account": "0xE2c986647149B55D4177488a645ac8c464F29951",
+  "chainId": 11155111,
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "opHash": "0x690616b279801c1ba181a387a480bc85895b9034465faa43d9f780ea6c92f89a",
+  "operator": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+  "postOpBal": "778575658278460485877",
+  "postRevenue": "66065044564955308723",
+  "postUserBal": "934034955435044691277",
+  "preNonce": 0,
+  "preOpBal": "844540702843415794600",
+  "preRevenue": 100000000000000000,
+  "preUserBal": "1000000000000000000000",
+  "runHeadBlock": 11885176,
+  "runParentBlockHash": "0xcd69efefc497cea72e11a4381a58652cfa31b2a630a7ea79a492439df8bc173d",
+  "schema": "superpaymaster-l4-gasless/1",
+  "superPaymaster": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+  "token": "0xe443749BE2fdaA6826FeC2F5d3e7D29f3092f297"
+}

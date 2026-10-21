@@ -129,6 +129,26 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 - `_submitSponsorshipFeedback()` — on-chain reputation feedback loop
 - EIP-1153 transient storage cache for same-operator batch optimization
 
+### 5.5.0 (branch `feat/aoa-balance-mode-5.5.0`, NOT deployed) — breaking interface changes
+
+SuperPaymaster 5.5.0 + xPNTs v2 introduce **balance mode** (validation-time escrow of the user's
+xPNTs) and **reservation-based credit** (default OFF). Spec: [`docs/design/aoa-balance-mode/03-final-spec.md`](docs/design/aoa-balance-mode/03-final-spec.md).
+
+| Removed / changed | Replacement |
+|---|---|
+| `SuperPaymaster.dryRunValidation(userOp, maxCost)` | `SuperPaymasterLens.dryRunValidation(sp, userOp, maxCost)` (ABI `abis/SuperPaymasterLens.json`) |
+| `retryPendingDebt`, `clearPendingDebt`, `pendingDebts` getter | removed — no pending-debt fallback exists; failed settlement reverts postOp (execution rolled back) and `releaseStaleSponsorship(opHash)` restores the operator |
+| 3.x xPNTs `burnFromWithOpHash`, `recordDebt*` | xPNTs v2 `tryLockForGas`/`settleLocked`, `tryReserveCredit`/`settleCredit` (SP-only) |
+| `configureOperator` accepts any factory token | only xPNTs v2 (`BALANCE_MODE_VERSION() == 1`, factory `xPNTsFactoryV2`) |
+| `paymasterAndData` = `[pm 20][verifGas 16][postOpGas 16][operator 20][maxRate 32]` | **`… [maxRate 32][token 20][flags 1]`** — the token field is REQUIRED |
+| xPNTs v2 ABI | `abis/xPNTsTokenV2.full.json` (core + extension; both at the token address) |
+
+Deployment scripts (`deploy-core`, `prepare-test`, `DeployAnvil`/`DeployLive`, the checks, and the
+new `contracts/script/v3/UpgradeToV5_5_0.s.sol` for an existing 5.4.2 proxy) were migrated in D5.2 —
+see [`docs/design/aoa-balance-mode/D5-deploy-migration.md`](docs/design/aoa-balance-mode/D5-deploy-migration.md).
+Still NOT migrated (D7): the JS gasless E2E suites under `script/gasless-tests/` and
+`scripts/gasless-test/` target 5.4.x and must not be run against a 5.5.0 deployment.
+
 ### AAStar Stack & Division of Labor
 
 SuperPaymaster is the **settlement & gas-sponsorship layer** — it pairs with

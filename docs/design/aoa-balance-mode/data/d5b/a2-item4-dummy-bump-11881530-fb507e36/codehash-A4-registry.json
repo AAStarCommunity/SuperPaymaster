@@ -1,0 +1,34 @@
+{
+  "attestation": "docs/release/v5.5.0-rc.2-attestation.json",
+  "attestedCommit": "1ac0e1c595dc84e684b540ca6a936168e922194f",
+  "block": "11881574",
+  "results": [
+    {
+      "mode": "target",
+      "contract": "Registry",
+      "address": "0xd71d988efdadef92e95c7c9d7c1a3f66dff671ad",
+      "artifact": "out/Registry.sol/Registry.json",
+      "attestedRuntimeKeccak": "0xde3d06d860890b9e95a1e80202833efea49175a417958d3362d32e0231406e8b",
+      "artifactRuntimeKeccak": "0xde3d06d860890b9e95a1e80202833efea49175a417958d3362d32e0231406e8b",
+      "buildReproducesAttestation": true,
+      "onchainBytes": 23306,
+      "artifactBytes": 23306,
+      "onchainCodehash": "0x276b99eb204edd22fda28753d49493573dd7f8a042b13eb80e9a335980482458",
+      "immutables": [
+        {
+          "astId": "5274",
+          "start": 14470,
+          "value": "0x000000000000000000000000d71d988efdadef92e95c7c9d7c1a3f66dff671ad"
+        },
+        {
+          "astId": "5274",
+          "start": 14735,
+          "value": "0x000000000000000000000000d71d988efdadef92e95c7c9d7c1a3f66dff671ad"
+        }
+      ],
+      "maskedOnchainKeccak": "0xde3d06d860890b9e95a1e80202833efea49175a417958d3362d32e0231406e8b",
+      "match": true
+    }
+  ],
+  "result": "PASS"
+}

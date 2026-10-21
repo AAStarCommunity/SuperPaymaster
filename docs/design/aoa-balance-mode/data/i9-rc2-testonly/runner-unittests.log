@@ -1,0 +1,22 @@
+test_double_sigint_does_not_abort_cleanup (__main__.RunnerIntegration.test_double_sigint_does_not_abort_cleanup) ... ok
+test_expect_contradicting_declaration_is_config_error (__main__.RunnerIntegration.test_expect_contradicting_declaration_is_config_error) ... ok
+test_fail_expected_fail_is_accept (__main__.RunnerIntegration.test_fail_expected_fail_is_accept) ... ok
+test_judge_fixtures (__main__.RunnerIntegration.test_judge_fixtures) ... ok
+test_natural_fail_is_accept_and_leftover_grandchild_killed (__main__.RunnerIntegration.test_natural_fail_is_accept_and_leftover_grandchild_killed) ... ok
+test_natural_pass_is_reject (__main__.RunnerIntegration.test_natural_pass_is_reject) ... ok
+test_pass_expected_pass_is_accept (__main__.RunnerIntegration.test_pass_expected_pass_is_accept) ... ok
+test_reverse_control_fail_expected_but_passes_is_reject (__main__.RunnerIntegration.test_reverse_control_fail_expected_but_passes_is_reject) ... ok
+test_reverse_control_pass_expected_but_fails_is_reject (__main__.RunnerIntegration.test_reverse_control_pass_expected_but_fails_is_reject) ... ok
+test_sighup (__main__.RunnerIntegration.test_sighup) ... ok
+test_sigint (__main__.RunnerIntegration.test_sigint) ... ok
+test_sigint_stubborn_group_needs_sigkill (__main__.RunnerIntegration.test_sigint_stubborn_group_needs_sigkill) ... ok
+test_sigterm (__main__.RunnerIntegration.test_sigterm) ... ok
+test_spawn_exception_is_inconclusive (__main__.RunnerIntegration.test_spawn_exception_is_inconclusive) ... ok
+test_unknown_check_with_explicit_expect (__main__.RunnerIntegration.test_unknown_check_with_explicit_expect) ... ok
+test_unknown_check_without_expect_is_config_error (__main__.RunnerIntegration.test_unknown_check_without_expect_is_config_error) ... ok
+test_wall_cap (__main__.RunnerIntegration.test_wall_cap) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 20.599s
+
+OK

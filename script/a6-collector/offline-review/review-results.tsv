@@ -1,0 +1,35 @@
+control	old_exit	new_exit	proof
+F1-1-unsent	1	3	consistent
+F1-1-unsent-bundler-tamper	1	1	attempt 0: transaction bundler mismatch; triplet callData/gas/bundler differ between arms
+F1-2-unsent	1	3	consistent
+F1-2-unsent-bundler-tamper	1	1	attempt 0: transaction bundler mismatch
+F1-deposit-floor-unsent	1	3	consistent
+F1-trailing-all-unsent-triplet	1	3	consistent
+F1-F4-all-unsent	1	3	consistent
+F4-zero-attempts	2	3	consistent
+F4-nothing-balance-tamper	1	1	end passport balance differs from last after
+F4-zero-balance-tamper	1	1	end passport balance differs from last after
+F1-duplicate-sent-tx	1	1	attempt 2: reused transaction; triplet paymasters/transaction hashes/userOpHashes must be distinct; run_end.triplets differs from recomputed triplets; run_end.matchedTriplets 1 != recomputed 0
+F7-unsent-floor	1	3	consistent
+F7-unsent-low-maxRate	1	3	consistent
+F7-executed-low-maxRate-tamper	1	1	attempt 0: SP maxRate below exchangeRate
+F7-executed-floor-tamper	1	1	attempt 0: paymaster postOp gas below contract floor
+F7-tx-failed-floor	1	3	consistent
+F7-tx-failed-state-tamper	1	1	attempt 0: no_execution.debts; attempt 0: no_execution.debts; attempt 0 (SP): conservation FAILS on raw read-backs: no_execution.debts
+F3-credit-postop-positive	1	3	consistent
+F3-positive-creditReservedOf-tamper	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: R.credit_unchanged; attempt 0: recorded conservation.ok=true, recomputed false
+F3-positive-debts-tamper	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: R.credit_unchanged; attempt 0: recorded conservation.ok=true, recomputed false
+F3-positive-identity-1	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: R.lock_identity; attempt 0: recorded conservation.ok=true, recomputed false
+F3-positive-identity-3	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: R.lock_identity; attempt 0: recorded conservation.ok=true, recomputed false
+F3-credit-postop-b-drop-op	1	3	consistent
+F3-b-drop-op-creditReservedOf-tamper	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.unexplained.creditReservedOf
+F3-b-drop-op-debts-tamper	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.unexplained.debts
+F3-b-drop-op-identity-1	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.0x4545b14ed8f19d9a0f13156eb372113c8ebb6a132185700a356262cf617cadfd.R.lock_identity
+F3-b-drop-op-identity-3	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.0x4545b14ed8f19d9a0f13156eb372113c8ebb6a132185700a356262cf617cadfd.R.lock_identity
+F3-credit-postop-c-wrong-hash	1	3	consistent
+F3-c-wrong-hash-creditReservedOf-tamper	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.unexplained.creditReservedOf
+F3-c-wrong-hash-debts-tamper	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.unexplained.debts
+F3-c-wrong-hash-identity-1	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.0x881d886776164c8790bacaa91cd3b633d700fee88aba41b84583603303a2cb1b.R.lock_identity
+F3-c-wrong-hash-identity-3	1	1	attempt 0 (SP): conservation FAILS on raw read-backs: receipt.0x881d886776164c8790bacaa91cd3b633d700fee88aba41b84583603303a2cb1b.R.lock_identity
+F6-priced-positive	0	0	consistent
+F6-zero-self-consistent-charge	0	1	attempt 0 (SP): conservation FAILS on raw read-backs: C9.aGas_actualGasCost_price; attempt 0: recorded conservation.ok=true, recomputed false

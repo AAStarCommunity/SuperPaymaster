@@ -1,0 +1,14 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "timelock": "0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c",
+  "deploymentBlock": "11885121",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": ["0x11Cc8878C12DAfEe401FF4A3f5F7D2c4d4ed5D7c"],
+    "PROPOSER_ROLE": ["0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"],
+    "CANCELLER_ROLE": ["0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"],
+    "EXECUTOR_ROLE": ["0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"]
+  },
+  "mustHoldNothing": ["0xb5600060e6de5E11D3636731964218E53caadf0E", "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"],
+  "mustHoldNothingLabels": ["deployer EOA: deployed this timelock, current SP/Registry owner, holds every role on the old live timelock", "old live Sepolia TimelockController 0x86C8 (not GOV-1 shaped), superseded by this one"]
+}

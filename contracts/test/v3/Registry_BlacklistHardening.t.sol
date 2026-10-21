@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
@@ -16,6 +18,8 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
 
 contract MockOracle is AggregatorV3Interface {
     function decimals() external pure returns (uint8) { return 8; }
@@ -85,6 +89,8 @@ contract Registry_BlacklistHardeningTest is Test {
 
     MockBLSAggregator aggregator;
     MockXPNTsFactory mockFactory;
+    /// @dev SP 5.5.0: operator community token must be xPNTs v2 (the 3.x `apnts` clone is aPNTs only).
+    xPNTsTokenV2 xpnts;
 
     address owner = address(0x1);
     address operator = address(0x300);
@@ -128,15 +134,19 @@ contract Registry_BlacklistHardeningTest is Test {
         gtoken.mint(operator, 10_000 ether);
         vm.stopPrank();
 
-        // Register operator's token in the mock factory (no auth required)
-        mockFactory.setToken(operator, address(apnts));
+        // Register operator's token in the mock factory (no auth required).
+        // SP 5.5.0: configureOperator probes BALANCE_MODE_VERSION()==1, so the operator's
+        // token is an xPNTs v2 clone (3.x tokens are rejected with InvalidXPNTsToken).
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xpnts = V2TokenDeployer.newToken(st, operator, operator, address(paymaster), 1e18);
+        mockFactory.setToken(operator, address(xpnts));
 
         vm.startPrank(operator);
         gtoken.approve(address(staking), 10_000 ether);
         Registry.CommunityRoleData memory cd = Registry.CommunityRoleData("Op", "op.eth", 100 ether);
         registry.registerRole(keccak256("COMMUNITY"), operator, abi.encode(cd));
         registry.registerRole(keccak256("PAYMASTER_SUPER"), operator, abi.encode(uint256(100 ether)));
-        paymaster.configureOperator(address(apnts), treasury);
+        paymaster.configureOperator(address(xpnts), treasury);
         vm.stopPrank();
     }
 
@@ -325,7 +335,7 @@ contract Registry_BlacklistHardeningTest is Test {
     // ====================================
 
     function test_UpdateBlacklist_HappyPath_PropagatesToPaymaster() public {
-        // Register user1 with SBT so SuperPaymaster.updateBlockedStatus accepts.
+        // Register user1 with SBT so SuperPaymasterAdmin.updateBlockedStatus accepts.
         vm.prank(address(registry));
         paymaster.updateSBTStatus(user1, true);
 

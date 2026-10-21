@@ -1,0 +1,16 @@
+XPNTsV2I4BHalmosTest.check_I4B_coreAbi over xPNTsTokenV2: NOT-ALL-PASS (4 BOUNDED, 0 FAIL, 0 ABORTED/ERROR) (15 parts, wall 693 s)
+  OTHER                                    PASS            paths=3 time=1.0s exit=0
+  approve-095ea7b3                         PASS            paths=4 time=0.43s exit=0
+  burn-42966c68                            PASS            paths=10 time=1.1s exit=0
+  burn-9dc29fac                            TIMEOUT-WALL    paths=- time=-s exit=-9
+  initialize-dd1ea56c                      PASS            paths=2 time=0.39s exit=0
+  permit-d505accf                          PASS            paths=9 time=0.69s exit=0
+  releaseStaleCredit-de4880ca              PASS            paths=4 time=0.44s exit=0
+  releaseStaleLock-f7b3d30d                PASS            paths=16 time=1.96s exit=0
+  renewForSelf-e8c122c7                    PASS            paths=5 time=0.58s exit=0
+  settleCredit-1baf4408                    PASS            paths=5 time=0.53s exit=0
+  settleLocked-7e48bbce                    TIMEOUT-WALL    paths=- time=-s exit=-9
+  transfer-a9059cbb                        PASS            paths=12 time=4.28s exit=0
+  transferFrom-23b872dd                    TIMEOUT-WALL    paths=- time=-s exit=-9
+  tryLockForGas-ec290731                   TIMEOUT-WALL    paths=- time=-s exit=-9
+  tryReserveCredit-de9e4cae                PASS            paths=127 time=28.18s exit=0

@@ -1,0 +1,98 @@
+
+checker column 0 (unmutated self-test): TIMELOCK ROLE CHECKER SELF-TEST OK (76 steps); red = []
+
+== u-checker-canonical-bytes-check-removed: Codex re-check of 48cba3bd: the checker no longer requires manifest bytes == canonical serialization
+   self-test red (9):
+     - non-canonical bytes: esc-key (exit 0, expected 1)
+     - non-canonical bytes: esc-value (exit 0, expected 1)
+     - non-canonical bytes: dup-key (exit 0, expected 1)
+     - non-canonical bytes: nested-decoy — failed, but not with "manifest: bytes are not the canonical serialization"
+     - non-canonical bytes: reorder (exit 0, expected 1)
+     - non-canonical bytes: trailing-space (exit 0, expected 1)
+     - non-canonical bytes: crlf (exit 0, expected 1)
+     - non-canonical bytes: bom (exit 0, expected 1)
+     - non-canonical bytes: no-final-newline (exit 0, expected 1)
+   expected red ['non-canonical bytes: esc-key', 'non-canonical bytes: esc-value', 'non-canonical bytes: dup-key', 'non-canonical bytes: reorder', 'non-canonical bytes: trailing-space', 'non-canonical bytes: crlf', 'non-canonical bytes: bom', 'non-canonical bytes: no-final-newline'] -> missing []
+   blind steps ['non-canonical bytes: nested-decoy', 'correct M1 timelock == manifest', 'the committed example'] -> turned red ['non-canonical bytes: nested-decoy']
+   RESULT: FAIL
+column 0 (unmutated): 69 tests, red = []
+
+== j-manifest-validation-skipped: Codex re-check M1/M3: m1Preflight no longer runs validateManifest (chainId, non-vacuous manifest)
+   red (3/35):
+     - test_manifest_chainid_mismatch_reverts: Error != expected error: roles attestation: attested manifest chainId != manifest != M1 manifest: chainId != this chain
+     - test_manifest_vacuous_fields_each_rejected: Error != expected error: roles attestation: attested manifest chainId != manifest != M1 manifest: chainId != this chain
+     - test_manifest_whitespace_only_label_rejected: Error != expected error: roles attestation: attested labels != manifest != M1 manifest: empty mustHoldNothing label
+   expected red ['test_manifest_chainid_mismatch_reverts', 'test_manifest_vacuous_fields_each_rejected'] -> missing []
+   blind columns ['test_preflight_rejects_72h_delay', 'test_attestation_stale_head_reverts', 'test_preflight_correct_timelock_passes_and_M1_completes'] -> turned red []
+   RESULT: OK
+
+== k-placeholder-manifest-accepted: Codex re-check M3: parseManifest accepts the committed example (FAKE placeholder addresses)
+   red (1/35):
+     - test_manifest_example_placeholder_refused: next call did not revert as expected
+   expected red ['test_manifest_example_placeholder_refused'] -> missing []
+   blind columns ['test_manifest_file_missing_field_each_rejected'] -> turned red []
+   RESULT: OK
+
+== l-governed-call-accepts-upgrade: Codex re-check L1: schedule-call no longer refuses upgradeToAndCall (bypassing the upgrade read-backs)
+   red (1/35):
+     - test_governed_call_refuses_upgrade: next call did not revert as expected
+   expected red ['test_governed_call_refuses_upgrade'] -> missing []
+   blind columns ['test_governed_call_unpause_runs_operator_preflight'] -> turned red []
+   RESULT: OK
+
+== m-governed-call-skips-operator-preflight: Codex re-check L1: scheduleCallWith (the M2 unpause path) skips operatorPreflight
+   red (1/35):
+     - test_governed_call_unpause_runs_operator_preflight: next call did not revert as expected
+   expected red ['test_governed_call_unpause_runs_operator_preflight'] -> missing []
+   blind columns ['test_governed_call_refuses_upgrade', 'test_attestation_missing_reverts'] -> turned red []
+   RESULT: OK
+
+== n-attestation-schema-unchecked: Codex re-check of 626b6ea8 (Medium): the attestation .schema is no longer checked
+   red (1/35):
+     - test_attestation_wrong_schema_reverts: next call did not revert as expected
+   expected red ['test_attestation_wrong_schema_reverts'] -> missing []
+   blind columns ['test_attestation_result_fail_reverts', 'test_preflight_correct_timelock_passes_and_M1_completes'] -> turned red []
+   RESULT: OK
+
+== o-whitespace-label-accepted: Codex re-check of 626b6ea8 (Medium): labels are no longer trimmed (whitespace-only accepted)
+   red (1/35):
+     - test_manifest_whitespace_only_label_rejected: Error != expected error: roles attestation: attested labels != manifest != M1 manifest: empty mustHoldNothing label
+   expected red ['test_manifest_whitespace_only_label_rejected'] -> missing []
+   blind columns ['test_manifest_vacuous_fields_each_rejected'] -> turned red []
+   RESULT: OK
+
+== p-extra-role-key-accepted: Codex re-check of 626b6ea8 (Medium): an extra key under .roles is no longer rejected
+   red (1/35):
+     - test_manifest_extra_role_key_rejected: next call did not revert as expected
+   expected red ['test_manifest_extra_role_key_rejected'] -> missing []
+   blind columns ['test_manifest_file_missing_field_each_rejected'] -> turned red []
+   RESULT: OK
+
+== q-head-block-hash-unchecked: Codex re-check of 626b6ea8 (operator safety): headBlockHash is no longer compared with blockhash()
+   red (2/35):
+     - test_attestation_head_block_hash_checked_when_available: next call did not revert as expected
+     - test_live_chain_head_block_hash_fail_closed: next call did not revert as expected
+   expected red ['test_attestation_head_block_hash_checked_when_available'] -> missing []
+   blind columns ['test_attestation_stale_head_reverts', 'test_attestation_wrong_chainid_reverts'] -> turned red []
+   RESULT: OK
+
+== r-max-age-raise-anywhere: Codex re-check of 626b6ea8 (operator safety): TL_ATTEST_MAX_AGE may be raised on a live chain
+   red (1/35):
+     - test_attest_max_age_raise_is_local_only: next call did not revert as expected
+   expected red ['test_attest_max_age_raise_is_local_only'] -> missing []
+   blind columns ['test_attestation_stale_head_reverts'] -> turned red []
+   RESULT: OK
+
+== t-live-head-hash-not-fail-closed: Codex re-check of 7ca43549 (L1): live chain ids no longer fail closed on an unverifiable head hash
+   red (1/35):
+     - test_live_chain_head_block_hash_fail_closed: next call did not revert as expected
+   expected red ['test_live_chain_head_block_hash_fail_closed'] -> missing []
+   blind columns ['test_attestation_head_block_hash_checked_when_available', 'test_attestation_opt_out_rejected_on_live_chain'] -> turned red []
+   RESULT: OK
+
+== v-attested-values-unchecked: Codex re-check of 48cba3bd: forge no longer requires the attested manifest values to equal the values it read (the transitive canonical-form link)
+   red (1/35):
+     - test_attested_values_must_equal_the_manifest_forge_read: next call did not revert as expected
+   expected red ['test_attested_values_must_equal_the_manifest_forge_read'] -> missing []
+   blind columns ['test_attestation_manifest_changed_reverts', 'test_preflight_correct_timelock_passes_and_M1_completes'] -> turned red []
+   RESULT: OK

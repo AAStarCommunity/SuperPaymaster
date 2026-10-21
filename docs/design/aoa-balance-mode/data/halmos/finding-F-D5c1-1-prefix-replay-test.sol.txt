@@ -1,0 +1,38 @@
+// Pre-fix replay test (ran on 275abaef, log: finding-F-D5c1-1-prefix-275abaef-replay.log).
+// Lived in contracts/test/halmos/D5c1Replay.t.sol before fix 3c28ec21; replaced by the REGRESSION tests.
+    /// FINDING F-D5c1-1 (concrete reachability, real factory path): xPNTsFactoryV2 accepts ANY
+    /// non-zero initial exchangeRate (`xPNTsFactoryV2.sol:258`, no [1e14, 1e22] range at initialize),
+    /// and tryLockForGas stores `uint128(x)` (`xPNTsTokenV2.sol:238`) while adding the full `x` to
+    /// lockedOf (`:237`). With x >= 2^128 the record's xLocked is truncated, so after the settle
+    /// lockedOf keeps a residue that no record accounts for (spec I4 violated) and the user's
+    /// balance stays frozen by A-1. This test ASSERTS THE VIOLATION (it documents the finding and
+    /// turns red once the contract is fixed); it is the concrete replay of the Halmos
+    /// counterexample to I2 bit 7 / bit 10 (see D5c-1-halmos.md §6).
+    function test_D5c1_FINDING_xLockedTruncation_realFactory() public {
+        xPNTsFactoryV2 factory = new xPNTsFactoryV2(sp, address(registry), address(st.impl), address(st.tier));
+        uint256 rate = 1e40; // accepted: the factory only rejects 0
+        vm.prank(community);
+        xPNTsTokenV2 t = xPNTsTokenV2(factory.deployxPNTsToken("Big", "xBIG", "Big", "big.eth", rate, address(0)));
+        assertEq(t.exchangeRate(), rate, "factory accepted the rate");
+        vm.prank(community); // communityOwner == community for factory-deployed tokens
+        IxPNTsV2Admin(address(t)).mint(user, 2e40);
+
+        vm.startPrank(sp);
+        (IxPNTsTokenV2.LockResult r, uint256 x) = t.tryLockForGas(user, H, 1 ether, false);
+        assertEq(uint8(r), uint8(IxPNTsTokenV2.LockResult.OK), "lock admitted (1 aPNT)");
+        assertEq(x, 1e40, "x = ceil(1e18 * 1e40 / 1e18)");
+        xPNTsV2Base.LockRec memory rec = t.lockOf(H, user);
+        assertEq(t.lockedOf(user), 1e40, "lockedOf += full x");
+        assertEq(uint256(rec.xLocked), 1e40 % (uint256(1) << 128), "record keeps x mod 2^128");
+        t.settleLocked(user, H, 1 ether);
+        vm.stopPrank();
+
+        uint256 residue = t.lockedOf(user);
+        assertEq(residue, 1e40 - (1e40 % (uint256(1) << 128)), "lockedOf residue with no record left");
+        assertGt(residue, 0, "I4 violated: lockedOf != sum of outstanding xLocked (= 0)");
+        // A-1 then freezes that residue: the user cannot move it
+        uint256 bal = t.balanceOf(user);
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.BalanceLocked.selector, user, residue));
+        t.transfer(address(0xD00D), bal);
+    }

@@ -1,0 +1,11 @@
+{
+ "endpoint": "B (sepolia.gateway.tenderly.co)",
+ "request": {
+  "method": "eth_getCode",
+  "params": [
+   "0x696a73701b104c6ccbbaaddd2216788ea08eab89",
+   "0xb54a28"
+  ]
+ },
+ "response": "0x363d3d373d3d3d363d73fdfb993ddce4d95407c893e09556e31732a5beb85af43d82803e903d91602b57fd5bf3"
+}

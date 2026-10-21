@@ -1,0 +1,2 @@
+XPNTsV2A3NoSelfBurnHalmosTest.check_A3_coreAbi over xPNTsTokenV2: PASS (1 parts, wall 18 s)
+  burn-9dc29fac                            PASS            paths=12 time=1.23s exit=0

@@ -1,0 +1,35 @@
+## clean tree
+git rev-parse HEAD: 1ac0e1c595dc84e684b540ca6a936168e922194f
+git describe: v5.5.0-rc.2
+v5.5.0-rc.2 peeled: 1ac0e1c595dc84e684b540ca6a936168e922194f
+git status --short (only the overlaid TEST/RUNNER files may appear):
+A  contracts/test/halmos/SuperPaymasterI9Rc2Halmos.t.sol
+AM contracts/test/v2/SuperPaymasterCtxLengthRc2.t.sol
+A  script/halmos/run-i9-witness.py
+A  script/halmos/test_run_i9_witness.py
+git diff --stat HEAD -- contracts/src (must be empty):
+contracts/lib/solady copied from submodule checkout at 90db92ce (rc.2 gitlink 90db92ce)
+contracts/lib/chainlink-brownie-contracts copied from submodule checkout at 6e324d8a (rc.2 gitlink 6e324d8a)
+
+## tool versions
+halmos: halmos 0.3.3
+yices-smt2: Yices 2.6.4
+forge: forge Version: 1.7.1
+solc (foundry.toml): solc_version = "0.8.33"
+python3: Python 3.11.9
+uname: Darwin 25.4.0
+
+## sha256 (paths relative to repo root)
+8db5a26158b2dfbc2208b9a2e3b46a176834d2a7a8c8766c485208c4e66fc922  contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
+086185749e90583ff61caf0c20c972a24491d289875ca7b190105abba49929d3  contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol
+50d945d282ac17abd20332a671a1643cdb2900817d0f41b51d14b5792d95cbb9  contracts/test/halmos/SuperPaymasterI9Halmos.t.sol
+7020ef711c43b81b36eeea484bcf3dbed00c2e6506c37c49b0c25f386bb4284c  contracts/test/halmos/HalmosSVM.sol
+3d35140b54a2bac583a01e75e19047182292314bea3243aa4ab5b11ca4ef6196  contracts/test/halmos/SuperPaymasterI9Rc2Halmos.t.sol
+d4dbd5518372a253e0d845484a779c8a34a9c0ddf538e92c75fbdd855b7908d1  contracts/test/v2/SuperPaymasterCtxLengthRc2.t.sol
+71360640310182324998739b480fd3d430399e6eb97a67fa361313679c416fe1  contracts/test/v2/SuperPaymasterI9Fuzz.t.sol
+bdd14aaee8db731626f59794a2e3f4a1eb5c05226678db746195367d9a9a8394  script/halmos/run-i9-witness.py
+c9830ae06df9b8036e5f9b069eae831f2450f7b24cda3d2cf6a160b97af634d8  script/halmos/test_run_i9_witness.py
+ef6a4962d8c463a6df8cf95ff2963c0aaec3d7b9e69df5b4a4d1b15402b902a3  foundry.toml
+contracts/src tree (sha256 of 'shasum -a 256' over every file, sorted):
+36a711ea693307e10043562412a4f78881a417a55d95f6ad48292bd4d0de0067  -
+git ls-tree HEAD contracts/src: f1d39b5bb4081c51e69c9b4a64346dd769193f31

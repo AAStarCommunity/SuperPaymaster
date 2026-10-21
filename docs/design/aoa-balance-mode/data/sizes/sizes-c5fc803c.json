@@ -1,0 +1,101 @@
+{
+  "tree": "git archive c5fc803c8a3fa4ccc7fb8b52591d57aef9751ebc + forge test (full build)",
+  "eip170": 24576,
+  "rows": [
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.json",
+      "runs": 500,
+      "evm": "prague",
+      "viaIR": true,
+      "runtimeBytes": 23031,
+      "headroom": 1545,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.registry-size.json",
+      "runs": 200,
+      "evm": "prague",
+      "viaIR": true,
+      "runtimeBytes": 22878,
+      "headroom": 1698,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterLens",
+      "artifact": "out/SuperPaymasterLens.sol/SuperPaymasterLens.json",
+      "runs": 500,
+      "evm": "prague",
+      "viaIR": true,
+      "runtimeBytes": 4731,
+      "headroom": 19845,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterLens",
+      "artifact": "out/SuperPaymasterLens.sol/SuperPaymasterLens.registry-size.json",
+      "runs": 200,
+      "evm": "prague",
+      "viaIR": true,
+      "runtimeBytes": 4714,
+      "headroom": 19862,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "xPNTsTokenV2",
+      "artifact": "out/xPNTsTokenV2.sol/xPNTsTokenV2.json",
+      "runs": 500,
+      "evm": "prague",
+      "viaIR": true,
+      "runtimeBytes": 19851,
+      "headroom": 4725,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "xPNTsTokenV2",
+      "artifact": "out/xPNTsTokenV2.sol/xPNTsTokenV2.registry-size.json",
+      "runs": 200,
+      "evm": "prague",
+      "viaIR": true,
+      "runtimeBytes": 19435,
+      "headroom": 5141,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "xPNTsTokenV2Ext",
+      "artifact": "out/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json",
+      "runs": 500,
+      "evm": "prague",
+      "viaIR": true,
+      "runtimeBytes": 21922,
+      "headroom": 2654,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "xPNTsTokenV2Ext",
+      "artifact": "out/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.registry-size.json",
+      "runs": 200,
+      "evm": "prague",
+      "viaIR": true,
+      "runtimeBytes": 21649,
+      "headroom": 2927,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "APNTsCapped",
+      "source": "contracts/src/tokens/APNTsCapped.sol",
+      "note": "source not in this tree"
+    },
+    {
+      "contract": "BLSAggregator",
+      "artifact": "out/BLSAggregator.sol/BLSAggregator.json",
+      "runs": 500,
+      "evm": "prague",
+      "viaIR": true,
+      "runtimeBytes": 24345,
+      "headroom": 231,
+      "sourceKeccakMatchesTree": true
+    }
+  ]
+}

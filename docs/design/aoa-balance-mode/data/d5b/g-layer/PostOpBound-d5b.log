@@ -1,0 +1,69 @@
+Missing dependencies found. Installing now...
+
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts'. Retry scheduled
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/Vectorized/solady.git' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' failed
+Failed to clone 'contracts/lib/solady'. Retry scheduled
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts' a second time, aborting
+Warning: Your project has missing dependencies that could not be installed.
+No files changed, compilation skipped
+
+Ran 3 tests for contracts/test/v2/SuperPaymasterV55PostOpBound.t.sol:SuperPaymasterV55PostOpBoundTest
+[PASS] test_each_path_within_C_POSTOP() (gas: 11325848)
+[PASS] test_rule_C_POSTOP_ge_W_postop_times_1_plus_m() (gas: 13310688)
+Logs:
+  BALANCE first-time user, cold lastTimestamp
+      consumed (W_postop candidate) / minLimit 133876 167321
+  CREDIT  first-time user, cold lastTimestamp, first debt
+      consumed (W_postop candidate) / minLimit 147888 167321
+  BALANCE during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 133876 167321
+  CREDIT  during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 147888 167321
+  BALANCE old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 133876 167321
+  CREDIT  old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 147888 167321
+  BALANCE no rate-limit write (control)
+      consumed (W_postop candidate) / minLimit 113483 167321
+  BALANCE charge clamped at a0 (control)
+      consumed (W_postop candidate) / minLimit 132523 167321
+  W_postop (max over paths) 147888
+  observed C_POSTOP + C_WRAP / C_POSTOP_obs 180000 175000
+  W_postop x (1 + m), m bps 170072 1500
+  margin of C_POSTOP over W_postop (bps) 1833
+  EntryPoint wrap upper bound / C_WRAP 1770 5000
+  max minLimit (entry-guard bound) / MIN_POST_OP_GAS 167321 200000
+
+[PASS] test_rule_under_all_floor_params() (gas: 14906800)
+Logs:
+  BALANCE first-time user, cold lastTimestamp
+      consumed (W_postop candidate) / minLimit 133876 162242
+  CREDIT  first-time user, cold lastTimestamp, first debt
+      consumed (W_postop candidate) / minLimit 147888 162242
+  BALANCE during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 133876 162242
+  CREDIT  during token emergency (E-2)
+      consumed (W_postop candidate) / minLimit 147888 162242
+  BALANCE old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 133876 162242
+  CREDIT  old locker after SP rotation (L-3)
+      consumed (W_postop candidate) / minLimit 147888 162242
+  BALANCE no rate-limit write (control)
+      consumed (W_postop candidate) / minLimit 113483 162242
+  BALANCE charge clamped at a0 (control)
+      consumed (W_postop candidate) / minLimit 132523 162242
+  W_postop (max over paths) 147888
+  observed C_POSTOP + C_WRAP / C_POSTOP_obs 180000 175000
+  W_postop x (1 + m), m bps 170072 1500
+  margin of C_POSTOP over W_postop (bps) 1833
+  EntryPoint wrap upper bound / C_WRAP 1770 5000
+  max minLimit (entry-guard bound) / MIN_POST_OP_GAS 162242 175000
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 29.77ms (40.90ms CPU time)
+
+Ran 1 test suite in 32.42ms (29.77ms CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)

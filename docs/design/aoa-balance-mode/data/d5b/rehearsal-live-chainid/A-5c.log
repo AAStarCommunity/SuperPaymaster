@@ -1,0 +1,37 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    [artifact] default artifact OK: Registry 0x610178dA211FEF7D417bC0e6FeD39F05609AD788 23306
+    [artifact] default artifact OK: Registry 0x610178dA211FEF7D417bC0e6FeD39F05609AD788 23306
+    Registry impl ready (default build, runs=200): 0x610178dA211FEF7D417bC0e6FeD39F05609AD788 23306
+    [artifact] default artifact OK: ERC1967Proxy 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 100
+    [artifact] default artifact OK: Registry 0x610178dA211FEF7D417bC0e6FeD39F05609AD788 23306
+    Registry read-back OK: impl / version / owner / pendingOwner == 0; version = Registry-5.9.0
+    BLS three legs unchanged (SP / Registry / DVT): 0x0000000000000000000000000000000000000b15 0x0000000000000000000000000000000000000b15
+    Registry: raw slots 0..N-1 byte-identical, N = 74
+    5c done. Registry impl: 0x610178dA211FEF7D417bC0e6FeD39F05609AD788
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.683116551 gwei
+
+Estimated total gas used for script: 6770828
+
+Estimated amount required: 0.004625264670774228 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/broadcast/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/cache/UpgradeViaTimelock.s.sol/11155111/run-latest.json
+

@@ -1,0 +1,5 @@
+$ python3 scripts/check_storage_layout.py --self-test
+self-test ok: allowed append passes; 8 mutations rejected
+OK  SuperPaymaster storage layout = snapshot + 2 allowed appended entries (42 entries)
+OK  Registry storage layout = snapshot (unchanged) (32 entries)
+exit 0

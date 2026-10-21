@@ -14,6 +14,7 @@ import {IxPNTsFactory} from "src/interfaces/IxPNTsFactory.sol";
 import {UUPSUpgradeable} from "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
 import {V54Bootstrap} from "./V54Bootstrap.sol";
+import {SPReleaseVersion} from "./SPReleaseVersion.sol";
 
 /**
  * @title UpgradeLive
@@ -27,13 +28,23 @@ import {V54Bootstrap} from "./V54Bootstrap.sol";
  *   this script (not DeployLive). DeployLive deploys new proxies and loses all
  *   state (communities, stake, SBT, etc.).
  *
- * Selective upgrade logic:
- *   1. BEFORE broadcast: simulate-deploy both impls locally to capture their
- *      bytecode. Compare codehashes with the current on-chain impls.
- *   2. Only broadcast impl deploys + upgradeToAndCall() for contracts whose
- *      bytecode actually changed. If nothing changed: return early, zero txns.
- *   3. foundry.toml sets bytecode_hash = "none" so codehash reflects only
- *      logic changes, not CBOR metadata.
+ * Selective upgrade logic (T-4, "tested == deployed"):
+ *   1. "Changed?" is decided against the profile.default ARTIFACT, not against a
+ *      `new` instance: a `new` in this file compiles under the runs=200 registry-size
+ *      profile (this file imports Registry.sol), so the old codehash comparison asked
+ *      "does the chain run the registry-size build?" and would redeploy/keep the wrong
+ *      bytes. An impl is current iff its runtime == the default artifact (immutables
+ *      masked) AND its immutable bindings are the expected ones (SP: REGISTRY,
+ *      entryPoint, ETH_USD_PRICE_FEED from config).
+ *   2. Only broadcast impl deploys + upgradeToAndCall() for contracts that changed.
+ *      Every deploy goes through DefaultArtifacts._deployDefault (explicit artifact
+ *      path + runtime assertion); after broadcast the proxies are re-checked with
+ *      _requireDefaultProxy. If nothing changed: return early, zero txns.
+ *   3. SuperPaymaster 5.4.x -> 5.5.0 is REFUSED here: that upgrade needs runbook
+ *      steps 4-7c (UpgradeToV5_5_0.s.sol), not a bare impl swap.
+ *   4. GOV-1 (spec 03 §10.7b, GOV-2 v3 part C): once the owner is the timelock, this
+ *      script REFUSES (owner != broadcaster); use UpgradeViaTimelock.s.sol
+ *      (deploy -> timelock schedule -> wait -> execute, with read-backs).
  *
  * Cost model:
  *   - Nothing changed: 0 broadcast txns, ~0 gas
@@ -77,20 +88,34 @@ contract UpgradeLive is V54Bootstrap {
         require(priceFeed     != address(0), "UpgradeLive: priceFeed not in config");
         require(xpntsFactory  != address(0), "UpgradeLive: xPNTsFactory not in config");
 
-        // --- Pre-broadcast simulation: get compiled bytecodes, no gas spent ---
-        // new Contract() outside startBroadcast() is a local EVM simulation.
-        // The codehash equals what would be deployed on-chain (bytecode_hash="none").
-        Registry       simReg = new Registry();
-        SuperPaymaster simSP  = new SuperPaymaster(
-            IEntryPoint(entryPoint),
-            IRegistry(registryProxy),
-            priceFeed
-        );
-
+        // --- "Changed?" against the profile.default artifact (T-4) ---
         address curRegImpl = _currentImpl(registryProxy);
         address curSPImpl  = _currentImpl(spProxy);
-        bool needReg = curRegImpl.codehash != address(simReg).codehash;
-        bool needSP  = curSPImpl.codehash  != address(simSP).codehash;
+        bool needReg = !_codeEqArtifact(curRegImpl, _defaultArtifact("Registry"));
+        bool needSP  = !_codeEqArtifact(curSPImpl, _defaultArtifact("SuperPaymaster"))
+            || address(SuperPaymaster(payable(curSPImpl)).REGISTRY()) != registryProxy
+            || address(SuperPaymaster(payable(curSPImpl)).entryPoint()) != entryPoint
+            || address(SuperPaymaster(payable(curSPImpl)).ETH_USD_PRICE_FEED()) != priceFeed
+            // D5b: the EXTENSION immutable is masked above; its code must be current too
+            || !_codeEqArtifact(_addrCall(curSPImpl, "EXTENSION()"), _defaultArtifact("SuperPaymasterAdmin"));
+        // GOV-1 (spec 03 §10.7b C): once a proxy's owner is the TimelockController this EOA path
+        // cannot upgrade it — refuse up front instead of failing on-chain mid-run.
+        if (needSP) {
+            require(SuperPaymaster(payable(spProxy)).owner() == deployer,
+                "UpgradeLive: SP owner is not the broadcaster (GOV-1 timelock?) - use UpgradeViaTimelock.s.sol");
+        }
+        if (needReg) {
+            require(Registry(registryProxy).owner() == deployer,
+                "UpgradeLive: Registry owner is not the broadcaster (GOV-1 timelock?) - use UpgradeViaTimelock.s.sol");
+        }
+        if (needSP) {
+            // Refuse the 5.4.x -> 5.5.0 jump: it is a migration (runbook 03 §6 steps 4-7c).
+            string memory curV = SuperPaymaster(payable(spProxy)).version();
+            require(
+                keccak256(bytes(curV)) == keccak256(bytes(SPReleaseVersion.SP)),
+                "UpgradeLive: SP is not 5.5.0 - use UpgradeToV5_5_0.s.sol (runbook steps 4-7c), not a bare impl swap"
+            );
+        }
         bool needMC  = (mcProxy == address(0));
         // v5.4 god-split: deploy-if-absent, each gated on its own config key.
         bool needTl  = (tlCfg  == address(0));
@@ -129,21 +154,19 @@ contract UpgradeLive is V54Bootstrap {
         SuperPaymaster newSPImpl;
 
         if (needReg) {
-            newRegImpl = new Registry();
+            newRegImpl = Registry(_deployDefault("Registry", ""));
             UUPSUpgradeable(registryProxy).upgradeToAndCall(address(newRegImpl), "");
             console.log("  Registry: upgraded to   ", address(newRegImpl));
         }
         if (needSP) {
-            newSPImpl = new SuperPaymaster(
-                IEntryPoint(entryPoint),
-                IRegistry(registryProxy),
-                priceFeed
-            );
+            newSPImpl = SuperPaymaster(payable(_deployDefault(
+                "SuperPaymaster", abi.encode(entryPoint, registryProxy, priceFeed)
+            )));
             UUPSUpgradeable(spProxy).upgradeToAndCall(address(newSPImpl), "");
             console.log("  SuperPaymaster: upgraded to", address(newSPImpl));
         }
         if (needMC) {
-            MicroPaymentChannel newMC = new MicroPaymentChannel(deployer);
+            MicroPaymentChannel newMC = MicroPaymentChannel(_deployDefault("MicroPaymentChannel", abi.encode(deployer)));
             mcProxy = address(newMC);
             console.log("  MicroPaymentChannel deployed:", mcProxy);
         }
@@ -154,16 +177,16 @@ contract UpgradeLive is V54Bootstrap {
             proposers[0] = governor;
             address[] memory executors = new address[](1);
             executors[0] = governor;
-            TimelockController newTl = new TimelockController(
-                TIMELOCK_MIN_DELAY, proposers, executors, governor
-            );
+            TimelockController newTl = TimelockController(payable(_deployDefault(
+                "TimelockController", abi.encode(TIMELOCK_MIN_DELAY, proposers, executors, governor)
+            )));
             tlCfg = address(newTl);
             console.log("  TimelockController deployed:", tlCfg);
         }
         if (needFac) {
-            X402Facilitator newFac = new X402Facilitator(
-                IRegistry(registryProxy), IxPNTsFactory(xpntsFactory)
-            );
+            X402Facilitator newFac = X402Facilitator(_deployDefault(
+                "X402Facilitator", abi.encode(registryProxy, xpntsFactory)
+            ));
             facCfg = address(newFac);
             console.log("  X402Facilitator deployed:", facCfg);
             console.log("    version:", newFac.version());
@@ -174,7 +197,7 @@ contract UpgradeLive is V54Bootstrap {
         }
         if (needPol) {
             // initialConsumer = SP proxy (staked consumer that calls recordSpend)
-            PolicyRegistry newPol = new PolicyRegistry(tlCfg, guardian, spProxy);
+            PolicyRegistry newPol = PolicyRegistry(_deployDefault("PolicyRegistry", abi.encode(tlCfg, guardian, spProxy)));
             polCfg = address(newPol);
             console.log("  PolicyRegistry deployed:", polCfg);
             console.log("    SP authorized:", newPol.isAuthorizedConsumer(spProxy));
@@ -188,7 +211,12 @@ contract UpgradeLive is V54Bootstrap {
 
         vm.stopBroadcast();
 
-        // --- Post-upgrade verification ---
+        // --- Post-upgrade verification (T-4): proxies + impls == profile.default ---
+        _requireDefaultProxy(registryProxy, "Registry");
+        address spImplNow = _requireDefaultProxy(spProxy, "SuperPaymaster");
+        require(address(SuperPaymaster(payable(spImplNow)).REGISTRY()) == registryProxy, "UpgradeLive: SP impl REGISTRY binding");
+        require(address(SuperPaymaster(payable(spImplNow)).entryPoint()) == entryPoint, "UpgradeLive: SP impl entryPoint binding");
+        require(address(SuperPaymaster(payable(spImplNow)).ETH_USD_PRICE_FEED()) == priceFeed, "UpgradeLive: SP impl price-feed binding");
         console.log("");
         console.log("  Registry version after:     ", Registry(registryProxy).version());
         console.log("  SuperPaymaster version after:", SuperPaymaster(payable(spProxy)).version());

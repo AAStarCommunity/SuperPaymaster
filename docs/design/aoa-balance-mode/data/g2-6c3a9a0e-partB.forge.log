@@ -1,0 +1,47 @@
+No files changed, compilation skipped
+Ran 1 test for contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest
+[PASS] test_G2_coverage_replay_fixed_seeds() (gas: 51340013)
+Logs:
+  G2 campaign: seeds 1000 bundles executed 2531
+    campaigns with a low-balance operator 594
+    ops planned / rejected (AA34, verified one by one) 10483 4414
+    rejected: postOpGasLimit == MIN-1 / operator solvency 789 657
+    settled BALANCE / CREDIT 3271 1127
+    exact charge checks (from postOp calldata) 4398
+    settled after mid-bundle ETH move / aPNTs move 820 838
+    injected settle failures (BALANCE / CREDIT) 785 886
+    stale releases lock / credit 785 886
+    ... with a same-user same-token record alive (lock / credit) 54 69
+    bundles with a repeated sender 1209
+    single-op groups settled: per user+token / per token 2851 1428
+    ops at postOpGasLimit == MIN: admitted / settled 1962 1415
+    opReverted settled (of which OOG) 1702 806
+    executions kept 2696
+    events: blacklist / policy / tier 530 413 496
+    events: pause / top-up / E-1 disable 285 341 469
+    events: emergency / rate / price 43 782 703
+    I9 unbacked count / amount 0 0
+    EP deposit delta (wei) / sum G settled / sum G injected 4853079764605991113 3610563359559010897 1242516405046980216
+    sum net charge (ETH wei) over settled ops 4429812279459468768
+    R1-8 overcharge (chargeEthNet - G)/G, all settled ops, ppm; n = 4398
+      mean ppm 237180
+      p95  ppm 388213
+      max  ppm 472151
+      min  ppm 97160
+      median ppm 233095
+    R1-8 overcharge, settled ops with postOpGasLimit <= MIN+50k, ppm; n = 3492
+      mean ppm 248765
+      p95  ppm 397225
+      max  ppm 472151
+      min  ppm 118776
+      median ppm 249758
+    R1-8 overcharge, settled ops with postOpGasLimit in [1.0M, 1.5M], ppm; n = 906
+      mean ppm 192526
+      p95  ppm 298781
+      max  ppm 337028
+      min  ppm 97160
+      median ppm 195191
+    buffer: C_POSTOP / C_WRAP / old formula 175000 5000 0
+    SUBSIDY: ops / total wei / max ppm 0 0 0
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 27.20s (27.20s CPU time)
+Ran 1 test suite in 27.20s (27.20s CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

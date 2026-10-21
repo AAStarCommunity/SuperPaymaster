@@ -1,0 +1,22 @@
+{
+  "testArtifact": true,
+  "label": "TEST ARTIFACT - NOT A RELEASE ARTIFACT (A2 rc1 gate item 4 dummy bump)",
+  "source": "contracts/test/upgrade-drill/SuperPaymasterA2DrillDummyBump.sol",
+  "sourceSha256": "516a20a473ddc622fce101d7ffd23a4eb7e5cbb25e0fde0e2db19a53c1a9a66c",
+  "artifact": "out/SuperPaymasterA2DrillDummyBump.sol/SuperPaymasterA2DrillDummyBump.json",
+  "artifactFileSha256": "cb743ce88a27d6e8638b58bb22ca920d632e1039e7346e8236c6a4b81e256f80",
+  "compiler": "0.8.33+commit.64118f21",
+  "evmVersion": "cancun",
+  "optimizerRuns": 500,
+  "viaIR": true,
+  "runtimeBytes": 13782,
+  "runtimeKeccak": "0xcb760244e1416530f8845e0651cb4efb90d0853a514d458db0614d4fa6e803d0",
+  "creationKeccak": "0xd105ba35a8a023675a8505e5c809a5c54778ff5f5029f66e21e1f7de0f9ce547",
+  "immutableRefs": 5,
+  "rc2SuperPaymaster": {
+    "artifact": "out/SuperPaymaster.sol/SuperPaymaster.json",
+    "runtimeBytes": 13744,
+    "runtimeKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+    "attestedRuntimeKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222"
+  }
+}

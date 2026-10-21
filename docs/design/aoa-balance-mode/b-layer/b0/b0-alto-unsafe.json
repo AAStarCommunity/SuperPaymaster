@@ -1,0 +1,64 @@
+{
+  "label": "alto-unsafe",
+  "bundlerUrl": "http://127.0.0.1:14338",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-09-12T23:05:57.337Z",
+  "cases": {
+    "control": {
+      "expected": "accept",
+      "verdict": "accept",
+      "pass": true,
+      "userOpHash": "0xbc0c07558cac4c403f7fba177ca1f1d67d36cc09102ba2903dfdce047f7494a2",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0xd22efc852904a7a5379653936b78a46affc39adabe1a47c197f72279432c1677"
+      }
+    },
+    "op011_timestamp": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0xbd04e4fc9881e427f8edfe84a1d646576875f49e5cdb2467be0701b3f92b9574",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0xdf26e515525a4a57ce7a4aa45497a8f611de727cf0b3ef7e2c200a561ed30c73"
+      }
+    },
+    "sto031_unstakedOwnStorage": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0x158578046ce53d5c007bc2f0987aa0ab5b2cfdf10abed0012a8e2386cec656b2",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x300da23cc697c968b7caa05c7dc4d7601cce98985f7c00be27e0a9a867789a72"
+      }
+    },
+    "op070_unstakedTstore": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0x2fccc4e5101fa1cf22eb9073641e25c135706e2769abe39288759a8a45b580b0",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x533b810c2f5a5f48a59b57ca7feb0886044ea73ad9d5b958241a1b74e5c717fe"
+      }
+    },
+    "sto021_stakedExternalWrite": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0x475672323d9c4259f4abbf255e57294e108f411feb6ddf42f53254f31765c518",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x0e7ec11276b28e45084fc1d70f997028f92c430645966e5666084805ee1b8aae"
+      }
+    }
+  },
+  "allPass": false
+}

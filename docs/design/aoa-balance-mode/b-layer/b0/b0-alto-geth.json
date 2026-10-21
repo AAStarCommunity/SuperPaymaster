@@ -1,0 +1,59 @@
+{
+  "label": "alto-v1.2.8@geth",
+  "bundlerUrl": "http://127.0.0.1:14340",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-09-12T23:12:53.523Z",
+  "cases": {
+    "control": {
+      "expected": "accept",
+      "verdict": "reject",
+      "pass": false,
+      "userOpHash": "0xfe74292591bf8fc2201186d4dd799fa34815d9693cdd99912b0bdd98e813a896",
+      "error": {
+        "message": "Encoded error signature \"0x99410554\" not found on ABI.\nMake sure you are using the correct ABI and that the error exists on it.\nYou can look up the decoded signature here: https://openchain.xyz/signatures?query=0x99410554.\n\nDocs: https://viem.sh/docs/contract/decodeErrorResult\nVersion: viem@2.44.4"
+      },
+      "included": null
+    },
+    "op011_timestamp": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x4d05d89c72982b2a1e5d5a7129749109690c32fcf7442fe0cb13ca7234cc023a",
+      "error": {
+        "message": "Encoded error signature \"0x99410554\" not found on ABI.\nMake sure you are using the correct ABI and that the error exists on it.\nYou can look up the decoded signature here: https://openchain.xyz/signatures?query=0x99410554.\n\nDocs: https://viem.sh/docs/contract/decodeErrorResult\nVersion: viem@2.44.4"
+      },
+      "included": null
+    },
+    "sto031_unstakedOwnStorage": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0xcd7acac3ad90dc7ae808323c30e95666ae58c5129b26826d2b3ca24380ff0b19",
+      "error": {
+        "message": "Encoded error signature \"0x99410554\" not found on ABI.\nMake sure you are using the correct ABI and that the error exists on it.\nYou can look up the decoded signature here: https://openchain.xyz/signatures?query=0x99410554.\n\nDocs: https://viem.sh/docs/contract/decodeErrorResult\nVersion: viem@2.44.4"
+      },
+      "included": null
+    },
+    "op070_unstakedTstore": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0xb0945a1444278e37b25c41539d01eddc4c594a995ef7c943aebd2ec8949a3fc4",
+      "error": {
+        "message": "Encoded error signature \"0x99410554\" not found on ABI.\nMake sure you are using the correct ABI and that the error exists on it.\nYou can look up the decoded signature here: https://openchain.xyz/signatures?query=0x99410554.\n\nDocs: https://viem.sh/docs/contract/decodeErrorResult\nVersion: viem@2.44.4"
+      },
+      "included": null
+    },
+    "sto021_stakedExternalWrite": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0xb928d463334c5a179ab84cf0ba9d3294c62e0501d9bad22906a5fbe273964622",
+      "error": {
+        "message": "Encoded error signature \"0x99410554\" not found on ABI.\nMake sure you are using the correct ABI and that the error exists on it.\nYou can look up the decoded signature here: https://openchain.xyz/signatures?query=0x99410554.\n\nDocs: https://viem.sh/docs/contract/decodeErrorResult\nVersion: viem@2.44.4"
+      },
+      "included": null
+    }
+  },
+  "allPass": false
+}

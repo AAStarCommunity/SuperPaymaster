@@ -1,0 +1,22 @@
+{
+ "contract": "XPNTsV2A3HalmosTest",
+ "check": "check_A3_selfBurnDiscrepancy",
+ "abi": "xPNTsTokenV2",
+ "parts": 1,
+ "verdict": "NOT-ALL-PASS (0 BOUNDED, 1 FAIL, 0 ABORTED/ERROR)",
+ "wall_s": 17,
+ "profile": "xp-fail",
+ "results": [
+  {
+   "part": "burn-9dc29fac",
+   "D5C1_PART": 2646777772,
+   "exit": 1,
+   "wall_s": 17,
+   "log": "check_A3_selfBurnDiscrepancy.burn-9dc29fac.log",
+   "result": "FAIL",
+   "paths": 10,
+   "time_s": 0.75,
+   "counterexample": true
+  }
+ ]
+}

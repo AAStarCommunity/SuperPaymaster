@@ -1,0 +1,11 @@
+--- a/contracts/src/tokens/v2/xPNTsV2Base.sol
++++ b/contracts/src/tokens/v2/xPNTsV2Base.sol
+@@ -246,7 +246,7 @@
+                 uint256 mintedAPNTs = (value * 1e18) / rate;
+                 if (mintedAPNTs > 0) {
+                     uint256 repayAPNTs = mintedAPNTs > debt ? debt : mintedAPNTs;
+-                    uint256 repayXPNTs = (repayAPNTs * rate + 1e18 - 1) / 1e18;
++                    uint256 repayXPNTs = (repayAPNTs * rate + 1e18 - 1) / 1e18 + 1; // D5c-1 M-REPAY
+                     debts[to] = debt - repayAPNTs;
+                     super._update(from, to, value);
+                     _burn(to, repayXPNTs);
