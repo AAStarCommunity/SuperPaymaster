@@ -17,7 +17,7 @@ eth_getTransactionReceipt / eth_getBlockByNumber only; nothing is signed or sent
 Exits 1 if the two endpoints disagree on any pinned value or any check is false. RPC URLs are
 never written to stdout or stderr (RPC errors are reported by method name only).
 """
-import json, os, sys, urllib.request
+import json, os, re, sys, urllib.request
 
 DEPLOYER = "0xb5600060e6de5E11D3636731964218E53caadf0E"
 SAFE = "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
@@ -47,13 +47,34 @@ def rpc(url, method, params):
     except Exception as e:  # never echo the exception text: it can carry the URL
         raise RpcFailure(f"{method}: transport error ({type(e).__name__})") from None
     if "error" in d or d.get("result") is None:
-        code = d.get("error", {}).get("code") if isinstance(d.get("error"), dict) else None
+        err = d.get("error")
+        code = err.get("code") if isinstance(err, dict) else None
+        code = code if isinstance(code, int) and not isinstance(code, bool) else "non-integer"
         raise RpcFailure(f"{method}: rpc error code={code}")
     return d["result"]
 
 
+HEX = re.compile(r"0x[0-9a-fA-F]*")
+
+
+def hexdata(method, v, nbytes=None, min_bytes=0):
+    """Reject anything that is not well-formed 0x-hex of even length (and the expected size)."""
+    if not isinstance(v, str) or not HEX.fullmatch(v) or len(v) % 2:
+        raise RpcFailure(f"{method}: malformed hex result")
+    n = (len(v) - 2) // 2
+    if (nbytes is not None and n != nbytes) or n < min_bytes:
+        raise RpcFailure(f"{method}: unexpected result length {n}")
+    return v
+
+
+def quantity(method, v):
+    if not isinstance(v, str) or not re.fullmatch(r"0x(0|[1-9a-fA-F][0-9a-fA-F]*)", v):
+        raise RpcFailure(f"{method}: malformed quantity")
+    return int(v, 16)
+
+
 def call(url, to, data, blk):
-    return rpc(url, "eth_call", [{"to": to, "data": data}, hex(blk)])
+    return hexdata("eth_call", rpc(url, "eth_call", [{"to": to, "data": data}, hex(blk)]), nbytes=32)
 
 
 def addr_word(a):
@@ -64,6 +85,8 @@ def main():
     ev = json.load(open(sys.argv[1]))
     blk = int(os.environ["BLOCK"])
     urls = {"A": os.environ["RPC_A"], "B": os.environ["RPC_B"]}
+    if urls["A"].strip().rstrip("/") == urls["B"].strip().rstrip("/"):
+        raise RpcFailure("config: RPC_A and RPC_B must be different endpoints")
     recorded = {(int(b), tx.lower(), int(li)) for b, tx, li in (i.split(":") for i in ev["logIds"]["mints"])}
     mint_txs = sorted({tx for _, tx, _ in recorded})
 
@@ -74,6 +97,8 @@ def main():
         s, f = set(), set()
         for tx in mint_txs:
             rc = rpc(u, "eth_getTransactionReceipt", [tx])
+            if not isinstance(rc, dict) or not isinstance(rc.get("logs"), list):
+                raise RpcFailure("eth_getTransactionReceipt: malformed receipt")
             for lg in rc["logs"]:
                 t = lg["topics"]
                 if lg["address"].lower() == TOKEN.lower() and t and t[0] == TRANSFER and len(t) == 3 and t[1] == ZERO32:
@@ -83,13 +108,16 @@ def main():
 
     out = {"note": "read-only; RPC URLs omitted", "block": blk, "reads": {}}
     for k, u in urls.items():
-        r = {"blockHash": rpc(u, "eth_getBlockByNumber", [hex(blk), False])["hash"],
-             "deployerNonceAtBlock": int(rpc(u, "eth_getTransactionCount", [DEPLOYER, hex(blk)]), 16),
-             "deployerNoncePendingNow(unpinned)": int(rpc(u, "eth_getTransactionCount", [DEPLOYER, "pending"]), 16),
+        bh = rpc(u, "eth_getBlockByNumber", [hex(blk), False])
+        if not isinstance(bh, dict) or quantity("eth_getBlockByNumber", bh.get("number")) != blk:
+            raise RpcFailure("eth_getBlockByNumber: wrong or missing block")
+        r = {"blockHash": hexdata("eth_getBlockByNumber", bh.get("hash"), nbytes=32),
+             "deployerNonceAtBlock": quantity("eth_getTransactionCount", rpc(u, "eth_getTransactionCount", [DEPLOYER, hex(blk)])),
+             "deployerNoncePendingNow(unpinned)": quantity("eth_getTransactionCount", rpc(u, "eth_getTransactionCount", [DEPLOYER, "pending"])),
              "safeNonce": int(call(u, SAFE, SEL["nonce()"], blk), 16),
              "spOwner": "0x" + call(u, SP, SEL["owner()"], blk)[-40:],
              "spPendingAPNTsToken": "0x" + call(u, SP, SEL["pendingAPNTsToken()"], blk)[-40:],
-             "codesize": {n: (len(rpc(u, "eth_getCode", [a, hex(blk)])) - 2) // 2 for n, a in PREDICTED.items()},
+             "codesize": {n: (len(hexdata("eth_getCode", rpc(u, "eth_getCode", [a, hex(blk)]))) - 2) // 2 for n, a in PREDICTED.items()},
              "mintRecipientBalances": {a: str(int(call(u, TOKEN, SEL["balanceOf(address)"] + addr_word(a), blk), 16))
                                        for a in recips["A"]}}
         out["reads"][k] = r

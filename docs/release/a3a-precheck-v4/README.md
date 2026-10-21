@@ -13,7 +13,7 @@
 
 ## 前置条件（执行 A3a 之前必须全部满足）
 
-1. **A2 发布总门签字**（DSR）。DSR CC-125 `dc77b160` 已签 A2 技术六门（rc.4 tag `fbd74fb1`，main 集成 `a02456ff`）；总门在 rc.4 attestation（PR #514）合入 main 后收口。
+1. **A2 发布总门签字**（DSR）。DSR 在 Seeder CC-125 评论 `dc77b160`（2026-10-21，仓库外记录）签了 A2 技术六门；仓库内的转录与逐门结果见 [`../v5.5.0-rc.4-attestation.md`](../v5.5.0-rc.4-attestation.md) 第 64 行起（PR #514，已合入 main `f23c489f`）。总门由 DSR 在收到该 merge SHA 后收口——**本包写成时尚未收口**，以 CC-125 上 DSR 的回复为准。
 2. **作者对本包单独 go**，并对 [`AUTHOR-CHOICES.md`](AUTHOR-CHOICES.md) 的三项作出选择（本包不替作者决定）。
 3. 每一笔发送 / 签名前**重读两个 nonce**；与本包不一致立即中止，整包重新生成。执行窗口内暂停共用部署者 EOA 的自动化。
 
