@@ -50,7 +50,7 @@ def rpc(url, method, params):
             d = json.load(r)
     except Exception as e:  # never echo the exception text: it can carry the URL
         raise RpcFailure(f"{method}: transport error ({type(e).__name__})") from None
-    if not isinstance(d, dict) or d.get("jsonrpc") != "2.0" or d.get("id") != 1:
+    if not isinstance(d, dict) or d.get("jsonrpc") != "2.0" or type(d.get("id")) is not int or d["id"] != 1:
         raise RpcFailure(f"{method}: malformed JSON-RPC envelope")
     if "error" in d or d.get("result") is None:
         err = d.get("error")
@@ -119,7 +119,7 @@ def main():
             if hexdata(M, rc.get("transactionHash"), nbytes=32).lower() != tx:
                 raise RpcFailure(f"{M}: receipt for a different transaction")
             rc_blk = quantity(M, rc.get("blockNumber"))
-            hexdata(M, rc.get("blockHash"), nbytes=32)
+            rc_bh = hexdata(M, rc.get("blockHash"), nbytes=32).lower()
             for lg in rc["logs"]:
                 if not isinstance(lg, dict) or lg.get("removed") is not False or not isinstance(lg.get("topics"), list):
                     raise RpcFailure(f"{M}: malformed or removed log")
@@ -129,8 +129,8 @@ def main():
                 l_data = hexdata(M, lg.get("data")).lower()
                 l_id = (quantity(M, lg.get("blockNumber")), hexdata(M, lg.get("transactionHash"), nbytes=32).lower(),
                         quantity(M, lg.get("logIndex")))
-                hexdata(M, lg.get("blockHash"), nbytes=32)
-                if l_id[0] != rc_blk or l_id[1] != tx:
+                l_bh = hexdata(M, lg.get("blockHash"), nbytes=32).lower()
+                if l_id[0] != rc_blk or l_id[1] != tx or l_bh != rc_bh:
                     raise RpcFailure(f"{M}: log does not belong to its receipt")
                 if l_addr == TOKEN.lower() and t and t[0] == TRANSFER and len(t) == 3 and t[1] == ZERO32:
                     rec = word_addr(M, t[2])
@@ -138,7 +138,7 @@ def main():
                     if l_id in f:
                         raise RpcFailure(f"{M}: duplicate mint log")
                     s.add(rec)
-                    f[l_id] = (rec, str(amt))
+                    f[l_id] = (rec, str(amt), l_bh)  # block hash compared across endpoints too
         recips[k], found[k] = sorted(s), f
 
     out = {"note": "read-only; RPC URLs omitted", "block": blk, "reads": {}}
