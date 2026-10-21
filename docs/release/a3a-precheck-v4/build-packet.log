@@ -1,0 +1,12 @@
+| # | signer | to | function | sender nonce | Safe nonce | fork gas | events |
+|---|---|---|---|---|---|---|---|
+| S1 | `0xb560…df0E` | `0x09DF…4DE9` | SuperPaymaster.cancelAPNTsTokenChange | 12131→12132 | 1→1 | 31,622 | APNTsTokenChangeCancelled |
+| S2 | `0xb560…df0E` | CREATE → `0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B` | CREATE TimelockController | 12132→12133 | 1→1 | 1,378,624 | RoleGranted, RoleGranted, RoleGranted, RoleGranted, MinDelayChange |
+| S3 | `0xb560…df0E` | CREATE → `0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7` | CREATE APNTsCapped | 12133→12134 | 1→1 | 1,389,741 | OwnershipTransferred, CapRaised, MinterSet, CapGuardianSet |
+| S4 | `0xb560…df0E` | `0x9Eb1…e1E7` | APNTsCapped.transferOwnership | 12134→12135 | 1→1 | 48,238 | OwnershipTransferStarted |
+| S5a | `0x8c34…73D6` | `0x51eD…E114` | Safe.approveHash | 7→8 | 1→1 | 52,784 | ApproveHash |
+| S5b | `0x8716…Fb48` | `0x51eD…E114` | Safe.execTransaction | 28→29 | 1→2 | 99,143 | SafeMultiSigTransaction, CallScheduled, CallSalt, ExecutionSuccess |
+| S6a | `0x8c34…73D6` | `0x51eD…E114` | Safe.approveHash | 8→9 | 2→2 | 52,784 | ApproveHash |
+| S6b | `0x8716…Fb48` | `0x51eD…E114` | Safe.execTransaction | 29→30 | 2→3 | 90,370 | SafeMultiSigTransaction, OwnershipTransferred, CallExecuted, ExecutionSuccess |
+| S7 | `0xb560…df0E` | `0x09DF…4DE9` | SuperPaymaster.setAPNTsToken | 12135→12136 | 3→3 | 75,929 | APNTsTokenChangeQueued |
+eoaGas 2924154 approverGas 105568 execGas 189513

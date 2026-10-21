@@ -1,0 +1,75 @@
+{
+ "note": "read-only; RPC URLs omitted",
+ "block": 11961849,
+ "reads": {
+  "A": {
+   "blockHash": "0x7a126f5cd81ca6f8326d5cac1ead2c374b28305c88b64f7b4cbd7ed9701b14fb",
+   "deployerNonceAtBlock": 12131,
+   "deployerNoncePendingNow(unpinned)": 12131,
+   "safeNonce": 1,
+   "spOwner": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+   "spPendingAPNTsToken": "0xbb46321545a91db2f3b5c3e694f2f23abe259883",
+   "codesize": {
+    "newTimelock": 0,
+    "apntsCapped": 0
+   },
+   "mintRecipientBalances": {
+    "0x13e84925dff3def5169abbf55b00db9aa6b8e56d": "10000000000000000000000",
+    "0x179faf25600c01dbfcef7971f15dcfa3fbe5d31c": "1000000000000000000000",
+    "0x3c982f09e729d26461a1c3a6debd618ab15d7cd3": "200000000000000000000",
+    "0x42ba82a015655f834b9bcb17959c48c02e873e22": "10000000000000000000000000",
+    "0x51c00187e940fa5cbad256cbb2a5fdb173a09708": "800700000000000000000000",
+    "0x7280633d97634f3a901d8cc8e540b5964968e867": "200000000000000000000",
+    "0xb5600060e6de5e11d3636731964218e53caadf0e": "11539844058786299999999",
+    "0xb78ef5c8dd059aba48b65c8069641f30bbf0a1ed": "1000000000000000000000",
+    "0xc747400dd6dccafd0eb0bd00025615e41d3a6b03": "200000000000000000000",
+    "0xe2dbf6a90d22f687e6549bd749b7a316541cd238": "200000000000000000000",
+    "0xecd9c07f648b09cfb78906302822ec52ab87dd70": "678008712737068326800",
+    "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c": "19600000000000000000"
+   }
+  },
+  "B": {
+   "blockHash": "0x7a126f5cd81ca6f8326d5cac1ead2c374b28305c88b64f7b4cbd7ed9701b14fb",
+   "deployerNonceAtBlock": 12131,
+   "deployerNoncePendingNow(unpinned)": 12131,
+   "safeNonce": 1,
+   "spOwner": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+   "spPendingAPNTsToken": "0xbb46321545a91db2f3b5c3e694f2f23abe259883",
+   "codesize": {
+    "newTimelock": 0,
+    "apntsCapped": 0
+   },
+   "mintRecipientBalances": {
+    "0x13e84925dff3def5169abbf55b00db9aa6b8e56d": "10000000000000000000000",
+    "0x179faf25600c01dbfcef7971f15dcfa3fbe5d31c": "1000000000000000000000",
+    "0x3c982f09e729d26461a1c3a6debd618ab15d7cd3": "200000000000000000000",
+    "0x42ba82a015655f834b9bcb17959c48c02e873e22": "10000000000000000000000000",
+    "0x51c00187e940fa5cbad256cbb2a5fdb173a09708": "800700000000000000000000",
+    "0x7280633d97634f3a901d8cc8e540b5964968e867": "200000000000000000000",
+    "0xb5600060e6de5e11d3636731964218e53caadf0e": "11539844058786299999999",
+    "0xb78ef5c8dd059aba48b65c8069641f30bbf0a1ed": "1000000000000000000000",
+    "0xc747400dd6dccafd0eb0bd00025615e41d3a6b03": "200000000000000000000",
+    "0xe2dbf6a90d22f687e6549bd749b7a316541cd238": "200000000000000000000",
+    "0xecd9c07f648b09cfb78906302822ec52ab87dd70": "678008712737068326800",
+    "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c": "19600000000000000000"
+   }
+  }
+ },
+ "checks": {
+  "mintRecipientsIdentical": true,
+  "mintRecipientsNonEmpty": true,
+  "mintLogSetMatchesRecordedA": true,
+  "mintLogSetMatchesRecordedB": true,
+  "mintLogsIdenticalPerLog": true,
+  "mintSumMatchesRecorded": true,
+  "mintsAtOrBeforeBlock": true,
+  "pinnedReadsIdentical": true,
+  "predictedAddressesEmpty": true,
+  "deployerNonce12131": true,
+  "deployerPendingNow12131BothEndpoints": true,
+  "safeNonce1": true,
+  "holder42ba10M": true,
+  "spOwnerIsDeployer": true,
+  "pendingStillOldBb46": true
+ }
+}
