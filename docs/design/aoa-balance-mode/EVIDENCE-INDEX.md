@@ -127,7 +127,7 @@ H-01 的旧报告 SHA 固定于 `8c23cfb3eb40474e5b2820d5ae949caadec9703b:docs/d
 
 | manifest / generation | OK | FAILED | shasum exit |
 |---|---:|---:|---:|
-| 总 `EVIDENCE.sha256` | 2819 | 0 | 0 |
+| 总 `EVIDENCE.sha256` | 2847 | 0 | 0 |
 | `data/d5c1-rc2-serial/EVIDENCE.sha256` | 29 | 0 | 0 |
 | `data/d5c1-rc2-rerun/EVIDENCE.sha256` | 27 | 0 | 0 |
 | `data/i9-rc2-final/EVIDENCE.sha256` | 58 | 0 | 0 |
@@ -156,6 +156,16 @@ H-01 的旧报告 SHA 固定于 `8c23cfb3eb40474e5b2820d5ae949caadec9703b:docs/d
 | WB-terminal | ② whole-branch terminal verdict | review | `../../release/v5.5.0-rc.2-whole-branch-terminal-verdict.md` | 审 `b0ac4920..4f6d5084` 全部可执行/测试改动；本地 `forge build --sizes`、layout/size/selector 门、全量 `forge test` | **APPROVE `4f6d5084`**；0 新 finding；M1/M2 由 #485 关闭；L1→#488、L2→#489 rc.2 风险接受；更正 #482 §7 的 BLSAggregator 数字（实为 24,345 B / 余 231 B） | 不含 bundler/ERC-7562 trace、真链状态、外部审计（作者决定不做）；补充而非替换 `v5.5.0-rc.2-whole-branch-final-review.md` |
 | CI-final | ③ exact-candidate Forge CI | ci | `data/ci-final-4f6d5084/`（`run.json`、`run-log.txt.gz`、`summary.txt`） | GitHub Actions run 39392135141 / job 118525942377，分支 `feature/ci-v5.5.0-final-4f6d5084` @ `4f6d5084`，workflow 锁 forge v1.7.1（#481） | success：build、storage-layout、D5b release gates（含 `check-sp-size.py` 实际尺寸门）、1791 passed / 0 failed / 49 skipped；SP 13,744 / Registry 23,306 / BLSAggregator 24,345。**注意：同一 run 的「Check EIP-170 Contract Sizes」步骤是 fail-open 的**（log L6208 `[: 23,306: integer expression expected`，任何尺寸都放行），本 PR 把该步骤改为调用 `scripts/check-sp-size.py`（按 metadata 选 profile.default 产物）：`forge build --sizes` 表在两 profile 并存时可能报 200-runs 变体（本地 BLSAggregator 23,940 vs 实际 24,345），不能作量具 | 只证明这一个 commit；rc.2 tag 自身的 run 38743615788 仍为 failure，不移动、不改写 rc.2。本 PR head `0293e28d`（只改 workflow/文档/新增 d7 runner，contracts/ script/ 被测代码与 `4f6d5084` 相同）另跑 run 39401944360：success，新的 EIP-170 步骤输出 `all 7 deployables <= EIP-170`（BLSAggregator 24,345 B / 余 231 B）。合并后的 merge commit 会再触发一次同一锁版 workflow，作为最终 exact candidate |
 | A2-final | ④ #485 后 A2 all | fork-simulation | `data/d5b/a2-final-11885120-4f6d5084/`（`rehearsal.log`、`receipts.jsonl`、`neg-controls.jsonl`、`exit.txt`、目录内 `EVIDENCE.sha256` 159 文件） | `RPC_URL_X=https://sepolia.gateway.tenderly.co script/evidence/a2-full-rehearsal.sh <env> 11885120 <dir> all`；脚本 blob `996a69c8` | exit 0；**370 CHECK PASS / 0 FAIL / 0 `!!!`；65 个预期负对照全部通过**（55 个按精确 revert data 匹配，10 个按 regex 匹配，其中含 NEG-44–49 这类流程/来源检查失败，并非都是 EVM revert） | 本地 fork，无公网交易；端点 B 由已裁剪历史的 publicnode 换为 Tenderly（README §Deviation，附失败证据）；DSR 10-15 的 A2a PASS 仍只对应旧 blob `9c836f45` |
+
+## 1.5 rc.3 预签发预检（DSR CC-125 b219c6ac A/B/C；候选 `57c665afd2809879f5545b40dbd895b4ddf6a4e8`，未打 tag）
+
+| id | 内容 | 文件 | 结果 | 边界 |
+|---|---|---|---|---|
+| RC3-A-stage1b | Stage 1b live deploy scripts compile 在 exact SHA 上的本地等价运行 | `data/rc3-precheck-57c665af/stage1b/` | 干净 checkout（子模块全部按 pin）、forge 1.7.1、`./scripts/check-live-scripts-compile.sh`（blob `67b39c27`）exit 0；负对照 N1 DeployLive / N2 CheckDefaultArtifacts / N3 DeployAPNTsCapped（只经 import 编译）各注入 `}` 均 exit 1，均已还原 | 不是 GitHub check-run（security.yml 只在 main/master/develop 触发）；作为同树本地等价证据提交 DSR 判定 |
+| RC3-B-tier-negctl | `[100,250,300]` tier 负对照（D7 setup-gasless 旧/新） | `data/rc3-precheck-57c665af/d7-tier-negctl/`；脚本 `script/evidence/d7-tier-negctl.sh` | 新链各一次：旧 `68dfdccb` → tier1 仍为 100（吞掉 1 条 `0x89f9d35…` 非致命）；新 `57c665af` → tiers 1,2 = 300；`VERDICT PASS`。判定要求旧版文件与 blob 一致、旧日志确有被吞的 `0x89f9d35`、新日志 0 条非致命（空日志探针下判 FAIL）；runner sha256 `fdababe2…` 记于 `env.txt` | 本地 anvil；两次 setup rc 1 均来自已知过时前置检查 |
+| RC3-C-rebuild | 干净 clone 重编 + 固定版 `attest-hashes.mjs`（sha `7b959116…`） | `data/rc3-precheck-57c665af/clean-rebuild/` | 两次独立构建 byte-identical；10/10 合约 runtime 与 creation keccak 均等于 `v5.5.0-rc.2-attestation.json` | artifact 哈希（immutable 置零），不是链上 codehash；**未打 tag**，由作者决定 |
+
+D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 未执行，B3/D2/E1/x402-EIP3009 排除，不得称 37/37（`../../release/v5.5.0-rc.3-release-precheck.md` §B1）。
 
 ## 2. 登记册数字 → 证据
 

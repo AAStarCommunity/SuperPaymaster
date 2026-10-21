@@ -1,0 +1,52 @@
+◇ injected env (0) from ../../.env.sepolia // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+╔═══════════════════════════════════════════════════════════╗
+║         Gasless Tests Pre-Flight Setup                    ║
+╚═══════════════════════════════════════════════════════════╝
+
+Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+Anni:     0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+Network:  chain 31337
+
+━━━ Step 1: SuperPaymaster Price Cache ━━━
+  ✅ Price cache fresh: valid for 4192s
+
+━━━ Step 2: PaymasterV4 (Test 1) ━━━
+  ✅ PaymasterV4 deployed: 0xa37aE2b259D35aF4aBdde122eC90B204323ED304
+  ✅ PaymasterV4 ETH in EntryPoint: 0.05 ETH
+  ✅ PaymasterV4 price cache fresh: valid for 86392s
+  ✅ aPNTs is a supported PaymasterV4 gas token
+  ⚠️  AA_A V4 deposit 0.0 aPNTs — funding 500.0...
+  approve aPNTs→PaymasterV4: TX confirmed (gas: 49038) tx=0xab55241bc4a8b1db673b5b97cf2d7b9b7b17760716688639c13ab3b6db75d51f https://sepolia.etherscan.io/tx/0xab55241bc4a8b1db673b5b97cf2d7b9b7b17760716688639c13ab3b6db75d51f
+  pmV4.depositFor(AA_A): TX confirmed (gas: 115296) tx=0x2e2a130f2ea349eece37f78ff285f8dc7b48ab762ad1fac339f4dc54f418f5aa https://sepolia.etherscan.io/tx/0x2e2a130f2ea349eece37f78ff285f8dc7b48ab762ad1fac339f4dc54f418f5aa
+  ✅ AA_A token deposit in PaymasterV4: 500.0 aPNTs
+
+━━━ Step 3: SuperPaymaster Deployer Operator (Test 2) ━━━
+  ✅ Deployer operator configured
+  ✅ Deployer operator not paused
+  ❌ Deployer xPNTsToken = aPNTs
+  ✅ Deployer aPNTs in SuperPaymaster: 1000.0 aPNTs
+
+━━━ Step 4: SuperPaymaster Anni Operator (Test 3) ━━━
+  ✅ Anni operator configured
+  ✅ Anni xPNTsToken = PNTs
+  ✅ Anni aPNTs in SuperPaymaster: 1000.0 aPNTs
+
+━━━ Step 4.5: Ensure Base Credit Tier (Registry) ━━━
+  ⚠️  creditTierConfig[1] below threshold — raising to 300.0...
+  ⚠️  creditTierConfig check error (non-fatal): execution reverted (unknown custom error) (action="estimateGas", data="0x89f9d35
+━━━ Step 5: Fund AA Account Token Balances ━━━
+  mint AA_A aPNTs: TX confirmed (gas: 60864) tx=0x013674b2e7fb2754522a44fe4a32fd01f6be39dc89124d4e6ce9382d9c016fc5 https://sepolia.etherscan.io/tx/0x013674b2e7fb2754522a44fe4a32fd01f6be39dc89124d4e6ce9382d9c016fc5
+  ✅ AA_A aPNTs: 1000.0 (minted 1000.0)
+  mint AA_B aPNTs: TX confirmed (gas: 60864) tx=0x6c579c0fe9af9208a855fe11afff7e6e78b7688e0cef04694114e85f761e6084 https://sepolia.etherscan.io/tx/0x6c579c0fe9af9208a855fe11afff7e6e78b7688e0cef04694114e85f761e6084
+  ✅ AA_B aPNTs: 1000.0 (minted 1000.0)
+  mint AA_C aPNTs: TX confirmed (gas: 60864) tx=0x90e0e4bc564b91b7464caef34ed85125ec20844321bec948712b5e1d2ebdfe38 https://sepolia.etherscan.io/tx/0x90e0e4bc564b91b7464caef34ed85125ec20844321bec948712b5e1d2ebdfe38
+  ✅ AA_C aPNTs: 1000.0 (minted 1000.0)
+  mint AA_A PNTs: TX confirmed (gas: 65917) tx=0xd2d32e89cc9a8cc4d77eca6ce672db516f7c31cd4de8cbe3c2531e7c060dd7b7 https://sepolia.etherscan.io/tx/0xd2d32e89cc9a8cc4d77eca6ce672db516f7c31cd4de8cbe3c2531e7c060dd7b7
+  ✅ AA_A PNTs: 1000.0 (minted 1000.0)
+  mint AA_B PNTs: TX confirmed (gas: 65917) tx=0xec6b806e43688365cc356f086d468f6e40d078de29ef4ac7178f4684432f92e6 https://sepolia.etherscan.io/tx/0xec6b806e43688365cc356f086d468f6e40d078de29ef4ac7178f4684432f92e6
+  ✅ AA_B PNTs: 1000.0 (minted 1000.0)
+  mint AA_C PNTs: TX confirmed (gas: 65917) tx=0xc1f4b129f6b55901ff0a17502bae33b1469bea531bcd9d9114e441b04473fec2 https://sepolia.etherscan.io/tx/0xc1f4b129f6b55901ff0a17502bae33b1469bea531bcd9d9114e441b04473fec2
+  ✅ AA_C PNTs: 1000.0 (minted 1000.0)
+
+━━━ Summary ━━━
+❌ 1 prerequisite(s) not met. See above.

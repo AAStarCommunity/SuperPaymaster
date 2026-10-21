@@ -1,0 +1,5 @@
+compiling 7 live scripts + 1 dir(s)…
+Error: Compiler run failed:
+Error (7858): Expected pragma, import directive or contract/interface/library/user-defined type/constant/function/error/event definition.
+   --> contracts/script/v3/DeployAPNTsCapped.s.sol:456:1:
+SCRIPT COMPILE GATE: FAIL — a live deployment script does not parse.

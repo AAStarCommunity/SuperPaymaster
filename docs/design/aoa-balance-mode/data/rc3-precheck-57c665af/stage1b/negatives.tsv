@@ -1,0 +1,3 @@
+N1	contracts/script/v3/DeployLive.s.sol	stray "}" appended	exit=1	restored
+N2	contracts/script/checks/CheckDefaultArtifacts.s.sol	stray "}" appended	exit=1	restored
+N3	contracts/script/v3/DeployAPNTsCapped.s.sol	stray "}" appended	exit=1	restored

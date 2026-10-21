@@ -1,0 +1,56 @@
+◇ injected env (0) from ../../.env.sepolia // tip: ◈ secrets for agents [www.dotenvx.com]
+╔═══════════════════════════════════════════════════════════╗
+║         Gasless Tests Pre-Flight Setup                    ║
+╚═══════════════════════════════════════════════════════════╝
+
+Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+Anni:     0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+Network:  chain 31337
+
+━━━ Step 1: SuperPaymaster Price Cache ━━━
+  ✅ Price cache fresh: valid for 4191s
+
+━━━ Step 2: PaymasterV4 (Test 1) ━━━
+  ✅ PaymasterV4 deployed: 0xa37aE2b259D35aF4aBdde122eC90B204323ED304
+  ✅ PaymasterV4 ETH in EntryPoint: 0.05 ETH
+  ✅ PaymasterV4 price cache fresh: valid for 86391s
+  ✅ aPNTs is a supported PaymasterV4 gas token
+  ⚠️  AA_A V4 deposit 0.0 aPNTs — funding 500.0...
+  approve aPNTs→PaymasterV4: TX confirmed (gas: 49038) tx=0xab55241bc4a8b1db673b5b97cf2d7b9b7b17760716688639c13ab3b6db75d51f https://sepolia.etherscan.io/tx/0xab55241bc4a8b1db673b5b97cf2d7b9b7b17760716688639c13ab3b6db75d51f
+  pmV4.depositFor(AA_A): TX confirmed (gas: 115296) tx=0x2e2a130f2ea349eece37f78ff285f8dc7b48ab762ad1fac339f4dc54f418f5aa https://sepolia.etherscan.io/tx/0x2e2a130f2ea349eece37f78ff285f8dc7b48ab762ad1fac339f4dc54f418f5aa
+  ✅ AA_A token deposit in PaymasterV4: 500.0 aPNTs
+
+━━━ Step 3: SuperPaymaster Deployer Operator (Test 2) ━━━
+  ✅ Deployer operator configured
+  ✅ Deployer operator not paused
+  ❌ Deployer xPNTsToken = aPNTs
+  ✅ Deployer aPNTs in SuperPaymaster: 1000.0 aPNTs
+
+━━━ Step 4: SuperPaymaster Anni Operator (Test 3) ━━━
+  ✅ Anni operator configured
+  ✅ Anni xPNTsToken = PNTs
+  ✅ Anni aPNTs in SuperPaymaster: 1000.0 aPNTs
+
+━━━ Step 4.5: Ensure Base Credit Tier (Registry) ━━━
+  ⚠️  creditTierConfig[2] below threshold — raising to 300.0...
+  registry.setCreditTier(2, 300): TX confirmed (gas: 43989) tx=0x172124c396e7907531e0ae3418cd78f061bc87e7781425eab4c8876b416c8139 https://sepolia.etherscan.io/tx/0x172124c396e7907531e0ae3418cd78f061bc87e7781425eab4c8876b416c8139
+  ✅ creditTierConfig[2] set to 300.0 aPNTs
+  ⚠️  creditTierConfig[1] below threshold — raising to 300.0...
+  registry.setCreditTier(1, 300): TX confirmed (gas: 41775) tx=0x9e290e5428d6637c14a3bd183469997b41f181cf6240f3a1ec786a704c10db77 https://sepolia.etherscan.io/tx/0x9e290e5428d6637c14a3bd183469997b41f181cf6240f3a1ec786a704c10db77
+  ✅ creditTierConfig[1] set to 300.0 aPNTs
+━━━ Step 5: Fund AA Account Token Balances ━━━
+  mint AA_A aPNTs: TX confirmed (gas: 60864) tx=0x325da1f5bd63a55fae969a7037e625674d3fc71449be664ad9de04330430a562 https://sepolia.etherscan.io/tx/0x325da1f5bd63a55fae969a7037e625674d3fc71449be664ad9de04330430a562
+  ✅ AA_A aPNTs: 1000.0 (minted 1000.0)
+  mint AA_B aPNTs: TX confirmed (gas: 60864) tx=0x9468438b608a3adf14d80b3ed0bb65a494d385e14ac0404a16725c9d87f211c4 https://sepolia.etherscan.io/tx/0x9468438b608a3adf14d80b3ed0bb65a494d385e14ac0404a16725c9d87f211c4
+  ✅ AA_B aPNTs: 1000.0 (minted 1000.0)
+  mint AA_C aPNTs: TX confirmed (gas: 60864) tx=0x5d807d94d0509baaa6b3885be121093d3ce068614c65ed172b79fbfabe4a297b https://sepolia.etherscan.io/tx/0x5d807d94d0509baaa6b3885be121093d3ce068614c65ed172b79fbfabe4a297b
+  ✅ AA_C aPNTs: 1000.0 (minted 1000.0)
+  mint AA_A PNTs: TX confirmed (gas: 65917) tx=0x6128525b15e1060a61552d7ad37b8608ef35d7d5c54f4e2b2efa72f2c12f6fdf https://sepolia.etherscan.io/tx/0x6128525b15e1060a61552d7ad37b8608ef35d7d5c54f4e2b2efa72f2c12f6fdf
+  ✅ AA_A PNTs: 1000.0 (minted 1000.0)
+  mint AA_B PNTs: TX confirmed (gas: 65917) tx=0xd633cad4611188c37ba35c5484523ff0941ba8f939cc7df9d0b345cf9e94319f https://sepolia.etherscan.io/tx/0xd633cad4611188c37ba35c5484523ff0941ba8f939cc7df9d0b345cf9e94319f
+  ✅ AA_B PNTs: 1000.0 (minted 1000.0)
+  mint AA_C PNTs: TX confirmed (gas: 65917) tx=0xc1438274682de521a2d949994c831c7f4e5abfbd87d81d0758a99ecec95edd54 https://sepolia.etherscan.io/tx/0xc1438274682de521a2d949994c831c7f4e5abfbd87d81d0758a99ecec95edd54
+  ✅ AA_C PNTs: 1000.0 (minted 1000.0)
+
+━━━ Summary ━━━
+❌ 1 prerequisite(s) not met. See above.
