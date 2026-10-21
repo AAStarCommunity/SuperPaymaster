@@ -1,0 +1,11 @@
+fresh-chain control: block=0 nonce=0
+deploy-core rc=0
+prepare-test rc=0
+setCreditTier(2,250e18) rc=0
+before tier1 100000000000000000000
+before tier2 250000000000000000000
+before tier3 300000000000000000000
+setup-gasless(new) rc=1
+after tier1 300000000000000000000
+after tier2 300000000000000000000
+after tier3 300000000000000000000
