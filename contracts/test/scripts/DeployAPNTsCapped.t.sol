@@ -77,12 +77,24 @@ contract TimelockHistoryScanHarness is DeployAPNTsCapped {
 }
 
 contract DeployAPNTsCappedTest is Test {
+
+    /// These suites exercise deploy-script checks against profile.default (cancun) artifacts. Under
+    /// `forge test --evm-version prague` (the Prague real-precompile gate) out/ holds prague builds, which
+    /// DefaultArtifacts correctly refuses as "not a profile.default build" — so the suite skips itself
+    /// there, the same way the precompile-dependent suites skip on Cancun. Detection = the EIP-2537 G1ADD
+    /// precompile answers (identical to contracts/test/paper7/*).
+    function _hasPraguePrecompiles() internal view returns (bool) {
+        bytes memory twoIdentities = new bytes(256);
+        (bool ok, bytes memory result) = address(0x0B).staticcall(twoIdentities);
+        return ok && result.length == 128;
+    }
     address constant SAFE = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114;
     address constant DEPLOYER = address(0xD001);
     address constant EXTRA = address(0xBAD);
     DeployAPNTsCappedHarness checker;
 
     function setUp() public {
+        if (_hasPraguePrecompiles()) vm.skip(true);
         checker = new DeployAPNTsCappedHarness();
     }
 
