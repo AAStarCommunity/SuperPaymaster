@@ -1,0 +1,8 @@
+clone HEAD fbd74fb1e2e9d948996e6d6c02c48dc1c1778107 describe v5.5.0-rc.4
+build rc=0
+hasher 7b9591168dbba84e2af1e7507db2a9f637910aa3f637065f9cebd4cca5bc5ae8
+attest rc=0
+tag build == pre-tag candidate build byte-identical
+tag build == rc.3 tag build byte-identical (=> 10/10 equal rc.2)
+stage1b rc=0 tracked-changes 0
+submodules 28 {' ': 28}

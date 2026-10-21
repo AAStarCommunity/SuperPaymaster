@@ -1,0 +1,8 @@
+full HEAD fbd74fb1e2e9d948996e6d6c02c48dc1c1778107 tracked-changes 0
+cancun rc=0 1791 tests passed, 0 failed, 49 skipped (1840 total tests)
+prague rc=0 1671 tests passed, 0 failed, 23 skipped (1694 total tests)
+stage1b rc=0 SCRIPT COMPILE GATE: OK — every script the tooling invokes compiles.
+build1 rc=0
+hasher 7b9591168dbba84e2af1e7507db2a9f637910aa3f637065f9cebd4cca5bc5ae8
+attest rc=0
+rc4 build == rc3 tag build byte-identical

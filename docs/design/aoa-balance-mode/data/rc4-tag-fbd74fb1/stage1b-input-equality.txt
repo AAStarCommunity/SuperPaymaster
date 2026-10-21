@@ -1,0 +1,12 @@
+# Stage 1b / build-input equality: PR #511 merge ref vs rc.4 candidate
+security.yml run 39562599170 (event pull_request, headSha fbd74fb1e2e9d948996e6d6c02c48dc1c1778107); Stage 1b job 119097152565 checked out refs/remotes/pull/511/merge = 64aae5d6dc5af99df10a8392e04091881a02ac18
+contracts/src candidate=f1d39b5bb4081c51e69c9b4a64346dd769193f31 merge=f1d39b5bb4081c51e69c9b4a64346dd769193f31 EQUAL
+contracts/script candidate=e17a8c60477d95622bb90cb9bbb0df8024a2bfdb merge=e17a8c60477d95622bb90cb9bbb0df8024a2bfdb EQUAL
+scripts/check-live-scripts-compile.sh candidate=67b39c27b1a472c4c6dc0ce1f81230babf006a7b merge=67b39c27b1a472c4c6dc0ce1f81230babf006a7b EQUAL
+foundry.toml candidate=065d0bd7cd8e4d1de606cf438471c1f66fa5c659 merge=065d0bd7cd8e4d1de606cf438471c1f66fa5c659 EQUAL
+remappings.txt absent in both (remappings are defined in foundry.toml, compared above) EQUAL
+.gitmodules candidate=49848cc830cb9167567b833c33561f1a979d77f1 merge=49848cc830cb9167567b833c33561f1a979d77f1 EQUAL
+deploy-core candidate=c81e5b3f253d924b78f708d3454ce03f88599d43 merge=c81e5b3f253d924b78f708d3454ce03f88599d43 EQUAL
+prepare-test candidate=06bbc8ba033f9c82b534dba482b285902e3da2c1 merge=06bbc8ba033f9c82b534dba482b285902e3da2c1 EQUAL
+submodule gitlinks:
+EQUAL (6 gitlinks)
