@@ -6,7 +6,36 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [v5.5.0] — 2026-08-26 (RepCredit V16 — bounded credit issuance & guarded guardian governance)
+## [v5.5.0] — Unreleased (release candidate `v5.5.0-rc.4`, 2026-10-21)
+
+AOA balance mode. Contract versions: `SuperPaymaster-5.5.0`, `SuperPaymasterLens-1.2.0`,
+`Registry-5.9.0`, `XPNTs-4.0.0` (xPNTsTokenV2), `xPNTsFactory-3.0.0-v2`, `AOAProtocolRegistry-1.0.0`,
+`GlobalTierSource-1.0.0`, `APNTsCapped-1.0.0`. Integrated into `main` by #511 (`a02456ff`).
+
+- **Balance mode** (Decision 1): validation-time reservation of the user's xPNTs and settlement capped
+  by the reservation (`tryLockForGas` / `settleLocked`); reservation-based credit, default OFF
+  (`tryReserveCredit` / `settleCredit`).
+- **Bounded allowance** (Decision 2): explicit ERC-20 allowance first, then a bounded auto-allowance;
+  current/historical SPs cannot pull third-party balances.
+- **Breaking interface changes**: `paymasterAndData` gains a required `[token 20][flags 1]` tail;
+  `dryRunValidation` moved to `SuperPaymasterLens`; pending-debt fallback removed; `configureOperator`
+  accepts only xPNTs v2 — see the README "5.5.0" section for the full table.
+- **Governance**: capped aPNTs (`APNTsCapped`) behind a Safe-only `TimelockController`; deploy scripts
+  verify exclusive timelock role history and accept the direct capped token in the T-4 gate (#485).
+- **CI**: forge pinned to `v1.7.1`; the EIP-170 step runs `scripts/check-sp-size.py` (#481, #492, #495).
+
+Release identity: `contracts/src` is byte-identical across `v5.5.0-rc.2` (`1ac0e1c5`), `v5.5.0-rc.3`
+(`57c665af`, superseded) and `v5.5.0-rc.4` (`fbd74fb1`) — see
+[`docs/release/v5.5.0-rc.4-attestation.md`](docs/release/v5.5.0-rc.4-attestation.md). Not deployed to any
+chain yet; the Sepolia switch (A3a) is a separate, nonce-bound, author-approved step
+(`docs/release/a3a-precheck-v3/`). The final `v5.5.0` tag and its date are set at release.
+
+---
+
+## [RepCredit V16] — 2026-08-26 (CC-48, PR #375 — bounded credit issuance & guarded guardian governance)
+
+> Previously headed `[v5.5.0]` by mistake: this entry shipped `Registry-5.8.0` / `BLSAggregator-4.10.0`
+> with `SuperPaymaster` unchanged; it is not the SuperPaymaster 5.5.0 release above.
 
 Closes the two security gaps the DSR/RepCredit V16 paper identified. Delivered through
 CC-48 as nine rounds of adversarial review (each round: independent read-only reviewer →
