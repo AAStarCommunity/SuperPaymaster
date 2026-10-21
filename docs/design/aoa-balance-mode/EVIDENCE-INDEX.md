@@ -162,7 +162,7 @@ H-01 的旧报告 SHA 固定于 `8c23cfb3eb40474e5b2820d5ae949caadec9703b:docs/d
 | id | 内容 | 文件 | 结果 | 边界 |
 |---|---|---|---|---|
 | RC3-A-stage1b | Stage 1b live deploy scripts compile 在 exact SHA 上的本地等价运行 | `data/rc3-precheck-57c665af/stage1b/` | 干净 checkout（子模块全部按 pin）、forge 1.7.1、`./scripts/check-live-scripts-compile.sh`（blob `67b39c27`）exit 0；负对照 N1 DeployLive / N2 CheckDefaultArtifacts / N3 DeployAPNTsCapped（只经 import 编译）各注入 `}` 均 exit 1，均已还原 | 不是 GitHub check-run（security.yml 只在 main/master/develop 触发）；作为同树本地等价证据提交 DSR 判定 |
-| RC3-B-tier-negctl | `[100,250,300]` tier 负对照（D7 setup-gasless 旧/新） | `data/rc3-precheck-57c665af/d7-tier-negctl/`；脚本 `script/evidence/d7-tier-negctl.sh` | 新链各一次：旧 `68dfdccb` → tier1 仍为 100（吞掉 1 条 `0x89f9d35…` 非致命）；新 `57c665af` → tiers 1,2 = 300；`VERDICT PASS` | 本地 anvil；两次 setup rc 1 均来自已知过时前置检查 |
+| RC3-B-tier-negctl | `[100,250,300]` tier 负对照（D7 setup-gasless 旧/新） | `data/rc3-precheck-57c665af/d7-tier-negctl/`；脚本 `script/evidence/d7-tier-negctl.sh` | 新链各一次：旧 `68dfdccb` → tier1 仍为 100（吞掉 1 条 `0x89f9d35…` 非致命）；新 `57c665af` → tiers 1,2 = 300；`VERDICT PASS`。判定要求旧版文件与 blob 一致、旧日志确有被吞的 `0x89f9d35`、新日志 0 条非致命（空日志探针下判 FAIL）；runner sha256 `fdababe2…` 记于 `env.txt` | 本地 anvil；两次 setup rc 1 均来自已知过时前置检查 |
 | RC3-C-rebuild | 干净 clone 重编 + 固定版 `attest-hashes.mjs`（sha `7b959116…`） | `data/rc3-precheck-57c665af/clean-rebuild/` | 两次独立构建 byte-identical；10/10 合约 runtime 与 creation keccak 均等于 `v5.5.0-rc.2-attestation.json` | artifact 哈希（immutable 置零），不是链上 codehash；**未打 tag**，由作者决定 |
 
 D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 未执行，B3/D2/E1/x402-EIP3009 排除，不得称 37/37（`../../release/v5.5.0-rc.3-release-precheck.md` §B1）。

@@ -1,4 +1,4 @@
-◇ injected env (0) from ../../.env.sepolia // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+◇ injected env (0) from ../../.env.sepolia // tip: ◈ secrets for agents [www.dotenvx.com]
 ╔═══════════════════════════════════════════════════════════╗
 ║         Gasless Tests Pre-Flight Setup                    ║
 ╚═══════════════════════════════════════════════════════════╝

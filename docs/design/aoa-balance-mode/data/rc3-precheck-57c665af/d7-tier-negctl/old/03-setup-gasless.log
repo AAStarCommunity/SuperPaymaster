@@ -1,4 +1,4 @@
-◇ injected env (0) from ../../.env.sepolia // tip: ⌘ override existing { override: true }
+◇ injected env (0) from ../../.env.sepolia // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
 ╔═══════════════════════════════════════════════════════════╗
 ║         Gasless Tests Pre-Flight Setup                    ║
 ╚═══════════════════════════════════════════════════════════╝
@@ -43,9 +43,9 @@ Network:  chain 31337
   ✅ AA_C aPNTs: 1000.0 (minted 1000.0)
   mint AA_A PNTs: TX confirmed (gas: 65917) tx=0xd2d32e89cc9a8cc4d77eca6ce672db516f7c31cd4de8cbe3c2531e7c060dd7b7 https://sepolia.etherscan.io/tx/0xd2d32e89cc9a8cc4d77eca6ce672db516f7c31cd4de8cbe3c2531e7c060dd7b7
   ✅ AA_A PNTs: 1000.0 (minted 1000.0)
-  mint AA_B PNTs: TX confirmed (gas: 65917) tx=0x6ec9c3d261482b517033f9e051e7e9abea1ab79d31ba1f39f340fb3d121c02db https://sepolia.etherscan.io/tx/0x6ec9c3d261482b517033f9e051e7e9abea1ab79d31ba1f39f340fb3d121c02db
+  mint AA_B PNTs: TX confirmed (gas: 65917) tx=0xec6b806e43688365cc356f086d468f6e40d078de29ef4ac7178f4684432f92e6 https://sepolia.etherscan.io/tx/0xec6b806e43688365cc356f086d468f6e40d078de29ef4ac7178f4684432f92e6
   ✅ AA_B PNTs: 1000.0 (minted 1000.0)
-  mint AA_C PNTs: TX confirmed (gas: 65917) tx=0xcde7eec7f61f591e75222d8a01c58d16a6de34cf6d51c61327efec97c53dc136 https://sepolia.etherscan.io/tx/0xcde7eec7f61f591e75222d8a01c58d16a6de34cf6d51c61327efec97c53dc136
+  mint AA_C PNTs: TX confirmed (gas: 65917) tx=0xc1f4b129f6b55901ff0a17502bae33b1469bea531bcd9d9114e441b04473fec2 https://sepolia.etherscan.io/tx/0xc1f4b129f6b55901ff0a17502bae33b1469bea531bcd9d9114e441b04473fec2
   ✅ AA_C PNTs: 1000.0 (minted 1000.0)
 
 ━━━ Summary ━━━

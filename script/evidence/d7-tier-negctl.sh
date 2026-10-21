@@ -17,7 +17,7 @@ mkdir -p "$OUT"; : > "$OUT/results.tsv"
 git -C "$WT" diff --quiet HEAD -- abis deployments/config.anvil.json script/gasless-tests || { echo "REFUSE: $WT not clean"; exit 8; }
 { echo "commit $(git -C "$WT" rev-parse HEAD)"; echo "new setup-gasless blob $(git -C "$WT" rev-parse HEAD:script/gasless-tests/setup-gasless.js)"
   echo "old setup-gasless blob $(git -C "$WT" rev-parse $OLD_REF:script/gasless-tests/setup-gasless.js) ($OLD_REF)"
-  anvil --version | head -1; forge --version | head -1; echo "node $(node --version)"; echo "argv: d7-tier-negctl.sh <worktree> <out> $P"; } > "$OUT/env.txt"
+  anvil --version | head -1; forge --version | head -1; echo "node $(node --version)"; echo "argv: d7-tier-negctl.sh <worktree> <out> $P"; echo "runner sha256 $(shasum -a 256 "$0" | cut -d" " -f1)"; } > "$OUT/env.txt"
 FAILED=0
 run_one() {  # $1 = label (old|new); $2 = path of the setup-gasless.js to run (inside script/gasless-tests)
   local L=$1 S=$2 D="$OUT/$1"; mkdir -p "$D"
@@ -57,12 +57,22 @@ E2
   kill $AP 2>/dev/null; wait $AP 2>/dev/null
   ( cd "$WT" && git checkout -q -- abis deployments/config.anvil.json ) || { echo "restore rc=1" >> "$D/steps.txt"; FAILED=1; }
 }
-git -C "$WT" show $OLD_REF:script/gasless-tests/setup-gasless.js > "$WT/script/gasless-tests/setup-gasless.old-negctl.js"
+OLDJS="$WT/script/gasless-tests/setup-gasless.old-negctl.js"
+# Extraction must succeed and yield the real file: an empty/missing old script would "succeed" in node,
+# leave tier 1 at 100 and make the verdict pass vacuously (Codex challenge on 6645c13f).
+git -C "$WT" show $OLD_REF:script/gasless-tests/setup-gasless.js > "$OLDJS" || { echo "REFUSE: cannot extract $OLD_REF setup-gasless.js"; exit 8; }
+[ "$(git -C "$WT" rev-parse $OLD_REF:script/gasless-tests/setup-gasless.js)" = "$(git hash-object "$OLDJS")" ] || { echo "REFUSE: extracted old setup-gasless.js does not match its blob"; exit 8; }
+grep -q 'Ensure Base Credit Tier' "$OLDJS" || { echo "REFUSE: old setup-gasless.js lacks the tier step"; exit 8; }
 run_one old setup-gasless.old-negctl.js
 rm -f "$WT/script/gasless-tests/setup-gasless.old-negctl.js"
 run_one new setup-gasless.js
 # Verdict: old must leave tier1 = 100e18 (the defect), new must raise tiers 1 and 2 to 300e18 (the fix).
 OLD=$(awk -F'\t' '$1=="old"{print $2}' "$OUT/results.tsv"); NEW1=$(awk -F'\t' '$1=="new"{print $2}' "$OUT/results.tsv"); NEW2=$(awk -F'\t' '$1=="new"{print $3}' "$OUT/results.tsv")
-if [ "$OLD" = 100000000000000000000 ] && [ "$NEW1" = 300000000000000000000 ] && [ "$NEW2" = 300000000000000000000 ]; then echo "VERDICT PASS: old leaves tier1=100 (defect reproduced), new raises tiers 1,2 to 300" | tee "$OUT/verdict.txt"; else echo "VERDICT FAIL: old tier1=$OLD new tier1=$NEW1 tier2=$NEW2" | tee "$OUT/verdict.txt"; FAILED=1; fi
+# The defect must be OBSERVED, not just inferred from an unchanged tier: the old run must have swallowed
+# CreditTiersNotMonotonic (selector 0x89f9d354; the script truncates the message, so match its prefix)
+# and the new run must have swallowed nothing.
+OLD_SEL=$(grep -c 'non-fatal.*0x89f9d35' "$OUT/old/03-setup-gasless.log"); NEW_NF=$(grep -c 'non-fatal' "$OUT/new/03-setup-gasless.log")
+echo "old swallowed CreditTiersNotMonotonic lines: $OLD_SEL; new non-fatal lines: $NEW_NF" >> "$OUT/results.tsv"
+if [ "$OLD" = 100000000000000000000 ] && [ "$OLD_SEL" -ge 1 ] && [ "$NEW_NF" = 0 ] && [ "$NEW1" = 300000000000000000000 ] && [ "$NEW2" = 300000000000000000000 ]; then echo "VERDICT PASS: old leaves tier1=100 (defect reproduced), new raises tiers 1,2 to 300" | tee "$OUT/verdict.txt"; else echo "VERDICT FAIL: old tier1=$OLD new tier1=$NEW1 tier2=$NEW2" | tee "$OUT/verdict.txt"; FAILED=1; fi
 cat "$OUT/results.tsv"
 exit $FAILED
