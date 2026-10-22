@@ -1,0 +1,7 @@
+client: anvil/v1.8.6 block: 0
+create data 0x00                         min=    53006 expected=   207606 diff= -154600 MISMATCH estimateGas=53006 fail_at_min-1=intrinsic gas too high -- CallGasCostMoreThanGasLimit
+create data 0x6101006000f3               min=   104304 expected=   599432 diff= -495128 MISMATCH estimateGas=104304 fail_at_min-1=EVM error OutOfGas
+create data 0x600160005500               min=    75180 expected=   317700 diff= -242520 MISMATCH estimateGas=75180 fail_at_min-1=EVM error OutOfGas
+create data 0x6001600055600260005500     min=    77555 expected=   320075 diff= -242520 MISMATCH estimateGas=77555 fail_at_min-1=EVM error ReentrancySentryOOG
+1 wei -> 0xa3..a3                        min=    21000 expected=   204600 diff= -183600 MISMATCH estimateGas=21000 fail_at_min-1=intrinsic gas too high -- CallGasCostMoreThanGasLimit
+NOT_ALL_MATCH

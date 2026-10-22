@@ -1,0 +1,62 @@
+===== anvil --hardfork amsterdam --gas-limit 300000000
+client anvil/v1.8.7 deployer 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+MockFeed (test helper, not shipped)                        CREATE data    202 B runtime    176 B  estimate      480,211  min      480,211  used      480,211  status 1
+Registry                                                   CREATE data  23670 B runtime  23306 B  estimate   36,585,825  min   36,585,825  used   36,585,825  status 1
+ERC1967Proxy(Registry) + initialize                        CREATE data    863 B runtime    100 B  estimate    6,499,227  min    6,499,227  used    6,499,227  status 1
+xPNTsFactory                                               CREATE data  25246 B runtime   6802 B  estimate   37,068,268  min   37,068,268  used   37,068,268  status 1
+GTokenAuthorization                                        CREATE data   8332 B runtime   6113 B  estimate   10,025,642  min   10,025,642  used   10,025,642  status 1
+GTokenStaking                                              CREATE data   9616 B runtime   9061 B  estimate   14,554,739  min   14,554,739  used   14,554,739  status 1
+MySBT                                                      CREATE data  13460 B runtime  12111 B  estimate   19,727,493  min   19,727,493  used   19,727,493  status 1
+SuperPaymaster impl (ctor creates SuperPaymasterAdmin)     CREATE data  34647 B runtime  13744 B  estimate   52,399,391  min   52,399,391  used   52,389,391  status 1
+ERC1967Proxy(SuperPaymaster) + initialize                  CREATE data    895 B runtime    100 B  estimate    1,158,600  min    1,158,600  used    1,158,600  status 1
+SuperPaymasterAdmin standalone (breakdown only; inside SP impl row) CREATE data  20109 B runtime  19214 B  estimate   30,385,633  min   30,385,633  used   30,375,633  status 1
+GlobalTierSource                                           CREATE data    769 B runtime    542 B  estimate    1,048,531  min    1,048,531  used    1,048,531  status 1
+AOAProtocolRegistry                                        CREATE data   2987 B runtime   2746 B  estimate    4,569,186  min    4,569,186  used    4,569,186  status 1
+xPNTsTokenV2Ext                                            CREATE data  24175 B runtime  22005 B  estimate   34,382,101  min   34,382,101  used   34,382,101  status 1
+xPNTsTokenV2                                               CREATE data  22236 B runtime  20008 B  estimate   31,294,520  min   31,294,520  used   31,294,520  status 1
+AOAProtocolRegistry.bootstrapApprove(KIND_TIER_SOURCE, codehash) CALL   data     68 B runtime      0 B  estimate      132,330  min      132,330  used      132,330  status 1
+xPNTsFactoryV2                                             CREATE data  10884 B runtime   8537 B  estimate   15,896,089  min   15,896,089  used   15,896,089  status 1
+SuperPaymasterLens                                         CREATE data   5439 B runtime   5413 B  estimate    8,578,374  min    8,578,374  used    8,578,374  status 1
+ReputationSystem                                           CREATE data   7790 B runtime   7044 B  estimate   11,663,324  min   11,663,324  used   11,663,324  status 1
+DVTValidator                                               CREATE data   6611 B runtime   6326 B  estimate   10,214,948  min   10,214,948  used   10,214,948  status 1
+BLSAggregator                                              CREATE data  25072 B runtime  24345 B  estimate   38,963,687  min   38,963,687  used   38,963,687  status 1
+MicroPaymentChannel                                        CREATE data   6611 B runtime   6117 B  estimate    9,894,350  min    9,894,350  used    9,894,350  status 1
+PaymasterFactory                                           CREATE data   6280 B runtime   6158 B  estimate    9,953,913  min    9,953,913  used    9,953,913  status 1
+Paymaster                                                  CREATE data  10974 B runtime  10492 B  estimate   16,771,720  min   16,771,720  used   16,771,720  status 1
+X402Facilitator                                            CREATE data   4713 B runtime   4332 B  estimate    7,133,004  min    7,133,004  used    7,133,004  status 1
+TimelockController (48h, 1 proposer, 1 executor, admin 0)  CREATE data   7019 B runtime   5458 B  estimate    9,233,390  min    9,233,390  used    9,233,390  status 1
+PolicyRegistry                                             CREATE data   6883 B runtime   6349 B  estimate   10,253,490  min   10,253,490  used   10,253,490  status 1
+APNTsCapped (DeployAPNTsCapped)                            CREATE data   8003 B runtime   5346 B  estimate    9,183,153  min    9,183,153  used    9,183,153  status 1
+EIP-1167 clone of xPNTsTokenV2 (raw)                       CREATE data     55 B runtime     45 B  estimate      277,377  min      277,377  used      277,377  status 1
+EIP-1167 clone of Paymaster (raw)                          CREATE data     55 B runtime     45 B  estimate      277,377  min      277,377  used      277,377  status 1
+===== anvil --hardfork prague --gas-limit 300000000
+client anvil/v1.8.7 deployer 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+MockFeed (test helper, not shipped)                        CREATE data    202 B runtime    176 B  estimate       91,495  min       91,495  used       91,495  status 1
+Registry                                                   CREATE data  23670 B runtime  23306 B  estimate    5,166,011  min    5,166,011  used    5,166,011  status 1
+ERC1967Proxy(Registry) + initialize                        CREATE data    863 B runtime    100 B  estimate    1,374,627  min    1,374,627  used    1,373,703  status 1
+xPNTsFactory                                               CREATE data  25246 B runtime   6802 B  estimate    5,413,786  min    5,413,786  used    5,413,786  status 1
+GTokenAuthorization                                        CREATE data   8332 B runtime   6113 B  estimate    1,475,540  min    1,475,540  used    1,475,540  status 1
+GTokenStaking                                              CREATE data   9616 B runtime   9061 B  estimate    2,083,345  min    2,083,345  used    2,083,345  status 1
+MySBT                                                      CREATE data  13460 B runtime  12111 B  estimate    2,847,249  min    2,847,249  used    2,847,249  status 1
+SuperPaymaster impl (ctor creates SuperPaymasterAdmin)     CREATE data  34647 B runtime  13744 B  estimate    7,459,385  min    7,459,385  used    7,439,485  status 1
+ERC1967Proxy(SuperPaymaster) + initialize                  CREATE data    895 B runtime    100 B  estimate      254,636  min      254,636  used      254,636  status 1
+SuperPaymasterAdmin standalone (breakdown only; inside SP impl row) CREATE data  20109 B runtime  19214 B  estimate    4,331,027  min    4,331,027  used    4,311,127  status 1
+GlobalTierSource                                           CREATE data    769 B runtime    542 B  estimate      172,969  min      172,969  used      172,969  status 1
+AOAProtocolRegistry                                        CREATE data   2987 B runtime   2746 B  estimate      673,870  min      673,870  used      673,870  status 1
+xPNTsTokenV2Ext                                            CREATE data  24175 B runtime  22005 B  estimate    4,868,703  min    4,868,703  used    4,868,703  status 1
+xPNTsTokenV2                                               CREATE data  22236 B runtime  20008 B  estimate    4,437,504  min    4,437,504  used    4,437,504  status 1
+AOAProtocolRegistry.bootstrapApprove(KIND_TIER_SOURCE, codehash) CALL   data     68 B runtime      0 B  estimate       50,310  min       50,310  used       50,310  status 1
+xPNTsFactoryV2                                             CREATE data  10884 B runtime   8537 B  estimate    2,448,437  min    2,448,437  used    2,448,437  status 1
+SuperPaymasterLens                                         CREATE data   5439 B runtime   5413 B  estimate    1,223,464  min    1,223,464  used    1,223,464  status 1
+ReputationSystem                                           CREATE data   7790 B runtime   7044 B  estimate    1,699,078  min    1,699,078  used    1,699,078  status 1
+DVTValidator                                               CREATE data   6611 B runtime   6326 B  estimate    1,469,640  min    1,469,640  used    1,469,640  status 1
+BLSAggregator                                              CREATE data  25072 B runtime  24345 B  estimate    5,545,771  min    5,545,771  used    5,545,771  status 1
+MicroPaymentChannel                                        CREATE data   6611 B runtime   6117 B  estimate    1,427,048  min    1,427,048  used    1,427,048  status 1
+PaymasterFactory                                           CREATE data   6280 B runtime   6158 B  estimate    1,432,075  min    1,432,075  used    1,432,075  status 1
+Paymaster                                                  CREATE data  10974 B runtime  10492 B  estimate    2,396,832  min    2,396,832  used    2,396,832  status 1
+X402Facilitator                                            CREATE data   4713 B runtime   4332 B  estimate    1,040,088  min    1,040,088  used    1,040,088  status 1
+TimelockController (48h, 1 proposer, 1 executor, admin 0)  CREATE data   7019 B runtime   5458 B  estimate    1,378,624  min    1,378,624  used    1,378,624  status 1
+PolicyRegistry                                             CREATE data   6883 B runtime   6349 B  estimate    1,477,486  min    1,477,486  used    1,477,486  status 1
+APNTsCapped (DeployAPNTsCapped)                            CREATE data   8003 B runtime   5346 B  estimate    1,389,345  min    1,389,345  used    1,389,345  status 1
+EIP-1167 clone of xPNTsTokenV2 (raw)                       CREATE data     55 B runtime     45 B  estimate       62,915  min       62,915  used       62,915  status 1
+EIP-1167 clone of Paymaster (raw)                          CREATE data     55 B runtime     45 B  estimate       62,915  min       62,915  used       62,915  status 1
