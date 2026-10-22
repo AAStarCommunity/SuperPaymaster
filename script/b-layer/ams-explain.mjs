@@ -12,7 +12,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { encodeFunctionData, decodeFunctionResult, toHex, toFunctionSelector } from "viem";
 import { clients, rpc, EP, ANVIL_KEYS } from "./lib.mjs";
-import { ABI, GAS, buildG1Op, a0Of, FLAG_SP_RENEW } from "./g1-lib.mjs";
+import { ABI, GAS, buildG1Op, a0Of, FLAG_SP_RENEW, FLAG_ACCOUNT_RENEW } from "./g1-lib.mjs";
 import { needs, simulate } from "./ams-probe.mjs";
 
 const [setupJson, outJson, ...pmvArgs] = process.argv.slice(2);
@@ -24,7 +24,9 @@ const LOW = 100_000_000n;
 const GEN = { verificationGasLimit: 1_500_000n, callGasLimit: 500_000n, pmPostOpGasLimit: 1_500_000n, maxFeePerGas: LOW, maxPriorityFeePerGas: LOW };
 const SEL = { tryLockForGas: toFunctionSelector("tryLockForGas(address,bytes32,uint256,bool)"), tryReserveCredit: toFunctionSelector("tryReserveCredit(address,bytes32,uint256)") };
 const vpmAbi = [{ type: "function", name: "validatePaymasterUserOp", stateMutability: "nonpayable", inputs: [], outputs: [{ name: "context", type: "bytes" }, { name: "validationData", type: "uint256" }] }];
-const params = (n) => ({ sender: s.accounts[n].address, ownerKey: ANVIL_KEYS[s.ownerKeyIndex], ...(n === "b5" ? { flags: FLAG_SP_RENEW } : {}) });
+const params = (n) => ({ sender: s.accounts[n].address, ownerKey: ANVIL_KEYS[s.ownerKeyIndex], ...(n === "b5" ? { flags: FLAG_SP_RENEW } : {}),
+    // B6 is the account-renew case (g1-cases.mjs:225); the explain.json committed at 5b426dde predates this line.
+    ...(n === "b6" ? { flags: FLAG_ACCOUNT_RENEW, accountRenew: true } : {}) });
 
 function walk(f, fn, depth = 0) { fn(f, depth); for (const c of f.calls ?? []) walk(c, fn, depth + 1); }
 async function trace(name, pmV) {
