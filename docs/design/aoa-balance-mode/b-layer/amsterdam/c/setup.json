@@ -1,0 +1,155 @@
+{
+  "rpcUrl": "http://127.0.0.1:18645",
+  "deploy": {
+    "aPNTs": "0x6D544390Eb535d61e196c87d6B9c80dCD8628Acd",
+    "aoaProtocolRegistry": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
+    "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+    "gToken": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "globalTierSource": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
+    "operator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "operatorToken": "0xF1823bc4243b40423b8C8c3F6174e687a4C690b8",
+    "priceFeed": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "registry": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "sbt": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+    "spImpl": "0x9A676e781A523b5d0C0e43731313A708CB607508",
+    "staking": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+    "superPaymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+    "superPaymasterLens": "0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f",
+    "xPNTsFactory": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+    "xPNTsFactoryV2": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
+    "xPNTsTokenV2Ext": "0x59b670e9fA9D0A427751Af201D676719a970857b",
+    "xPNTsTokenV2Impl": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1"
+  },
+  "ownerKeyIndex": 3,
+  "owner": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  "factories": {
+    "ok": {
+      "address": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+      "stake": "1000000000000000000",
+      "unstakeDelaySec": 86400,
+      "staked": true
+    },
+    "unstaked": {
+      "address": "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc",
+      "stake": "0",
+      "unstakeDelaySec": 0,
+      "staked": false
+    },
+    "lowStake": {
+      "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+      "stake": "500000000000000000",
+      "unstakeDelaySec": 86400,
+      "staked": true
+    },
+    "shortDelay": {
+      "address": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+      "stake": "1000000000000000000",
+      "unstakeDelaySec": 3600,
+      "staked": true
+    }
+  },
+  "accounts": {
+    "b1": {
+      "address": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+      "salt": 1,
+      "balance": "3000000000000000000000"
+    },
+    "b2": {
+      "address": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
+      "salt": 2,
+      "balance": "1710000000000000000000"
+    },
+    "b2x": {
+      "address": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+      "salt": 12,
+      "balance": "1710000000000000000000"
+    },
+    "b3a": {
+      "address": "0x84e46CFCfFd6E7c94E0B5a031bF18f89c0Cf5263",
+      "salt": 3,
+      "balance": "3000000000000000000000"
+    },
+    "b3b": {
+      "address": "0xE81Ce1F4d7e4Cc5e49e5D841cc3918D5b0EF5bdd",
+      "salt": 4,
+      "balance": "3000000000000000000000"
+    },
+    "b3c": {
+      "address": "0xA70286C702ecb6D515a1E0B7fa38dA8571196678",
+      "salt": 5,
+      "balance": "3000000000000000000000"
+    },
+    "b5": {
+      "address": "0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1",
+      "salt": 6,
+      "balance": "3000000000000000000000"
+    },
+    "b6": {
+      "address": "0x94BAa886707af8d009dF9186b1237c2dee0B3bBD",
+      "salt": 7,
+      "balance": "3000000000000000000000"
+    },
+    "b7": {
+      "address": "0xf6a0cD9B78De9A2098bbfD607462B07dF266b938",
+      "salt": 8,
+      "balance": "0"
+    },
+    "b8": {
+      "address": "0x029A281De95403Ea1a8e6D110011cDb0f5AF3F70",
+      "salt": 9,
+      "balance": "3000000000000000000000"
+    },
+    "b9": {
+      "address": "0xf8D164499810e370928C6994A381C07dfD05d4DA",
+      "salt": 10,
+      "balance": "3000000000000000000000"
+    },
+    "b10": {
+      "address": "0x8ADDB97cB7572c7C8FA8562745bD67D5d6827D41",
+      "salt": 11,
+      "balance": "3000000000000000000000"
+    }
+  },
+  "b4": {
+    "ok": {
+      "address": "0xb89f0fa1598F4e7ea91A71966cdc211aeB389D4A",
+      "factory": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+      "salt": 100
+    },
+    "unstaked": {
+      "address": "0x7eba7E20159Fc7f0A7cD05ecE724130D799968f4",
+      "factory": "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc",
+      "salt": 100
+    },
+    "lowStake": {
+      "address": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
+      "factory": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+      "salt": 100
+    },
+    "shortDelay": {
+      "address": "0x1D9423787101Af9364C9F5bDDe092528006f4928",
+      "factory": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+      "salt": 100
+    }
+  },
+  "a0": "684000000000000000000",
+  "a0Init": "2286000000000000000000",
+  "gas": {
+    "verificationGasLimit": "150000",
+    "verificationGasLimitInit": "4600000",
+    "callGasLimit": "60000",
+    "preVerificationGas": "100000",
+    "pmVerificationGasLimit": "1150000",
+    "pmPostOpGasLimit": "440000",
+    "maxFeePerGas": "3000000000",
+    "maxPriorityFeePerGas": "2000000000"
+  },
+  "creditPolicy": 2,
+  "b7EffectiveCreditCap": "1000000000000000000000",
+  "b7TierFromRegistry": "1000000000000000000000",
+  "spStake": {
+    "stake": "100000000000000000",
+    "unstakeDelaySec": 86400,
+    "deposit": "10000000000000000000"
+  }
+}

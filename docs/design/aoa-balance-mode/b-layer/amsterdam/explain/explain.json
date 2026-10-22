@@ -1,0 +1,677 @@
+{
+  "rpcUrl": "http://127.0.0.1:18945",
+  "pmvTrace": [
+    {
+      "case": "b1",
+      "pmV": 497292,
+      "entryPoint": "FailedOp(0,AA34 signature error)",
+      "pmFrame": {
+        "gas": 497292,
+        "gasUsed": 476951,
+        "error": null,
+        "validationData": "0x1",
+        "sigFail": true
+      },
+      "tokenCalls": [
+        {
+          "fn": "tryLockForGas",
+          "gas": 425168,
+          "gasUsed": 418560,
+          "error": "execution reverted",
+          "output": null
+        },
+        {
+          "fn": "tryLockForGas",
+          "gas": 418374,
+          "gasUsed": 418374,
+          "error": "out of gas",
+          "output": null
+        }
+      ]
+    },
+    {
+      "case": "b6",
+      "pmV": 497292,
+      "entryPoint": "FailedOp(0,AA34 signature error)",
+      "pmFrame": {
+        "gas": 497292,
+        "gasUsed": 476951,
+        "error": null,
+        "validationData": "0x1",
+        "sigFail": true
+      },
+      "tokenCalls": [
+        {
+          "fn": "tryLockForGas",
+          "gas": 425168,
+          "gasUsed": 418560,
+          "error": "execution reverted",
+          "output": null
+        },
+        {
+          "fn": "tryLockForGas",
+          "gas": 418374,
+          "gasUsed": 418374,
+          "error": "out of gas",
+          "output": null
+        }
+      ]
+    }
+  ],
+  "altoStyle": [
+    {
+      "case": "b1",
+      "minPmvPaymasterDoesNotRevert": 436441,
+      "minPmvOpSucceeds": 882375,
+      "atNoRevert": {
+        "case": "b1",
+        "pmV": 436441,
+        "entryPoint": "FailedOp(0,AA34 signature error)",
+        "pmFrame": {
+          "gas": 436441,
+          "gasUsed": 418907,
+          "error": null,
+          "validationData": "0x1",
+          "sigFail": true
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 366203,
+            "gasUsed": 360516,
+            "error": "execution reverted",
+            "output": null
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 360330,
+            "gasUsed": 360330,
+            "error": "out of gas",
+            "output": null
+          }
+        ]
+      },
+      "belowNoRevert": {
+        "case": "b1",
+        "pmV": 436440,
+        "entryPoint": "FailedOp(0,AA36 over paymasterVerificationGasLimit)",
+        "pmFrame": {
+          "gas": 436440,
+          "gasUsed": 418907,
+          "error": null,
+          "validationData": "0x1",
+          "sigFail": true
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 366203,
+            "gasUsed": 360516,
+            "error": "execution reverted",
+            "output": null
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 360330,
+            "gasUsed": 360330,
+            "error": "out of gas",
+            "output": null
+          }
+        ]
+      },
+      "atSucceeds": {
+        "case": "b1",
+        "pmV": 882375,
+        "entryPoint": "ok",
+        "pmFrame": {
+          "gas": 882375,
+          "gasUsed": 864025,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 798311,
+            "gasUsed": 572095,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002ea7723c42d194000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 785686,
+            "gasUsed": 571902,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002ea7723c42d194000"
+          }
+        ]
+      },
+      "belowSucceeds": {
+        "case": "b1",
+        "pmV": 882374,
+        "entryPoint": "FailedOp(0,AA36 over paymasterVerificationGasLimit)",
+        "pmFrame": {
+          "gas": 882374,
+          "gasUsed": 864025,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 798310,
+            "gasUsed": 572095,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002ea7718da355c8000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 785685,
+            "gasUsed": 571902,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002ea7718da355c8000"
+          }
+        ]
+      }
+    },
+    {
+      "case": "b5",
+      "minPmvPaymasterDoesNotRevert": 436441,
+      "minPmvOpSucceeds": 998874,
+      "atNoRevert": {
+        "case": "b5",
+        "pmV": 436441,
+        "entryPoint": "FailedOp(0,AA34 signature error)",
+        "pmFrame": {
+          "gas": 436441,
+          "gasUsed": 418907,
+          "error": null,
+          "validationData": "0x1",
+          "sigFail": true
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 366203,
+            "gasUsed": 360516,
+            "error": "execution reverted",
+            "output": null
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 360330,
+            "gasUsed": 360330,
+            "error": "out of gas: not enough gas for reentrancy sentry",
+            "output": null
+          }
+        ]
+      },
+      "belowNoRevert": {
+        "case": "b5",
+        "pmV": 436440,
+        "entryPoint": "FailedOp(0,AA36 over paymasterVerificationGasLimit)",
+        "pmFrame": {
+          "gas": 436440,
+          "gasUsed": 418907,
+          "error": null,
+          "validationData": "0x1",
+          "sigFail": true
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 366203,
+            "gasUsed": 360516,
+            "error": "execution reverted",
+            "output": null
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 360330,
+            "gasUsed": 360330,
+            "error": "out of gas: not enough gas for reentrancy sentry",
+            "output": null
+          }
+        ]
+      },
+      "atSucceeds": {
+        "case": "b5",
+        "pmV": 998874,
+        "entryPoint": "ok",
+        "pmFrame": {
+          "gas": 998874,
+          "gasUsed": 980524,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 911197,
+            "gasUsed": 688594,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002fdddca72095b8000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 896808,
+            "gasUsed": 688401,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002fdddca72095b8000"
+          }
+        ]
+      },
+      "belowSucceeds": {
+        "case": "b5",
+        "pmV": 998873,
+        "entryPoint": "FailedOp(0,AA36 over paymasterVerificationGasLimit)",
+        "pmFrame": {
+          "gas": 998873,
+          "gasUsed": 980524,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 911196,
+            "gasUsed": 688594,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002fdddbf88119ec000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 896807,
+            "gasUsed": 688401,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002fdddbf88119ec000"
+          }
+        ]
+      }
+    },
+    {
+      "case": "b6",
+      "minPmvPaymasterDoesNotRevert": 436441,
+      "minPmvOpSucceeds": 882375,
+      "atNoRevert": {
+        "case": "b6",
+        "pmV": 436441,
+        "entryPoint": "FailedOp(0,AA34 signature error)",
+        "pmFrame": {
+          "gas": 436441,
+          "gasUsed": 418907,
+          "error": null,
+          "validationData": "0x1",
+          "sigFail": true
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 366203,
+            "gasUsed": 360516,
+            "error": "execution reverted",
+            "output": null
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 360330,
+            "gasUsed": 360330,
+            "error": "out of gas",
+            "output": null
+          }
+        ]
+      },
+      "belowNoRevert": {
+        "case": "b6",
+        "pmV": 436440,
+        "entryPoint": "FailedOp(0,AA36 over paymasterVerificationGasLimit)",
+        "pmFrame": {
+          "gas": 436440,
+          "gasUsed": 418907,
+          "error": null,
+          "validationData": "0x1",
+          "sigFail": true
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 366203,
+            "gasUsed": 360516,
+            "error": "execution reverted",
+            "output": null
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 360330,
+            "gasUsed": 360330,
+            "error": "out of gas",
+            "output": null
+          }
+        ]
+      },
+      "atSucceeds": {
+        "case": "b6",
+        "pmV": 882375,
+        "entryPoint": "ok",
+        "pmFrame": {
+          "gas": 882375,
+          "gasUsed": 864025,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 798311,
+            "gasUsed": 572095,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002ea7723c42d194000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 785686,
+            "gasUsed": 571902,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002ea7723c42d194000"
+          }
+        ]
+      },
+      "belowSucceeds": {
+        "case": "b6",
+        "pmV": 882374,
+        "entryPoint": "FailedOp(0,AA36 over paymasterVerificationGasLimit)",
+        "pmFrame": {
+          "gas": 882374,
+          "gasUsed": 864025,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 798310,
+            "gasUsed": 572095,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002ea7718da355c8000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 785685,
+            "gasUsed": 571902,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002ea7718da355c8000"
+          }
+        ]
+      }
+    },
+    {
+      "case": "b7",
+      "minPmvPaymasterDoesNotRevert": 717084,
+      "minPmvOpSucceeds": 717084,
+      "atNoRevert": {
+        "case": "b7",
+        "pmV": 717084,
+        "entryPoint": "ok",
+        "pmFrame": {
+          "gas": 717084,
+          "gasUsed": 698734,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 638144,
+            "gasUsed": 24927,
+            "error": null,
+            "output": "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 628022,
+            "gasUsed": 24734,
+            "error": null,
+            "output": "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryReserveCredit",
+            "gas": 613102,
+            "gasUsed": 381356,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryReserveCredit",
+            "gas": 603377,
+            "gasUsed": 381172,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "belowNoRevert": {
+        "case": "b7",
+        "pmV": 717083,
+        "entryPoint": "FailedOp(0,AA36 over paymasterVerificationGasLimit)",
+        "pmFrame": {
+          "gas": 717083,
+          "gasUsed": 698734,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 638143,
+            "gasUsed": 24927,
+            "error": null,
+            "output": "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 628021,
+            "gasUsed": 24734,
+            "error": null,
+            "output": "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryReserveCredit",
+            "gas": 613101,
+            "gasUsed": 381356,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryReserveCredit",
+            "gas": 603376,
+            "gasUsed": 381172,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "atSucceeds": {
+        "case": "b7",
+        "pmV": 717084,
+        "entryPoint": "ok",
+        "pmFrame": {
+          "gas": 717084,
+          "gasUsed": 698734,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 638144,
+            "gasUsed": 24927,
+            "error": null,
+            "output": "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 628022,
+            "gasUsed": 24734,
+            "error": null,
+            "output": "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryReserveCredit",
+            "gas": 613102,
+            "gasUsed": 381356,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryReserveCredit",
+            "gas": 603377,
+            "gasUsed": 381172,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "belowSucceeds": {
+        "case": "b7",
+        "pmV": 717083,
+        "entryPoint": "FailedOp(0,AA36 over paymasterVerificationGasLimit)",
+        "pmFrame": {
+          "gas": 717083,
+          "gasUsed": 698734,
+          "error": null,
+          "validationData": "0x6adcdeff0000000000000000000000000000000000000000",
+          "sigFail": false
+        },
+        "tokenCalls": [
+          {
+            "fn": "tryLockForGas",
+            "gas": 638143,
+            "gasUsed": 24927,
+            "error": null,
+            "output": "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryLockForGas",
+            "gas": 628021,
+            "gasUsed": 24734,
+            "error": null,
+            "output": "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryReserveCredit",
+            "gas": 613101,
+            "gasUsed": 381356,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "fn": "tryReserveCredit",
+            "gas": 603376,
+            "gasUsed": 381172,
+            "error": null,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      }
+    }
+  ],
+  "b7Fee": {
+    "fee": "3000000000",
+    "effectiveCreditCap": "1000000000000000000000",
+    "debt": "0",
+    "generous": {
+      "gas": {
+        "verificationGasLimit": "1500000",
+        "callGasLimit": "500000",
+        "pmVerificationGasLimit": "2000000",
+        "pmPostOpGasLimit": "1500000"
+      },
+      "maxCost": "16800000000000000",
+      "a0": "2016000000000000000000",
+      "a0ExceedsCap": true
+    },
+    "smaller": {
+      "gas": {
+        "verificationGasLimit": "300000",
+        "callGasLimit": "100000",
+        "pmVerificationGasLimit": "1000000",
+        "pmPostOpGasLimit": "500000"
+      },
+      "maxCost": "6000000000000000",
+      "a0": "720000000000000000000",
+      "a0ExceedsCap": false
+    },
+    "needsAtGenerous": {
+      "txGas": 16000000,
+      "fee": "3000000000",
+      "generous": {
+        "verificationGasLimit": "1500000",
+        "callGasLimit": "500000",
+        "pmVerificationGasLimit": "2000000",
+        "pmPostOpGasLimit": "1500000",
+        "maxFeePerGas": "3000000000",
+        "maxPriorityFeePerGas": "3000000000"
+      },
+      "generousBaseline": {
+        "ok": false,
+        "brief": "FailedOp(0,AA34 signature error)",
+        "frames": null,
+        "actualGasUsed": null,
+        "txGasUsed": 215155
+      }
+    },
+    "needsAtSmaller": {
+      "txGas": 16000000,
+      "fee": "3000000000",
+      "generous": {
+        "verificationGasLimit": "300000",
+        "callGasLimit": "100000",
+        "pmVerificationGasLimit": "1000000",
+        "pmPostOpGasLimit": "500000",
+        "maxFeePerGas": "3000000000",
+        "maxPriorityFeePerGas": "3000000000"
+      },
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 300000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 1000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14786888,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1171405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    }
+  }
+}

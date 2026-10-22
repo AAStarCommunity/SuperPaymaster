@@ -1,0 +1,4112 @@
+{
+  "kind": "alto",
+  "bundlerUrl": "http://127.0.0.1:18660",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-10-22T15:30:28.027Z",
+  "cases": {
+    "B9-below": {
+      "expected": "reject (SP stake below threshold, specific reason)",
+      "spStake": {
+        "stake": "100000000000000000",
+        "delay": 86400
+      },
+      "onchain": {
+        "tx": "0x37410fb705d9bd1e5d2589c28e32f7188a2f8dc53a481aa565e8c47b4ffe7685",
+        "txStatus": "success",
+        "txGasLimit": "1864910",
+        "txGasUsed": "1207254",
+        "success": "true",
+        "actualGasCost": "2509250848126500",
+        "actualGasUsed": "1254625",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0x6c625396f15307e7c136d5a173b19617f8d0f5fca5349790ea6ed87c998f1d0e",
+              "sender": "0xf8D164499810e370928C6994A381C07dfD05d4DA",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "0",
+              "success": "true",
+              "actualGasCost": "2509250848126500",
+              "actualGasUsed": "1254625"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x37410fb705d9bd1e5d2589c28e32f7188a2f8dc53a481aa565e8c47b4ffe7685",
+        "actualGasCost": "0x8ea267d747624",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x37410fb705d9bd1e5d2589c28e32f7188a2f8dc53a481aa565e8c47b4ffe7685"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x6c625396f15307e7c136d5a173b19617f8d0f5fca5349790ea6ed87c998f1d0e",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x6c625396f15307e7c136d5a173b19617f8d0f5fca5349790ea6ed87c998f1d0e"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x80e80"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7b"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "528000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 556742,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137851"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 112829,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864016,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14624189,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1404596,
+              "txGasUsed": 1393517
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882366,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 1393538,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x6c625396f15307e7c136d5a173b19617f8d0f5fca5349790ea6ed87c998f1d0e",
+                  "sender": "0xf8D164499810e370928C6994A381C07dfD05d4DA",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "2509250000000000",
+                  "actualGasUsed": "1254625"
+                }
+              }
+            ],
+            "frames": {
+              "validateUserOp": {
+                "gas": 150000,
+                "gasUsed": 6850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 864016,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 14624200,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 1254625,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": false,
+      "summary": "included"
+    },
+    "B9-above": {
+      "expected": "accept + include (SP stake 1 ETH / 86400)",
+      "spStake": {
+        "stake": "1000000000000000000",
+        "delay": 86400
+      },
+      "onchain": {
+        "tx": "0x67902a21f3a1aa6c43858d3fd27a98176545bcffa99dd7d0eb947847526bd08f",
+        "txStatus": "success",
+        "txGasLimit": "1864910",
+        "txGasUsed": "511826",
+        "success": "true",
+        "actualGasCost": "1725890449594345",
+        "actualGasUsed": "862945",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0x52bf53f4af9e44459fb48ccf64459f1a0f0adb72bcdd163e035dee7068de9b5c",
+              "sender": "0xf8D164499810e370928C6994A381C07dfD05d4DA",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "1",
+              "success": "true",
+              "actualGasCost": "1725890449594345",
+              "actualGasUsed": "862945"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x67902a21f3a1aa6c43858d3fd27a98176545bcffa99dd7d0eb947847526bd08f",
+        "actualGasCost": "0x621b02f2b57e9",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x67902a21f3a1aa6c43858d3fd27a98176545bcffa99dd7d0eb947847526bd08f"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x52bf53f4af9e44459fb48ccf64459f1a0f0adb72bcdd163e035dee7068de9b5c",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x52bf53f4af9e44459fb48ccf64459f1a0f0adb72bcdd163e035dee7068de9b5c"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 570256,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 15106127,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1012916,
+              "txGasUsed": 698089
+            },
+            "verificationGasLimit": 26426,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 588606,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 698110,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x52bf53f4af9e44459fb48ccf64459f1a0f0adb72bcdd163e035dee7068de9b5c",
+                  "sender": "0xf8D164499810e370928C6994A381C07dfD05d4DA",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "1",
+                  "success": "true",
+                  "actualGasCost": "1725890000000000",
+                  "actualGasUsed": "862945"
+                }
+              }
+            ],
+            "frames": {
+              "validateUserOp": {
+                "gas": 150000,
+                "gasUsed": 6850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 570256,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 15106139,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 862945,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "summary": "included"
+    },
+    "B1": {
+      "expected": "accept + include; burn>0, lockedOf==0, operator Δ == −revenue Δ",
+      "onchain": {
+        "tx": "0x55ec747a740a91ee2dfcbeec36ddb47f7f41a720ded739bf14cdc145c9ee0b3d",
+        "txStatus": "success",
+        "txGasLimit": "1864910",
+        "txGasUsed": "805574",
+        "success": "true",
+        "actualGasCost": "2313410528614185",
+        "actualGasUsed": "1156705",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0x465ea41519eed092dc4ca38bc5177a8dbfcb8c0e22a7cbfa4211c822cadd947a",
+              "sender": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "0",
+              "success": "true",
+              "actualGasCost": "2313410528614185",
+              "actualGasUsed": "1156705"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x55ec747a740a91ee2dfcbeec36ddb47f7f41a720ded739bf14cdc145c9ee0b3d",
+        "actualGasCost": "0x83808dcc71729",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x55ec747a740a91ee2dfcbeec36ddb47f7f41a720ded739bf14cdc145c9ee0b3d"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x465ea41519eed092dc4ca38bc5177a8dbfcb8c0e22a7cbfa4211c822cadd947a",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x465ea41519eed092dc4ca38bc5177a8dbfcb8c0e22a7cbfa4211c822cadd947a"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14816969,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1306676,
+              "txGasUsed": 991837
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 784446,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 991858,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x465ea41519eed092dc4ca38bc5177a8dbfcb8c0e22a7cbfa4211c822cadd947a",
+                  "sender": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "2313410000000000",
+                  "actualGasUsed": "1156705"
+                }
+              }
+            ],
+            "frames": {
+              "validateUserOp": {
+                "gas": 150000,
+                "gasUsed": 6850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 766096,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 14816980,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 1156705,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "before": {
+        "bal": "3000000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "41843556704160324340000",
+        "opBalance": "39423556704160324340000",
+        "revenue": "576443295839675660000"
+      },
+      "after": {
+        "bal": "2690235969218935140000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "41533792673379259480000",
+        "opBalance": "39113792673379259480000",
+        "revenue": "886207326620740520000"
+      },
+      "post": {
+        "burn": "309764030781064860000",
+        "operatorDelta": "-309764030781064860000",
+        "revenueDelta": "309764030781064860000",
+        "supplyDelta": "-309764030781064860000"
+      },
+      "tokenEvents": [
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockCreated",
+          "args": {
+            "user": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+            "opHash": "0x465ea41519eed092dc4ca38bc5177a8dbfcb8c0e22a7cbfa4211c822cadd947a",
+            "locker": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "xLocked": "684000000000000000000",
+            "aReserved": "684000000000000000000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "Transfer",
+          "args": {
+            "from": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+            "to": "0x0000000000000000000000000000000000000000",
+            "value": "309764030781064860000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockSettled",
+          "args": {
+            "user": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+            "opHash": "0x465ea41519eed092dc4ca38bc5177a8dbfcb8c0e22a7cbfa4211c822cadd947a",
+            "xBurned": "309764030781064860000",
+            "aCharged": "309764030781064860000"
+          }
+        },
+        {
+          "address": "0xfffffffffffffffffffffffffffffffffffffffe",
+          "event": "Transfer",
+          "args": {
+            "from": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+            "to": "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+            "value": "2313410528614185"
+          }
+        }
+      ],
+      "pass": true,
+      "summary": "included; burn=309764030781064860000 lockedOf=0 opΔ=-309764030781064860000 revΔ=309764030781064860000"
+    },
+    "B3": {
+      "expected": "3 senders, one bundle, all included; locks independent (3 distinct LockSettled, each lockedOf==0)",
+      "subs": [
+        {
+          "userOpHash": "0xad1fdabe53dd6a1650909ce2f7a60242a347f388822e7eab27fc9a1d4116c483",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0xad1fdabe53dd6a1650909ce2f7a60242a347f388822e7eab27fc9a1d4116c483"
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              }
+            },
+            "sufficiency": {},
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 766096,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14816969,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1306676,
+                "txGasUsed": 991837
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 784446,
+              "pmPostOpGasLimit": 440000
+            },
+            "submitted": {
+              "ok": true,
+              "txGasUsed": 991858,
+              "events": [
+                {
+                  "event": "UserOperationEvent",
+                  "args": {
+                    "userOpHash": "0xad1fdabe53dd6a1650909ce2f7a60242a347f388822e7eab27fc9a1d4116c483",
+                    "sender": "0x84e46CFCfFd6E7c94E0B5a031bF18f89c0Cf5263",
+                    "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                    "nonce": "0",
+                    "success": "true",
+                    "actualGasCost": "2313410000000000",
+                    "actualGasUsed": "1156705"
+                  }
+                }
+              ],
+              "frames": {
+                "validateUserOp": {
+                  "gas": 150000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 1150000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14816980,
+                  "gasUsed": 113918,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 440000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "success": true,
+              "actualGasUsed": 1156705,
+              "postOpReverted": false,
+              "execReverted": false,
+              "brief": "ok"
+            }
+          }
+        },
+        {
+          "userOpHash": "0xcb7c4361ccd01ca000faf38efb2d361f065334e8ce4ee776df7343d2a80ec6bf",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "data": {
+                "account": "0xE81Ce1F4d7e4Cc5e49e5D841cc3918D5b0EF5bdd"
+              },
+              "code": -32502
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              }
+            },
+            "sufficiency": {},
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 766096,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14816980,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1306676,
+                "txGasUsed": 991825
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 784446,
+              "pmPostOpGasLimit": 440000
+            },
+            "submitted": {
+              "ok": true,
+              "txGasUsed": 991858,
+              "events": [
+                {
+                  "event": "UserOperationEvent",
+                  "args": {
+                    "userOpHash": "0xcb7c4361ccd01ca000faf38efb2d361f065334e8ce4ee776df7343d2a80ec6bf",
+                    "sender": "0xE81Ce1F4d7e4Cc5e49e5D841cc3918D5b0EF5bdd",
+                    "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                    "nonce": "0",
+                    "success": "true",
+                    "actualGasCost": "2313410000000000",
+                    "actualGasUsed": "1156705"
+                  }
+                }
+              ],
+              "frames": {
+                "validateUserOp": {
+                  "gas": 150000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 1150000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14816980,
+                  "gasUsed": 113918,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 440000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "success": true,
+              "actualGasUsed": 1156705,
+              "postOpReverted": false,
+              "execReverted": false,
+              "brief": "ok"
+            }
+          }
+        },
+        {
+          "userOpHash": "0x7e2ce103b28b04e46f48455147bf6b755360e49c77f6427e3d35c34a64f838d0",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "data": {
+                "account": "0xA70286C702ecb6D515a1E0B7fa38dA8571196678"
+              },
+              "code": -32502
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              }
+            },
+            "sufficiency": {},
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 766096,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14816969,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1306676,
+                "txGasUsed": 991837
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 784446,
+              "pmPostOpGasLimit": 440000
+            },
+            "submitted": {
+              "ok": true,
+              "txGasUsed": 991858,
+              "events": [
+                {
+                  "event": "UserOperationEvent",
+                  "args": {
+                    "userOpHash": "0x7e2ce103b28b04e46f48455147bf6b755360e49c77f6427e3d35c34a64f838d0",
+                    "sender": "0xA70286C702ecb6D515a1E0B7fa38dA8571196678",
+                    "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                    "nonce": "0",
+                    "success": "true",
+                    "actualGasCost": "2313410000000000",
+                    "actualGasUsed": "1156705"
+                  }
+                }
+              ],
+              "frames": {
+                "validateUserOp": {
+                  "gas": 150000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 1150000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14816980,
+                  "gasUsed": 113918,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 440000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "success": true,
+              "actualGasUsed": 1156705,
+              "postOpReverted": false,
+              "execReverted": false,
+              "brief": "ok"
+            }
+          }
+        }
+      ],
+      "outs": [
+        {
+          "onchain": {
+            "tx": "0x1df720be2072692a012e0824489ffce1b0ea4c3a9967e7511bd6c66bb0c30281",
+            "txStatus": "success",
+            "txGasLimit": "1864910",
+            "txGasUsed": "805574",
+            "success": "true",
+            "actualGasCost": "2313410464995410",
+            "actualGasUsed": "1156705",
+            "postOpReverted": false,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0xad1fdabe53dd6a1650909ce2f7a60242a347f388822e7eab27fc9a1d4116c483",
+                  "sender": "0x84e46CFCfFd6E7c94E0B5a031bF18f89c0Cf5263",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "2313410464995410",
+                  "actualGasUsed": "1156705"
+                }
+              }
+            ]
+          },
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0x1df720be2072692a012e0824489ffce1b0ea4c3a9967e7511bd6c66bb0c30281",
+            "actualGasCost": "0x83808d8fc5852",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0x1df720be2072692a012e0824489ffce1b0ea4c3a9967e7511bd6c66bb0c30281"
+            }
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+            "data": {
+              "account": "0xE81Ce1F4d7e4Cc5e49e5D841cc3918D5b0EF5bdd"
+            },
+            "code": -32502
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+            "data": {
+              "account": "0xA70286C702ecb6D515a1E0B7fa38dA8571196678"
+            },
+            "code": -32502
+          }
+        }
+      ],
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "txs": [
+        "0x1df720be2072692a012e0824489ffce1b0ea4c3a9967e7511bd6c66bb0c30281"
+      ],
+      "before": {
+        "b3a": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "41533792673379259480000",
+          "opBalance": "39113792673379259480000",
+          "revenue": "886207326620740520000"
+        },
+        "b3b": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "41533792673379259480000",
+          "opBalance": "39113792673379259480000",
+          "revenue": "886207326620740520000"
+        },
+        "b3c": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "41533792673379259480000",
+          "opBalance": "39113792673379259480000",
+          "revenue": "886207326620740520000"
+        }
+      },
+      "after": {
+        "b3a": {
+          "bal": "2690235977737444040000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "41224028651116703520000",
+          "opBalance": "38804028651116703520000",
+          "revenue": "1195971348883296480000"
+        },
+        "b3b": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "41224028651116703520000",
+          "opBalance": "38804028651116703520000",
+          "revenue": "1195971348883296480000"
+        },
+        "b3c": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "41224028651116703520000",
+          "opBalance": "38804028651116703520000",
+          "revenue": "1195971348883296480000"
+        }
+      },
+      "tokenEvents": [
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockCreated",
+          "args": {
+            "user": "0x84e46CFCfFd6E7c94E0B5a031bF18f89c0Cf5263",
+            "opHash": "0xad1fdabe53dd6a1650909ce2f7a60242a347f388822e7eab27fc9a1d4116c483",
+            "locker": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "xLocked": "684000000000000000000",
+            "aReserved": "684000000000000000000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "Transfer",
+          "args": {
+            "from": "0x84e46CFCfFd6E7c94E0B5a031bF18f89c0Cf5263",
+            "to": "0x0000000000000000000000000000000000000000",
+            "value": "309764022262555960000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockSettled",
+          "args": {
+            "user": "0x84e46CFCfFd6E7c94E0B5a031bF18f89c0Cf5263",
+            "opHash": "0xad1fdabe53dd6a1650909ce2f7a60242a347f388822e7eab27fc9a1d4116c483",
+            "xBurned": "309764022262555960000",
+            "aCharged": "309764022262555960000"
+          }
+        },
+        {
+          "address": "0xfffffffffffffffffffffffffffffffffffffffe",
+          "event": "Transfer",
+          "args": {
+            "from": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+            "to": "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+            "value": "2313410464995410"
+          }
+        }
+      ],
+      "pass": false,
+      "summary": "included,reject,reject in 1 tx; LockSettled users=1"
+    },
+    "B5": {
+      "expected": "accept + include; AllowanceRenewed(user, SP, spRelayed=true)",
+      "onchain": {
+        "tx": "0xf6e1b75933cee28d305bbf2100f49a41400061499c2701cbf9ffba0ddb767a33",
+        "txStatus": "success",
+        "txGasLimit": "1864910",
+        "txGasUsed": "922085",
+        "success": "true",
+        "actualGasCost": "2546408450714216",
+        "actualGasUsed": "1273204",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0x858b953942a86c4c123fe93532a349e64cfb029faae42c5264c240861b914756",
+              "sender": "0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "0",
+              "success": "true",
+              "actualGasCost": "2546408450714216",
+              "actualGasUsed": "1273204"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xf6e1b75933cee28d305bbf2100f49a41400061499c2701cbf9ffba0ddb767a33",
+        "actualGasCost": "0x90bf1eb286a68",
+        "logs": 6
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xf6e1b75933cee28d305bbf2100f49a41400061499c2701cbf9ffba0ddb767a33"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x858b953942a86c4c123fe93532a349e64cfb029faae42c5264c240861b914756",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x858b953942a86c4c123fe93532a349e64cfb029faae42c5264c240861b914756"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 882595,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14702278,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1423175,
+              "txGasUsed": 1108348
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 900945,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 1108369,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x858b953942a86c4c123fe93532a349e64cfb029faae42c5264c240861b914756",
+                  "sender": "0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "2546408000000000",
+                  "actualGasUsed": "1273204"
+                }
+              }
+            ],
+            "frames": {
+              "validateUserOp": {
+                "gas": 150000,
+                "gasUsed": 6850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 882595,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 14702290,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 1273204,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "tokenEvents": [
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "AllowanceRenewed",
+          "args": {
+            "user": "0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1",
+            "spender": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "bySP": "true"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockCreated",
+          "args": {
+            "user": "0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1",
+            "opHash": "0x858b953942a86c4c123fe93532a349e64cfb029faae42c5264c240861b914756",
+            "locker": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "xLocked": "684000000000000000000",
+            "aReserved": "684000000000000000000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "Transfer",
+          "args": {
+            "from": "0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1",
+            "to": "0x0000000000000000000000000000000000000000",
+            "value": "335393799364691980000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "LockSettled",
+          "args": {
+            "user": "0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1",
+            "opHash": "0x858b953942a86c4c123fe93532a349e64cfb029faae42c5264c240861b914756",
+            "xBurned": "335393799364691980000",
+            "aCharged": "335393799364691980000"
+          }
+        },
+        {
+          "address": "0xfffffffffffffffffffffffffffffffffffffffe",
+          "event": "Transfer",
+          "args": {
+            "from": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+            "to": "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+            "value": "2546408450714216"
+          }
+        }
+      ],
+      "pass": true,
+      "summary": "included; renewedEvent={\"user\":\"0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1\",\"spender\":\"0x0B306BF915C4d645ff596e518fAf3F9669b97016\",\"bySP\":\"true\"}"
+    },
+    "B6": {
+      "expected": "accept + include; AllowanceRenewed(user, SP, spRelayed=false) from the account frame",
+      "onchain": null,
+      "verdict": "accepted-not-included",
+      "receipt": null,
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "rejected",
+          "transactionHash": null
+        }
+      },
+      "sent": {
+        "userOpHash": "0xac6039e2ccb6fa9fb3a901f0d68e209a40ce33f5980dd9fc9e9f08c3dc1d3c85",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0xac6039e2ccb6fa9fb3a901f0d68e209a40ce33f5980dd9fc9e9f08c3dc1d3c85"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 33343,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 754296,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14802493,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1321369,
+              "txGasUsed": 1006542
+            },
+            "verificationGasLimit": 150839,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 772646,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 88038,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA26 over verificationGasLimit"
+              ]
+            },
+            "brief": "FailedOp(0,AA26 over verificationGasLimit)"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "message": "no tx hash"
+        }
+      },
+      "tokenEvents": [],
+      "pass": false,
+      "summary": "accepted-not-included; renewedEvent=null"
+    },
+    "B7": {
+      "expected": "accept + include; CREDIT path (CreditReserved → CreditSettled), debts>0, creditReservedOf==0",
+      "onchain": {
+        "tx": "0xa5684f4c1aca9d536a7aa76dbf16b794a215747322174c81e33c4a2d9f8a4ad8",
+        "txStatus": "success",
+        "txGasLimit": "1864910",
+        "txGasUsed": "720373",
+        "success": "true",
+        "actualGasCost": "1950756304317936",
+        "actualGasUsed": "975378",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0x8492535a85ef1d060e09137bb857b04abdfe9a82752ac986f21e593ef17890f4",
+              "sender": "0xf6a0cD9B78De9A2098bbfD607462B07dF266b938",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "0",
+              "success": "true",
+              "actualGasCost": "1950756304317936",
+              "actualGasUsed": "975378"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xa5684f4c1aca9d536a7aa76dbf16b794a215747322174c81e33c4a2d9f8a4ad8",
+        "actualGasCost": "0x6ee33d88fedf0",
+        "logs": 4
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xa5684f4c1aca9d536a7aa76dbf16b794a215747322174c81e33c4a2d9f8a4ad8"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x8492535a85ef1d060e09137bb857b04abdfe9a82752ac986f21e593ef17890f4",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x8492535a85ef1d060e09137bb857b04abdfe9a82752ac986f21e593ef17890f4"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 600805,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14979677,
+                  "gasUsed": 96067,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 84856,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1125348,
+              "txGasUsed": 906648
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 619155,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 906657,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x8492535a85ef1d060e09137bb857b04abdfe9a82752ac986f21e593ef17890f4",
+                  "sender": "0xf6a0cD9B78De9A2098bbfD607462B07dF266b938",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "1950756000000000",
+                  "actualGasUsed": "975378"
+                }
+              }
+            ],
+            "frames": {
+              "validateUserOp": {
+                "gas": 150000,
+                "gasUsed": 6850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 600805,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 14979700,
+                "gasUsed": 96100,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 84856,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 975378,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "before": {
+        "bal": "0",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40888634851752011540000",
+        "opBalance": "38468634851752011540000",
+        "revenue": "1531365148247988460000"
+      },
+      "after": {
+        "bal": "0",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "273399982650390640000",
+        "supply": "40888634851752011540000",
+        "opBalance": "38195234869101620900000",
+        "revenue": "1804765130898379100000"
+      },
+      "tokenEvents": [
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "CreditReserved",
+          "args": {
+            "user": "0xf6a0cD9B78De9A2098bbfD607462B07dF266b938",
+            "opHash": "0x8492535a85ef1d060e09137bb857b04abdfe9a82752ac986f21e593ef17890f4",
+            "locker": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "amount": "684000000000000000000"
+          }
+        },
+        {
+          "address": "0xf1823bc4243b40423b8c8c3f6174e687a4c690b8",
+          "event": "CreditSettled",
+          "args": {
+            "user": "0xf6a0cD9B78De9A2098bbfD607462B07dF266b938",
+            "opHash": "0x8492535a85ef1d060e09137bb857b04abdfe9a82752ac986f21e593ef17890f4",
+            "debtAdded": "273399982650390640000"
+          }
+        },
+        {
+          "address": "0xfffffffffffffffffffffffffffffffffffffffe",
+          "event": "Transfer",
+          "args": {
+            "from": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+            "to": "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+            "value": "1950756304317936"
+          }
+        }
+      ],
+      "pass": true,
+      "summary": "included; debts 0→273399982650390640000; reserved=0"
+    },
+    "B8": {
+      "expected": "accept + include with SP staked (TSTORE of token live marker + SP in-flight marker in validation; OP-070 → storage rules)",
+      "onchain": {
+        "tx": "0x3a337c6286d0ec0a0685112ebd0c7082f1a72720619f279aa2395fce07a38279",
+        "txStatus": "success",
+        "txGasLimit": "1864910",
+        "txGasUsed": "805562",
+        "success": "true",
+        "actualGasCost": "2313410316937170",
+        "actualGasUsed": "1156705",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0x9b120e352d4d401ff769a52a0568ac50d931a5a6055860262b0f53051c657701",
+              "sender": "0x029A281De95403Ea1a8e6D110011cDb0f5AF3F70",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "0",
+              "success": "true",
+              "actualGasCost": "2313410316937170",
+              "actualGasUsed": "1156705"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x3a337c6286d0ec0a0685112ebd0c7082f1a72720619f279aa2395fce07a38279",
+        "actualGasCost": "0x83808d02927d2",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x3a337c6286d0ec0a0685112ebd0c7082f1a72720619f279aa2395fce07a38279"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x9b120e352d4d401ff769a52a0568ac50d931a5a6055860262b0f53051c657701",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x9b120e352d4d401ff769a52a0568ac50d931a5a6055860262b0f53051c657701"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14817004,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1306676,
+              "txGasUsed": 991801
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 784446,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 991846,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x9b120e352d4d401ff769a52a0568ac50d931a5a6055860262b0f53051c657701",
+                  "sender": "0x029A281De95403Ea1a8e6D110011cDb0f5AF3F70",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "2313410000000000",
+                  "actualGasUsed": "1156705"
+                }
+              }
+            ],
+            "frames": {
+              "validateUserOp": {
+                "gas": 150000,
+                "gasUsed": 6850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 766096,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 14816992,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 1156705,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "summary": "included"
+    },
+    "B4-unstaked": {
+      "expected": "reject with factory stake reason",
+      "factory": {
+        "address": "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc",
+        "stake": "0",
+        "unstakeDelaySec": 0,
+        "staked": false
+      },
+      "verdict": "reject",
+      "error": {
+        "message": "unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+        "data": {
+          "factory": "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc"
+        },
+        "code": -32502
+      },
+      "sent": {
+        "userOpHash": "0xcb9c14fe7254e6226bdfff6da7a9efa13dccd5415ce860833077134cb3be8352",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+            "data": {
+              "factory": "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc"
+            },
+            "code": -32502
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "createSender": {
+                  "gas": 4000000,
+                  "gasUsed": 3854479,
+                  "error": null
+                },
+                "validateUserOp": {
+                  "gas": 4000000,
+                  "gasUsed": 4850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 766127,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 11016929,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 5165390,
+              "txGasUsed": 4852195
+            },
+            "verificationGasLimit": 3983015,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 784491,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 4852228,
+            "events": [
+              {
+                "event": "AccountDeployed",
+                "args": {
+                  "userOpHash": "0xcb9c14fe7254e6226bdfff6da7a9efa13dccd5415ce860833077134cb3be8352",
+                  "sender": "0x7eba7E20159Fc7f0A7cD05ecE724130D799968f4",
+                  "factory": "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+                }
+              },
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0xcb9c14fe7254e6226bdfff6da7a9efa13dccd5415ce860833077134cb3be8352",
+                  "sender": "0x7eba7E20159Fc7f0A7cD05ecE724130D799968f4",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "10030838000000000",
+                  "actualGasUsed": "5015419"
+                }
+              }
+            ],
+            "frames": {
+              "createSender": {
+                "gas": 4600000,
+                "gasUsed": 3854479,
+                "error": null
+              },
+              "validateUserOp": {
+                "gas": 4600000,
+                "gasUsed": 4850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 766127,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 11016929,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 5015419,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": null,
+      "pass": true,
+      "summary": "reject [-32502] unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "B4-lowStake": {
+      "expected": "reject with factory stake reason",
+      "factory": {
+        "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+        "stake": "500000000000000000",
+        "unstakeDelaySec": 86400,
+        "staked": true
+      },
+      "onchain": {
+        "tx": "0x3145aabb429b2f3fa8ebd1a86b50e59c716ca6f62d0d0ade0541562040091528",
+        "txStatus": "success",
+        "txGasLimit": "6319009",
+        "txGasUsed": "4665956",
+        "success": "true",
+        "actualGasCost": "10030839208715979",
+        "actualGasUsed": "5015419",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "AccountDeployed",
+            "args": {
+              "userOpHash": "0x5c3975f0aa46cdc53a44c77d55001d6daf0cbcc1031f381f1caacf90a6966c8d",
+              "sender": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
+              "factory": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+            }
+          },
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0x5c3975f0aa46cdc53a44c77d55001d6daf0cbcc1031f381f1caacf90a6966c8d",
+              "sender": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "0",
+              "success": "true",
+              "actualGasCost": "10030839208715979",
+              "actualGasUsed": "5015419"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0x3145aabb429b2f3fa8ebd1a86b50e59c716ca6f62d0d0ade0541562040091528",
+        "actualGasCost": "0x23a2febfd5a6cb",
+        "logs": 6
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0x3145aabb429b2f3fa8ebd1a86b50e59c716ca6f62d0d0ade0541562040091528"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x5c3975f0aa46cdc53a44c77d55001d6daf0cbcc1031f381f1caacf90a6966c8d",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x5c3975f0aa46cdc53a44c77d55001d6daf0cbcc1031f381f1caacf90a6966c8d"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "createSender": {
+                  "gas": 4000000,
+                  "gasUsed": 3854479,
+                  "error": null
+                },
+                "validateUserOp": {
+                  "gas": 4000000,
+                  "gasUsed": 4850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 766127,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 11016917,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 5165390,
+              "txGasUsed": 4852207
+            },
+            "verificationGasLimit": 3983015,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 784491,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 4852240,
+            "events": [
+              {
+                "event": "AccountDeployed",
+                "args": {
+                  "userOpHash": "0x5c3975f0aa46cdc53a44c77d55001d6daf0cbcc1031f381f1caacf90a6966c8d",
+                  "sender": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
+                  "factory": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+                }
+              },
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x5c3975f0aa46cdc53a44c77d55001d6daf0cbcc1031f381f1caacf90a6966c8d",
+                  "sender": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "10030838000000000",
+                  "actualGasUsed": "5015419"
+                }
+              }
+            ],
+            "frames": {
+              "createSender": {
+                "gas": 4600000,
+                "gasUsed": 3854479,
+                "error": null
+              },
+              "validateUserOp": {
+                "gas": 4600000,
+                "gasUsed": 4850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 766127,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 11016917,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 5015419,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": false,
+      "summary": "included"
+    },
+    "B4-shortDelay": {
+      "expected": "Rundler (min delay 86400): reject; Alto: per configured --min-entity-unstake-delay",
+      "factory": {
+        "address": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+        "stake": "1000000000000000000",
+        "unstakeDelaySec": 3600,
+        "staked": true
+      },
+      "onchain": {
+        "tx": "0xebcebb6b88d5811f7fb0ef500756d2d14e6c9cd2df0c174a1fed46e9c278d2e7",
+        "txStatus": "success",
+        "txGasLimit": "6319009",
+        "txGasUsed": "4665944",
+        "success": "true",
+        "actualGasCost": "10030839083330504",
+        "actualGasUsed": "5015419",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "AccountDeployed",
+            "args": {
+              "userOpHash": "0x6b6d806c9f369fa6c1eb76b451611848fca73fc7e69ccdf3a3f90f9180f80192",
+              "sender": "0x1D9423787101Af9364C9F5bDDe092528006f4928",
+              "factory": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+            }
+          },
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0x6b6d806c9f369fa6c1eb76b451611848fca73fc7e69ccdf3a3f90f9180f80192",
+              "sender": "0x1D9423787101Af9364C9F5bDDe092528006f4928",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "0",
+              "success": "true",
+              "actualGasCost": "10030839083330504",
+              "actualGasUsed": "5015419"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xebcebb6b88d5811f7fb0ef500756d2d14e6c9cd2df0c174a1fed46e9c278d2e7",
+        "actualGasCost": "0x23a2feb85c6bc8",
+        "logs": 6
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xebcebb6b88d5811f7fb0ef500756d2d14e6c9cd2df0c174a1fed46e9c278d2e7"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x6b6d806c9f369fa6c1eb76b451611848fca73fc7e69ccdf3a3f90f9180f80192",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x6b6d806c9f369fa6c1eb76b451611848fca73fc7e69ccdf3a3f90f9180f80192"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "createSender": {
+                  "gas": 4000000,
+                  "gasUsed": 3854479,
+                  "error": null
+                },
+                "validateUserOp": {
+                  "gas": 4000000,
+                  "gasUsed": 4850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 766127,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 11016929,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 5165390,
+              "txGasUsed": 4852195
+            },
+            "verificationGasLimit": 3983015,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 784491,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 4852228,
+            "events": [
+              {
+                "event": "AccountDeployed",
+                "args": {
+                  "userOpHash": "0x6b6d806c9f369fa6c1eb76b451611848fca73fc7e69ccdf3a3f90f9180f80192",
+                  "sender": "0x1D9423787101Af9364C9F5bDDe092528006f4928",
+                  "factory": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+                }
+              },
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x6b6d806c9f369fa6c1eb76b451611848fca73fc7e69ccdf3a3f90f9180f80192",
+                  "sender": "0x1D9423787101Af9364C9F5bDDe092528006f4928",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "10030838000000000",
+                  "actualGasUsed": "5015419"
+                }
+              }
+            ],
+            "frames": {
+              "createSender": {
+                "gas": 4600000,
+                "gasUsed": 3854479,
+                "error": null
+              },
+              "validateUserOp": {
+                "gas": 4600000,
+                "gasUsed": 4850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 766127,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 11016929,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 5015419,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "summary": "included"
+    },
+    "B4-ok": {
+      "expected": "accept + include",
+      "factory": {
+        "address": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+        "stake": "1000000000000000000",
+        "unstakeDelaySec": 86400,
+        "staked": true
+      },
+      "onchain": {
+        "tx": "0xe0ef9b0c7748bf0462afbd33d34f44512f3e6d5cefcbe0152a309f71d1a94b82",
+        "txStatus": "success",
+        "txGasLimit": "6319009",
+        "txGasUsed": "4568036",
+        "success": "true",
+        "actualGasCost": "9834998953994806",
+        "actualGasUsed": "4917499",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "AccountDeployed",
+            "args": {
+              "userOpHash": "0xae7336582767a88385f1a4aab48361bfcbe54c5f98e7e60b8d16c4425544bb0d",
+              "sender": "0xb89f0fa1598F4e7ea91A71966cdc211aeB389D4A",
+              "factory": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+            }
+          },
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0xae7336582767a88385f1a4aab48361bfcbe54c5f98e7e60b8d16c4425544bb0d",
+              "sender": "0xb89f0fa1598F4e7ea91A71966cdc211aeB389D4A",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "0",
+              "success": "true",
+              "actualGasCost": "9834998953994806",
+              "actualGasUsed": "4917499"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xe0ef9b0c7748bf0462afbd33d34f44512f3e6d5cefcbe0152a309f71d1a94b82",
+        "actualGasCost": "0x22f0e12304ea36",
+        "logs": 6
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xe0ef9b0c7748bf0462afbd33d34f44512f3e6d5cefcbe0152a309f71d1a94b82"
+        }
+      },
+      "sent": {
+        "userOpHash": "0xae7336582767a88385f1a4aab48361bfcbe54c5f98e7e60b8d16c4425544bb0d",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0xae7336582767a88385f1a4aab48361bfcbe54c5f98e7e60b8d16c4425544bb0d"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "createSender": {
+                  "gas": 4000000,
+                  "gasUsed": 3756559,
+                  "error": null
+                },
+                "validateUserOp": {
+                  "gas": 4000000,
+                  "gasUsed": 4850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 766127,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 11113307,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 5067470,
+              "txGasUsed": 4754287
+            },
+            "verificationGasLimit": 3885095,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 784491,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 4754320,
+            "events": [
+              {
+                "event": "AccountDeployed",
+                "args": {
+                  "userOpHash": "0xae7336582767a88385f1a4aab48361bfcbe54c5f98e7e60b8d16c4425544bb0d",
+                  "sender": "0xb89f0fa1598F4e7ea91A71966cdc211aeB389D4A",
+                  "factory": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+                }
+              },
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0xae7336582767a88385f1a4aab48361bfcbe54c5f98e7e60b8d16c4425544bb0d",
+                  "sender": "0xb89f0fa1598F4e7ea91A71966cdc211aeB389D4A",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "9834998000000000",
+                  "actualGasUsed": "4917499"
+                }
+              }
+            ],
+            "frames": {
+              "createSender": {
+                "gas": 4600000,
+                "gasUsed": 3756559,
+                "error": null
+              },
+              "validateUserOp": {
+                "gas": 4600000,
+                "gasUsed": 4850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 766127,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 11113307,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 4917499,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "summary": "included"
+    },
+    "B10": {
+      "expected": "estimation succeeds and estimated paymasterPostOpGasLimit ≥ 200000",
+      "est": {
+        "suppliedPostOpMin": {
+          "request": {
+            "sender": "0x8ADDB97cB7572c7C8FA8562745bD67D5d6827D41",
+            "nonce": "0x0",
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "signature": "0xfbdf30a2de607f9d876247db232be10e441025a0bc64ead382d53b71aadc0abd368c7783436c537cf3fb3c44227b9206e0c7a4f99ecffd489effb7f060cc20881c",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x118c30",
+            "paymasterPostOpGasLimit": "0x6b6c0",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800"
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+            }
+          },
+          "paymasterPostOpGasLimit": null,
+          "postOpGeMin": null
+        },
+        "omittedPmGas": {
+          "request": {
+            "sender": "0x8ADDB97cB7572c7C8FA8562745bD67D5d6827D41",
+            "nonce": "0x0",
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "signature": "0xfbdf30a2de607f9d876247db232be10e441025a0bc64ead382d53b71aadc0abd368c7783436c537cf3fb3c44227b9206e0c7a4f99ecffd489effb7f060cc20881c",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800"
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+            }
+          },
+          "paymasterPostOpGasLimit": null,
+          "postOpGeMin": null
+        },
+        "omittedPostOpOnly": {
+          "request": {
+            "sender": "0x8ADDB97cB7572c7C8FA8562745bD67D5d6827D41",
+            "nonce": "0x0",
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "signature": "0xfbdf30a2de607f9d876247db232be10e441025a0bc64ead382d53b71aadc0abd368c7783436c537cf3fb3c44227b9206e0c7a4f99ecffd489effb7f060cc20881c",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x118c30",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800"
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+            }
+          },
+          "paymasterPostOpGasLimit": null,
+          "postOpGeMin": null
+        }
+      },
+      "pass": false,
+      "summary": "suppliedPostOpMin: ERR [undefined] Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3 | omittedPmGas: ERR [undefined] Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3 | omittedPostOpOnly: ERR [undefined] Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+    },
+    "B2a": {
+      "expected": "same sender, 2 ops (nonce keys 0,1) that fit: accepted, ONE bundle, both included",
+      "userBalance": "1710000000000000000000",
+      "a0": "684000000000000000000",
+      "u": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
+      "before": {
+        "bal": "1710000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "37124369754253283300000",
+        "opBalance": "34430969771602892660000",
+        "revenue": "5569030228397107340000"
+      },
+      "after": {
+        "bal": "1133556832649579740000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "36547926586902863040000",
+        "opBalance": "33854526604252472400000",
+        "revenue": "6145473395747527600000"
+      },
+      "handleOpsAll": {
+        "reverted": false
+      },
+      "subs": [
+        {
+          "userOpHash": "0x9e198b94e1f5cbe5c76ea5f05bdd7a8641f453efd12a95d74cfbfbd823a8a2f1",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x9e198b94e1f5cbe5c76ea5f05bdd7a8641f453efd12a95d74cfbfbd823a8a2f1"
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              }
+            },
+            "sufficiency": {},
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 766096,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14816992,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1306676,
+                "txGasUsed": 991813
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 784446,
+              "pmPostOpGasLimit": 440000
+            },
+            "submitted": {
+              "ok": true,
+              "txGasUsed": 991846,
+              "events": [
+                {
+                  "event": "UserOperationEvent",
+                  "args": {
+                    "userOpHash": "0x9e198b94e1f5cbe5c76ea5f05bdd7a8641f453efd12a95d74cfbfbd823a8a2f1",
+                    "sender": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
+                    "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                    "nonce": "0",
+                    "success": "true",
+                    "actualGasCost": "2313410000000000",
+                    "actualGasUsed": "1156705"
+                  }
+                }
+              ],
+              "frames": {
+                "validateUserOp": {
+                  "gas": 150000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 1150000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14816992,
+                  "gasUsed": 113918,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 440000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "success": true,
+              "actualGasUsed": 1156705,
+              "postOpReverted": false,
+              "execReverted": false,
+              "brief": "ok"
+            }
+          }
+        },
+        {
+          "userOpHash": "0x12c6c8f4e3e645080594f617cc82601951d1cb1c01268e104edf03977005f97b",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x12c6c8f4e3e645080594f617cc82601951d1cb1c01268e104edf03977005f97b"
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              }
+            },
+            "sufficiency": {},
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 766096,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14816957,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1306676,
+                "txGasUsed": 991849
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 784446,
+              "pmPostOpGasLimit": 440000
+            },
+            "submitted": {
+              "ok": true,
+              "txGasUsed": 991870,
+              "events": [
+                {
+                  "event": "UserOperationEvent",
+                  "args": {
+                    "userOpHash": "0x12c6c8f4e3e645080594f617cc82601951d1cb1c01268e104edf03977005f97b",
+                    "sender": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
+                    "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                    "nonce": "18446744073709551616",
+                    "success": "true",
+                    "actualGasCost": "2313410000000000",
+                    "actualGasUsed": "1156705"
+                  }
+                }
+              ],
+              "frames": {
+                "validateUserOp": {
+                  "gas": 150000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 1150000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14816969,
+                  "gasUsed": 113918,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 440000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "success": true,
+              "actualGasUsed": 1156705,
+              "postOpReverted": false,
+              "execReverted": false,
+              "brief": "ok"
+            }
+          }
+        }
+      ],
+      "mempool": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": [
+          {
+            "sender": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
+            "nonce": "0x0",
+            "factory": null,
+            "factoryData": null,
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "callGasLimit": "0xea60",
+            "verificationGasLimit": "0x249f0",
+            "preVerificationGas": "0x186a0",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x118c30",
+            "paymasterPostOpGasLimit": "0x6b6c0",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800",
+            "signature": "0x5779c749a4cb761bc815008797161da0604b43f54980755e1a705971c74d080651c59c319bae2bd1e265c3cf4af90516137612919c46983eef2a213e4dbbf4871b"
+          },
+          {
+            "sender": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
+            "nonce": "0x10000000000000000",
+            "factory": null,
+            "factoryData": null,
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "callGasLimit": "0xea60",
+            "verificationGasLimit": "0x249f0",
+            "preVerificationGas": "0x186a0",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x118c30",
+            "paymasterPostOpGasLimit": "0x6b6c0",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800",
+            "signature": "0xa90a91a55cb25f53fe78a006ba264aad108a890d8c63b4dbd8cd3e2f38ffac795c170faec09f9458802504645414d8a93963d733016efa3fc49b9994029bae231b"
+          }
+        ]
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "bundle2": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "outs": [
+        {
+          "onchain": {
+            "tx": "0xe2c77fe9da24f3906122df8900ca53f6e6d3671aa8b67f000b4334dd5d0d2705",
+            "txStatus": "success",
+            "txGasLimit": "1864910",
+            "txGasUsed": "805562",
+            "success": "true",
+            "actualGasCost": "2313410201266670",
+            "actualGasUsed": "1156705",
+            "postOpReverted": false,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x9e198b94e1f5cbe5c76ea5f05bdd7a8641f453efd12a95d74cfbfbd823a8a2f1",
+                  "sender": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "2313410201266670",
+                  "actualGasUsed": "1156705"
+                }
+              }
+            ]
+          },
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0xe2c77fe9da24f3906122df8900ca53f6e6d3671aa8b67f000b4334dd5d0d2705",
+            "actualGasCost": "0x83808c94429ee",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0xe2c77fe9da24f3906122df8900ca53f6e6d3671aa8b67f000b4334dd5d0d2705"
+            }
+          }
+        },
+        {
+          "onchain": {
+            "tx": "0x9fedbf0d022633ec4a6333c61aaf413dcbd30baae729c97ff725e8d12e904115",
+            "txStatus": "success",
+            "txGasLimit": "1864910",
+            "txGasUsed": "609746",
+            "success": "true",
+            "actualGasCost": "1921730147012345",
+            "actualGasUsed": "960865",
+            "postOpReverted": false,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x12c6c8f4e3e645080594f617cc82601951d1cb1c01268e104edf03977005f97b",
+                  "sender": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "18446744073709551616",
+                  "success": "true",
+                  "actualGasCost": "1921730147012345",
+                  "actualGasUsed": "960865"
+                }
+              }
+            ]
+          },
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0x9fedbf0d022633ec4a6333c61aaf413dcbd30baae729c97ff725e8d12e904115",
+            "actualGasCost": "0x6d3cdaac44ef9",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0x9fedbf0d022633ec4a6333c61aaf413dcbd30baae729c97ff725e8d12e904115"
+            }
+          }
+        }
+      ],
+      "included": 2,
+      "txs": [
+        "0xe2c77fe9da24f3906122df8900ca53f6e6d3671aa8b67f000b4334dd5d0d2705",
+        "0x9fedbf0d022633ec4a6333c61aaf413dcbd30baae729c97ff725e8d12e904115"
+      ],
+      "pass": false,
+      "summary": "included=2 in 2 tx; lockedOf=0"
+    },
+    "B2b": {
+      "expected": "same sender, 3 ops, balance 2.5·x0: op 3 rejected (the EntryPoint says FailedOp(2, AA34)); ops 1–2 included",
+      "userBalance": "1710000000000000000000",
+      "a0": "684000000000000000000",
+      "u": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+      "before": {
+        "bal": "1710000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "36547926586902863040000",
+        "opBalance": "33854526604252472400000",
+        "revenue": "6145473395747527600000"
+      },
+      "after": {
+        "bal": "1133556843223522680000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "35971483430126385720000",
+        "opBalance": "33278083447475995080000",
+        "revenue": "6721916552524004920000"
+      },
+      "handleOpsAll": {
+        "reverted": true,
+        "error": {
+          "name": "FailedOp",
+          "args": [
+            "2",
+            "AA34 signature error"
+          ]
+        }
+      },
+      "subs": [
+        {
+          "userOpHash": "0xdfb8853239779a48c72ea11d730344dd0799e306761c2742e1baaab68fd7d785",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0xdfb8853239779a48c72ea11d730344dd0799e306761c2742e1baaab68fd7d785"
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              }
+            },
+            "sufficiency": {},
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 766096,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14816969,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1306676,
+                "txGasUsed": 991837
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 784446,
+              "pmPostOpGasLimit": 440000
+            },
+            "submitted": {
+              "ok": true,
+              "txGasUsed": 991834,
+              "events": [
+                {
+                  "event": "UserOperationEvent",
+                  "args": {
+                    "userOpHash": "0xdfb8853239779a48c72ea11d730344dd0799e306761c2742e1baaab68fd7d785",
+                    "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+                    "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                    "nonce": "0",
+                    "success": "true",
+                    "actualGasCost": "2313410000000000",
+                    "actualGasUsed": "1156705"
+                  }
+                }
+              ],
+              "frames": {
+                "validateUserOp": {
+                  "gas": 150000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 1150000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14817004,
+                  "gasUsed": 113918,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 440000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "success": true,
+              "actualGasUsed": 1156705,
+              "postOpReverted": false,
+              "execReverted": false,
+              "brief": "ok"
+            }
+          }
+        },
+        {
+          "userOpHash": "0xae2104b21c350ae7db77071cd086d7600f7be9e818b8c38051182de5c2dd369e",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0xae2104b21c350ae7db77071cd086d7600f7be9e818b8c38051182de5c2dd369e"
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              }
+            },
+            "sufficiency": {},
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 766096,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14816969,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1306676,
+                "txGasUsed": 991837
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 784446,
+              "pmPostOpGasLimit": 440000
+            },
+            "submitted": {
+              "ok": true,
+              "txGasUsed": 991870,
+              "events": [
+                {
+                  "event": "UserOperationEvent",
+                  "args": {
+                    "userOpHash": "0xae2104b21c350ae7db77071cd086d7600f7be9e818b8c38051182de5c2dd369e",
+                    "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+                    "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                    "nonce": "18446744073709551616",
+                    "success": "true",
+                    "actualGasCost": "2313410000000000",
+                    "actualGasUsed": "1156705"
+                  }
+                }
+              ],
+              "frames": {
+                "validateUserOp": {
+                  "gas": 150000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 1150000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14816969,
+                  "gasUsed": 113918,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 440000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "success": true,
+              "actualGasUsed": 1156705,
+              "postOpReverted": false,
+              "execReverted": false,
+              "brief": "ok"
+            }
+          }
+        },
+        {
+          "userOpHash": "0xfb92d26f3d41eda0b33e61bdeb2edaf2e5a95fd4e350ae91385c74b50455f2b9",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA34 signature error",
+              "code": -32500
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "error": {
+                    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                  }
+                }
+              }
+            },
+            "sufficiency": {},
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 766096,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14816969,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1306676,
+                "txGasUsed": 991837
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 784446,
+              "pmPostOpGasLimit": 440000
+            },
+            "submitted": {
+              "ok": true,
+              "txGasUsed": 991870,
+              "events": [
+                {
+                  "event": "UserOperationEvent",
+                  "args": {
+                    "userOpHash": "0xfb92d26f3d41eda0b33e61bdeb2edaf2e5a95fd4e350ae91385c74b50455f2b9",
+                    "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+                    "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                    "nonce": "36893488147419103232",
+                    "success": "true",
+                    "actualGasCost": "2313410000000000",
+                    "actualGasUsed": "1156705"
+                  }
+                }
+              ],
+              "frames": {
+                "validateUserOp": {
+                  "gas": 150000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 1150000,
+                  "gasUsed": 766096,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14816969,
+                  "gasUsed": 113918,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 440000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "success": true,
+              "actualGasUsed": 1156705,
+              "postOpReverted": false,
+              "execReverted": false,
+              "brief": "ok"
+            }
+          }
+        }
+      ],
+      "mempool": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": [
+          {
+            "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+            "nonce": "0x0",
+            "factory": null,
+            "factoryData": null,
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "callGasLimit": "0xea60",
+            "verificationGasLimit": "0x249f0",
+            "preVerificationGas": "0x186a0",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x118c30",
+            "paymasterPostOpGasLimit": "0x6b6c0",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800",
+            "signature": "0x5287e038627398cbfaf435717443226f4dde83162977f700ca668291a1387ec21406cf79537f69009aaa993a2070c068e27531078b2e1395c393b40367b899f61b"
+          },
+          {
+            "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+            "nonce": "0x10000000000000000",
+            "factory": null,
+            "factoryData": null,
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "callGasLimit": "0xea60",
+            "verificationGasLimit": "0x249f0",
+            "preVerificationGas": "0x186a0",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x118c30",
+            "paymasterPostOpGasLimit": "0x6b6c0",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800",
+            "signature": "0xa924a68ed4048be60c0e70cf0eccc276b9247102a414b334bdabeb62564aea307641773c0bc0a61e6c8b26a4181a06693d9302041accc82c0cbf6e807eb3820c1c"
+          }
+        ]
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "bundle2": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "outs": [
+        {
+          "onchain": {
+            "tx": "0x5a6a6f2365cc724d1f480cb99cb1a3f2ce10c5494a624c2da5e214697674eb95",
+            "txStatus": "success",
+            "txGasLimit": "1864910",
+            "txGasUsed": "805550",
+            "success": "true",
+            "actualGasCost": "2313410156155175",
+            "actualGasUsed": "1156705",
+            "postOpReverted": false,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0xdfb8853239779a48c72ea11d730344dd0799e306761c2742e1baaab68fd7d785",
+                  "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "0",
+                  "success": "true",
+                  "actualGasCost": "2313410156155175",
+                  "actualGasUsed": "1156705"
+                }
+              }
+            ]
+          },
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0x5a6a6f2365cc724d1f480cb99cb1a3f2ce10c5494a624c2da5e214697674eb95",
+            "actualGasCost": "0x83808c693d127",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0x5a6a6f2365cc724d1f480cb99cb1a3f2ce10c5494a624c2da5e214697674eb95"
+            }
+          }
+        },
+        {
+          "onchain": {
+            "tx": "0xa38904dd022306ab4c20456621b499ef98feeca1a543239fae8068080e219e75",
+            "txStatus": "success",
+            "txGasLimit": "1864910",
+            "txGasUsed": "609746",
+            "success": "true",
+            "actualGasCost": "1921730114342935",
+            "actualGasUsed": "960865",
+            "postOpReverted": false,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0xae2104b21c350ae7db77071cd086d7600f7be9e818b8c38051182de5c2dd369e",
+                  "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "18446744073709551616",
+                  "success": "true",
+                  "actualGasCost": "1921730114342935",
+                  "actualGasUsed": "960865"
+                }
+              }
+            ]
+          },
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0xa38904dd022306ab4c20456621b499ef98feeca1a543239fae8068080e219e75",
+            "actualGasCost": "0x6d3cda8d1d017",
+            "logs": 5
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0xa38904dd022306ab4c20456621b499ef98feeca1a543239fae8068080e219e75"
+            }
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA34 signature error",
+            "code": -32500
+          }
+        }
+      ],
+      "included": 2,
+      "txs": [
+        "0x5a6a6f2365cc724d1f480cb99cb1a3f2ce10c5494a624c2da5e214697674eb95",
+        "0xa38904dd022306ab4c20456621b499ef98feeca1a543239fae8068080e219e75"
+      ],
+      "firstTwoIncluded": true,
+      "pass": true,
+      "summary": "handleOps(all)={\"name\":\"FailedOp\",\"args\":[\"2\",\"AA34 signature error\"]}; verdicts=included | included | reject[-32500] AA34 signature error"
+    },
+    "B2-aftermath": {
+      "expected": "observation: can a normal op from the same SP still enter after B2?",
+      "onchain": {
+        "tx": "0xf6088bf29b7f201da7f781e607ad595e912f3458d6a04596643a1b3eeabb7ecb",
+        "txStatus": "success",
+        "txGasLimit": "1864910",
+        "txGasUsed": "511826",
+        "success": "true",
+        "actualGasCost": "1725890090609225",
+        "actualGasUsed": "862945",
+        "postOpReverted": false,
+        "events": [
+          {
+            "event": "UserOperationEvent",
+            "args": {
+              "userOpHash": "0x80aa4afb6ee01f92c46187a1a91590d2fffedaf10d66a4eb6a13f2b539aebb48",
+              "sender": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+              "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+              "nonce": "1",
+              "success": "true",
+              "actualGasCost": "1725890090609225",
+              "actualGasUsed": "862945"
+            }
+          }
+        ]
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xf6088bf29b7f201da7f781e607ad595e912f3458d6a04596643a1b3eeabb7ecb",
+        "actualGasCost": "0x621b019c5aa49",
+        "logs": 5
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xf6088bf29b7f201da7f781e607ad595e912f3458d6a04596643a1b3eeabb7ecb"
+        }
+      },
+      "sent": {
+        "userOpHash": "0x80aa4afb6ee01f92c46187a1a91590d2fffedaf10d66a4eb6a13f2b539aebb48",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x80aa4afb6ee01f92c46187a1a91590d2fffedaf10d66a4eb6a13f2b539aebb48"
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 570256,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 15106127,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1012916,
+              "txGasUsed": 698089
+            },
+            "verificationGasLimit": 26426,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 588606,
+            "pmPostOpGasLimit": 440000
+          },
+          "submitted": {
+            "ok": true,
+            "txGasUsed": 698110,
+            "events": [
+              {
+                "event": "UserOperationEvent",
+                "args": {
+                  "userOpHash": "0x80aa4afb6ee01f92c46187a1a91590d2fffedaf10d66a4eb6a13f2b539aebb48",
+                  "sender": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+                  "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                  "nonce": "1",
+                  "success": "true",
+                  "actualGasCost": "1725890000000000",
+                  "actualGasUsed": "862945"
+                }
+              }
+            ],
+            "frames": {
+              "validateUserOp": {
+                "gas": 150000,
+                "gasUsed": 6850,
+                "error": null
+              },
+              "validatePaymasterUserOp": {
+                "gas": 1150000,
+                "gasUsed": 570256,
+                "error": null
+              },
+              "innerHandleOp": {
+                "gas": 15106139,
+                "gasUsed": 113918,
+                "error": null
+              },
+              "postOp": {
+                "gas": 440000,
+                "gasUsed": 102674,
+                "error": null
+              }
+            },
+            "success": true,
+            "actualGasUsed": 862945,
+            "postOpReverted": false,
+            "execReverted": false,
+            "brief": "ok"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": true,
+      "informational": true,
+      "summary": "included"
+    }
+  },
+  "bundlingMode": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+  },
+  "reputationBeforeB2": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": [
+      {
+        "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+        "opsSeen": "0xb",
+        "opsIncluded": "0xa",
+        "status": "0x0"
+      },
+      {
+        "address": "0xf8D164499810e370928C6994A381C07dfD05d4DA",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x2",
+        "status": "0x0"
+      },
+      {
+        "address": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x84e46CFCfFd6E7c94E0B5a031bF18f89c0Cf5263",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x94BAa886707af8d009dF9186b1237c2dee0B3bBD",
+        "opsSeen": "0x2710",
+        "opsIncluded": "0x0",
+        "status": "0x2"
+      },
+      {
+        "address": "0xf6a0cD9B78De9A2098bbfD607462B07dF266b938",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x029A281De95403Ea1a8e6D110011cDb0f5AF3F70",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x1D9423787101Af9364C9F5bDDe092528006f4928",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xb89f0fa1598F4e7ea91A71966cdc211aeB389D4A",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      }
+    ]
+  },
+  "reputationAfterB2": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": [
+      {
+        "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+        "opsSeen": "0xf",
+        "opsIncluded": "0xe",
+        "status": "0x0"
+      },
+      {
+        "address": "0xf8D164499810e370928C6994A381C07dfD05d4DA",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x2",
+        "status": "0x0"
+      },
+      {
+        "address": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x84e46CFCfFd6E7c94E0B5a031bF18f89c0Cf5263",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x94BAa886707af8d009dF9186b1237c2dee0B3bBD",
+        "opsSeen": "0x2710",
+        "opsIncluded": "0x0",
+        "status": "0x2"
+      },
+      {
+        "address": "0xf6a0cD9B78De9A2098bbfD607462B07dF266b938",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x029A281De95403Ea1a8e6D110011cDb0f5AF3F70",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0x1D9423787101Af9364C9F5bDDe092528006f4928",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xb89f0fa1598F4e7ea91A71966cdc211aeB389D4A",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x1",
+        "status": "0x0"
+      },
+      {
+        "address": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x2",
+        "status": "0x0"
+      },
+      {
+        "address": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
+        "opsSeen": "0x0",
+        "opsIncluded": "0x2",
+        "status": "0x0"
+      }
+    ]
+  },
+  "stakeStatus": {
+    "sp": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "stakeInfo": {
+          "addr": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+          "stake": "1000000000000000000",
+          "unstakeDelaySec": "86400"
+        },
+        "isStaked": true
+      }
+    },
+    "factoryOk": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "stakeInfo": {
+          "addr": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+          "stake": "1000000000000000000",
+          "unstakeDelaySec": "86400"
+        },
+        "isStaked": true
+      }
+    }
+  },
+  "allPass": false
+}

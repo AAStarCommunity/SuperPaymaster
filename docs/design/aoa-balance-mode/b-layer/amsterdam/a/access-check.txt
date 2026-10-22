@@ -1,4 +1,8 @@
-== rundler-traces.jsonl
+== rundler-traces.jsonl: 20 captured simulations, 16 checked, 4 skipped (no account phase), 0 without our trace
+B4-unstaked    SKIPPED (no account phase; phases: 0x957122ab,factory)
+B4-lowStake    SKIPPED (no account phase; phases: 0x957122ab,factory)
+B4-shortDelay  SKIPPED (no account phase; phases: 0x957122ab,factory)
+B4-ok          SKIPPED (no account phase; phases: 0x957122ab,factory)
 B9-below       acct:b9          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B9-above       acct:b9          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B1             acct:b1          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
@@ -15,7 +19,11 @@ B2b            acct:b2x         R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 
 B2b            acct:b2x         R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B2b            acct:b2x         R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B2-aftermath   acct:b1          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
-== alto-traces.jsonl
+== alto-traces.jsonl: 20 captured simulations, 16 checked, 4 skipped (no account phase), 0 without our trace
+B4-unstaked    SKIPPED (no account phase; phases: factory)
+B4-lowStake    SKIPPED (no account phase; phases: factory)
+B4-shortDelay  SKIPPED (no account phase; phases: factory)
+B4-ok          SKIPPED (no account phase; phases: factory)
 B9-below       acct:b9          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B9-above       acct:b9          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B1             acct:b1          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
@@ -32,7 +40,11 @@ B2b            acct:b2x         R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 
 B2b            acct:b2x         R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B2b            acct:b2x         R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B2-aftermath   acct:b1          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
-== altoMulti-traces.jsonl
+== altoMulti-traces.jsonl: 20 captured simulations, 16 checked, 4 skipped (no account phase), 0 without our trace
+B4-unstaked    SKIPPED (no account phase; phases: factory)
+B4-lowStake    SKIPPED (no account phase; phases: factory)
+B4-shortDelay  SKIPPED (no account phase; phases: factory)
+B4-ok          SKIPPED (no account phase; phases: factory)
 B9-below       acct:b9          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B9-above       acct:b9          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0
 B1             acct:b1          R1=6 R2=12 R3=0 R4=0 reg=0/0 spOwn=18 acctOwn=1 factoryOwn=0 OUTSIDE=0 FORBIDDEN=0 otherBanned=0

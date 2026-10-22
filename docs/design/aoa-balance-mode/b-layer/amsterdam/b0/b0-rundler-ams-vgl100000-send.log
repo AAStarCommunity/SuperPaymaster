@@ -1,0 +1,6 @@
+rundler-ams-vgl100000 control: expected accept, got accept (included, success=true)
+rundler-ams-vgl100000 op011_timestamp: expected reject, got reject [-32502] paymaster uses banned opcode: TIMESTAMP
+rundler-ams-vgl100000 sto031_unstakedOwnStorage: expected reject, got reject [-32500] validation reverted: 
+rundler-ams-vgl100000 op070_unstakedTstore: expected reject, got reject [-32502] entity stake/unstake delay too low
+rundler-ams-vgl100000 sto021_stakedExternalWrite: expected reject, got reject [-32500] validation reverted: 
+rundler-ams-vgl100000 B0 all pass: true

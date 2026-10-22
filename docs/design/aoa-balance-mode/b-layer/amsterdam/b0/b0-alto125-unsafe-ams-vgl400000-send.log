@@ -1,0 +1,6 @@
+alto125-unsafe-ams-vgl400000 control: expected accept, got accept (included, success=true)
+alto125-unsafe-ams-vgl400000 op011_timestamp: expected reject, got accept (included, success=true)
+alto125-unsafe-ams-vgl400000 sto031_unstakedOwnStorage: expected reject, got accept (included, success=true)
+alto125-unsafe-ams-vgl400000 op070_unstakedTstore: expected reject, got accept (included, success=true)
+alto125-unsafe-ams-vgl400000 sto021_stakedExternalWrite: expected reject, got accept (included, success=true)
+alto125-unsafe-ams-vgl400000 B0 all pass: false

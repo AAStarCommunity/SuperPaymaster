@@ -1,0 +1,36 @@
+{
+  "rundler": [
+    [
+      {
+        "address": "token",
+        "slot": "0xe29a04703c129213325406360bb80cd2a668cb376bdd26adf9f3dba931026e27",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      },
+      {
+        "address": "SP",
+        "slot": "0xa7ba4ff8255375327b8597b93c22abdc174bcf4f6c2e89af5c8a9c334c8125a0",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      }
+    ],
+    [
+      {
+        "address": "token",
+        "slot": "0xe29a04703c129213325406360bb80cd2a668cb376bdd26adf9f3dba931026e27",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      },
+      {
+        "address": "SP",
+        "slot": "0xa7ba4ff8255375327b8597b93c22abdc174bcf4f6c2e89af5c8a9c334c8125a0",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      }
+    ]
+  ]
+}

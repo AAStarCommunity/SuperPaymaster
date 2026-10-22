@@ -28,6 +28,10 @@ one() { # <label> <pmVgl> <bundlerPort> <cmd...>
   wait_rpc "http://127.0.0.1:$bport"; sleep 2
   B0_PM_VGL="$vgl" node "$ROOT/script/b-layer/b0-send.mjs" "$W/setup-$label.json" "http://127.0.0.1:$bport" "$label" "$OUT/b0-$label.json" | tee "$W/send-$label.log" || true
   kill "$bpid" "$apid" 2>/dev/null || true; sleep 2
+  # keep the evidence: bundler process log, sender log, setup (gzip if > 5 MB)
+  sed 's/\x1b\[[0-9;]*m//g' "$W/$label.log" > "$OUT/b0-$label-bundler.log"
+  cp "$W/send-$label.log" "$OUT/b0-$label-send.log"; cp "$W/setup-$label.log" "$OUT/b0-$label-setup.log"
+  if [ "$(stat -c %s "$OUT/b0-$label-bundler.log")" -gt 5242880 ]; then gzip -9 -f "$OUT/b0-$label-bundler.log"; fi
 }
 RUNDLER=(bash -c 'cd "$0" && exec env RUST_LOG=info ./target/release/rundler node "$@"' "$RUNDLER_DIR"
   --chain_spec "$ROOT/docs/design/aoa-balance-mode/b-layer/rundler-chain-31337.toml" --node_http http://127.0.0.1:18745

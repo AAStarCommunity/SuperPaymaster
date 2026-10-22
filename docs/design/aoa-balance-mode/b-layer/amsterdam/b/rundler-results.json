@@ -2,7 +2,7 @@
   "kind": "rundler",
   "bundlerUrl": "http://127.0.0.1:18650",
   "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
-  "at": "2026-10-22T14:09:53.426Z",
+  "at": "2026-10-22T15:25:02.184Z",
   "cases": {
     "B9-below": {
       "expected": "reject (SP stake below threshold, specific reason)",
@@ -70,15 +70,19 @@
               "used": {
                 "verificationGasLimit": "154913",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46716",
                 "pmVerificationGasLimit": "60857",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112793,
+                "txGasUsed": 112781,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -91,6 +95,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -210,15 +224,19 @@
               "used": {
                 "verificationGasLimit": "154913",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46716",
                 "pmVerificationGasLimit": "60857",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112793,
+                "txGasUsed": 112781,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -231,6 +249,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -350,15 +378,19 @@
               "used": {
                 "verificationGasLimit": "154913",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46716",
                 "pmVerificationGasLimit": "60857",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112793,
+                "txGasUsed": 112781,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -371,6 +403,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -506,15 +548,19 @@
                 "used": {
                   "verificationGasLimit": "154913",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46716",
                   "pmVerificationGasLimit": "60857",
                   "pmPostOpGasLimit": "0"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112793,
+                  "txGasUsed": 112769,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -527,6 +573,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -626,15 +682,19 @@
                 "used": {
                   "verificationGasLimit": "154913",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46716",
                   "pmVerificationGasLimit": "60857",
                   "pmPostOpGasLimit": "0"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112793,
+                  "txGasUsed": 112781,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -647,6 +707,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -746,15 +816,19 @@
                 "used": {
                   "verificationGasLimit": "154913",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46716",
                   "pmVerificationGasLimit": "60857",
                   "pmPostOpGasLimit": "0"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112793,
+                  "txGasUsed": 112781,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -767,6 +841,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -985,15 +1069,19 @@
               "used": {
                 "verificationGasLimit": "154913",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46716",
                 "pmVerificationGasLimit": "60857",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112805,
+                "txGasUsed": 112781,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1006,6 +1094,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -1126,15 +1224,19 @@
               "used": {
                 "verificationGasLimit": "155024",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46728",
                 "pmVerificationGasLimit": "60901",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 139310,
+                "txGasUsed": 139286,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1147,6 +1249,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -1262,9 +1374,9 @@
                   "0x20bb3bcdeaf0576dfdb86ea9d83e64596763036f91ddfb3eaee29618170df80e"
                 ],
                 "data": "0x00000000000000000000000000000000000000000000000ff0ef987194512d20",
-                "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+                "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
                 "blockNumber": "0x79",
-                "blockTimestamp": "0x6adf6011",
+                "blockTimestamp": "0x6adf71b2",
                 "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
                 "transactionIndex": "0x0",
                 "logIndex": "0x2",
@@ -1278,9 +1390,9 @@
                   "0x000000000000000000000000f6a0cd9b78de9a2098bbfd607462b07df266b938"
                 ],
                 "data": "0x00000000000000000000000000000000000000000000000e7df11638b56111c000000000000000000000000000000000000000000000000ff0ef987194512d20",
-                "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+                "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
                 "blockNumber": "0x79",
-                "blockTimestamp": "0x6adf6011",
+                "blockTimestamp": "0x6adf71b2",
                 "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
                 "transactionIndex": "0x0",
                 "logIndex": "0x3",
@@ -1295,9 +1407,9 @@
                   "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                 ],
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000083958a27da154000000000000000000000000000000000000000000000000000000000011a932",
-                "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+                "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
                 "blockNumber": "0x79",
-                "blockTimestamp": "0x6adf6011",
+                "blockTimestamp": "0x6adf71b2",
                 "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
                 "transactionIndex": "0x0",
                 "logIndex": "0x4",
@@ -1317,9 +1429,9 @@
                     "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                   ],
                   "data": "0x00000000000000000000000000000000000000000000001fcf7c630017380000",
-                  "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+                  "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
                   "blockNumber": "0x79",
-                  "blockTimestamp": "0x6adf6011",
+                  "blockTimestamp": "0x6adf71b2",
                   "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
                   "transactionIndex": "0x0",
                   "logIndex": "0x0",
@@ -1331,9 +1443,9 @@
                     "0xbb47ee3e183a558b1a2ff0874b079f3fc5478b7454eacf2bfc5af2ff5878f972"
                   ],
                   "data": "0x",
-                  "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+                  "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
                   "blockNumber": "0x79",
-                  "blockTimestamp": "0x6adf6011",
+                  "blockTimestamp": "0x6adf71b2",
                   "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
                   "transactionIndex": "0x0",
                   "logIndex": "0x1",
@@ -1347,9 +1459,9 @@
                     "0x20bb3bcdeaf0576dfdb86ea9d83e64596763036f91ddfb3eaee29618170df80e"
                   ],
                   "data": "0x00000000000000000000000000000000000000000000000ff0ef987194512d20",
-                  "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+                  "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
                   "blockNumber": "0x79",
-                  "blockTimestamp": "0x6adf6011",
+                  "blockTimestamp": "0x6adf71b2",
                   "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
                   "transactionIndex": "0x0",
                   "logIndex": "0x2",
@@ -1363,9 +1475,9 @@
                     "0x000000000000000000000000f6a0cd9b78de9a2098bbfd607462b07df266b938"
                   ],
                   "data": "0x00000000000000000000000000000000000000000000000e7df11638b56111c000000000000000000000000000000000000000000000000ff0ef987194512d20",
-                  "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+                  "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
                   "blockNumber": "0x79",
-                  "blockTimestamp": "0x6adf6011",
+                  "blockTimestamp": "0x6adf71b2",
                   "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
                   "transactionIndex": "0x0",
                   "logIndex": "0x3",
@@ -1380,9 +1492,9 @@
                     "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                   ],
                   "data": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000083958a27da154000000000000000000000000000000000000000000000000000000000011a932",
-                  "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+                  "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
                   "blockNumber": "0x79",
-                  "blockTimestamp": "0x6adf6011",
+                  "blockTimestamp": "0x6adf71b2",
                   "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
                   "transactionIndex": "0x0",
                   "logIndex": "0x4",
@@ -1396,9 +1508,9 @@
                     "0x0000000000000000000000009965507d1a55bcc2695c58ba16fb37d819b0a4dc"
                   ],
                   "data": "0x00000000000000000000000000000000000000000000000000083958a27da154",
-                  "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+                  "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
                   "blockNumber": "0x79",
-                  "blockTimestamp": "0x6adf6011",
+                  "blockTimestamp": "0x6adf71b2",
                   "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
                   "transactionIndex": "0x0",
                   "logIndex": "0x5",
@@ -1409,14 +1521,14 @@
               "type": "0x2",
               "transactionHash": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
               "transactionIndex": "0x0",
-              "blockHash": "0x4c149ee3252aee4b469fa855b06c67821a10240063ed0b4408e53435f36faa47",
+              "blockHash": "0x9c6d524b01bcdf0b814efa186c4141c2ce9f8500e89cd14d4088847c3a18da3e",
               "blockNumber": "0x79",
               "gasUsed": "0x111f11",
               "effectiveGasPrice": "0x3b9acc3a",
               "from": "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
               "to": "0x0000000071727de22e5e9d8baf0edac6f37da032",
               "contractAddress": null,
-              "blockTimestamp": 1793024017
+              "blockTimestamp": 1793028530
             },
             "status": "mined"
           },
@@ -1480,26 +1592,30 @@
               "used": {
                 "verificationGasLimit": "153182",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46716",
                 "pmVerificationGasLimit": "820000",
                 "pmPostOpGasLimit": "400000"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": true,
               "brief": "ok",
               "sim": {
                 "ok": true,
-                "txGasUsed": 1308349,
+                "txGasUsed": 1308337,
                 "events": [
                   {
                     "event": "UserOperationEvent",
                     "args": {
-                      "userOpHash": "0xc75d0c75f0b48407826f636934b10bbd6221f69e97b793dabae6f5c52aa27734",
+                      "userOpHash": "0xc89eca5fe88f88bdb4827c3da63fc6b0e557a29a88637e53a9fd9ff6497ac6ec",
                       "sender": "0xf6a0cD9B78De9A2098bbfD607462B07dF266b938",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                       "nonce": "0",
                       "success": "true",
-                      "actualGasCost": "2304672000000000",
-                      "actualGasUsed": "1152336"
+                      "actualGasCost": "2198104000000000",
+                      "actualGasUsed": "1099052"
                     }
                   }
                 ],
@@ -1515,7 +1631,7 @@
                     "error": null
                   },
                   "innerHandleOp": {
-                    "gas": 14786909,
+                    "gas": 14786920,
                     "gasUsed": 194020,
                     "error": null
                   },
@@ -1526,7 +1642,7 @@
                   }
                 },
                 "success": true,
-                "actualGasUsed": 1152336,
+                "actualGasUsed": 1099052,
                 "postOpReverted": false,
                 "execReverted": false
               }
@@ -1535,15 +1651,19 @@
               "used": {
                 "verificationGasLimit": "154913",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46716",
                 "pmVerificationGasLimit": "60857",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112793,
+                "txGasUsed": 112781,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1556,6 +1676,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -1749,9 +1879,9 @@
                   "0x0000000000000000000000000000000000000000000000000000000000000000"
                 ],
                 "data": "0x000000000000000000000000000000000000000000000010bea08b987c904c40",
-                "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                 "blockNumber": "0x7a",
-                "blockTimestamp": "0x6adf6012",
+                "blockTimestamp": "0x6adf71b3",
                 "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                 "transactionIndex": "0x0",
                 "logIndex": "0x2",
@@ -1765,9 +1895,9 @@
                   "0x85857938db07a4eb1e6a22ef8d81b2da3702abea09cf5920d912186439e6a602"
                 ],
                 "data": "0x000000000000000000000000000000000000000000000010bea08b987c904c40000000000000000000000000000000000000000000000010bea08b987c904c40",
-                "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                 "blockNumber": "0x7a",
-                "blockTimestamp": "0x6adf6012",
+                "blockTimestamp": "0x6adf71b3",
                 "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                 "transactionIndex": "0x0",
                 "logIndex": "0x3",
@@ -1781,9 +1911,9 @@
                   "0x000000000000000000000000029a281de95403ea1a8e6d110011cdb0f5af3f70"
                 ],
                 "data": "0x00000000000000000000000000000000000000000000000f38ef0a8a9fc8ff80000000000000000000000000000000000000000000000010bea08b987c904c40",
-                "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                 "blockNumber": "0x7a",
-                "blockTimestamp": "0x6adf6012",
+                "blockTimestamp": "0x6adf71b3",
                 "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                 "transactionIndex": "0x0",
                 "logIndex": "0x4",
@@ -1798,9 +1928,9 @@
                   "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                 ],
                 "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000830c23a9a327600000000000000000000000000000000000000000000000000000000001196c1",
-                "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                 "blockNumber": "0x7a",
-                "blockTimestamp": "0x6adf6012",
+                "blockTimestamp": "0x6adf71b3",
                 "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                 "transactionIndex": "0x0",
                 "logIndex": "0x5",
@@ -1820,9 +1950,9 @@
                     "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                   ],
                   "data": "0x00000000000000000000000000000000000000000000001fcf7c63001738000000000000000000000000000000000000000000000000001fcf7c630017380000",
-                  "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                  "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                   "blockNumber": "0x7a",
-                  "blockTimestamp": "0x6adf6012",
+                  "blockTimestamp": "0x6adf71b3",
                   "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                   "transactionIndex": "0x0",
                   "logIndex": "0x0",
@@ -1834,9 +1964,9 @@
                     "0xbb47ee3e183a558b1a2ff0874b079f3fc5478b7454eacf2bfc5af2ff5878f972"
                   ],
                   "data": "0x",
-                  "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                  "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                   "blockNumber": "0x7a",
-                  "blockTimestamp": "0x6adf6012",
+                  "blockTimestamp": "0x6adf71b3",
                   "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                   "transactionIndex": "0x0",
                   "logIndex": "0x1",
@@ -1850,9 +1980,9 @@
                     "0x0000000000000000000000000000000000000000000000000000000000000000"
                   ],
                   "data": "0x000000000000000000000000000000000000000000000010bea08b987c904c40",
-                  "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                  "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                   "blockNumber": "0x7a",
-                  "blockTimestamp": "0x6adf6012",
+                  "blockTimestamp": "0x6adf71b3",
                   "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                   "transactionIndex": "0x0",
                   "logIndex": "0x2",
@@ -1866,9 +1996,9 @@
                     "0x85857938db07a4eb1e6a22ef8d81b2da3702abea09cf5920d912186439e6a602"
                   ],
                   "data": "0x000000000000000000000000000000000000000000000010bea08b987c904c40000000000000000000000000000000000000000000000010bea08b987c904c40",
-                  "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                  "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                   "blockNumber": "0x7a",
-                  "blockTimestamp": "0x6adf6012",
+                  "blockTimestamp": "0x6adf71b3",
                   "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                   "transactionIndex": "0x0",
                   "logIndex": "0x3",
@@ -1882,9 +2012,9 @@
                     "0x000000000000000000000000029a281de95403ea1a8e6d110011cdb0f5af3f70"
                   ],
                   "data": "0x00000000000000000000000000000000000000000000000f38ef0a8a9fc8ff80000000000000000000000000000000000000000000000010bea08b987c904c40",
-                  "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                  "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                   "blockNumber": "0x7a",
-                  "blockTimestamp": "0x6adf6012",
+                  "blockTimestamp": "0x6adf71b3",
                   "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                   "transactionIndex": "0x0",
                   "logIndex": "0x4",
@@ -1899,9 +2029,9 @@
                     "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                   ],
                   "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000830c23a9a327600000000000000000000000000000000000000000000000000000000001196c1",
-                  "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                  "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                   "blockNumber": "0x7a",
-                  "blockTimestamp": "0x6adf6012",
+                  "blockTimestamp": "0x6adf71b3",
                   "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                   "transactionIndex": "0x0",
                   "logIndex": "0x5",
@@ -1915,9 +2045,9 @@
                     "0x0000000000000000000000009965507d1a55bcc2695c58ba16fb37d819b0a4dc"
                   ],
                   "data": "0x000000000000000000000000000000000000000000000000000830c23a9a3276",
-                  "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+                  "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
                   "blockNumber": "0x7a",
-                  "blockTimestamp": "0x6adf6012",
+                  "blockTimestamp": "0x6adf71b3",
                   "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
                   "transactionIndex": "0x0",
                   "logIndex": "0x6",
@@ -1928,14 +2058,14 @@
               "type": "0x2",
               "transactionHash": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
               "transactionIndex": "0x0",
-              "blockHash": "0x55c2a06df0994bd31844d3eef9e0b35dd89a5f1e91a6b21a7254d76726437878",
+              "blockHash": "0x5c6fe5aec63c7322d43842ea512d6040b569604032f283fb4b8e18cf5df86886",
               "blockNumber": "0x7a",
               "gasUsed": "0xc4aba",
               "effectiveGasPrice": "0x3b9acbf6",
               "from": "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
               "to": "0x0000000071727de22e5e9d8baf0edac6f37da032",
               "contractAddress": null,
-              "blockTimestamp": 1793024018
+              "blockTimestamp": 1793028531
             },
             "status": "mined"
           },
@@ -1999,26 +2129,30 @@
               "used": {
                 "verificationGasLimit": "145426",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46704",
                 "pmVerificationGasLimit": "820000",
                 "pmPostOpGasLimit": "400000"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": true,
               "brief": "ok",
               "sim": {
                 "ok": true,
-                "txGasUsed": 991846,
+                "txGasUsed": 991834,
                 "events": [
                   {
                     "event": "UserOperationEvent",
                     "args": {
-                      "userOpHash": "0x0711ecd9e1b6fdb6c04aedd7629f5df9224c80f0c89539b3cedfa056a7416eeb",
+                      "userOpHash": "0xf6bd51d94244bb80ea998246c6bd71704adf53147a2ac811f7cac0db985d471a",
                       "sender": "0x029A281De95403Ea1a8e6D110011cDb0f5AF3F70",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                       "nonce": "0",
                       "success": "true",
-                      "actualGasCost": "2295230000000000",
-                      "actualGasUsed": "1147615"
+                      "actualGasCost": "2188638000000000",
+                      "actualGasUsed": "1094319"
                     }
                   }
                 ],
@@ -2034,7 +2168,7 @@
                     "error": null
                   },
                   "innerHandleOp": {
-                    "gas": 14816992,
+                    "gas": 14817004,
                     "gasUsed": 113918,
                     "error": null
                   },
@@ -2045,7 +2179,7 @@
                   }
                 },
                 "success": true,
-                "actualGasUsed": 1147615,
+                "actualGasUsed": 1094319,
                 "postOpReverted": false,
                 "execReverted": false
               }
@@ -2054,15 +2188,19 @@
               "used": {
                 "verificationGasLimit": "154913",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46704",
                 "pmVerificationGasLimit": "60857",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112781,
+                "txGasUsed": 112769,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -2075,6 +2213,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -2218,20 +2366,24 @@
               "used": {
                 "verificationGasLimit": "4730070",
                 "callGasLimit": "9100",
+                "preVerificationGas": "49224",
                 "pmVerificationGasLimit": "820000",
                 "pmPostOpGasLimit": "400000"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": true,
               "brief": "ok",
               "sim": {
                 "ok": true,
-                "txGasUsed": 4852240,
+                "txGasUsed": 4852228,
                 "events": [
                   {
                     "event": "AccountDeployed",
                     "args": {
-                      "userOpHash": "0xe4a86cbc583e3ee313733f1fc7c7a92fd9a18cb8098cf0fcfb03f3459431d633",
+                      "userOpHash": "0x0f6156029a994f659cb1da8557f60b04c7d514e618b7d6fcc80e7601864661cd",
                       "sender": "0x7eba7E20159Fc7f0A7cD05ecE724130D799968f4",
                       "factory": "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
@@ -2240,13 +2392,13 @@
                   {
                     "event": "UserOperationEvent",
                     "args": {
-                      "userOpHash": "0xe4a86cbc583e3ee313733f1fc7c7a92fd9a18cb8098cf0fcfb03f3459431d633",
+                      "userOpHash": "0x0f6156029a994f659cb1da8557f60b04c7d514e618b7d6fcc80e7601864661cd",
                       "sender": "0x7eba7E20159Fc7f0A7cD05ecE724130D799968f4",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                       "nonce": "0",
                       "success": "true",
-                      "actualGasCost": "10012658000000000",
-                      "actualGasUsed": "5006329"
+                      "actualGasCost": "9911106000000000",
+                      "actualGasUsed": "4955553"
                     }
                   }
                 ],
@@ -2267,7 +2419,7 @@
                     "error": null
                   },
                   "innerHandleOp": {
-                    "gas": 11016917,
+                    "gas": 11016929,
                     "gasUsed": 113918,
                     "error": null
                   },
@@ -2278,7 +2430,7 @@
                   }
                 },
                 "success": true,
-                "actualGasUsed": 5006329,
+                "actualGasUsed": 4955553,
                 "postOpReverted": false,
                 "execReverted": false
               }
@@ -2287,15 +2439,19 @@
               "used": {
                 "verificationGasLimit": "4596468",
                 "callGasLimit": "9100",
+                "preVerificationGas": "49224",
                 "pmVerificationGasLimit": "62840",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 189501,
+                "txGasUsed": 189477,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -2308,6 +2464,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -2420,20 +2586,24 @@
               "used": {
                 "verificationGasLimit": "4730070",
                 "callGasLimit": "9100",
+                "preVerificationGas": "49224",
                 "pmVerificationGasLimit": "820000",
                 "pmPostOpGasLimit": "400000"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": true,
               "brief": "ok",
               "sim": {
                 "ok": true,
-                "txGasUsed": 4852240,
+                "txGasUsed": 4852228,
                 "events": [
                   {
                     "event": "AccountDeployed",
                     "args": {
-                      "userOpHash": "0x4edafa3936dcc046e1e4a5be23f7d8191bdf902a9aa81bc1e9340eb31988c599",
+                      "userOpHash": "0x4a3983f3cd11f4ed499ec1843b74d78df07853909907b45547f4b95813bb2a48",
                       "sender": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
                       "factory": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
@@ -2442,13 +2612,13 @@
                   {
                     "event": "UserOperationEvent",
                     "args": {
-                      "userOpHash": "0x4edafa3936dcc046e1e4a5be23f7d8191bdf902a9aa81bc1e9340eb31988c599",
+                      "userOpHash": "0x4a3983f3cd11f4ed499ec1843b74d78df07853909907b45547f4b95813bb2a48",
                       "sender": "0xf0F7BB42394b0e66B58980D4F860134B386Fe859",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                       "nonce": "0",
                       "success": "true",
-                      "actualGasCost": "10012658000000000",
-                      "actualGasUsed": "5006329"
+                      "actualGasCost": "9911106000000000",
+                      "actualGasUsed": "4955553"
                     }
                   }
                 ],
@@ -2469,7 +2639,7 @@
                     "error": null
                   },
                   "innerHandleOp": {
-                    "gas": 11016917,
+                    "gas": 11016929,
                     "gasUsed": 113918,
                     "error": null
                   },
@@ -2480,7 +2650,7 @@
                   }
                 },
                 "success": true,
-                "actualGasUsed": 5006329,
+                "actualGasUsed": 4955553,
                 "postOpReverted": false,
                 "execReverted": false
               }
@@ -2489,15 +2659,19 @@
               "used": {
                 "verificationGasLimit": "4596468",
                 "callGasLimit": "9100",
+                "preVerificationGas": "49224",
                 "pmVerificationGasLimit": "62840",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 189501,
+                "txGasUsed": 189489,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -2510,6 +2684,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -2622,20 +2806,24 @@
               "used": {
                 "verificationGasLimit": "4730070",
                 "callGasLimit": "9100",
+                "preVerificationGas": "49212",
                 "pmVerificationGasLimit": "820000",
                 "pmPostOpGasLimit": "400000"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": true,
               "brief": "ok",
               "sim": {
                 "ok": true,
-                "txGasUsed": 4852228,
+                "txGasUsed": 4852216,
                 "events": [
                   {
                     "event": "AccountDeployed",
                     "args": {
-                      "userOpHash": "0x5b264f04e48f93b34577d116cc7843da0e97bf8c6138b1c52ecb709cf242faa4",
+                      "userOpHash": "0x4d1d1d52d2ecf667fcb723e1e85ad196084aa6a7008a5bf5a943e25ea0173400",
                       "sender": "0x1D9423787101Af9364C9F5bDDe092528006f4928",
                       "factory": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
@@ -2644,13 +2832,13 @@
                   {
                     "event": "UserOperationEvent",
                     "args": {
-                      "userOpHash": "0x5b264f04e48f93b34577d116cc7843da0e97bf8c6138b1c52ecb709cf242faa4",
+                      "userOpHash": "0x4d1d1d52d2ecf667fcb723e1e85ad196084aa6a7008a5bf5a943e25ea0173400",
                       "sender": "0x1D9423787101Af9364C9F5bDDe092528006f4928",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                       "nonce": "0",
                       "success": "true",
-                      "actualGasCost": "10012658000000000",
-                      "actualGasUsed": "5006329"
+                      "actualGasCost": "9911082000000000",
+                      "actualGasUsed": "4955541"
                     }
                   }
                 ],
@@ -2671,7 +2859,7 @@
                     "error": null
                   },
                   "innerHandleOp": {
-                    "gas": 11016929,
+                    "gas": 11016940,
                     "gasUsed": 113918,
                     "error": null
                   },
@@ -2682,7 +2870,7 @@
                   }
                 },
                 "success": true,
-                "actualGasUsed": 5006329,
+                "actualGasUsed": 4955541,
                 "postOpReverted": false,
                 "execReverted": false
               }
@@ -2691,15 +2879,19 @@
               "used": {
                 "verificationGasLimit": "4596468",
                 "callGasLimit": "9100",
+                "preVerificationGas": "49212",
                 "pmVerificationGasLimit": "62840",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 189489,
+                "txGasUsed": 189477,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -2712,6 +2904,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -2824,20 +3026,24 @@
               "used": {
                 "verificationGasLimit": "4635822",
                 "callGasLimit": "9100",
+                "preVerificationGas": "49224",
                 "pmVerificationGasLimit": "820000",
                 "pmPostOpGasLimit": "400000"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": true,
               "brief": "ok",
               "sim": {
                 "ok": true,
-                "txGasUsed": 4754320,
+                "txGasUsed": 4754308,
                 "events": [
                   {
                     "event": "AccountDeployed",
                     "args": {
-                      "userOpHash": "0x9fbf885e564c76416bdf25472ad40c6d9c5c6a6ec7f7c8b9e694306bb61d749a",
+                      "userOpHash": "0x67624e9f037f44530e896f1381d4bf69bde7f2fc573ed1daa4ff8f666e7388ba",
                       "sender": "0xb89f0fa1598F4e7ea91A71966cdc211aeB389D4A",
                       "factory": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
@@ -2846,13 +3052,13 @@
                   {
                     "event": "UserOperationEvent",
                     "args": {
-                      "userOpHash": "0x9fbf885e564c76416bdf25472ad40c6d9c5c6a6ec7f7c8b9e694306bb61d749a",
+                      "userOpHash": "0x67624e9f037f44530e896f1381d4bf69bde7f2fc573ed1daa4ff8f666e7388ba",
                       "sender": "0xb89f0fa1598F4e7ea91A71966cdc211aeB389D4A",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                       "nonce": "0",
                       "success": "true",
-                      "actualGasCost": "9816818000000000",
-                      "actualGasUsed": "4908409"
+                      "actualGasCost": "9715266000000000",
+                      "actualGasUsed": "4857633"
                     }
                   }
                 ],
@@ -2873,7 +3079,7 @@
                     "error": null
                   },
                   "innerHandleOp": {
-                    "gas": 11113307,
+                    "gas": 11113319,
                     "gasUsed": 113918,
                     "error": null
                   },
@@ -2884,7 +3090,7 @@
                   }
                 },
                 "success": true,
-                "actualGasUsed": 4908409,
+                "actualGasUsed": 4857633,
                 "postOpReverted": false,
                 "execReverted": false
               }
@@ -2893,15 +3099,19 @@
               "used": {
                 "verificationGasLimit": "4488756",
                 "callGasLimit": "9100",
+                "preVerificationGas": "49224",
                 "pmVerificationGasLimit": "61369",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 189501,
+                "txGasUsed": 189489,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -2914,6 +3124,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -3119,26 +3339,30 @@
                 "used": {
                   "verificationGasLimit": "145426",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46716",
                   "pmVerificationGasLimit": "820000",
                   "pmPostOpGasLimit": "400000"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": true,
                 "brief": "ok",
                 "sim": {
                   "ok": true,
-                  "txGasUsed": 991858,
+                  "txGasUsed": 991834,
                   "events": [
                     {
                       "event": "UserOperationEvent",
                       "args": {
-                        "userOpHash": "0xc40121427efd48870e6571e01d04285f446ea1af79138541c32d804a1ae5a49b",
+                        "userOpHash": "0x6441a120a3f3f7342584cc91d28548847ec60e4a7d7648b6fd834c5394b82b9e",
                         "sender": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
                         "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                         "nonce": "0",
                         "success": "true",
-                        "actualGasCost": "2295230000000000",
-                        "actualGasUsed": "1147615"
+                        "actualGasCost": "2188662000000000",
+                        "actualGasUsed": "1094331"
                       }
                     }
                   ],
@@ -3154,7 +3378,7 @@
                       "error": null
                     },
                     "innerHandleOp": {
-                      "gas": 14816980,
+                      "gas": 14817004,
                       "gasUsed": 113918,
                       "error": null
                     },
@@ -3165,7 +3389,7 @@
                     }
                   },
                   "success": true,
-                  "actualGasUsed": 1147615,
+                  "actualGasUsed": 1094331,
                   "postOpReverted": false,
                   "execReverted": false
                 }
@@ -3174,9 +3398,13 @@
                 "used": {
                   "verificationGasLimit": "154913",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46716",
                   "pmVerificationGasLimit": "60857",
                   "pmPostOpGasLimit": "0"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
@@ -3195,6 +3423,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -3314,26 +3552,30 @@
                 "used": {
                   "verificationGasLimit": "145426",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46728",
                   "pmVerificationGasLimit": "820000",
                   "pmPostOpGasLimit": "400000"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": true,
                 "brief": "ok",
                 "sim": {
                   "ok": true,
-                  "txGasUsed": 991870,
+                  "txGasUsed": 991846,
                   "events": [
                     {
                       "event": "UserOperationEvent",
                       "args": {
-                        "userOpHash": "0xae21848966961096bb2b218943bba2dc6318f62c8c82d6a24da47ffe300f12be",
+                        "userOpHash": "0xb8403e1d110f5829793e83bfcc607761147b2fe3a9074a2065164d14ce63de5b",
                         "sender": "0xBC4Af805323F4f7829f6eaBE282c79B005B023B7",
                         "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                         "nonce": "18446744073709551616",
                         "success": "true",
-                        "actualGasCost": "2295230000000000",
-                        "actualGasUsed": "1147615"
+                        "actualGasCost": "2188686000000000",
+                        "actualGasUsed": "1094343"
                       }
                     }
                   ],
@@ -3349,7 +3591,7 @@
                       "error": null
                     },
                     "innerHandleOp": {
-                      "gas": 14816969,
+                      "gas": 14816992,
                       "gasUsed": 113918,
                       "error": null
                     },
@@ -3360,7 +3602,7 @@
                     }
                   },
                   "success": true,
-                  "actualGasUsed": 1147615,
+                  "actualGasUsed": 1094343,
                   "postOpReverted": false,
                   "execReverted": false
                 }
@@ -3369,15 +3611,19 @@
                 "used": {
                   "verificationGasLimit": "154913",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46728",
                   "pmVerificationGasLimit": "60857",
                   "pmPostOpGasLimit": "0"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112805,
+                  "txGasUsed": 112793,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -3390,6 +3636,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -3574,9 +3830,9 @@
                       "0x0000000000000000000000000000000000000000000000000000000000000000"
                     ],
                     "data": "0x000000000000000000000000000000000000000000000010bea213348106e5c0",
-                    "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                    "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                     "blockNumber": "0x7b",
-                    "blockTimestamp": "0x6adf6013",
+                    "blockTimestamp": "0x6adf71b4",
                     "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                     "transactionIndex": "0x0",
                     "logIndex": "0x3",
@@ -3590,9 +3846,9 @@
                       "0xbbb9a3a7c5cbc783966f8f5d20ca05f23287414d88433ec4c41c0ad041d8e949"
                     ],
                     "data": "0x000000000000000000000000000000000000000000000010bea213348106e5c0000000000000000000000000000000000000000000000010bea213348106e5c0",
-                    "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                    "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                     "blockNumber": "0x7b",
-                    "blockTimestamp": "0x6adf6013",
+                    "blockTimestamp": "0x6adf71b4",
                     "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                     "transactionIndex": "0x0",
                     "logIndex": "0x4",
@@ -3606,9 +3862,9 @@
                       "0x000000000000000000000000bc4af805323f4f7829f6eabe282c79b005b023b7"
                     ],
                     "data": "0x00000000000000000000000000000000000000000000000f38f06e8cd2635c80000000000000000000000000000000000000000000000010bea213348106e5c0",
-                    "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                    "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                     "blockNumber": "0x7b",
-                    "blockTimestamp": "0x6adf6013",
+                    "blockTimestamp": "0x6adf71b4",
                     "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                     "transactionIndex": "0x0",
                     "logIndex": "0x5",
@@ -3623,9 +3879,9 @@
                       "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                     ],
                     "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000831546e22eb6300000000000000000000000000000000000000000000000000000000001197fb",
-                    "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                    "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                     "blockNumber": "0x7b",
-                    "blockTimestamp": "0x6adf6013",
+                    "blockTimestamp": "0x6adf71b4",
                     "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                     "transactionIndex": "0x0",
                     "logIndex": "0x6",
@@ -3645,9 +3901,9 @@
                         "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000001fcf7c63001738000000000000000000000000000000000000000000000000001fcf7c630017380000",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x0",
@@ -3662,9 +3918,9 @@
                         "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000001fcf7c63001738000000000000000000000000000000000000000000000000001fcf7c630017380000",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x1",
@@ -3676,9 +3932,9 @@
                         "0xbb47ee3e183a558b1a2ff0874b079f3fc5478b7454eacf2bfc5af2ff5878f972"
                       ],
                       "data": "0x",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x2",
@@ -3692,9 +3948,9 @@
                         "0x0000000000000000000000000000000000000000000000000000000000000000"
                       ],
                       "data": "0x000000000000000000000000000000000000000000000010bea213348106e5c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x3",
@@ -3708,9 +3964,9 @@
                         "0xbbb9a3a7c5cbc783966f8f5d20ca05f23287414d88433ec4c41c0ad041d8e949"
                       ],
                       "data": "0x000000000000000000000000000000000000000000000010bea213348106e5c0000000000000000000000000000000000000000000000010bea213348106e5c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x4",
@@ -3724,9 +3980,9 @@
                         "0x000000000000000000000000bc4af805323f4f7829f6eabe282c79b005b023b7"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000f38f06e8cd2635c80000000000000000000000000000000000000000000000010bea213348106e5c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x5",
@@ -3741,9 +3997,9 @@
                         "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000831546e22eb6300000000000000000000000000000000000000000000000000000000001197fb",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x6",
@@ -3757,9 +4013,9 @@
                         "0x0000000000000000000000000000000000000000000000000000000000000000"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000bb2b3aa16032c38c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x7",
@@ -3773,9 +4029,9 @@
                         "0x55fa08428f9057e49aa7cda6481af601690b0fd752c8f5ff3d32ba7a0b787c75"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000bb2b3aa16032c38c000000000000000000000000000000000000000000000000bb2b3aa16032c38c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x8",
@@ -3789,9 +4045,9 @@
                         "0x000000000000000000000000bc4af805323f4f7829f6eabe282c79b005b023b7"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000aa274c92b48b3d68000000000000000000000000000000000000000000000000bb2b3aa16032c38c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x9",
@@ -3806,9 +4062,9 @@
                         "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                       ],
                       "data": "0x000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000004e4464170e61500000000000000000000000000000000000000000000000000000000000a813d",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0xa",
@@ -3822,9 +4078,9 @@
                         "0x0000000000000000000000009965507d1a55bcc2695c58ba16fb37d819b0a4dc"
                       ],
                       "data": "0x000000000000000000000000000000000000000000000000000d159aaf93d178",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0xb",
@@ -3835,14 +4091,14 @@
                   "type": "0x2",
                   "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                   "transactionIndex": "0x0",
-                  "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                  "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                   "blockNumber": "0x7b",
                   "gasUsed": "0x12a222",
                   "effectiveGasPrice": "0x3b9acbb9",
                   "from": "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
                   "to": "0x0000000071727de22e5e9d8baf0edac6f37da032",
                   "contractAddress": null,
-                  "blockTimestamp": 1793024019
+                  "blockTimestamp": 1793028532
                 },
                 "status": "mined"
               },
@@ -3924,9 +4180,9 @@
                       "0x0000000000000000000000000000000000000000000000000000000000000000"
                     ],
                     "data": "0x00000000000000000000000000000000000000000000000bb2b3aa16032c38c0",
-                    "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                    "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                     "blockNumber": "0x7b",
-                    "blockTimestamp": "0x6adf6013",
+                    "blockTimestamp": "0x6adf71b4",
                     "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                     "transactionIndex": "0x0",
                     "logIndex": "0x7",
@@ -3940,9 +4196,9 @@
                       "0x55fa08428f9057e49aa7cda6481af601690b0fd752c8f5ff3d32ba7a0b787c75"
                     ],
                     "data": "0x00000000000000000000000000000000000000000000000bb2b3aa16032c38c000000000000000000000000000000000000000000000000bb2b3aa16032c38c0",
-                    "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                    "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                     "blockNumber": "0x7b",
-                    "blockTimestamp": "0x6adf6013",
+                    "blockTimestamp": "0x6adf71b4",
                     "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                     "transactionIndex": "0x0",
                     "logIndex": "0x8",
@@ -3956,9 +4212,9 @@
                       "0x000000000000000000000000bc4af805323f4f7829f6eabe282c79b005b023b7"
                     ],
                     "data": "0x00000000000000000000000000000000000000000000000aa274c92b48b3d68000000000000000000000000000000000000000000000000bb2b3aa16032c38c0",
-                    "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                    "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                     "blockNumber": "0x7b",
-                    "blockTimestamp": "0x6adf6013",
+                    "blockTimestamp": "0x6adf71b4",
                     "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                     "transactionIndex": "0x0",
                     "logIndex": "0x9",
@@ -3973,9 +4229,9 @@
                       "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                     ],
                     "data": "0x000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000004e4464170e61500000000000000000000000000000000000000000000000000000000000a813d",
-                    "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                    "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                     "blockNumber": "0x7b",
-                    "blockTimestamp": "0x6adf6013",
+                    "blockTimestamp": "0x6adf71b4",
                     "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                     "transactionIndex": "0x0",
                     "logIndex": "0xa",
@@ -3995,9 +4251,9 @@
                         "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000001fcf7c63001738000000000000000000000000000000000000000000000000001fcf7c630017380000",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x0",
@@ -4012,9 +4268,9 @@
                         "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000001fcf7c63001738000000000000000000000000000000000000000000000000001fcf7c630017380000",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x1",
@@ -4026,9 +4282,9 @@
                         "0xbb47ee3e183a558b1a2ff0874b079f3fc5478b7454eacf2bfc5af2ff5878f972"
                       ],
                       "data": "0x",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x2",
@@ -4042,9 +4298,9 @@
                         "0x0000000000000000000000000000000000000000000000000000000000000000"
                       ],
                       "data": "0x000000000000000000000000000000000000000000000010bea213348106e5c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x3",
@@ -4058,9 +4314,9 @@
                         "0xbbb9a3a7c5cbc783966f8f5d20ca05f23287414d88433ec4c41c0ad041d8e949"
                       ],
                       "data": "0x000000000000000000000000000000000000000000000010bea213348106e5c0000000000000000000000000000000000000000000000010bea213348106e5c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x4",
@@ -4074,9 +4330,9 @@
                         "0x000000000000000000000000bc4af805323f4f7829f6eabe282c79b005b023b7"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000f38f06e8cd2635c80000000000000000000000000000000000000000000000010bea213348106e5c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x5",
@@ -4091,9 +4347,9 @@
                         "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000831546e22eb6300000000000000000000000000000000000000000000000000000000001197fb",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x6",
@@ -4107,9 +4363,9 @@
                         "0x0000000000000000000000000000000000000000000000000000000000000000"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000bb2b3aa16032c38c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x7",
@@ -4123,9 +4379,9 @@
                         "0x55fa08428f9057e49aa7cda6481af601690b0fd752c8f5ff3d32ba7a0b787c75"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000bb2b3aa16032c38c000000000000000000000000000000000000000000000000bb2b3aa16032c38c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x8",
@@ -4139,9 +4395,9 @@
                         "0x000000000000000000000000bc4af805323f4f7829f6eabe282c79b005b023b7"
                       ],
                       "data": "0x00000000000000000000000000000000000000000000000aa274c92b48b3d68000000000000000000000000000000000000000000000000bb2b3aa16032c38c0",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0x9",
@@ -4156,9 +4412,9 @@
                         "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b97016"
                       ],
                       "data": "0x000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000004e4464170e61500000000000000000000000000000000000000000000000000000000000a813d",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0xa",
@@ -4172,9 +4428,9 @@
                         "0x0000000000000000000000009965507d1a55bcc2695c58ba16fb37d819b0a4dc"
                       ],
                       "data": "0x000000000000000000000000000000000000000000000000000d159aaf93d178",
-                      "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                      "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                       "blockNumber": "0x7b",
-                      "blockTimestamp": "0x6adf6013",
+                      "blockTimestamp": "0x6adf71b4",
                       "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                       "transactionIndex": "0x0",
                       "logIndex": "0xb",
@@ -4185,14 +4441,14 @@
                   "type": "0x2",
                   "transactionHash": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
                   "transactionIndex": "0x0",
-                  "blockHash": "0x6d5e2a2d15fb10b3ab778d0456115598679f1c1866c29afd3f9387c4a5b7b3e4",
+                  "blockHash": "0x14286babc3738b35c29716724e9ac4e3538f18440c92eb2df01948b4606961bf",
                   "blockNumber": "0x7b",
                   "gasUsed": "0x12a222",
                   "effectiveGasPrice": "0x3b9acbb9",
                   "from": "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
                   "to": "0x0000000071727de22e5e9d8baf0edac6f37da032",
                   "contractAddress": null,
-                  "blockTimestamp": 1793024019
+                  "blockTimestamp": 1793028532
                 },
                 "status": "mined"
               },
@@ -4299,26 +4555,30 @@
                 "used": {
                   "verificationGasLimit": "145426",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46716",
                   "pmVerificationGasLimit": "820000",
                   "pmPostOpGasLimit": "400000"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": true,
                 "brief": "ok",
                 "sim": {
                   "ok": true,
-                  "txGasUsed": 991846,
+                  "txGasUsed": 991834,
                   "events": [
                     {
                       "event": "UserOperationEvent",
                       "args": {
-                        "userOpHash": "0x0e7f07e193e3ac01941deb1bfa9056acf37128b525e33626331e2709f2c394fb",
+                        "userOpHash": "0x59f903eb42ac1083777780620963ccb57f822687320bfe4e3d4652b800cc6a83",
                         "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
                         "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                         "nonce": "0",
                         "success": "true",
-                        "actualGasCost": "2295230000000000",
-                        "actualGasUsed": "1147615"
+                        "actualGasCost": "2188662000000000",
+                        "actualGasUsed": "1094331"
                       }
                     }
                   ],
@@ -4334,7 +4594,7 @@
                       "error": null
                     },
                     "innerHandleOp": {
-                      "gas": 14816992,
+                      "gas": 14817004,
                       "gasUsed": 113918,
                       "error": null
                     },
@@ -4345,7 +4605,7 @@
                     }
                   },
                   "success": true,
-                  "actualGasUsed": 1147615,
+                  "actualGasUsed": 1094331,
                   "postOpReverted": false,
                   "execReverted": false
                 }
@@ -4354,15 +4614,19 @@
                 "used": {
                   "verificationGasLimit": "154913",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46716",
                   "pmVerificationGasLimit": "60857",
                   "pmPostOpGasLimit": "0"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112793,
+                  "txGasUsed": 112769,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -4375,6 +4639,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -4494,26 +4768,30 @@
                 "used": {
                   "verificationGasLimit": "145426",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46728",
                   "pmVerificationGasLimit": "820000",
                   "pmPostOpGasLimit": "400000"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": true,
                 "brief": "ok",
                 "sim": {
                   "ok": true,
-                  "txGasUsed": 991870,
+                  "txGasUsed": 991858,
                   "events": [
                     {
                       "event": "UserOperationEvent",
                       "args": {
-                        "userOpHash": "0x376245b24f2ff6741549bfe72140a8e7b066246bc3385fe0a2ddf935a41bb013",
+                        "userOpHash": "0x4a5140503afc4e6324dcb004d377568a2714beea4261834182b323e0f86e7d2a",
                         "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
                         "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                         "nonce": "18446744073709551616",
                         "success": "true",
-                        "actualGasCost": "2295230000000000",
-                        "actualGasUsed": "1147615"
+                        "actualGasCost": "2188686000000000",
+                        "actualGasUsed": "1094343"
                       }
                     }
                   ],
@@ -4529,7 +4807,7 @@
                       "error": null
                     },
                     "innerHandleOp": {
-                      "gas": 14816969,
+                      "gas": 14816980,
                       "gasUsed": 113918,
                       "error": null
                     },
@@ -4540,7 +4818,7 @@
                     }
                   },
                   "success": true,
-                  "actualGasUsed": 1147615,
+                  "actualGasUsed": 1094343,
                   "postOpReverted": false,
                   "execReverted": false
                 }
@@ -4549,15 +4827,19 @@
                 "used": {
                   "verificationGasLimit": "154913",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46728",
                   "pmVerificationGasLimit": "60857",
                   "pmPostOpGasLimit": "0"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112805,
+                  "txGasUsed": 112793,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -4570,6 +4852,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -4689,26 +4981,30 @@
                 "used": {
                   "verificationGasLimit": "145426",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46728",
                   "pmVerificationGasLimit": "820000",
                   "pmPostOpGasLimit": "400000"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": true,
                 "brief": "ok",
                 "sim": {
                   "ok": true,
-                  "txGasUsed": 991870,
+                  "txGasUsed": 991858,
                   "events": [
                     {
                       "event": "UserOperationEvent",
                       "args": {
-                        "userOpHash": "0xd95bea67bd033510b26dd0be0562802ba931914c5ac549ed2121a2a224cafdee",
+                        "userOpHash": "0x72b5b604ed4c115413bff850e8c79ff6466109b06cac528257d8af79047f6955",
                         "sender": "0x5f326c848456Ec934B6F9206B638c46e9F7313c1",
                         "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                         "nonce": "36893488147419103232",
                         "success": "true",
-                        "actualGasCost": "2295230000000000",
-                        "actualGasUsed": "1147615"
+                        "actualGasCost": "2188686000000000",
+                        "actualGasUsed": "1094343"
                       }
                     }
                   ],
@@ -4724,7 +5020,7 @@
                       "error": null
                     },
                     "innerHandleOp": {
-                      "gas": 14816969,
+                      "gas": 14816980,
                       "gasUsed": 113918,
                       "error": null
                     },
@@ -4735,7 +5031,7 @@
                     }
                   },
                   "success": true,
-                  "actualGasUsed": 1147615,
+                  "actualGasUsed": 1094343,
                   "postOpReverted": false,
                   "execReverted": false
                 }
@@ -4744,15 +5040,19 @@
                 "used": {
                   "verificationGasLimit": "154913",
                   "callGasLimit": "9100",
+                  "preVerificationGas": "46728",
                   "pmVerificationGasLimit": "60857",
                   "pmPostOpGasLimit": "0"
                 },
+                "filledByUs": [
+                  "pmPostOpGasLimit"
+                ],
                 "pmPostOpFilledByUs": true,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112805,
+                  "txGasUsed": 112781,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -4765,6 +5065,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -5024,26 +5334,30 @@
               "used": {
                 "verificationGasLimit": "145426",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46716",
                 "pmVerificationGasLimit": "820000",
                 "pmPostOpGasLimit": "400000"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": true,
               "brief": "ok",
               "sim": {
                 "ok": true,
-                "txGasUsed": 991858,
+                "txGasUsed": 991846,
                 "events": [
                   {
                     "event": "UserOperationEvent",
                     "args": {
-                      "userOpHash": "0x740ad6fc99153c6cfd215d4052c14570717e03286888f80547a60baa79967135",
+                      "userOpHash": "0xbb7637047eec337aa572e22eba33a62c2444a596fbed8f8bccb48d06995b5354",
                       "sender": "0x5cc265204f1078facF17e4eBB2B9DAd9B7a91bBB",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                       "nonce": "0",
                       "success": "true",
-                      "actualGasCost": "2295230000000000",
-                      "actualGasUsed": "1147615"
+                      "actualGasCost": "2188662000000000",
+                      "actualGasUsed": "1094331"
                     }
                   }
                 ],
@@ -5059,7 +5373,7 @@
                     "error": null
                   },
                   "innerHandleOp": {
-                    "gas": 14816980,
+                    "gas": 14816992,
                     "gasUsed": 113918,
                     "error": null
                   },
@@ -5070,7 +5384,7 @@
                   }
                 },
                 "success": true,
-                "actualGasUsed": 1147615,
+                "actualGasUsed": 1094331,
                 "postOpReverted": false,
                 "execReverted": false
               }
@@ -5079,15 +5393,19 @@
               "used": {
                 "verificationGasLimit": "154913",
                 "callGasLimit": "9100",
+                "preVerificationGas": "46716",
                 "pmVerificationGasLimit": "60857",
                 "pmPostOpGasLimit": "0"
               },
+              "filledByUs": [
+                "pmPostOpGasLimit"
+              ],
               "pmPostOpFilledByUs": true,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112793,
+                "txGasUsed": 112781,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -5100,6 +5418,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -5220,16 +5548,22 @@
     "id": 1,
     "result": [
       {
+        "address": "0x5f326c848456ec934b6f9206b638c46e9f7313c1",
+        "opsSeen": "0x3",
+        "opsIncluded": "0x0",
+        "status": "0x0"
+      },
+      {
         "address": "0x029a281de95403ea1a8e6d110011cdb0f5af3f70",
         "opsSeen": "0x1",
         "opsIncluded": "0x1",
         "status": "0x0"
       },
       {
-        "address": "0x0b306bf915c4d645ff596e518faf3f9669b97016",
-        "opsSeen": "0x2710",
-        "opsIncluded": "0x4",
-        "status": "0x2"
+        "address": "0xf6a0cd9b78de9a2098bbfd607462b07df266b938",
+        "opsSeen": "0x1",
+        "opsIncluded": "0x1",
+        "status": "0x0"
       },
       {
         "address": "0xbc4af805323f4f7829f6eabe282c79b005b023b7",
@@ -5238,16 +5572,10 @@
         "status": "0x0"
       },
       {
-        "address": "0x5f326c848456ec934b6f9206b638c46e9f7313c1",
-        "opsSeen": "0x3",
-        "opsIncluded": "0x0",
-        "status": "0x0"
-      },
-      {
-        "address": "0xf6a0cd9b78de9a2098bbfd607462b07df266b938",
-        "opsSeen": "0x1",
-        "opsIncluded": "0x1",
-        "status": "0x0"
+        "address": "0x0b306bf915c4d645ff596e518faf3f9669b97016",
+        "opsSeen": "0x2710",
+        "opsIncluded": "0x4",
+        "status": "0x2"
       }
     ]
   },

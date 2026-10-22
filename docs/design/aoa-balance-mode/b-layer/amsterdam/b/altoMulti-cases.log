@@ -1,0 +1,87 @@
+  probe 0x12846de8: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] v=164041 c=16323 pmV=497292 pmP=480000 pvg=54982 → FailedOp(0,AA34 signature error) | est[pmOmitted] v=164041 c=16323 pmV=497292 pmP=137851 pvg=54982 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+alto B9-below: FAIL — reject [-32500] AA33 reverted - 0x
+  probe 0x12846de8: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] v=164041 c=16323 pmV=497292 pmP=480000 pvg=54982 → FailedOp(0,AA34 signature error) | est[pmOmitted] v=164041 c=16323 pmV=497292 pmP=137851 pvg=54982 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+alto B9-above: FAIL — reject
+  probe 0x98805d79: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] v=164041 c=16323 pmV=497292 pmP=480000 pvg=54982 → FailedOp(0,AA34 signature error) | est[pmOmitted] v=164041 c=16323 pmV=497292 pmP=137851 pvg=54982 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+alto B1: FAIL — reject; burn=0 lockedOf=0 opΔ=0 revΔ=0
+  probe 0x908f1356: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] v=164041 c=16323 pmV=497292 pmP=480000 pvg=54982 → FailedOp(0,AA34 signature error) | est[pmOmitted] v=164041 c=16323 pmV=497292 pmP=137851 pvg=54982 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+  probe 0xa5b3d8f7: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] v=164041 c=16323 pmV=497292 pmP=480000 pvg=54982 → FailedOp(0,AA34 signature error) | est[pmOmitted] v=164041 c=16323 pmV=497292 pmP=137851 pvg=54982 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+  probe 0x000c109b: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] v=164041 c=16323 pmV=497292 pmP=480000 pvg=54982 → FailedOp(0,AA34 signature error) | est[pmOmitted] v=164041 c=16323 pmV=497292 pmP=137851 pvg=54982 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+alto B3: FAIL — reject,reject,reject in 0 tx; LockSettled users=0
+  probe 0x8a35df52: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] v=164041 c=16323 pmV=1306619 pmP=480000 pvg=54982 → ok | est[pmOmitted] v=164041 c=16323 pmV=1306619 pmP=137851 pvg=54982 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=998865 pmP=400000
+alto B5: FAIL — reject; renewedEvent=null
+  probe 0xc6977819: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] v=164041 c=16323 pmV=497292 pmP=480000 pvg=55008 → FailedOp(0,AA34 signature error) | est[pmOmitted] v=164041 c=16323 pmV=497292 pmP=137851 pvg=55008 → FailedOp(0,AA34 signature error) | needs v=150839 c=3696 pmV=870566 pmP=400000
+alto B6: FAIL — reject; renewedEvent=null
+  probe 0x20bb3bcd: submitted→ok | est[pmSupplied] ERR[-32521] UserOperation reverted during simulation with reason: AA33 reverted 0x | est[pmOmitted] v=164041 c=16323 pmV=516336 pmP=243585 pvg=54982 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=717075 pmP=400000
+alto B7: PASS — included; debts 0→294062427042452640000; reserved=0
+  probe 0x85857938: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=400000
+alto B8: PASS — included
+  probe 0xb1ef99d7: submitted→FailedOp(0,AA13 initCode failed or OOG) | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=3983015 c=3696 pmV=784491 pmP=400000
+alto B4-unstaked: FAIL — reject [-32500] AA13 initCode failed or OOG
+  probe 0xf8cb914b: submitted→FailedOp(0,AA13 initCode failed or OOG) | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=3983015 c=3696 pmV=784491 pmP=400000
+alto B4-lowStake: FAIL — reject [-32500] AA13 initCode failed or OOG
+  probe 0x4c7a0759: submitted→FailedOp(0,AA13 initCode failed or OOG) | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=3983015 c=3696 pmV=784491 pmP=400000
+alto B4-shortDelay: PASS — reject [-32500] AA13 initCode failed or OOG
+  probe 0x23515486: submitted→FailedOp(0,AA13 initCode failed or OOG) | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=3885095 c=3696 pmV=784491 pmP=400000
+alto B4-ok: FAIL — reject [-32500] AA13 initCode failed or OOG
+alto B10: FAIL — suppliedPostOpMin: ERR [undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | omittedPmGas: ERR [undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | omittedPostOpOnly: ERR [undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3
+  probe 0xbbb9a3a7: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=400000
+  probe 0x55fa0842: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=400000
+alto B2a: PASS — included=2 in 1 tx; lockedOf=0
+  probe 0x8dff69df: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=400000
+  probe 0x03db6394: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=400000
+  probe 0x219f9636: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=400000
+alto B2b: PASS — handleOps(all)={"name":"FailedOp","args":["2","AA34 signature error"]}; verdicts=included | included | reject[-32500] AA34 signature error
+  probe 0x98805d79: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=400000
+alto B2-aftermath: included
+alto all pass: false

@@ -8,7 +8,24 @@
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
       "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -80,7 +97,24 @@
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
       "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -152,7 +186,24 @@
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
       "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -224,7 +275,24 @@
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
       "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -296,7 +364,24 @@
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
       "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -368,7 +453,24 @@
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
       "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -440,7 +542,24 @@
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
       "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -512,7 +631,24 @@
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
       "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
-      "pmOmitted": "v 155,024 / c 9,100 / pmV 60,901 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 155,024 / c 9,100 / pvg 46,728 / pmV 60,901 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "155024",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "60901",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -583,8 +719,38 @@
     "error": null,
     "submittedHandleOps": "ok",
     "estimate": {
-      "pmSupplied": "v 153,182 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 153,182 / c 9,100 / pvg 46,716 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "153182",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -660,8 +826,38 @@
     "error": null,
     "submittedHandleOps": "ok",
     "estimate": {
-      "pmSupplied": "v 145,426 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,704 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,704 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46704",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46704",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -737,8 +933,38 @@
     "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
     "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
     "estimate": {
-      "pmSupplied": "v 4,730,070 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 4,596,468 / c 9,100 / pmV 62,840 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 4,730,070 / c 9,100 / pvg 49,224 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 4,596,468 / c 9,100 / pvg 49,224 / pmV 62,840 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "4730070",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "4596468",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "62840",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -811,8 +1037,38 @@
     "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
     "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
     "estimate": {
-      "pmSupplied": "v 4,730,070 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 4,596,468 / c 9,100 / pmV 62,840 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 4,730,070 / c 9,100 / pvg 49,224 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 4,596,468 / c 9,100 / pvg 49,224 / pmV 62,840 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "4730070",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "4596468",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "62840",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -885,8 +1141,38 @@
     "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
     "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
     "estimate": {
-      "pmSupplied": "v 4,730,070 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 4,596,468 / c 9,100 / pmV 62,840 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 4,730,070 / c 9,100 / pvg 49,212 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 4,596,468 / c 9,100 / pvg 49,212 / pmV 62,840 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "4730070",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49212",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "4596468",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49212",
+            "pmVerificationGasLimit": "62840",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -959,8 +1245,38 @@
     "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
     "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
     "estimate": {
-      "pmSupplied": "v 4,635,822 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 4,488,756 / c 9,100 / pmV 61,369 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 4,635,822 / c 9,100 / pvg 49,224 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 4,488,756 / c 9,100 / pvg 49,224 / pmV 61,369 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "4635822",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "4488756",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "61369",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1071,8 +1387,38 @@
     "error": null,
     "submittedHandleOps": "ok",
     "estimate": {
-      "pmSupplied": "v 145,426 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,716 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1148,8 +1494,38 @@
     "error": null,
     "submittedHandleOps": "ok",
     "estimate": {
-      "pmSupplied": "v 145,426 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,728 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,728 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1225,8 +1601,38 @@
     "error": null,
     "submittedHandleOps": "ok",
     "estimate": {
-      "pmSupplied": "v 145,426 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,716 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1295,8 +1701,38 @@
     "error": null,
     "submittedHandleOps": "ok",
     "estimate": {
-      "pmSupplied": "v 145,426 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,728 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,728 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1365,8 +1801,38 @@
     "error": null,
     "submittedHandleOps": "ok",
     "estimate": {
-      "pmSupplied": "v 145,426 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,728 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,728 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1435,8 +1901,38 @@
     "error": "[-32504] paymaster 0x0b306bf915c4d645ff596e518faf3f9669b97016 throttled or banned",
     "submittedHandleOps": "ok",
     "estimate": {
-      "pmSupplied": "v 145,426 / c 9,100 / pmV 820,000 / pmP –* → executes",
-      "pmOmitted": "v 154,913 / c 9,100 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,716 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1504,8 +2000,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1576,8 +2098,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1648,8 +2196,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1720,8 +2294,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1792,8 +2392,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1864,8 +2490,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -1936,8 +2588,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 1,306,619 / pmP 480,000 → executes",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 1,306,619 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 1,306,619 / pmP 480,000 → executes",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 1,306,619 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "1306619",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "1306619",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2007,8 +2685,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 55,008 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 55,008 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "55008",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "55008",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2080,7 +2784,22 @@
     "submittedHandleOps": "ok",
     "estimate": {
       "pmSupplied": "ERR [-32521] UserOperation reverted during simulation with reason: AA33 reverted 0x",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 516,336 / pmP 243,585 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 516,336 / pmP 243,585 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "516336",
+            "pmPostOpGasLimit": "243585"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2157,6 +2876,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2226,6 +2949,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2292,6 +3019,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2358,6 +3089,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2424,6 +3159,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2519,6 +3258,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2588,6 +3331,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2657,6 +3404,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2726,6 +3477,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2795,6 +3550,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2856,6 +3615,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2923,8 +3686,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -2995,8 +3784,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3067,8 +3882,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3139,8 +3980,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3211,8 +4078,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3283,8 +4176,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3355,8 +4274,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 1,306,619 / pmP 480,000 → executes",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 1,306,619 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 1,306,619 / pmP 480,000 → executes",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 1,306,619 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "1306619",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "1306619",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3426,8 +4371,34 @@
     "error": "[-32500] AA33 reverted - 0x",
     "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
     "estimate": {
-      "pmSupplied": "v 164,041 / c 16,323 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 55,008 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 55,008 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "55008",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "55008",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3499,7 +4470,22 @@
     "submittedHandleOps": "ok",
     "estimate": {
       "pmSupplied": "ERR [-32521] UserOperation reverted during simulation with reason: AA33 reverted 0x",
-      "pmOmitted": "v 164,041 / c 16,323 / pmV 516,336 / pmP 243,585 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 516,336 / pmP 243,585 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "516336",
+            "pmPostOpGasLimit": "243585"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3576,6 +4562,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3645,6 +4635,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3711,6 +4705,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3777,6 +4775,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3843,6 +4845,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -3938,6 +4944,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -4007,6 +5017,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -4076,6 +5090,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -4145,6 +5163,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -4214,6 +5236,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",
@@ -4275,6 +5301,10 @@
     "estimate": {
       "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
       "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
       "raw": {
         "pmSupplied": {
           "jsonrpc": "2.0",

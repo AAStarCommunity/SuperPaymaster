@@ -1,0 +1,7 @@
+      1         "shortMessage": "The contract function \"handleOps\" reverted.",
+      1       "message": "AA34 signature error",
+      1       "message": "execution reverted: custom error 0x220266b6: \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000@\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001eAA26 over verificationGasLimit\u0000\u0000",
+      2       "message": "unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+      1       "message": "unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+     41       "shortMessage": "Hex size (33) exceeds padding size (16).",
+      1       "shortMessage": "The contract function \"handleOps\" reverted.",
