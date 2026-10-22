@@ -6,12 +6,12 @@
 
 | 包 | 目录 | 快照块 | 状态 |
 |---|---|---|---|
-| v1 | `a3a-precheck/` | 11,794,003 | 早已被取代；同样不可执行 |
-| v2 | `a3a-precheck-v2/` | 11,877,799 | **EXECUTION-INVALID（R-AMS）** |
+| v1 | `a3a-precheck/` | 11,794,003（2026-09-27，**早于** Amsterdam） | 早已 OBSOLETE：nonce 12130→12131 之后，地址、calldata、op id、safeTxHash 全部失效（见该包 `validity`）；本文件不改变这一点 |
+| v2 | `a3a-precheck-v2/` | 11,875,847（2026-10-09；其 cap 预算读的是块 11,877,799） | **EXECUTION-INVALID（R-AMS）** |
 | v3 | `a3a-precheck-v3/` | 11,960,489 | **EXECUTION-INVALID（R-AMS）** |
 | v4 | `a3a-precheck-v4/` | 11,961,849 | **EXECUTION-INVALID（R-AMS）**（DSR CC-125 d13dd9eb） |
 
-**哪些仍然成立**：身份字段，包括地址、calldata、salt、operation id、safeTxHash、nonce 计划。它们只依赖 nonce 和源码。
+**哪些仍然成立（只限 v2/v3/v4）**：身份字段，包括地址、calldata、salt、operation id、safeTxHash、nonce 计划。它们只依赖 nonce 和源码，前提是部署者 nonce 仍为 12131、Safe nonce 仍为 1。v1 的身份字段早已失效。
 
 **哪些不成立**：
 - 所有 gas 数字，包括 `gasUsedInFork` 和 `suggestedGasLimit`；
@@ -23,16 +23,16 @@
 
 ## 原因
 
-Sepolia 于 **2026-10-06 13:53:36 UTC** 启用了 Amsterdam（Glamsterdam 执行层），早于所有快照块。各包的 fork 演练用的是 forge 1.7.1 的 anvil，它不实现 Amsterdam：显式传 `--hardfork amsterdam` 会直接崩溃，默认规则是旧规则。runbook 第 0 步要求用 `eth_config` 检查 fork 层级，这一步在 v2/v3/v4 中**都没有执行**。
+Sepolia 于 **2026-10-06 13:53:36 UTC** 启用了 Amsterdam（Glamsterdam 执行层），早于 v2、v3、v4 的快照块（v1 的快照在激活之前，但 v1 本来就因 nonce 变动而失效）。各包的 fork 演练用的是 forge 1.7.1 的 anvil，它不实现 Amsterdam：显式传 `--hardfork amsterdam` 会直接崩溃，默认规则是旧规则。runbook 第 0 步要求用 `eth_config` 检查 fork 层级，这一步在 v2/v3/v4 中**都没有执行**。
 
 ## 证据
 
 - `../design/aoa-balance-mode/data/rams/capture-11969744.json`：在同一块上，三个端点（reth v2.7.0 / reth v2.8.0 / Tenderly）读回的内容一致，包括：
   - chainId、块哈希；
-  - `eth_config`：`current.activationTime = 1791294816`，`forkId 0x6c1d9423`，`next = null`；
+  - `eth_config`（**只有两个 reth 端点**支持；Tenderly 返回 -32601）：`current.activationTime = 1791294816`，`forkId 0x6c1d9423`，`next = null`；
   - S1/S2/S3 的 `eth_estimateGas`：48,938 / 9,307,838 / 9,257,602；
   - 按包内 gasLimit 执行 `eth_call` 的结果：revert / OOG / OOG。
-- **未广播的事实**：同一份文件里，部署者 nonce 在该块与 `pending` 均为 12131，Safe nonce 为 1，三个端点一致。
+- **未广播的事实**：同一份文件里，部署者 nonce 在该块与 `pending` 均为 12131，Safe nonce 为 1，三个端点一致。nonce 只能证明没有交易上链或进入这些端点的 pending 池；**未签名**这一点来自执行器的闸门顺序：S1 在 `eth_estimateGas` 闸门处（48,938 > 41,108）就停了，这道闸门在 `cast mktx` 签名之前，所以签名步骤从未执行。S2/S3 只在 SP 端做了只读估算。
 - **引擎对照**：见 `../design/aoa-balance-mode/data/rams/README.md`。
 
 ## 授权记录

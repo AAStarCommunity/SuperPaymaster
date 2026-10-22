@@ -43,7 +43,8 @@ def ok_at(url, tx, gas, blk):
 
 
 def min_gas(url, tx, blk):
-    lo, hi = 21_000, HI
+    # Lower bound 0, not 21,000: EIP-2780 lowers intrinsic costs, so sub-21k thresholds are real.
+    lo, hi = 0, HI
     if not ok_at(url, tx, hi, blk):
         return None
     while lo < hi:
@@ -113,7 +114,9 @@ def main():
         row = {}
         for k, u in eps.items():
             row[k] = {"minGas": min_gas(u, tx, blk), "estimate": estimate(u, tx, blk)}
-        row["liveAgree"] = row["A"]["minGas"] == row["B"]["minGas"]
+        # A probe that cannot be measured on any endpoint (None) is a FAILURE, never a match.
+        row["measurable"] = all(isinstance(row[k]["minGas"], int) for k in eps)
+        row["liveAgree"] = row["measurable"] and row["A"]["minGas"] == row["B"]["minGas"]
         row["engineMatchesLive"] = row["liveAgree"] and row["ENGINE"]["minGas"] == row["A"]["minGas"]
         out["probes"][name] = row
         print(f"{name}: live {row['A']['minGas']}/{row['B']['minGas']} engine {row['ENGINE']['minGas']} "

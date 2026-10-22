@@ -19,7 +19,7 @@
 
 ## R-AMS-1：与 Amsterdam 一致的执行引擎
 
-判据：同一固定块上，对每个探针二分查找 **`eth_call` 能成功的最小 gas limit**。引擎的这个阈值必须与两个真实端点**逐一相等**。不比 `eth_estimateGas`，因为各家的估算算法不同：reth 的估算高于最小可行值，S1 高 297，S2 高 74,448。脚本：`script/evidence/rams-engine-probe.py`。
+判据：同一固定块（**11,969,861**）上，对每个探针二分查找 **`eth_call` 能成功的最小 gas limit**，下界为 0（EIP-2780 之后固有 gas 可低于 21,000，例如 EntryPoint `balanceOf` 的阈值是 18,004）。任何一端测不出结果（30M 内都不成功）都判为**失败**，不算一致。引擎的这个阈值必须与两个真实端点**逐一相等**。不比 `eth_estimateGas`，因为各家的估算算法不同：reth 的估算高于最小可行值，S1 高 297，S2 高 74,448。脚本：`script/evidence/rams-engine-probe.py`。
 
 探针共 14 个：
 - A3a S1/S2/S3 的真实 calldata；
@@ -29,9 +29,11 @@
 
 | 引擎（`engine-versions.txt`） | 结果 | 文件 |
 |---|---|---|
-| **foundry nightly `926eb1d087523f1de437e3c0c49ea6d26407e827`（anvil 1.8.7-nightly）** | **14/14 一致**，exit 0 | `engine-probe-nightly-926eb1d-11969744.{json,log}` |
-| foundry v1.8.6 稳定版（anvil 1.8.6） | **6/14**：所有涉及 CREATE 的探针都少约 183,600 gas，例如空 CREATE 链上 207,606、anvil 24,064。普通调用和向新账户转账一致 | `engine-probe-v1.8.6-11969744.{json,log}` |
+| **foundry nightly `926eb1d087523f1de437e3c0c49ea6d26407e827`（anvil 1.8.7-nightly）** | **14/14 一致**，exit 0 | `engine-probe-nightly-926eb1d-11969861.{json,log}` |
+| foundry v1.8.6 稳定版（anvil 1.8.6） | **6/14**：所有涉及 CREATE 的探针都少约 183,600 gas，例如空 CREATE 链上 207,606、anvil 24,064。普通调用和向新账户转账一致 | `engine-probe-v1.8.6-11969861.{json,log}` |
 | foundry v1.7.1（仓库锁定版本） | 不实现 Amsterdam：`--hardfork amsterdam` 直接 panic（`unimplemented Amsterdam`）；默认规则为旧规则 | DSR 另行实测 |
+
+anvil fork 只从 RPC 取状态，执行在本地完成。1.8.6 在同样的 RPC 数据上得出不同结果，说明一致性来自本地引擎，不是把调用转发给了 RPC。
 
 1.8.6 这一行同时是负对照：它说明这个探针能区分「一致」和「不一致」，而且偏差集中在 CREATE 新账户的状态 gas（EIP-8037）。
 
@@ -40,6 +42,19 @@
 **范围说明**：本引擎只用于**运行时规则**（fork 演练、gas 测量）。编译产物仍是 rc.4 的 profile.default（solc 0.8.33，cancun），不用 `--evm-version` 改编译目标来冒充运行规则。
 
 **仍未覆盖**：本轮探针**没有覆盖** EIP-8037 的 state reservoir 退款与 `gasleft()` 语义对 EntryPoint 计费的影响。这项属于 R-AMS-2，要用真实 EntryPoint 的费用流和 trace 来验证。
+
+## 大合约在 Amsterdam 下能否部署（`deploy-and-txcap.json`，`script/evidence/rams-deploy-and-txcap.py`）
+
+用 rc.4 的 profile.default 产物，在真实 Sepolia 上只读模拟部署：
+
+| 合约 | initcode | Alchemy 估算 | publicnode 估算 | `eth_call` gas=2^24 | `eth_call` gas=60M |
+|---|---:|---:|---:|---|---|
+| Registry | 23,670 B | 36,877,356 | 36,877,356 | 两端都 OOG | 两端都成功 |
+| SuperPaymaster impl（ctor：EntryPoint / Registry 代理 / Chainlink ETH-USD） | 34,647 B | 52,811,426 | 节点 RPC gas 上限 50M，无法估算 | 两端都 revert | Alchemy 成功；publicnode 把调用 gas 限在 2^24，OOG |
+
+**单笔交易的 gas 上限不挡部署**：扫描 Sepolia 最近 3,000 个块（11,966,850–11,969,849），共 433,349 笔交易，其中 **3,047 笔 gasLimit 大于 2^24** 且被打包；最大的一笔 gasLimit 189,813,189，另有一笔 **gasUsed 84,832,515 且执行成功**。所以在 Amsterdam 下，gasLimit 超过 2^24 的交易可以上链，超出部分用于支付状态 gas。云端 sweep（`data/amsterdam-sweep/REPORT.md` §5.2）中「开启 revm 的 EIP-7825 检查后 Registry 部署失败」是模拟结果，**与真实 Sepolia 不符**；而且那次 sweep 用的是 forge 1.8.6，其 CREATE 数据偏低（见上表），只能作为参考。
+
+部署成本约为 Prague 下的 7 倍。按 gas price 2 gwei 计，单是 SP impl 一笔就需约 0.106 ETH。
 
 ## 复现
 

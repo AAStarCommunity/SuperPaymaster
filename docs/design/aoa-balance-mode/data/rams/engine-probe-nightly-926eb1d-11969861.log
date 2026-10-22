@@ -11,4 +11,4 @@ transfer-1wei-to-fresh: live 204600/204600 engine 204600 match=True
 call-sp-owner: live 23555/23555 engine 23555 match=True
 call-sp-version: live 21114/21114 engine 21114 match=True
 call-safe-getOwners: live 32840/32840 engine 32840 match=True
-call-entrypoint-balanceOf-sp: live 21000/21000 engine 21000 match=True
+call-entrypoint-balanceOf-sp: live 18004/18004 engine 18004 match=True
