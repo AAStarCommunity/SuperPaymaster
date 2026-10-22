@@ -1,20 +1,11 @@
 #!/usr/bin/env python3
-"""Execute ONE deployer-EOA step (S1, S2, S3, S4 or S7) of the A3a v4 packet on Sepolia, gated.
+"""QUARANTINED PROTOTYPE - DOES NOT RUN (DSR CC-125 d13dd9eb).
 
-Usage (author go required; DSR CC-125 973964b6 execution boundary):
-  RPC_A=<archive rpc> RPC_B=<second rpc> DEPLOYER_KEY_ENV=PRIVATE_KEY ENV_FILE=.env.sepolia \
-    python3 script/evidence/a3a-live-step.py S1 [--dry-run]
-
-Gate (any failure -> exit non-zero BEFORE signing):
-  - packet step calldata keccak == packet calldataKeccak256; signer key derives to the packet sender;
-  - both endpoints: chainId 11155111, deployer nonce latest == pending == the step's requiredSenderNonce;
-  - step-specific pre-state read on both endpoints (see PRE);
-  - eth_estimateGas on both endpoints succeeds and <= the packet's suggestedGasLimit;
-  - the signed raw tx decodes to exactly (chainId, nonce, to/create, value 0, input, gas limit).
-Then the identical raw tx is sent to both endpoints, the receipt is awaited on both (status 1,
-same block hash), and the step-specific post-state is read on both endpoints at the receipt block.
-A JSON record (no key, no RPC URL) is written to docs/release/a3a-exec-sepolia/<label>.json.
-The private key is read from ENV_FILE by variable name and is only passed to `cast mktx`.
+This was the deployer-EOA step runner used on 2026-10-22, when its eth_estimateGas gate stopped A3a v4 S1
+under Amsterdam before anything was signed. It is kept only as failure evidence. Its original description
+(gated, key only passed to `cast mktx`) is NOT accurate: it lacks an R-AMS / fork-tier gate, under-checks
+S2/S3/S7, signs during --dry-run and passes the key via argv. The module exits on import (below).
+The reviewed executor is a separate R-AMS-3 deliverable.
 """
 import json, os, re, subprocess, sys, time, urllib.request
 
