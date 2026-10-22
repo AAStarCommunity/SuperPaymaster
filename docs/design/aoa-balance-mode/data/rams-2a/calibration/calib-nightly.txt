@@ -1,0 +1,7 @@
+client: anvil/v1.8.7 block: 0
+create data 0x00                         min=   207606 expected=   207606 diff=      +0 MATCH estimateGas=207606 fail_at_min-1=EVM error OutOfGas
+create data 0x6101006000f3               min=   599432 expected=   599432 diff=      +0 MATCH estimateGas=599432 fail_at_min-1=EVM error OutOfGas
+create data 0x600160005500               min=   317700 expected=   317700 diff=      +0 MATCH estimateGas=317700 fail_at_min-1=EVM error OutOfGas
+create data 0x6001600055600260005500     min=   320075 expected=   320075 diff=      +0 MATCH estimateGas=320075 fail_at_min-1=EVM error ReentrancySentryOOG
+1 wei -> 0xa3..a3                        min=   204600 expected=   204600 diff=      +0 MATCH estimateGas=204600 fail_at_min-1=EVM error OutOfGas
+ALL_MATCH

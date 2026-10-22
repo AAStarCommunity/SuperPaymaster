@@ -1,0 +1,21 @@
+===== anvil --hardfork prague
+client anvil/v1.8.7
+deploy Probe(+Child) gasUsed 467235
+--- tx gasLimit  15,000,000 (reservoir = gasLimit - 2^24 if > 2^24): status 0x1 gasUsed 108,713
+    own fresh SSTORE: gasleft delta                                            22,184
+    child 0->x: caller gasleft delta                                           27,354
+    child x->0 restore: caller gasleft delta (neg = gasleft ROSE)                 828
+    child fresh SSTORE with {gas: 30000}: ok                                        1
+    child fresh SSTORE with {gas: 100000}: ok                                       1
+--- tx gasLimit  16,777,216 (reservoir = gasLimit - 2^24 if > 2^24): status 0x1 gasUsed 108,713
+    own fresh SSTORE: gasleft delta                                            22,184
+    child 0->x: caller gasleft delta                                           27,354
+    child x->0 restore: caller gasleft delta (neg = gasleft ROSE)                 828
+    child fresh SSTORE with {gas: 30000}: ok                                        1
+    child fresh SSTORE with {gas: 100000}: ok                                       1
+--- tx gasLimit  30,000,000 (reservoir = gasLimit - 2^24 if > 2^24): status 0x1 gasUsed 108,713
+    own fresh SSTORE: gasleft delta                                            22,184
+    child 0->x: caller gasleft delta                                           27,354
+    child x->0 restore: caller gasleft delta (neg = gasleft ROSE)                 828
+    child fresh SSTORE with {gas: 30000}: ok                                        1
+    child fresh SSTORE with {gas: 100000}: ok                                       1
