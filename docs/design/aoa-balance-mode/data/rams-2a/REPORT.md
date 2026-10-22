@@ -2,7 +2,7 @@
 
 Evidence for spec `03-final-spec.md` §10.8b **R-AMS** (line ~697: "re-run the G layer (T-R14-09,
 no-OOG scan, C_WRAP) … if the current parameters are insufficient, within the hard bounds use
-`queueGasParams` → `executeGasParams` (≥ 96 h); beyond them, a UUPS upgrade") and `D5-plan.md` §2
+`queueGasParams` → `executeGasParams` (≥ 96 h); beyond them, a UUPS upgrade") — note: the spec's "≥ 96 h" assumes sequential governance steps; the code bound after an upgrade is 48 h, see §5.3 and `D5-plan.md` §2
 (G2 / I8 / I9 / I10). This report **supersedes the numbers** of
 `../amsterdam-sweep/REPORT.md` (forge 1.8.6), whose CREATE costs were proven wrong against live Sepolia.
 
@@ -456,7 +456,7 @@ from the in-repo tests. Line numbers refer to the committed files.
 | C_WRAP Prague ≥ 1,770 | wrapper upper bound, single op and bundle positions | `logs/scratch/test_C_wrap_prague.log:9-16` |
 | C_WRAP Amsterdam ≥ 1,870 | same | `logs/scratch/test_C_wrap_amsterdam.log:9-16` |
 | tuple 440k/420k/5k/340k settles and covers in 6/6 | B8 `settled` = 1, `chargeCoversNeed` = 1 | `logs/scratch/test_B8_amsterdam.log:82-113` |
-| ≥ 48 h / ≥ 96 h | `GP_TIMELOCK = 48 hours` (+ GOV-1 owner timelock 48 h) | `SuperPaymasterStorage.sol:204`; `SuperPaymasterAdmin.sol:307,317` |
+| ≥ 48 h minimum after upgrade (96 h only for a sequential GOV-1 rollout, §5.3) | `GP_TIMELOCK = 48 hours` (GOV-1 owner timelock 48 h can overlap when batched) | `SuperPaymasterStorage.sol:204`; `SuperPaymasterAdmin.sol:307,317` |
 
 ### 5.3 Upgrade window
 
