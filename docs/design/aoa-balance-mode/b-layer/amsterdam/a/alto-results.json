@@ -2,7 +2,7 @@
   "kind": "alto",
   "bundlerUrl": "http://127.0.0.1:18660",
   "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
-  "at": "2026-10-22T14:07:39.503Z",
+  "at": "2026-10-22T15:22:48.547Z",
   "cases": {
     "B9-below": {
       "expected": "reject (SP stake below threshold, specific reason)",
@@ -59,15 +59,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54982",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 556754,
+                "txGasUsed": 556742,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -82,15 +84,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54982",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137851"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112850,
+                "txGasUsed": 112838,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -103,6 +107,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -210,15 +224,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54982",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 556754,
+                "txGasUsed": 556742,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -233,15 +249,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54982",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137851"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112850,
+                "txGasUsed": 112838,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -254,6 +272,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -361,15 +389,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54969",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 556742,
+                "txGasUsed": 556718,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -384,15 +414,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54969",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137851"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112838,
+                "txGasUsed": 112826,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -405,6 +437,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -533,15 +575,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "300000"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 556754,
+                  "txGasUsed": 556742,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -556,9 +600,11 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "137851"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
@@ -577,6 +623,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -669,15 +725,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "300000"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 556754,
+                  "txGasUsed": 556742,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -692,15 +750,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "137851"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112850,
+                  "txGasUsed": 112838,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -713,6 +773,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -805,15 +875,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "300000"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 556730,
+                  "txGasUsed": 556742,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -828,15 +900,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "137851"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112850,
+                  "txGasUsed": 112838,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -849,6 +923,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -1040,26 +1124,28 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54982",
                 "pmVerificationGasLimit": "1306619",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": true,
               "brief": "ok",
               "sim": {
                 "ok": true,
-                "txGasUsed": 1510046,
+                "txGasUsed": 1510034,
                 "events": [
                   {
                     "event": "UserOperationEvent",
                     "args": {
-                      "userOpHash": "0x5db1294b49c73e2992dcbcc6a36b03d6f73e4faa9a1f354f97b93a0675c3588a",
+                      "userOpHash": "0xa9f3bd14ea0df8a2498f651a4b13e19c0e21a12640befaf343746bcb7ee28a03",
                       "sender": "0xcf3624e0c7a51575359B745E514f7aD475E8f389",
                       "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
                       "nonce": "0",
                       "success": "true",
-                      "actualGasCost": "2705532000000000",
-                      "actualGasUsed": "1352766"
+                      "actualGasCost": "2615496000000000",
+                      "actualGasUsed": "1307748"
                     }
                   }
                 ],
@@ -1075,7 +1161,7 @@
                     "error": null
                   },
                   "innerHandleOp": {
-                    "gas": 14509513,
+                    "gas": 14509525,
                     "gasUsed": 113918,
                     "error": null
                   },
@@ -1086,7 +1172,7 @@
                   }
                 },
                 "success": true,
-                "actualGasUsed": 1352766,
+                "actualGasUsed": 1307748,
                 "postOpReverted": false,
                 "execReverted": false
               }
@@ -1095,15 +1181,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54982",
                 "pmVerificationGasLimit": "1306619",
                 "pmPostOpGasLimit": "137851"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112862,
+                "txGasUsed": 112850,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1116,6 +1204,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -1224,15 +1322,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "55008",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 583066,
+                "txGasUsed": 583078,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1247,15 +1347,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "55008",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137851"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 139367,
+                "txGasUsed": 139355,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1268,6 +1370,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -1367,6 +1479,16 @@
           },
           "sufficiency": {},
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -1493,15 +1615,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54982",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 556754,
+                "txGasUsed": 556742,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1516,15 +1640,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54982",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137851"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112850,
+                "txGasUsed": 112838,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1537,6 +1663,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -1650,15 +1786,17 @@
               "used": {
                 "verificationGasLimit": "5181863",
                 "callGasLimit": "16323",
+                "preVerificationGas": "56856",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 633431,
+                "txGasUsed": 633419,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1673,15 +1811,17 @@
               "used": {
                 "verificationGasLimit": "5181863",
                 "callGasLimit": "16323",
+                "preVerificationGas": "56856",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137850"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 189558,
+                "txGasUsed": 189546,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1694,6 +1834,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -1808,9 +1958,11 @@
               "used": {
                 "verificationGasLimit": "5181863",
                 "callGasLimit": "16323",
+                "preVerificationGas": "56856",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
@@ -1831,15 +1983,17 @@
               "used": {
                 "verificationGasLimit": "5181863",
                 "callGasLimit": "16323",
+                "preVerificationGas": "56856",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137850"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 189558,
+                "txGasUsed": 189546,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1852,6 +2006,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -1966,15 +2130,17 @@
               "used": {
                 "verificationGasLimit": "5181863",
                 "callGasLimit": "16323",
+                "preVerificationGas": "56856",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 633431,
+                "txGasUsed": 633419,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -1989,15 +2155,17 @@
               "used": {
                 "verificationGasLimit": "5181863",
                 "callGasLimit": "16323",
+                "preVerificationGas": "56856",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137850"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 189558,
+                "txGasUsed": 189534,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -2010,6 +2178,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -2124,15 +2302,17 @@
               "used": {
                 "verificationGasLimit": "5058084",
                 "callGasLimit": "16323",
+                "preVerificationGas": "56856",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 633431,
+                "txGasUsed": 633407,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -2147,9 +2327,11 @@
               "used": {
                 "verificationGasLimit": "5058084",
                 "callGasLimit": "16323",
+                "preVerificationGas": "56856",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137850"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
@@ -2168,6 +2350,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",
@@ -2388,9 +2580,11 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "300000"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
@@ -2411,15 +2605,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "137851"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112850,
+                  "txGasUsed": 112838,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -2432,6 +2628,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -2524,15 +2730,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "300000"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 556766,
+                  "txGasUsed": 556754,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -2547,15 +2755,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "137851"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112862,
+                  "txGasUsed": 112850,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -2568,6 +2778,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -2731,15 +2951,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "300000"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 556754,
+                  "txGasUsed": 556730,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -2754,15 +2976,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "137851"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112850,
+                  "txGasUsed": 112838,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -2775,6 +2999,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -2867,15 +3101,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "300000"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 556766,
+                  "txGasUsed": 556754,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -2890,15 +3126,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "137851"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112862,
+                  "txGasUsed": 112850,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -2911,6 +3149,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -3003,15 +3251,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "300000"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 556766,
+                  "txGasUsed": 556754,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -3026,15 +3276,17 @@
                 "used": {
                   "verificationGasLimit": "164041",
                   "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
                   "pmVerificationGasLimit": "497292",
                   "pmPostOpGasLimit": "137851"
                 },
+                "filledByUs": [],
                 "pmPostOpFilledByUs": false,
                 "ok": false,
                 "brief": "FailedOp(0,AA34 signature error)",
                 "sim": {
                   "ok": false,
-                  "txGasUsed": 112862,
+                  "txGasUsed": 112826,
                   "topError": "execution reverted",
                   "failedOp": {
                     "name": "FailedOp",
@@ -3047,6 +3299,16 @@
               }
             },
             "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
               "generousBaseline": {
                 "ok": true,
                 "brief": "ok",
@@ -3191,15 +3453,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54969",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "300000"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 556742,
+                "txGasUsed": 556718,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -3214,15 +3478,17 @@
               "used": {
                 "verificationGasLimit": "164041",
                 "callGasLimit": "16323",
+                "preVerificationGas": "54969",
                 "pmVerificationGasLimit": "497292",
                 "pmPostOpGasLimit": "137851"
               },
+              "filledByUs": [],
               "pmPostOpFilledByUs": false,
               "ok": false,
               "brief": "FailedOp(0,AA34 signature error)",
               "sim": {
                 "ok": false,
-                "txGasUsed": 112838,
+                "txGasUsed": 112826,
                 "topError": "execution reverted",
                 "failedOp": {
                   "name": "FailedOp",
@@ -3235,6 +3501,16 @@
             }
           },
           "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
             "generousBaseline": {
               "ok": true,
               "brief": "ok",

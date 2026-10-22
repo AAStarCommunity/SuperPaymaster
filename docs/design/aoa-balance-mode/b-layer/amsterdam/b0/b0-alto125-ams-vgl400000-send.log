@@ -1,0 +1,6 @@
+alto125-ams-vgl400000 control: expected accept, got accept (included, success=true)
+alto125-ams-vgl400000 op011_timestamp: expected reject, got reject [-32502] paymaster uses banned opcode: TIMESTAMP
+alto125-ams-vgl400000 sto031_unstakedOwnStorage: expected reject, got reject [-32502] unstaked paymaster accessed paymaster slot 0x0000000000000000000000000000000000000000000000000000000000000000
+alto125-ams-vgl400000 op070_unstakedTstore: expected reject, got reject [-32502] unstaked paymaster accessed paymaster slot 0x0000000000000000000000000000000000000000000000000000000000000000
+alto125-ams-vgl400000 sto021_stakedExternalWrite: expected reject, got reject [-32502] paymaster has forbidden read from 0xe7f1725e7734ce288f8367e1bb143e90bb3f0512 slot 0xaa61a9c58711f8ef9414761bfa1a325a02e83bd4955fe4296afaf0165b1d4f90
+alto125-ams-vgl400000 B0 all pass: true

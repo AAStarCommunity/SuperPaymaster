@@ -76,7 +76,7 @@ export function pmData({ operator, token, maxRate = 10n ** 18n, flags = 0 }) {
 }
 
 /** Build + sign a v0.7 op for a MockAirAccount; `accountRenew` appends the option-A flag byte 0x01. */
-/** `gasOverride` (R-AMS-2 probe only): { verificationGasLimit, callGasLimit, pmVerificationGasLimit,
+/** `gasOverride` (R-AMS-2 probe only): { verificationGasLimit, callGasLimit, preVerificationGas, pmVerificationGasLimit,
  *  pmPostOpGasLimit, maxFeePerGas, maxPriorityFeePerGas } replacing the fixed fields; `params` is
  *  returned so the probe can rebuild the same op with other gas fields. */
 export async function buildG1Op(ctx, d, params) {
@@ -88,7 +88,7 @@ export async function buildG1Op(ctx, d, params) {
         callData: callData ?? encodeFunctionData({ abi: ABI.account, functionName: "execute", args: ["0x000000000000000000000000000000000000dEaD", 0n, "0x"] }),
         callGasLimit: g.callGasLimit ?? GAS.callGasLimit,
         verificationGasLimit: g.verificationGasLimit ?? verificationGasLimit ?? (factory ? GAS.verificationGasLimitInit : GAS.verificationGasLimit),
-        preVerificationGas: GAS.preVerificationGas,
+        preVerificationGas: g.preVerificationGas ?? GAS.preVerificationGas,
         maxFeePerGas: g.maxFeePerGas ?? GAS.maxFeePerGas, maxPriorityFeePerGas: g.maxPriorityFeePerGas ?? GAS.maxPriorityFeePerGas,
         pm: { address: d.superPaymaster, verificationGasLimit: g.pmVerificationGasLimit ?? GAS.pmVerificationGasLimit,
             postOpGasLimit: g.pmPostOpGasLimit ?? pmPostOpGasLimit,

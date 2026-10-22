@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "clientVersion": "anvil/v1.8.7",
+    "chainId": "0x7a69"
+  },
+  "pass": true,
+  "rows": [
+    {
+      "name": "create 0x00",
+      "tx": {
+        "data": "0x00"
+      },
+      "expected": 207606,
+      "measured": 207606,
+      "match": true,
+      "estimateGas": 207606,
+      "errorAtMinus1": "EVM error OutOfGas"
+    },
+    {
+      "name": "create 0x6101006000f3",
+      "tx": {
+        "data": "0x6101006000f3"
+      },
+      "expected": 599432,
+      "measured": 599432,
+      "match": true,
+      "estimateGas": 599432,
+      "errorAtMinus1": "EVM error OutOfGas"
+    },
+    {
+      "name": "create 0x600160005500",
+      "tx": {
+        "data": "0x600160005500"
+      },
+      "expected": 317700,
+      "measured": 317700,
+      "match": true,
+      "estimateGas": 317700,
+      "errorAtMinus1": "EVM error OutOfGas"
+    },
+    {
+      "name": "create 0x6001600055600260005500",
+      "tx": {
+        "data": "0x6001600055600260005500"
+      },
+      "expected": 320075,
+      "measured": 320075,
+      "match": true,
+      "estimateGas": 320075,
+      "errorAtMinus1": "EVM error ReentrancySentryOOG"
+    },
+    {
+      "name": "1 wei to fresh 0xa3a3..a3",
+      "tx": {
+        "to": "0xa3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+        "value": "0x1"
+      },
+      "expected": 204600,
+      "measured": 204600,
+      "match": true,
+      "estimateGas": 204600,
+      "errorAtMinus1": "EVM error OutOfGas"
+    }
+  ]
+}

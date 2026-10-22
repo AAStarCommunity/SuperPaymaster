@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-22T14:18:38.310Z",
+  "at": "2026-10-22T15:28:42.681Z",
   "files": {
     "rundler-traces.jsonl": [
       {
@@ -3932,6 +3932,42 @@
             "kind": "paymaster",
             "target": "SP"
           }
+        ]
+      },
+      {
+        "i": 12,
+        "label": "B4-unstaked",
+        "skipped": "no account phase",
+        "phases": [
+          "0x957122ab",
+          "factory"
+        ]
+      },
+      {
+        "i": 13,
+        "label": "B4-lowStake",
+        "skipped": "no account phase",
+        "phases": [
+          "0x957122ab",
+          "factory"
+        ]
+      },
+      {
+        "i": 14,
+        "label": "B4-shortDelay",
+        "skipped": "no account phase",
+        "phases": [
+          "0x957122ab",
+          "factory"
+        ]
+      },
+      {
+        "i": 15,
+        "label": "B4-ok",
+        "skipped": "no account phase",
+        "phases": [
+          "0x957122ab",
+          "factory"
         ]
       },
       {
@@ -9048,6 +9084,38 @@
             "kind": "paymaster",
             "target": "SP"
           }
+        ]
+      },
+      {
+        "i": 16,
+        "label": "B4-unstaked",
+        "skipped": "no account phase",
+        "phases": [
+          "factory"
+        ]
+      },
+      {
+        "i": 17,
+        "label": "B4-lowStake",
+        "skipped": "no account phase",
+        "phases": [
+          "factory"
+        ]
+      },
+      {
+        "i": 18,
+        "label": "B4-shortDelay",
+        "skipped": "no account phase",
+        "phases": [
+          "factory"
+        ]
+      },
+      {
+        "i": 19,
+        "label": "B4-ok",
+        "skipped": "no account phase",
+        "phases": [
+          "factory"
         ]
       },
       {
@@ -14539,6 +14607,38 @@
             "kind": "paymaster",
             "target": "SP"
           }
+        ]
+      },
+      {
+        "i": 16,
+        "label": "B4-unstaked",
+        "skipped": "no account phase",
+        "phases": [
+          "factory"
+        ]
+      },
+      {
+        "i": 17,
+        "label": "B4-lowStake",
+        "skipped": "no account phase",
+        "phases": [
+          "factory"
+        ]
+      },
+      {
+        "i": 18,
+        "label": "B4-shortDelay",
+        "skipped": "no account phase",
+        "phases": [
+          "factory"
+        ]
+      },
+      {
+        "i": 19,
+        "label": "B4-ok",
+        "skipped": "no account phase",
+        "phases": [
+          "factory"
         ]
       },
       {

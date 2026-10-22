@@ -1,0 +1,3 @@
+      4       "message": "AA13 initCode failed or OOG",
+     16       "message": "AA36 over paymasterVerificationGasLimit",
+      2       "message": "UserOperation reverted during simulation with reason: AA33 reverted 0x",

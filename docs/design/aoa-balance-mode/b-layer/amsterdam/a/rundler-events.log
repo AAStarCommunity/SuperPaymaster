@@ -1,0 +1,46 @@
+  2026-10-22T15:21:31.105543Z  INFO rundler::cli: Parsed CLI options: Cli {
+  2026-10-22T15:21:31.108394Z  INFO rundler::cli: Chain spec: ChainSpec {
+  2026-10-22T15:21:31.108500Z  INFO rundler::cli::pool: blocklist: None
+  2026-10-22T15:21:31.108505Z  INFO rundler::cli::pool: allowlist: None
+  2026-10-22T15:21:31.108543Z  INFO rundler::cli::builder: Builder bundle limits: Chain transaction gas limit: 30000000. Target bundle gas: 15000000. Max bundle gas: 27000000
+  2026-10-22T15:21:31.116732Z  INFO rundler_pool::task: Chain id: 31337
+  2026-10-22T15:21:31.116776Z  INFO rundler_pool::task: Http url: "http://127.0.0.1:18646"
+  2026-10-22T15:21:31.117053Z  INFO rundler_pool::task: Started op_pool
+  2026-10-22T15:21:31.117112Z  INFO rundler_builder::task: Mempool config for ep V0_7: {}
+  2026-10-22T15:21:31.129717Z  INFO rundler_builder::task: Started bundle builder
+  2026-10-22T15:21:31.129757Z  INFO rundler_rpc::task: Starting rpc server on 0.0.0.0:18650
+  2026-10-22T15:21:31.129877Z  INFO rundler_rpc::task: Started RPC server
+  2026-10-22T15:21:34.141902Z  INFO rundler_builder::bundle_sender: changing bundling mode to Manual
+  2026-10-22T15:21:36.480093Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:37.482284Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:38.483853Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:41.945109Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:42.946597Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:43.948138Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:49.537288Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:50.538513Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:51.539583Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:55.082296Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:56.083665Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:21:57.085564Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:00.776089Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:01.777620Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:02.778749Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:06.625322Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:07.626563Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:08.627365Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:12.133387Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:13.134653Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:14.136239Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:20.874587Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:21.875713Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:22.877105Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:25.382260Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:26.384155Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:27.386165Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:32.641482Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:33.644247Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:34.645943Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:37.149885Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:38.151580Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+  2026-10-22T15:22:39.152759Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second

@@ -1,0 +1,37 @@
+  probe 0x12846de8: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] ERR[-32500] validation reverted: [reason]: AA33 reverted | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+rundler B9-below: FAIL — reject [-32500] validation reverted: 
+  probe 0x12846de8: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] ERR[-32500] validation reverted: [reason]: AA33 reverted | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+rundler B9-above: FAIL — reject
+  probe 0x98805d79: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] ERR[-32500] validation reverted: [reason]: AA33 reverted | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+rundler B1: FAIL — reject; burn=0 lockedOf=0 opΔ=0 revΔ=0
+  probe 0x908f1356: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] ERR[-32500] validation reverted: [reason]: AA33 reverted | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+  probe 0xa5b3d8f7: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] ERR[-32500] validation reverted: [reason]: AA33 reverted | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+  probe 0x000c109b: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] ERR[-32500] validation reverted: [reason]: AA33 reverted | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=400000
+rundler B3: FAIL — reject,reject,reject in 0 tx; LockSettled users=0
+  probe 0x8a35df52: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] ERR[-32500] validation reverted: [reason]: AA33 reverted | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=998865 pmP=400000
+rundler B5: FAIL — reject; renewedEvent=null
+  probe 0xc6977819: submitted→FailedOpWithRevert(0,AA33 reverted,0x) | est[pmSupplied] ERR[-32500] validation reverted: [reason]: AA33 reverted | est[pmOmitted] v=155024 c=9100 pmV=60901 pmP=- pvg=46728 → FailedOp(0,AA34 signature error) | needs v=150839 c=3696 pmV=870566 pmP=400000
+rundler B6: FAIL — reject; renewedEvent=null
+  probe 0x20bb3bcd: submitted→ok | est[pmSupplied] v=153182 c=9100 pmV=820000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=717075 pmP=400000
+rundler B7: PASS — included; debts 0→294062423807766900000; reserved=0
+  probe 0x85857938: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=820000 pmP=- pvg=46704 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46704 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=400000
+rundler B8: PASS — included
+  probe 0xb1ef99d7: submitted→FailedOp(0,AA13 initCode failed or OOG) | est[pmSupplied] v=4730070 c=9100 pmV=820000 pmP=- pvg=49224 → ok | est[pmOmitted] v=4596468 c=9100 pmV=62840 pmP=- pvg=49224 → FailedOp(0,AA34 signature error) | needs v=3983015 c=3696 pmV=784491 pmP=400000
+rundler B4-unstaked: FAIL — reject [-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000
+  probe 0xf8cb914b: submitted→FailedOp(0,AA13 initCode failed or OOG) | est[pmSupplied] v=4730070 c=9100 pmV=820000 pmP=- pvg=49224 → ok | est[pmOmitted] v=4596468 c=9100 pmV=62840 pmP=- pvg=49224 → FailedOp(0,AA34 signature error) | needs v=3983015 c=3696 pmV=784491 pmP=400000
+rundler B4-lowStake: FAIL — reject [-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000
+  probe 0x4c7a0759: submitted→FailedOp(0,AA13 initCode failed or OOG) | est[pmSupplied] v=4730070 c=9100 pmV=820000 pmP=- pvg=49212 → ok | est[pmOmitted] v=4596468 c=9100 pmV=62840 pmP=- pvg=49212 → FailedOp(0,AA34 signature error) | needs v=3983015 c=3696 pmV=784491 pmP=400000
+rundler B4-shortDelay: FAIL — reject [-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000
+  probe 0x23515486: submitted→FailedOp(0,AA13 initCode failed or OOG) | est[pmSupplied] v=4635822 c=9100 pmV=820000 pmP=- pvg=49224 → ok | est[pmOmitted] v=4488756 c=9100 pmV=61369 pmP=- pvg=49224 → FailedOp(0,AA34 signature error) | needs v=3885095 c=3696 pmV=784491 pmP=400000
+rundler B4-ok: FAIL — reject [-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000
+rundler B10: FAIL — suppliedPostOpMin: pmPostOp=null pmVerif=0xc8320 | omittedPmGas: pmPostOp=null pmVerif=0xedb9 | omittedPostOpOnly: pmPostOp=null pmVerif=0xc8320
+  probe 0xbbb9a3a7: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=820000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=400000
+  probe 0x55fa0842: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=820000 pmP=- pvg=46728 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46728 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=400000
+rundler B2a: PASS — included=2 in 1 tx; lockedOf=0
+  probe 0x8dff69df: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=820000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=400000
+  probe 0x03db6394: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=820000 pmP=- pvg=46728 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46728 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=400000
+  probe 0x219f9636: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=820000 pmP=- pvg=46728 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46728 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=400000
+rundler B2b: FAIL — handleOps(all)={"name":"FailedOp","args":["2","AA34 signature error"]}; verdicts=accepted-not-included | accepted-not-included | accepted-not-included
+  probe 0x98805d79: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=820000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=400000
+rundler B2-aftermath: reject [-32504] paymaster 0x0b306bf915c4d645ff596e518faf3f9669b97016 throttled or banned
+rundler all pass: false

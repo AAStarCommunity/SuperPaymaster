@@ -26,7 +26,8 @@ function estCell(p, k) {
     const v = { v: n(x.verificationGasLimit), c: n(x.callGasLimit), pmV: n(x.paymasterVerificationGasLimit), pmP: n(x.paymasterPostOpGasLimit), pvg: n(x.preVerificationGas) };
     const suf = p.sufficiency?.[k];
     return { v, ok: suf?.ok ?? null, brief: suf?.brief,
-        text: `v ${fmt(v.v)} / c ${fmt(v.c)} / pmV ${fmt(v.pmV)} / pmP ${fmt(v.pmP)}${suf?.pmPostOpFilledByUs ? "*" : ""} → ${suf?.ok ? "executes" : `**${suf?.brief}**`}` };
+        filledByUs: suf?.filledByUs ?? null,
+        text: `v ${fmt(v.v)} / c ${fmt(v.c)} / pvg ${fmt(v.pvg)} / pmV ${fmt(v.pmV)} / pmP ${fmt(v.pmP)}${suf?.pmPostOpFilledByUs ? "*" : ""} → ${suf?.ok ? "executes" : `**${suf?.brief}**`}` };
 }
 
 const rows = [];
@@ -60,7 +61,8 @@ for (const l of LABELS) {
                 verdict: out.verdict ?? (sub.response?.error ? "reject" : "accepted"),
                 error: errOf(sub.response) ?? errOf(out),
                 submittedHandleOps: p?.submitted?.brief ?? null,
-                estimate: { pmSupplied: es.text, pmOmitted: eo.text, raw: { pmSupplied: p?.estimates?.pmSupplied?.response ?? null, pmOmitted: p?.estimates?.pmOmitted?.response ?? null } },
+                estimate: { pmSupplied: es.text, pmOmitted: eo.text, replayed: { pmSupplied: p?.sufficiency?.pmSupplied ? { used: p.sufficiency.pmSupplied.used, filledByUs: p.sufficiency.pmSupplied.filledByUs, ok: p.sufficiency.pmSupplied.ok, brief: p.sufficiency.pmSupplied.brief } : null,
+                    pmOmitted: p?.sufficiency?.pmOmitted ? { used: p.sufficiency.pmOmitted.used, filledByUs: p.sufficiency.pmOmitted.filledByUs, ok: p.sufficiency.pmOmitted.ok, brief: p.sufficiency.pmOmitted.brief } : null }, raw: { pmSupplied: p?.estimates?.pmSupplied?.response ?? null, pmOmitted: p?.estimates?.pmOmitted?.response ?? null } },
                 needs: ne ? { v: ne.verificationGasLimit ?? null, c: ne.callGasLimit ?? null, pmV: ne.pmVerificationGasLimit ?? null, pmP: ne.pmPostOpGasLimit ?? null,
                     baseline: ne.generousBaseline?.brief, frames: ne.generousBaseline?.frames, actualGasUsedGenerous: ne.generousBaseline?.actualGasUsed } : null,
                 included: out.verdict === "included" || out.verdict === "included-reverted",
@@ -74,6 +76,7 @@ for (const l of LABELS) {
 }
 
 const md = [];
+md.push("Estimates are replayed COMPLETE (v, c, pvg, pmV, pmP as returned). `*` = the bundler returned no paymasterPostOpGasLimit; the replay then used the case's supplied value (pm supplied) or 0 (pm omitted).\n");
 md.push("| bundler | case | bundler verdict / exact error | est (pm gas supplied) → does it execute | est (pm gas omitted) → does it execute | min need v / c / pmV / pmP | on chain: success, actualGasUsed, actualGasCost, postOp | flags |");
 md.push("|---|---|---|---|---|---|---|---|");
 for (const r of rows) {

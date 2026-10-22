@@ -9,9 +9,10 @@
 //     the bundler's proxy, so the bundler traces stay clean). Probe ops use maxFee = tip = 0.1 gwei
 //     so that the generous limits do not exceed the case's token balance / credit cap (gas price
 //     changes only the amounts SP locks, not which slots it touches).
-//  3. "sufficiency": the op rebuilt with each estimate (missing paymaster fields → the case's
-//     supplied value, or for pmOmitted the bundler's own default 0) at the case's real fees, run
-//     through handleOps the same way — does the bundler's estimate actually execute?
+//  3. "sufficiency": the op rebuilt with the COMPLETE estimate (every returned gas field, including
+//     preVerificationGas; a paymaster field the bundler did not return → the case's supplied value,
+//     or for pmOmitted the bundler's own default 0, recorded in `filledByUs`) at the case's real
+//     fees, run through handleOps the same way — does the bundler's estimate actually execute?
 //  4. "submitted": the op exactly as submitted, run through handleOps (predicts the on-chain fate).
 // handleOps runs as account 0 with tx gas 16,000,000 (≤ the EIP-7825 cap, i.e. no EIP-8037 state-gas
 // reservoir — a bundler's handleOps tx is below the cap too). Local anvil only.
@@ -104,16 +105,26 @@ export async function probe({ ctx, d, rpcUrl, B, op }) {
         const r = await B("eth_estimateUserOperationGas", [q, EP]);
         out.estimates[k] = { response: r };
         if (r.result) {
+            // replay the COMPLETE estimate: every gas field the bundler returned (verification, call,
+            // preVerificationGas, paymaster verification, paymaster postOp). Only a field the bundler did
+            // NOT return is filled in (and listed in `filledByUs`): pmSupplied → the value the case sent,
+            // pmOmitted → 0 (what the bundler itself would put in the op).
             const e = r.result; const n = (x) => (x == null ? null : BigInt(x));
-            const g = {
-                verificationGasLimit: n(e.verificationGasLimit), callGasLimit: n(e.callGasLimit),
-                pmVerificationGasLimit: n(e.paymasterVerificationGasLimit) ?? (k === "pmSupplied" ? GAS.pmVerificationGasLimit : 0n),
-                pmPostOpGasLimit: n(e.paymasterPostOpGasLimit) ?? (k === "pmSupplied" ? BigInt(op.rpcOp.paymasterPostOpGasLimit) : 0n),
-            };
+            const fill = { verificationGasLimit: null, callGasLimit: null, preVerificationGas: null,
+                pmVerificationGasLimit: k === "pmSupplied" ? BigInt(op.rpcOp.paymasterVerificationGasLimit) : 0n,
+                pmPostOpGasLimit: k === "pmSupplied" ? BigInt(op.rpcOp.paymasterPostOpGasLimit) : 0n };
+            const got = { verificationGasLimit: n(e.verificationGasLimit), callGasLimit: n(e.callGasLimit), preVerificationGas: n(e.preVerificationGas),
+                pmVerificationGasLimit: n(e.paymasterVerificationGasLimit), pmPostOpGasLimit: n(e.paymasterPostOpGasLimit) };
+            const g = {}; const filledByUs = [];
+            for (const [f, v] of Object.entries(got)) {
+                if (v != null) g[f] = v;
+                else if (fill[f] != null) { g[f] = fill[f]; filledByUs.push(f); }
+                else { filledByUs.push(`${f}(missing, case value)`); }
+            }
             const rebuilt = await buildG1Op(ctx, d, { ...base, gasOverride: g });
             const sim = await simulate(rpcUrl, rebuilt.packed);
             out.sufficiency[k] = { used: Object.fromEntries(Object.entries(g).map(([a, b]) => [a, b.toString()])),
-                pmPostOpFilledByUs: e.paymasterPostOpGasLimit == null, ok: sim.ok, brief: brief(sim), sim };
+                filledByUs, pmPostOpFilledByUs: e.paymasterPostOpGasLimit == null, ok: sim.ok, brief: brief(sim), sim };
         }
     }
     // 2. needs (generous baseline, low fee)
@@ -122,12 +133,12 @@ export async function probe({ ctx, d, rpcUrl, B, op }) {
 }
 
 /** Minimum of each executable gas field (others generous, low fee) for handleOps([op]) with tx gas `txGas`. */
-export async function needs({ ctx, d, rpcUrl, params, txGas = TX_GAS, fee = LOW_FEE }) {
+export async function needs({ ctx, d, rpcUrl, params, txGas = TX_GAS, fee = LOW_FEE, generousOverride = {} }) {
     const generous = { verificationGasLimit: params.factory ? 4_000_000n : 1_500_000n, callGasLimit: 500_000n,
-        pmVerificationGasLimit: 2_000_000n, pmPostOpGasLimit: 1_500_000n, maxFeePerGas: fee, maxPriorityFeePerGas: fee };
+        pmVerificationGasLimit: 2_000_000n, pmPostOpGasLimit: 1_500_000n, maxFeePerGas: fee, maxPriorityFeePerGas: fee, ...generousOverride };
     const run = async (g) => simulate(rpcUrl, (await buildG1Op(ctx, d, { ...params, gasOverride: g })).packed, txGas);
     const gen = await run(generous);
-    const out = { txGas, fee: fee.toString(), generousBaseline: { ok: gen.ok, brief: brief(gen), frames: gen.frames ?? null, actualGasUsed: gen.actualGasUsed ?? null, txGasUsed: gen.txGasUsed } };
+    const out = { txGas, fee: fee.toString(), generous: Object.fromEntries(Object.entries(generous).map(([k, v]) => [k, v.toString()])), generousBaseline: { ok: gen.ok, brief: brief(gen), frames: gen.frames ?? null, actualGasUsed: gen.actualGasUsed ?? null, txGasUsed: gen.txGasUsed } };
     if (gen.ok) {
         for (const f of ["verificationGasLimit", "callGasLimit", "pmVerificationGasLimit", "pmPostOpGasLimit"]) {
             out[f] = await binsearch(async (m) => (await run({ ...generous, [f]: BigInt(m) })).ok, 0, Number(generous[f]));
