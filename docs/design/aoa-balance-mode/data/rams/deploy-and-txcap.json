@@ -124,14 +124,14 @@
  },
  "txcap": {
   "requestedBlocks": [
-   11966924,
-   11969923
+   11966960,
+   11969959
   ],
   "blocksRead": 3000,
   "blocksMissing": 0,
-  "transactions": 435145,
+  "transactions": 435663,
   "maxGasLimit": 189813189,
-  "countGasLimitOver2pow24": 3075,
+  "countGasLimitOver2pow24": 3088,
   "samples": [
    {
     "block": 11968203,
@@ -169,30 +169,30 @@
     "gasUsed": 84832112
    },
    {
-    "block": 11966924,
-    "tx": "0xafc59b4589aa78f44bf7ec27c5df0aa4fea280225a45f280b089fcf187f0a22f",
+    "block": 11966962,
+    "tx": "0xb489f43f1d2fd0a4a9ba7f7e548ffe82a90833833db1949fbe951ea4896f5045",
+    "gasLimit": 30000000,
+    "status": "0x1",
+    "gasUsed": 525245
+   },
+   {
+    "block": 11966963,
+    "tx": "0x3ba0b176ff865420ce8bd702c920ad69e60d8c5462bb0877be0fcbafc0a91a06",
+    "gasLimit": 70000000,
+    "status": "0x0",
+    "gasUsed": 18030
+   },
+   {
+    "block": 11966965,
+    "tx": "0x3179104f83e9378c87233006ca378792ea215f2021625090bf67fadc429cc9a8",
     "gasLimit": 33318280,
     "status": "0x1",
     "gasUsed": 33054773
-   },
-   {
-    "block": 11966928,
-    "tx": "0x866050a401fbb0d90b48cb64f7273580e0e7f82578b9c6a7149d22ce900cccf4",
-    "gasLimit": 30000000,
-    "status": "0x1",
-    "gasUsed": 197963
-   },
-   {
-    "block": 11966928,
-    "tx": "0x136a5ebe80aeaa630af884c2b5e355816d8c5e9dc29f7ddbc44fa35ee8a599a6",
-    "gasLimit": 30000000,
-    "status": "0x1",
-    "gasUsed": 525221
    }
   ]
  },
  "latestAtStart": {
-  "A": 11969924,
-  "B": 11969924
+  "A": 11969960,
+  "B": 11969960
  }
 }

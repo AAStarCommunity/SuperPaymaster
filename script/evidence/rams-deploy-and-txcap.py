@@ -76,9 +76,19 @@ def simulate(u, code, gas, nonce):
         c0 = r["result"][0]["calls"][0]
     except (KeyError, IndexError, TypeError):
         return {"malformedResult": True}
+    if not isinstance(c0, dict):
+        return {"malformedResult": True}
+    status = c0.get("status") if c0.get("status") in ("0x0", "0x1") else "malformed"
     err = c0.get("error")
-    return {"status": c0.get("status"), "gasUsed": qty(c0.get("gasUsed")),
-            "error": ({"code": err.get("code"), "message": redact(err.get("message", ""))} if isinstance(err, dict) else None)}
+    if err is None:
+        err_out = None
+    elif isinstance(err, dict):
+        code = err.get("code")
+        err_out = {"code": code if isinstance(code, int) and not isinstance(code, bool) else None,
+                   "message": redact(err.get("message", ""))}
+    else:
+        err_out = {"malformed": True}
+    return {"status": status, "gasUsed": qty(c0.get("gasUsed")), "error": err_out}
 
 
 def main():
@@ -123,7 +133,8 @@ def main():
     samples = []
     for o in sorted(over, key=lambda x: -x["gasLimit"])[:5] + over[:3]:
         r = rpc(eps["B"], "eth_getTransactionReceipt", [o["tx"]]).get("result") or {}
-        samples.append(dict(o, status=r.get("status"), gasUsed=qty(r.get("gasUsed"))))
+        st = r.get("status") if isinstance(r, dict) and r.get("status") in ("0x0", "0x1") else "malformed"
+        samples.append(dict(o, status=st, gasUsed=qty(r.get("gasUsed")) if isinstance(r, dict) else None))
     out["txcap"] = {"requestedBlocks": [head - n, head - 1], "blocksRead": read, "blocksMissing": n - read,
                     "transactions": ntx, "maxGasLimit": maxg, "countGasLimitOver2pow24": len(over), "samples": samples}
     json.dump(out, sys.stdout, indent=1)
