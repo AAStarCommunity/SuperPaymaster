@@ -127,7 +127,7 @@ H-01 的旧报告 SHA 固定于 `8c23cfb3eb40474e5b2820d5ae949caadec9703b:docs/d
 
 | manifest / generation | OK | FAILED | shasum exit |
 |---|---:|---:|---:|
-| 总 `EVIDENCE.sha256` | 2876 | 0 | 0 |
+| 总 `EVIDENCE.sha256` | 2950 | 0 | 0 |
 | `data/d5c1-rc2-serial/EVIDENCE.sha256` | 29 | 0 | 0 |
 | `data/d5c1-rc2-rerun/EVIDENCE.sha256` | 27 | 0 | 0 |
 | `data/i9-rc2-final/EVIDENCE.sha256` | 58 | 0 | 0 |
@@ -232,6 +232,12 @@ D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 �
 | 引擎负对照 | `data/rams/engine-probe-v1.8.6-11969861.{json,log}` | foundry v1.8.6：6/14，CREATE 少计约 183,600 |
 | 大合约部署与单笔 gas 上限 | `data/rams/deploy-and-txcap.json` | 带交易校验的 `eth_simulateV1`：Registry 在 gasLimit 40M 时两端都成功（gasUsed 36,585,825）；SP impl 在 gasLimit 60M 时 Alchemy 成功（gasUsed 52,389,391），publicnode 不可判定。2^24 时两者都失败。尚未上链验证。背景：3,000/3,000 块中有 3,088 笔 gasLimit 超过 2^24 的交易被打包（抽查 8 笔回执，7 笔成功、1 笔失败） |
 | 说明与复现 | `data/rams/README.md`；`../../release/a3a-packets-RAMS-INVALIDATION.md` | A3a v2–v4 EXECUTION-INVALID，身份字段保留（v1 早已因 nonce 失效，身份字段也不成立） |
+
+### §1.3b R-AMS-2a：Amsterdam 下的 G 层重测（2026-10-22，校准引擎 nightly `926eb1d`）
+
+| 条目 | 文件 | 结论 |
+|---|---|---|
+| 报告、校准门、全量测试差异、G 层、gasleft / reservoir、参数矩阵、部署 gas | `data/rams-2a/REPORT.md`（原始日志在 `data/rams-2a/logs/`，检验和在 `data/rams-2a/checksums/`） | 默认 MIN 200k / SETTLE 160k / C_POSTOP 175k 在 Amsterdam 下不足；参数组 440k / 420k / 5k / 340k 端到端验证通过，四值都在 GOV-5 硬界内；升级后至少 48 h 的窗口需要保护（§5.3，方案 A/B 待裁定） |
 
 ### §1.4 原稿 OP 主网数据集（R-03，HISTORICAL-VOID）
 

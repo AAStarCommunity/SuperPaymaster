@@ -1,0 +1,30 @@
+# sha256sum of extracted binaries
+9f19c41c970c64cfa1c836ef420e7ef071e032f22b617bf37c853a6866d5db85  nightly/forge
+7f483b2a65eaf5b6974c1135afba8fec3fe3f2f6991ba01796eab23bda8d5142  nightly/anvil
+761415cb291c6e100b150dc3e198aef2b353a4bcf96886286e83135ee90d3207  nightly/cast
+4f77da0810de94325734855d0ad58d70640aa8a5b2a837608ddf8c26da34355c  v1.7.1/forge
+10c1c727d6c1de973aeb160e59875b9a9a23464d6e74149ee8abb30b3500311b  v1.7.1/anvil
+cfabb782cf5220e46146820a9518aca0f11fc8891ee507860d162669879526c3  v1.8.6/forge
+3c28263c7989c78b70b56090a97832263b118201dd038a8662b77bd49a252cd5  v1.8.6/anvil
+# solc-static-linux v0.8.33 (ethereum/solidity GitHub release), installed as ~/.svm/0.8.33/solc-0.8.33
+1274e5c4621ae478090c5a1f48466fd3c5f658ed9e14b15a0b213dc806215468  dl/solc/solc-static-linux
+1274e5c4621ae478090c5a1f48466fd3c5f658ed9e14b15a0b213dc806215468  /root/.svm/0.8.33/solc-0.8.33
+# versions
+forge Version: 1.8.7-nightly
+Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827
+Build Timestamp: 2026-10-22T06:24:10.676280092Z (1792650250)
+Build Profile: dist
+anvil Version: 1.8.7-nightly
+Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827
+Build Timestamp: 2026-10-22T06:24:10.676280092Z (1792650250)
+Build Profile: dist
+forge Version: 1.7.1
+Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
+Build Timestamp: 2026-05-08T07:50:55.527285345Z (1778226655)
+Build Profile: dist
+forge Version: 1.8.6
+Commit SHA: 6bad0a66de7c83f7b33695044138f0f5fa4c5990
+Build Timestamp: 2026-10-21T17:56:11.890310850Z (1792605371)
+Build Profile: dist
+solc, the solidity compiler commandline interface
+Version: 0.8.33+commit.64118f21.Linux.g++

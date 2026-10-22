@@ -1,0 +1,613 @@
+key                                                             | A_prague.log | A_amsterdam.log | A_amsterdam_reservoir.log
+A1.set_one_fresh_slot.caller_gas_consumed                       | 22936 | 110956 | 13036
+A1.restore_same_slot.caller_gas_consumed(neg=gasleft_rose)      | 969 | -96851 | 1069
+A2.intermediate_frame_delta_restoring_3_slots(neg=gasleft_rose) | 1223 | 1223 | 1223
+A3.one_fresh_sstore_with_call_gas_25000.ok                      | 1 | 0 | 1
+A3.one_fresh_sstore_with_call_gas_25000.caller_delta            | 22659 | 25196 | 12659
+A3.one_fresh_sstore_with_call_gas_30000.ok                      | 1 | 0 | 0
+A3.one_fresh_sstore_with_call_gas_30000.caller_delta            | 22659 | 30196 | 30196
+A3.one_fresh_sstore_with_call_gas_50000.ok                      | 1 | 0 | 0
+A3.one_fresh_sstore_with_call_gas_50000.caller_delta            | 22659 | 50196 | 50196
+A3.one_fresh_sstore_with_call_gas_100000.ok                     | 1 | 0 | 0
+A3.one_fresh_sstore_with_call_gas_100000.caller_delta           | 22659 | 100196 | 100196
+A3.one_fresh_sstore_with_call_gas_125000.ok                     | 1 | 1 | 1
+A3.one_fresh_sstore_with_call_gas_125000.caller_delta           | 22659 | 110579 | 110579
+A3.one_fresh_sstore_with_call_gas_150000.ok                     | 1 | 1 | 1
+A3.one_fresh_sstore_with_call_gas_150000.caller_delta           | 22659 | 110579 | 110579
+A5.sstore_gas_before_cheatcode                                  | 22128,22125 | 110048,110045 | 12128,12125
+A5.sstore_gas_after_one_cheatcode_call                          | 22128,22128 | 110048,110048 | 110048,110048
+A6.own fresh SSTORE gasleft delta                               | 22169 | 110089 | 12169
+A6.child 0->x caller delta                                      | 22885 | 110905 | 12985
+A6.child x->0 restore caller delta (neg=gasleft rose)           | 891 | -96929 | 991
+A6.child fresh SSTORE {gas:30000} ok                            | 1 | 0 | 1
+A6.child fresh SSTORE {gas:100000} ok                           | 1 | 0 | 1
+A4.fresh_sstores_paid_from_reservoir                            | 20000 | 0 | —
+A4.reservoir_lower_bound_gas(=count*97920)                      | 1958400000 | 0 | —
+A4.first_spilling_sstore_index                                  | 0 | 1 | —
+A4.gasleft_at_end                                               | 626071163 | 1073606195 | —
+
+key                                                                    | test_B1_prague.log | test_B1_amsterdam.log
+B1.balance_first_op.bundleReverted                                     | 0 | 0
+B1.balance_first_op.success                                            | 1 | 1
+B1.balance_first_op.userRevertEvent                                    | 0 | 0
+B1.balance_first_op.postOpReverted                                     | 0 | 0
+B1.balance_first_op.postOpRevertSelector                               | 0 | 0
+B1.balance_first_op.postOpRevertReasonLen                              | 0 | 0
+B1.balance_first_op.prefundTooLow                                      | 0 | 0
+B1.balance_first_op.actualGasUsed                                      | 592553 | 1340281
+B1.balance_first_op.actualGasCost_wei                                  | 592553000000000 | 1340281000000000
+B1.balance_first_op.spEpDepositDelta_wei                               | 592553000000000 | 1340281000000000
+B1.balance_first_op.charge_aPNTs                                       | 72057920000000000000 | 149504520000000000000
+B1.balance_first_op.need_aPNTs(full cost at snapshot)                  | 65180830000000000000 | 147430910000000000000
+B1.balance_first_op.chargeCoversNeed(I9/G2)                            | 1 | 1
+B1.balance_first_op.a0(clamp)                                          | 726000000000000000000 | 726000000000000000000
+B1.balance_first_op.chargeClampedAtA0                                  | 0 | 0
+B1.balance_first_op.charge_minus_need_aPNTs                            | 6877090000000000000 | 2073610000000000000
+B1.balance_first_op.userBurn_xPNTs                                     | 72057920000000000000 | 149504520000000000000
+B1.balance_first_op.userDebtDelta_xPNTs                                | 0 | 0
+B1.balance_first_op.testFrameGas_handleOps                             | 427226 | 1429226
+B1.balance_second_op.bundleReverted                                    | 0 | 0
+B1.balance_second_op.success                                           | 1 | 1
+B1.balance_second_op.userRevertEvent                                   | 0 | 0
+B1.balance_second_op.postOpReverted                                    | 0 | 0
+B1.balance_second_op.postOpRevertSelector                              | 0 | 0
+B1.balance_second_op.postOpRevertReasonLen                             | 0 | 0
+B1.balance_second_op.prefundTooLow                                     | 0 | 0
+B1.balance_second_op.actualGasUsed                                     | 437532 | 771782
+B1.balance_second_op.actualGasCost_wei                                 | 437532000000000 | 771782000000000
+B1.balance_second_op.spEpDepositDelta_wei                              | 437532000000000 | 771782000000000
+B1.balance_second_op.charge_aPNTs                                      | 61113910000000000000 | 99831710000000000000
+B1.balance_second_op.need_aPNTs(full cost at snapshot)                 | 48128520000000000000 | 84896020000000000000
+B1.balance_second_op.chargeCoversNeed(I9/G2)                           | 1 | 1
+B1.balance_second_op.a0(clamp)                                         | 726000000000000000000 | 726000000000000000000
+B1.balance_second_op.chargeClampedAtA0                                 | 0 | 0
+B1.balance_second_op.charge_minus_need_aPNTs                           | 12985390000000000000 | 14935690000000000000
+B1.balance_second_op.userBurn_xPNTs                                    | 61113910000000000000 | 99831710000000000000
+B1.balance_second_op.userDebtDelta_xPNTs                               | 0 | 0
+B1.balance_second_op.testFrameGas_handleOps                            | 214692 | 353534
+B1.credit_first_op.bundleReverted                                      | 0 | 0
+B1.credit_first_op.success                                             | 1 | 1
+B1.credit_first_op.userRevertEvent                                     | 0 | 0
+B1.credit_first_op.postOpReverted                                      | 0 | 0
+B1.credit_first_op.postOpRevertSelector                                | 0 | 0
+B1.credit_first_op.postOpRevertReasonLen                               | 0 | 0
+B1.credit_first_op.prefundTooLow                                       | 0 | 0
+B1.credit_first_op.actualGasUsed                                       | 576107 | 1227013
+B1.credit_first_op.actualGasCost_wei                                   | 576107000000000 | 1227013000000000
+B1.credit_first_op.spEpDepositDelta_wei                                | 576107000000000 | 1227013000000000
+B1.credit_first_op.charge_aPNTs                                        | 68861760000000000000 | 126943960000000000000
+B1.credit_first_op.need_aPNTs(full cost at snapshot)                   | 63371770000000000000 | 134971430000000000000
+B1.credit_first_op.chargeCoversNeed(I9/G2)                             | 1 | 0
+B1.credit_first_op.a0(clamp)                                           | 726000000000000000000 | 726000000000000000000
+B1.credit_first_op.chargeClampedAtA0                                   | 0 | 0
+B1.credit_first_op.charge_minus_need_aPNTs                             | 5489990000000000000 | -8027470000000000000
+B1.credit_first_op.userBurn_xPNTs                                      | 0 | 0
+B1.credit_first_op.userDebtDelta_xPNTs                                 | 68861760000000000000 | 126943960000000000000
+B1.credit_first_op.testFrameGas_handleOps                              | 412296 | 1326280
+B1.balance_user_call_reverts.bundleReverted                            | 0 | 0
+B1.balance_user_call_reverts.success                                   | 0 | 0
+B1.balance_user_call_reverts.userRevertEvent                           | 0 | 0
+B1.balance_user_call_reverts.postOpReverted                            | 0 | 0
+B1.balance_user_call_reverts.postOpRevertSelector                      | 0 | 0
+B1.balance_user_call_reverts.postOpRevertReasonLen                     | 0 | 0
+B1.balance_user_call_reverts.prefundTooLow                             | 0 | 0
+B1.balance_user_call_reverts.actualGasUsed                             | 541751 | 1289479
+B1.balance_user_call_reverts.actualGasCost_wei                         | 541751000000000 | 1289479000000000
+B1.balance_user_call_reverts.spEpDepositDelta_wei                      | 541751000000000 | 1289479000000000
+B1.balance_user_call_reverts.charge_aPNTs                              | 67007930000000000000 | 144454530000000000000
+B1.balance_user_call_reverts.need_aPNTs(full cost at snapshot)         | 59592610000000000000 | 141842690000000000000
+B1.balance_user_call_reverts.chargeCoversNeed(I9/G2)                   | 1 | 1
+B1.balance_user_call_reverts.a0(clamp)                                 | 612000000000000000000 | 612000000000000000000
+B1.balance_user_call_reverts.chargeClampedAtA0                         | 0 | 0
+B1.balance_user_call_reverts.charge_minus_need_aPNTs                   | 7415320000000000000 | 2611840000000000000
+B1.balance_user_call_reverts.userBurn_xPNTs                            | 67007930000000000000 | 144454530000000000000
+B1.balance_user_call_reverts.userDebtDelta_xPNTs                       | 0 | 0
+B1.balance_user_call_reverts.testFrameGas_handleOps                    | 476661 | 1478668
+B1.balance_user_writes_1_fresh_slots.bundleReverted                    | 0 | 0
+B1.balance_user_writes_1_fresh_slots.success                           | 1 | 1
+B1.balance_user_writes_1_fresh_slots.userRevertEvent                   | 0 | 0
+B1.balance_user_writes_1_fresh_slots.postOpReverted                    | 0 | 0
+B1.balance_user_writes_1_fresh_slots.postOpRevertSelector              | 0 | 0
+B1.balance_user_writes_1_fresh_slots.postOpRevertReasonLen             | 0 | 0
+B1.balance_user_writes_1_fresh_slots.prefundTooLow                     | 0 | 0
+B1.balance_user_writes_1_fresh_slots.actualGasUsed                     | 614647 | 1441503
+B1.balance_user_writes_1_fresh_slots.actualGasCost_wei                 | 614647000000000 | 1441503000000000
+B1.balance_user_writes_1_fresh_slots.spEpDepositDelta_wei              | 614647000000000 | 1441503000000000
+B1.balance_user_writes_1_fresh_slots.charge_aPNTs                      | 74755450000000000000 | 161873250000000000000
+B1.balance_user_writes_1_fresh_slots.need_aPNTs(full cost at snapshot) | 67611170000000000000 | 158565330000000000000
+B1.balance_user_writes_1_fresh_slots.chargeCoversNeed(I9/G2)           | 1 | 1
+B1.balance_user_writes_1_fresh_slots.a0(clamp)                         | 726000000000000000000 | 726000000000000000000
+B1.balance_user_writes_1_fresh_slots.chargeClampedAtA0                 | 0 | 0
+B1.balance_user_writes_1_fresh_slots.charge_minus_need_aPNTs           | 7144280000000000000 | 3307920000000000000
+B1.balance_user_writes_1_fresh_slots.userBurn_xPNTs                    | 74755450000000000000 | 161873250000000000000
+B1.balance_user_writes_1_fresh_slots.userDebtDelta_xPNTs               | 0 | 0
+B1.balance_user_writes_1_fresh_slots.testFrameGas_handleOps            | 452220 | 1542151
+B1.balance_user_writes_1_fresh_slots.executionKept                     | 1 | 1
+B1.balance_user_writes_1_fresh_slots.lockedAfter                       | 0 | 0
+B1.balance_user_writes_2_fresh_slots.bundleReverted                    | 0 | 0
+B1.balance_user_writes_2_fresh_slots.success                           | 1 | 1
+B1.balance_user_writes_2_fresh_slots.userRevertEvent                   | 0 | 0
+B1.balance_user_writes_2_fresh_slots.postOpReverted                    | 0 | 0
+B1.balance_user_writes_2_fresh_slots.postOpRevertSelector              | 0 | 0
+B1.balance_user_writes_2_fresh_slots.postOpRevertReasonLen             | 0 | 0
+B1.balance_user_writes_2_fresh_slots.prefundTooLow                     | 0 | 0
+B1.balance_user_writes_2_fresh_slots.actualGasUsed                     | 634691 | 1540675
+B1.balance_user_writes_2_fresh_slots.actualGasCost_wei                 | 634691000000000 | 1540675000000000
+B1.balance_user_writes_2_fresh_slots.spEpDepositDelta_wei              | 634691000000000 | 1540675000000000
+B1.balance_user_writes_2_fresh_slots.charge_aPNTs                      | 77205260000000000000 | 173994260000000000000
+B1.balance_user_writes_2_fresh_slots.need_aPNTs(full cost at snapshot) | 69816010000000000000 | 169474250000000000000
+B1.balance_user_writes_2_fresh_slots.chargeCoversNeed(I9/G2)           | 1 | 1
+B1.balance_user_writes_2_fresh_slots.a0(clamp)                         | 726000000000000000000 | 726000000000000000000
+B1.balance_user_writes_2_fresh_slots.chargeClampedAtA0                 | 0 | 0
+B1.balance_user_writes_2_fresh_slots.charge_minus_need_aPNTs           | 7389250000000000000 | 4520010000000000000
+B1.balance_user_writes_2_fresh_slots.userBurn_xPNTs                    | 77205260000000000000 | 173994260000000000000
+B1.balance_user_writes_2_fresh_slots.userDebtDelta_xPNTs               | 0 | 0
+B1.balance_user_writes_2_fresh_slots.testFrameGas_handleOps            | 474578 | 1652431
+B1.balance_user_writes_2_fresh_slots.executionKept                     | 1 | 1
+B1.balance_user_writes_2_fresh_slots.lockedAfter                       | 0 | 0
+B1.balance_user_writes_3_fresh_slots.bundleReverted                    | 0 | 0
+B1.balance_user_writes_3_fresh_slots.success                           | 1 | 1
+B1.balance_user_writes_3_fresh_slots.userRevertEvent                   | 0 | 0
+B1.balance_user_writes_3_fresh_slots.postOpReverted                    | 0 | 0
+B1.balance_user_writes_3_fresh_slots.postOpRevertSelector              | 0 | 0
+B1.balance_user_writes_3_fresh_slots.postOpRevertReasonLen             | 0 | 0
+B1.balance_user_writes_3_fresh_slots.prefundTooLow                     | 0 | 0
+B1.balance_user_writes_3_fresh_slots.actualGasUsed                     | 654735 | 1639847
+B1.balance_user_writes_3_fresh_slots.actualGasCost_wei                 | 654735000000000 | 1639847000000000
+B1.balance_user_writes_3_fresh_slots.spEpDepositDelta_wei              | 654735000000000 | 1639847000000000
+B1.balance_user_writes_3_fresh_slots.charge_aPNTs                      | 79655070000000000000 | 186115270000000000000
+B1.balance_user_writes_3_fresh_slots.need_aPNTs(full cost at snapshot) | 72020850000000000000 | 180383170000000000000
+B1.balance_user_writes_3_fresh_slots.chargeCoversNeed(I9/G2)           | 1 | 1
+B1.balance_user_writes_3_fresh_slots.a0(clamp)                         | 726000000000000000000 | 726000000000000000000
+B1.balance_user_writes_3_fresh_slots.chargeClampedAtA0                 | 0 | 0
+B1.balance_user_writes_3_fresh_slots.charge_minus_need_aPNTs           | 7634220000000000000 | 5732100000000000000
+B1.balance_user_writes_3_fresh_slots.userBurn_xPNTs                    | 79655070000000000000 | 186115270000000000000
+B1.balance_user_writes_3_fresh_slots.userDebtDelta_xPNTs               | 0 | 0
+B1.balance_user_writes_3_fresh_slots.testFrameGas_handleOps            | 496936 | 1762711
+B1.balance_user_writes_3_fresh_slots.executionKept                     | 1 | 1
+B1.balance_user_writes_3_fresh_slots.lockedAfter                       | 0 | 0
+B1.credit_user_writes_1_fresh_slots.bundleReverted                     | 0 | 0
+B1.credit_user_writes_1_fresh_slots.success                            | 1 | 1
+B1.credit_user_writes_1_fresh_slots.userRevertEvent                    | 0 | 0
+B1.credit_user_writes_1_fresh_slots.postOpReverted                     | 0 | 0
+B1.credit_user_writes_1_fresh_slots.postOpRevertSelector               | 0 | 0
+B1.credit_user_writes_1_fresh_slots.postOpRevertReasonLen              | 0 | 0
+B1.credit_user_writes_1_fresh_slots.prefundTooLow                      | 0 | 0
+B1.credit_user_writes_1_fresh_slots.actualGasUsed                      | 598202 | 1328236
+B1.credit_user_writes_1_fresh_slots.actualGasCost_wei                  | 598202000000000 | 1328236000000000
+B1.credit_user_writes_1_fresh_slots.spEpDepositDelta_wei               | 598202000000000 | 1328236000000000
+B1.credit_user_writes_1_fresh_slots.charge_aPNTs                       | 71559290000000000000 | 139312690000000000000
+B1.credit_user_writes_1_fresh_slots.need_aPNTs(full cost at snapshot)  | 65802220000000000000 | 146105960000000000000
+B1.credit_user_writes_1_fresh_slots.chargeCoversNeed(I9/G2)            | 1 | 0
+B1.credit_user_writes_1_fresh_slots.a0(clamp)                          | 726000000000000000000 | 726000000000000000000
+B1.credit_user_writes_1_fresh_slots.chargeClampedAtA0                  | 0 | 0
+B1.credit_user_writes_1_fresh_slots.charge_minus_need_aPNTs            | 5757070000000000000 | -6793270000000000000
+B1.credit_user_writes_1_fresh_slots.userBurn_xPNTs                     | 0 | 0
+B1.credit_user_writes_1_fresh_slots.userDebtDelta_xPNTs                | 71559290000000000000 | 139312690000000000000
+B1.credit_user_writes_1_fresh_slots.testFrameGas_handleOps             | 437437 | 1439354
+B1.credit_user_writes_1_fresh_slots.executionKept                      | 1 | 1
+B1.credit_user_writes_2_fresh_slots.bundleReverted                     | 0 | 0
+B1.credit_user_writes_2_fresh_slots.success                            | 1 | 1
+B1.credit_user_writes_2_fresh_slots.userRevertEvent                    | 0 | 0
+B1.credit_user_writes_2_fresh_slots.postOpReverted                     | 0 | 0
+B1.credit_user_writes_2_fresh_slots.postOpRevertSelector               | 0 | 0
+B1.credit_user_writes_2_fresh_slots.postOpRevertReasonLen              | 0 | 0
+B1.credit_user_writes_2_fresh_slots.prefundTooLow                      | 0 | 0
+B1.credit_user_writes_2_fresh_slots.actualGasUsed                      | 618246 | 1427408
+B1.credit_user_writes_2_fresh_slots.actualGasCost_wei                  | 618246000000000 | 1427408000000000
+B1.credit_user_writes_2_fresh_slots.spEpDepositDelta_wei               | 618246000000000 | 1427408000000000
+B1.credit_user_writes_2_fresh_slots.charge_aPNTs                       | 74009100000000000000 | 151433700000000000000
+B1.credit_user_writes_2_fresh_slots.need_aPNTs(full cost at snapshot)  | 68007060000000000000 | 157014880000000000000
+B1.credit_user_writes_2_fresh_slots.chargeCoversNeed(I9/G2)            | 1 | 0
+B1.credit_user_writes_2_fresh_slots.a0(clamp)                          | 726000000000000000000 | 726000000000000000000
+B1.credit_user_writes_2_fresh_slots.chargeClampedAtA0                  | 0 | 0
+B1.credit_user_writes_2_fresh_slots.charge_minus_need_aPNTs            | 6002040000000000000 | -5581180000000000000
+B1.credit_user_writes_2_fresh_slots.userBurn_xPNTs                     | 0 | 0
+B1.credit_user_writes_2_fresh_slots.userDebtDelta_xPNTs                | 74009100000000000000 | 151433700000000000000
+B1.credit_user_writes_2_fresh_slots.testFrameGas_handleOps             | 459789 | 1549628
+B1.credit_user_writes_2_fresh_slots.executionKept                      | 1 | 1
+B1.credit_user_writes_3_fresh_slots.bundleReverted                     | 0 | 0
+B1.credit_user_writes_3_fresh_slots.success                            | 1 | 1
+B1.credit_user_writes_3_fresh_slots.userRevertEvent                    | 0 | 0
+B1.credit_user_writes_3_fresh_slots.postOpReverted                     | 0 | 0
+B1.credit_user_writes_3_fresh_slots.postOpRevertSelector               | 0 | 0
+B1.credit_user_writes_3_fresh_slots.postOpRevertReasonLen              | 0 | 0
+B1.credit_user_writes_3_fresh_slots.prefundTooLow                      | 0 | 0
+B1.credit_user_writes_3_fresh_slots.actualGasUsed                      | 638290 | 1526580
+B1.credit_user_writes_3_fresh_slots.actualGasCost_wei                  | 638290000000000 | 1526580000000000
+B1.credit_user_writes_3_fresh_slots.spEpDepositDelta_wei               | 638290000000000 | 1526580000000000
+B1.credit_user_writes_3_fresh_slots.charge_aPNTs                       | 76458910000000000000 | 163554710000000000000
+B1.credit_user_writes_3_fresh_slots.need_aPNTs(full cost at snapshot)  | 70211900000000000000 | 167923800000000000000
+B1.credit_user_writes_3_fresh_slots.chargeCoversNeed(I9/G2)            | 1 | 0
+B1.credit_user_writes_3_fresh_slots.a0(clamp)                          | 726000000000000000000 | 726000000000000000000
+B1.credit_user_writes_3_fresh_slots.chargeClampedAtA0                  | 0 | 0
+B1.credit_user_writes_3_fresh_slots.charge_minus_need_aPNTs            | 6247010000000000000 | -4369090000000000000
+B1.credit_user_writes_3_fresh_slots.userBurn_xPNTs                     | 0 | 0
+B1.credit_user_writes_3_fresh_slots.userDebtDelta_xPNTs                | 76458910000000000000 | 163554710000000000000
+B1.credit_user_writes_3_fresh_slots.testFrameGas_handleOps             | 482140 | 1659903
+B1.credit_user_writes_3_fresh_slots.executionKept                      | 1 | 1
+
+key                                                                    | test_B2_prague.log | test_B2_amsterdam.log
+B2.balance_first_op.F_real                                             | 492553 | 1240281
+B2.balance_first_op.F_postOpMocked                                     | 376620 | 1080770
+B2.balance_first_op.W_postop_EP(=(F_real-F_mocked)*10/9)               | 128814 | 177234
+B2.balance_first_op.real.success                                       | 1 | 1
+B2.balance_first_op.real.postOpReverted                                | 0 | 0
+B2.balance_first_op.real.prefundTooLow                                 | 0 | 0
+B2.credit_first_op.F_real                                              | 476107 | 1127013
+B2.credit_first_op.F_postOpMocked                                      | 347564 | 875674
+B2.credit_first_op.W_postop_EP(=(F_real-F_mocked)*10/9)                | 142825 | 279265
+B2.credit_first_op.real.success                                        | 1 | 1
+B2.credit_first_op.real.postOpReverted                                 | 0 | 0
+B2.credit_first_op.real.prefundTooLow                                  | 0 | 0
+B2.balance_first_op_user_writes_1.F_real                               | 714647 | 1541503
+B2.balance_first_op_user_writes_1.F_postOpMocked                       | 598714 | 1381992
+B2.balance_first_op_user_writes_1.W_postop_EP(=(F_real-F_mocked)*10/9) | 128814 | 177234
+B2.balance_first_op_user_writes_1.real.success                         | 1 | 1
+B2.balance_first_op_user_writes_1.real.postOpReverted                  | 0 | 0
+B2.balance_first_op_user_writes_1.real.prefundTooLow                   | 0 | 0
+
+key                                            | test_B3_TR1409_prague.log | test_B3_TR1409_amsterdam.log
+B3.TR1409_defaults.balance.settles_at_MIN_200k | 1 | 0
+B3.TR1409_defaults.balance.selector            | 0 | 0
+B3.TR1409_defaults.balance.reasonLen           | 0 | 0
+B3.TR1409_defaults.credit.settles_at_MIN_200k  | 1 | 0
+B3.TR1409_defaults.credit.selector             | 0 | 0
+B3.TR1409_defaults.credit.reasonLen            | 0 | 0
+
+key                                                                                         | test_B3_min_postOp_prague.log | test_B3_min_postOp_amsterdam.log
+B3.min_postOpGasLimit_EP.balance_first_op                                                   | 175000 | 365325
+B3.min_postOpGasLimit_EP.credit_first_op                                                    | 175000 | 369624
+B3.min_postOpGasLimit_EP.balance_first_op_user_writes_1                                     | 175000 | 365325
+B3.min_postOpGasLimit_EP.balance_first_op.failure_at_min-1.selector                         | — | 0
+B3.min_postOpGasLimit_EP.balance_first_op.failure_at_min-1.reasonLen                        | — | 0
+B3.postOpGasLimit_EP.balance_first_op.non_guard_failures_in_[175k,min)_step2k               | — | 96
+B3.min_postOpGasLimit_EP.credit_first_op.failure_at_min-1.selector                          | — | 0
+B3.min_postOpGasLimit_EP.credit_first_op.failure_at_min-1.reasonLen                         | — | 0
+B3.postOpGasLimit_EP.credit_first_op.non_guard_failures_in_[175k,min)_step2k                | — | 98
+B3.min_postOpGasLimit_EP.balance_first_op_user_writes_1.failure_at_min-1.selector           | — | 0
+B3.min_postOpGasLimit_EP.balance_first_op_user_writes_1.failure_at_min-1.reasonLen          | — | 0
+B3.postOpGasLimit_EP.balance_first_op_user_writes_1.non_guard_failures_in_[175k,min)_step2k | — | 96
+
+key                                            | test_B3_min_paymasterVerificationGasLimit_prague.log | test_B3_min_paymasterVerificationGasLimit_amsterdam.log
+B3.min_pmVerificationGasLimit.balance_first_op | 194487 | 820305
+B3.min_pmVerificationGasLimit.credit_first_op  | 164970 | 611954
+
+key                                                       | test_B3_min_verificationGasLimit_account_prague.log | test_B3_min_verificationGasLimit_account_amsterdam.log
+B3.min_verificationGasLimit.deployed_SimpleAccount        | 31648 | 119668
+B3.min_verificationGasLimit.initCode_deploy_SimpleAccount | 165879 | 801247
+
+key                                               | test_B3_min_callGasLimit_prague.log | test_B3_min_callGasLimit_amsterdam.log
+B3.min_callGasLimit.execute_writing_0_fresh_slots | 1842 | 1842
+B3.min_callGasLimit.execute_writing_1_fresh_slots | 24741 | 115475
+B3.min_callGasLimit.execute_writing_2_fresh_slots | 47725 | 229192
+
+key                                                                 | test_B4_prague.log | test_B4_amsterdam.log
+B4.balance_first_op.SETTLE_160000.min_settling_call_gas             | 164543 | 365325
+B4.balance_first_op.SETTLE_160000.min_call_gas_passing_guard        | 164543 | 164543
+B4.balance_first_op.SETTLE_160000.oog_band_width(gOk-gGuard,0=none) | 0 | 200782
+B4.balance_first_op.SETTLE_160000.oog_band_failures_step1k          | 0 | 201
+B4.balance_first_op.derived_min_SETTLE_no_band                      | 160000 | 360782
+B4.balance_first_op.SETTLE_159000.min_settling_call_gas             | 163527 | —
+B4.balance_first_op.SETTLE_159000.min_call_gas_passing_guard        | 163527 | —
+B4.balance_first_op.SETTLE_159000.oog_band_width(gOk-gGuard,0=none) | 0 | —
+B4.balance_first_op.SETTLE_159000.oog_band_failures_step1k          | 0 | —
+B4.balance_first_op.SETTLE_155000.min_settling_call_gas             | 159463 | 365325
+B4.balance_first_op.SETTLE_155000.min_call_gas_passing_guard        | 159463 | 159463
+B4.balance_first_op.SETTLE_155000.oog_band_width(gOk-gGuard,0=none) | 0 | 205862
+B4.balance_first_op.SETTLE_155000.oog_band_failures_step1k          | 0 | 206
+B4.credit_first_op.SETTLE_160000.min_settling_call_gas              | 164543 | 369624
+B4.credit_first_op.SETTLE_160000.min_call_gas_passing_guard         | 164543 | 164543
+B4.credit_first_op.SETTLE_160000.oog_band_width(gOk-gGuard,0=none)  | 0 | 205081
+B4.credit_first_op.SETTLE_160000.oog_band_failures_step1k           | 0 | 206
+B4.credit_first_op.derived_min_SETTLE_no_band                       | 160000 | 365081
+B4.credit_first_op.SETTLE_159000.min_settling_call_gas              | 163527 | —
+B4.credit_first_op.SETTLE_159000.min_call_gas_passing_guard         | 163527 | —
+B4.credit_first_op.SETTLE_159000.oog_band_width(gOk-gGuard,0=none)  | 0 | —
+B4.credit_first_op.SETTLE_159000.oog_band_failures_step1k           | 0 | —
+B4.credit_first_op.SETTLE_155000.min_settling_call_gas              | 159463 | 369624
+B4.credit_first_op.SETTLE_155000.min_call_gas_passing_guard         | 159463 | 159463
+B4.credit_first_op.SETTLE_155000.oog_band_width(gOk-gGuard,0=none)  | 0 | 210161
+B4.credit_first_op.SETTLE_155000.oog_band_failures_step1k           | 0 | 211
+B4.balance_first_op.SETTLE_361000.min_settling_call_gas             | — | 368733
+B4.balance_first_op.SETTLE_361000.min_call_gas_passing_guard        | — | 368733
+B4.balance_first_op.SETTLE_361000.oog_band_width(gOk-gGuard,0=none) | — | 0
+B4.balance_first_op.SETTLE_361000.oog_band_failures_step1k          | — | 0
+B4.balance_first_op.SETTLE_360000.min_settling_call_gas             | — | 367717
+B4.balance_first_op.SETTLE_360000.min_call_gas_passing_guard        | — | 367717
+B4.balance_first_op.SETTLE_360000.oog_band_width(gOk-gGuard,0=none) | — | 0
+B4.balance_first_op.SETTLE_360000.oog_band_failures_step1k          | — | 0
+B4.credit_first_op.SETTLE_366000.min_settling_call_gas              | — | 373813
+B4.credit_first_op.SETTLE_366000.min_call_gas_passing_guard         | — | 373813
+B4.credit_first_op.SETTLE_366000.oog_band_width(gOk-gGuard,0=none)  | — | 0
+B4.credit_first_op.SETTLE_366000.oog_band_failures_step1k           | — | 0
+B4.credit_first_op.SETTLE_365000.min_settling_call_gas              | — | 372797
+B4.credit_first_op.SETTLE_365000.min_call_gas_passing_guard         | — | 372797
+B4.credit_first_op.SETTLE_365000.oog_band_width(gOk-gGuard,0=none)  | — | 0
+B4.credit_first_op.SETTLE_365000.oog_band_failures_step1k           | — | 0
+
+key                                                      | test_B5_prague.log | test_B5_amsterdam.log
+B5.MIN_200000_SETTLE_160000.balance.settled              | 1 | 0
+B5.MIN_200000_SETTLE_160000.balance.postOpRevertSelector | 0 | 0
+B5.MIN_200000_SETTLE_160000.balance.chargeCoversNeed     | 1 | 0
+B5.MIN_200000_SETTLE_160000.balance.charge               | 63257920000000000000 | 0
+B5.MIN_200000_SETTLE_160000.balance.need                 | 56380830000000000000 | 141362210000000000000
+B5.MIN_200000_SETTLE_160000.credit.settled               | 1 | 0
+B5.MIN_200000_SETTLE_160000.credit.postOpRevertSelector  | 0 | 0
+B5.MIN_200000_SETTLE_160000.credit.chargeCoversNeed      | 1 | 0
+B5.MIN_200000_SETTLE_160000.credit.charge                | 56992760000000000000 | 0
+B5.MIN_200000_SETTLE_160000.credit.need                  | 47364570000000000000 | 106050450000000000000
+B5.MIN_300000_SETTLE_280000.balance.settled              | 1 | 0
+B5.MIN_300000_SETTLE_280000.balance.postOpRevertSelector | 0 | 0
+B5.MIN_300000_SETTLE_280000.balance.chargeCoversNeed     | 1 | 0
+B5.MIN_300000_SETTLE_280000.balance.charge               | 77886930000000000000 | 0
+B5.MIN_300000_SETTLE_280000.balance.need                 | 57259840000000000000 | 151986560000000000000
+B5.MIN_300000_SETTLE_280000.credit.settled               | 1 | 0
+B5.MIN_300000_SETTLE_280000.credit.postOpRevertSelector  | 0 | 0
+B5.MIN_300000_SETTLE_280000.credit.chargeCoversNeed      | 1 | 0
+B5.MIN_300000_SETTLE_280000.credit.charge                | 71841770000000000000 | 0
+B5.MIN_300000_SETTLE_280000.credit.need                  | 48463580000000000000 | 116894800000000000000
+B5.MIN_350000_SETTLE_330000.balance.settled              | 1 | 0
+B5.MIN_350000_SETTLE_330000.balance.postOpRevertSelector | 0 | 0
+B5.MIN_350000_SETTLE_330000.balance.chargeCoversNeed     | 1 | 0
+B5.MIN_350000_SETTLE_330000.balance.charge               | 83936930000000000000 | 0
+B5.MIN_350000_SETTLE_330000.balance.need                 | 57809840000000000000 | 128306640000000000000
+B5.MIN_350000_SETTLE_330000.credit.settled               | 1 | 0
+B5.MIN_350000_SETTLE_330000.credit.postOpRevertSelector  | 0 | 0
+B5.MIN_350000_SETTLE_330000.credit.chargeCoversNeed      | 1 | 0
+B5.MIN_350000_SETTLE_330000.credit.charge                | 77891770000000000000 | 0
+B5.MIN_350000_SETTLE_330000.credit.need                  | 49013580000000000000 | 93214880000000000000
+B5.MIN_400000_SETTLE_380000.balance.settled              | 1 | 1
+B5.MIN_400000_SETTLE_380000.balance.postOpRevertSelector | 0 | 0
+B5.MIN_400000_SETTLE_380000.balance.chargeCoversNeed     | 1 | 1
+B5.MIN_400000_SETTLE_380000.balance.charge               | 89986930000000000000 | 167433530000000000000
+B5.MIN_400000_SETTLE_380000.balance.need                 | 58359840000000000000 | 140609920000000000000
+B5.MIN_400000_SETTLE_380000.credit.settled               | 1 | 1
+B5.MIN_400000_SETTLE_380000.credit.postOpRevertSelector  | 0 | 0
+B5.MIN_400000_SETTLE_380000.credit.chargeCoversNeed      | 1 | 1
+B5.MIN_400000_SETTLE_380000.credit.charge                | 83941770000000000000 | 132341770000000000000
+B5.MIN_400000_SETTLE_380000.credit.need                  | 49563580000000000000 | 94053080000000000000
+B5.MIN_450000_SETTLE_430000.balance.settled              | 1 | 1
+B5.MIN_450000_SETTLE_430000.balance.postOpRevertSelector | 0 | 0
+B5.MIN_450000_SETTLE_430000.balance.chargeCoversNeed     | 1 | 1
+B5.MIN_450000_SETTLE_430000.balance.charge               | 96036930000000000000 | 173483530000000000000
+B5.MIN_450000_SETTLE_430000.balance.need                 | 58909840000000000000 | 141159920000000000000
+B5.MIN_450000_SETTLE_430000.credit.settled               | 1 | 1
+B5.MIN_450000_SETTLE_430000.credit.postOpRevertSelector  | 0 | 0
+B5.MIN_450000_SETTLE_430000.credit.chargeCoversNeed      | 1 | 1
+B5.MIN_450000_SETTLE_430000.credit.charge                | 89991770000000000000 | 138391770000000000000
+B5.MIN_450000_SETTLE_430000.credit.need                  | 50113580000000000000 | 94603080000000000000
+B5.MIN_500000_SETTLE_480000.balance.settled              | 1 | 1
+B5.MIN_500000_SETTLE_480000.balance.postOpRevertSelector | 0 | 0
+B5.MIN_500000_SETTLE_480000.balance.chargeCoversNeed     | 1 | 1
+B5.MIN_500000_SETTLE_480000.balance.charge               | 102086930000000000000 | 179533530000000000000
+B5.MIN_500000_SETTLE_480000.balance.need                 | 59459840000000000000 | 141709920000000000000
+B5.MIN_500000_SETTLE_480000.credit.settled               | 1 | 1
+B5.MIN_500000_SETTLE_480000.credit.postOpRevertSelector  | 0 | 0
+B5.MIN_500000_SETTLE_480000.credit.chargeCoversNeed      | 1 | 1
+B5.MIN_500000_SETTLE_480000.credit.charge                | 96041770000000000000 | 144441770000000000000
+B5.MIN_500000_SETTLE_480000.credit.need                  | 50663580000000000000 | 95153080000000000000
+
+key                                                           | test_B6_prague.log | test_B6_amsterdam.log
+B6.I8_settle_failure.bundleReverted                           | 0 | 0
+B6.I8_settle_failure.success                                  | 0 | 0
+B6.I8_settle_failure.userRevertEvent                          | 0 | 0
+B6.I8_settle_failure.postOpReverted                           | 1 | 1
+B6.I8_settle_failure.postOpRevertSelector                     | 1936028788 | 1936028788
+B6.I8_settle_failure.postOpRevertReasonLen                    | 11 | 11
+B6.I8_settle_failure.prefundTooLow                            | 0 | 0
+B6.I8_settle_failure.actualGasUsed                            | 634355 | 1333615
+B6.I8_settle_failure.actualGasCost_wei                        | 634355000000000 | 1333615000000000
+B6.I8_settle_failure.spEpDepositDelta_wei                     | 634355000000000 | 1333615000000000
+B6.I8_settle_failure.charge_aPNTs                             | 0 | 0
+B6.I8_settle_failure.need_aPNTs(full cost at snapshot)        | 69779050000000000000 | 146697650000000000000
+B6.I8_settle_failure.chargeCoversNeed(I9/G2)                  | 0 | 0
+B6.I8_settle_failure.a0(clamp)                                | 726000000000000000000 | 726000000000000000000
+B6.I8_settle_failure.chargeClampedAtA0                        | 0 | 0
+B6.I8_settle_failure.charge_minus_need_aPNTs                  | -69779050000000000000 | -146697650000000000000
+B6.I8_settle_failure.userBurn_xPNTs                           | 0 | 0
+B6.I8_settle_failure.userDebtDelta_xPNTs                      | 0 | 0
+B6.I8_settle_failure.testFrameGas_handleOps                   | 495872 | 1435752
+B6.I8_settle_failure.executionKept(must be 0)                 | 0 | 0
+B6.I8_settle_failure.userBalanceUnchanged                     | 1 | 1
+B6.I8_settle_failure.lockedAfter                              | 726000000000000000000 | 726000000000000000000
+B6.releaseStaleLock.gasTotalUsed                              | 56094 | 86494
+B6.releaseStaleLock.gasRefunded                               | 11218 | 17298
+B6.releaseStaleSponsorship.gasTotalUsed                       | 39882 | 48682
+B6.releaseStaleSponsorship.gasRefunded                        | 4800 | 9736
+B6.lockedAfterRelease                                         | 0 | 0
+B6.inflightClearedAfterRelease                                | 1 | 1
+B6.I8_credit_settle_failure.bundleReverted                    | 0 | 0
+B6.I8_credit_settle_failure.success                           | 0 | 0
+B6.I8_credit_settle_failure.userRevertEvent                   | 0 | 0
+B6.I8_credit_settle_failure.postOpReverted                    | 1 | 1
+B6.I8_credit_settle_failure.postOpRevertSelector              | 1936028788 | 1936028788
+B6.I8_credit_settle_failure.postOpRevertReasonLen             | 11 | 11
+B6.I8_credit_settle_failure.prefundTooLow                     | 0 | 0
+B6.I8_credit_settle_failure.actualGasUsed                     | 597848 | 1130508
+B6.I8_credit_settle_failure.actualGasCost_wei                 | 597848000000000 | 1130508000000000
+B6.I8_credit_settle_failure.spEpDepositDelta_wei              | 597848000000000 | 1130508000000000
+B6.I8_credit_settle_failure.charge_aPNTs                      | 0 | 0
+B6.I8_credit_settle_failure.need_aPNTs(full cost at snapshot) | 65763280000000000000 | 124355880000000000000
+B6.I8_credit_settle_failure.chargeCoversNeed(I9/G2)           | 0 | 0
+B6.I8_credit_settle_failure.a0(clamp)                         | 726000000000000000000 | 726000000000000000000
+B6.I8_credit_settle_failure.chargeClampedAtA0                 | 0 | 0
+B6.I8_credit_settle_failure.charge_minus_need_aPNTs           | -65763280000000000000 | -124355880000000000000
+B6.I8_credit_settle_failure.userBurn_xPNTs                    | 0 | 0
+B6.I8_credit_settle_failure.userDebtDelta_xPNTs               | 0 | 0
+B6.I8_credit_settle_failure.testFrameGas_handleOps            | 455194 | 1229434
+B6.releaseStaleCredit.gasTotalUsed                            | 44858 | 60858
+B6.releaseStaleSponsorship(credit).gasTotalUsed               | 39882 | 48682
+
+key                                                                                               | test_B7_prague.log | test_B7_amsterdam.log
+B7.balance_user_writes_0.actualGasUsed(PVG=0)                                                     | 542553 | 1290281
+B7.balance_user_writes_0.handleOps_frame_gas                                                      | 397725 | 1240725
+B7.balance_user_writes_0.actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed) | 144828 | 49556
+B7.balance_user_writes_0.success                                                                  | 1 | 1
+B7.balance_user_writes_0.prefundTooLow                                                            | 0 | 0
+B7.balance_user_writes_1.actualGasUsed(PVG=0)                                                     | 564647 | 1391503
+B7.balance_user_writes_1.handleOps_frame_gas                                                      | 422461 | 1353383
+B7.balance_user_writes_1.actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed) | 142186 | 38120
+B7.balance_user_writes_1.success                                                                  | 1 | 1
+B7.balance_user_writes_1.prefundTooLow                                                            | 0 | 0
+B7.balance_user_writes_2.actualGasUsed(PVG=0)                                                     | 584691 | 1490675
+B7.balance_user_writes_2.handleOps_frame_gas                                                      | 444779 | 1463624
+B7.balance_user_writes_2.actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed) | 139912 | 27051
+B7.balance_user_writes_2.success                                                                  | 1 | 1
+B7.balance_user_writes_2.prefundTooLow                                                            | 0 | 0
+
+key                                                                                                     | test_B8_prague.log | test_B8_amsterdam.log
+B8.defaults_200k_160k_5k_175k.balance_first_op.bundleReverted                                           | 0 | 0
+B8.defaults_200k_160k_5k_175k.balance_first_op.settled                                                  | 1 | 0
+B8.defaults_200k_160k_5k_175k.balance_first_op.chargeCoversNeed                                         | 1 | 0
+B8.defaults_200k_160k_5k_175k.balance_first_op.chargeClampedAtA0                                        | 0 | 0
+B8.defaults_200k_160k_5k_175k.balance_first_op.charge_minus_need_aPNTs                                  | 6877090000000000000 | -141141220000000000000
+B8.defaults_200k_160k_5k_175k.balance_first_op.actualGasUsed                                            | 510544 | 1283102
+B8.defaults_200k_160k_5k_175k.balance_user_writes_2.bundleReverted                                      | 0 | 0
+B8.defaults_200k_160k_5k_175k.balance_user_writes_2.settled                                             | 1 | 0
+B8.defaults_200k_160k_5k_175k.balance_user_writes_2.chargeCoversNeed                                    | 1 | 0
+B8.defaults_200k_160k_5k_175k.balance_user_writes_2.chargeClampedAtA0                                   | 0 | 0
+B8.defaults_200k_160k_5k_175k.balance_user_writes_2.charge_minus_need_aPNTs                             | 11527450000000000000 | -131277080000000000000
+B8.defaults_200k_160k_5k_175k.balance_user_writes_2.actualGasUsed                                       | 489162 | 1193428
+B8.defaults_200k_160k_5k_175k.credit_first_op.bundleReverted                                            | 0 | 0
+B8.defaults_200k_160k_5k_175k.credit_first_op.settled                                                   | 1 | 0
+B8.defaults_200k_160k_5k_175k.credit_first_op.chargeCoversNeed                                          | 1 | 0
+B8.defaults_200k_160k_5k_175k.credit_first_op.chargeClampedAtA0                                         | 0 | 0
+B8.defaults_200k_160k_5k_175k.credit_first_op.charge_minus_need_aPNTs                                   | 9628190000000000000 | -106049460000000000000
+B8.defaults_200k_160k_5k_175k.credit_first_op.actualGasUsed                                             | 430578 | 964086
+B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.bundleReverted                                  | 0 | 0
+B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.settled                                         | 1 | 0
+B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.chargeCoversNeed                                | 1 | 0
+B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.chargeClampedAtA0                               | 0 | 0
+B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.charge_minus_need_aPNTs                         | 11553520000000000000 | -123095390000000000000
+B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.actualGasUsed                                   | 396222 | 1119049
+B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).bundleReverted             | 0 | 0
+B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).settled                    | 1 | 0
+B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).chargeCoversNeed           | 1 | 0
+B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).chargeClampedAtA0          | 0 | 0
+B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).charge_minus_need_aPNTs    | 11282480000000000000 | -120382240000000000000
+B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).actualGasUsed              | 381118 | 1094384
+B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).bundleReverted              | 0 | 0
+B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).settled                     | 1 | 0
+B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).chargeCoversNeed            | 1 | 0
+B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).chargeClampedAtA0           | 0 | 0
+B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).charge_minus_need_aPNTs     | 9895270000000000000 | -97821680000000000000
+B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).actualGasUsed               | 364673 | 889288
+B8.raw_385k_365k_5k_336k.balance_first_op.bundleReverted                                                | 0 | 0
+B8.raw_385k_365k_5k_336k.balance_first_op.settled                                                       | 1 | 1
+B8.raw_385k_365k_5k_336k.balance_first_op.chargeCoversNeed                                              | 1 | 1
+B8.raw_385k_365k_5k_336k.balance_first_op.chargeClampedAtA0                                             | 0 | 0
+B8.raw_385k_365k_5k_336k.balance_first_op.charge_minus_need_aPNTs                                       | 24587090000000000000 | 19783610000000000000
+B8.raw_385k_365k_5k_336k.balance_first_op.actualGasUsed                                                 | 529044 | 1276772
+B8.raw_385k_365k_5k_336k.balance_user_writes_2.bundleReverted                                           | 0 | 0
+B8.raw_385k_365k_5k_336k.balance_user_writes_2.settled                                                  | 1 | 1
+B8.raw_385k_365k_5k_336k.balance_user_writes_2.chargeCoversNeed                                         | 1 | 1
+B8.raw_385k_365k_5k_336k.balance_user_writes_2.chargeClampedAtA0                                        | 0 | 0
+B8.raw_385k_365k_5k_336k.balance_user_writes_2.charge_minus_need_aPNTs                                  | 29237450000000000000 | 43796170000000000000
+B8.raw_385k_365k_5k_336k.balance_user_writes_2.actualGasUsed                                            | 507662 | 1167190
+B8.raw_385k_365k_5k_336k.credit_first_op.bundleReverted                                                 | 0 | 0
+B8.raw_385k_365k_5k_336k.credit_first_op.settled                                                        | 1 | 1
+B8.raw_385k_365k_5k_336k.credit_first_op.chargeCoversNeed                                               | 1 | 1
+B8.raw_385k_365k_5k_336k.credit_first_op.chargeClampedAtA0                                              | 0 | 0
+B8.raw_385k_365k_5k_336k.credit_first_op.charge_minus_need_aPNTs                                        | 27338190000000000000 | 31248690000000000000
+B8.raw_385k_365k_5k_336k.credit_first_op.actualGasUsed                                                  | 449078 | 853528
+B8.raw_385k_365k_5k_336k.balance_user_call_reverts.bundleReverted                                       | 0 | 0
+B8.raw_385k_365k_5k_336k.balance_user_call_reverts.settled                                              | 1 | 1
+B8.raw_385k_365k_5k_336k.balance_user_call_reverts.chargeCoversNeed                                     | 1 | 1
+B8.raw_385k_365k_5k_336k.balance_user_call_reverts.chargeClampedAtA0                                    | 0 | 0
+B8.raw_385k_365k_5k_336k.balance_user_call_reverts.charge_minus_need_aPNTs                              | 29263520000000000000 | 32193920000000000000
+B8.raw_385k_365k_5k_336k.balance_user_call_reverts.actualGasUsed                                        | 414722 | 1004122
+B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).bundleReverted                  | 0 | 0
+B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).settled                         | 1 | 1
+B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).chargeCoversNeed                | 1 | 1
+B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).chargeClampedAtA0               | 0 | 0
+B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).charge_minus_need_aPNTs         | 28992480000000000000 | 42584080000000000000
+B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).actualGasUsed                   | 399618 | 980018
+B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).bundleReverted                   | 0 | 0
+B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).settled                          | 1 | 1
+B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).chargeCoversNeed                 | 1 | 1
+B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).chargeClampedAtA0                | 0 | 0
+B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).charge_minus_need_aPNTs          | 27605270000000000000 | 32482890000000000000
+B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).actualGasUsed                    | 383173 | 866751
+B8.margin_440k_420k_5k_340k.balance_first_op.bundleReverted                                             | 0 | 0
+B8.margin_440k_420k_5k_340k.balance_first_op.settled                                                    | 1 | 1
+B8.margin_440k_420k_5k_340k.balance_first_op.chargeCoversNeed                                           | 1 | 1
+B8.margin_440k_420k_5k_340k.balance_first_op.chargeClampedAtA0                                          | 0 | 0
+B8.margin_440k_420k_5k_340k.balance_first_op.charge_minus_need_aPNTs                                    | 25027090000000000000 | 20223610000000000000
+B8.margin_440k_420k_5k_340k.balance_first_op.actualGasUsed                                              | 534544 | 1282272
+B8.margin_440k_420k_5k_340k.balance_user_writes_2.bundleReverted                                        | 0 | 0
+B8.margin_440k_420k_5k_340k.balance_user_writes_2.settled                                               | 1 | 1
+B8.margin_440k_420k_5k_340k.balance_user_writes_2.chargeCoversNeed                                      | 1 | 1
+B8.margin_440k_420k_5k_340k.balance_user_writes_2.chargeClampedAtA0                                     | 0 | 0
+B8.margin_440k_420k_5k_340k.balance_user_writes_2.charge_minus_need_aPNTs                               | 29677450000000000000 | 44236170000000000000
+B8.margin_440k_420k_5k_340k.balance_user_writes_2.actualGasUsed                                         | 513162 | 1172690
+B8.margin_440k_420k_5k_340k.credit_first_op.bundleReverted                                              | 0 | 0
+B8.margin_440k_420k_5k_340k.credit_first_op.settled                                                     | 1 | 1
+B8.margin_440k_420k_5k_340k.credit_first_op.chargeCoversNeed                                            | 1 | 1
+B8.margin_440k_420k_5k_340k.credit_first_op.chargeClampedAtA0                                           | 0 | 0
+B8.margin_440k_420k_5k_340k.credit_first_op.charge_minus_need_aPNTs                                     | 27778190000000000000 | 31688690000000000000
+B8.margin_440k_420k_5k_340k.credit_first_op.actualGasUsed                                               | 454578 | 859028
+B8.margin_440k_420k_5k_340k.balance_user_call_reverts.bundleReverted                                    | 0 | 0
+B8.margin_440k_420k_5k_340k.balance_user_call_reverts.settled                                           | 1 | 1
+B8.margin_440k_420k_5k_340k.balance_user_call_reverts.chargeCoversNeed                                  | 1 | 1
+B8.margin_440k_420k_5k_340k.balance_user_call_reverts.chargeClampedAtA0                                 | 0 | 0
+B8.margin_440k_420k_5k_340k.balance_user_call_reverts.charge_minus_need_aPNTs                           | 29703520000000000000 | 32633920000000000000
+B8.margin_440k_420k_5k_340k.balance_user_call_reverts.actualGasUsed                                     | 420222 | 1009622
+B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).bundleReverted               | 0 | 0
+B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).settled                      | 1 | 1
+B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).chargeCoversNeed             | 1 | 1
+B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).chargeClampedAtA0            | 0 | 0
+B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).charge_minus_need_aPNTs      | 29432480000000000000 | 43024080000000000000
+B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).actualGasUsed                | 405118 | 985518
+B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).bundleReverted                | 0 | 0
+B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).settled                       | 1 | 1
+B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).chargeCoversNeed              | 1 | 1
+B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).chargeClampedAtA0             | 0 | 0
+B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).charge_minus_need_aPNTs       | 28045270000000000000 | 32922890000000000000
+B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).actualGasUsed                 | 388673 | 872251
+B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.bundleReverted                                        | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.settled                                               | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.chargeCoversNeed                                      | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.chargeClampedAtA0                                     | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.charge_minus_need_aPNTs                               | 20627090000000000000 | 15823610000000000000
+B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.actualGasUsed                                         | 534544 | 1282272
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.bundleReverted                                   | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.settled                                          | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.chargeCoversNeed                                 | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.chargeClampedAtA0                                | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.charge_minus_need_aPNTs                          | 25277450000000000000 | 39836170000000000000
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.actualGasUsed                                    | 513162 | 1172690
+B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.bundleReverted                                         | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.settled                                                | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.chargeCoversNeed                                       | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.chargeClampedAtA0                                      | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.charge_minus_need_aPNTs                                | 23378190000000000000 | 27288690000000000000
+B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.actualGasUsed                                          | 454578 | 859028
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.bundleReverted                               | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.settled                                      | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.chargeCoversNeed                             | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.chargeClampedAtA0                            | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.charge_minus_need_aPNTs                      | 25303520000000000000 | 28233920000000000000
+B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.actualGasUsed                                | 420222 | 1009622
+B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).bundleReverted          | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).settled                 | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).chargeCoversNeed        | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).chargeClampedAtA0       | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).charge_minus_need_aPNTs | 25032480000000000000 | 38624080000000000000
+B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).actualGasUsed           | 405118 | 985518
+B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).bundleReverted           | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).settled                  | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).chargeCoversNeed         | 1 | 1
+B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).chargeClampedAtA0        | 0 | 0
+B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).charge_minus_need_aPNTs  | 23645270000000000000 | 28522890000000000000
+B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).actualGasUsed            | 388673 | 872251
+
+key                             | test_C_wrap_prague.log | test_C_wrap_amsterdam.log
+C.wrap.succeeded_200k           | 1770 | 1870
+C.wrap.succeeded_1M             | 1756 | 1856
+C.wrap.reverted_200k            | 1770 | 1870
+C.wrap.probe_calls(expect 1003) | 1003 | 1003
+C.wrap.bundle_pos_0             | 1770 | 1870
+C.wrap.bundle_pos_1             | 1770 | 1870
+C.wrap.bundle_pos_2             | 1770 | 1870
+C.wrap.bundle_pos_3             | 1770 | 1870

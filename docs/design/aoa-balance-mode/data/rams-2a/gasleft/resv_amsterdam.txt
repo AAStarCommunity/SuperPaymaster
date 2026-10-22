@@ -1,0 +1,37 @@
+===== anvil --hardfork amsterdam 
+client anvil/v1.8.7
+deploy Probe(+Child) gasUsed 3074917
+--- tx gasLimit  15,000,000 (reservoir = gasLimit - 2^24 if > 2^24): status 0x1 gasUsed 276,383
+    own fresh SSTORE: gasleft delta                                           110,104
+    child 0->x: caller gasleft delta                                          115,774
+    child x->0 restore: caller gasleft delta (neg = gasleft ROSE)             -96,992
+    child fresh SSTORE with {gas: 30000}: ok                                        0
+    child fresh SSTORE with {gas: 100000}: ok                                       0
+--- tx gasLimit  16,777,216 (reservoir = gasLimit - 2^24 if > 2^24): status 0x1 gasUsed 276,383
+    own fresh SSTORE: gasleft delta                                           110,104
+    child 0->x: caller gasleft delta                                          115,774
+    child x->0 restore: caller gasleft delta (neg = gasleft ROSE)             -96,992
+    child fresh SSTORE with {gas: 30000}: ok                                        0
+    child fresh SSTORE with {gas: 100000}: ok                                       0
+--- tx gasLimit  30,000,000 (reservoir = gasLimit - 2^24 if > 2^24): status 0x1 gasUsed 276,383
+    own fresh SSTORE: gasleft delta                                           110,104
+    child 0->x: caller gasleft delta                                          115,774
+    child x->0 restore: caller gasleft delta (neg = gasleft ROSE)             -96,992
+    child fresh SSTORE with {gas: 30000}: ok                                        0
+    child fresh SSTORE with {gas: 100000}: ok                                       0
+===== anvil --hardfork amsterdam --enable-tx-gas-limit
+client anvil/v1.8.7
+deploy Probe(+Child) gasUsed 3074917
+--- tx gasLimit  15,000,000 (reservoir = gasLimit - 2^24 if > 2^24): status 0x1 gasUsed 276,383
+    own fresh SSTORE: gasleft delta                                           110,104
+    child 0->x: caller gasleft delta                                          115,774
+    child x->0 restore: caller gasleft delta (neg = gasleft ROSE)             -96,992
+    child fresh SSTORE with {gas: 30000}: ok                                        0
+    child fresh SSTORE with {gas: 100000}: ok                                       0
+--- tx gasLimit  16,777,216 (reservoir = gasLimit - 2^24 if > 2^24): status 0x1 gasUsed 276,383
+    own fresh SSTORE: gasleft delta                                           110,104
+    child 0->x: caller gasleft delta                                          115,774
+    child x->0 restore: caller gasleft delta (neg = gasleft ROSE)             -96,992
+    child fresh SSTORE with {gas: 30000}: ok                                        0
+    child fresh SSTORE with {gas: 100000}: ok                                       0
+tx gasLimit 30000000: REJECTED eth_sendTransaction: {'code': -32000, 'message': 'intrinsic gas too high -- tx.gas_limit > resolved tx gas limit cap'}

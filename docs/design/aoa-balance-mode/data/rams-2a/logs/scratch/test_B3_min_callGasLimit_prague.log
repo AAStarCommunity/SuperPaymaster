@@ -1,0 +1,15 @@
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B3_min_callGasLimit() (gas: 43030697)
+Logs:
+  R2A|B3.min_callGasLimit.execute_writing_0_fresh_slots|1842
+  R2A|B3.min_callGasLimit.execute_writing_1_fresh_slots|24741
+  R2A|B3.min_callGasLimit.execute_writing_2_fresh_slots|47725
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 84.90ms (83.30ms CPU time)
+
+Ran 1 test suite in 86.78ms (84.90ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

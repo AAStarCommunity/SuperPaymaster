@@ -1,0 +1,20 @@
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aWrap
+[PASS] test_C_wrap_prewarmed_probe() (gas: 9465191)
+Logs:
+  R2A|C.wrap.succeeded_200k|1870
+  R2A|C.wrap.succeeded_1M|1856
+  R2A|C.wrap.reverted_200k|1870
+  R2A|C.wrap.probe_calls(expect 1003)|1003
+  R2A|C.wrap.bundle_pos_0|1870
+  R2A|C.wrap.bundle_pos_1|1870
+  R2A|C.wrap.bundle_pos_2|1870
+  R2A|C.wrap.bundle_pos_3|1870
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 27.99ms (26.18ms CPU time)
+
+Ran 1 test suite in 29.04ms (27.99ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

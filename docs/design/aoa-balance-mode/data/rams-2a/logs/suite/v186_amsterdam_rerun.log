@@ -1,0 +1,117 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/scripts/DeployAPNTsCapped.t.sol:DeployAPNTsCappedTest
+[SKIP: skipped] setUp() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 1 skipped; finished in 1.17ms (0.00ns CPU time)
+
+Ran 1 test for contracts/test/scripts/CheckDefaultArtifacts.t.sol:CheckDefaultArtifactsTest
+[SKIP: skipped] setUp() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 1 skipped; finished in 535.53µs (0.00ns CPU time)
+
+Ran 2 tests for contracts/test/halmos/D5c1Replay.t.sol:D5c1PrimingTest
+[PASS] test_D5c1_priming_creditMakesExactlyTheRecordLive() (gas: 1089068)
+[PASS] test_D5c1_priming_lockMakesExactlyTheRecordLive() (gas: 342410)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 6.68ms (927.17µs CPU time)
+
+Ran 7 tests for contracts/test/tokens/APNTsCappedSPIntegration.t.sol:APNTsCappedSPIntegrationTest
+[PASS] test_SP_depositFor() (gas: 432211)
+[PASS] test_SP_deposit_approve_pull() (gas: 430507)
+[PASS] test_SP_deposit_transferAndCall_push() (gas: 455849)
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_SP_gasless_balance_mode_op_conservation() (gas: 913170)
+[PASS] test_SP_initialised_with_APNTsCapped() (gas: 19953)
+[PASS] test_SP_withdraw() (gas: 441434)
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_SP_withdrawProtocolRevenue_after_ops() (gas: 881734)
+Suite result: FAILED. 5 passed; 2 failed; 0 skipped; finished in 17.55ms (1.97ms CPU time)
+
+Ran 16 tests for contracts/test/halmos/D5c1Replay.t.sol:D5c1ReplayTest
+[PASS] test_D5c1_A3_scenario_spCannotMoveUserTokens() (gas: 25414335)
+[PASS] test_D5c1_A3_scenario_spFirewallBits() (gas: 25442802)
+[PASS] test_D5c1_CAP1_scenario_mintBeyondCapReverts() (gas: 246650)
+[PASS] test_D5c1_DISCREPANCY_A3_2_spBurnsOwnBalance() (gas: 25846426)
+[PASS] test_D5c1_I2_scenario_lockBeyondSpCapRejected() (gas: 25422292)
+[PASS] test_D5c1_I4B_scenario_transferBelowLockedRejected() (gas: 25835472)
+[PASS] test_D5c1_I6_scenario_reservationBoundedByRequestedCap() (gas: 26005411)
+[PASS] test_D5c1_REGRESSION_F1_maxRateMaxLockIsExact() (gas: 2463474)
+[PASS] test_D5c1_REGRESSION_F1_rateOutOfRangeRejectedAtInit() (gas: 397077)
+[PASS] test_D5c1_layout_allowancesSlotAndInitSlot() (gas: 130278)
+[PASS] test_D5c1_layout_snapshotMatchesGetters() (gas: 27122686)
+[PASS] test_D5c1_replay_I2_transferFrom_wrapNeedsUnreachableState() (gas: 25193289)
+[PASS] test_D5c1_selectorListMatchesArtifacts() (gas: 9159544)
+[PASS] test_D5c1_witness_creditReserveThenSettle() (gas: 25949484)
+[PASS] test_D5c1_witness_meteredPull() (gas: 26777316)
+[PASS] test_D5c1_witness_spRenewLockThenSettle() (gas: 25835241)
+Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 34.14ms (33.31ms CPU time)
+
+Ran 27 tests for contracts/test/v2/SuperPaymasterV55Adversarial.t.sol:SuperPaymasterV55AdversarialTest
+[PASS] test_R13_repeated_pulls_bounded_by_caps() (gas: 1929194)
+[FAIL: control: re-enabled] test_R13_revocation_user_disable_and_emergency_reject_via_entrypoint() (gas: 1060035)
+[FAIL: during the 48 h window the current SP keeps working] test_R13_sp_replacement_pending_cannot_lock_old_sp_fails_closed() (gas: 952447)
+[FAIL: control: an op committing to the new rate is sponsored] test_R13_stolen_owner_cannot_take_user_funds() (gas: 1182995)
+[FAIL: control: a0 within the cap] test_RouteA_maxCost_above_auto_cap_rejected_not_truncated() (gas: 1439557)
+[PASS] test_RouteA_maxCost_above_single_tx_limit_rejected_not_truncated() (gas: 3204887)
+[FAIL: assertion failed] test_RouteA_self_drain_blocked_by_escrow_user_still_pays() (gas: 1100503)
+[FAIL: T-R14-01: bundle of funded Sybils executes] test_TR1401_sybil_each_account_pays_own_lock_unbacked_zero_flat_in_N() (gas: 1127585)
+[FAIL: T-R14-02: 4th op rejected at validation (balance - lockedOf < x0): 0x65c8fd4d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000d41413333207265766572746564000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 != 0x220266b600000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000001441413334207369676e6174757265206572726f72000000000000000000000000] test_TR1402_same_account_multi_nonce_keys_kth_rejected_when_free_balance_below_x0() (gas: 1133310)
+[FAIL: assertion failed] test_TR1403_stale_blacklist_admitted_ops_settle_new_op_rejected() (gas: 929888)
+[FAIL: assertion failed] test_TR1404_user_execution_revert_still_pays_and_clears_lock() (gas: 936747)
+[FAIL: bundle succeeds (postOpReverted path)] test_TR1405_postOp_revert_undoes_execution_operator_loss_le_a0_attacker_gain_zero() (gas: 1146244)
+[FAIL: funded op sponsored in balance mode] test_TR1406_credit_off_debts_never_increase_on_any_path() (gas: 1464109)
+[FAIL: sweep reaches the sufficient region: 0 <= 0] test_TR1407_bundler_gas_sweep_never_keeps_unpaid_execution() (gas: 83197355)
+Logs:
+  bundler gas sweep: reverted / executed+settled / postOp-undone 131 0 0
+
+[FAIL: success region reached: 0 <= 0] test_TR1407_direct_postOp_gas_sweep_returns_only_when_settled() (gas: 47408324)
+Logs:
+  direct postOp sweep: guard / other-revert / ok / min ok gas 115 66 0
+  min successful postOp gas 0
+
+[FAIL: at/above the floor: executed and settled] test_TR1407_postOpGasLimit_sweep_via_entrypoint() (gas: 1147382)
+[PASS] test_TR1408_credit_bundle_over_cap_kth_rejected_at_validation() (gas: 6953160)
+[PASS] test_abi_fixture_matches_compiled_token_and_has_no_3x_debt_selectors() (gas: 43421551)
+[PASS] test_maliciousSP_current_calls_every_selector() (gas: 326568014)
+Logs:
+  functions in ABI 148
+  probes 1599
+
+[PASS] test_maliciousSP_historical_calls_every_selector() (gas: 321261573)
+Logs:
+  functions in ABI 148
+  probes 1599
+
+[PASS] test_maliciousSP_reserve_then_direct_debt_then_settle() (gas: 2728716)
+[FAIL: control: v2 token path sponsors] test_migration_legacy3x_token_operator_gets_sigFail_AA34_not_AA33() (gas: 1303795)
+[PASS] test_routing_invalid_renewal_never_falls_back_to_credit() (gas: 2018141)
+[PASS] test_sweep_encoder_matches_abi_encode() (gas: 13584355)
+[PASS] test_token_malformed_credit_returns_get_sigFail_not_revert() (gas: 2170044)
+[PASS] test_token_malformed_success_returns_get_sigFail_not_revert() (gas: 2520471)
+[PASS] test_token_without_exchangeRate_gets_sigFail_not_revert() (gas: 1313497)
+Suite result: FAILED. 12 passed; 15 failed; 0 skipped; finished in 2.41s (6.79s CPU time)
+
+Ran 6 test suites in 2.41s (2.47s CPU time): 35 tests passed, 17 failed, 2 skipped (54 total tests)
+
+Failing tests:
+Encountered 2 failing tests in contracts/test/tokens/APNTsCappedSPIntegration.t.sol:APNTsCappedSPIntegrationTest
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_SP_gasless_balance_mode_op_conservation() (gas: 913170)
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_SP_withdrawProtocolRevenue_after_ops() (gas: 881734)
+
+Encountered 15 failing tests in contracts/test/v2/SuperPaymasterV55Adversarial.t.sol:SuperPaymasterV55AdversarialTest
+[FAIL: control: re-enabled] test_R13_revocation_user_disable_and_emergency_reject_via_entrypoint() (gas: 1060035)
+[FAIL: during the 48 h window the current SP keeps working] test_R13_sp_replacement_pending_cannot_lock_old_sp_fails_closed() (gas: 952447)
+[FAIL: control: an op committing to the new rate is sponsored] test_R13_stolen_owner_cannot_take_user_funds() (gas: 1182995)
+[FAIL: control: a0 within the cap] test_RouteA_maxCost_above_auto_cap_rejected_not_truncated() (gas: 1439557)
+[FAIL: assertion failed] test_RouteA_self_drain_blocked_by_escrow_user_still_pays() (gas: 1100503)
+[FAIL: T-R14-01: bundle of funded Sybils executes] test_TR1401_sybil_each_account_pays_own_lock_unbacked_zero_flat_in_N() (gas: 1127585)
+[FAIL: T-R14-02: 4th op rejected at validation (balance - lockedOf < x0): 0x65c8fd4d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000d41413333207265766572746564000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 != 0x220266b600000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000001441413334207369676e6174757265206572726f72000000000000000000000000] test_TR1402_same_account_multi_nonce_keys_kth_rejected_when_free_balance_below_x0() (gas: 1133310)
+[FAIL: assertion failed] test_TR1403_stale_blacklist_admitted_ops_settle_new_op_rejected() (gas: 929888)
+[FAIL: assertion failed] test_TR1404_user_execution_revert_still_pays_and_clears_lock() (gas: 936747)
+[FAIL: bundle succeeds (postOpReverted path)] test_TR1405_postOp_revert_undoes_execution_operator_loss_le_a0_attacker_gain_zero() (gas: 1146244)
+[FAIL: funded op sponsored in balance mode] test_TR1406_credit_off_debts_never_increase_on_any_path() (gas: 1464109)
+[FAIL: sweep reaches the sufficient region: 0 <= 0] test_TR1407_bundler_gas_sweep_never_keeps_unpaid_execution() (gas: 83197355)
+[FAIL: success region reached: 0 <= 0] test_TR1407_direct_postOp_gas_sweep_returns_only_when_settled() (gas: 47408324)
+[FAIL: at/above the floor: executed and settled] test_TR1407_postOpGasLimit_sweep_via_entrypoint() (gas: 1147382)
+[FAIL: control: v2 token path sponsors] test_migration_legacy3x_token_operator_gets_sigFail_AA34_not_AA33() (gas: 1303795)
+
+Encountered a total of 17 failing tests, 35 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 17 failed tests
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger
