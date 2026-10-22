@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: MIT
+// SCRATCH — NOT COMMITTED. Amsterdam sweep (CC-125) clean re-measurements.
+pragma solidity ^0.8.26;
+
+import { SuperPaymasterV55GasTest } from "../v2/SuperPaymasterV55Gas.t.sol";
+import { SuperPaymasterV55GasParamsTest } from "../v2/SuperPaymasterV55GasParams.t.sol";
+import { IV2Ext } from "../helpers/V55TestFixtures.sol";
+import "forge-std/console.sol";
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster;
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import "@account-abstraction-v7/interfaces/IPaymaster.sol";
+import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+
+/// C_WRAP re-measured with the probe's two storage slots pre-set to non-zero, so the probe's own
+/// postOp does no zero->non-zero SSTORE (which under EIP-8037 alone costs more than the 200k limit).
+contract AmsScratchWrap is SuperPaymasterV55GasTest {
+    function _warm() internal {
+        vm.store(address(probe), bytes32(uint256(0)), bytes32(uint256(1)));     // lastPassedGas
+        vm.store(address(probe), bytes32(uint256(1)), bytes32(uint256(1000)));  // calls
+    }
+
+    function test_ams_wrap_single_ops_prewarmed_probe() public {
+        _deployProbe();
+        _warm();
+        uint256 w1 = _probeSingle(0, "", 200_000);
+        uint256 w2 = _probeSingle(0, "", 1_000_000);
+        console.log("prewarmed probe wrap upper bound: succeeded/200k", w1);
+        console.log("prewarmed probe wrap upper bound: succeeded/1M  ", w2);
+        console.log("probe postOp calls (expect 1002)", probe.calls());
+    }
+
+    function test_ams_wrap_bundle_positions_prewarmed_probe() public {
+        _deployProbe();
+        _warm();
+        uint256 n = 4;
+        address a = _account(777);
+        PackedUserOperation[] memory ops = new PackedUserOperation[](n);
+        for (uint256 i; i < n; i++) ops[i] = _probeOp(a, i, 0, "", 200_000);
+        for (uint256 i; i < n; i++) {
+            uint256 snap = vm.snapshot();
+            PackedUserOperation[] memory prefix = new PackedUserOperation[](i + 1);
+            for (uint256 j; j <= i; j++) prefix[j] = ops[j];
+            (uint256[] memory f, ) = _run(prefix);
+            uint256 w = _wrapUpper(ops[i], f[i], probe.lastPassedGas());
+            console.log("prewarmed bundle position / wrap upper bound / postOp calls", i, w, probe.calls() - 1000);
+            vm.revertTo(snap);
+        }
+    }
+}
+
+/// Smallest SETTLE_GAS_BOUND that keeps the "no OOG band above the entry guard" property, and
+/// validatePaymasterUserOp gas, on the worst CREDIT path and the BALANCE rate-limit path.
+contract AmsScratchSettle is SuperPaymasterV55GasParamsTest {
+    function _creditCtx(uint128 limit, bytes32 h) internal returns (bytes memory ctx, uint256 vgas) {
+        address poor = address(uint160(uint256(h)));
+        vm.prank(address(registry));
+        sp.updateSBTStatus(poor, true);
+        registry.setCreditLimit(poor, 50_000 ether);
+        vm.prank(poor);
+        IV2Ext(address(token)).requestCredit(50_000 ether);
+        PackedUserOperation memory op = _op(limit);
+        op.sender = poor;
+        vm.prank(EP);
+        uint256 g0 = gasleft();
+        uint256 vd;
+        (ctx, vd) = sp.validatePaymasterUserOp(op, h, 1e16);
+        vgas = g0 - gasleft();
+        require(vd & 1 == 0, "validation failed");
+        require(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode == 2, "not CREDIT");
+    }
+
+    function _balanceCtx(uint128 limit, bytes32 h) internal returns (bytes memory ctx, uint256 vgas) {
+        PackedUserOperation memory op = _op(limit);
+        vm.prank(EP);
+        uint256 g0 = gasleft();
+        uint256 vd;
+        (ctx, vd) = sp.validatePaymasterUserOp(op, h, 1e16);
+        vgas = g0 - gasleft();
+        require(vd & 1 == 0, "validation failed");
+        require(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode == 1, "not BALANCE");
+    }
+
+    /// @return bandOk no non-guard failure anywhere; firstOk smallest call gas that settled
+    function _band(bytes memory ctx, uint256 lo, uint256 hi, uint256 step) internal returns (bool bandOk, uint256 firstOk) {
+        bytes memory cd = abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei));
+        bandOk = true;
+        for (uint256 g = lo; g <= hi; g += step) {
+            uint256 snap = vm.snapshot();
+            vm.prank(EP);
+            (bool s, bytes memory ret) = address(sp).call{gas: g}(cd);
+            vm.revertTo(snap);
+            if (s) { if (firstOk == 0) firstOk = g; continue; }
+            if (firstOk != 0 || keccak256(ret) != keccak256(abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector))) {
+                bandOk = false;
+            }
+        }
+    }
+
+    function test_ams_settle_sweep() public {
+        vm.prank(operator);
+        sp.setOperatorLimits(60);
+        vm.prank(operator);
+        IV2Ext(address(token)).queueCreditPolicy(2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        IV2Ext(address(token)).executeCreditPolicy();
+        sp.updatePrice();
+        uint32[9] memory cand = [uint32(155_000), 160_000, 340_000, 360_000, 370_000, 380_000, 390_000, 400_000, 450_000];
+        for (uint256 i; i < cand.length; i++) {
+            uint256 snap = vm.snapshot();
+            uint32 s = cand[i];
+            uint32 minPost = s + 20_000;
+            _set(minPost, s, 5_000, 175_000);
+            (bytes memory cc, uint256 vC) = _creditCtx(minPost, keccak256(abi.encode("c", i)));
+            (bool okC, uint256 fC) = _band(cc, 100_000, 650_000, 1_000);
+            (bytes memory bc, uint256 vB) = _balanceCtx(minPost, keccak256(abi.encode("b", i)));
+            (bool okB, uint256 fB) = _band(bc, 100_000, 650_000, 1_000);
+            console.log("SETTLE", s);
+            console.log("   CREDIT  bandOk / first settling call gas / validate gas", okC ? 1 : 0, fC, vC);
+            console.log("   BALANCE bandOk / first settling call gas / validate gas", okB ? 1 : 0, fB, vB);
+            vm.revertTo(snap);
+        }
+    }
+}

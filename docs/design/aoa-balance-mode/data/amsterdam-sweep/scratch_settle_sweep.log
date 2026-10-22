@@ -1,0 +1,30 @@
+== forge 1.8.6 --evm-version prague  (FOUNDRY_GAS_LIMIT=2^63-1)
+== forge 1.8.6 --evm-version prague --hardfork amsterdam (FOUNDRY_GAS_LIMIT=2^63-1)
+[PASS] test_ams_settle_sweep() (gas: 1194645873)
+  SETTLE 155000
+     CREDIT  bandOk / first settling call gas / validate gas 0 380000 645484
+     BALANCE bandOk / first settling call gas / validate gas 0 399000 705958
+  SETTLE 160000
+     CREDIT  bandOk / first settling call gas / validate gas 0 380000 645888
+     BALANCE bandOk / first settling call gas / validate gas 0 399000 706365
+  SETTLE 340000
+     CREDIT  bandOk / first settling call gas / validate gas 0 380000 646296
+     BALANCE bandOk / first settling call gas / validate gas 0 399000 706810
+  SETTLE 360000
+     CREDIT  bandOk / first settling call gas / validate gas 0 380000 646780
+     BALANCE bandOk / first settling call gas / validate gas 0 399000 707299
+  SETTLE 370000
+     CREDIT  bandOk / first settling call gas / validate gas 1 389000 647273
+     BALANCE bandOk / first settling call gas / validate gas 0 399000 707795
+  SETTLE 380000
+     CREDIT  bandOk / first settling call gas / validate gas 1 399000 647772
+     BALANCE bandOk / first settling call gas / validate gas 1 399000 708299
+  SETTLE 390000
+     CREDIT  bandOk / first settling call gas / validate gas 1 409000 648277
+     BALANCE bandOk / first settling call gas / validate gas 1 409000 708808
+  SETTLE 400000
+     CREDIT  bandOk / first settling call gas / validate gas 1 419000 648791
+     BALANCE bandOk / first settling call gas / validate gas 1 419000 709327
+  SETTLE 450000
+     CREDIT  bandOk / first settling call gas / validate gas 1 470000 649313
+     BALANCE bandOk / first settling call gas / validate gas 1 470000 709870

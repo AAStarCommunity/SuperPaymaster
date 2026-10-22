@@ -1,0 +1,67 @@
+pragma solidity 0.8.33;
+contract Store { uint256 x; uint256 y; function w() external { x = 1; } function r() external view returns (uint256) { return y; } }
+contract Big { bytes32[200] internal a; function f(uint256 i) external returns (bytes32) { return a[i]; } }
+contract PTest {
+    event log_named_uint(string, uint256);
+    function test_probe() public {
+        Store s = new Store();
+        uint256 g = gasleft(); s.w(); emit log_named_uint("sstore_new_slot_call", g - gasleft());
+        g = gasleft(); s.r(); emit log_named_uint("cold_call_sload", g - gasleft());
+        bytes memory code = new bytes(7000);
+        for (uint256 i; i < 7000; i++) code[i] = 0x5b;
+        bytes memory init = abi.encodePacked(hex"611b588061000d6000396000f3", code);
+        address a;
+        g = gasleft();
+        assembly { a := create(0, add(init, 32), mload(init)) }
+        emit log_named_uint("create_7000B", g - gasleft());
+        require(a.code.length == 7000, "create failed");
+    }
+}
+pragma solidity 0.8.33;
+contract QTest {
+    event log_named_uint(string, uint256);
+    function test_bls_precompile() public {
+        // G1ADD with 256 zero bytes (two infinity points) succeeds only if EIP-2537 exists
+        (bool ok, bytes memory out) = address(0x0b).staticcall(new bytes(256));
+        emit log_named_uint("g1add_ok", ok ? 1 : 0);
+        emit log_named_uint("g1add_outlen", out.length);
+    }
+}
+pragma solidity 0.8.33;
+contract Tgt { uint256 a; uint256 b; function rd() external view returns (uint256) { return a + b; } function wr(uint256 v) external { a = v; } }
+contract RTest {
+    event log_named_uint(string, uint256);
+    function test_access_costs() public {
+        address cold = address(0xC01D);
+        uint256 g = gasleft(); uint256 bal = cold.balance; emit log_named_uint("cold_BALANCE", g - gasleft());
+        g = gasleft(); bal = cold.balance; emit log_named_uint("warm_BALANCE", g - gasleft());
+        Tgt t = new Tgt();
+        t.wr(1); // slot a now non-zero
+        g = gasleft(); t.wr(2); emit log_named_uint("sstore_nonzero_to_nonzero_call(warm slot)", g - gasleft());
+        g = gasleft(); t.rd(); emit log_named_uint("call_two_sloads(one warm, one cold)", g - gasleft());
+        g = gasleft(); uint256 cs = address(0xC02D).code.length; emit log_named_uint("cold_EXTCODESIZE", g - gasleft());
+        bal; cs;
+    }
+}
+pragma solidity 0.8.33;
+contract St { uint256 x; uint256 y; function w() external { x = 1; } function w2() external { x = 1; y = 1; } }
+contract STest {
+    event log_named_uint(string, uint256);
+    function test_state_gas_vs_frame_limit() public {
+        St s = new St();
+        uint256 g = gasleft();
+        (bool ok,) = address(s).call{gas: 50_000}(abi.encodeCall(St.w, ()));
+        emit log_named_uint("call{gas:50k} new-slot SSTORE ok", ok ? 1 : 0);
+        emit log_named_uint("  caller-side gas consumed", g - gasleft());
+        St s2 = new St();
+        g = gasleft();
+        (ok,) = address(s2).call{gas: 150_000}(abi.encodeCall(St.w2, ()));
+        emit log_named_uint("call{gas:150k} two new-slot SSTOREs ok", ok ? 1 : 0);
+        emit log_named_uint("  caller-side gas consumed", g - gasleft());
+        St s3 = new St();
+        g = gasleft();
+        (ok,) = address(s3).call{gas: 300_000}(abi.encodeCall(St.w2, ()));
+        emit log_named_uint("call{gas:300k} two new-slot SSTOREs ok", ok ? 1 : 0);
+        emit log_named_uint("  caller-side gas consumed", g - gasleft());
+    }
+}

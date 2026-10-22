@@ -1,0 +1,103 @@
+== forge 1.8.6 --evm-version prague 
+Ran 7 tests for contracts/test/zz_scratch_ams/AmsScratch.t.sol:AmsScratchWrap
+[PASS] test_G_sp_charge_covers_final_cost_large_limits() (gas: 2712205)
+Logs:
+  final cost wei 592553000000000
+  charge / need (aPNTs wei) 72057920000000000000 65180830000000000000
+[PASS] test_G_sp_charge_covers_final_cost_user_call_reverts() (gas: 2807625)
+Logs:
+  final cost wei 461751000000000
+  charge / need (aPNTs wei) 58207930000000000000 50792610000000000000
+[PASS] test_G_sp_charge_covers_final_cost_worst_postOp_at_floor() (gas: 2712270)
+Logs:
+  final cost wei 412553000000000
+  charge / need (aPNTs wei) 52257920000000000000 45380830000000000000
+[PASS] test_G_wrap_bound_canonical_entrypoint_bundle_positions() (gas: 3041621)
+Logs:
+  bundle position 0 wrap upper bound 1758
+  bundle position 1 wrap upper bound 1770
+  bundle position 2 wrap upper bound 1770
+  bundle position 3 wrap upper bound 1770
+[PASS] test_G_wrap_bound_canonical_entrypoint_single_ops() (gas: 2786738)
+Logs:
+  wrap upper bound: succeeded/200k 1758
+  wrap upper bound: succeeded/1M   1756
+  wrap upper bound: reverted/200k  1770
+  wrap upper bound (+penalty 10% of 3M unused callGas) 301608
+[PASS] test_ams_wrap_bundle_positions_prewarmed_probe() (gas: 3043167)
+Logs:
+  prewarmed bundle position / wrap upper bound / postOp calls 0 1770 1
+  prewarmed bundle position / wrap upper bound / postOp calls 1 1770 2
+  prewarmed bundle position / wrap upper bound / postOp calls 2 1770 3
+  prewarmed bundle position / wrap upper bound / postOp calls 3 1770 4
+[PASS] test_ams_wrap_single_ops_prewarmed_probe() (gas: 1883816)
+Logs:
+  prewarmed probe wrap upper bound: succeeded/200k 1770
+  prewarmed probe wrap upper bound: succeeded/1M   1756
+  probe postOp calls (expect 1002) 1002
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 201.25ms (91.98ms CPU time)
+== forge 1.8.6 --evm-version prague --hardfork amsterdam
+No files changed, compilation skipped
+Ran 7 tests for contracts/test/zz_scratch_ams/AmsScratch.t.sol:AmsScratchWrap
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_G_sp_charge_covers_final_cost_large_limits() (gas: 1832292)
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_G_sp_charge_covers_final_cost_user_call_reverts() (gas: 1845702)
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_G_sp_charge_covers_final_cost_worst_postOp_at_floor() (gas: 1832357)
+[FAIL: C_WRAP bounds the overhead at every bundle position: 184136 > 5000] test_G_wrap_bound_canonical_entrypoint_bundle_positions() (gas: 2737493)
+Logs:
+  bundle position 0 wrap upper bound 184136
+  bundle position 1 wrap upper bound 74127
+  bundle position 2 wrap upper bound 74136
+  bundle position 3 wrap upper bound 74147
+[FAIL: postOp really ran in every scenario: 3 != 4] test_G_wrap_bound_canonical_entrypoint_single_ops() (gas: 2084083)
+Logs:
+  wrap upper bound: succeeded/200k 184136
+  wrap upper bound: succeeded/1M   1874
+  wrap upper bound: reverted/200k  1870
+  wrap upper bound (+penalty 10% of 3M unused callGas) 301698
+[PASS] test_ams_wrap_bundle_positions_prewarmed_probe() (gas: 6088421)
+Logs:
+  prewarmed bundle position / wrap upper bound / postOp calls 0 1870 1
+  prewarmed bundle position / wrap upper bound / postOp calls 1 1870 2
+  prewarmed bundle position / wrap upper bound / postOp calls 2 1870 3
+  prewarmed bundle position / wrap upper bound / postOp calls 3 1870 4
+[PASS] test_ams_wrap_single_ops_prewarmed_probe() (gas: 4547797)
+Logs:
+  prewarmed probe wrap upper bound: succeeded/200k 1870
+  prewarmed probe wrap upper bound: succeeded/1M   1856
+  probe postOp calls (expect 1002) 1002
+Suite result: FAILED. 2 passed; 5 failed; 0 skipped; finished in 127.31ms (98.82ms CPU time)
+Ran 12 tests for contracts/test/zz_scratch_ams/AmsScratch.t.sol:AmsScratchSettle
+[FAIL: EvmError: OutOfGas] test_ams_settle_sweep() (gas: 1073726760)
+Logs:
+  SETTLE 160000
+     CREDIT  bandOk / first settling call gas / validate gas 0 380000 645484
+     BALANCE bandOk / first settling call gas / validate gas 0 399000 706172
+  SETTLE 200000
+     CREDIT  bandOk / first settling call gas / validate gas 0 380000 646319
+     BALANCE bandOk / first settling call gas / validate gas 0 399000 707023
+[PASS] test_bounds_checked_at_queue() (gas: 202784)
+[PASS] test_bounds_rechecked_at_execute() (gas: 145392)
+[PASS] test_c_postop_and_c_wrap_parameters_drive_the_charge() (gas: 1377185)
+[PASS] test_charge_capped_at_a0_even_at_max_parameters() (gas: 1090049)
+[PASS] test_defaults_when_never_set_and_slot_position() (gas: 42341)
+[PASS] test_min_post_op_gas_parameter_drives_validation_and_lens() (gas: 1115144)
+[PASS] test_packed_in_one_slot_at_38_pending_at_39() (gas: 153476)
+[PASS] test_queue_execute_cancel_timelock_and_events() (gas: 247673)
+[PASS] test_requeue_restarts_timelock() (gas: 153545)
+[FAIL: SETTLE floor: no OOG band above the entry guard: 0x != 0x8890295d] test_settle_floor_keeps_no_oog_band() (gas: 5504279)
+[PASS] test_settle_gas_bound_parameter_drives_postOp_guard() (gas: 1102470)
+Suite result: FAILED. 10 passed; 2 failed; 0 skipped; finished in 11.37s (11.44s CPU time)
+Ran 2 test suites in 11.37s (11.50s CPU time): 12 tests passed, 7 failed, 0 skipped (19 total tests)
+Failing tests:
+Encountered 2 failing tests in contracts/test/zz_scratch_ams/AmsScratch.t.sol:AmsScratchSettle
+[FAIL: EvmError: OutOfGas] test_ams_settle_sweep() (gas: 1073726760)
+[FAIL: SETTLE floor: no OOG band above the entry guard: 0x != 0x8890295d] test_settle_floor_keeps_no_oog_band() (gas: 5504279)
+Encountered 5 failing tests in contracts/test/zz_scratch_ams/AmsScratch.t.sol:AmsScratchWrap
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_G_sp_charge_covers_final_cost_large_limits() (gas: 1832292)
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_G_sp_charge_covers_final_cost_user_call_reverts() (gas: 1845702)
+[FAIL: FailedOpWithRevert(0, "AA33 reverted", 0x)] test_G_sp_charge_covers_final_cost_worst_postOp_at_floor() (gas: 1832357)
+[FAIL: C_WRAP bounds the overhead at every bundle position: 184136 > 5000] test_G_wrap_bound_canonical_entrypoint_bundle_positions() (gas: 2737493)
+[FAIL: postOp really ran in every scenario: 3 != 4] test_G_wrap_bound_canonical_entrypoint_single_ops() (gas: 2084083)
+Encountered a total of 7 failing tests, 12 tests succeeded
+Tip: Run `forge test --rerun` to retry only the 7 failed tests
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

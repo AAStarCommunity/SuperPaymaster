@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.33;
+
+interface Vm {
+    function readFile(string calldata) external view returns (string memory);
+    function parseBytes(string calldata) external pure returns (bytes memory);
+}
+
+contract MockFeed {
+    function decimals() external pure returns (uint8) { return 8; }
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
+        return (1, 2000e8, block.timestamp, block.timestamp, 1);
+    }
+}
+
+/// Creation gas of every contract DeployLive / DeployAPNTsCapped create, from the SHIPPED
+/// profile.default (cancun) init code. Number = gas consumed by the CREATE opcode in the calling
+/// frame (32k base + init-code word cost + constructor execution + code deposit); the outer
+/// transaction's intrinsic 21k and calldata are NOT included.
+contract DeployGasTest {
+    Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+    event log_named_uint(string key, uint256 val);
+    event log_named_string(string key, string val);
+    address deployer = address(this);
+
+    function _code(string memory n) internal view returns (bytes memory) {
+        return vm.parseBytes(vm.readFile(string.concat("code/", n, ".hex")));
+    }
+
+    function _create(string memory n, bytes memory args) internal returns (address a) {
+        bytes memory init = abi.encodePacked(_code(n), args);
+        uint256 g = gasleft();
+        assembly { a := create(0, add(init, 32), mload(init)) }
+        uint256 used = g - gasleft();
+        if (a == address(0)) { emit log_named_string("CREATE_FAILED", n); return a; }
+        emit log_named_uint(string.concat("create ", n, " | runtime bytes ", _u(a.code.length), " | initcode+args bytes ", _u(init.length)), used);
+    }
+
+    function _call(string memory label, address to, bytes memory data) internal returns (bool ok, bytes memory ret) {
+        uint256 g = gasleft();
+        (ok, ret) = to.call(data);
+        uint256 used = g - gasleft();
+        if (ok) emit log_named_uint(string.concat("call ", label), used);
+        else emit log_named_string(string.concat("CALL_FAILED ", label), _hex(ret));
+    }
+
+    function _clone(string memory label, address impl) internal returns (address a) {
+        bytes memory init = abi.encodePacked(hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", impl, hex"5af43d82803e903d91602b57fd5bf3");
+        uint256 g = gasleft();
+        assembly { a := create(0, add(init, 32), mload(init)) }
+        emit log_named_uint(string.concat("create EIP-1167 clone of ", label, " (raw, 45 B runtime)"), g - gasleft());
+    }
+
+    function test_deploy_gas_all() public {
+        address ep = _create("EntryPoint", "");
+        address feed = address(new MockFeed());
+        // DeployLive order
+        address regImpl = _create("Registry", "");
+        address registry = _create("ERC1967Proxy", abi.encode(regImpl, abi.encodeWithSignature("initialize(address,address,address)", deployer, address(0), address(0))));
+        address f1 = _create("xPNTsFactory", abi.encode(address(0), registry));
+        address gtoken = _create("GTokenAuthorization", abi.encode(uint256(21_000_000e18), f1));
+        address staking = _create("GTokenStaking", abi.encode(gtoken, deployer, registry));
+        _create("MySBT", abi.encode(gtoken, staking, registry, deployer));
+        (bool ok, bytes memory r) = _call("xPNTsFactory.deployxPNTsToken (aPNTs clone + init)", f1,
+            abi.encodeWithSignature("deployxPNTsToken(string,string,string,string,uint256,address)", "AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0)));
+        address apnts = ok ? abi.decode(r, (address)) : address(0);
+        address spImpl = _create("SuperPaymaster", abi.encode(ep, registry, feed)); // includes `new SuperPaymasterAdmin`
+        address sp = _create("ERC1967Proxy", abi.encode(spImpl, abi.encodeWithSignature("initialize(address,address,address,uint256)", deployer, apnts, deployer, uint256(4200))));
+        if (sp == address(0)) sp = address(0xBEEF);
+        _create("SuperPaymasterAdmin", abi.encode(ep, registry, feed)); // standalone, for the breakdown only
+        address tier = _create("GlobalTierSource", abi.encode(registry));
+        address aoa = _create("AOAProtocolRegistry", abi.encode(deployer));
+        address ext = _create("xPNTsTokenV2Ext", abi.encode(aoa));
+        address v2impl = _create("xPNTsTokenV2", abi.encode(aoa, ext));
+        // V55Bootstrap: bootstrapApprove(KIND_TIER_SOURCE, tierSource.codehash) precedes the factory
+        (, bytes memory k) = aoa.call(abi.encodeWithSignature("KIND_TIER_SOURCE()"));
+        (bool okA, ) = aoa.call(abi.encodeWithSignature("bootstrapApprove(uint8,bytes32)", abi.decode(k, (uint8)), tier.codehash));
+        require(okA, "bootstrapApprove");
+        _create("xPNTsFactoryV2", abi.encode(sp, registry, v2impl, tier));
+        _create("SuperPaymasterLens", "");
+        _create("ReputationSystem", abi.encode(registry));
+        address dvt = _create("DVTValidator", abi.encode(registry));
+        _create("BLSAggregator", abi.encode(registry, sp, dvt));
+        _create("MicroPaymentChannel", abi.encode(deployer));
+        _create("PaymasterFactory", "");
+        address pm = _create("Paymaster", abi.encode(registry));
+        _create("X402Facilitator", abi.encode(registry, f1));
+        address[] memory gov = new address[](1);
+        gov[0] = deployer;
+        address tl = _create("TimelockController", abi.encode(uint256(172_800), gov, gov, address(0)));
+        _create("PolicyRegistry", abi.encode(tl, deployer, sp));
+        // DeployAPNTsCapped
+        _create("APNTsCapped", abi.encode("AAStar PNTs", "aPNTs", uint256(300_000e18), deployer, address(0xA11CE), address(0xA11CE)));
+        // clones (factory paths create EIP-1167 clones; raw clone creation shown for scale)
+        _clone("xPNTsTokenV2", v2impl);
+        _clone("xPNTsToken (3.x aPNTs)", address(0x1234)); // clone cost does not depend on the target
+        _clone("Paymaster", pm);
+    }
+
+    function _u(uint256 v) internal pure returns (string memory s) {
+        if (v == 0) return "0";
+        while (v > 0) { s = string.concat(string(abi.encodePacked(bytes1(uint8(48 + v % 10)))), s); v /= 10; }
+    }
+    function _hex(bytes memory b) internal pure returns (string memory s) {
+        bytes16 h = "0123456789abcdef";
+        bytes memory o = new bytes(b.length * 2);
+        for (uint256 i; i < b.length; i++) { o[2*i] = h[uint8(b[i]) >> 4]; o[2*i+1] = h[uint8(b[i]) & 15]; }
+        return string(o);
+    }
+}

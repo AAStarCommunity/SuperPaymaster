@@ -1,0 +1,46 @@
+== forge 1.8.6 
+[PASS] test_bls_precompile() (gas: 7806)
+  g1add_ok: 1
+  g1add_outlen: 0
+[PASS] test_probe() (gas: 2502217)
+  sstore_new_slot_call: 22575
+  cold_call_sload: 2934
+  create_7000B: 1433897
+== forge 1.8.6 --hardfork amsterdam
+[PASS] test_bls_precompile() (gas: 5759)
+  g1add_ok: 1
+  g1add_outlen: 128
+[PASS] test_probe() (gas: 12498883)
+  sstore_new_slot_call: 110595
+  cold_call_sload: 2934
+  create_7000B: 10908811
+== forge 1.8.6 
+[PASS] test_access_costs() (gas: 163855)
+  cold_BALANCE: 2626
+  warm_BALANCE: 124
+  sstore_nonzero_to_nonzero_call(warm slot): 1108
+  call_two_sloads(one warm, one cold): 3218
+  cold_EXTCODESIZE: 2626
+== forge 1.8.6 --hardfork amsterdam
+[PASS] test_access_costs() (gas: 991119)
+  cold_BALANCE: 3026
+  warm_BALANCE: 124
+  sstore_nonzero_to_nonzero_call(warm slot): 1208
+  call_two_sloads(one warm, one cold): 3218
+  cold_EXTCODESIZE: 3126
+== forge 1.8.6 
+[PASS] test_state_gas_vs_frame_limit() (gas: 312168)
+  call{gas:50k} new-slot SSTORE ok: 1
+    caller-side gas consumed: 25152
+  call{gas:150k} two new-slot SSTOREs ok: 1
+    caller-side gas consumed: 47521
+  call{gas:300k} two new-slot SSTOREs ok: 1
+    caller-side gas consumed: 47521
+== forge 1.8.6 --hardfork amsterdam
+[PASS] test_state_gas_vs_frame_limit() (gas: 1698842)
+  call{gas:50k} new-slot SSTORE ok: 0
+    caller-side gas consumed: 52905
+  call{gas:150k} two new-slot SSTOREs ok: 0
+    caller-side gas consumed: 153182
+  call{gas:300k} two new-slot SSTOREs ok: 1
+    caller-side gas consumed: 223361

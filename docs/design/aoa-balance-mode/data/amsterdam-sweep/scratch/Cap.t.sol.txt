@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.33;
+interface Vm { function readFile(string calldata) external view returns (string memory); function parseBytes(string calldata) external pure returns (bytes memory); }
+contract Feed { function decimals() external pure returns (uint8) { return 8; } function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) { return (1, 2000e8, block.timestamp, block.timestamp, 1); } }
+contract CapTest {
+    Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+    event log_named_uint(string, uint256);
+    function test_cap_registry_create() public {
+        bytes memory init = vm.parseBytes(vm.readFile("code/Registry.hex"));
+        address a;
+        assembly { a := create(0, add(init, 32), mload(init)) }
+        emit log_named_uint("registry created (1=yes)", a == address(0) ? 0 : 1);
+    }
+}

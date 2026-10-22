@@ -1,0 +1,10 @@
+[profile.default]
+src="test"
+test="test"
+libs=[]
+solc_version="0.8.33"
+evm_version="cancun"
+offline=true
+via_ir=true
+optimizer=true
+fs_permissions=[{access="read", path="./code"}]

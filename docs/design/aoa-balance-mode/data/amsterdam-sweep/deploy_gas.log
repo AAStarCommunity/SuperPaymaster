@@ -1,0 +1,64 @@
+== forge 1.8.6 --evm-version prague
+[PASS] test_deploy_gas_all() (gas: 70973166)
+  create EntryPoint | runtime bytes 12143 | initcode+args bytes 12596: 2579259
+  create Registry | runtime bytes 23306 | initcode+args bytes 23670: 4771578
+  create ERC1967Proxy | runtime bytes 100 | initcode+args bytes 863: 1338622
+  create xPNTsFactory | runtime bytes 6802 | initcode+args bytes 25246: 4996345
+  create GTokenAuthorization | runtime bytes 6113 | initcode+args bytes 8332: 1326851
+  create GTokenStaking | runtime bytes 9061 | initcode+args bytes 9616: 1915468
+  create MySBT | runtime bytes 12111 | initcode+args bytes 13460: 2616500
+  CALL_FAILED xPNTsFactory.deployxPNTsToken (aPNTs clone + init): 1e82e519
+  create SuperPaymaster | runtime bytes 13744 | initcode+args bytes 34647: 6903960
+  create ERC1967Proxy | runtime bytes 100 | initcode+args bytes 895: 219163
+  create SuperPaymasterAdmin | runtime bytes 19214 | initcode+args bytes 20109: 3998682
+  create GlobalTierSource | runtime bytes 542 | initcode+args bytes 769: 140884
+  create AOAProtocolRegistry | runtime bytes 2746 | initcode+args bytes 2987: 605889
+  create xPNTsTokenV2Ext | runtime bytes 22005 | initcode+args bytes 24175: 4469850
+  create xPNTsTokenV2 | runtime bytes 20008 | initcode+args bytes 22236: 4069915
+  create xPNTsFactoryV2 | runtime bytes 8537 | initcode+args bytes 10884: 2246532
+  create SuperPaymasterLens | runtime bytes 5413 | initcode+args bytes 5439: 1116095
+  create ReputationSystem | runtime bytes 7044 | initcode+args bytes 7790: 1555737
+  create DVTValidator | runtime bytes 6326 | initcode+args bytes 6611: 1345031
+  create BLSAggregator | runtime bytes 24345 | initcode+args bytes 25072: 5131894
+  create MicroPaymentChannel | runtime bytes 6117 | initcode+args bytes 6611: 1303831
+  create PaymasterFactory | runtime bytes 6158 | initcode+args bytes 6280: 1311106
+  create Paymaster | runtime bytes 10492 | initcode+args bytes 10974: 2202763
+  create X402Facilitator | runtime bytes 4332 | initcode+args bytes 4713: 945835
+  create TimelockController | runtime bytes 5458 | initcode+args bytes 7019: 1248219
+  create PolicyRegistry | runtime bytes 6349 | initcode+args bytes 6883: 1351549
+  create APNTsCapped | runtime bytes 5346 | initcode+args bytes 8003: 1246796
+  create EIP-1167 clone of xPNTsTokenV2 (raw, 45 B runtime): 41828
+  create EIP-1167 clone of xPNTsToken (3.x aPNTs) (raw, 45 B runtime): 42097
+  create EIP-1167 clone of Paymaster (raw, 45 B runtime): 41828
+== forge 1.8.6 --evm-version prague --hardfork amsterdam
+[PASS] test_deploy_gas_all() (gas: 463308950)
+  create EntryPoint | runtime bytes 12143 | initcode+args bytes 12596: 19551229
+  create Registry | runtime bytes 23306 | initcode+args bytes 23670: 36200392
+  create ERC1967Proxy | runtime bytes 100 | initcode+args bytes 863: 6472746
+  create xPNTsFactory | runtime bytes 6802 | initcode+args bytes 25246: 36659827
+  create GTokenAuthorization | runtime bytes 6113 | initcode+args bytes 8332: 9885953
+  create GTokenStaking | runtime bytes 9061 | initcode+args bytes 9616: 14395862
+  create MySBT | runtime bytes 12111 | initcode+args bytes 13460: 19505744
+  CALL_FAILED xPNTsFactory.deployxPNTsToken (aPNTs clone + init): 1e82e519
+  create SuperPaymaster | runtime bytes 13744 | initcode+args bytes 34647: 51852966
+  create ERC1967Proxy | runtime bytes 100 | initcode+args bytes 895: 1131727
+  create SuperPaymasterAdmin | runtime bytes 19214 | initcode+args bytes 20109: 30062288
+  create GlobalTierSource | runtime bytes 542 | initcode+args bytes 769: 1025446
+  create AOAProtocolRegistry | runtime bytes 2746 | initcode+args bytes 2987: 4510205
+  create xPNTsTokenV2Ext | runtime bytes 22005 | initcode+args bytes 24175: 33992248
+  create xPNTsTokenV2 | runtime bytes 20008 | initcode+args bytes 22236: 30935931
+  create xPNTsFactoryV2 | runtime bytes 8537 | initcode+args bytes 10884: 15701584
+  create SuperPaymasterLens | runtime bytes 5413 | initcode+args bytes 5439: 8480005
+  create ReputationSystem | runtime bytes 7044 | initcode+args bytes 7790: 11528983
+  create DVTValidator | runtime bytes 6326 | initcode+args bytes 6611: 10099339
+  create BLSAggregator | runtime bytes 24345 | initcode+args bytes 25072: 38558810
+  create MicroPaymentChannel | runtime bytes 6117 | initcode+args bytes 6611: 9780133
+  create PaymasterFactory | runtime bytes 6158 | initcode+args bytes 6280: 9841944
+  create Paymaster | runtime bytes 10492 | initcode+args bytes 10974: 16586651
+  create X402Facilitator | runtime bytes 4332 | initcode+args bytes 4713: 7047751
+  create TimelockController | runtime bytes 5458 | initcode+args bytes 7019: 9111985
+  create PolicyRegistry | runtime bytes 6349 | initcode+args bytes 6883: 10136553
+  create APNTsCapped | runtime bytes 5346 | initcode+args bytes 8003: 9049604
+  create EIP-1167 clone of xPNTsTokenV2 (raw, 45 B runtime): 265290
+  create EIP-1167 clone of xPNTsToken (3.x aPNTs) (raw, 45 B runtime): 265559
+  create EIP-1167 clone of Paymaster (raw, 45 B runtime): 265290

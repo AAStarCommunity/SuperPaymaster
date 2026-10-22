@@ -1,0 +1,12 @@
+==  
+[PASS] test_cap_registry_create() (gas: 5275543)
+  registry created (1=yes): 1
+==  --enable-tx-gas-limit
+[PASS] test_cap_registry_create() (gas: 5275543)
+  registry created (1=yes): 1
+== --hardfork amsterdam 
+[PASS] test_cap_registry_create() (gas: 37764352)
+  registry created (1=yes): 1
+== --hardfork amsterdam --enable-tx-gas-limit
+[PASS] test_cap_registry_create() (gas: 1073287466)
+  registry created (1=yes): 0

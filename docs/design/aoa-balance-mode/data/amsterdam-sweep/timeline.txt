@@ -1,0 +1,9 @@
+[2026-10-22T11:29:51Z] start a_186_cancun: /tmp/fd/v1.8.6/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv 
+[2026-10-22T11:31:34Z] end a_186_cancun exit=0 secs=103
+[2026-10-22T11:31:34Z] start b_186_prague: /tmp/fd/v1.8.6/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague
+[2026-10-22T11:43:56Z] end b_186_prague exit=0 secs=742
+[2026-10-22T11:43:56Z] start c_186_amsterdam: /tmp/fd/v1.8.6/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague --hardfork amsterdam
+[2026-10-22T11:45:05Z] end c_186_amsterdam exit=0 secs=69
+[2026-10-22T11:45:05Z] start d_171_cancun: /tmp/fd/v1.7.1/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv 
+[2026-10-22T11:59:32Z] end d_171_cancun exit=0 secs=867
+DONE
