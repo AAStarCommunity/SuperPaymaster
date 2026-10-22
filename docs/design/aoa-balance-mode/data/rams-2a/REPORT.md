@@ -401,7 +401,7 @@ realistic limits (pmVer 700k). Prague settles and covers for every tuple.
 
 Hard bounds from `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:193-204`,
 checked at queue and execute in `SuperPaymasterAdmin.sol:298-301`; `GP_TIMELOCK = 48 hours`
-(`:204`). Governance wait for path (a): timelock 48 h (GOV-1) + `GP_TIMELOCK` 48 h = **≥ 96 h**.
+(`:204`). Governance wait for path (a): `GP_TIMELOCK` 48 h is the code bound; with GOV-1 the owner-timelock delay can overlap it if `queueGasParams` is batched with the upgrade (§5.3), otherwise 48 h + 48 h = 96 h.
 "With margin" = measured × 1.15 (the DSR `M_BPS = 1,500`), rounded up to 5k.
 
 ### 5.1 Contract parameters
@@ -466,8 +466,12 @@ with that slot zero. The measured values (§4.5) can only be written by `execute
 needs `queueGasParams` first and then `block.timestamp ≥ eta = queue time + GP_TIMELOCK (48 h)`
 (`SuperPaymasterAdmin.sol:305-321`), plus the owner timelock's own delay for each of the two calls
 if the owner is the GOV-1 timelock (`queueGasParams` cannot be queued before the 5.5.0 code is
-live, since the function does not exist in the old implementation). So on an Amsterdam chain there
-is a window of **≥ 48 h after the upgrade (≥ 96 h with GOV-1)** in which:
+live, since the function does not exist in the old implementation). The binding lower bound is the
+internal `GP_TIMELOCK`: with GOV-1 the owner timelock records calldata without calling the target, so
+governance can schedule `upgradeToAndCall` and `queueGasParams` in **one batch** executed at upgrade
+time, and schedule `executeGasParams` (ready ≥ 48 h later) while the internal 48 h runs. So on an
+Amsterdam chain there is a window of **at least 48 h after the upgrade** (96 h or more only if the
+steps are done sequentially; that is a rollout choice, not a code bound) in which:
 
 - validation admits any `paymasterPostOpGasLimit` ≥ 200k, and for limits in **[200k, ~365k)**
   (balance 365,325 / credit 369,624 are the smallest settling limits, §4.1) settlement fails and
@@ -488,7 +492,7 @@ Two remediation options; this report does not choose between them:
   contexts admitted before a mid-bundle upgrade**: such ops settle under
   `LEGACY_SETTLE_GAS_BOUND` 160k regardless of GasParams, so the pause has to be in force before the
   last pre-upgrade bundle that could carry SP ops, not only before the first post-upgrade one.
-  Cost: no sponsorship for ≥ 48 h (≥ 96 h with GOV-1) per chain; no bytecode change.
+  Cost: no sponsorship for ≥ 48 h per chain (longer if the governance steps are not batched); no bytecode change.
 - **(B) Amsterdam-safe in-bytecode defaults in a new candidate.** Change `MIN_POST_OP_GAS`,
   `SETTLE_GAS_BOUND`, `C_POSTOP_GAS` (and review `LEGACY_*`) so that the zero slot is already
   safe; requires a new candidate/tag, re-audit of the changed constants, and the CLAUDE.md
@@ -517,7 +521,7 @@ Two remediation options; this report does not choose between them:
 |---|---|---|---|---|
 | `paymasterVerificationGasLimit` | 194,487 | **820,305** balance / 611,954 credit (§4.7) | **945,000** | test ops use 700k → AA33 (18 tests, §2) |
 | `paymasterPostOpGasLimit` | ≥ MIN (200k) | must be ≥ on-chain MIN; settles from 365,325 / 369,624 | **= MIN = 440,000** | SDK reads `gasParams()` |
-| `callGasLimit` | 24,741 + 23k per fresh slot | 115,475 for one fresh slot; +113.7k per fresh slot (§4.7) | estimate per call × 1.15 | each zero→non-zero write costs ≈ 97,920 more |
+| `callGasLimit` | 24,741 + 23k per fresh slot | 115,475 for one fresh slot; +113.7k per fresh slot (§4.7) | estimate per call × 1.15 | each fresh zero→non-zero SSTORE costs ≈ 87,920 more than on Prague (110,089 vs 22,169, `logs/scratch/A_amsterdam.log:6` / `A_prague.log:47`); 97,920 of the Amsterdam cost is EIP-8037 state gas |
 | `verificationGasLimit` | 31,648 / 165,879 (initCode) | 119,668 / **801,247** (initCode) (§4.7) | 140,000 / 925,000 | account deployment dominates |
 | `preVerificationGas` | not measured | **not measured** (§7) | — | a fresh beneficiary adds 183,600 unattributed new-account state gas per bundle |
 
@@ -637,7 +641,7 @@ remark (§5.2 there) is withdrawn. (Anvil itself rejects such transactions only 
   C_POSTOP 340,000**, validated end-to-end in the 6 B8 scenarios. SDK:
   paymasterVerificationGasLimit ≈ 945k, paymasterPostOpGasLimit = MIN.
 - **Source change: not required for the parameter VALUES (all within GOV-5 hard bounds)**; they
-  can be set by `queueGasParams` → `executeGasParams` (≥ 48 h, ≥ 96 h with GOV-1) plus an SDK
+  can be set by `queueGasParams` → `executeGasParams` (≥ 48 h; 96 h if the GOV-1 steps are not batched, §5.3) plus an SDK
   release. **This does not close the upgrade window (§5.3):** after a 5.5.0 upgrade the zero
   GasParams slot selects 200k/160k/5k/175k until `executeGasParams`, during which postOp limits in
   [200k, ~365k) are admitted but do not settle and SP's deposit pays the op. Options: (A)
