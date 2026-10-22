@@ -1,0 +1,65 @@
+{
+  "pmVerificationGasLimit": "100000",
+  "label": "alto125-unsafe-ams-vgl100000",
+  "bundlerUrl": "http://127.0.0.1:18760",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-10-22T15:21:28.049Z",
+  "cases": {
+    "control": {
+      "expected": "accept",
+      "verdict": "accept",
+      "pass": true,
+      "userOpHash": "0x7f6a8c9d6303d74f1f69fa009db1f679b6745a00294c876803b2daf72b33356c",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x7b9e4a54c777b4f3457ba92ec46986b709d5e7c3321f043d1f1ef395e2cc7d2a"
+      }
+    },
+    "op011_timestamp": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0x97f3cdcb3d860913766674535373d702ed869f36040564e211d9210ca57d7007",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x3d98d8856cf1719cf224dc029f59b6abdafc09d4be3edf05c490a5a70c5c8eb9"
+      }
+    },
+    "sto031_unstakedOwnStorage": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x5c0eae107d47247d0d7608362e46f32edfd7b12d9be11384c6179de57ceb88f6",
+      "error": {
+        "message": "UserOperation reverted with reason: AA33 reverted - 0x",
+        "code": -32500
+      },
+      "included": null
+    },
+    "op070_unstakedTstore": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0xf74952b19a707924fc27c6b87e5e7e695e0ee357d2911640f164e0f02c299b3c",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x412e012e7e6d043407fe10edd339b7ef6371fcb51ab674593d12235df38a2583"
+      }
+    },
+    "sto021_stakedExternalWrite": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x14ab9c77e65c535bed5534177c47fbd3b33536ad3a32659ec46f846dc998709d",
+      "error": {
+        "message": "UserOperation reverted with reason: AA33 reverted - 0x",
+        "code": -32500
+      },
+      "included": null
+    }
+  },
+  "allPass": false
+}

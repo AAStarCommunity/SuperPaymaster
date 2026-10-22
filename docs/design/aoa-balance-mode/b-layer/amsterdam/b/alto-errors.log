@@ -1,0 +1,5 @@
+      4       "message": "AA13 initCode failed or OOG",
+      8       "message": "AA33 reverted - 0x",
+      1       "message": "AA34 signature error",
+      1       "message": "UserOperation reverted during simulation with reason: AA33 reverted 0x",
+     25       "shortMessage": "Hex size (33) exceeds padding size (16).",

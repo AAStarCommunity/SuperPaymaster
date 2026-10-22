@@ -1,0 +1,3610 @@
+{
+  "kind": "alto",
+  "bundlerUrl": "http://127.0.0.1:18660",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-10-22T15:22:48.547Z",
+  "cases": {
+    "B9-below": {
+      "expected": "reject (SP stake below threshold, specific reason)",
+      "spStake": {
+        "stake": "100000000000000000",
+        "delay": 86400
+      },
+      "verdict": "reject",
+      "error": {
+        "message": "AA36 over paymasterVerificationGasLimit",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0xf37abc2e9e22a66ec769ce97347c43b310cce34b6fff9db49ad1dc37de04f364",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7b"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 556742,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137851"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 112838,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864025,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14624180,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1404605,
+              "txGasUsed": 1393526
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882375,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 367901,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA36 over paymasterVerificationGasLimit"
+              ]
+            },
+            "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+          }
+        }
+      },
+      "bundle": null,
+      "pass": false,
+      "summary": "reject [-32500] AA36 over paymasterVerificationGasLimit"
+    },
+    "B9-above": {
+      "expected": "accept + include (SP stake 1 ETH / 86400)",
+      "spStake": {
+        "stake": "1000000000000000000",
+        "delay": 86400
+      },
+      "verdict": "reject",
+      "error": {
+        "message": "AA36 over paymasterVerificationGasLimit",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0xf37abc2e9e22a66ec769ce97347c43b310cce34b6fff9db49ad1dc37de04f364",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7b"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 556742,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137851"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 112838,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864025,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14624180,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1404605,
+              "txGasUsed": 1393526
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882375,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 367901,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA36 over paymasterVerificationGasLimit"
+              ]
+            },
+            "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": false,
+      "summary": "reject"
+    },
+    "B1": {
+      "expected": "accept + include; burn>0, lockedOf==0, operator Δ == −revenue Δ",
+      "verdict": "reject",
+      "error": {
+        "message": "AA36 over paymasterVerificationGasLimit",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0xd1a224d5ae360ff4a42d0ee641652c028d94b7d0fc0e815a714046274b3cec54",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6b9",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6b9",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7b"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54969",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 556718,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54969",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137851"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 112826,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864025,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14624191,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1404605,
+              "txGasUsed": 1393514
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882375,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 367889,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA36 over paymasterVerificationGasLimit"
+              ]
+            },
+            "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "before": {
+        "bal": "3000000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40728000000000000000000",
+        "opBalance": "40000000000000000000000",
+        "revenue": "0"
+      },
+      "after": {
+        "bal": "3000000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40728000000000000000000",
+        "opBalance": "40000000000000000000000",
+        "revenue": "0"
+      },
+      "post": {
+        "burn": "0",
+        "operatorDelta": "0",
+        "revenueDelta": "0",
+        "supplyDelta": "0"
+      },
+      "tokenEvents": [],
+      "pass": false,
+      "summary": "reject; burn=0 lockedOf=0 opΔ=0 revΔ=0"
+    },
+    "B3": {
+      "expected": "3 senders, one bundle, all included; locks independent (3 distinct LockSettled, each lockedOf==0)",
+      "subs": [
+        {
+          "userOpHash": "0x0f66902823653f636ce4cad40389331904e92bc26fd1946f931d57d6b02eab1a",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA36 over paymasterVerificationGasLimit",
+              "code": -32500
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x493e0"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x21a7b"
+                  }
+                }
+              }
+            },
+            "sufficiency": {
+              "pmSupplied": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "300000"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 556742,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              },
+              "pmOmitted": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "137851"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 112838,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              }
+            },
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 864025,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14624180,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1404605,
+                "txGasUsed": 1393526
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 882375,
+              "pmPostOpGasLimit": 288276
+            },
+            "submitted": {
+              "ok": false,
+              "txGasUsed": 367901,
+              "topError": "execution reverted",
+              "failedOp": {
+                "name": "FailedOp",
+                "args": [
+                  "0",
+                  "AA36 over paymasterVerificationGasLimit"
+                ]
+              },
+              "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+            }
+          }
+        },
+        {
+          "userOpHash": "0x2124d8f4374608a49f0cdd95c7e9defc002653793f0ca5c015c578ec0b2f047d",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA36 over paymasterVerificationGasLimit",
+              "code": -32500
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x493e0"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x21a7b"
+                  }
+                }
+              }
+            },
+            "sufficiency": {
+              "pmSupplied": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "300000"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 556742,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              },
+              "pmOmitted": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "137851"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 112838,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              }
+            },
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 864025,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14624180,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1404605,
+                "txGasUsed": 1393526
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 882375,
+              "pmPostOpGasLimit": 288276
+            },
+            "submitted": {
+              "ok": false,
+              "txGasUsed": 367901,
+              "topError": "execution reverted",
+              "failedOp": {
+                "name": "FailedOp",
+                "args": [
+                  "0",
+                  "AA36 over paymasterVerificationGasLimit"
+                ]
+              },
+              "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+            }
+          }
+        },
+        {
+          "userOpHash": "0xb22d07f0ffb7be386ceb348a315c48bcdf7e6640d17a0bb9ff44231a5203cae9",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA36 over paymasterVerificationGasLimit",
+              "code": -32500
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x493e0"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x21a7b"
+                  }
+                }
+              }
+            },
+            "sufficiency": {
+              "pmSupplied": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "300000"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 556742,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              },
+              "pmOmitted": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "137851"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 112838,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              }
+            },
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 864025,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14624180,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1404605,
+                "txGasUsed": 1393526
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 882375,
+              "pmPostOpGasLimit": 288276
+            },
+            "submitted": {
+              "ok": false,
+              "txGasUsed": 367901,
+              "topError": "execution reverted",
+              "failedOp": {
+                "name": "FailedOp",
+                "args": [
+                  "0",
+                  "AA36 over paymasterVerificationGasLimit"
+                ]
+              },
+              "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+            }
+          }
+        }
+      ],
+      "outs": [
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        }
+      ],
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "txs": [],
+      "before": {
+        "b3a": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40728000000000000000000",
+          "opBalance": "40000000000000000000000",
+          "revenue": "0"
+        },
+        "b3b": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40728000000000000000000",
+          "opBalance": "40000000000000000000000",
+          "revenue": "0"
+        },
+        "b3c": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40728000000000000000000",
+          "opBalance": "40000000000000000000000",
+          "revenue": "0"
+        }
+      },
+      "after": {
+        "b3a": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40728000000000000000000",
+          "opBalance": "40000000000000000000000",
+          "revenue": "0"
+        },
+        "b3b": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40728000000000000000000",
+          "opBalance": "40000000000000000000000",
+          "revenue": "0"
+        },
+        "b3c": {
+          "bal": "3000000000000000000000",
+          "locked": "0",
+          "creditReserved": "0",
+          "debts": "0",
+          "supply": "40728000000000000000000",
+          "opBalance": "40000000000000000000000",
+          "revenue": "0"
+        }
+      },
+      "tokenEvents": [],
+      "pass": false,
+      "summary": "reject,reject,reject in 0 tx; LockSettled users=0"
+    },
+    "B5": {
+      "expected": "accept + include; AllowanceRenewed(user, SP, spRelayed=true)",
+      "verdict": "reject",
+      "error": {
+        "message": "AA36 over paymasterVerificationGasLimit",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0x8cf7e7bee3183ed2395551ae61bd07eb4227048347724baaddd9cbbb430b26a1",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x13effb",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x13effb",
+                  "paymasterPostOpGasLimit": "0x21a7b"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "1306619",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": true,
+              "brief": "ok",
+              "sim": {
+                "ok": true,
+                "txGasUsed": 1510034,
+                "events": [
+                  {
+                    "event": "UserOperationEvent",
+                    "args": {
+                      "userOpHash": "0xa9f3bd14ea0df8a2498f651a4b13e19c0e21a12640befaf343746bcb7ee28a03",
+                      "sender": "0xcf3624e0c7a51575359B745E514f7aD475E8f389",
+                      "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+                      "nonce": "0",
+                      "success": "true",
+                      "actualGasCost": "2615496000000000",
+                      "actualGasUsed": "1307748"
+                    }
+                  }
+                ],
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 164041,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 1306619,
+                    "gasUsed": 980524,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14509525,
+                    "gasUsed": 113918,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 300000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "success": true,
+                "actualGasUsed": 1307748,
+                "postOpReverted": false,
+                "execReverted": false
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "1306619",
+                "pmPostOpGasLimit": "137851"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 112850,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 980524,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14509489,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1521104,
+              "txGasUsed": 1510037
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 998874,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 367913,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA36 over paymasterVerificationGasLimit"
+              ]
+            },
+            "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "tokenEvents": [],
+      "pass": false,
+      "summary": "reject; renewedEvent=null"
+    },
+    "B6": {
+      "expected": "accept + include; AllowanceRenewed(user, SP, spRelayed=false) from the account frame",
+      "verdict": "reject",
+      "error": {
+        "message": "AA36 over paymasterVerificationGasLimit",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0x8a17455644b42ca2e9665f78985f625f89b5fe0c18e380bd97e519ea75f4a820",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6e0",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6e0",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7b"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "55008",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 583078,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "55008",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137851"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 139355,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 33343,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 852225,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14609704,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1419298,
+              "txGasUsed": 1408231
+            },
+            "verificationGasLimit": 150839,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 870575,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 394239,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA36 over paymasterVerificationGasLimit"
+              ]
+            },
+            "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "tokenEvents": [],
+      "pass": false,
+      "summary": "reject; renewedEvent=null"
+    },
+    "B7": {
+      "expected": "accept + include; CREDIT path (CreditReserved → CreditSettled), debts>0, creditReservedOf==0",
+      "verdict": "reject",
+      "error": {
+        "message": "AA36 over paymasterVerificationGasLimit",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0xa56e520e2fc13f98a445d5ba71933b6442d4355813e8f46dc85b49ff11889e38",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "UserOperation reverted during simulation with reason: AA33 reverted 0x",
+                  "code": -32521
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                  "message": "UserOperation reverted during simulation with reason: AA33 reverted 0x",
+                  "code": -32521
+                }
+              }
+            }
+          },
+          "sufficiency": {},
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 698734,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14786888,
+                  "gasUsed": 193987,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 182776,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1311405,
+              "txGasUsed": 1308337
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 717084,
+            "pmPostOpGasLimit": 269585
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 368695,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA36 over paymasterVerificationGasLimit"
+              ]
+            },
+            "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "before": {
+        "bal": "0",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40728000000000000000000",
+        "opBalance": "40000000000000000000000",
+        "revenue": "0"
+      },
+      "after": {
+        "bal": "0",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40728000000000000000000",
+        "opBalance": "40000000000000000000000",
+        "revenue": "0"
+      },
+      "tokenEvents": [],
+      "pass": false,
+      "summary": "reject; debts 0→0; reserved=0"
+    },
+    "B8": {
+      "expected": "accept + include with SP staked (TSTORE of token live marker + SP in-flight marker in validation; OP-070 → storage rules)",
+      "verdict": "reject",
+      "error": {
+        "message": "AA36 over paymasterVerificationGasLimit",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0x13c331f005a036dcba14303f63c1bdbf0b3f8a15a00a3bcf1a63d8e0615ba739",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6c6",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7b"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 556742,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54982",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137851"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 112838,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864025,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14624191,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1404605,
+              "txGasUsed": 1393514
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882375,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 367901,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA36 over paymasterVerificationGasLimit"
+              ]
+            },
+            "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+          }
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "pass": false,
+      "summary": "reject"
+    },
+    "B4-unstaked": {
+      "expected": "reject with factory stake reason",
+      "factory": {
+        "address": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+        "stake": "0",
+        "unstakeDelaySec": 0,
+        "staked": false
+      },
+      "verdict": "reject",
+      "error": {
+        "message": "AA13 initCode failed or OOG",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0xcd41fdd35b0398efe799ed9b77bb58c2184115b7516bb3a4490adc81e0b9b22d",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA13 initCode failed or OOG",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xde18",
+                  "verificationGasLimit": "0x4f11a7",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xde18",
+                  "verificationGasLimit": "0x4f11a7",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7a"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "5181863",
+                "callGasLimit": "16323",
+                "preVerificationGas": "56856",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 633419,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "5181863",
+                "callGasLimit": "16323",
+                "preVerificationGas": "56856",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137850"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 189546,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "createSender": {
+                  "gas": 4000000,
+                  "gasUsed": 3854479,
+                  "error": null
+                },
+                "validateUserOp": {
+                  "gas": 4000000,
+                  "gasUsed": 4850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864056,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 10824128,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 5263319,
+              "txGasUsed": 5253896
+            },
+            "verificationGasLimit": 3983015,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882420,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 1028217,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA13 initCode failed or OOG"
+              ]
+            },
+            "brief": "FailedOp(0,AA13 initCode failed or OOG)"
+          }
+        }
+      },
+      "bundle": null,
+      "pass": false,
+      "summary": "reject [-32500] AA13 initCode failed or OOG"
+    },
+    "B4-lowStake": {
+      "expected": "reject with factory stake reason",
+      "factory": {
+        "address": "0xFD471836031dc5108809D173A067e8486B9047A3",
+        "stake": "500000000000000000",
+        "unstakeDelaySec": 86400,
+        "staked": true
+      },
+      "verdict": "reject",
+      "error": {
+        "message": "AA13 initCode failed or OOG",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0xbbf6adcfa285cb3d6440583d78c4bbbaa151185bf5d653bd9ab963ec2394bca9",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA13 initCode failed or OOG",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xde18",
+                  "verificationGasLimit": "0x4f11a7",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xde18",
+                  "verificationGasLimit": "0x4f11a7",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7a"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "5181863",
+                "callGasLimit": "16323",
+                "preVerificationGas": "56856",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 633419,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "5181863",
+                "callGasLimit": "16323",
+                "preVerificationGas": "56856",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137850"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 189546,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "createSender": {
+                  "gas": 4000000,
+                  "gasUsed": 3854479,
+                  "error": null
+                },
+                "validateUserOp": {
+                  "gas": 4000000,
+                  "gasUsed": 4850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864056,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 10824128,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 5263319,
+              "txGasUsed": 5253896
+            },
+            "verificationGasLimit": 3983015,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882420,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 1028205,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA13 initCode failed or OOG"
+              ]
+            },
+            "brief": "FailedOp(0,AA13 initCode failed or OOG)"
+          }
+        }
+      },
+      "bundle": null,
+      "pass": false,
+      "summary": "reject [-32500] AA13 initCode failed or OOG"
+    },
+    "B4-shortDelay": {
+      "expected": "Rundler (min delay 86400): reject; Alto: per configured --min-entity-unstake-delay",
+      "factory": {
+        "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+        "stake": "1000000000000000000",
+        "unstakeDelaySec": 3600,
+        "staked": true
+      },
+      "verdict": "reject",
+      "error": {
+        "message": "AA13 initCode failed or OOG",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0xb6c118a7f4e8392b338c4413c2d8d1a9d3458f9eb6211bd85d539df569cf24a5",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA13 initCode failed or OOG",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xde18",
+                  "verificationGasLimit": "0x4f11a7",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xde18",
+                  "verificationGasLimit": "0x4f11a7",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7a"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "5181863",
+                "callGasLimit": "16323",
+                "preVerificationGas": "56856",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 633419,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "5181863",
+                "callGasLimit": "16323",
+                "preVerificationGas": "56856",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137850"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 189534,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "createSender": {
+                  "gas": 4000000,
+                  "gasUsed": 3854479,
+                  "error": null
+                },
+                "validateUserOp": {
+                  "gas": 4000000,
+                  "gasUsed": 4850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864056,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 10824128,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 5263319,
+              "txGasUsed": 5253896
+            },
+            "verificationGasLimit": 3983015,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882420,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 1028217,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA13 initCode failed or OOG"
+              ]
+            },
+            "brief": "FailedOp(0,AA13 initCode failed or OOG)"
+          }
+        }
+      },
+      "bundle": null,
+      "pass": true,
+      "summary": "reject [-32500] AA13 initCode failed or OOG"
+    },
+    "B4-ok": {
+      "expected": "accept + include",
+      "factory": {
+        "address": "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
+        "stake": "1000000000000000000",
+        "unstakeDelaySec": 86400,
+        "staked": true
+      },
+      "verdict": "reject",
+      "error": {
+        "message": "AA13 initCode failed or OOG",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0x1ed692c29adf6d0a9e5af69a67185aecf3e42d2137b755906ece9048d0ce815d",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA13 initCode failed or OOG",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xde18",
+                  "verificationGasLimit": "0x4d2e24",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xde18",
+                  "verificationGasLimit": "0x4d2e24",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7a"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "5058084",
+                "callGasLimit": "16323",
+                "preVerificationGas": "56856",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 633407,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "5058084",
+                "callGasLimit": "16323",
+                "preVerificationGas": "56856",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137850"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 189546,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "4000000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "createSender": {
+                  "gas": 4000000,
+                  "gasUsed": 3756559,
+                  "error": null
+                },
+                "validateUserOp": {
+                  "gas": 4000000,
+                  "gasUsed": 4850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864056,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 10920518,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 5165399,
+              "txGasUsed": 5155976
+            },
+            "verificationGasLimit": 3885095,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882420,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 1028217,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA13 initCode failed or OOG"
+              ]
+            },
+            "brief": "FailedOp(0,AA13 initCode failed or OOG)"
+          }
+        }
+      },
+      "bundle": null,
+      "pass": false,
+      "summary": "reject [-32500] AA13 initCode failed or OOG"
+    },
+    "B10": {
+      "expected": "estimation succeeds and estimated paymasterPostOpGasLimit ≥ 200000",
+      "est": {
+        "suppliedPostOpMin": {
+          "request": {
+            "sender": "0xf9832498095c06246296d2e43CC73f06cc8f0A4c",
+            "nonce": "0x0",
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "signature": "0x02a72e08ba8ff1dd0e3086126d735e564047055bcc9f078f02e1264e886d79c1172ffaf61b7a3e8b76602c9a3211f9c293bf09ed678976ccc5b141765bb34e8f1c",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x493e0",
+            "paymasterPostOpGasLimit": "0x30d40",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800"
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "preVerificationGas": "0xd6c6",
+              "verificationGasLimit": "0x280c9",
+              "callGasLimit": "0x3fc3",
+              "paymasterVerificationGasLimit": "0x7968c",
+              "paymasterPostOpGasLimit": "0x3a980"
+            }
+          },
+          "paymasterPostOpGasLimit": "0x3a980",
+          "postOpGeMin": true
+        },
+        "omittedPmGas": {
+          "request": {
+            "sender": "0xf9832498095c06246296d2e43CC73f06cc8f0A4c",
+            "nonce": "0x0",
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "signature": "0x02a72e08ba8ff1dd0e3086126d735e564047055bcc9f078f02e1264e886d79c1172ffaf61b7a3e8b76602c9a3211f9c293bf09ed678976ccc5b141765bb34e8f1c",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800"
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "preVerificationGas": "0xd6c6",
+              "verificationGasLimit": "0x280c9",
+              "callGasLimit": "0x3fc3",
+              "paymasterVerificationGasLimit": "0x7968c",
+              "paymasterPostOpGasLimit": "0x21a7b"
+            }
+          },
+          "paymasterPostOpGasLimit": "0x21a7b",
+          "postOpGeMin": false
+        },
+        "omittedPostOpOnly": {
+          "request": {
+            "sender": "0xf9832498095c06246296d2e43CC73f06cc8f0A4c",
+            "nonce": "0x0",
+            "callData": "0xb61d27f6000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+            "maxFeePerGas": "0xb2d05e00",
+            "maxPriorityFeePerGas": "0x77359400",
+            "signature": "0x02a72e08ba8ff1dd0e3086126d735e564047055bcc9f078f02e1264e886d79c1172ffaf61b7a3e8b76602c9a3211f9c293bf09ed678976ccc5b141765bb34e8f1c",
+            "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "paymasterVerificationGasLimit": "0x493e0",
+            "paymasterData": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb922660000000000000000000000000000000000000000000000000de0b6b3a7640000F1823bc4243b40423b8C8c3F6174e687a4C690b800"
+          },
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "preVerificationGas": "0xd6c6",
+              "verificationGasLimit": "0x280c9",
+              "callGasLimit": "0x3fc3",
+              "paymasterVerificationGasLimit": "0x7968c",
+              "paymasterPostOpGasLimit": "0x21a7b"
+            }
+          },
+          "paymasterPostOpGasLimit": "0x21a7b",
+          "postOpGeMin": false
+        }
+      },
+      "pass": true,
+      "summary": "suppliedPostOpMin: pmPostOp=0x3a980 pmVerif=0x7968c | omittedPmGas: pmPostOp=0x21a7b pmVerif=0x7968c | omittedPostOpOnly: pmPostOp=0x21a7b pmVerif=0x7968c"
+    },
+    "B2a": {
+      "expected": "same sender, 2 ops (nonce keys 0,1) that fit: accepted, ONE bundle, both included",
+      "userBalance": "864000000000000000000",
+      "a0": "345600000000000000000",
+      "u": "0x9291B277D28C0A7DE1367A1857aF6eC9E1c91dBF",
+      "before": {
+        "bal": "864000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40728000000000000000000",
+        "opBalance": "40000000000000000000000",
+        "revenue": "0"
+      },
+      "after": {
+        "bal": "864000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40728000000000000000000",
+        "opBalance": "40000000000000000000000",
+        "revenue": "0"
+      },
+      "handleOpsAll": {
+        "reverted": true,
+        "error": {
+          "name": "FailedOp",
+          "args": [
+            "0",
+            "AA36 over paymasterVerificationGasLimit"
+          ]
+        }
+      },
+      "subs": [
+        {
+          "userOpHash": "0x7b3c5815ead0bd316add3a44a4929656c90d8051630c2bfe57f36b7062efa8a6",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA36 over paymasterVerificationGasLimit",
+              "code": -32500
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x493e0"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x21a7b"
+                  }
+                }
+              }
+            },
+            "sufficiency": {
+              "pmSupplied": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "300000"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 556742,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              },
+              "pmOmitted": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "137851"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 112838,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              }
+            },
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 864025,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14624180,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1404605,
+                "txGasUsed": 1393526
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 882375,
+              "pmPostOpGasLimit": 288276
+            },
+            "submitted": {
+              "ok": false,
+              "txGasUsed": 367901,
+              "topError": "execution reverted",
+              "failedOp": {
+                "name": "FailedOp",
+                "args": [
+                  "0",
+                  "AA36 over paymasterVerificationGasLimit"
+                ]
+              },
+              "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+            }
+          }
+        },
+        {
+          "userOpHash": "0xebe333af3673d83fc349a0df42164fbabd18e73c36b43c9858c052eb5a982f49",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA36 over paymasterVerificationGasLimit",
+              "code": -32500
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x493e0"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x21a7b"
+                  }
+                }
+              }
+            },
+            "sufficiency": {
+              "pmSupplied": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "300000"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 556754,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              },
+              "pmOmitted": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "137851"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 112850,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              }
+            },
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 864025,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14624168,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1404605,
+                "txGasUsed": 1393538
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 882375,
+              "pmPostOpGasLimit": 288276
+            },
+            "submitted": {
+              "ok": false,
+              "txGasUsed": 367913,
+              "topError": "execution reverted",
+              "failedOp": {
+                "name": "FailedOp",
+                "args": [
+                  "0",
+                  "AA36 over paymasterVerificationGasLimit"
+                ]
+              },
+              "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+            }
+          }
+        }
+      ],
+      "mempool": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": []
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "bundle2": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "outs": [
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        }
+      ],
+      "included": 0,
+      "txs": [],
+      "pass": false,
+      "summary": "included=0 in 0 tx; lockedOf=0"
+    },
+    "B2b": {
+      "expected": "same sender, 3 ops, balance 2.5·x0: op 3 rejected (the EntryPoint says FailedOp(2, AA34)); ops 1–2 included",
+      "userBalance": "864000000000000000000",
+      "a0": "345600000000000000000",
+      "u": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+      "before": {
+        "bal": "864000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40728000000000000000000",
+        "opBalance": "40000000000000000000000",
+        "revenue": "0"
+      },
+      "after": {
+        "bal": "864000000000000000000",
+        "locked": "0",
+        "creditReserved": "0",
+        "debts": "0",
+        "supply": "40728000000000000000000",
+        "opBalance": "40000000000000000000000",
+        "revenue": "0"
+      },
+      "handleOpsAll": {
+        "reverted": true,
+        "error": {
+          "name": "FailedOp",
+          "args": [
+            "0",
+            "AA36 over paymasterVerificationGasLimit"
+          ]
+        }
+      },
+      "subs": [
+        {
+          "userOpHash": "0x63f6ea0f15152f98c6610a40ebf152788c8147c7e90825b94b8f36d04e75a7cb",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA36 over paymasterVerificationGasLimit",
+              "code": -32500
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x493e0"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x21a7b"
+                  }
+                }
+              }
+            },
+            "sufficiency": {
+              "pmSupplied": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "300000"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 556730,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              },
+              "pmOmitted": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "137851"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 112838,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              }
+            },
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 864025,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14624180,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1404605,
+                "txGasUsed": 1393526
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 882375,
+              "pmPostOpGasLimit": 288276
+            },
+            "submitted": {
+              "ok": false,
+              "txGasUsed": 367901,
+              "topError": "execution reverted",
+              "failedOp": {
+                "name": "FailedOp",
+                "args": [
+                  "0",
+                  "AA36 over paymasterVerificationGasLimit"
+                ]
+              },
+              "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+            }
+          }
+        },
+        {
+          "userOpHash": "0x038d8e46d5129490a3db8981cb243816313670b1795f9141b5e7e51dbbae392b",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA36 over paymasterVerificationGasLimit",
+              "code": -32500
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x493e0"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x21a7b"
+                  }
+                }
+              }
+            },
+            "sufficiency": {
+              "pmSupplied": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "300000"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 556754,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              },
+              "pmOmitted": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "137851"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 112850,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              }
+            },
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 864025,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14624168,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1404605,
+                "txGasUsed": 1393538
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 882375,
+              "pmPostOpGasLimit": 288276
+            },
+            "submitted": {
+              "ok": false,
+              "txGasUsed": 367913,
+              "topError": "execution reverted",
+              "failedOp": {
+                "name": "FailedOp",
+                "args": [
+                  "0",
+                  "AA36 over paymasterVerificationGasLimit"
+                ]
+              },
+              "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+            }
+          }
+        },
+        {
+          "userOpHash": "0x9fcbe9ce8a2dde9115ad9754c5a8401fd22e1fcf6b52564f6eafe5539f2c6d9b",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA36 over paymasterVerificationGasLimit",
+              "code": -32500
+            }
+          },
+          "gasProbe": {
+            "estimates": {
+              "pmSupplied": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x493e0"
+                  }
+                }
+              },
+              "pmOmitted": {
+                "response": {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "result": {
+                    "preVerificationGas": "0xd6c6",
+                    "verificationGasLimit": "0x280c9",
+                    "callGasLimit": "0x3fc3",
+                    "paymasterVerificationGasLimit": "0x7968c",
+                    "paymasterPostOpGasLimit": "0x21a7b"
+                  }
+                }
+              }
+            },
+            "sufficiency": {
+              "pmSupplied": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "300000"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 556754,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              },
+              "pmOmitted": {
+                "used": {
+                  "verificationGasLimit": "164041",
+                  "callGasLimit": "16323",
+                  "preVerificationGas": "54982",
+                  "pmVerificationGasLimit": "497292",
+                  "pmPostOpGasLimit": "137851"
+                },
+                "filledByUs": [],
+                "pmPostOpFilledByUs": false,
+                "ok": false,
+                "brief": "FailedOp(0,AA34 signature error)",
+                "sim": {
+                  "ok": false,
+                  "txGasUsed": 112826,
+                  "topError": "execution reverted",
+                  "failedOp": {
+                    "name": "FailedOp",
+                    "args": [
+                      "0",
+                      "AA34 signature error"
+                    ]
+                  }
+                }
+              }
+            },
+            "needs": {
+              "txGas": 16000000,
+              "fee": "100000000",
+              "generous": {
+                "verificationGasLimit": "1500000",
+                "callGasLimit": "500000",
+                "pmVerificationGasLimit": "2000000",
+                "pmPostOpGasLimit": "1500000",
+                "maxFeePerGas": "100000000",
+                "maxPriorityFeePerGas": "100000000"
+              },
+              "generousBaseline": {
+                "ok": true,
+                "brief": "ok",
+                "frames": {
+                  "validateUserOp": {
+                    "gas": 1500000,
+                    "gasUsed": 6850,
+                    "error": null
+                  },
+                  "validatePaymasterUserOp": {
+                    "gas": 2000000,
+                    "gasUsed": 864025,
+                    "error": null
+                  },
+                  "innerHandleOp": {
+                    "gas": 14624168,
+                    "gasUsed": 113885,
+                    "error": null
+                  },
+                  "postOp": {
+                    "gas": 1500000,
+                    "gasUsed": 102674,
+                    "error": null
+                  }
+                },
+                "actualGasUsed": 1404605,
+                "txGasUsed": 1393538
+              },
+              "verificationGasLimit": 124346,
+              "callGasLimit": 3696,
+              "pmVerificationGasLimit": 882375,
+              "pmPostOpGasLimit": 288276
+            },
+            "submitted": {
+              "ok": false,
+              "txGasUsed": 367913,
+              "topError": "execution reverted",
+              "failedOp": {
+                "name": "FailedOp",
+                "args": [
+                  "0",
+                  "AA36 over paymasterVerificationGasLimit"
+                ]
+              },
+              "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+            }
+          }
+        }
+      ],
+      "mempool": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": []
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "bundle2": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "outs": [
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        }
+      ],
+      "included": 0,
+      "txs": [],
+      "firstTwoIncluded": false,
+      "pass": false,
+      "summary": "handleOps(all)={\"name\":\"FailedOp\",\"args\":[\"0\",\"AA36 over paymasterVerificationGasLimit\"]}; verdicts=reject[-32500] AA36 over paymasterVerificationGasLimit | reject[-32500] AA36 over paymasterVerificationGasLimit | reject[-32500] AA36 over paymasterVerificationGasLimit"
+    },
+    "B2-aftermath": {
+      "expected": "observation: can a normal op from the same SP still enter after B2?",
+      "verdict": "reject",
+      "error": {
+        "message": "AA36 over paymasterVerificationGasLimit",
+        "code": -32500
+      },
+      "sent": {
+        "userOpHash": "0xd1a224d5ae360ff4a42d0ee641652c028d94b7d0fc0e815a714046274b3cec54",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "AA36 over paymasterVerificationGasLimit",
+            "code": -32500
+          }
+        },
+        "gasProbe": {
+          "estimates": {
+            "pmSupplied": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6b9",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x493e0"
+                }
+              }
+            },
+            "pmOmitted": {
+              "response": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                  "preVerificationGas": "0xd6b9",
+                  "verificationGasLimit": "0x280c9",
+                  "callGasLimit": "0x3fc3",
+                  "paymasterVerificationGasLimit": "0x7968c",
+                  "paymasterPostOpGasLimit": "0x21a7b"
+                }
+              }
+            }
+          },
+          "sufficiency": {
+            "pmSupplied": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54969",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "300000"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 556718,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            },
+            "pmOmitted": {
+              "used": {
+                "verificationGasLimit": "164041",
+                "callGasLimit": "16323",
+                "preVerificationGas": "54969",
+                "pmVerificationGasLimit": "497292",
+                "pmPostOpGasLimit": "137851"
+              },
+              "filledByUs": [],
+              "pmPostOpFilledByUs": false,
+              "ok": false,
+              "brief": "FailedOp(0,AA34 signature error)",
+              "sim": {
+                "ok": false,
+                "txGasUsed": 112826,
+                "topError": "execution reverted",
+                "failedOp": {
+                  "name": "FailedOp",
+                  "args": [
+                    "0",
+                    "AA34 signature error"
+                  ]
+                }
+              }
+            }
+          },
+          "needs": {
+            "txGas": 16000000,
+            "fee": "100000000",
+            "generous": {
+              "verificationGasLimit": "1500000",
+              "callGasLimit": "500000",
+              "pmVerificationGasLimit": "2000000",
+              "pmPostOpGasLimit": "1500000",
+              "maxFeePerGas": "100000000",
+              "maxPriorityFeePerGas": "100000000"
+            },
+            "generousBaseline": {
+              "ok": true,
+              "brief": "ok",
+              "frames": {
+                "validateUserOp": {
+                  "gas": 1500000,
+                  "gasUsed": 6850,
+                  "error": null
+                },
+                "validatePaymasterUserOp": {
+                  "gas": 2000000,
+                  "gasUsed": 864025,
+                  "error": null
+                },
+                "innerHandleOp": {
+                  "gas": 14624191,
+                  "gasUsed": 113885,
+                  "error": null
+                },
+                "postOp": {
+                  "gas": 1500000,
+                  "gasUsed": 102674,
+                  "error": null
+                }
+              },
+              "actualGasUsed": 1404605,
+              "txGasUsed": 1393514
+            },
+            "verificationGasLimit": 124346,
+            "callGasLimit": 3696,
+            "pmVerificationGasLimit": 882375,
+            "pmPostOpGasLimit": 288276
+          },
+          "submitted": {
+            "ok": false,
+            "txGasUsed": 367889,
+            "topError": "execution reverted",
+            "failedOp": {
+              "name": "FailedOp",
+              "args": [
+                "0",
+                "AA36 over paymasterVerificationGasLimit"
+              ]
+            },
+            "brief": "FailedOp(0,AA36 over paymasterVerificationGasLimit)"
+          }
+        }
+      },
+      "bundle": null,
+      "pass": true,
+      "informational": true,
+      "summary": "reject [-32500] AA36 over paymasterVerificationGasLimit"
+    }
+  },
+  "bundlingMode": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+  },
+  "reputationBeforeB2": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": []
+  },
+  "reputationAfterB2": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": []
+  },
+  "stakeStatus": {
+    "sp": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "stakeInfo": {
+          "addr": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+          "stake": "1000000000000000000",
+          "unstakeDelaySec": "86400"
+        },
+        "isStaked": true
+      }
+    },
+    "factoryOk": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "stakeInfo": {
+          "addr": "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
+          "stake": "1000000000000000000",
+          "unstakeDelaySec": "86400"
+        },
+        "isStaked": true
+      }
+    }
+  },
+  "allPass": false
+}

@@ -1,0 +1,37 @@
+  probe 0x6c625396: submitted→ok | est[pmSupplied] v=158890 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=440000
+rundler B9-below: PASS — reject [-32502] entity stake/unstake delay too low
+  probe 0x6c625396: submitted→ok | est[pmSupplied] v=158890 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=440000
+rundler B9-above: PASS — included
+  probe 0x465ea415: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+rundler B1: PASS — included; burn=309764037750753960000 lockedOf=0 opΔ=-309764037750753960000 revΔ=309764037750753960000
+  probe 0xad1fdabe: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0xcb7c4361: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0x7e2ce103: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+rundler B3: PASS — included,included,included in 1 tx; LockSettled users=3
+  probe 0x858b9539: submitted→ok | est[pmSupplied] v=141264 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=900945 pmP=440000
+rundler B5: PASS — included; renewedEvent={"user":"0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1","spender":"0x0B306BF915C4d645ff596e518fAf3F9669b97016","bySP":"true"}
+  probe 0xac6039e2: submitted→FailedOp(0,AA26 over verificationGasLimit) | est[pmSupplied] v=145458 c=9100 pmV=1150000 pmP=- pvg=46728 → FailedOp(0,AA26 over verificationGasLimit) | est[pmOmitted] v=155024 c=9100 pmV=60901 pmP=- pvg=46728 → FailedOp(0,AA34 signature error) | needs v=150839 c=3696 pmV=772646 pmP=440000
+rundler B6: FAIL — reject; renewedEvent=null
+  probe 0x8492535a: submitted→ok | est[pmSupplied] v=153373 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=619155 pmP=440000
+rundler B7: PASS — included; debts 0→273399986888089710000; reserved=0
+  probe 0x9b120e35: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46704 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46704 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+rundler B8: PASS — included
+  probe 0xcb9c14fe: submitted→ok | est[pmSupplied] v=4730070 c=9100 pmV=1150000 pmP=- pvg=49224 → ok | est[pmOmitted] v=4596468 c=9100 pmV=62840 pmP=- pvg=49224 → FailedOp(0,AA34 signature error) | needs v=3983015 c=3696 pmV=784491 pmP=440000
+rundler B4-unstaked: PASS — reject [-32502] entity stake/unstake delay too low
+  probe 0x5c3975f0: submitted→ok | est[pmSupplied] v=4730070 c=9100 pmV=1150000 pmP=- pvg=49224 → ok | est[pmOmitted] v=4596468 c=9100 pmV=62840 pmP=- pvg=49224 → FailedOp(0,AA34 signature error) | needs v=3983015 c=3696 pmV=784491 pmP=440000
+rundler B4-lowStake: PASS — reject [-32502] entity stake/unstake delay too low
+  probe 0x6b6d806c: submitted→ok | est[pmSupplied] v=4730070 c=9100 pmV=1150000 pmP=- pvg=49212 → ok | est[pmOmitted] v=4596468 c=9100 pmV=62840 pmP=- pvg=49212 → FailedOp(0,AA34 signature error) | needs v=3983015 c=3696 pmV=784491 pmP=440000
+rundler B4-shortDelay: PASS — reject [-32502] entity stake/unstake delay too low
+  probe 0xae733658: submitted→ok | est[pmSupplied] v=4635822 c=9100 pmV=1150000 pmP=- pvg=49224 → ok | est[pmOmitted] v=4488756 c=9100 pmV=61369 pmP=- pvg=49224 → FailedOp(0,AA34 signature error) | needs v=3885095 c=3696 pmV=784491 pmP=440000
+rundler B4-ok: PASS — included
+rundler B10: FAIL — suppliedPostOpMin: pmPostOp=null pmVerif=0x118c30 | omittedPmGas: pmPostOp=null pmVerif=0xedb9 | omittedPostOpOnly: pmPostOp=null pmVerif=0x118c30
+  probe 0x9e198b94: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0x12c6c8f4: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46728 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46728 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+rundler B2a: PASS — included=2 in 1 tx; lockedOf=0
+  probe 0xdfb88532: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46716 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46716 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0xae2104b2: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46728 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46728 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0xfb92d26f: submitted→ok | est[pmSupplied] v=145426 c=9100 pmV=1150000 pmP=- pvg=46728 → ok | est[pmOmitted] v=154913 c=9100 pmV=60857 pmP=- pvg=46728 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=784446 pmP=440000
+rundler B2b: FAIL — handleOps(all)={"name":"FailedOp","args":["2","AA34 signature error"]}; verdicts=accepted-not-included | accepted-not-included | accepted-not-included
+  probe 0x80aa4afb: submitted→ok | est[pmSupplied] v=32822 c=9100 pmV=1150000 pmP=- pvg=46728 → ok | est[pmOmitted] v=34645 c=9100 pmV=61593 pmP=- pvg=46728 → FailedOp(0,AA34 signature error) | needs v=26426 c=3696 pmV=588606 pmP=440000
+rundler B2-aftermath: reject [-32504] paymaster 0x0b306bf915c4d645ff596e518faf3f9669b97016 throttled or banned
+rundler all pass: false

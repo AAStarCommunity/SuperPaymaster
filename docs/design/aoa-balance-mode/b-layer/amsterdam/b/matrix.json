@@ -1,0 +1,5367 @@
+[
+  {
+    "bundler": "rundler",
+    "case": "B9-below",
+    "userOpHash": "0x12846de89fbd228fb25c8bede0590d6bbeb9ebc6f16695e60ede26258e91e99e",
+    "verdict": "reject",
+    "error": "[-32500] validation reverted: ",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32500,
+            "message": "validation reverted: [reason]: AA33 reverted",
+            "data": {
+              "reason": "AA33 reverted",
+              "innerReason": null,
+              "revertData": "0x"
+            }
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<882366)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B9-above",
+    "userOpHash": "0x12846de89fbd228fb25c8bede0590d6bbeb9ebc6f16695e60ede26258e91e99e",
+    "verdict": "reject",
+    "error": "[-32500] validation reverted: ",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32500,
+            "message": "validation reverted: [reason]: AA33 reverted",
+            "data": {
+              "reason": "AA33 reverted",
+              "innerReason": null,
+              "revertData": "0x"
+            }
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<882366)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B1",
+    "userOpHash": "0x98805d79bb223369df46827f373c2b45f9dea7caa54eb10e08e6276c08e48235",
+    "verdict": "reject",
+    "error": "[-32500] validation reverted: ",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32500,
+            "message": "validation reverted: [reason]: AA33 reverted",
+            "data": {
+              "reason": "AA33 reverted",
+              "innerReason": null,
+              "revertData": "0x"
+            }
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<882366)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B3#1",
+    "userOpHash": "0x908f13565ccd8b7c5a7d7fcf7ed69f650fbdb512caa652d8cc6186ddf18c34c6",
+    "verdict": "reject",
+    "error": "[-32500] validation reverted: ",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32500,
+            "message": "validation reverted: [reason]: AA33 reverted",
+            "data": {
+              "reason": "AA33 reverted",
+              "innerReason": null,
+              "revertData": "0x"
+            }
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<882366)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B3#2",
+    "userOpHash": "0xa5b3d8f71898b9b278c0998b6f4efee45588578a0af3d776f7626d450d37f7c0",
+    "verdict": "reject",
+    "error": "[-32500] validation reverted: ",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32500,
+            "message": "validation reverted: [reason]: AA33 reverted",
+            "data": {
+              "reason": "AA33 reverted",
+              "innerReason": null,
+              "revertData": "0x"
+            }
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624200,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<882366)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B3#3",
+    "userOpHash": "0x000c109b67928901d606edb22f8ccae7f34e5d940b49dd617346105fa5a97388",
+    "verdict": "reject",
+    "error": "[-32500] validation reverted: ",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32500,
+            "message": "validation reverted: [reason]: AA33 reverted",
+            "data": {
+              "reason": "AA33 reverted",
+              "innerReason": null,
+              "revertData": "0x"
+            }
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<882366)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B5",
+    "userOpHash": "0x8a35df52dffb16494c8a88d0396e9cb6f912282b3c5de862e95cbb20c1b4fb7c",
+    "verdict": "reject",
+    "error": "[-32500] validation reverted: ",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32500,
+            "message": "validation reverted: [reason]: AA33 reverted",
+            "data": {
+              "reason": "AA33 reverted",
+              "innerReason": null,
+              "revertData": "0x"
+            }
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 998865,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 980515,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14509498,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1521095
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<998865)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B6",
+    "userOpHash": "0xc697781902a21264f00c62e48361344d3a9fc6c782d7ed29a54c1c4d91c39803",
+    "verdict": "reject",
+    "error": "[-32500] validation reverted: ",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "ERR [-32500] validation reverted: [reason]: AA33 reverted",
+      "pmOmitted": "v 155,024 / c 9,100 / pvg 46,728 / pmV 60,901 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "155024",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "60901",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "code": -32500,
+            "message": "validation reverted: [reason]: AA33 reverted",
+            "data": {
+              "reason": "AA33 reverted",
+              "innerReason": null,
+              "revertData": "0x"
+            }
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb688",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d90",
+            "paymasterVerificationGasLimit": "0xede5"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 150839,
+      "c": 3696,
+      "pmV": 870566,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 33343,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 852216,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14609713,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1419289
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60901<870566)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B7",
+    "userOpHash": "0x20bb3bcdeaf0576dfdb86ea9d83e64596763036f91ddfb3eaee29618170df80e",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "v 153,182 / c 9,100 / pvg 46,716 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "153182",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x2565e",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 717075,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 698725,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14786897,
+          "gasUsed": 193987,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 182776,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1311396
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0x1238062d301fdc44b0a192b7186448ab19f877050eea6232b814b10873986c08",
+      "txGasLimit": "1673343",
+      "txGasUsed": "1122065",
+      "success": "true",
+      "actualGasUsed": "1157426",
+      "actualGasCost": "2314852659732820",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<717075)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B8",
+    "userOpHash": "0x85857938db07a4eb1e6a22ef8d81b2da3702abea09cf5920d912186439e6a602",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,704 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,704 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46704",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46704",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb670",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x23812",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb670",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14817004,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0x2f883dfcaa5d85f1bb1f6a961cb95c2669e3b3c1a85d9523d88383f59fe2e6a7",
+      "txGasLimit": "1673330",
+      "txGasUsed": "805562",
+      "success": "true",
+      "actualGasUsed": "1152705",
+      "actualGasCost": "2305410578657910",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<784446)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B4-unstaked",
+    "userOpHash": "0xb1ef99d70e890c9bbafe738cceaa5fbd91a7ef397921f1fb741d0a26fe8bbd2a",
+    "verdict": "reject",
+    "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "v 4,730,070 / c 9,100 / pvg 49,224 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 4,596,468 / c 9,100 / pvg 49,224 / pmV 62,840 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "4730070",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "4596468",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "62840",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xc048",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x482cd6",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xc048",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x4622f4",
+            "paymasterVerificationGasLimit": "0xf578"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3983015,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3854479,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11016929,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5165390
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 62840<784491)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B4-lowStake",
+    "userOpHash": "0xf8cb914b832f1368b357d74f883fba3d55996e28b095042c2961a3026cebfe9b",
+    "verdict": "reject",
+    "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "v 4,730,070 / c 9,100 / pvg 49,224 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 4,596,468 / c 9,100 / pvg 49,224 / pmV 62,840 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "4730070",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "4596468",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "62840",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xc048",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x482cd6",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xc048",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x4622f4",
+            "paymasterVerificationGasLimit": "0xf578"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3983015,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3854479,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11016917,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5165390
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 62840<784491)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B4-shortDelay",
+    "userOpHash": "0x4c7a0759e2b8c29090e8e5d0ef1be6df1ccbc1942a7cdca53e64bcf35693e8f6",
+    "verdict": "reject",
+    "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "v 4,730,070 / c 9,100 / pvg 49,212 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 4,596,468 / c 9,100 / pvg 49,212 / pmV 62,840 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "4730070",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49212",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "4596468",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49212",
+            "pmVerificationGasLimit": "62840",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xc03c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x482cd6",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xc03c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x4622f4",
+            "paymasterVerificationGasLimit": "0xf578"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3983015,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3854479,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11016929,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5165390
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 62840<784491)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B4-ok",
+    "userOpHash": "0x23515486bdc35fb59135f8184c4211376a81352c188f5c0d3e5a5dfe0b606de0",
+    "verdict": "reject",
+    "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "v 4,635,822 / c 9,100 / pvg 49,224 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 4,488,756 / c 9,100 / pvg 49,224 / pmV 61,369 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "4635822",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "4488756",
+            "callGasLimit": "9100",
+            "preVerificationGas": "49224",
+            "pmVerificationGasLimit": "61369",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xc048",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x46bcae",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xc048",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x447e34",
+            "paymasterVerificationGasLimit": "0xefb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3885095,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3756559,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11113307,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5067470
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 61369<784491)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B10",
+    "b10": {
+      "suppliedPostOpMin": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "preVerificationGas": "0xb67c",
+          "callGasLimit": "0x238c",
+          "verificationGasLimit": "0x23812",
+          "paymasterVerificationGasLimit": "0xc8320"
+        }
+      },
+      "omittedPmGas": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "preVerificationGas": "0xb67c",
+          "callGasLimit": "0x238c",
+          "verificationGasLimit": "0x25d21",
+          "paymasterVerificationGasLimit": "0xedb9"
+        }
+      },
+      "omittedPostOpOnly": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "preVerificationGas": "0xb67c",
+          "callGasLimit": "0x238c",
+          "verificationGasLimit": "0x25d21",
+          "paymasterVerificationGasLimit": "0xc8320"
+        }
+      }
+    },
+    "summary": "suppliedPostOpMin: pmPostOp=null pmVerif=0xc8320 | omittedPmGas: pmPostOp=null pmVerif=0xedb9 | omittedPostOpOnly: pmPostOp=null pmVerif=0xc8320",
+    "flags": []
+  },
+  {
+    "bundler": "rundler",
+    "case": "B2a#1",
+    "userOpHash": "0xbbb9a3a7c5cbc783966f8f5d20ca05f23287414d88433ec4c41c0ad041d8e949",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,716 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x23812",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816992,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
+      "txGasLimit": "3324648",
+      "txGasUsed": "1221154",
+      "success": "true",
+      "actualGasUsed": "1153019",
+      "actualGasCost": "2306038508481379",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<784446)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B2a#2",
+    "userOpHash": "0x55fa08428f9057e49aa7cda6481af601690b0fd752c8f5ff3d32ba7a0b787c75",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,728 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,728 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb688",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x23812",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb688",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816957,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0x34192df66da3e5e6a5380fe12fe719070a148098ae35bbd4fc0996fe144ab885",
+      "txGasLimit": "3324648",
+      "txGasUsed": "1221154",
+      "success": "true",
+      "actualGasUsed": "688445",
+      "actualGasCost": "1376890303604245",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<784446)"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B2b#1",
+    "userOpHash": "0x8dff69df758ec95b0902f988f528a78a3c810b769447f926d320a2ec252df77d",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,716 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x23812",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<784446)",
+      "SIM-PASS/CHAIN-NOT-INCLUDED"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B2b#2",
+    "userOpHash": "0x03db639422f4b7d6a6e3f5fb82823a574f84e4a3218872f3a81e7ba1008d6124",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,728 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,728 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb688",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x23812",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb688",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<784446)",
+      "SIM-PASS/CHAIN-NOT-INCLUDED"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B2b#3",
+    "userOpHash": "0x219f963643ece1c2f5b81aa11c8aa83e5875a70d48f3226a6e6d786f994909a0",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,728 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,728 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46728",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb688",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x23812",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb688",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<784446)",
+      "SIM-PASS/CHAIN-NOT-INCLUDED"
+    ]
+  },
+  {
+    "bundler": "rundler",
+    "case": "B2-aftermath",
+    "userOpHash": "0x98805d79bb223369df46827f373c2b45f9dea7caa54eb10e08e6276c08e48235",
+    "verdict": "reject",
+    "error": "[-32504] paymaster 0x0b306bf915c4d645ff596e518faf3f9669b97016 throttled or banned",
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "v 145,426 / c 9,100 / pvg 46,716 / pmV 820,000 / pmP –* → executes",
+      "pmOmitted": "v 154,913 / c 9,100 / pvg 46,716 / pmV 60,857 / pmP –* → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "145426",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "820000",
+            "pmPostOpGasLimit": "400000"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "154913",
+            "callGasLimit": "9100",
+            "preVerificationGas": "46716",
+            "pmVerificationGasLimit": "60857",
+            "pmPostOpGasLimit": "0"
+          },
+          "filledByUs": [
+            "pmPostOpGasLimit"
+          ],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x23812",
+            "paymasterVerificationGasLimit": "0xc8320"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xb67c",
+            "callGasLimit": "0x238c",
+            "verificationGasLimit": "0x25d21",
+            "paymasterVerificationGasLimit": "0xedb9"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 60857<784446)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B9-below",
+    "userOpHash": "0x12846de89fbd228fb25c8bede0590d6bbeb9ebc6f16695e60ede26258e91e99e",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B9-above",
+    "userOpHash": "0x12846de89fbd228fb25c8bede0590d6bbeb9ebc6f16695e60ede26258e91e99e",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B1",
+    "userOpHash": "0x98805d79bb223369df46827f373c2b45f9dea7caa54eb10e08e6276c08e48235",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B3#1",
+    "userOpHash": "0x908f13565ccd8b7c5a7d7fcf7ed69f650fbdb512caa652d8cc6186ddf18c34c6",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B3#2",
+    "userOpHash": "0xa5b3d8f71898b9b278c0998b6f4efee45588578a0af3d776f7626d450d37f7c0",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624200,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B3#3",
+    "userOpHash": "0x000c109b67928901d606edb22f8ccae7f34e5d940b49dd617346105fa5a97388",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B5",
+    "userOpHash": "0x8a35df52dffb16494c8a88d0396e9cb6f912282b3c5de862e95cbb20c1b4fb7c",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 1,306,619 / pmP 480,000 → executes",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 1,306,619 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "1306619",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "1306619",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x13effb",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x13effb",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 998865,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 980515,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14509498,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1521095
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B6",
+    "userOpHash": "0xc697781902a21264f00c62e48361344d3a9fc6c782d7ed29a54c1c4d91c39803",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 55,008 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 55,008 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "55008",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "55008",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6e0",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6e0",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 150839,
+      "c": 3696,
+      "pmV": 870566,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 33343,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 852216,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14609713,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1419289
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<870566)",
+      "EST-LOW(pmOmitted: pmV 497292<870566, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B7",
+    "userOpHash": "0x20bb3bcdeaf0576dfdb86ea9d83e64596763036f91ddfb3eaee29618170df80e",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [-32521] UserOperation reverted during simulation with reason: AA33 reverted 0x",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 516,336 / pmP 243,585 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "516336",
+            "pmPostOpGasLimit": "243585"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "UserOperation reverted during simulation with reason: AA33 reverted 0x",
+            "code": -32521
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7e0f0",
+            "paymasterPostOpGasLimit": "0x3b781"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 717075,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 698725,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14786897,
+          "gasUsed": 193987,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 182776,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1311396
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xde3900462ca394019b03f3126a8dbf5e81c26250e85246ae9ee7d3a19c5cd457",
+      "txGasLimit": "1596016",
+      "txGasUsed": "1122065",
+      "success": "true",
+      "actualGasUsed": "1157426",
+      "actualGasCost": "2314852685196192",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 516336<717075, pmP 243585<400000)"
+    ]
+  },
+  {
+    "bundler": "alto",
+    "case": "B8",
+    "userOpHash": "0x85857938db07a4eb1e6a22ef8d81b2da3702abea09cf5920d912186439e6a602",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14817004,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xc016665b410156c0d4a9bc9def95ae2f76ef02187552bc4daef37d2acc045108",
+      "txGasLimit": "1596016",
+      "txGasUsed": "805562",
+      "success": "true",
+      "actualGasUsed": "1152705",
+      "actualGasCost": "2305410600559305",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B4-unstaked",
+    "userOpHash": "0xb1ef99d70e890c9bbafe738cceaa5fbd91a7ef397921f1fb741d0a26fe8bbd2a",
+    "verdict": "reject",
+    "error": "[-32500] AA13 initCode failed or OOG",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3983015,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3854479,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11016929,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5165390
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B4-lowStake",
+    "userOpHash": "0xf8cb914b832f1368b357d74f883fba3d55996e28b095042c2961a3026cebfe9b",
+    "verdict": "reject",
+    "error": "[-32500] AA13 initCode failed or OOG",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3983015,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3854479,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11016917,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5165390
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B4-shortDelay",
+    "userOpHash": "0x4c7a0759e2b8c29090e8e5d0ef1be6df1ccbc1942a7cdca53e64bcf35693e8f6",
+    "verdict": "reject",
+    "error": "[-32500] AA13 initCode failed or OOG",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3983015,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3854479,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11016929,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5165390
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B4-ok",
+    "userOpHash": "0x23515486bdc35fb59135f8184c4211376a81352c188f5c0d3e5a5dfe0b606de0",
+    "verdict": "reject",
+    "error": "[-32500] AA13 initCode failed or OOG",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3885095,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3756559,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11113307,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5067470
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B10",
+    "b10": {
+      "suppliedPostOpMin": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+        }
+      },
+      "omittedPmGas": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+        }
+      },
+      "omittedPostOpOnly": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+        }
+      }
+    },
+    "summary": "suppliedPostOpMin: ERR [undefined] Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3 | omittedPmGas: ERR [undefined] Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3 | omittedPostOpOnly: ERR [undefined] Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3",
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B2a#1",
+    "userOpHash": "0xbbb9a3a7c5cbc783966f8f5d20ca05f23287414d88433ec4c41c0ad041d8e949",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816992,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xe9992c722b690f347ebf9edb296165410a1559b9cacc0c9b0f10f6231f821a94",
+      "txGasLimit": "1596016",
+      "txGasUsed": "805574",
+      "success": "true",
+      "actualGasUsed": "1152705",
+      "actualGasCost": "2305410527938890",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B2a#2",
+    "userOpHash": "0x55fa08428f9057e49aa7cda6481af601690b0fd752c8f5ff3d32ba7a0b787c75",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816957,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0x9bf94dd2ae7585dd92dd8990b78891839a5db6fb2495b36440e8bdb7772c2820",
+      "txGasLimit": "1596016",
+      "txGasUsed": "609746",
+      "success": "true",
+      "actualGasUsed": "956865",
+      "actualGasCost": "1913730385616595",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B2b#1",
+    "userOpHash": "0x8dff69df758ec95b0902f988f528a78a3c810b769447f926d320a2ec252df77d",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0x159889803a64fc3ab80ac3f55c64fc131d78444cdd8d61a8fd5523b189789ba2",
+      "txGasLimit": "1596016",
+      "txGasUsed": "805574",
+      "success": "true",
+      "actualGasUsed": "1152705",
+      "actualGasCost": "2305410408057570",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B2b#2",
+    "userOpHash": "0x03db639422f4b7d6a6e3f5fb82823a574f84e4a3218872f3a81e7ba1008d6124",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xb2784646f1420d676fbc1b7e7d2d3a6f727489974b2a273e69af823b0b0ba941",
+      "txGasLimit": "1596016",
+      "txGasUsed": "609746",
+      "success": "true",
+      "actualGasUsed": "956865",
+      "actualGasCost": "1913730297585015",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B2b#3",
+    "userOpHash": "0x219f963643ece1c2f5b81aa11c8aa83e5875a70d48f3226a6e6d786f994909a0",
+    "verdict": "reject",
+    "error": "[-32500] AA34 signature error",
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "alto",
+    "case": "B2-aftermath",
+    "userOpHash": "0x98805d79bb223369df46827f373c2b45f9dea7caa54eb10e08e6276c08e48235",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0x4504bc6cd107139a3a293798ee5c77f7dd1b31416ab83a8902885e610bd8b00f",
+      "txGasLimit": "1596016",
+      "txGasUsed": "805574",
+      "success": "true",
+      "actualGasUsed": "1152705",
+      "actualGasCost": "2305410314688465",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B9-below",
+    "userOpHash": "0x12846de89fbd228fb25c8bede0590d6bbeb9ebc6f16695e60ede26258e91e99e",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B9-above",
+    "userOpHash": "0x12846de89fbd228fb25c8bede0590d6bbeb9ebc6f16695e60ede26258e91e99e",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B1",
+    "userOpHash": "0x98805d79bb223369df46827f373c2b45f9dea7caa54eb10e08e6276c08e48235",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B3#1",
+    "userOpHash": "0x908f13565ccd8b7c5a7d7fcf7ed69f650fbdb512caa652d8cc6186ddf18c34c6",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B3#2",
+    "userOpHash": "0xa5b3d8f71898b9b278c0998b6f4efee45588578a0af3d776f7626d450d37f7c0",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624200,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B3#3",
+    "userOpHash": "0x000c109b67928901d606edb22f8ccae7f34e5d940b49dd617346105fa5a97388",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 882366,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 864016,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14624189,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1404596
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<882366)",
+      "EST-LOW(pmOmitted: pmV 497292<882366, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B5",
+    "userOpHash": "0x8a35df52dffb16494c8a88d0396e9cb6f912282b3c5de862e95cbb20c1b4fb7c",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 54,982 / pmV 1,306,619 / pmP 480,000 → executes",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 1,306,619 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "1306619",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": true,
+          "brief": "ok"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "1306619",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x13effb",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x13effb",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 998865,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 980515,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14509498,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1521095
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmOmitted: pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B6",
+    "userOpHash": "0xc697781902a21264f00c62e48361344d3a9fc6c782d7ed29a54c1c4d91c39803",
+    "verdict": "reject",
+    "error": "[-32500] AA33 reverted - 0x",
+    "submittedHandleOps": "FailedOpWithRevert(0,AA33 reverted,0x)",
+    "estimate": {
+      "pmSupplied": "v 164,041 / c 16,323 / pvg 55,008 / pmV 497,292 / pmP 480,000 → **FailedOp(0,AA34 signature error)**",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 55,008 / pmV 497,292 / pmP 137,851 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "55008",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "480000"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        },
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "55008",
+            "pmVerificationGasLimit": "497292",
+            "pmPostOpGasLimit": "137851"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6e0",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x75300"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6e0",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7968c",
+            "paymasterPostOpGasLimit": "0x21a7b"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 150839,
+      "c": 3696,
+      "pmV": 870566,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 33343,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 852216,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14609713,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1419289
+    },
+    "included": false,
+    "onchain": null,
+    "flags": [
+      "EST-LOW(pmSupplied: pmV 497292<870566)",
+      "EST-LOW(pmOmitted: pmV 497292<870566, pmP 137851<400000)"
+    ]
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B7",
+    "userOpHash": "0x20bb3bcdeaf0576dfdb86ea9d83e64596763036f91ddfb3eaee29618170df80e",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [-32521] UserOperation reverted during simulation with reason: AA33 reverted 0x",
+      "pmOmitted": "v 164,041 / c 16,323 / pvg 54,982 / pmV 516,336 / pmP 243,585 → **FailedOp(0,AA34 signature error)**",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": {
+          "used": {
+            "verificationGasLimit": "164041",
+            "callGasLimit": "16323",
+            "preVerificationGas": "54982",
+            "pmVerificationGasLimit": "516336",
+            "pmPostOpGasLimit": "243585"
+          },
+          "filledByUs": [],
+          "ok": false,
+          "brief": "FailedOp(0,AA34 signature error)"
+        }
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "UserOperation reverted during simulation with reason: AA33 reverted 0x",
+            "code": -32521
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "preVerificationGas": "0xd6c6",
+            "verificationGasLimit": "0x280c9",
+            "callGasLimit": "0x3fc3",
+            "paymasterVerificationGasLimit": "0x7e0f0",
+            "paymasterPostOpGasLimit": "0x3b781"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 717075,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 698725,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14786897,
+          "gasUsed": 193987,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 182776,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1311396
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xde3900462ca394019b03f3126a8dbf5e81c26250e85246ae9ee7d3a19c5cd457",
+      "txGasLimit": "1596016",
+      "txGasUsed": "1122065",
+      "success": "true",
+      "actualGasUsed": "1157426",
+      "actualGasCost": "2314852685196192",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": [
+      "EST-LOW(pmOmitted: pmV 516336<717075, pmP 243585<400000)"
+    ]
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B8",
+    "userOpHash": "0x85857938db07a4eb1e6a22ef8d81b2da3702abea09cf5920d912186439e6a602",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14817004,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xc016665b410156c0d4a9bc9def95ae2f76ef02187552bc4daef37d2acc045108",
+      "txGasLimit": "1596016",
+      "txGasUsed": "805562",
+      "success": "true",
+      "actualGasUsed": "1152705",
+      "actualGasCost": "2305410600559305",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B4-unstaked",
+    "userOpHash": "0xb1ef99d70e890c9bbafe738cceaa5fbd91a7ef397921f1fb741d0a26fe8bbd2a",
+    "verdict": "reject",
+    "error": "[-32500] AA13 initCode failed or OOG",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3983015,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3854479,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11016929,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5165390
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B4-lowStake",
+    "userOpHash": "0xf8cb914b832f1368b357d74f883fba3d55996e28b095042c2961a3026cebfe9b",
+    "verdict": "reject",
+    "error": "[-32500] AA13 initCode failed or OOG",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3983015,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3854479,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11016917,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5165390
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B4-shortDelay",
+    "userOpHash": "0x4c7a0759e2b8c29090e8e5d0ef1be6df1ccbc1942a7cdca53e64bcf35693e8f6",
+    "verdict": "reject",
+    "error": "[-32500] AA13 initCode failed or OOG",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3983015,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3854479,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11016929,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5165390
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B4-ok",
+    "userOpHash": "0x23515486bdc35fb59135f8184c4211376a81352c188f5c0d3e5a5dfe0b606de0",
+    "verdict": "reject",
+    "error": "[-32500] AA13 initCode failed or OOG",
+    "submittedHandleOps": "FailedOp(0,AA13 initCode failed or OOG)",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 3885095,
+      "c": 3696,
+      "pmV": 784491,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "createSender": {
+          "gas": 4000000,
+          "gasUsed": 3756559,
+          "error": null
+        },
+        "validateUserOp": {
+          "gas": 4000000,
+          "gasUsed": 4850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766127,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 11113307,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 5067470
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B10",
+    "b10": {
+      "suppliedPostOpMin": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+        }
+      },
+      "omittedPmGas": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+        }
+      },
+      "omittedPostOpOnly": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+        }
+      }
+    },
+    "summary": "suppliedPostOpMin: ERR [undefined] Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3 | omittedPmGas: ERR [undefined] Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3 | omittedPostOpOnly: ERR [undefined] Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3",
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B2a#1",
+    "userOpHash": "0xbbb9a3a7c5cbc783966f8f5d20ca05f23287414d88433ec4c41c0ad041d8e949",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816992,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xca7eddb842e19c7ec4feb4e46af65101b979c6d4913d18efa3ab1428229d6b29",
+      "txGasLimit": "3179021",
+      "txGasUsed": "1221154",
+      "success": "true",
+      "actualGasUsed": "1153019",
+      "actualGasCost": "2306038528082702",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B2a#2",
+    "userOpHash": "0x55fa08428f9057e49aa7cda6481af601690b0fd752c8f5ff3d32ba7a0b787c75",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816957,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xca7eddb842e19c7ec4feb4e46af65101b979c6d4913d18efa3ab1428229d6b29",
+      "txGasLimit": "3179021",
+      "txGasUsed": "1221154",
+      "success": "true",
+      "actualGasUsed": "688445",
+      "actualGasCost": "1376890315307810",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B2b#1",
+    "userOpHash": "0x8dff69df758ec95b0902f988f528a78a3c810b769447f926d320a2ec252df77d",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xf0dc36532deffefadf8643f3be667ba5c12391b2676b5931e9ce9a6c70a44863",
+      "txGasLimit": "3179021",
+      "txGasUsed": "1221154",
+      "success": "true",
+      "actualGasUsed": "1153019",
+      "actualGasCost": "2306038465819676",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B2b#2",
+    "userOpHash": "0x03db639422f4b7d6a6e3f5fb82823a574f84e4a3218872f3a81e7ba1008d6124",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0xf0dc36532deffefadf8643f3be667ba5c12391b2676b5931e9ce9a6c70a44863",
+      "txGasLimit": "3179021",
+      "txGasUsed": "1221154",
+      "success": "true",
+      "actualGasUsed": "688445",
+      "actualGasCost": "1376890278131780",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B2b#3",
+    "userOpHash": "0x219f963643ece1c2f5b81aa11c8aa83e5875a70d48f3226a6e6d786f994909a0",
+    "verdict": "reject",
+    "error": "[-32500] AA34 signature error",
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": false,
+    "onchain": null,
+    "flags": []
+  },
+  {
+    "bundler": "altoMulti",
+    "case": "B2-aftermath",
+    "userOpHash": "0x98805d79bb223369df46827f373c2b45f9dea7caa54eb10e08e6276c08e48235",
+    "verdict": "included",
+    "error": null,
+    "submittedHandleOps": "ok",
+    "estimate": {
+      "pmSupplied": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "pmOmitted": "ERR [?] Hex size (33) exceeds padding size (16). Version: viem@2.24.3",
+      "replayed": {
+        "pmSupplied": null,
+        "pmOmitted": null
+      },
+      "raw": {
+        "pmSupplied": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        },
+        "pmOmitted": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "error": {
+            "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+          }
+        }
+      }
+    },
+    "needs": {
+      "v": 124346,
+      "c": 3696,
+      "pmV": 784446,
+      "pmP": 400000,
+      "baseline": "ok",
+      "frames": {
+        "validateUserOp": {
+          "gas": 1500000,
+          "gasUsed": 6850,
+          "error": null
+        },
+        "validatePaymasterUserOp": {
+          "gas": 2000000,
+          "gasUsed": 766096,
+          "error": null
+        },
+        "innerHandleOp": {
+          "gas": 14816969,
+          "gasUsed": 113885,
+          "error": null
+        },
+        "postOp": {
+          "gas": 1500000,
+          "gasUsed": 102674,
+          "error": null
+        }
+      },
+      "actualGasUsedGenerous": 1306676
+    },
+    "included": true,
+    "onchain": {
+      "tx": "0x3ac4a93b675d05d72bce59288346d20c6aceae3ea4ba8015e69ee8662acb3cfe",
+      "txGasLimit": "1596016",
+      "txGasUsed": "805574",
+      "success": "true",
+      "actualGasUsed": "1152705",
+      "actualGasCost": "2305410410362980",
+      "postOp": "ok (no PostOpRevertReason)"
+    },
+    "flags": []
+  }
+]

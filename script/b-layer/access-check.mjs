@@ -221,7 +221,10 @@ function checkFile(file) {
         if (e.kind === "handleOps-call") continue; // joint bundle check logged by the proxy (no trace)
         if (!e.ourTrace) { out.push({ i, label: e.label, error: e.ourTraceError }); continue; }
         const sender = senderOf(e.label, e);
-        if (!sender) continue;
+        // R-AMS-2: a simulation with no account phase (e.g. the factory ran out of gas inside
+        // createSender) has no op under test to classify; it is listed as SKIPPED, not dropped silently.
+        if (!sender) { out.push({ i, label: e.label, skipped: "no account phase",
+            phases: e.ourTrace.phases.map((p) => p.sel === "0x570e1a36" ? "factory" : p.sel === "0x52b7512c" ? "paymaster" : p.sel ?? "?") }); continue; }
         const res = classify(e, { sender, opHashes: new Set() });
         // keep the full per-slot table once per (file, case, sender); later simulations keep counts only
         const key = `${e.label}|${sender}`;
@@ -276,13 +279,15 @@ for (const f of traceFiles) report.files[f.split("/").pop()] = checkFile(f);
 if (control) report.positiveControl = positiveControl(traceFiles[0]);
 const summary = {};
 for (const [f, entries] of Object.entries(report.files)) {
-    summary[f] = entries.filter((e) => !e.error).map((e) => ({ label: e.label, sender: e.sender, rows: e.rows, outside: e.outsideCount,
+    summary[f] = entries.filter((e) => !e.error && !e.skipped).map((e) => ({ label: e.label, sender: e.sender, rows: e.rows, outside: e.outsideCount,
         forbidden: e.forbiddenCount, otherBanned: e.otherBanned.length, tokenFrames: e.tokenFrames.map((t) => `${t.phase}:${t.type}`).join(",") }));
 }
 report.summary = summary;
 writeFileSync(outJson, JSON.stringify(report, null, 2));
 for (const [f, rows] of Object.entries(summary)) {
-    console.log(`== ${f}`);
+    const all = report.files[f], sk = all.filter((e) => e.skipped), er = all.filter((e) => e.error);
+    console.log(`== ${f}: ${all.length} captured simulations, ${rows.length} checked, ${sk.length} skipped (no account phase), ${er.length} without our trace`);
+    for (const e of sk) console.log(`${e.label.padEnd(14)} SKIPPED (no account phase; phases: ${e.phases.join(",") || "none"})`);
     for (const r of rows) console.log(`${r.label.padEnd(14)} ${String(r.sender).padEnd(16)} R1=${r.rows.R1} R2=${r.rows.R2} R3=${r.rows.R3} R4=${r.rows.R4} reg=${r.rows.registryListed}/${r.rows.registryUnlisted} spOwn=${r.rows.spOwn} acctOwn=${r.rows.accountOwn} factoryOwn=${r.rows.factoryOwn ?? 0} OUTSIDE=${r.outside} FORBIDDEN=${r.forbidden} otherBanned=${r.otherBanned}`);
 }
 if (control) console.log("positive control:", JSON.stringify(report.positiveControl, (k, v) => (k === "flagged" ? undefined : v)));

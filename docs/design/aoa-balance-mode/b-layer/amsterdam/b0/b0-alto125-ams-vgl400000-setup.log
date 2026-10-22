@@ -1,0 +1,37 @@
+{
+  "rpcUrl": "http://127.0.0.1:18745",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "factory": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "sink": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+  "owner": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  "ownerKey": "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
+  "stakeWei": "10000000000000000000",
+  "unstakeDelaySec": 172800,
+  "cases": {
+    "control": {
+      "paymaster": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      "account": "0x046bd15765c29b01efF85f875c7060d4f741dbdd",
+      "salt": "0"
+    },
+    "op011_timestamp": {
+      "paymaster": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+      "account": "0xA3Be788028d20073D2971caBa386b2066734184C",
+      "salt": "1"
+    },
+    "sto031_unstakedOwnStorage": {
+      "paymaster": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+      "account": "0x86dfA023842D9BF0Ddb0091C0a5d0a55C68826ae",
+      "salt": "2"
+    },
+    "op070_unstakedTstore": {
+      "paymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "account": "0x7BAE66d6047755faB31514a0EaA962c646635477",
+      "salt": "3"
+    },
+    "sto021_stakedExternalWrite": {
+      "paymaster": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "account": "0xeCf48A342170C62B2c31CdeDcAa1165fF124d102",
+      "salt": "4"
+    }
+  }
+}

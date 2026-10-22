@@ -1,0 +1,8 @@
+anvil Version: 1.8.7-nightly
+Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827
+Build Timestamp: 2026-10-22T06:24:10.676280092Z (1792650250)
+Build Profile: dist
+forge Version: 1.7.1
+Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
+Build Timestamp: 2026-05-08T07:50:55.527285345Z (1778226655)
+Build Profile: dist

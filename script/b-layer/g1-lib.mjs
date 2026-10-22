@@ -8,6 +8,8 @@ export const DEPLOY_JSON = process.env.G1_DEPLOY_JSON ? resolve(ROOT, process.en
 
 // Fixed UserOperation gas/fee fields for every case (so a0 = maxCost-priced reservation is the
 // same on both bundlers). paymasterPostOpGasLimit ≥ MIN_POST_OP_GAS (200000, spec §3.2).
+// R-AMS-2: G1_GAS_JSON (e.g. '{"pmVerificationGasLimit":"820000"}') and G1_MIN_POST_OP_GAS override
+// these defaults for a run; unset = the values below (the recorded Osaka run).
 export const GAS = {
     verificationGasLimit: 250_000n,
     verificationGasLimitInit: 1_200_000n, // B4: initCode (CREATE2 of the account + factory bookkeeping)
@@ -18,7 +20,11 @@ export const GAS = {
     maxFeePerGas: 3_000_000_000n,
     maxPriorityFeePerGas: 2_000_000_000n,
 };
-export const MIN_POST_OP_GAS = 200_000n;
+for (const [k, v] of Object.entries(JSON.parse(process.env.G1_GAS_JSON ?? "{}"))) {
+    if (!(k in GAS)) throw new Error(`G1_GAS_JSON: unknown field ${k}`);
+    GAS[k] = BigInt(v);
+}
+export const MIN_POST_OP_GAS = BigInt(process.env.G1_MIN_POST_OP_GAS ?? 200_000);
 export const FLAG_SP_RENEW = 1;
 export const FLAG_ACCOUNT_RENEW = 2;
 
@@ -70,21 +76,26 @@ export function pmData({ operator, token, maxRate = 10n ** 18n, flags = 0 }) {
 }
 
 /** Build + sign a v0.7 op for a MockAirAccount; `accountRenew` appends the option-A flag byte 0x01. */
-export async function buildG1Op(ctx, d, { sender, nonceKey = 0n, ownerKey, flags = 0, accountRenew = false,
-    factory, factoryData, verificationGasLimit, pmPostOpGasLimit = GAS.pmPostOpGasLimit, callData }) {
+/** `gasOverride` (R-AMS-2 probe only): { verificationGasLimit, callGasLimit, preVerificationGas, pmVerificationGasLimit,
+ *  pmPostOpGasLimit, maxFeePerGas, maxPriorityFeePerGas } replacing the fixed fields; `params` is
+ *  returned so the probe can rebuild the same op with other gas fields. */
+export async function buildG1Op(ctx, d, params) {
+    const { sender, nonceKey = 0n, ownerKey, flags = 0, accountRenew = false,
+        factory, factoryData, verificationGasLimit, pmPostOpGasLimit = GAS.pmPostOpGasLimit, callData, gasOverride: g = {} } = params;
     const nonce = await ctx.pub.readContract({ address: EP, abi: ABI.ep, functionName: "getNonce", args: [sender, nonceKey] });
     const { rpcOp, packed, hash } = await buildOp(ctx, {
         sender, nonce, ownerKey, factory, factoryData,
         callData: callData ?? encodeFunctionData({ abi: ABI.account, functionName: "execute", args: ["0x000000000000000000000000000000000000dEaD", 0n, "0x"] }),
-        callGasLimit: GAS.callGasLimit,
-        verificationGasLimit: verificationGasLimit ?? (factory ? GAS.verificationGasLimitInit : GAS.verificationGasLimit),
-        preVerificationGas: GAS.preVerificationGas,
-        maxFeePerGas: GAS.maxFeePerGas, maxPriorityFeePerGas: GAS.maxPriorityFeePerGas,
-        pm: { address: d.superPaymaster, verificationGasLimit: GAS.pmVerificationGasLimit, postOpGasLimit: pmPostOpGasLimit,
+        callGasLimit: g.callGasLimit ?? GAS.callGasLimit,
+        verificationGasLimit: g.verificationGasLimit ?? verificationGasLimit ?? (factory ? GAS.verificationGasLimitInit : GAS.verificationGasLimit),
+        preVerificationGas: g.preVerificationGas ?? GAS.preVerificationGas,
+        maxFeePerGas: g.maxFeePerGas ?? GAS.maxFeePerGas, maxPriorityFeePerGas: g.maxPriorityFeePerGas ?? GAS.maxPriorityFeePerGas,
+        pm: { address: d.superPaymaster, verificationGasLimit: g.pmVerificationGasLimit ?? GAS.pmVerificationGasLimit,
+            postOpGasLimit: g.pmPostOpGasLimit ?? pmPostOpGasLimit,
             data: pmData({ operator: d.operator, token: d.operatorToken, flags }) },
     });
     if (accountRenew) { rpcOp.signature = concat([rpcOp.signature, "0x01"]); packed.signature = rpcOp.signature; }
-    return { rpcOp, packed, hash, nonce };
+    return { rpcOp, packed, hash, nonce, params };
 }
 
 /** requiredPrefund = maxCost handed to validatePaymasterUserOp (EntryPoint v0.7). */

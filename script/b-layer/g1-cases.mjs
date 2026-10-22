@@ -6,6 +6,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { decodeEventLog, encodeFunctionData, toHex } from "viem";
 import { clients, rpc, send, EP, ANVIL_KEYS, eth } from "./lib.mjs";
 import { ABI, GAS, MIN_POST_OP_GAS, FLAG_SP_RENEW, FLAG_ACCOUNT_RENEW, buildG1Op, waitReceipt } from "./g1-lib.mjs";
+import { probe, probeSummary, epEvents } from "./ams-probe.mjs";
+const ESTIMATE = process.env.G1_ESTIMATE === "1"; // R-AMS-2: per-case estimate / needs probe before each submit
 
 const [setupJson, kind, bundlerUrl, proxyUrl, outJson] = process.argv.slice(2);
 const s = JSON.parse(readFileSync(setupJson, "utf8"));
@@ -35,8 +37,13 @@ const results = { kind, bundlerUrl, entryPoint: EP, at: new Date().toISOString()
 const label = async (l) => { await fetch(`${proxyUrl}/__label`, { method: "POST", body: JSON.stringify({ label: l }) }); };
 
 async function submit(op) {
+    let gasProbe;
+    if (ESTIMATE) {
+        gasProbe = await probe({ ctx, d, rpcUrl: s.rpcUrl, B, op });
+        console.log(`  probe ${op.hash.slice(0, 10)}: ${probeSummary(gasProbe)}`);
+    }
     const res = await B("eth_sendUserOperation", [op.rpcOp, EP]);
-    return { userOpHash: op.hash, response: res };
+    return { userOpHash: op.hash, response: res, gasProbe };
 }
 async function bundleNow() {
     const r = await B("debug_bundler_sendBundleNow", []);
@@ -47,7 +54,20 @@ async function outcome(sub) {
     if (sub.response.error) return { verdict: "reject", error: sub.response.error };
     const receipt = await waitReceipt(bundlerUrl, sub.userOpHash, 20);
     const status = await B(statusMethod, [sub.userOpHash]);
+    // R-AMS-2: the bundle tx and the EntryPoint events for this op, read back from the chain
+    let onchain = null;
+    if (receipt?.receipt?.transactionHash) {
+        const h = receipt.receipt.transactionHash;
+        const rc = await ctx.pub.getTransactionReceipt({ hash: h });
+        const tx = await ctx.pub.getTransaction({ hash: h });
+        const evs = epEvents(rc.logs).filter((e) => e.args.userOpHash?.toLowerCase() === sub.userOpHash.toLowerCase());
+        const uoe = evs.find((e) => e.event === "UserOperationEvent");
+        onchain = { tx: h, txStatus: rc.status, txGasLimit: tx.gas.toString(), txGasUsed: rc.gasUsed.toString(),
+            success: uoe?.args.success ?? null, actualGasCost: uoe?.args.actualGasCost ?? null, actualGasUsed: uoe?.args.actualGasUsed ?? null,
+            postOpReverted: evs.some((e) => e.event === "PostOpRevertReason"), events: evs };
+    }
     return {
+        onchain,
         verdict: receipt ? (receipt.success ? "included" : "included-reverted") : "accepted-not-included",
         receipt: receipt ? { success: receipt.success, tx: receipt.receipt?.transactionHash, actualGasCost: receipt.actualGasCost,
             logs: receipt.logs?.length } : null,

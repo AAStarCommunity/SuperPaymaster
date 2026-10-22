@@ -1,0 +1,37 @@
+{
+  "a0": "586800000000000000000",
+  "a0Init": "928800000000000000000",
+  "spStake": {
+    "stake": "100000000000000000",
+    "unstakeDelaySec": 86400,
+    "deposit": "10000000000000000000"
+  },
+  "factories": {
+    "ok": {
+      "address": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+      "stake": "1000000000000000000",
+      "unstakeDelaySec": 86400,
+      "staked": true
+    },
+    "unstaked": {
+      "address": "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc",
+      "stake": "0",
+      "unstakeDelaySec": 0,
+      "staked": false
+    },
+    "lowStake": {
+      "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+      "stake": "500000000000000000",
+      "unstakeDelaySec": 86400,
+      "staked": true
+    },
+    "shortDelay": {
+      "address": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+      "stake": "1000000000000000000",
+      "unstakeDelaySec": 3600,
+      "staked": true
+    }
+  },
+  "creditPolicy": 2,
+  "b7Cap": "1000000000000000000000"
+}
