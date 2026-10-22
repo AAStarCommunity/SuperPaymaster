@@ -45,16 +45,27 @@ anvil fork 只从 RPC 取状态，执行在本地完成。1.8.6 在同样的 RPC
 
 ## 大合约在 Amsterdam 下能否部署（`deploy-and-txcap.json`，`script/evidence/rams-deploy-and-txcap.py`）
 
-用 rc.4 的 profile.default 产物，在真实 Sepolia 上只读模拟部署：
+用 rc.4 的 profile.default 产物，在真实 Sepolia 上只读模拟部署。证据分两类：一类是针对这两个部署本身的，另一类只作背景。
 
-| 合约 | initcode | Alchemy 估算 | publicnode 估算 | `eth_call` gas=2^24 | `eth_call` gas=60M |
-|---|---:|---:|---:|---|---|
-| Registry | 23,670 B | 36,877,356 | 36,877,356 | 两端都 OOG | 两端都成功 |
-| SuperPaymaster impl（ctor：EntryPoint / Registry 代理 / Chainlink ETH-USD） | 34,647 B | 52,811,426 | 节点 RPC gas 上限 50M，无法估算 | 两端都 revert | Alchemy 成功；publicnode 把调用 gas 限在 2^24，OOG |
+**部署本身的证据**：`eth_simulateV1` 带 `validation: true`，即节点按交易有效性规则（gas 上限、nonce、费用）模拟，使用部署者的真实 nonce：
 
-**单笔交易的 gas 上限不挡部署**：扫描 Sepolia 最近 3,000 个块（11,966,850–11,969,849），共 433,349 笔交易，其中 **3,047 笔 gasLimit 大于 2^24** 且被打包；最大的一笔 gasLimit 189,813,189，另有一笔 **gasUsed 84,832,515 且执行成功**。所以在 Amsterdam 下，gasLimit 超过 2^24 的交易可以上链，超出部分用于支付状态 gas。云端 sweep（`data/amsterdam-sweep/REPORT.md` §5.2）中「开启 revm 的 EIP-7825 检查后 Registry 部署失败」是模拟结果，**与真实 Sepolia 不符**；而且那次 sweep 用的是 forge 1.8.6，其 CREATE 数据偏低（见上表），只能作为参考。
+| 合约 | initcode | 估算（Alchemy / publicnode） | simulateV1 + validation，大 gasLimit | 同上，gasLimit = 2^24 |
+|---|---:|---|---|---|
+| Registry | 23,670 B | 36,877,356 / 36,877,356 | gasLimit 40M：**两端都 status 1，gasUsed 36,585,825** | 两端都 OOG |
+| SuperPaymaster impl（ctor：EntryPoint / Registry 代理 / Chainlink ETH-USD） | 34,647 B | 52,811,426 / publicnode 报错 `gas required exceeds: 50000000` | gasLimit 60M：**Alchemy status 1，gasUsed 52,389,391**；publicnode 报错 `exceeds: 50000000`，不可判定 | 两端都 revert |
 
-部署成本约为 Prague 下的 7 倍。按 gas price 2 gwei 计，单是 SP impl 一笔就需约 0.106 ETH。
+publicnode 的报错里出现的 50,000,000 和 16,777,216 只是原样记录，本文**不推断**它们来自哪种节点配置。
+
+**结论（有范围）**：
+- Registry 的部署在两个独立节点上都通过了带交易校验的模拟。
+- SP impl 只在一个节点上通过，另一个节点无法判定。
+- 带校验的模拟仍不等于交易池接纳并打包。EIP-8037 还有单独的执行 gas 上限和按维度计算的区块约束；要真正证明「能上链」，只能实际发送。在新执行包（R-AMS-3）真正发送之前，这一项保持「模拟可行，未上链验证」。
+
+**背景（不能单独用来证明我们的部署可行）**：扫描 Sepolia 区块 11,966,924–11,969,923，3,000 块全部读到（`blocksMissing 0`），共 435,145 笔交易。其中 3,075 笔 gasLimit 大于 2^24 并被打包，有几笔 gasUsed 达到 84,832,515，状态都是成功。这说明链上已经存在**总 gas** 超过 2^24 的成功交易，但不说明它们的执行 gas 和状态 gas 各占多少。
+
+云端 sweep（`data/amsterdam-sweep/REPORT.md` §5.2）中「开启 revm 的 EIP-7825 检查后 Registry 部署失败」，与上面 Registry 带校验模拟的结果不一致。那次 sweep 用的是 forge 1.8.6，已知它的 CREATE 计费不准，所以那份报告的部署数字只作参考。
+
+成本：SP impl 52,811,426 gas，按 2 gwei 计约 0.1056 ETH。
 
 ## 复现
 
