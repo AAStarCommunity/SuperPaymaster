@@ -65,6 +65,11 @@ def main():
         out["endpoints"][k] = e
     json.dump(out, sys.stdout, indent=1)
     print()
+    # Exit non-zero unless every endpoint answered chainId and the pinned block, so a run in which
+    # all endpoints failed cannot look like a successful archive.
+    ok = all("result" in e["chainId"] and isinstance(e["block"], dict) and "hash" in e["block"]
+             for e in out["endpoints"].values())
+    sys.exit(0 if ok and out["endpoints"] else 1)
 
 
 if __name__ == "__main__":
