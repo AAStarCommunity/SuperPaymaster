@@ -1,0 +1,1462 @@
+{
+  "rpcUrl": "http://127.0.0.1:18645",
+  "rows": [
+    {
+      "case": "b1",
+      "sweep": "txGas",
+      "txGas": 8000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 6749191,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "txGas",
+      "txGas": 16000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14624191,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "txGas",
+      "txGas": 16777216,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 15389263,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "txGas",
+      "txGas": 17000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 15608566,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "txGas",
+      "txGas": 20000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 18561691,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "txGas",
+      "txGas": 30000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 28405441,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "txGas",
+      "txGas": 60000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 57936691,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "txGas",
+      "txGas": 8000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 6634489,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "txGas",
+      "txGas": 16000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14509489,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "txGas",
+      "txGas": 16777216,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 15274561,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "txGas",
+      "txGas": 17000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 15493864,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "txGas",
+      "txGas": 20000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 18446989,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "txGas",
+      "txGas": 30000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 28290739,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "txGas",
+      "txGas": 60000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 57821989,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b7",
+      "sweep": "txGas",
+      "txGas": 8000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 6911888,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "txGas",
+      "txGas": 16000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14786888,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "txGas",
+      "txGas": 16777216,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 15551960,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "txGas",
+      "txGas": 17000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 15771263,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "txGas",
+      "txGas": 20000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 18724388,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "txGas",
+      "txGas": 30000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 28568138,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "txGas",
+      "txGas": 60000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 58099388,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b1",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14624239,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393466
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14624227,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393478
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14624215,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393490
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14624191,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1000000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14624191,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b1",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "3000000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 864025,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14624191,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1404605,
+        "txGasUsed": 1393514
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 882375,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14509536,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1509989
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14509513,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510013
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14509489,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14509489,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1000000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14509489,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b5",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "3000000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 980524,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14509489,
+            "gasUsed": 113885,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 102674,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1521104,
+        "txGasUsed": 1510037
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 998874,
+      "pmPostOpGasLimit": 288276
+    },
+    {
+      "case": "b7",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14786947,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308277
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14786912,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308313
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14786888,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "100000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14786888,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308337
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "1000000000",
+      "generousBaseline": {
+        "ok": true,
+        "brief": "ok",
+        "frames": {
+          "validateUserOp": {
+            "gas": 1500000,
+            "gasUsed": 6850,
+            "error": null
+          },
+          "validatePaymasterUserOp": {
+            "gas": 2000000,
+            "gasUsed": 698734,
+            "error": null
+          },
+          "innerHandleOp": {
+            "gas": 14786900,
+            "gasUsed": 193987,
+            "error": null
+          },
+          "postOp": {
+            "gas": 1500000,
+            "gasUsed": 182776,
+            "error": null
+          }
+        },
+        "actualGasUsed": 1311405,
+        "txGasUsed": 1308325
+      },
+      "verificationGasLimit": 124346,
+      "callGasLimit": 3696,
+      "pmVerificationGasLimit": 717084,
+      "pmPostOpGasLimit": 269585
+    },
+    {
+      "case": "b7",
+      "sweep": "fee",
+      "txGas": 16000000,
+      "fee": "3000000000",
+      "generousBaseline": {
+        "ok": false,
+        "brief": "FailedOp(0,AA34 signature error)",
+        "frames": null,
+        "actualGasUsed": null,
+        "txGasUsed": 215155
+      }
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "pmVerificationGasLimit": "400000",
+  "label": "alto125-unsafe-ams-vgl400000",
+  "bundlerUrl": "http://127.0.0.1:18760",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-10-22T14:04:08.526Z",
+  "cases": {
+    "control": {
+      "expected": "accept",
+      "verdict": "accept",
+      "pass": true,
+      "userOpHash": "0x939b2106ed16097ec807e8b3ddad3bcdb36ef14f574ee9d9ebf9405dd99dc819",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0xc2d06a59d867e657f0fbe91887da5b2c1a60f347f90f2d395eabd4f7eed39905"
+      }
+    },
+    "op011_timestamp": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0x6f2df40b609c0eaa48405910eb00a041614d90161a33776a2c58332b69492fe0",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x50f6a93a553fa5bf2b2d0d78f552bc92d1af7228f6ddebc5ad4dca1385c6fa81"
+      }
+    },
+    "sto031_unstakedOwnStorage": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0x6230fd5c49daf40d0952536f1047416d4238ba471813260b788f131e7da8a737",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x320e11e8305934f314ef5922b471cd0f132b802cca57e9b7a26c4f50d23c2539"
+      }
+    },
+    "op070_unstakedTstore": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0x5bfebbc88119124c4012cd8c00de35dbfd3363815f7521afbbd4eca0dd06b6a6",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0xacaa5fb1971d7192cbbbe5ad86a9f1c133cd8539a92bcf68cfa2f468e01824f6"
+      }
+    },
+    "sto021_stakedExternalWrite": {
+      "expected": "reject",
+      "verdict": "accept",
+      "pass": false,
+      "userOpHash": "0x36d0c8a5cd688a5b7f0a21bc4dd4ab7320f2e0a89bae30c7b25ed664104a73db",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x33db5f9feee45ea20f5055eaefbf11816d5f751156dec9b25f73ef76f43e0d3d"
+      }
+    }
+  },
+  "allPass": false
+}

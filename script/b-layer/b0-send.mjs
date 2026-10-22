@@ -15,12 +15,14 @@ const EXPECT = {
     sto021_stakedExternalWrite: "reject",
 };
 
-const results = { label, bundlerUrl, entryPoint: EP, at: new Date().toISOString(), cases: {} };
+// R-AMS-2: B0_PM_VGL overrides the paymaster verification gas (default 100000, the recorded Osaka value)
+const PM_VGL = BigInt(process.env.B0_PM_VGL ?? 100_000);
+const results = { pmVerificationGasLimit: PM_VGL.toString(), label, bundlerUrl, entryPoint: EP, at: new Date().toISOString(), cases: {} };
 for (const [name, c] of Object.entries(s.cases)) {
     const nonce = await ctx.pub.readContract({ address: EP, abi: EP_ABI, functionName: "getNonce", args: [c.account, 0n] });
     const { rpcOp, hash } = await buildOp(ctx, {
         sender: c.account, nonce, ownerKey: s.ownerKey,
-        pm: { address: c.paymaster, verificationGasLimit: 100_000n, postOpGasLimit: 50_000n },
+        pm: { address: c.paymaster, verificationGasLimit: PM_VGL, postOpGasLimit: 50_000n },
     });
     const res = await rpc(bundlerUrl, "eth_sendUserOperation", [rpcOp, EP]);
     let receipt = null;

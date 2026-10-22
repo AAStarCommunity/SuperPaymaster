@@ -1,0 +1,74 @@
+{
+  "pmVerificationGasLimit": "400000",
+  "label": "alto125-ams-vgl400000",
+  "bundlerUrl": "http://127.0.0.1:18760",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-10-22T14:03:57.268Z",
+  "cases": {
+    "control": {
+      "expected": "accept",
+      "verdict": "accept",
+      "pass": true,
+      "userOpHash": "0x582a9622f1fef387a50447dd9d3cac0bb56146ba22d730c02c511724d3e87927",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x61313e1d76ce2ffc2b6c17aa429c7b29b9ba4b03544d2f0a711bc096ba971939"
+      }
+    },
+    "op011_timestamp": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0xa22800eed7008ccac28f757f03577f6c14525154622a32357b0a8190d3ededa9",
+      "error": {
+        "message": "paymaster uses banned opcode: TIMESTAMP",
+        "code": -32502
+      },
+      "included": null
+    },
+    "sto031_unstakedOwnStorage": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x8355b6783ea708aa85df70cd44aeff294419ea6aca80f7692467aefbe92dc474",
+      "error": {
+        "message": "unstaked paymaster accessed paymaster slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+        "data": {
+          "paymaster": "0xf953b3A269d80e3eB0F2947630Da976B896A8C5b"
+        },
+        "code": -32502
+      },
+      "included": null
+    },
+    "op070_unstakedTstore": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x0f5437a7dcb274518c2ae0f424b91197c80951ed09f03a5e8cf953e1460983e3",
+      "error": {
+        "message": "unstaked paymaster accessed paymaster slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+        "data": {
+          "paymaster": "0xAA292E8611aDF267e563f334Ee42320aC96D0463"
+        },
+        "code": -32502
+      },
+      "included": null
+    },
+    "sto021_stakedExternalWrite": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x934797365960bcb354ec013869561989b2a48dc563afbd1277dd8ae7dcf2bc5b",
+      "error": {
+        "message": "paymaster has forbidden read from 0x4631bcabd6df18d94796344963cb60d44a4136b6 slot 0xaa61a9c58711f8ef9414761bfa1a325a02e83bd4955fe4296afaf0165b1d4f90",
+        "data": {
+          "paymaster": "0x5c74c94173F05dA1720953407cbb920F3DF9f887"
+        },
+        "code": -32502
+      },
+      "included": null
+    }
+  },
+  "allPass": true
+}
