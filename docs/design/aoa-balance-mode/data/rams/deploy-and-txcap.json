@@ -1,0 +1,198 @@
+{
+ "note": "read-only; RPC URLs omitted; provider messages redacted",
+ "deploy": {
+  "Registry": {
+   "initcodeBytes": 23670,
+   "A": {
+    "estimateGas": 36877356,
+    "ethCallAt2pow24": {
+     "error": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 16777216"
+     }
+    },
+    "ethCallAt60M": {
+     "ok": true,
+     "returnBytes": 23306
+    },
+    "simulateV1Validation@40000000": {
+     "status": "0x1",
+     "gasUsed": 36585825,
+     "error": null
+    },
+    "simulateV1Validation@2pow24": {
+     "status": "0x0",
+     "gasUsed": 16777216,
+     "error": {
+      "code": -32015,
+      "message": "out of gas: gas required exceeds: 16777216"
+     }
+    }
+   },
+   "B": {
+    "estimateGas": 36877356,
+    "ethCallAt2pow24": {
+     "error": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 16777216"
+     }
+    },
+    "ethCallAt60M": {
+     "ok": true,
+     "returnBytes": 23306
+    },
+    "simulateV1Validation@40000000": {
+     "status": "0x1",
+     "gasUsed": 36585825,
+     "error": null
+    },
+    "simulateV1Validation@2pow24": {
+     "status": "0x0",
+     "gasUsed": 16777216,
+     "error": {
+      "code": -32015,
+      "message": "out of gas: gas required exceeds: 16777216"
+     }
+    }
+   }
+  },
+  "SuperPaymaster": {
+   "initcodeBytes": 34647,
+   "A": {
+    "estimateGas": 52811426,
+    "ethCallAt2pow24": {
+     "error": {
+      "code": 3,
+      "message": "execution reverted"
+     }
+    },
+    "ethCallAt60M": {
+     "ok": true,
+     "returnBytes": 13744
+    },
+    "simulateV1Validation@60000000": {
+     "status": "0x1",
+     "gasUsed": 52389391,
+     "error": null
+    },
+    "simulateV1Validation@2pow24": {
+     "status": "0x0",
+     "gasUsed": 15681774,
+     "error": {
+      "code": 3,
+      "message": "execution reverted"
+     }
+    }
+   },
+   "B": {
+    "estimateGas": {
+     "error": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 50000000"
+     }
+    },
+    "ethCallAt2pow24": {
+     "error": {
+      "code": 3,
+      "message": "execution reverted"
+     }
+    },
+    "ethCallAt60M": {
+     "error": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 16777216"
+     }
+    },
+    "simulateV1Validation@60000000": {
+     "status": "0x0",
+     "gasUsed": 16777216,
+     "error": {
+      "code": -32015,
+      "message": "out of gas: gas required exceeds: 50000000"
+     }
+    },
+    "simulateV1Validation@2pow24": {
+     "status": "0x0",
+     "gasUsed": 15681774,
+     "error": {
+      "code": 3,
+      "message": "execution reverted"
+     }
+    }
+   }
+  }
+ },
+ "txcap": {
+  "requestedBlocks": [
+   11966960,
+   11969959
+  ],
+  "blocksRead": 3000,
+  "blocksMissing": 0,
+  "transactions": 435663,
+  "maxGasLimit": 189813189,
+  "countGasLimitOver2pow24": 3088,
+  "samples": [
+   {
+    "block": 11968203,
+    "tx": "0xff32fcc89170368bfe18be7aa871bf20c13d88e8dd6946e8728dda4e0b48f457",
+    "gasLimit": 189813189,
+    "status": "0x1",
+    "gasUsed": 12000
+   },
+   {
+    "block": 11968545,
+    "tx": "0xdbd4046c5d4d377444dfec4fb505a95a35eee0b30a61ef97fd16f90bfd9ec7d5",
+    "gasLimit": 189627824,
+    "status": "0x1",
+    "gasUsed": 319624
+   },
+   {
+    "block": 11969225,
+    "tx": "0x22ab3e005273aeab8e704a8893a591829d22bea44173c7409b781bc1754d0dfd",
+    "gasLimit": 119814530,
+    "status": "0x1",
+    "gasUsed": 84832515
+   },
+   {
+    "block": 11969060,
+    "tx": "0xdee4e1e955c2fe43332447f21e8a45a4e2cfacc3500d0c672cf8bb363b126a2c",
+    "gasLimit": 111158577,
+    "status": "0x1",
+    "gasUsed": 84832160
+   },
+   {
+    "block": 11967726,
+    "tx": "0x55a7fd48ec94b74ab69846e447a0e80026735df0cf282217b2351f2909f4cf84",
+    "gasLimit": 111158515,
+    "status": "0x1",
+    "gasUsed": 84832112
+   },
+   {
+    "block": 11966962,
+    "tx": "0xb489f43f1d2fd0a4a9ba7f7e548ffe82a90833833db1949fbe951ea4896f5045",
+    "gasLimit": 30000000,
+    "status": "0x1",
+    "gasUsed": 525245
+   },
+   {
+    "block": 11966963,
+    "tx": "0x3ba0b176ff865420ce8bd702c920ad69e60d8c5462bb0877be0fcbafc0a91a06",
+    "gasLimit": 70000000,
+    "status": "0x0",
+    "gasUsed": 18030
+   },
+   {
+    "block": 11966965,
+    "tx": "0x3179104f83e9378c87233006ca378792ea215f2021625090bf67fadc429cc9a8",
+    "gasLimit": 33318280,
+    "status": "0x1",
+    "gasUsed": 33054773
+   }
+  ]
+ },
+ "latestAtStart": {
+  "A": 11969960,
+  "B": 11969960
+ }
+}

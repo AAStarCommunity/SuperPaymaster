@@ -1,0 +1,256 @@
+{
+ "note": "read-only; RPC URLs omitted",
+ "block": 11969861,
+ "chainIds": {
+  "A": 11155111,
+  "B": 11155111,
+  "ENGINE": 11155111
+ },
+ "probes": {
+  "S1-cancel": {
+   "A": {
+    "minGas": 48641,
+    "estimate": 48938
+   },
+   "B": {
+    "minGas": 48641,
+    "estimate": 48938
+   },
+   "ENGINE": {
+    "minGas": 48641,
+    "estimate": 48641
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "S2-deploy-timelock": {
+   "A": {
+    "minGas": 9233390,
+    "estimate": 9307838
+   },
+   "B": {
+    "minGas": 9233390,
+    "estimate": 9307838
+   },
+   "ENGINE": {
+    "minGas": 9049790,
+    "estimate": 9049790
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": false
+  },
+  "S3-deploy-apnts-capped": {
+   "A": {
+    "minGas": 9183549,
+    "estimate": 9257602
+   },
+   "B": {
+    "minGas": 9183549,
+    "estimate": 9257602
+   },
+   "ENGINE": {
+    "minGas": 8999949,
+    "estimate": 8999949
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": false
+  },
+  "create-empty": {
+   "A": {
+    "minGas": 207606,
+    "estimate": 210421
+   },
+   "B": {
+    "minGas": 207606,
+    "estimate": 210421
+   },
+   "ENGINE": {
+    "minGas": 24064,
+    "estimate": 53001
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": false
+  },
+  "create-deposit-256": {
+   "A": {
+    "minGas": 599432,
+    "estimate": 605357
+   },
+   "B": {
+    "minGas": 599432,
+    "estimate": 605357
+   },
+   "ENGINE": {
+    "minGas": 415832,
+    "estimate": 415832
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": false
+  },
+  "create-sstore-new-slot": {
+   "A": {
+    "minGas": 317700,
+    "estimate": 321389
+   },
+   "B": {
+    "minGas": 317700,
+    "estimate": 321389
+   },
+   "ENGINE": {
+    "minGas": 134100,
+    "estimate": 134100
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": false
+  },
+  "create-sstore-new-then-warm": {
+   "A": {
+    "minGas": 320075,
+    "estimate": 321564
+   },
+   "B": {
+    "minGas": 320075,
+    "estimate": 321564
+   },
+   "ENGINE": {
+    "minGas": 136475,
+    "estimate": 136475
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": false
+  },
+  "create-cold-balance": {
+   "A": {
+    "minGas": 210979,
+    "estimate": 213821
+   },
+   "B": {
+    "minGas": 210979,
+    "estimate": 213821
+   },
+   "ENGINE": {
+    "minGas": 27379,
+    "estimate": 53001
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": false
+  },
+  "create-cold-call": {
+   "A": {
+    "minGas": 211273,
+    "estimate": 219263
+   },
+   "B": {
+    "minGas": 211273,
+    "estimate": 219263
+   },
+   "ENGINE": {
+    "minGas": 27673,
+    "estimate": 53001
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": false
+  },
+  "transfer-1wei-to-fresh": {
+   "A": {
+    "minGas": 204600,
+    "estimate": 207391
+   },
+   "B": {
+    "minGas": 204600,
+    "estimate": 207391
+   },
+   "ENGINE": {
+    "minGas": 204600,
+    "estimate": 21000
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "call-sp-owner": {
+   "A": {
+    "minGas": 23555,
+    "estimate": 23873
+   },
+   "B": {
+    "minGas": 23555,
+    "estimate": 23873
+   },
+   "ENGINE": {
+    "minGas": 23555,
+    "estimate": 23555
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "call-sp-version": {
+   "A": {
+    "minGas": 21114,
+    "estimate": 21280
+   },
+   "B": {
+    "minGas": 21114,
+    "estimate": 21280
+   },
+   "ENGINE": {
+    "minGas": 21114,
+    "estimate": 21114
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "call-safe-getOwners": {
+   "A": {
+    "minGas": 32840,
+    "estimate": 33063
+   },
+   "B": {
+    "minGas": 32840,
+    "estimate": 33063
+   },
+   "ENGINE": {
+    "minGas": 32840,
+    "estimate": 32840
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "call-entrypoint-balanceOf-sp": {
+   "A": {
+    "minGas": 18004,
+    "estimate": 18166
+   },
+   "B": {
+    "minGas": 18004,
+    "estimate": 18166
+   },
+   "ENGINE": {
+    "minGas": 18004,
+    "estimate": 21001
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  }
+ },
+ "blockHashes": {
+  "A": "0x1d88eb8727c5ef50dc311a725b52754938b427750e300627a7fc220d3b530046",
+  "B": "0x1d88eb8727c5ef50dc311a725b52754938b427750e300627a7fc220d3b530046",
+  "ENGINE": "0x1d88eb8727c5ef50dc311a725b52754938b427750e300627a7fc220d3b530046"
+ },
+ "allMatch": false,
+ "sameChainAndBlock": true
+}

@@ -127,7 +127,7 @@ H-01 的旧报告 SHA 固定于 `8c23cfb3eb40474e5b2820d5ae949caadec9703b:docs/d
 
 | manifest / generation | OK | FAILED | shasum exit |
 |---|---:|---:|---:|
-| 总 `EVIDENCE.sha256` | 2868 | 0 | 0 |
+| 总 `EVIDENCE.sha256` | 2876 | 0 | 0 |
 | `data/d5c1-rc2-serial/EVIDENCE.sha256` | 29 | 0 | 0 |
 | `data/d5c1-rc2-rerun/EVIDENCE.sha256` | 27 | 0 | 0 |
 | `data/i9-rc2-final/EVIDENCE.sha256` | 58 | 0 | 0 |
@@ -220,6 +220,18 @@ D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 �
 | 负 / 正对照 | prague NotActivated，osaka 0xff | `.summary.chains["anvil --hardfork prague (negative control)"]` / `osaka` | `EVM error NotActivated` / `…ff` |
 | EntryPoint codehash 三链相同（§2.3 附带） | `0x8db5ff69…` | `.summary.chains.*.entryPointCodehash` | 三链均 `0x8db5ff69…fc58` |
 | SP 质押 0.1 ETH（§2.6 附带） | Sepolia 0.1 ETH | `.summary.chains.sepolia.spDepositInfo`；OP 主网 V3 SP 同字段 | Sepolia stake 1e17 / 86400 s；OP 主网 `0xA2c9…` stake 1e17 / 86400 s |
+
+### §1.3a 目标链硬分叉复查：Sepolia 已是 Amsterdam（R-AMS-0/1，2026-10-22；**取代 §1.3 中 Sepolia 一行作为当前状态**）
+
+§1.3 的 Sepolia 读数（块 11,693,426，Osaka + BPO2）记录的是当时的状态。Sepolia 于 **2026-10-06 13:53:36 UTC** 启用 Amsterdam（`current.activationTime 1791294816`，forkId `0x6c1d9423`，`next null`；块 11,969,744 上 reth v2.7 / reth v2.8 两端一致，Tenderly 不支持 `eth_config`）。OP 主网 / OP Sepolia 本轮**未复查**。
+
+| 条目 | 文件 | 结论 |
+|---|---|---|
+| 硬分叉、三端 S1–S3 估算与 `eth_call`、nonce（未广播） | `data/rams/capture-11969744.json` | 估算 48,938 / 9,307,838 / 9,257,602；按 v4 包内 gasLimit 执行 `eth_call` 的结果为 revert / OOG / OOG；部署者 nonce 12131、Safe nonce 1 |
+| 引擎正对照 | `data/rams/engine-probe-nightly-926eb1d-11969861.{json,log}` | foundry nightly `926eb1d`：最小可行 gas **14/14** 与两端相等（下界 0，测不出即失败） |
+| 引擎负对照 | `data/rams/engine-probe-v1.8.6-11969861.{json,log}` | foundry v1.8.6：6/14，CREATE 少计约 183,600 |
+| 大合约部署与单笔 gas 上限 | `data/rams/deploy-and-txcap.json` | 带交易校验的 `eth_simulateV1`：Registry 在 gasLimit 40M 时两端都成功（gasUsed 36,585,825）；SP impl 在 gasLimit 60M 时 Alchemy 成功（gasUsed 52,389,391），publicnode 不可判定。2^24 时两者都失败。尚未上链验证。背景：3,000/3,000 块中有 3,088 笔 gasLimit 超过 2^24 的交易被打包（抽查 8 笔回执，7 笔成功、1 笔失败） |
+| 说明与复现 | `data/rams/README.md`；`../../release/a3a-packets-RAMS-INVALIDATION.md` | A3a v2–v4 EXECUTION-INVALID，身份字段保留（v1 早已因 nonce 失效，身份字段也不成立） |
 
 ### §1.4 原稿 OP 主网数据集（R-03，HISTORICAL-VOID）
 
