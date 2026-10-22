@@ -589,12 +589,12 @@
 | 284 | `BLSAggregator_PkAggReconstruct.t.sol:BLSAggregatorPkAggReconstructTest` | `test_Verify_RejectsEmptySignerMask` | PASS | — |  |  |
 | 285 | `BLSAggregator_PkAggReconstruct.t.sol:BLSAggregatorPkAggReconstructTest` | `test_Verify_RejectsForgedPkAgg_BySlotNotRegistered` | PASS | — |  |  |
 
-### 1.8.6 amsterdam (old sweep) vs nightly amsterdam: 0 tests differ (1694 vs 1694 result lines)
+### 1.8.6 amsterdam (old-sweep engine; regenerated) vs nightly amsterdam: 0 tests differ (1694 vs 1694 result lines)
 
-| # | suite | test | 1.8.6 amsterdam (old sweep) | nightly amsterdam | class | failure reason |
+| # | suite | test | 1.8.6 amsterdam (old-sweep engine; regenerated) | nightly amsterdam | class | failure reason |
 |---|---|---|---|---|---|---|
 
-### 1.8.6 prague (old sweep) vs nightly prague: 0 tests differ (1694 vs 1694 result lines)
+### 1.8.6 prague (old-sweep engine; regenerated) vs nightly prague: 0 tests differ (1694 vs 1694 result lines)
 
-| # | suite | test | 1.8.6 prague (old sweep) | nightly prague | class | failure reason |
+| # | suite | test | 1.8.6 prague (old-sweep engine; regenerated) | nightly prague | class | failure reason |
 |---|---|---|---|---|---|---|

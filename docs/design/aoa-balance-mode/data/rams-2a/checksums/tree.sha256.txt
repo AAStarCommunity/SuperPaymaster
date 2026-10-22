@@ -1,0 +1,6 @@
+# sha256 over sorted contracts/src/**/*.sol sha256 lines: checkout vs throwaway copy /tmp/rams/wt
+36a711ea693307e10043562412a4f78881a417a55d95f6ad48292bd4d0de0067  -
+36a711ea693307e10043562412a4f78881a417a55d95f6ad48292bd4d0de0067  -
+# scratch test as restored
+7098abbad97f205cf82ced26badb38525b6f802297ade4fa0a8667771041a7f0  docs/design/aoa-balance-mode/data/rams-2a/scratch/Rams2a.t.sol.txt
+7098abbad97f205cf82ced26badb38525b6f802297ade4fa0a8667771041a7f0  /tmp/rams/wt/contracts/test/zz_rams2a/Rams2a.t.sol

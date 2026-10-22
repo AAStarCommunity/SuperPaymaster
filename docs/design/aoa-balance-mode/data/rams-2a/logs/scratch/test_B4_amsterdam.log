@@ -1,0 +1,46 @@
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B4_no_oog_band() (gas: 257298846)
+Logs:
+  R2A|B4.balance_first_op.SETTLE_160000.min_settling_call_gas|365325
+  R2A|B4.balance_first_op.SETTLE_160000.min_call_gas_passing_guard|164543
+  R2A|B4.balance_first_op.SETTLE_160000.oog_band_width(gOk-gGuard,0=none)|200782
+  R2A|B4.balance_first_op.SETTLE_160000.oog_band_failures_step1k|201
+  R2A|B4.balance_first_op.derived_min_SETTLE_no_band|360782
+  R2A|B4.balance_first_op.SETTLE_361000.min_settling_call_gas|368733
+  R2A|B4.balance_first_op.SETTLE_361000.min_call_gas_passing_guard|368733
+  R2A|B4.balance_first_op.SETTLE_361000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.balance_first_op.SETTLE_361000.oog_band_failures_step1k|0
+  R2A|B4.balance_first_op.SETTLE_360000.min_settling_call_gas|367717
+  R2A|B4.balance_first_op.SETTLE_360000.min_call_gas_passing_guard|367717
+  R2A|B4.balance_first_op.SETTLE_360000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.balance_first_op.SETTLE_360000.oog_band_failures_step1k|0
+  R2A|B4.balance_first_op.SETTLE_155000.min_settling_call_gas|365325
+  R2A|B4.balance_first_op.SETTLE_155000.min_call_gas_passing_guard|159463
+  R2A|B4.balance_first_op.SETTLE_155000.oog_band_width(gOk-gGuard,0=none)|205862
+  R2A|B4.balance_first_op.SETTLE_155000.oog_band_failures_step1k|206
+  R2A|B4.credit_first_op.SETTLE_160000.min_settling_call_gas|369624
+  R2A|B4.credit_first_op.SETTLE_160000.min_call_gas_passing_guard|164543
+  R2A|B4.credit_first_op.SETTLE_160000.oog_band_width(gOk-gGuard,0=none)|205081
+  R2A|B4.credit_first_op.SETTLE_160000.oog_band_failures_step1k|206
+  R2A|B4.credit_first_op.derived_min_SETTLE_no_band|365081
+  R2A|B4.credit_first_op.SETTLE_366000.min_settling_call_gas|373813
+  R2A|B4.credit_first_op.SETTLE_366000.min_call_gas_passing_guard|373813
+  R2A|B4.credit_first_op.SETTLE_366000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.credit_first_op.SETTLE_366000.oog_band_failures_step1k|0
+  R2A|B4.credit_first_op.SETTLE_365000.min_settling_call_gas|372797
+  R2A|B4.credit_first_op.SETTLE_365000.min_call_gas_passing_guard|372797
+  R2A|B4.credit_first_op.SETTLE_365000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.credit_first_op.SETTLE_365000.oog_band_failures_step1k|0
+  R2A|B4.credit_first_op.SETTLE_155000.min_settling_call_gas|369624
+  R2A|B4.credit_first_op.SETTLE_155000.min_call_gas_passing_guard|159463
+  R2A|B4.credit_first_op.SETTLE_155000.oog_band_width(gOk-gGuard,0=none)|210161
+  R2A|B4.credit_first_op.SETTLE_155000.oog_band_failures_step1k|211
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 340.96ms (339.50ms CPU time)
+
+Ran 1 test suite in 344.34ms (340.96ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

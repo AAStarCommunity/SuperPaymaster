@@ -50,6 +50,7 @@ numbers below are taken to be equally calibrated. One forge-only difference is d
 | revm source read for §3 | crates.io `revm-handler-43.0.3`, `revm-interpreter-43.0.2`, `revm-context-interface-43.0.2`, `revm-context-43.0.3`, `revm-primitives-43.0.0`; every `.crate` sha256 equals the checksum in the nightly's `Cargo.lock` (`ba5102e9…`, `aa32f509…`, `3068385c…`, `9b06efea…`, `f1f4ba1a…`) |
 | isolation | `--no-isolate` + `FOUNDRY_ISOLATE=false` (CLI/env only; nightly defaults to `isolate = true`); no `--gas-report` |
 | compile / run | compile target = repo default `cancun` (baseline) or `--evm-version prague`; runtime `--hardfork amsterdam` (solc has no amsterdam target). Fuzz seed `0x5eed` |
+| checksum records | `checksums/tarballs.sha256.txt` (each tarball's `sha256sum` next to the release's own `.sha256` asset), `checksums/binaries.sha256.txt` (forge/anvil/cast, solc, `--version` output), `checksums/revm-crates.sha256.txt`, `checksums/tree.sha256.txt` (`contracts/src` hash of this checkout = throwaway copy; restored scratch test = `scratch/Rams2a.t.sol.txt`) |
 
 Exact commands (drivers are in `scratch/`):
 
@@ -61,15 +62,18 @@ forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague   
 forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague --hardfork amsterdam  # n_amsterdam
 forge test --offline --no-isolate --fuzz-seed 0x5eed -vv                                            # n_cancun
 /tmp/fd/v1.7.1/forge test --offline --fuzz-seed 0x5eed -vv                                          # d_171_cancun
-#   *_rerun.log: suites that read ./out re-run once ./out existed (see §2)
+#   *_rerun.log: suites that read ./out re-run once ./out existed (see §2): scratch/rerun.sh
+# 1.8.6 prague/amsterdam (old-sweep engine, regenerated here): scratch/run186.sh
 # Task 2/3 scratch: scratch/Rams2a.t.sol.txt copied to contracts/test/zz_rams2a/Rams2a.t.sol in a
 #   COPY of the tree (/tmp/rams/wt, sha256 of all contracts/src/*.sol identical), never in this checkout
-scratch/scr_run.sh test_B1 test_B2 ...   # = forge test --match-path …/Rams2a.t.sol --match-test <t> -vv [--hardfork amsterdam]
+scratch/scr_all.sh   # test_A (prague / amsterdam / amsterdam --enable-tx-gas-limit), then scratch/scr_run.sh test_B1 … test_C_wrap
+#   = forge test --match-path …/Rams2a.t.sol --match-test <t> -vv [--hardfork amsterdam]
 forge test … --match-test test_A -vv [--hardfork amsterdam [--enable-tx-gas-limit]]
 # Task 3 real transactions: anvil --hardfork {amsterdam,prague} [--enable-tx-gas-limit]; python3 -I scratch/resv.py URL Probe.bin
 # Task 5: anvil --hardfork {amsterdam,prague} --gas-limit 300000000; python3 -I scratch/deploy.py URL code EP.hex rows.json
 python3 -I scratch/cmp.py <prague.log> <amsterdam.log>   # → g_layer_prague_vs_amsterdam.txt
 python3 -I scratch/diff.py "<a.log[+rerun.log]>,<b.log[+rerun.log]>,<name a>,<name b>"   # → result_diffs.md
+python3 -I scratch/derive.py logs/scratch/test_B{1,6,8}_*.log    # bare / fee-inclusive columns of §4.3, §4.5, §5.3
 ```
 
 ## 2. Task 1 — full suite: 1.7.1-cancun vs nightly-cancun / prague / amsterdam
@@ -86,8 +90,9 @@ Note on `./out`: this checkout had no `./out`, and the nightly runs wrote to sep
 path failed with `vm.readFile … out/xPNTsTokenV2.sol/xPNTsTokenV2.json` / "no profile.default
 build of …" (`D5c1Replay`, `CheckDefaultArtifacts`, `DeployAPNTsCapped`, `APNTsCappedSPIntegration`,
 one `SuperPaymasterV55Adversarial` ABI test). `./out` (gitignored) was then filled from the nightly
-cancun profile.default build and those suites re-run (`logs/suite/*_rerun.log`); the merge replaces
-whole suites. Raw main logs are kept unmodified.
+cancun profile.default build and those suites re-run (`logs/suite/*_rerun.log`, `scratch/rerun.sh`);
+the merge replaces whole suites. Raw main logs are kept unmodified. All logs cited here were
+regenerated in this revision and are committed under `logs/` (see §10).
 
 Differences (`result_diffs.md`, all tables):
 
@@ -96,14 +101,14 @@ Differences (`result_diffs.md`, all tables):
 | 1.7.1 cancun vs nightly cancun | **0** of 1,840 | tool change moves no result |
 | 1.7.1 cancun vs nightly prague | 231 | all PASS↔SKIP or absent (BLS stub suites skip on Prague / real-precompile suites skip on Cancun; invariant grouping). No FAIL |
 | nightly prague vs **nightly amsterdam** | **54 PASS → FAIL** | listed below |
-| 1.8.6 prague (old sweep) vs nightly prague | 0 | — |
-| 1.8.6 amsterdam (old sweep) vs nightly amsterdam | **0** | the same 54 tests fail, same reasons |
+| 1.8.6 prague (old-sweep engine, regenerated: `logs/suite/v186_prague*.log`) vs nightly prague | 0 | — |
+| 1.8.6 amsterdam (old-sweep engine, regenerated: `logs/suite/v186_amsterdam*.log`) vs nightly amsterdam | **0** | the same 54 tests fail, same reasons |
 
 The 54 Amsterdam failures, by cause (full per-test table with reasons in `result_diffs.md`):
 
 | class | n | tests | why |
 |---|---|---|---|
-| AA33 at the tests' fixed `paymasterVerificationGasLimit = 700,000` | 18 | `APNTsCappedSPIntegration` ×2, `D5bUpgradeRace` ×2, `FeeSnapshot` ×4, `Rc1Rc2MidBundle` ×4, `V55Gas.test_G_sp_charge_covers_final_cost_*` ×3, `ParamRace` ×1, `V55UpgradeRace` ×2 | balance-mode first-op validation needs 820,305 (§4.3) |
+| AA33 at the tests' fixed `paymasterVerificationGasLimit = 700,000` | 18 | `APNTsCappedSPIntegration` ×2, `D5bUpgradeRace` ×2, `FeeSnapshot` ×4, `Rc1Rc2MidBundle` ×4, `V55Gas.test_G_sp_charge_covers_final_cost_*` ×3, `ParamRace` ×1, `V55UpgradeRace` ×2 | balance-mode first-op validation needs 820,305 (§4.7) |
 | no-OOG band (empty revert after the SETTLE guard) | 3 | `V55.test_B1_no_oog_band_above_entry_guard`, `GasParams.test_settle_floor_keeps_no_oog_band`, `Fuzz.testFuzz_G2_noOOGBand_direct_postOp` | SETTLE 160k / 155k leaves a ≈205k-gas OOG band (§4.2) |
 | postOp at `MIN_POST_OP_GAS = 200k` cannot settle → op rejected / postOp reverted / sweeps never reach success / G2 "settled iff not made to fail" | 27 | `PoC_C04` ×4, `V55` ×3 (`balance_mode_end_to_end`, `I8_…_e2e`, `TR1409_…`), `V55Adversarial` ×15, `V55Fuzz` G2 ×4 (`testFuzz_G2_I8_I9_I10_conservation`, `testFuzz_G2_floor_params`, `test_G2_coverage_replay_*` ×2), `V542ToRc2MidBundle` ×1 | smallest settling postOp limit through EntryPoint is 365k–370k (§4.1) |
 | probe-paymaster artefacts | 5 | `V55Gas.test_G_wrap_bound_*` ×2, `PostOpBound` ×3 | `PostOpProbePaymaster.postOp` writes two fresh slots (zero→non-zero ≈ 196k state gas) inside a 200k limit, so the probe itself OOGs; with the slots pre-set C_WRAP is 1,870 (§4.4). `test_each_path_within_C_POSTOP` additionally fails on the real rule (C_POSTOP 175k < W_postop) |
@@ -111,7 +116,8 @@ The 54 Amsterdam failures, by cause (full per-test table with reasons in `result
 
 So the full-suite verdict of the old sweep stands; only its CREATE/deployment numbers were wrong.
 In-test execution (SSTORE/SLOAD/CALL metering) gives byte-identical G-layer values under 1.8.6 and
-the nightly (e.g. `PostOpBound` W_postop 291,579 / minLimit 379,783 in both).
+the nightly (e.g. `PostOpBound` W_postop 291,579 / minLimit 379,783 in both:
+`logs/suite/v186_amsterdam.log:1825`, `logs/suite/n_amsterdam.log:1965`).
 
 ## 3. Task 3 — `gasleft()` semantics under EIP-8037 (revm 43 as shipped in the nightly)
 
@@ -126,12 +132,25 @@ the nightly (e.g. `PostOpBound` W_postop 291,579 / minLimit 379,783 in both).
    `remaining`** only when it is empty; the spill is counted in `state_gas_spilled`.
 2. **`GAS` (= `gasleft()`) pushes `remaining` only** (`system.rs: push!(…, gas.remaining())`). The
    reservoir is invisible to Solidity.
-3. **The reservoir exists only when the tx gas limit exceeds the regular cap.**
-   `initial_gas_and_reservoir`: `regular = min(gasLimit, tx_gas_limit_cap) − intrinsic`,
-   `reservoir = gasLimit − intrinsic − regular`. With the EIP-7825 cap 2^24 active, a transaction
-   with `gasLimit ≤ 16,777,216` has reservoir 0 and **all state gas spills into `remaining`, i.e.
-   is visible to `gasleft()` and bounded by every CALL's gas argument**. Above 2^24 the excess is
+3. **The *initial* reservoir is non-zero only when the tx gas limit exceeds the regular cap.**
+   `initial_gas_and_reservoir` (`revm-context-interface-43.0.2/src/cfg/gas.rs:560-590`):
+   `execution = gasLimit − intrinsic_regular`, `regular = min(gasLimit, tx_gas_limit_cap) −
+   intrinsic_regular`, `reservoir = execution − regular`; then the **intrinsic state gas**
+   (`initial_state_gas`, e.g. the new-account charge of a CREATE transaction) is deducted
+   separately — from the reservoir first, and the deficit from `regular`. With the EIP-7825 cap
+   2^24 active, a transaction with `gasLimit ≤ 16,777,216` **starts** with reservoir 0, so a state
+   charge made while the current frame's reservoir is 0 spills into `remaining` (visible to
+   `gasleft()`, bounded by that frame's CALL gas argument). Above 2^24 the excess is initial
    reservoir (that is how Sepolia includes > 2^24 transactions).
+   **Reservoir 0 at tx start does not mean reservoir 0 throughout the tx.** A 0→x→0 restoration
+   in a frame whose own `state_gas_spilled` is smaller than the refill (e.g. a child clearing a
+   slot that a parent or sibling set: item 5) puts the excess into that frame's *reservoir*
+   (`refill_reservoir`, `gas.rs:248-257`); on return the parent credits only up to its own spill
+   (`absorb_returned_reservoir`, `gas.rs:109-118`) and the rest stays reservoir. Later state
+   charges in that frame or its descendants draw from it first: invisible to `gasleft()` and
+   **not** bounded by the CALL gas argument. So in a ≤ 2^24 transaction "every state charge is
+   bounded by each CALL argument" holds only while no such refill has created reservoir gas
+   earlier in the transaction.
 4. **A CALL passes the whole reservoir** to the child (not 63/64, not bounded by `{gas: g}`);
    the child's leftover reservoir is returned (`absorb_returned_reservoir`).
 5. **0→x→0 restoration refills state gas directly** (`host.rs` → `refill_reservoir`): the refill is
@@ -143,7 +162,8 @@ the nightly (e.g. `PostOpBound` W_postop 291,579 / minLimit 379,783 in both).
    reservoir; on halt `remaining` is then burnt (`spend_all`).
 7. In tooling: forge and anvil `eth_call` set `tx_gas_limit_cap = u64::MAX` unless
    `--enable-tx-gas-limit` (foundry `crates/evm/core/src/opts.rs:1178`, anvil `mem/mod.rs:3239`), so
-   by default **reservoir = 0** — the regime of every bundle with `gasLimit ≤ 2^24`.
+   by default the **initial reservoir = 0** — the starting regime of every bundle with
+   `gasLimit ≤ 2^24` (a refill can still create reservoir gas later, item 3).
 
 ### 3.2 Demonstration (measured, not derived)
 
@@ -173,8 +193,11 @@ EntryPoint measures with `gasleft()` differences, all inside `unchecked`:
 (`_postExecution`, the postOp segment). SP measures once: `SuperPaymaster.sol:405`
 `gasleft() < SETTLE` at postOp entry.
 
-**Regime R0 — bundle gasLimit ≤ 2^24 (reservoir 0).** Every state charge spills into `remaining`,
-so (i) `gasleft()` differences *include* state gas, (ii) every frame limit
+**Regime R0 — bundle gasLimit ≤ 2^24 (initial reservoir 0).** A state charge spills into
+`remaining` whenever the charging frame's reservoir is 0 — always the case until a refill has
+created reservoir gas (§3.1 item 3). In the measured SP flows (§4) this was the case for the
+charges that matter (`callGasLimit` grows by ≈ 113.7k per fresh slot vs ≈ 23k on Prague, §4.7), so (i) `gasleft()`
+differences *include* state gas, (ii) every frame limit
 (`paymasterVerificationGasLimit`, `paymasterPostOpGasLimit`, `callGasLimit`,
 `verificationGasLimit`) must cover the state gas of its fresh writes — measured: SP postOp needs a
 365k–370k limit, validation 612k–820k (§4); (iii) `MIN_POST_OP_GAS` and the `SETTLE_GAS_BOUND`
@@ -190,22 +213,31 @@ SP postOp frame against SP's own fresh writes in the same postOp (`_settledDebtO
 - W_postop at EntryPoint level is **identical with and without a user execution that spills**
   (balance first op 177,234 in both, `B2`), and no `UserOperationPrefundTooLow`/AA36/AA95 occurred
   in any of the 60+ EntryPoint runs (`B1`, `B2`, `B5`, `B7`, `B8`; user execution writing 0–3
-  fresh slots). So with the current SP code the refill does not reach the `innerHandleOp` /
-  `_postExecution` measurement, and **no underflow of `preGas − gasleft()` was observed**.
-- The refill that is not absorbed in the SP frame reaches the `handleOps` frame after
-  `innerHandleOp` returns (where no `gasleft()` difference is open on the success path); it lowers
-  the bundle's real cost, not the op's `actualGasUsed`. EntryPoint therefore bills the op (and SP's
-  deposit) the validation-time state gas of the lock record although the transaction gets it back:
-  the **paymaster is over-charged relative to the bundler's cost, never under-charged by this
-  mechanism**. Per-op numbers: `B7` (actualGasUsed vs the gas the `handleOps` frame consumed;
-  dominated by the 10 % unused-gas penalty, so read only as a sign).
-- Latent hazard (not reachable in the measured code paths): if a future SP/token change made a
-  postOp **clear more zero-at-tx-start slots than it writes**, or made validation clear a slot set
-  earlier in the same bundle, the excess refill would be credited to `innerHandleOp` /
-  `handleOps` while EntryPoint's unchecked `preGas − gasleft()` is open. The result wraps to ~2^256:
-  `:716`/`:357` → `actualGasCost > prefund` → `INNER_REVERT_LOW_PREFUND` → the op is charged its
-  **whole prefund** from SP's deposit with postOp rolled back (an I9 loss); `:549` → AA36 and the
-  whole bundle reverts. Any change to the postOp write/clear set must be re-checked against this.
+  fresh slots). **No accounting failure was observed in the measured cases.** This does not show
+  that a refill can never reach an open `innerHandleOp` / `_postExecution` measurement in other
+  flows; it shows only that in these cases the measured segment and EntryPoint's results were
+  consistent.
+- In the measured cases the refill that is not absorbed in the SP frame appears to reach the
+  `handleOps` frame after `innerHandleOp` returns (where no `gasleft()` difference is open on the
+  success path); it then lowers the bundle's real cost, not the op's `actualGasUsed`. If so,
+  EntryPoint bills the op (and SP's deposit) the validation-time state gas of the lock record
+  although the transaction gets it back, i.e. the paymaster is over-charged relative to the
+  bundler's cost in these cases. Per-op numbers: `B7` (actualGasUsed vs the gas the `handleOps`
+  frame consumed; dominated by the 10 % unused-gas penalty, so read only as a sign). Whether the
+  refill can be credited elsewhere in other code paths was not established.
+- **Latent hazard (unproven; needs targeted evidence).** If a future SP/token change made a postOp
+  clear more zero-at-tx-start slots than it writes, or made validation clear a slot set earlier in
+  the same bundle, a refill could be credited to `innerHandleOp` / `handleOps` while one of
+  EntryPoint's unchecked `gasleft()` differences is open, making `gasleft()` larger at the end of
+  the segment than at its start. What that does is **not determined** by this report: e.g. at
+  `EntryPoint.sol:716` the wrapped `preGas − gasleft()` is *added* to the accumulator `actualGas`
+  in unchecked arithmetic, so it can cancel against it (500,000 + (2^256 − 96,929) = 403,071 mod
+  2^256: an under-count by the refill, not a ~2^256 value); `:357` likewise adds `opInfo.preOpGas`,
+  while `:549` compares the raw difference with `paymasterVerificationGasLimit` (a wrapped value
+  there would trip AA36 rather than under-count). Possible outcomes range from a silently smaller
+  `actualGasUsed` to a wrapped value; none was produced or measured here. Any change to the
+  postOp or validation write/clear set needs a targeted test (a postOp/validation that clears
+  more pre-existing-zero slots than it writes, measured through EntryPoint) before relying on it.
 
 **Regime RR — bundle gasLimit > 2^24 (reservoir > 0).** State gas is drawn from the reservoir
 first: invisible to `gasleft()`, and **not bounded by any per-frame gas limit** (a
@@ -222,7 +254,11 @@ In forge (with `--enable-tx-gas-limit`), **any cheatcode call resets the frame's
 fresh SSTORE costs 12,128 before and 110,048 after a single `vm.getBlockTimestamp()` (`A5`). So
 EntryPoint/SP flows (which need `vm.prank`, `vm.sign`, …) cannot be measured in regime RR with
 forge, and anvil rejects > 2^24 transactions under `--enable-tx-gas-limit` (§3.2). RR is
-therefore shown with minimal probes only. All SP numbers in this report are regime R0.
+therefore shown with minimal probes only. All SP numbers in this report are regime R0. (Also
+observed: `test_A4_reservoir_size` fails with `OutOfGas` at 16,762,164 gas under
+`--enable-tx-gas-limit` (`logs/scratch/A_amsterdam_reservoir.log:50`), i.e. at about the 2^24 regular
+cap, before printing any row; hence the `—` in that column of `g_layer_prague_vs_amsterdam.txt`. Why
+it exhausts regular gas was not investigated.)
 
 ## 4. Task 2 — G layer, Prague vs Amsterdam (nightly; R0)
 
@@ -240,19 +276,21 @@ SimpleAccount v0.7, operator `minTxInterval = 60` (cold `lastTimestamp` write = 
 | op with `paymasterPostOpGasLimit = 200,000` (= current MIN) settles? balance / credit | yes / yes | **no / no**: inner revert data empty (OOG after the guard) | `B3.TR1409_defaults` |
 | smallest settling `paymasterPostOpGasLimit` through EntryPoint, params at floor (MIN 175k, SETTLE 155k): balance / credit / balance + user writes 1 slot | ≤ 175,000 (floor) all | **365,325 / 369,624 / 365,325** | `B3.min_postOpGasLimit_EP` |
 | non-guard (OOG) failures for limits in [175k, min), step 2k | — | 96 / 98 / 96 | same |
-| in-repo `PostOpBound` minLimit (direct call, test frame), max over 8 paths | 167,387 | **379,783** (credit), 375,484 (balance) | `n_*` logs |
-| in-repo `test_G_min_post_op_gas_covers_measured_postOp` requirement | 164,347 | 235,580 | `n_*` logs |
+| in-repo `PostOpBound` minLimit (direct call, test frame), max over 8 paths | 167,387 | **379,783** (credit), 375,484 (balance) | `logs/suite/n_prague.log:4124`, `n_amsterdam.log:1963-1965` |
+| in-repo `test_G_min_post_op_gas_covers_measured_postOp` requirement (measured postOp × 64/63 + 20k) | 164,347 (142,092) | 235,580 (212,212) | `logs/suite/n_prague.log:1311`, `n_amsterdam.log:1389-1391` |
 
 ### 4.2 No-OOG band scan (B-1 / I8): direct `postOp{gas: g}` from the EntryPoint address, same tx as validation
 
 | path | SETTLE | Prague: min settling g / min g passing guard / band | Amsterdam: same |
 |---|---|---|---|
 | balance first op | 155,000 (floor) | 159,463 / 159,463 / **0** | 365,325 / 159,463 / **205,862** (206 failures, 1k steps) |
-| balance first op | 160,000 (default) | 164,543 / 164,543 / 0 | 365,325 / 164,543 / **200,782** |
-| balance first op | 360,000 / 361,000 | — | 367,717 / 367,717 / **0** — no band |
-| credit first op | 155,000 | 159,463 / 159,463 / 0 | 369,624 / 159,463 / **210,161** |
-| credit first op | 160,000 | 164,543 / 164,543 / 0 | 369,624 / 164,543 / **205,081** |
-| credit first op | 365,000 / 366,000 | — | 372,797 / 372,797 / **0** — no band |
+| balance first op | 160,000 (default) | 164,543 / 164,543 / 0 | 365,325 / 164,543 / **200,782** (201 failures) |
+| balance first op | 360,000 | — | 367,717 / 367,717 / **0** — no band |
+| balance first op | 361,000 | — | 368,733 / 368,733 / **0** — no band |
+| credit first op | 155,000 | 159,463 / 159,463 / 0 | 369,624 / 159,463 / **210,161** (211 failures) |
+| credit first op | 160,000 | 164,543 / 164,543 / 0 | 369,624 / 164,543 / **205,081** (206 failures) |
+| credit first op | 365,000 | — | 372,797 / 372,797 / **0** — no band |
+| credit first op | 366,000 | — | 373,813 / 373,813 / **0** — no band |
 
 The band closes at **SETTLE ≥ 360k (balance) / 365k (credit)** (verified points; the guard
 threshold is ≈ SETTLE × 64/63 + 2k).
@@ -266,28 +304,49 @@ threshold is ≈ SETTLE × 64/63 + 2k).
 | W_postop at EntryPoint level, `(F_real − F_postOpMocked) × 10/9`: balance / credit | 128,814 / 142,825 | 177,234 / **279,265** | `B2` |
 | rule C_POSTOP ≥ W × 1.15 (in-repo W) | 170,130 | **335,316** | |
 
-End-to-end through EntryPoint (`B1`, ample limits, **current defaults**), charge vs the full
-EntryPoint cost to SP at the validation price snapshot ("need"):
+End-to-end through EntryPoint (`B1`, ample limits, **current defaults**). Two reference values
+per op, both at the validation price snapshot (fixture: ETH/USD 2000, aPNTs 0.02 USD, so 1 wei of
+EntryPoint cost = 10^5 aPNTs-wei; `protocolFeeBPS` 1,000):
 
-| case | Prague charge − need (aPNTs) | Amsterdam charge − need (aPNTs) | Amsterdam actualGasUsed |
-|---|---|---|---|
-| balance, first op | +6.88 | +2.07 | 1,340,281 |
-| balance, second op | +12.99 | +14.94 | 771,782 |
-| **credit, first op** | +5.49 | **−8.03** (charge 126.94 < need 134.97; not clamped, a0 = 726) | 1,227,013 |
-| balance, user call reverts | +7.42 | +2.61 | 1,289,479 |
-| balance, user writes 1 / 2 / 3 fresh slots | +7.14 / +7.39 / +7.63 | +3.31 / +4.52 / +5.73 | 1,441,503 / 1,540,675 / 1,639,847 |
-| **credit, user writes 1 / 2 / 3** | +5.76 / +6.00 / +6.25 | **−6.79 / −5.58 / −4.37** | 1,328,236 / … |
+- **bare** = EntryPoint's `actualGasCost` converted to aPNTs = what SP's EntryPoint deposit
+  actually pays for the op (`spEpDepositDelta_wei` = `actualGasCost_wei` in every B1 case);
+- **fee-incl.** = bare × 1.10 (ceil) = the target `_fullCostCharge` in
+  `contracts/test/v2/SuperPaymasterV55Gas.t.sol:256-260` and the scratch `need` (it **includes
+  the 10 % protocol fee**).
 
-**I9 is violated at the current defaults under Amsterdam:** every credit-mode op is charged
-4.4–8.0 aPNTs (≈ 3–6 %) less than SP pays EntryPoint; the operator subsidises it. Cause:
-C_POSTOP + C_WRAP = 180k < W_postop + wrap ≈ 281k.
+`charge` = the `protocolRevenue` increase for the op. Columns derived by
+`scratch/derive.py` from `actualGasCost_wei` / `charge_aPNTs` / `need_aPNTs` of
+`logs/scratch/test_B1_{prague,amsterdam}.log` (the script asserts the logged `need` equals the
+fee-inclusive formula for every case). All values in aPNTs.
+
+| case | Prague: bare / charge / fee-incl. | Prague: charge − bare / charge − fee-incl. | Amsterdam: bare / charge / fee-incl. | Amsterdam: charge − bare / **charge − fee-incl.** | Amsterdam actualGasUsed |
+|---|---|---|---|---|---|
+| balance, first op | 59.25530 / 72.05792 / 65.18083 | +12.80 / +6.88 | 134.02810 / 149.50452 / 147.43091 | +15.48 / +2.07 | 1,340,281 |
+| balance, second op | 43.75320 / 61.11391 / 48.12852 | +17.36 / +12.99 | 77.17820 / 99.83171 / 84.89602 | +22.65 / +14.94 | 771,782 |
+| **credit, first op** | 57.61070 / 68.86176 / 63.37177 | +11.25 / +5.49 | **122.70130 / 126.94396 / 134.97143** | **+4.24 / −8.03** (not clamped, a0 = 726) | 1,227,013 |
+| balance, user call reverts | 54.17510 / 67.00793 / 59.59261 | +12.83 / +7.42 | 128.94790 / 144.45453 / 141.84269 | +15.51 / +2.61 | 1,289,479 |
+| balance, user writes 1 fresh slot | 61.46470 / 74.75545 / 67.61117 | +13.29 / +7.14 | 144.15030 / 161.87325 / 158.56533 | +17.72 / +3.31 | 1,441,503 |
+| balance, user writes 2 | 63.46910 / 77.20526 / 69.81601 | +13.74 / +7.39 | 154.06750 / 173.99426 / 169.47425 | +19.93 / +4.52 | 1,540,675 |
+| balance, user writes 3 | 65.47350 / 79.65507 / 72.02085 | +14.18 / +7.63 | 163.98470 / 186.11527 / 180.38317 | +22.13 / +5.73 | 1,639,847 |
+| **credit, user writes 1** | 59.82020 / 71.55929 / 65.80222 | +11.74 / +5.76 | 132.82360 / 139.31269 / 146.10596 | +6.49 / **−6.79** | 1,328,236 |
+| **credit, user writes 2** | 61.82460 / 74.00910 / 68.00706 | +12.18 / +6.00 | 142.74080 / 151.43370 / 157.01488 | +8.69 / **−5.58** | 1,427,408 |
+| **credit, user writes 3** | 63.82900 / 76.45891 / 70.21190 | +12.63 / +6.25 | 152.65800 / 163.55471 / 167.92380 | +10.90 / **−4.37** | 1,526,580 |
+
+**I9 / G2 at the current defaults under Amsterdam, in the 4 tested credit-mode cases above:** the
+charge **covers the bare EntryPoint cost** (+4.24 … +10.90 aPNTs: SP collects more than its
+EntryPoint deposit pays for these ops) but **misses the fee-inclusive target** by 4.37–8.03 aPNTs
+(≈ 2.6–5.9 % of the target), i.e. the protocol keeps only 35–71 % of the intended 10 % fee on these
+ops. The tested balance-mode cases meet both references. Cause: the charge budgets C_POSTOP +
+C_WRAP = 180k for postOp and wrapper, while the measured W_postop + wrap is ≈ 281k (credit).
+Other credit-mode paths were not tested, so no statement is made about them.
 
 With the op at `paymasterPostOpGasLimit = MIN = 200k` (`B5`/`B8` "defaults"), Amsterdam postOp
-OOGs in all 6 scenarios: the user's execution is rolled back, the user pays 0, and **SP's
-EntryPoint deposit pays the whole op** (need 97.8–141.4 aPNTs per op). This is the I10 path, but
-any user can trigger it at the current defaults by choosing a postOp limit in [200k, ~365k), which
-validation admits. That makes it a griefing vector against SP's deposit on every Amsterdam chain
-until the tuple is changed.
+OOGs in all 6 B8 scenarios: the user's execution is rolled back, the user pays 0, and **SP's
+EntryPoint deposit pays the whole op**: bare 88.93–128.31 aPNTs per op (fee-incl. 97.82–141.14;
+`derive.py` over `test_B8_amsterdam.log`). This is the I10 path, but any user can trigger it at
+the current defaults by choosing a postOp limit in [200k, ~365k), which validation admits. That
+makes it a griefing vector against SP's deposit on every Amsterdam chain running 5.5.0 with the
+GasParams slot unset (see §5.3 for the upgrade window).
 
 ### 4.4 C_WRAP (probe slots pre-set so the probe does no zero→non-zero write)
 
@@ -301,14 +360,17 @@ own fresh writes exceed its 200k limit.)
 
 ### 4.5 Proposed tuples end-to-end (postOpGasLimit = MIN; `B8`, plus `B5`)
 
-| tuple (MIN / SETTLE / C_WRAP / C_POSTOP) | Amsterdam: settles in all 6 scenarios? | charge ≥ need in all 6? | min charge − need (aPNTs) |
-|---|---|---|---|
-| 200k / 160k / 5k / 175k (defaults) | **no (0/6)** | **no** | −141.1 |
-| 385k / 365k / 5k / 336k (raw needs) | yes | yes | +19.8 |
-| **440k / 420k / 5k / 340k** (needs + 15 %) | yes | yes | +20.2 |
-| 440k / 420k / 5k / 300k (C_POSTOP below the rule, control) | yes | yes (penalty budget masks it) | +15.8 |
-| B5: 300k/280k, 350k/330k (C_POSTOP = MIN) | no / no | — | — |
-| B5: 400k/380k, 450k/430k, 500k/480k (C_POSTOP = MIN) | yes | yes | — |
+| tuple (MIN / SETTLE / C_WRAP / C_POSTOP) | Amsterdam: settles in all 6 scenarios? | charge ≥ fee-incl. in all 6? | min charge − bare (aPNTs) | min charge − fee-incl. (aPNTs) |
+|---|---|---|---|---|
+| 200k / 160k / 5k / 175k (defaults) | **no (0/6)** | **no** | **−128.31** (charge 0; SP's deposit pays the op) | −141.14 |
+| 385k / 365k / 5k / 336k (raw needs) | yes | yes | +32.55 | +19.78 |
+| **440k / 420k / 5k / 340k** (needs + 15 %) | yes | yes | +33.05 | +20.22 |
+| 440k / 420k / 5k / 300k (C_POSTOP below the rule, control) | yes | yes (penalty budget masks it) | +28.65 | +15.82 |
+| B5: 300k/280k, 350k/330k (C_POSTOP = MIN) | no / no | — | — | — |
+| B5: 400k/380k, 450k/430k, 500k/480k (C_POSTOP = MIN) | yes | yes | — | — |
+
+B8 logs `charge − fee-incl.` and `actualGasUsed`; bare = actualGasUsed × 1 gwei × 10^5 and
+charge = (charge − fee-incl.) + ceil(bare × 1.1) (`scratch/derive.py`).
 
 Scenarios: balance first op; balance + user writes 2 slots; credit first op; balance user call
 reverts; balance at realistic limits (call 120k, pmVer 900k, verification 150k); credit at
@@ -348,23 +410,108 @@ checked at queue and execute in `SuperPaymasterAdmin.sol:298-301`; `GP_TIMELOCK 
 |---|---|---|---|---|---|---|---|
 | `SETTLE_GAS_BOUND` | 160,000 | [155,000, 1,000,000] | ≤ 155,000: no band at floor (§4.2) | **≥ 365,000** (credit; balance 360k) (§4.2) | **420,000** | **NO** (205k band) | (a) |
 | `MIN_POST_OP_GAS` | 200,000 | [SETTLE + 20,000, 2,000,000] | ≥ 167,387 (in-repo minLimit; EP ≤ 175k) (§4.1) | **≥ 385,000** = max(379,783 in-repo minLimit; 369,624 EP; SETTLE 365k + 20k) | **440,000** (= max(379,783 × 1.15 = 436,751; 420k + 20k)) | **NO** (0/6 settle at 200k) | (a) |
-| `C_POSTOP_GAS` | 175,000 | [175,000, MIN] | ≥ 170,130 (§4.3) | **≥ 335,316** (291,579 × 1.15) (§4.3) | **340,000** (rule already has the 15 %) | **NO** (I9: credit −4.4…−8.0 aPNTs/op) | (a), needs MIN ≥ 340k first or in the same queue |
+| `C_POSTOP_GAS` | 175,000 | [175,000, MIN] | ≥ 170,130 (§4.3) | **≥ 335,316** (291,579 × 1.15) (§4.3) | **340,000** (rule already has the 15 %) | **NO** (tested credit cases: charge covers the bare cost but misses the fee-inclusive target by 4.37–8.03 aPNTs/op, §4.3) | (a), needs MIN ≥ 340k first or in the same queue |
 | `C_WRAP_GAS` | 5,000 | [5,000, 50,000] | ≥ 1,770 (§4.4) | ≥ 1,870 (§4.4) | 5,000 (2.67× kept) | yes | none |
 
 Validation: the full tuple **(MIN 440,000, SETTLE 420,000, C_WRAP 5,000, C_POSTOP 340,000)**
-settles and covers the full cost in all 6 EntryPoint scenarios (§4.5). All four values are inside
-the hard bounds, so the fix is **path (a) only: one `queueGasParams(440000, 420000, 5000, 340000)`
-→ ≥ 48 h → `executeGasParams()`, behind the 48 h timelock**. Note that `queueGasParams` checks
+settles in all 6 B8 EntryPoint scenarios and its charge covers both the bare EntryPoint cost and
+the fee-inclusive target in each (§4.5). All four values are inside the GOV-5 hard bounds, so the
+**values** can be set by path (a): one `queueGasParams(440000, 420000, 5000, 340000)` → ≥ 48 h →
+`executeGasParams()`, behind the 48 h owner timelock. Note that `queueGasParams` checks
 `cPostop ≤ minPost` of the *same* call, so the single queued tuple is valid.
 
-**Path (b) (source change + new candidate/tag): not required by any measurement here.** It would
-only be needed for: (1) changing the in-bytecode defaults (all-zero slot → 200k/160k/5k/175k) so
-that a fresh deployment or an un-queued instance is Amsterdam-safe from block 0; (2) the legacy
-352-byte context path (`LEGACY_SETTLE_GAS_BOUND` 160k, `LEGACY_C_WRAP_GAS`), which applies only to
-5.5.0 contexts admitted before an upgrade mid-bundle; (3) the §3.3 latent hazard, if the postOp
-write/clear set ever changes. None blocks the parameter fix.
+**Path (b) (source change + new candidate/tag): not required for the parameter VALUES (all within
+the GOV-5 hard bounds).** That statement is about the values only. It does **not** cover the
+period between an upgrade to 5.5.0 and `executeGasParams` (§5.3), the legacy 352-byte context path
+(`LEGACY_SETTLE_GAS_BOUND` 160k, `LEGACY_C_WRAP_GAS`, `SuperPaymaster.sol:85-86`), which applies to
+contexts admitted before an upgrade mid-bundle, or the §3.3 latent hazard if the postOp write/clear
+set ever changes.
 
-### 5.2 SDK / bundler parameters (per op; not contract-enforced except postOp ≥ MIN)
+### 5.2 Test-to-evidence index for §5.1
+
+Every number in the §5.1 table (and the validation paragraph), with the log file and line it comes
+from. Paths are relative to this directory; scratch logs are from `scratch/Rams2a.t.sol.txt`
+(restored as `contracts/test/zz_rams2a/Rams2a.t.sol` in a throwaway copy of the tree), suite logs
+from the in-repo tests. Line numbers refer to the committed files.
+
+| §5.1 number | meaning | source (file:line) |
+|---|---|---|
+| 160,000 / 200,000 / 5,000 / 175,000 | current defaults | `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:193-196` (zero slot → these, `:317-322`) |
+| [155k, 1M], [SETTLE+20k, 2M], [175k, MIN], [5k, 50k] | GOV-5 hard bounds | `SuperPaymasterStorage.sol:197-203`; checked in `SuperPaymasterAdmin.sol:297-302`, at queue `:306` and execute `:318` |
+| SETTLE Prague "≤ 155,000: no band at floor" | balance / credit: min settling g = min g passing guard = 159,463, band 0 | `logs/scratch/test_B4_prague.log:22-24`, `:39-41` |
+| SETTLE Amsterdam "≥ 365,000 (credit)" | band 0 at 365k: 372,797 / 372,797 | `logs/scratch/test_B4_amsterdam.log:35-38` (366k: `:31-34`) |
+| SETTLE Amsterdam "balance 360k" | band 0 at 360k: 367,717 / 367,717 | `logs/scratch/test_B4_amsterdam.log:18-21` (361k: `:14-17`) |
+| SETTLE "205k band" at the default | credit at 160k: 369,624 / 164,543 / band 205,081 (balance 200,782) | `logs/scratch/test_B4_amsterdam.log:26-28` (balance `:9-11`) |
+| SETTLE with margin 420,000 | 365,000 × 1.15 = 419,750 → 420,000 | derived |
+| MIN Prague ≥ 167,387 | in-repo PostOpBound max minLimit | `logs/suite/n_prague.log:4124` |
+| MIN Prague "EP ≤ 175k" | smallest settling postOp limit through EntryPoint = floor 175,000 (balance / credit / balance + 1 slot) | `logs/scratch/test_B3_min_postOp_prague.log:9-11` |
+| MIN Amsterdam 379,783 | in-repo PostOpBound minLimit, credit first debt | `logs/suite/n_amsterdam.log:1965` (balance 375,484: `:1963`) |
+| MIN Amsterdam 369,624 | smallest settling postOp limit through EntryPoint, credit (balance 365,325) | `logs/scratch/test_B3_min_postOp_amsterdam.log:13` (balance `:9`, + 1 slot `:17`) |
+| MIN "SETTLE 365k + 20k" = 385,000 | GOV-5 coupling MIN ≥ SETTLE + 20k | `SuperPaymasterStorage.sol:192`, derived |
+| MIN with margin 440,000 | max(379,783 × 1.15 = 436,751; 420k + 20k) | derived |
+| MIN "0/6 settle at 200k" | B8 defaults, settled = 0 in all 6 scenarios | `logs/scratch/test_B8_amsterdam.log:10,16,22,28,34,40` |
+| C_POSTOP Prague ≥ 170,130 | W_postop 147,939 × 1.15 | `logs/suite/n_prague.log:4119` (W), `:4121` (× 1.15) |
+| C_POSTOP Amsterdam ≥ 335,316 | 291,579 × 1.15 (the Amsterdam run fails before printing its max line; 291,579 is the max of the 8 path lines) | `logs/suite/n_amsterdam.log:1963-1977` (291,579 at `:1965`) |
+| C_POSTOP "4.37–8.03 aPNTs/op" | credit first op / writes 1, 2, 3: `charge`, `need` (fee-incl.), `actualGasCost_wei` (bare) | `logs/scratch/test_B1_amsterdam.log:55-62`, `:156-159`, `:176-179`, `:196-199` |
+| C_WRAP Prague ≥ 1,770 | wrapper upper bound, single op and bundle positions | `logs/scratch/test_C_wrap_prague.log:9-16` |
+| C_WRAP Amsterdam ≥ 1,870 | same | `logs/scratch/test_C_wrap_amsterdam.log:9-16` |
+| tuple 440k/420k/5k/340k settles and covers in 6/6 | B8 `settled` = 1, `chargeCoversNeed` = 1 | `logs/scratch/test_B8_amsterdam.log:82-113` |
+| ≥ 48 h / ≥ 96 h | `GP_TIMELOCK = 48 hours` (+ GOV-1 owner timelock 48 h) | `SuperPaymasterStorage.sol:204`; `SuperPaymasterAdmin.sol:307,317` |
+
+### 5.3 Upgrade window
+
+`SuperPaymasterStorage.sol:317-322` (`_gpRaw`): an **all-zero GasParams slot selects the in-bytecode
+defaults 200k / 160k / 5k / 175k**. A proxy upgraded to 5.5.0 (or a fresh 5.5.0 deployment) starts
+with that slot zero. The measured values (§4.5) can only be written by `executeGasParams`, which
+needs `queueGasParams` first and then `block.timestamp ≥ eta = queue time + GP_TIMELOCK (48 h)`
+(`SuperPaymasterAdmin.sol:305-321`), plus the owner timelock's own delay for each of the two calls
+if the owner is the GOV-1 timelock (`queueGasParams` cannot be queued before the 5.5.0 code is
+live, since the function does not exist in the old implementation). So on an Amsterdam chain there
+is a window of **≥ 48 h after the upgrade (≥ 96 h with GOV-1)** in which:
+
+- validation admits any `paymasterPostOpGasLimit` ≥ 200k, and for limits in **[200k, ~365k)**
+  (balance 365,325 / credit 369,624 are the smallest settling limits, §4.1) settlement fails and
+  **SP's EntryPoint deposit pays the whole op** (bare 88.93–128.31 aPNTs per op in the B8 scenarios,
+  §4.3/§4.5); any user can choose such a limit;
+- ops with limits above that settle, but tested credit-mode ops miss the fee-inclusive target
+  (§4.3).
+
+Two remediation options; this report does not choose between them:
+
+- **(A) Parameter-only, with a protected rollout.** Keep the 5.5.0 bytecode; stop sponsorship
+  atomically with the upgrade and resume only after `executeGasParams`. Existing mechanisms:
+  `setGlobalPaused(true)` (validation returns SIG_FAILURE for every op before parsing it,
+  `SuperPaymaster.sol:233`; postOp and stale releases keep working) or `setOperatorPaused` per
+  operator (`SuperPaymasterAdmin.sol:90-110`; owner both directions, guardian pause only).
+  "Atomically" means the pause must be effective no later than the upgrade, e.g. set in the same
+  timelock batch before `upgradeToAndCall`, or before it. The rollout must also cover **legacy
+  contexts admitted before a mid-bundle upgrade**: such ops settle under
+  `LEGACY_SETTLE_GAS_BOUND` 160k regardless of GasParams, so the pause has to be in force before the
+  last pre-upgrade bundle that could carry SP ops, not only before the first post-upgrade one.
+  Cost: no sponsorship for ≥ 48 h (≥ 96 h with GOV-1) per chain; no bytecode change.
+- **(B) Amsterdam-safe in-bytecode defaults in a new candidate.** Change `MIN_POST_OP_GAS`,
+  `SETTLE_GAS_BOUND`, `C_POSTOP_GAS` (and review `LEGACY_*`) so that the zero slot is already
+  safe; requires a new candidate/tag, re-audit of the changed constants, and the CLAUDE.md
+  version/ABI process (constants only, so no ABI/storage change is expected, but `version()` would
+  bump). Cost on a **Prague/Osaka** chain, where the larger MIN is not needed but every op must
+  still carry `paymasterPostOpGasLimit ≥ MIN`:
+  - prefund / a0 (`SuperPaymaster.sol:305-310`: a0 = ceil(maxCost at the cached price) ×
+    (1 + fee 10 % + validation buffer 10 %)): ΔpostOpLimit 240,000 gas × 1 gwei = **+0.00024 ETH
+    prefund = +24.0 aPNTs bare = +28.8 aPNTs a0 per op** (computed from the formula at the fixture
+    price, not logged by B8). For one balance op at Prague-scale limits (verification 150k,
+    call 120k, pmVerification 225k ≈ 194,487 × 1.15, PVG 50k): prefund 745,000 → 985,000 gas,
+    a0 89.4 → 118.2 aPNTs (+32 %); at the B8 "realistic" limits (pmVerification 900k):
+    1,420,000 → 1,660,000 gas, a0 170.4 → 199.2 aPNTs (+17 %). a0 is a reservation (operator
+    solvency check and user lock/credit reservation), not a charge.
+  - actual cost (measured, `test_B8_prague.log`, balance first op, defaults vs 440k/420k/5k/340k):
+    `actualGasUsed` 510,544 → 534,544 (**+24,000 gas** = EntryPoint's 10 % unused-gas penalty on
+    the extra 240k of postOp limit), bare cost 51.05440 → 53.45440 aPNTs (+2.40, +4.7 %);
+    charge 63.03693 → 83.82693 aPNTs (+20.79, +33 %), of which most comes from C_POSTOP
+    175k → 340k in the charge formula, not from the gas used ((165,000 + 24,000) gas × 1 gwei ×
+    10^5 × 1.1 = 20.79). The deltas are identical in all 6 B8 Prague scenarios (bare +2.40,
+    charge +20.79 aPNTs each).
+
+### 5.4 SDK / bundler parameters (per op; not contract-enforced except postOp ≥ MIN)
 
 | parameter | Prague measured | Amsterdam measured (row) | Amsterdam with margin | note |
 |---|---|---|---|---|
@@ -429,8 +576,9 @@ Agreement with live Sepolia:
 - Anvil's `eth_estimateGas` returns the exact minimum (no margin), so budget ≈ +1 % when using
   these rows to set a live gasLimit.
 
-About EIP-7825: nine transactions need more than 2^24 = 16,777,216 gas (rows 2, 4, 7, 8, 13, 14, 20,
-and 10 standalone). That is **not** a deployment blocker on Sepolia: the 2^24 cap applies to regular
+About EIP-7825: **eight rows** need more than 2^24 = 16,777,216 gas (rows 2, 4, 7, 8, 10, 13, 14,
+20, from `deploy/rows_amsterdam.json`), i.e. **seven shipped transactions** plus the standalone
+SuperPaymasterAdmin breakdown row 10 (which is not a separate transaction; it is inside row 8). That is **not** a deployment blocker on Sepolia: the 2^24 cap applies to regular
 gas, and the excess is state-gas reservoir (§3.1). Live Sepolia included 3,047 transactions with
 gasLimit > 2^24 in 3,000 blocks, one with gasUsed 84,832,515. The old report's "cannot be deployed"
 remark (§5.2 there) is withdrawn. (Anvil itself rejects such transactions only when started with
@@ -456,38 +604,98 @@ remark (§5.2 there) is withdrawn. (Anvil itself rejects such transactions only 
 7. Per-function trace table (old §4) was not regenerated. Validation and postOp are measured
    directly as limits through EntryPoint (§4.1, §4.7), which is what the parameters need.
 8. Scratch bug, disclosed: the first `B1` run aliased a memory struct (`Lim memory lr = l`), so later
-   cases ran with callGas 50k. Those logs were deleted, and every scratch log in `logs/scratch/` comes
-   from the final `scratch/Rams2a.t.sol.txt`.
+   cases ran with callGas 50k. Those logs were deleted. Every scratch log now in `logs/scratch/` was
+   regenerated in this revision from the committed `scratch/Rams2a.t.sol.txt` (sha256 in
+   `checksums/tree.sha256.txt`).
 
 ## 8. Files
 
 | path | content |
 |---|---|
-| `calibration/` | Step-0 raw outputs (nightly, v1.8.6) |
-| `logs/suite/` | full `-vv` suite logs (1.7.1 cancun, nightly cancun/prague/amsterdam), `*_rerun.log` (./out suites), `timeline.txt` |
-| `result_diffs.md` | the six per-test difference tables |
-| `logs/scratch/` | scratch G-layer logs, Prague and Amsterdam (and Amsterdam + reservoir for part A) |
-| `g_layer_prague_vs_amsterdam.txt` | every scratch `R2A` row side by side |
+| `calibration/` | Step-0 raw outputs (nightly, v1.8.6); re-run in this revision with byte-identical output |
+| `checksums/` | sha256 records for §1: release tarballs vs release `.sha256` assets, extracted binaries + solc + `--version`, revm `.crate` files, `contracts/src` tree hash and restored scratch test |
+| `logs/suite/` | full `-vv` suite logs: `d_171_cancun`, `n_cancun`, `n_prague`, `n_amsterdam`, `v186_prague`, `v186_amsterdam`, each with `*_rerun.log` (./out suites), and `timeline.txt` (commands, start/end, exit codes) |
+| `result_diffs.md` | per-test difference tables, regenerated from `logs/suite/` |
+| `logs/scratch/` | scratch G-layer logs, Prague and Amsterdam (and Amsterdam + reservoir for part A), `timeline.txt` |
+| `g_layer_prague_vs_amsterdam.txt` | every scratch `R2A` row side by side, regenerated from `logs/scratch/` |
 | `gasleft/` | real-transaction gasleft probes on anvil |
 | `deploy/` | deployment gas log, JSON rows, init-code resolution log |
-| `scratch/` | `Rams2a.t.sol.txt` (G layer, gasleft probes), `ResvProbe.sol.txt`, `MockFeed.sol.txt`, `calib.py`, `resv.py`, `deploy.py`, `resolve.py`, `run.sh`, `scr_run.sh`, `cmp.py`, `diff.py`, `parse.py` |
+| `scratch/` | `Rams2a.t.sol.txt` (G layer, gasleft probes), `ResvProbe.sol.txt`, `MockFeed.sol.txt`, `calib.py`, `resv.py`, `deploy.py`, `resolve.py`, `run.sh`, `rerun.sh`, `run186.sh`, `scr_run.sh`, `scr_all.sh`, `cmp.py`, `diff.py`, `parse.py`, `derive.py` |
 
 ## 9. Summary
 
 - **Calibration: PASS.** nightly 926eb1d matches live Sepolia exactly on 5/5 probes, and the
   Timelock deployment matches the live S2 minimum exactly. v1.8.6 is off on 5/5.
-- **Insufficient under Amsterdam:** `SETTLE_GAS_BOUND` 160k (a 205k-gas OOG band),
-  `MIN_POST_OP_GAS` 200k (no op settles at MIN, so SP's deposit pays whole ops: griefable),
-  `C_POSTOP_GAS` 175k (I9 broken: credit ops under-charged 4.4–8.0 aPNTs each). Also the SDK
-  `paymasterVerificationGasLimit` (needs 820k balance / 612k credit), `verificationGasLimit` for
-  initCode (801k) and `callGasLimit` (+113.7k per fresh slot). `C_WRAP_GAS` 5k is fine (1,870 measured).
+- **Insufficient under Amsterdam:** `SETTLE_GAS_BOUND` 160k (a 200,782–205,081-gas OOG band at
+  160k), `MIN_POST_OP_GAS` 200k (no tested op settles at MIN, so SP's deposit pays whole ops:
+  griefable), `C_POSTOP_GAS` 175k (in the 4 tested credit-mode cases the charge covers the bare
+  EntryPoint cost, +4.24…+10.90 aPNTs, but misses the fee-inclusive I9 target by 4.37–8.03 aPNTs
+  per op). Also the SDK `paymasterVerificationGasLimit` (needs 820k balance / 612k credit),
+  `verificationGasLimit` for initCode (801k) and `callGasLimit` (+113.7k per fresh slot).
+  `C_WRAP_GAS` 5k is fine (1,870 measured).
 - **Needed values (with 15 % margin): MIN 440,000 / SETTLE 420,000 / C_WRAP 5,000 /
-  C_POSTOP 340,000**, validated end-to-end. SDK: paymasterVerificationGasLimit ≈ 945k,
-  paymasterPostOpGasLimit = MIN.
-- **Source change: not required.** All values are inside the GOV-5 hard bounds, so the fix is
-  `queueGasParams` → `executeGasParams` (≥ 96 h) plus an SDK release. Since Sepolia has run
-  Amsterdam since 2026-10-06, the current defaults are already live there.
+  C_POSTOP 340,000**, validated end-to-end in the 6 B8 scenarios. SDK:
+  paymasterVerificationGasLimit ≈ 945k, paymasterPostOpGasLimit = MIN.
+- **Source change: not required for the parameter VALUES (all within GOV-5 hard bounds)**; they
+  can be set by `queueGasParams` → `executeGasParams` (≥ 48 h, ≥ 96 h with GOV-1) plus an SDK
+  release. **This does not close the upgrade window (§5.3):** after a 5.5.0 upgrade the zero
+  GasParams slot selects 200k/160k/5k/175k until `executeGasParams`, during which postOp limits in
+  [200k, ~365k) are admitted but do not settle and SP's deposit pays the op. Options: (A)
+  parameter-only with sponsorship paused atomically with the upgrade until `executeGasParams`
+  (covering legacy contexts too), or (B) Amsterdam-safe in-bytecode defaults in a new candidate,
+  which on Prague/Osaka costs +240k postOp limit per op (+28.8 aPNTs a0, +24,000 gas actually
+  used, +20.79 aPNTs charge per measured op). Not chosen here. (SP on Sepolia is 5.4.2 per
+  `deployments/deploy-record-v5.4.2-sepolia.md`, not 5.5.0; 5.4.2 was not measured here.)
 - `gasleft()` excludes the state-gas reservoir and can **rise** across a call (−96,929 measured),
-  because EIP-8037 refills are credited to spilling frames. With the current SP code this was not
-  observed to corrupt EntryPoint accounting. A postOp that clears more fresh slots than it writes
-  would make EntryPoint's unchecked `preGas − gasleft()` wrap (§3.3).
+  because EIP-8037 refills are credited to spilling frames; a refill can also create reservoir
+  gas inside a transaction that started with none (§3.1). No accounting failure was observed in
+  the measured cases. Whether a postOp/validation that clears more pre-existing-zero slots than it
+  writes could corrupt EntryPoint's unchecked accounting is unproven and needs targeted evidence
+  (§3.3).
+
+## 10. Changes vs 457a133a
+
+**Measured numbers: none changed.** Every log the report cites was regenerated in this revision
+with the same engine, flags and seed, and committed (`logs/suite/`, `logs/scratch/`; all files
+< 5 MB, so none is gzipped):
+
+- Step 0 calibration re-run first: output byte-identical to `calibration/calib-*.txt` (gate PASS).
+- Full suites: 1.7.1 cancun, nightly cancun / prague / amsterdam, each with its `./out` re-run;
+  merged counts 1,840/1,791/0/49, 1,840/1,791/0/49, 1,694/1,671/0/23, 1,694/1,617/54/23 as in §2.
+  The 1.8.6 prague / amsterdam suites (previously only in the old sweep) were also regenerated.
+  `result_diffs.md` regenerated from these logs: all six tables are byte-identical to 457a133a
+  except the 1.8.6 table labels.
+- Scratch G layer (`scratch/scr_all.sh`): `g_layer_prague_vs_amsterdam.txt` regenerated; every
+  value is identical, only the order of the part-A rows (forge suite print order) differs.
+- The `./out` re-run script (`scratch/rerun.sh`) first recorded a wrong exit code in
+  `timeline.txt` (`$?` read after a `$(date)` substitution); those four lines were dropped and the
+  four re-runs repeated with the fixed script. Results were the same.
+
+Corrections of transcription, wording and derivation (no new measurement):
+
+1. §1 / `checksums/`: sha256 records committed.
+2. §4.3, §4.5, §5.1, §9: the old "need" was the **fee-inclusive** target (`_fullCostCharge`,
+   +10 % protocol fee). Both references are now reported. Credit first op: bare 122.70130, charge
+   126.94396, fee-incl. 134.97143 → charge covers the bare cost (+4.24) and misses the
+   fee-inclusive target (−8.03). The previous claim that SP pays EntryPoint more than it collects
+   (operator subsidy) is withdrawn: the bare column does not show it for any tested settled case.
+   "every credit-mode op" is narrowed to the 4 tested credit cases. The §4.3 text range
+   "97.8–141.4" is corrected to bare 88.93–128.31 / fee-incl. 97.82–141.14 (141.4 was a typo).
+3. §3.3: the claim that a refill deterministically wraps EntryPoint's accounting into
+   `INNER_REVERT_LOW_PREFUND` / whole-prefund loss is removed (`EntryPoint.sol:716` adds the
+   wrapped difference to the accumulator, which can cancel); "refill does not reach" / "never
+   under-charged" are reduced to what was observed in the measured cases; the hazard is marked
+   unproven.
+4. §3.1 / §3.3 R0: reservoir 0 is only the *initial* state of a ≤ 2^24 transaction; a refill in a
+   non-spilling frame can create reservoir gas later; the intrinsic state gas deduction of
+   `initial_gas_and_reservoir` is stated.
+5. §4.2: SETTLE 360k → 367,717 and 361k → 368,733; 365k → 372,797 and 366k → 373,813 (all zero
+   band) are now separate rows (were merged under the 360k / 365k values); failure counts added.
+6. §6: eight rows exceed 2^24 including the standalone Admin row 10 (seven shipped
+   transactions), not nine.
+7. §5.1 / §9: "source change not required" restricted to the parameter values; new §5.3 Upgrade
+   window with options (A) / (B) and the Prague/Osaka cost of (B); the sentence inferring that the
+   defaults are live on Sepolia is removed (Sepolia SP is 5.4.2 per
+   `deployments/deploy-record-v5.4.2-sepolia.md`).
+8. New §5.2 test-to-evidence index; §4.1 rows now cite log lines.
+

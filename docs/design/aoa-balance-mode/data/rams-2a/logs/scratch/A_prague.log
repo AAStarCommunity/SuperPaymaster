@@ -1,0 +1,65 @@
+Compiling 102 files with Solc 0.8.33
+Compiling 172 files with Solc 0.8.33
+Solc 0.8.33 finished in 47.68s
+Solc 0.8.33 finished in 105.56s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 3 tests for contracts/test/zz_rams2a/Rams2a.t.sol:R2aGasleftProbe
+[PASS] test_A1_gasleft_across_set_then_restore() (gas: 97292)
+Logs:
+  R2A|A1.set_one_fresh_slot.caller_gas_consumed|22936
+  R2A|A1.restore_same_slot.caller_gas_consumed(neg=gasleft_rose)|969
+
+[PASS] test_A2_restore_from_non_spilling_intermediate() (gas: 205087)
+Logs:
+  R2A|A2.intermediate_frame_delta_restoring_3_slots(neg=gasleft_rose)|1223
+
+[PASS] test_A3_state_gas_vs_call_gas_limit() (gas: 366014)
+Logs:
+  R2A|A3.one_fresh_sstore_with_call_gas_25000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_25000.caller_delta|22659
+  R2A|A3.one_fresh_sstore_with_call_gas_30000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_30000.caller_delta|22659
+  R2A|A3.one_fresh_sstore_with_call_gas_50000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_50000.caller_delta|22659
+  R2A|A3.one_fresh_sstore_with_call_gas_100000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_100000.caller_delta|22659
+  R2A|A3.one_fresh_sstore_with_call_gas_125000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_125000.caller_delta|22659
+  R2A|A3.one_fresh_sstore_with_call_gas_150000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_150000.caller_delta|22659
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 875.30µs (636.03µs CPU time)
+
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirCheatcode
+[PASS] test_A5_reservoir_vs_cheatcode() (gas: 98773)
+Logs:
+  R2A|A5.sstore_gas_before_cheatcode|22128,22125
+  R2A|A5.sstore_gas_after_one_cheatcode_call|22128,22128
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 133.31µs (50.42µs CPU time)
+
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirNoCheat
+[PASS] test_A6_reservoir_no_cheatcode() (gas: 545203)
+Logs:
+  R2A|A6.own fresh SSTORE gasleft delta|22169
+  R2A|A6.child 0->x caller delta|22885
+  R2A|A6.child x->0 restore caller delta (neg=gasleft rose)|891
+  R2A|A6.child fresh SSTORE {gas:30000} ok|1
+  R2A|A6.child fresh SSTORE {gas:100000} ok|1
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 267.15µs (178.95µs CPU time)
+
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirSize
+[PASS] test_A4_reservoir_size() (gas: 447651019)
+Logs:
+  R2A|A4.fresh_sstores_paid_from_reservoir|20000
+  R2A|A4.reservoir_lower_bound_gas(=count*97920)|1958400000
+  R2A|A4.first_spilling_sstore_index|0
+  R2A|A4.gasleft_at_end|626071163
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 37.17ms (37.07ms CPU time)
+
+Ran 4 test suites in 43.21ms (38.44ms CPU time): 6 tests passed, 0 failed, 0 skipped (6 total tests)

@@ -1,0 +1,10 @@
+# sha256sum of downloaded release tarballs (left) and the release's own .sha256 asset (right column file), 2026-10-22T15:06:41Z
+df74eb56171295ee11548e3ef9eb8209befb67e1ab595afe35f27dde4c22a6a1  nightly/foundry_nightly_linux_amd64.tar.gz
+release asset nightly/foundry_nightly_linux_amd64.sha256:
+df74eb56171295ee11548e3ef9eb8209befb67e1ab595afe35f27dde4c22a6a1  foundry_nightly_linux_amd64.tar.gz
+cf7e688ed0c4c48adffca788b496076e31060b67ac5afe1e43dbb5499c20c88b  v1.7.1/foundry_v1.7.1_linux_amd64.tar.gz
+release asset v1.7.1/foundry_v1.7.1_linux_amd64.sha256:
+cf7e688ed0c4c48adffca788b496076e31060b67ac5afe1e43dbb5499c20c88b  foundry_v1.7.1_linux_amd64.tar.gz
+58850106984038f3a7200f38a4182c8cb423d3a4f4c7848eacbc2453e6bc35fc  v1.8.6/foundry_v1.8.6_linux_amd64.tar.gz
+release asset v1.8.6/foundry_v1.8.6_linux_amd64.sha256:
+58850106984038f3a7200f38a4182c8cb423d3a4f4c7848eacbc2453e6bc35fc  foundry_v1.8.6_linux_amd64.tar.gz
