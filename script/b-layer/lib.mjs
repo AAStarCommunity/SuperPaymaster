@@ -1,6 +1,6 @@
 // D5 gate G1 (B layer) harness — shared helpers. Local nodes only (anvil); never a public RPC.
 // Spec: docs/design/aoa-balance-mode/D5-plan.md §3.
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -23,7 +23,10 @@ export const ANVIL_KEYS = [
 ];
 
 export function artifact(file, name) {
-    const j = JSON.parse(readFileSync(resolve(ROOT, "out", file, `${name}.json`), "utf8"));
+    // R-AMS-2: a contract compiled under two optimizer settings (compilation_restrictions) is written
+    // as <name>.default.json + <name>.registry-size.json — take the default-settings artifact.
+    const p = resolve(ROOT, "out", file, `${name}.json`);
+    const j = JSON.parse(readFileSync(existsSync(p) ? p : resolve(ROOT, "out", file, `${name}.default.json`), "utf8"));
     return { abi: j.abi, bytecode: j.bytecode.object };
 }
 

@@ -1,0 +1,104 @@
+{
+  "rundler": [
+    [
+      {
+        "address": "token",
+        "slot": "0x527aa9c2f76dc63e08bca98eeb597b188af8edc9ec7c3c95d4fb01c436a76c6a",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      },
+      {
+        "address": "SP",
+        "slot": "0x83aab98880af8097efcd1a943f89fc8459bd7e2837911c16cfec2f2716f59d53",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      }
+    ],
+    [
+      {
+        "address": "token",
+        "slot": "0x527aa9c2f76dc63e08bca98eeb597b188af8edc9ec7c3c95d4fb01c436a76c6a",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      },
+      {
+        "address": "SP",
+        "slot": "0x83aab98880af8097efcd1a943f89fc8459bd7e2837911c16cfec2f2716f59d53",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      }
+    ]
+  ],
+  "alto": [
+    [
+      {
+        "address": "token",
+        "slot": "0x527aa9c2f76dc63e08bca98eeb597b188af8edc9ec7c3c95d4fb01c436a76c6a",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      },
+      {
+        "address": "SP",
+        "slot": "0x83aab98880af8097efcd1a943f89fc8459bd7e2837911c16cfec2f2716f59d53",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      }
+    ],
+    [
+      {
+        "address": "token",
+        "slot": "0x527aa9c2f76dc63e08bca98eeb597b188af8edc9ec7c3c95d4fb01c436a76c6a",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      },
+      {
+        "address": "SP",
+        "slot": "0x83aab98880af8097efcd1a943f89fc8459bd7e2837911c16cfec2f2716f59d53",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      }
+    ]
+  ],
+  "altoMulti": [
+    [
+      {
+        "address": "token",
+        "slot": "0x527aa9c2f76dc63e08bca98eeb597b188af8edc9ec7c3c95d4fb01c436a76c6a",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      },
+      {
+        "address": "SP",
+        "slot": "0x83aab98880af8097efcd1a943f89fc8459bd7e2837911c16cfec2f2716f59d53",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      }
+    ],
+    [
+      {
+        "address": "token",
+        "slot": "0x527aa9c2f76dc63e08bca98eeb597b188af8edc9ec7c3c95d4fb01c436a76c6a",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      },
+      {
+        "address": "SP",
+        "slot": "0x83aab98880af8097efcd1a943f89fc8459bd7e2837911c16cfec2f2716f59d53",
+        "inBundlerWrites": true,
+        "bundlerWriteCount": 1,
+        "inBundlerReads": false
+      }
+    ]
+  ]
+}

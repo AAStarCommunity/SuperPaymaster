@@ -1,0 +1,86 @@
+{
+  "pmVerificationGasLimit": "100000",
+  "label": "rundler-ams-vgl100000",
+  "bundlerUrl": "http://127.0.0.1:18750",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "at": "2026-10-22T14:03:16.724Z",
+  "cases": {
+    "control": {
+      "expected": "accept",
+      "verdict": "accept",
+      "pass": true,
+      "userOpHash": "0x7f6a8c9d6303d74f1f69fa009db1f679b6745a00294c876803b2daf72b33356c",
+      "error": null,
+      "included": {
+        "success": true,
+        "tx": "0x682c4d143f2900fbc425a00d1e18a1cfa38aa81c16ecd18d3c6d7713a62a4195"
+      }
+    },
+    "op011_timestamp": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x97f3cdcb3d860913766674535373d702ed869f36040564e211d9210ca57d7007",
+      "error": {
+        "code": -32502,
+        "message": "paymaster uses banned opcode: TIMESTAMP"
+      },
+      "included": null
+    },
+    "sto031_unstakedOwnStorage": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x5c0eae107d47247d0d7608362e46f32edfd7b12d9be11384c6179de57ceb88f6",
+      "error": {
+        "code": -32500,
+        "message": "validation reverted: ",
+        "data": {
+          "reason": null,
+          "innerReason": null,
+          "revertData": "0x"
+        }
+      },
+      "included": null
+    },
+    "op070_unstakedTstore": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0xf74952b19a707924fc27c6b87e5e7e695e0ee357d2911640f164e0f02c299b3c",
+      "error": {
+        "code": -32502,
+        "message": "entity stake/unstake delay too low",
+        "data": {
+          "needsStake": {
+            "paymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+          },
+          "accessingEntity": "paymaster",
+          "accessedAddress": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
+          "accessedEntity": "paymaster",
+          "slot": "0x0",
+          "minimumStake": "0xde0b6b3a7640000",
+          "minimumUnstakeDelay": "0x15180"
+        }
+      },
+      "included": null
+    },
+    "sto021_stakedExternalWrite": {
+      "expected": "reject",
+      "verdict": "reject",
+      "pass": true,
+      "userOpHash": "0x14ab9c77e65c535bed5534177c47fbd3b33536ad3a32659ec46f846dc998709d",
+      "error": {
+        "code": -32500,
+        "message": "validation reverted: ",
+        "data": {
+          "reason": null,
+          "innerReason": null,
+          "revertData": "0x"
+        }
+      },
+      "included": null
+    }
+  },
+  "allPass": true
+}
