@@ -1,0 +1,27 @@
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B7_bundle_accounting() (gas: 4732500)
+Logs:
+  R2A|B7.balance_user_writes_0.actualGasUsed(PVG=0)|542553
+  R2A|B7.balance_user_writes_0.handleOps_frame_gas|397725
+  R2A|B7.balance_user_writes_0.actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed)|144828
+  R2A|B7.balance_user_writes_0.success|1
+  R2A|B7.balance_user_writes_0.prefundTooLow|0
+  R2A|B7.balance_user_writes_1.actualGasUsed(PVG=0)|564647
+  R2A|B7.balance_user_writes_1.handleOps_frame_gas|422461
+  R2A|B7.balance_user_writes_1.actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed)|142186
+  R2A|B7.balance_user_writes_1.success|1
+  R2A|B7.balance_user_writes_1.prefundTooLow|0
+  R2A|B7.balance_user_writes_2.actualGasUsed(PVG=0)|584691
+  R2A|B7.balance_user_writes_2.handleOps_frame_gas|444779
+  R2A|B7.balance_user_writes_2.actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed)|139912
+  R2A|B7.balance_user_writes_2.success|1
+  R2A|B7.balance_user_writes_2.prefundTooLow|0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 10.22ms (8.62ms CPU time)
+
+Ran 1 test suite in 14.04ms (10.22ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

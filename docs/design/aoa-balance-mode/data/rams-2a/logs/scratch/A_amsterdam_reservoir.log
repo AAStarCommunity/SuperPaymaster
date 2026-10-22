@@ -1,0 +1,62 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirNoCheat
+[PASS] test_A6_reservoir_no_cheatcode() (gas: 1057139239)
+Logs:
+  R2A|A6.own fresh SSTORE gasleft delta|12169
+  R2A|A6.child 0->x caller delta|12985
+  R2A|A6.child x->0 restore caller delta (neg=gasleft rose)|991
+  R2A|A6.child fresh SSTORE {gas:30000} ok|1
+  R2A|A6.child fresh SSTORE {gas:100000} ok|1
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 678.65µs (160.22µs CPU time)
+
+Ran 3 tests for contracts/test/zz_rams2a/Rams2a.t.sol:R2aGasleftProbe
+[PASS] test_A1_gasleft_across_set_then_restore() (gas: 1056990654)
+Logs:
+  R2A|A1.set_one_fresh_slot.caller_gas_consumed|13036
+  R2A|A1.restore_same_slot.caller_gas_consumed(neg=gasleft_rose)|1069
+
+[PASS] test_A2_restore_from_non_spilling_intermediate() (gas: 1057007252)
+Logs:
+  R2A|A2.intermediate_frame_delta_restoring_3_slots(neg=gasleft_rose)|1223
+
+[PASS] test_A3_state_gas_vs_call_gas_limit() (gas: 1057449993)
+Logs:
+  R2A|A3.one_fresh_sstore_with_call_gas_25000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_25000.caller_delta|12659
+  R2A|A3.one_fresh_sstore_with_call_gas_30000.ok|0
+  R2A|A3.one_fresh_sstore_with_call_gas_30000.caller_delta|30196
+  R2A|A3.one_fresh_sstore_with_call_gas_50000.ok|0
+  R2A|A3.one_fresh_sstore_with_call_gas_50000.caller_delta|50196
+  R2A|A3.one_fresh_sstore_with_call_gas_100000.ok|0
+  R2A|A3.one_fresh_sstore_with_call_gas_100000.caller_delta|100196
+  R2A|A3.one_fresh_sstore_with_call_gas_125000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_125000.caller_delta|110579
+  R2A|A3.one_fresh_sstore_with_call_gas_150000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_150000.caller_delta|110579
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 882.67µs (537.70µs CPU time)
+
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirCheatcode
+[PASS] test_A5_reservoir_vs_cheatcode() (gas: 1057220021)
+Logs:
+  R2A|A5.sstore_gas_before_cheatcode|12128,12125
+  R2A|A5.sstore_gas_after_one_cheatcode_call|110048,110048
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 211.05µs (97.85µs CPU time)
+
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirSize
+[FAIL: EvmError: OutOfGas] test_A4_reservoir_size() (gas: 16762164)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 3.08ms (3.00ms CPU time)
+
+Ran 4 test suites in 16.52ms (4.86ms CPU time): 5 tests passed, 1 failed, 0 skipped (6 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirSize
+[FAIL: EvmError: OutOfGas] test_A4_reservoir_size() (gas: 16762164)
+
+Encountered a total of 1 failing tests, 5 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

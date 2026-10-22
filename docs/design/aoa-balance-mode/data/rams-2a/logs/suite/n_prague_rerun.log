@@ -1,0 +1,92 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/scripts/DeployAPNTsCapped.t.sol:DeployAPNTsCappedTest
+[SKIP: skipped] setUp() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 1 skipped; finished in 1.42ms (0.00ns CPU time)
+
+Ran 7 tests for contracts/test/tokens/APNTsCappedSPIntegration.t.sol:APNTsCappedSPIntegrationTest
+[PASS] test_SP_depositFor() (gas: 151051)
+[PASS] test_SP_deposit_approve_pull() (gas: 149347)
+[PASS] test_SP_deposit_transferAndCall_push() (gas: 166889)
+[PASS] test_SP_gasless_balance_mode_op_conservation() (gas: 610930)
+[PASS] test_SP_initialised_with_APNTsCapped() (gas: 18653)
+[PASS] test_SP_withdraw() (gas: 160174)
+[PASS] test_SP_withdrawProtocolRevenue_after_ops() (gas: 799953)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 13.62ms (3.57ms CPU time)
+
+Ran 1 test for contracts/test/scripts/CheckDefaultArtifacts.t.sol:CheckDefaultArtifactsTest
+[SKIP: skipped] setUp() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 1 skipped; finished in 680.85µs (0.00ns CPU time)
+
+Ran 2 tests for contracts/test/halmos/D5c1Replay.t.sol:D5c1PrimingTest
+[PASS] test_D5c1_priming_creditMakesExactlyTheRecordLive() (gas: 295626)
+[PASS] test_D5c1_priming_lockMakesExactlyTheRecordLive() (gas: 155978)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.35ms (925.90µs CPU time)
+
+Ran 16 tests for contracts/test/halmos/D5c1Replay.t.sol:D5c1ReplayTest
+[PASS] test_D5c1_A3_scenario_spCannotMoveUserTokens() (gas: 3442891)
+[PASS] test_D5c1_A3_scenario_spFirewallBits() (gas: 3472358)
+[PASS] test_D5c1_CAP1_scenario_mintBeyondCapReverts() (gas: 69010)
+[PASS] test_D5c1_DISCREPANCY_A3_2_spBurnsOwnBalance() (gas: 3587922)
+[PASS] test_D5c1_I2_scenario_lockBeyondSpCapRejected() (gas: 3451148)
+[PASS] test_D5c1_I4B_scenario_transferBelowLockedRejected() (gas: 3512748)
+[PASS] test_D5c1_I6_scenario_reservationBoundedByRequestedCap() (gas: 3592767)
+[PASS] test_D5c1_REGRESSION_F1_maxRateMaxLockIsExact() (gas: 564832)
+[PASS] test_D5c1_REGRESSION_F1_rateOutOfRangeRejectedAtInit() (gas: 251715)
+[PASS] test_D5c1_layout_allowancesSlotAndInitSlot() (gas: 40858)
+[PASS] test_D5c1_layout_snapshotMatchesGetters() (gas: 3915162)
+[PASS] test_D5c1_replay_I2_transferFrom_wrapNeedsUnreachableState() (gas: 3398485)
+[PASS] test_D5c1_selectorListMatchesArtifacts() (gas: 9137244)
+[PASS] test_D5c1_witness_creditReserveThenSettle() (gas: 3624660)
+[PASS] test_D5c1_witness_meteredPull() (gas: 3711110)
+[PASS] test_D5c1_witness_spRenewLockThenSettle() (gas: 3586237)
+Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 1.10s (69.96ms CPU time)
+
+Ran 27 tests for contracts/test/v2/SuperPaymasterV55Adversarial.t.sol:SuperPaymasterV55AdversarialTest
+[PASS] test_R13_repeated_pulls_bounded_by_caps() (gas: 1028394)
+[PASS] test_R13_revocation_user_disable_and_emergency_reject_via_entrypoint() (gas: 807328)
+[PASS] test_R13_sp_replacement_pending_cannot_lock_old_sp_fails_closed() (gas: 740649)
+[PASS] test_R13_stolen_owner_cannot_take_user_funds() (gas: 1010841)
+[PASS] test_RouteA_maxCost_above_auto_cap_rejected_not_truncated() (gas: 1193011)
+[PASS] test_RouteA_maxCost_above_single_tx_limit_rejected_not_truncated() (gas: 952788)
+[PASS] test_RouteA_self_drain_blocked_by_escrow_user_still_pays() (gas: 1647741)
+[PASS] test_TR1401_sybil_each_account_pays_own_lock_unbacked_zero_flat_in_N() (gas: 5248369)
+[PASS] test_TR1402_same_account_multi_nonce_keys_kth_rejected_when_free_balance_below_x0() (gas: 2642452)
+[PASS] test_TR1403_stale_blacklist_admitted_ops_settle_new_op_rejected() (gas: 1031567)
+[PASS] test_TR1404_user_execution_revert_still_pays_and_clears_lock() (gas: 685311)
+[PASS] test_TR1405_postOp_revert_undoes_execution_operator_loss_le_a0_attacker_gain_zero() (gas: 1217509)
+[PASS] test_TR1406_credit_off_debts_never_increase_on_any_path() (gas: 1552234)
+[PASS] test_TR1407_bundler_gas_sweep_never_keeps_unpaid_execution() (gas: 47085202)
+Logs:
+  bundler gas sweep: reverted / executed+settled / postOp-undone 40 91 0
+
+[PASS] test_TR1407_direct_postOp_gas_sweep_returns_only_when_settled() (gas: 44950596)
+Logs:
+  direct postOp sweep: guard / other-revert / ok / min ok gas 108 0 73
+  min successful postOp gas 168000
+
+[PASS] test_TR1407_postOpGasLimit_sweep_via_entrypoint() (gas: 3264977)
+[PASS] test_TR1408_credit_bundle_over_cap_kth_rejected_at_validation() (gas: 2607974)
+[PASS] test_abi_fixture_matches_compiled_token_and_has_no_3x_debt_selectors() (gas: 43340251)
+[PASS] test_maliciousSP_current_calls_every_selector() (gas: 317200074)
+Logs:
+  functions in ABI 148
+  probes 1599
+
+[PASS] test_maliciousSP_historical_calls_every_selector() (gas: 314879113)
+Logs:
+  functions in ABI 148
+  probes 1599
+
+[PASS] test_maliciousSP_reserve_then_direct_debt_then_settle() (gas: 776076)
+[PASS] test_migration_legacy3x_token_operator_gets_sigFail_AA34_not_AA33() (gas: 1088637)
+[PASS] test_routing_invalid_renewal_never_falls_back_to_credit() (gas: 570393)
+[PASS] test_sweep_encoder_matches_abi_encode() (gas: 13583555)
+[PASS] test_token_malformed_credit_returns_get_sigFail_not_revert() (gas: 526974)
+[PASS] test_token_malformed_success_returns_get_sigFail_not_revert() (gas: 736639)
+[PASS] test_token_without_exchangeRate_gets_sigFail_not_revert() (gas: 381823)
+Suite result: ok. 27 passed; 0 failed; 0 skipped; finished in 2.89s (7.71s CPU time)
+
+Ran 6 test suites in 2.90s (4.01s CPU time): 52 tests passed, 0 failed, 2 skipped (54 total tests)

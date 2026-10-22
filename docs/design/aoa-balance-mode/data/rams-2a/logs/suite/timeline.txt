@@ -1,0 +1,27 @@
+[2026-10-22T15:02:57Z] start n_prague: /tmp/fd/nightly/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague
+[2026-10-22T15:16:46Z] end n_prague exit=1 secs=829
+[2026-10-22T15:16:46Z] start n_amsterdam: /tmp/fd/nightly/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague --hardfork amsterdam
+[2026-10-22T15:17:56Z] end n_amsterdam exit=1 secs=70
+[2026-10-22T15:17:56Z] start n_cancun: /tmp/fd/nightly/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv 
+[2026-10-22T15:30:52Z] end n_cancun exit=1 secs=776
+[2026-10-22T15:30:52Z] start d_171_cancun: /tmp/fd/v1.7.1/forge test --offline  --fuzz-seed 0x5eed -vv 
+[2026-10-22T15:43:56Z] end d_171_cancun exit=1 secs=784
+DONE
+[2026-10-22T15:44:31Z] start n_prague_rerun: /tmp/fd/nightly/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --match-path 'contracts/test/{halmos/D5c1Replay.t.sol,scripts/CheckDefaultArtifacts.t.sol,scripts/DeployAPNTsCapped.t.sol,tokens/APNTsCappedSPIntegration.t.sol,v2/SuperPaymasterV55Adversarial.t.sol}' --evm-version prague
+[2026-10-22T15:44:34Z] end n_prague_rerun exit=0
+[2026-10-22T15:44:34Z] start n_amsterdam_rerun: /tmp/fd/nightly/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --match-path 'contracts/test/{halmos/D5c1Replay.t.sol,scripts/CheckDefaultArtifacts.t.sol,scripts/DeployAPNTsCapped.t.sol,tokens/APNTsCappedSPIntegration.t.sol,v2/SuperPaymasterV55Adversarial.t.sol}' --evm-version prague --hardfork amsterdam
+[2026-10-22T15:44:37Z] end n_amsterdam_rerun exit=1
+[2026-10-22T15:44:37Z] start n_cancun_rerun: /tmp/fd/nightly/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --match-path 'contracts/test/{halmos/D5c1Replay.t.sol,scripts/CheckDefaultArtifacts.t.sol,scripts/DeployAPNTsCapped.t.sol,tokens/APNTsCappedSPIntegration.t.sol,v2/SuperPaymasterV55Adversarial.t.sol}' 
+[2026-10-22T15:44:41Z] end n_cancun_rerun exit=0
+[2026-10-22T15:44:41Z] start d_171_cancun_rerun: /tmp/fd/v1.7.1/forge test --offline  --fuzz-seed 0x5eed -vv --match-path 'contracts/test/{halmos/D5c1Replay.t.sol,scripts/CheckDefaultArtifacts.t.sol,scripts/DeployAPNTsCapped.t.sol,tokens/APNTsCappedSPIntegration.t.sol,v2/SuperPaymasterV55Adversarial.t.sol}' 
+[2026-10-22T15:44:44Z] end d_171_cancun_rerun exit=0
+RERUN_DONE
+[2026-10-22T15:45:00Z] start v186_prague: /tmp/fd/v1.8.6/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague
+[2026-10-22T15:57:27Z] end v186_prague exit=1
+[2026-10-22T15:57:27Z] start v186_amsterdam: /tmp/fd/v1.8.6/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague --hardfork amsterdam
+[2026-10-22T15:58:35Z] end v186_amsterdam exit=1
+[2026-10-22T15:58:35Z] start v186_prague_rerun: /tmp/fd/v1.8.6/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague --match-path contracts/test/{halmos/D5c1Replay.t.sol,scripts/CheckDefaultArtifacts.t.sol,scripts/DeployAPNTsCapped.t.sol,tokens/APNTsCappedSPIntegration.t.sol,v2/SuperPaymasterV55Adversarial.t.sol}
+[2026-10-22T15:58:40Z] end v186_prague_rerun exit=0
+[2026-10-22T15:58:40Z] start v186_amsterdam_rerun: /tmp/fd/v1.8.6/forge test --offline --no-isolate --fuzz-seed 0x5eed -vv --evm-version prague --hardfork amsterdam --match-path contracts/test/{halmos/D5c1Replay.t.sol,scripts/CheckDefaultArtifacts.t.sol,scripts/DeployAPNTsCapped.t.sol,tokens/APNTsCappedSPIntegration.t.sol,v2/SuperPaymasterV55Adversarial.t.sol}
+[2026-10-22T15:58:43Z] end v186_amsterdam_rerun exit=1
+V186_DONE

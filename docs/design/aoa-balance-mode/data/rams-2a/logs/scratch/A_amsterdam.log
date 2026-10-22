@@ -1,0 +1,59 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirNoCheat
+[PASS] test_A6_reservoir_no_cheatcode() (gas: 2989523)
+Logs:
+  R2A|A6.own fresh SSTORE gasleft delta|110089
+  R2A|A6.child 0->x caller delta|110905
+  R2A|A6.child x->0 restore caller delta (neg=gasleft rose)|-96929
+  R2A|A6.child fresh SSTORE {gas:30000} ok|0
+  R2A|A6.child fresh SSTORE {gas:100000} ok|0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 355.00µs (181.20µs CPU time)
+
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirSize
+[PASS] test_A4_reservoir_size() (gas: 121987)
+Logs:
+  R2A|A4.fresh_sstores_paid_from_reservoir|0
+  R2A|A4.reservoir_lower_bound_gas(=count*97920)|0
+  R2A|A4.first_spilling_sstore_index|1
+  R2A|A4.gasleft_at_end|1073606195
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 175.57µs (48.76µs CPU time)
+
+Ran 3 tests for contracts/test/zz_rams2a/Rams2a.t.sol:R2aGasleftProbe
+[PASS] test_A1_gasleft_across_set_then_restore() (gas: 608976)
+Logs:
+  R2A|A1.set_one_fresh_slot.caller_gas_consumed|110956
+  R2A|A1.restore_same_slot.caller_gas_consumed(neg=gasleft_rose)|-96851
+
+[PASS] test_A2_restore_from_non_spilling_intermediate() (gas: 1327844)
+Logs:
+  R2A|A2.intermediate_frame_delta_restoring_3_slots(neg=gasleft_rose)|1223
+
+[PASS] test_A3_state_gas_vs_call_gas_limit() (gas: 1783122)
+Logs:
+  R2A|A3.one_fresh_sstore_with_call_gas_25000.ok|0
+  R2A|A3.one_fresh_sstore_with_call_gas_25000.caller_delta|25196
+  R2A|A3.one_fresh_sstore_with_call_gas_30000.ok|0
+  R2A|A3.one_fresh_sstore_with_call_gas_30000.caller_delta|30196
+  R2A|A3.one_fresh_sstore_with_call_gas_50000.ok|0
+  R2A|A3.one_fresh_sstore_with_call_gas_50000.caller_delta|50196
+  R2A|A3.one_fresh_sstore_with_call_gas_100000.ok|0
+  R2A|A3.one_fresh_sstore_with_call_gas_100000.caller_delta|100196
+  R2A|A3.one_fresh_sstore_with_call_gas_125000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_125000.caller_delta|110579
+  R2A|A3.one_fresh_sstore_with_call_gas_150000.ok|1
+  R2A|A3.one_fresh_sstore_with_call_gas_150000.caller_delta|110579
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 673.83µs (488.06µs CPU time)
+
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aReservoirCheatcode
+[PASS] test_A5_reservoir_vs_cheatcode() (gas: 451253)
+Logs:
+  R2A|A5.sstore_gas_before_cheatcode|110048,110045
+  R2A|A5.sstore_gas_after_one_cheatcode_call|110048,110048
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 122.03µs (51.74µs CPU time)
+
+Ran 4 test suites in 13.80ms (1.33ms CPU time): 6 tests passed, 0 failed, 0 skipped (6 total tests)

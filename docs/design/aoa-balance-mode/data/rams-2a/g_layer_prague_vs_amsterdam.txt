@@ -1,11 +1,4 @@
 key                                                             | A_prague.log | A_amsterdam.log | A_amsterdam_reservoir.log
-A5.sstore_gas_before_cheatcode                                  | 22128,22125 | 110048,110045 | 12128,12125
-A5.sstore_gas_after_one_cheatcode_call                          | 22128,22128 | 110048,110048 | 110048,110048
-A6.own fresh SSTORE gasleft delta                               | 22169 | 110089 | 12169
-A6.child 0->x caller delta                                      | 22885 | 110905 | 12985
-A6.child x->0 restore caller delta (neg=gasleft rose)           | 891 | -96929 | 991
-A6.child fresh SSTORE {gas:30000} ok                            | 1 | 0 | 1
-A6.child fresh SSTORE {gas:100000} ok                           | 1 | 0 | 1
 A1.set_one_fresh_slot.caller_gas_consumed                       | 22936 | 110956 | 13036
 A1.restore_same_slot.caller_gas_consumed(neg=gasleft_rose)      | 969 | -96851 | 1069
 A2.intermediate_frame_delta_restoring_3_slots(neg=gasleft_rose) | 1223 | 1223 | 1223
@@ -21,6 +14,13 @@ A3.one_fresh_sstore_with_call_gas_125000.ok                     | 1 | 1 | 1
 A3.one_fresh_sstore_with_call_gas_125000.caller_delta           | 22659 | 110579 | 110579
 A3.one_fresh_sstore_with_call_gas_150000.ok                     | 1 | 1 | 1
 A3.one_fresh_sstore_with_call_gas_150000.caller_delta           | 22659 | 110579 | 110579
+A5.sstore_gas_before_cheatcode                                  | 22128,22125 | 110048,110045 | 12128,12125
+A5.sstore_gas_after_one_cheatcode_call                          | 22128,22128 | 110048,110048 | 110048,110048
+A6.own fresh SSTORE gasleft delta                               | 22169 | 110089 | 12169
+A6.child 0->x caller delta                                      | 22885 | 110905 | 12985
+A6.child x->0 restore caller delta (neg=gasleft rose)           | 891 | -96929 | 991
+A6.child fresh SSTORE {gas:30000} ok                            | 1 | 0 | 1
+A6.child fresh SSTORE {gas:100000} ok                           | 1 | 0 | 1
 A4.fresh_sstores_paid_from_reservoir                            | 20000 | 0 | —
 A4.reservoir_lower_bound_gas(=count*97920)                      | 1958400000 | 0 | —
 A4.first_spilling_sstore_index                                  | 0 | 1 | —
@@ -611,4 +611,3 @@ C.wrap.bundle_pos_0             | 1770 | 1870
 C.wrap.bundle_pos_1             | 1770 | 1870
 C.wrap.bundle_pos_2             | 1770 | 1870
 C.wrap.bundle_pos_3             | 1770 | 1870
-

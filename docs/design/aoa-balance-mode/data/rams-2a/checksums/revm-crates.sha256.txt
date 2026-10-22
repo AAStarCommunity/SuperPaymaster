@@ -1,0 +1,4 @@
+# crates.io .crate sha256 for revm source read in §3 (compare: nightly Cargo.lock checksums)
+3068385c68f6a3bd2e781dd81cefd25c98dd0a574de6c8ec2a90acc33318b2da  revm-context-interface-43.0.2.crate
+ba5102e9c02b9d27e7c98f449b495a2c2b2ec011209f4eeca16e054520ec5ac4  revm-handler-43.0.3.crate
+aa32f5099a266329d1869d6f9bf4bb7894345d2b58c57d05396f67385d65f299  revm-interpreter-43.0.2.crate
