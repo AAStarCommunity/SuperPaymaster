@@ -690,13 +690,16 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 
 ### 10.8b R-AMS：Amsterdam（EIP-8037/8038）的前向兼容风险（v3.9，D5 B0 发现）
 
+> **R-AMS 更新（2026-10-22，CC-125 cfa29193 / DSR d13dd9eb）**：下一段「都在 Osaka」**对 Sepolia 已不成立**。Sepolia 于 **2026-10-06 13:53:36 UTC**（activationTime 1791294816，forkId `0x6c1d9423`）启用 Amsterdam（Glamsterdam 执行层，含 ePBS 系统合约与 EIP-8037/8038）。三端点（reth v2.7 / reth v2.8 / Tenderly）同块读回与 A3a S1–S3 估算见 `data/rams/capture-11969744.json`；与 Amsterdam 匹配的本地引擎验证见 `data/rams/README.md`。OP 主网 / OP Sepolia 须各自核，不从 Sepolia 外推。
 当前目标链（Sepolia、OP 主网、OP Sepolia）都在 Osaka（证据见 `b-layer/README.md` §0）。一旦 Amsterdam 在某条目标链上激活，EIP-8037（state-gas 计量）和 EIP-8038（state 访问重新定价）会让 SSTORE、SLOAD、CALL 变贵。在 geth 的 Amsterdam 级 dev 链上已经实测到：验证期写一个新槽，会耗尽 100k 的 paymaster 验证 gas。影响如下：
 - 验证期写入（锁记录、预留、在途记录，都是从零写成非零）→ `paymasterVerificationGasLimit` 要调高（SDK 侧）。
 - **（v4.0 更新）Part B 合入之后，`SETTLE_GAS_BOUND`（默认 160k）、`MIN_POST_OP_GAS`（默认 200k）以及 `C_POSTOP`、`C_WRAP` 是有硬边界的治理参数**（§10.7b GOV-5：SETTLE ∈ [155k, 1M]，MIN ∈ [SETTLE + 20k, 2M]，C_POSTOP ∈ [175k, MIN]，C_WRAP ∈ [5k, 50k]），不再是写死在字节码里的常量；但默认值和硬边界本身仍在字节码里。在 Amsterdam 下它们可能不够用，不够时 postOp 会 revert，也就是 I10 情形：用户的执行被撤销、没有损失，但赞助不可用。（Part B 合入之前，即 `cbcb7045` 的 5.5.0，它们仍是字节码常量：`SuperPaymaster.sol:107`、`:124`。）
 - **调整时效**：GOV-1 之后，经治理调整参数要 **≥ 96h**（timelock 48h + SP 内部参数队列 48h，计划 §8.2 第 6 条；有意的纵深防御，不改）。这个时效写进论文的 limitations。**所需的值超出硬上界**（或者 Amsterdam 让 W_postop、wrap 上升到需要提高硬下限，见实验报告 B2 §2 的 R-AMS 注）时，仍然只能通过 SP 的 UUPS 升级（GOV-1 之后同样经 48h timelock，并遵守 C2）。
 - **触发条件（可检查）**：任何一条目标链公布了 Amsterdam 的激活时间 → 在 Amsterdam 级的链上重跑 G 层（T-R14-09、no-OOG 扫描、C_WRAP）和 B 层 → 如果当前参数不够，在硬边界内的，走 `queueGasParams` → `executeGasParams`（≥ 96h）；超出硬边界的，走 UUPS 升级；两种情况都同步更新 SDK 的 gas 取值。由于调整至少要 96h，重测必须在激活时间之前至少留出这段时间（再加上 UUPS 路径所需的开发与复核时间）。
 - **上线前检查（runbook 第 0 步的附加项）**：用 `eth_config` 读目标链的 `current` 和 `next` fork（如果链不开放 `eth_config`，就用该链官方公布的升级时间表，外加 opcode 探针）。**`next` 是 Amsterdam，或者已经启用了 EIP-8037/8038，就阻塞上线**，先完成上一条的重测。
+  - **R-AMS 更新（2026-10-22）**：此检查在 A3a 预检包 v2/v3/v4 中**均未执行**，三包的 fork 演练使用 forge 1.7.1 anvil 默认（非 Amsterdam）规则，gas 与「演练通过」结论对当前 Sepolia 无效（`../../release/a3a-packets-RAMS-INVALIDATION.md`）。今后任何链上执行与 fork 演练：先双端读 `eth_config`，并用经 `script/evidence/rams-engine-probe.py` 证明与目标链逐项一致的引擎（Sepolia 当前：foundry nightly `926eb1d`，anvil 1.8.7-nightly；1.8.6 稳定版的 CREATE 状态 gas 少计约 183,600，不可用）。
 - 论文口径：所有测量都注明硬分叉层级（Osaka + BPO2），R-AMS 写进 limitations 和前向风险（DSR 负责）。
+  - **R-AMS 更新（2026-10-22）**：Sepolia 自 2026-10-06 起为 Amsterdam；此前测量注明 Osaka + BPO2 仍对应其测量时的规则，但不得再作为当前 Sepolia 部署适用性证据（DSR d13dd9eb：A2 部署适用性 HOLD-R-AMS）。
 
 ### 10.8c 产品上线审计闸门（v4.0 新增；内容来自原 §10.8 AUD-1…AUD-4 与 §11.1 R10-M5）
 
