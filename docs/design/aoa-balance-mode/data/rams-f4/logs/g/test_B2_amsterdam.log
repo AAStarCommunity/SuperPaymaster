@@ -1,0 +1,30 @@
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B2_postop_segment_at_entrypoint() (gas: 166593778)
+Logs:
+  R2A|B2.balance_first_op.F_real|1239728
+  R2A|B2.balance_first_op.F_postOpMocked|1080332
+  R2A|B2.balance_first_op.W_postop_EP(=(F_real-F_mocked)*10/9)|177106
+  R2A|B2.balance_first_op.real.success|1
+  R2A|B2.balance_first_op.real.postOpReverted|0
+  R2A|B2.balance_first_op.real.prefundTooLow|0
+  R2A|B2.credit_first_op.F_real|1126508
+  R2A|B2.credit_first_op.F_postOpMocked|875220
+  R2A|B2.credit_first_op.W_postop_EP(=(F_real-F_mocked)*10/9)|279208
+  R2A|B2.credit_first_op.real.success|1
+  R2A|B2.credit_first_op.real.postOpReverted|0
+  R2A|B2.credit_first_op.real.prefundTooLow|0
+  R2A|B2.balance_first_op_user_writes_1.F_real|1540891
+  R2A|B2.balance_first_op_user_writes_1.F_postOpMocked|1381495
+  R2A|B2.balance_first_op_user_writes_1.W_postop_EP(=(F_real-F_mocked)*10/9)|177106
+  R2A|B2.balance_first_op_user_writes_1.real.success|1
+  R2A|B2.balance_first_op_user_writes_1.real.postOpReverted|0
+  R2A|B2.balance_first_op_user_writes_1.real.prefundTooLow|0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 15.69ms (13.96ms CPU time)
+
+Ran 1 test suite in 16.34ms (15.69ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

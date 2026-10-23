@@ -1,0 +1,52 @@
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 16.55s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_F2_matrix() (gas: 936716227)
+Logs:
+  R2A|F2.freshSP.balance.first_op_of_sender.min_v|129390
+  R2A|F2.freshSP.balance.first_op_of_sender.min_call(=lower bound)|1000
+  R2A|F2.freshSP.balance.first_op_of_sender.min_pmV|882348
+  R2A|F2.freshSP.balance.first_op_of_sender.min_pmP(=lower bound)|440000
+  R2A|F2.freshSP.credit.first_op_of_sender.min_v|129390
+  R2A|F2.freshSP.credit.first_op_of_sender.min_call(=lower bound)|1000
+  R2A|F2.freshSP.credit.first_op_of_sender.min_pmV|695036
+  R2A|F2.freshSP.credit.first_op_of_sender.min_pmP(=lower bound)|440000
+  R2A|F2.freshSP.balance.SP_RENEW.first_op_of_sender.min_v|129390
+  R2A|F2.freshSP.balance.SP_RENEW.first_op_of_sender.min_call(=lower bound)|1000
+  R2A|F2.freshSP.balance.SP_RENEW.first_op_of_sender.min_pmV|998847
+  R2A|F2.freshSP.balance.SP_RENEW.first_op_of_sender.min_pmP(=lower bound)|440000
+  R2A|F2.warmup_op.success|1
+  R2A|F2.warmSP.balance.first_op_of_sender.min_v|129390
+  R2A|F2.warmSP.balance.first_op_of_sender.min_call(=lower bound)|1000
+  R2A|F2.warmSP.balance.first_op_of_sender.min_pmV|784428
+  R2A|F2.warmSP.balance.first_op_of_sender.min_pmP(=lower bound)|440000
+  R2A|F2.warmSP.credit.first_op_of_sender.min_v|129390
+  R2A|F2.warmSP.credit.first_op_of_sender.min_call(=lower bound)|1000
+  R2A|F2.warmSP.credit.first_op_of_sender.min_pmV|597116
+  R2A|F2.warmSP.credit.first_op_of_sender.min_pmP(=lower bound)|440000
+  R2A|F2.warmSP.balance.SP_RENEW.first_op_of_sender.min_v|129390
+  R2A|F2.warmSP.balance.SP_RENEW.first_op_of_sender.min_call(=lower bound)|1000
+  R2A|F2.warmSP.balance.SP_RENEW.first_op_of_sender.min_pmV|900927
+  R2A|F2.warmSP.balance.SP_RENEW.first_op_of_sender.min_pmP(=lower bound)|440000
+  R2A|F2.warmSP.balance.second_op_of_sender.v.fails_at_hi|5000000
+  R2A|F2.warmSP.balance.second_op_of_sender.call.fails_at_hi|5000000
+  R2A|F2.warmSP.balance.second_op_of_sender.pmV.fails_at_hi|5000000
+  R2A|F2.warmSP.balance.second_op_of_sender.pmP.fails_at_hi|5000000
+  R2A|F2.warmSP.balance.second_op_of_sender_after_61s.min_v|31470
+  R2A|F2.warmSP.balance.second_op_of_sender_after_61s.min_call(=lower bound)|1000
+  R2A|F2.warmSP.balance.second_op_of_sender_after_61s.min_pmV|588697
+  R2A|F2.warmSP.balance.second_op_of_sender_after_61s.min_pmP(=lower bound)|440000
+  R2A|F2.warmSP.balance.initCode_first_op.min_v|823722
+  R2A|F2.warmSP.balance.initCode_first_op.min_call(=lower bound)|1000
+  R2A|F2.warmSP.balance.initCode_first_op.min_pmV|784445
+  R2A|F2.warmSP.balance.initCode_first_op.min_pmP(=lower bound)|440000
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 484.63ms (482.93ms CPU time)
+
+Ran 1 test suite in 485.67ms (484.63ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

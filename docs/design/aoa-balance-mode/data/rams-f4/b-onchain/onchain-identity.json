@@ -1,0 +1,1282 @@
+{
+ "rpc": "http://127.0.0.1:18845",
+ "deployPath": "/home/user/SuperPaymaster/docs/design/aoa-balance-mode/data/rams-f4/b-onchain/deploy.json",
+ "setupPath": "/home/user/SuperPaymaster/docs/design/aoa-balance-mode/data/rams-f4/b-onchain/setup.json",
+ "identityPath": "docs/design/aoa-balance-mode/data/rams-f4/identity-rc4-forge171-default.json",
+ "rows": [
+  {
+   "label": "deploy.aPNTs",
+   "address": "0x6D544390Eb535d61e196c87d6B9c80dCD8628Acd",
+   "codeBytes": 45,
+   "codeKeccak": "0x23a89fa44a1642fd8b26ecb9b860e54ede1a270a70f00307219372529ee0d81b",
+   "eip1167CloneOf": "0xd8058efe0198ae9dd7d563e1b4938dcbc86a1f81",
+   "matches": []
+  },
+  {
+   "label": "deploy.aoaProtocolRegistry",
+   "address": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
+   "codeBytes": 2746,
+   "codeKeccak": "0x14b95e6c2b6630b835f4253ac5d667980288de98461dcda9580e25df78fb5551",
+   "matches": [
+    {
+     "target": "AOAProtocolRegistry.sol:AOAProtocolRegistry",
+     "artifact": "AOAProtocolRegistry.sol/AOAProtocolRegistry.json",
+     "exactRuntimeEqual": true,
+     "immutables": []
+    }
+   ]
+  },
+  {
+   "label": "deploy.entryPoint",
+   "address": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+   "codeBytes": 16035,
+   "codeKeccak": "0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58",
+   "canonicalEntryPointV07": true,
+   "matches": []
+  },
+  {
+   "label": "deploy.gToken",
+   "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+   "codeBytes": 6096,
+   "codeKeccak": "0x5a124e23fe95f79cad31a76f3f90a46787e0510e3281b5bc95de7396f360975e",
+   "matches": []
+  },
+  {
+   "label": "deploy.globalTierSource",
+   "address": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
+   "codeBytes": 542,
+   "codeKeccak": "0xceb60db3f91306d011c3d334f368860cb9bce7b4f42928fd371c6b80371c89f0",
+   "matches": [
+    {
+     "target": "GlobalTierSource.sol:GlobalTierSource",
+     "artifact": "GlobalTierSource.sol/GlobalTierSource.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 142,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 471,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "deploy.operator",
+   "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+   "codeBytes": 0,
+   "codeKeccak": null,
+   "note": "no code (EOA or not deployed yet)"
+  },
+  {
+   "label": "deploy.operatorToken",
+   "address": "0xF1823bc4243b40423b8C8c3F6174e687a4C690b8",
+   "codeBytes": 45,
+   "codeKeccak": "0x995780f30e029cbe8baa247dea6939db843061c5b9d38244a3c9d167d283d384",
+   "eip1167CloneOf": "0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1",
+   "matches": []
+  },
+  {
+   "label": "deploy.priceFeed",
+   "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+   "codeBytes": 142,
+   "codeKeccak": "0xae162f985cabb38ffc48a1f2d76397ef64831115923c9f3020b69d672e12391b",
+   "matches": []
+  },
+  {
+   "label": "deploy.registry",
+   "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+   "codeBytes": 89,
+   "codeKeccak": "0xf83adf10f05f94fef4ed0a49925b1677b93b1b2ee0af655887d4d4f6d6937604",
+   "matches": [
+    {
+     "target": "ERC1967Proxy.sol:ERC1967Proxy",
+     "artifact": "ERC1967Proxy.sol/ERC1967Proxy.registry-size.json",
+     "exactRuntimeEqual": true,
+     "immutables": []
+    }
+   ],
+   "erc1967Implementation": {
+    "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+    "codeBytes": 23306,
+    "codeKeccak": "0x405d0f74d10bd6115562d55c3dab8421131dbebeb6f2768410702fd4a876b080",
+    "matches": [
+     {
+      "target": "Registry.sol:Registry",
+      "artifact": "Registry.sol/Registry.json",
+      "exactRuntimeEqual": false,
+      "immutables": [
+       {
+        "start": 14470,
+        "length": 32,
+        "value": "0x000000000000000000000000e7f1725e7734ce288f8367e1bb143e90bb3f0512"
+       },
+       {
+        "start": 14735,
+        "length": 32,
+        "value": "0x000000000000000000000000e7f1725e7734ce288f8367e1bb143e90bb3f0512"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "label": "deploy.sbt",
+   "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+   "codeBytes": 12093,
+   "codeKeccak": "0xaf2e0ffa248fdc1ec923957b42035407047de0f5f191270492d2515c6452ce39",
+   "matches": [
+    {
+     "target": "MySBT.sol:MySBT",
+     "artifact": "MySBT.sol/MySBT.registry-size.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 3430,
+       "length": 32,
+       "value": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9"
+      },
+      {
+       "start": 3306,
+       "length": 32,
+       "value": "0x0000000000000000000000005fc8d32690cc91d4c39d9d3abcbd16989f875707"
+      },
+      {
+       "start": 817,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 1662,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 4061,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 5320,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 5418,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 6226,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 7313,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 11271,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "deploy.spImpl",
+   "address": "0x9A676e781A523b5d0C0e43731313A708CB607508",
+   "codeBytes": 13744,
+   "codeKeccak": "0x07f1b1856c44c9a8021bb3db641685ec252e3a63d62c0d325dc77d2cf6521eb1",
+   "matches": [
+    {
+     "target": "SuperPaymaster.sol:SuperPaymaster",
+     "artifact": "SuperPaymaster.sol/SuperPaymaster.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 968,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1524,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 2887,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 3904,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 4690,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 4965,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 5157,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 5293,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 5868,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 2428,
+       "length": 32,
+       "value": "0x0000000000000000000000008e80ffe6dc044f4a766afd6e5a8732fe0977a493"
+      },
+      {
+       "start": 11680,
+       "length": 32,
+       "value": "0x0000000000000000000000008e80ffe6dc044f4a766afd6e5a8732fe0977a493"
+      },
+      {
+       "start": 1101,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 11935,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 4757,
+       "length": 32,
+       "value": "0x0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3"
+      },
+      {
+       "start": 2988,
+       "length": 32,
+       "value": "0x0000000000000000000000009a676e781a523b5d0c0e43731313a708cb607508"
+      },
+      {
+       "start": 6900,
+       "length": 32,
+       "value": "0x0000000000000000000000009a676e781a523b5d0c0e43731313a708cb607508"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "deploy.staking",
+   "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+   "codeBytes": 9086,
+   "codeKeccak": "0x9053487cfa9e4569a1973d3590fd7ace195319fb107ad44f6a988df3e98f5806",
+   "matches": [
+    {
+     "target": "GTokenStaking.sol:GTokenStaking",
+     "artifact": "GTokenStaking.sol/GTokenStaking.registry-size.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 2499,
+       "length": 32,
+       "value": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9"
+      },
+      {
+       "start": 2735,
+       "length": 32,
+       "value": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9"
+      },
+      {
+       "start": 3815,
+       "length": 32,
+       "value": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9"
+      },
+      {
+       "start": 4748,
+       "length": 32,
+       "value": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9"
+      },
+      {
+       "start": 5471,
+       "length": 32,
+       "value": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9"
+      },
+      {
+       "start": 5532,
+       "length": 32,
+       "value": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9"
+      },
+      {
+       "start": 7158,
+       "length": 32,
+       "value": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9"
+      },
+      {
+       "start": 7267,
+       "length": 32,
+       "value": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9"
+      },
+      {
+       "start": 956,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 1469,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 3247,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 4644,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 5047,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 6082,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 8425,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 8636,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "deploy.superPaymaster",
+   "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+   "codeBytes": 89,
+   "codeKeccak": "0xf83adf10f05f94fef4ed0a49925b1677b93b1b2ee0af655887d4d4f6d6937604",
+   "matches": [
+    {
+     "target": "ERC1967Proxy.sol:ERC1967Proxy",
+     "artifact": "ERC1967Proxy.sol/ERC1967Proxy.registry-size.json",
+     "exactRuntimeEqual": true,
+     "immutables": []
+    }
+   ],
+   "erc1967Implementation": {
+    "address": "0x9a676e781a523b5d0c0e43731313a708cb607508",
+    "codeBytes": 13744,
+    "codeKeccak": "0x07f1b1856c44c9a8021bb3db641685ec252e3a63d62c0d325dc77d2cf6521eb1",
+    "matches": [
+     {
+      "target": "SuperPaymaster.sol:SuperPaymaster",
+      "artifact": "SuperPaymaster.sol/SuperPaymaster.json",
+      "exactRuntimeEqual": false,
+      "immutables": [
+       {
+        "start": 968,
+        "length": 32,
+        "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+       },
+       {
+        "start": 1524,
+        "length": 32,
+        "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+       },
+       {
+        "start": 2887,
+        "length": 32,
+        "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+       },
+       {
+        "start": 3904,
+        "length": 32,
+        "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+       },
+       {
+        "start": 4690,
+        "length": 32,
+        "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+       },
+       {
+        "start": 4965,
+        "length": 32,
+        "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+       },
+       {
+        "start": 5157,
+        "length": 32,
+        "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+       },
+       {
+        "start": 5293,
+        "length": 32,
+        "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+       },
+       {
+        "start": 5868,
+        "length": 32,
+        "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+       },
+       {
+        "start": 2428,
+        "length": 32,
+        "value": "0x0000000000000000000000008e80ffe6dc044f4a766afd6e5a8732fe0977a493"
+       },
+       {
+        "start": 11680,
+        "length": 32,
+        "value": "0x0000000000000000000000008e80ffe6dc044f4a766afd6e5a8732fe0977a493"
+       },
+       {
+        "start": 1101,
+        "length": 32,
+        "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+       },
+       {
+        "start": 11935,
+        "length": 32,
+        "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+       },
+       {
+        "start": 4757,
+        "length": 32,
+        "value": "0x0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3"
+       },
+       {
+        "start": 2988,
+        "length": 32,
+        "value": "0x0000000000000000000000009a676e781a523b5d0c0e43731313a708cb607508"
+       },
+       {
+        "start": 6900,
+        "length": 32,
+        "value": "0x0000000000000000000000009a676e781a523b5d0c0e43731313a708cb607508"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "label": "deploy.superPaymasterLens",
+   "address": "0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f",
+   "codeBytes": 5413,
+   "codeKeccak": "0x4435e4a51e3293245ec1856bc9aa8d5606b9dc45b9a3dbd9742cf625e3cad3c1",
+   "matches": [
+    {
+     "target": "SuperPaymasterLens.sol:SuperPaymasterLens",
+     "artifact": "SuperPaymasterLens.sol/SuperPaymasterLens.json",
+     "exactRuntimeEqual": true,
+     "immutables": []
+    }
+   ]
+  },
+  {
+   "label": "deploy.xPNTsFactory",
+   "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+   "codeBytes": 6815,
+   "codeKeccak": "0x48d450c29195e820532d2828b3fef403cf36060c5dc561e183bd339f81efc925",
+   "matches": [
+    {
+     "target": "xPNTsFactory.sol:xPNTsFactory",
+     "artifact": "xPNTsFactory.sol/xPNTsFactory.registry-size.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 2481,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 5815,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 2595,
+       "length": 32,
+       "value": "0x000000000000000000000000d8058efe0198ae9dd7d563e1b4938dcbc86a1f81"
+      },
+      {
+       "start": 4148,
+       "length": 32,
+       "value": "0x000000000000000000000000d8058efe0198ae9dd7d563e1b4938dcbc86a1f81"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "deploy.xPNTsFactoryV2",
+   "address": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
+   "codeBytes": 8537,
+   "codeKeccak": "0x415aa92d649dcf03be55047ba45fcc1759b6323704ab207b81c2650600bd2093",
+   "matches": [
+    {
+     "target": "xPNTsFactoryV2.sol:xPNTsFactoryV2",
+     "artifact": "xPNTsFactoryV2.sol/xPNTsFactoryV2.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 3126,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 7439,
+       "length": 32,
+       "value": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+      },
+      {
+       "start": 1568,
+       "length": 32,
+       "value": "0x0000000000000000000000004ed7c70f96b99c776995fb64377f0d4ab3b0e1c1"
+      },
+      {
+       "start": 2982,
+       "length": 32,
+       "value": "0x0000000000000000000000004ed7c70f96b99c776995fb64377f0d4ab3b0e1c1"
+      },
+      {
+       "start": 5687,
+       "length": 32,
+       "value": "0x0000000000000000000000004ed7c70f96b99c776995fb64377f0d4ab3b0e1c1"
+      },
+      {
+       "start": 1289,
+       "length": 32,
+       "value": "0xe9a440b8d5ee2b6d3765ed5fdd78bf470ce583439549362edbaa7d8b94ca74ab"
+      },
+      {
+       "start": 3017,
+       "length": 32,
+       "value": "0xe9a440b8d5ee2b6d3765ed5fdd78bf470ce583439549362edbaa7d8b94ca74ab"
+      },
+      {
+       "start": 4934,
+       "length": 32,
+       "value": "0x01b73293f7b322b39583d7b3cc82ee02ef4007d181decf817815dc026686c462"
+      },
+      {
+       "start": 7082,
+       "length": 32,
+       "value": "0x01b73293f7b322b39583d7b3cc82ee02ef4007d181decf817815dc026686c462"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "deploy.xPNTsTokenV2Ext",
+   "address": "0x59b670e9fA9D0A427751Af201D676719a970857b",
+   "codeBytes": 22005,
+   "codeKeccak": "0x01b73293f7b322b39583d7b3cc82ee02ef4007d181decf817815dc026686c462",
+   "matches": [
+    {
+     "target": "xPNTsTokenV2Ext.sol:xPNTsTokenV2Ext",
+     "artifact": "xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 1610,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 3005,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 4880,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 5731,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 6569,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 6820,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 7324,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 9252,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 12259,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 12711,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 17503,
+       "length": 32,
+       "value": "0xd2213f5bc9b760974ca856b9474d432884aeadb7934f84b09545df3cafdf94ed"
+      },
+      {
+       "start": 17692,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000000000000000000000000000000007a69"
+      },
+      {
+       "start": 17456,
+       "length": 32,
+       "value": "0x00000000000000000000000059b670e9fa9d0a427751af201d676719a970857b"
+      },
+      {
+       "start": 17582,
+       "length": 32,
+       "value": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+      },
+      {
+       "start": 17620,
+       "length": 32,
+       "value": "0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6"
+      },
+      {
+       "start": 7975,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      {
+       "start": 8016,
+       "length": 32,
+       "value": "0x3100000000000000000000000000000000000000000000000000000000000001"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "deploy.xPNTsTokenV2Impl",
+   "address": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
+   "codeBytes": 20008,
+   "codeKeccak": "0xe9a440b8d5ee2b6d3765ed5fdd78bf470ce583439549362edbaa7d8b94ca74ab",
+   "matches": [
+    {
+     "target": "xPNTsTokenV2.sol:xPNTsTokenV2",
+     "artifact": "xPNTsTokenV2.sol/xPNTsTokenV2.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 3734,
+       "length": 32,
+       "value": "0x00000000000000000000000059b670e9fa9d0a427751af201d676719a970857b"
+      },
+      {
+       "start": 13623,
+       "length": 32,
+       "value": "0x00000000000000000000000059b670e9fa9d0a427751af201d676719a970857b"
+      },
+      {
+       "start": 6998,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 11153,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 11539,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 11921,
+       "length": 32,
+       "value": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      {
+       "start": 14668,
+       "length": 32,
+       "value": "0xaaed71121a468354e91b7b1d2d39da7d31a2aaa751556e32e63b6441b2fbae2d"
+      },
+      {
+       "start": 14857,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000000000000000000000000000000007a69"
+      },
+      {
+       "start": 14621,
+       "length": 32,
+       "value": "0x0000000000000000000000004ed7c70f96b99c776995fb64377f0d4ab3b0e1c1"
+      },
+      {
+       "start": 14747,
+       "length": 32,
+       "value": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+      },
+      {
+       "start": 14785,
+       "length": 32,
+       "value": "0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6"
+      },
+      {
+       "start": 5603,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      {
+       "start": 5644,
+       "length": 32,
+       "value": "0x3100000000000000000000000000000000000000000000000000000000000001"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "factories.ok",
+   "address": "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
+   "codeBytes": 3264,
+   "codeKeccak": "0x24178cdfb9f61cb1c33c40826310e87a1610a4482d8157c8ce079ff6ebef76a6",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccountFactory",
+     "artifact": "BLayerAccounts.sol/MockAirAccountFactory.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 167,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 243,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 596,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 856,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "factories.unstaked",
+   "address": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+   "codeBytes": 3264,
+   "codeKeccak": "0x24178cdfb9f61cb1c33c40826310e87a1610a4482d8157c8ce079ff6ebef76a6",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccountFactory",
+     "artifact": "BLayerAccounts.sol/MockAirAccountFactory.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 167,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 243,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 596,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 856,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "factories.lowStake",
+   "address": "0xFD471836031dc5108809D173A067e8486B9047A3",
+   "codeBytes": 3264,
+   "codeKeccak": "0x24178cdfb9f61cb1c33c40826310e87a1610a4482d8157c8ce079ff6ebef76a6",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccountFactory",
+     "artifact": "BLayerAccounts.sol/MockAirAccountFactory.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 167,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 243,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 596,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 856,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "factories.shortDelay",
+   "address": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
+   "codeBytes": 3264,
+   "codeKeccak": "0x24178cdfb9f61cb1c33c40826310e87a1610a4482d8157c8ce079ff6ebef76a6",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccountFactory",
+     "artifact": "BLayerAccounts.sol/MockAirAccountFactory.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 167,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 243,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 596,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 856,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b1",
+   "address": "0x5C00b79536bfbF68FD22C5eB63eb664527B6c7e8",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b2",
+   "address": "0x9291B277D28C0A7DE1367A1857aF6eC9E1c91dBF",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b2x",
+   "address": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b3a",
+   "address": "0xE73C3242e033239a0425c86399d3a1B793108640",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b3b",
+   "address": "0x038793728F8fae96bf95b632F2a2Dc55b86d544e",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b3c",
+   "address": "0xD238FebC192ce93a60de82D6B8BC0a013A54798b",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b5",
+   "address": "0xcf3624e0c7a51575359B745E514f7aD475E8f389",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b6",
+   "address": "0x66C8954C5F541C292c98457dCFeC51F18b470E54",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b7",
+   "address": "0xF2C21A36e91330D23a9f361cc5313a188e5705B8",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b8",
+   "address": "0xcBCF21E09D83fD75053eede464a56a39CA1A3936",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b9",
+   "address": "0xB3FD5b0eB9D14b2b927c76042723F33c815F1Ad0",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "label": "accounts.b10",
+   "address": "0xf9832498095c06246296d2e43CC73f06cc8f0A4c",
+   "codeBytes": 2097,
+   "codeKeccak": "0x538f227ddca64116048408fee6c221140bfb8cfe7b8a3f1e3a76faf5f3d50630",
+   "matches": [
+    {
+     "target": "BLayerAccounts.sol:MockAirAccount",
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "exactRuntimeEqual": false,
+     "immutables": [
+      {
+       "start": 258,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 872,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      },
+      {
+       "start": 1635,
+       "length": 32,
+       "value": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

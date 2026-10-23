@@ -1,0 +1,65 @@
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  lastCallGas(): replaced by `lastFrameGas`
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 2 tests for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B6_I8_rollback_and_stale_release_gas() (gas: 161379611)
+Logs:
+  R2A|B6.I8_settle_failure.bundleReverted|0
+  R2A|B6.I8_settle_failure.success|0
+  R2A|B6.I8_settle_failure.userRevertEvent|0
+  R2A|B6.I8_settle_failure.postOpReverted|1
+  R2A|B6.I8_settle_failure.postOpRevertSelector|1936028788
+  R2A|B6.I8_settle_failure.postOpRevertReasonLen|11
+  R2A|B6.I8_settle_failure.prefundTooLow|0
+  R2A|B6.I8_settle_failure.actualGasUsed|1333085
+  R2A|B6.I8_settle_failure.actualGasCost_wei|1333085000000000
+  R2A|B6.I8_settle_failure.spEpDepositDelta_wei|1333085000000000
+  R2A|B6.I8_settle_failure.charge_aPNTs|0
+  R2A|B6.I8_settle_failure.need_aPNTs(full cost at snapshot)|146639350000000000000
+  R2A|B6.I8_settle_failure.chargeCoversNeed(I9/G2)|0
+  R2A|B6.I8_settle_failure.a0(clamp)|726000000000000000000
+  R2A|B6.I8_settle_failure.chargeClampedAtA0|0
+  R2A|B6.I8_settle_failure.charge_minus_need_aPNTs|-146639350000000000000
+  R2A|B6.I8_settle_failure.userBurn_xPNTs|0
+  R2A|B6.I8_settle_failure.userDebtDelta_xPNTs|0
+  R2A|B6.I8_settle_failure.testFrameGas_handleOps|1436352
+  R2A|B6.I8_settle_failure.executionKept(must be 0)|0
+  R2A|B6.I8_settle_failure.userBalanceUnchanged|1
+  R2A|B6.I8_settle_failure.lockedAfter|726000000000000000000
+  R2A|B6.releaseStaleLock.gasTotalUsed|86348
+  R2A|B6.releaseStaleLock.gasRefunded|17269
+  R2A|B6.releaseStaleSponsorship.gasTotalUsed|48615
+  R2A|B6.releaseStaleSponsorship.gasRefunded|9723
+  R2A|B6.lockedAfterRelease|0
+  R2A|B6.inflightClearedAfterRelease|1
+
+[PASS] test_B6_credit_stale_release_gas() (gas: 160952185)
+Logs:
+  R2A|B6.I8_credit_settle_failure.bundleReverted|0
+  R2A|B6.I8_credit_settle_failure.success|0
+  R2A|B6.I8_credit_settle_failure.userRevertEvent|0
+  R2A|B6.I8_credit_settle_failure.postOpReverted|1
+  R2A|B6.I8_credit_settle_failure.postOpRevertSelector|1936028788
+  R2A|B6.I8_credit_settle_failure.postOpRevertReasonLen|11
+  R2A|B6.I8_credit_settle_failure.prefundTooLow|0
+  R2A|B6.I8_credit_settle_failure.actualGasUsed|1130021
+  R2A|B6.I8_credit_settle_failure.actualGasCost_wei|1130021000000000
+  R2A|B6.I8_credit_settle_failure.spEpDepositDelta_wei|1130021000000000
+  R2A|B6.I8_credit_settle_failure.charge_aPNTs|0
+  R2A|B6.I8_credit_settle_failure.need_aPNTs(full cost at snapshot)|124302310000000000000
+  R2A|B6.I8_credit_settle_failure.chargeCoversNeed(I9/G2)|0
+  R2A|B6.I8_credit_settle_failure.a0(clamp)|726000000000000000000
+  R2A|B6.I8_credit_settle_failure.chargeClampedAtA0|0
+  R2A|B6.I8_credit_settle_failure.charge_minus_need_aPNTs|-124302310000000000000
+  R2A|B6.I8_credit_settle_failure.userBurn_xPNTs|0
+  R2A|B6.I8_credit_settle_failure.userDebtDelta_xPNTs|0
+  R2A|B6.I8_credit_settle_failure.testFrameGas_handleOps|1229800
+  R2A|B6.releaseStaleCredit.gasTotalUsed|60792
+  R2A|B6.releaseStaleSponsorship(credit).gasTotalUsed|48615
+
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 13.40ms (22.07ms CPU time)
+
+Ran 1 test suite in 14.19ms (13.40ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)

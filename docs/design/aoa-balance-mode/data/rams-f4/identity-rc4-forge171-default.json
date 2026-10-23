@@ -1,0 +1,3076 @@
+{
+ "outDir": "/tmp/rc4/out",
+ "generated": "2026-10-23T04:51:40.709Z",
+ "contracts": [
+  {
+   "target": "SuperPaymaster.sol:SuperPaymaster",
+   "variants": [
+    {
+     "artifact": "SuperPaymaster.sol/SuperPaymaster.json",
+     "creationKeccak": "0x4edff578ddfb3875aa057f690fb68b85df24332aa0023a115aadad07107a0e4e",
+     "creationBytes": 34551,
+     "runtimeKeccak": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+     "runtimeBytes": 13744,
+     "runtimeKeccakImmutablesZeroed": "0xc9fe37f57b2bf4de56d8c87270660ce4a098692280ed642855c0a603d6b9d222",
+     "immutableReferences": {
+      "69538": [
+       {
+        "start": 968,
+        "length": 32
+       },
+       {
+        "start": 1524,
+        "length": 32
+       },
+       {
+        "start": 2887,
+        "length": 32
+       },
+       {
+        "start": 3904,
+        "length": 32
+       },
+       {
+        "start": 4690,
+        "length": 32
+       },
+       {
+        "start": 4965,
+        "length": 32
+       },
+       {
+        "start": 5157,
+        "length": 32
+       },
+       {
+        "start": 5293,
+        "length": 32
+       },
+       {
+        "start": 5868,
+        "length": 32
+       }
+      ],
+      "70789": [
+       {
+        "start": 2428,
+        "length": 32
+       },
+       {
+        "start": 11680,
+        "length": 32
+       }
+      ],
+      "76579": [
+       {
+        "start": 1101,
+        "length": 32
+       },
+       {
+        "start": 11935,
+        "length": 32
+       }
+      ],
+      "76586": [
+       {
+        "start": 4757,
+        "length": 32
+       }
+      ],
+      "227838": [
+       {
+        "start": 2988,
+        "length": 32
+       },
+       {
+        "start": 6900,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 16,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xfe2b3840dbee38e107eb60baf705fa0e168e03d301613204b12cd42a50e73e4b",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol": "SuperPaymaster"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "SuperPaymaster.sol/SuperPaymaster.registry-size.json",
+     "creationKeccak": "0x42812cb2ecbb6b85161d77c0fab19ce9341042d6f963c7f092fa5c65b40796b5",
+     "creationBytes": 33818,
+     "runtimeKeccak": "0x81adb28baa77417da27c124cedc324d085a3dfac0998b8f3dd21d86d4ef19c40",
+     "runtimeBytes": 13334,
+     "runtimeKeccakImmutablesZeroed": "0x81adb28baa77417da27c124cedc324d085a3dfac0998b8f3dd21d86d4ef19c40",
+     "immutableReferences": {
+      "62867": [
+       {
+        "start": 960,
+        "length": 32
+       },
+       {
+        "start": 1455,
+        "length": 32
+       },
+       {
+        "start": 2751,
+        "length": 32
+       },
+       {
+        "start": 3727,
+        "length": 32
+       },
+       {
+        "start": 4514,
+        "length": 32
+       },
+       {
+        "start": 4796,
+        "length": 32
+       },
+       {
+        "start": 4990,
+        "length": 32
+       },
+       {
+        "start": 5138,
+        "length": 32
+       },
+       {
+        "start": 5692,
+        "length": 32
+       }
+      ],
+      "63084": [
+       {
+        "start": 2293,
+        "length": 32
+       },
+       {
+        "start": 11251,
+        "length": 32
+       }
+      ],
+      "68874": [
+       {
+        "start": 1091,
+        "length": 32
+       },
+       {
+        "start": 11504,
+        "length": 32
+       }
+      ],
+      "68881": [
+       {
+        "start": 4582,
+        "length": 32
+       }
+      ],
+      "230618": [
+       {
+        "start": 2851,
+        "length": 32
+       },
+       {
+        "start": 6665,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 16,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x2067e42651edb4065ce078e2b89dc3421b205c4d5e30fc1d0e5eb2c428575c61",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol": "SuperPaymaster"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "SuperPaymasterAdmin.sol:SuperPaymasterAdmin",
+   "variants": [
+    {
+     "artifact": "SuperPaymasterAdmin.sol/SuperPaymasterAdmin.json",
+     "creationKeccak": "0x7c5fd9a30e1d2fdb53f0512bca8e5f60fd2047fd71a575f084c57ac59b453e66",
+     "creationBytes": 20013,
+     "runtimeKeccak": "0xefc71c67b20fd21111e50808ee8d60bec6f1f47ec30aaa1729dcf293e7e178d2",
+     "runtimeBytes": 19214,
+     "runtimeKeccakImmutablesZeroed": "0xefc71c67b20fd21111e50808ee8d60bec6f1f47ec30aaa1729dcf293e7e178d2",
+     "immutableReferences": {
+      "69538": [
+       {
+        "start": 3405,
+        "length": 32
+       },
+       {
+        "start": 3564,
+        "length": 32
+       },
+       {
+        "start": 3738,
+        "length": 32
+       },
+       {
+        "start": 5935,
+        "length": 32
+       },
+       {
+        "start": 6899,
+        "length": 32
+       },
+       {
+        "start": 14327,
+        "length": 32
+       },
+       {
+        "start": 16495,
+        "length": 32
+       }
+      ],
+      "76579": [
+       {
+        "start": 7753,
+        "length": 32
+       },
+       {
+        "start": 10865,
+        "length": 32
+       },
+       {
+        "start": 11302,
+        "length": 32
+       },
+       {
+        "start": 16420,
+        "length": 32
+       },
+       {
+        "start": 18517,
+        "length": 32
+       }
+      ],
+      "76586": [
+       {
+        "start": 6831,
+        "length": 32
+       },
+       {
+        "start": 9930,
+        "length": 32
+       },
+       {
+        "start": 12692,
+        "length": 32
+       },
+       {
+        "start": 18722,
+        "length": 32
+       }
+      ],
+      "227838": [
+       {
+        "start": 13198,
+        "length": 32
+       },
+       {
+        "start": 13440,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 18,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x3c73371751c0719d3c3b4490a2b3ed08a02336c1d6dfc98efd86094a7936dd93",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol": "SuperPaymasterAdmin"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "SuperPaymasterAdmin.sol/SuperPaymasterAdmin.registry-size.json",
+     "creationKeccak": "0xfdab3635702404eaaa27ee6cf40ee82ec53406ca59aa918c420404001242405d",
+     "creationBytes": 19690,
+     "runtimeKeccak": "0x5b517d6d5fd6b694c9cbc24b14e3b87e56e48df301127ae445d542ffcf2e2456",
+     "runtimeBytes": 18891,
+     "runtimeKeccakImmutablesZeroed": "0x5b517d6d5fd6b694c9cbc24b14e3b87e56e48df301127ae445d542ffcf2e2456",
+     "immutableReferences": {
+      "62867": [
+       {
+        "start": 3342,
+        "length": 32
+       },
+       {
+        "start": 3509,
+        "length": 32
+       },
+       {
+        "start": 3675,
+        "length": 32
+       },
+       {
+        "start": 5869,
+        "length": 32
+       },
+       {
+        "start": 6770,
+        "length": 32
+       },
+       {
+        "start": 13939,
+        "length": 32
+       },
+       {
+        "start": 16107,
+        "length": 32
+       }
+      ],
+      "68874": [
+       {
+        "start": 7628,
+        "length": 32
+       },
+       {
+        "start": 10684,
+        "length": 32
+       },
+       {
+        "start": 11126,
+        "length": 32
+       },
+       {
+        "start": 16029,
+        "length": 32
+       },
+       {
+        "start": 18126,
+        "length": 32
+       }
+      ],
+      "68881": [
+       {
+        "start": 6701,
+        "length": 32
+       },
+       {
+        "start": 9763,
+        "length": 32
+       },
+       {
+        "start": 12443,
+        "length": 32
+       },
+       {
+        "start": 18331,
+        "length": 32
+       }
+      ],
+      "230618": [
+       {
+        "start": 12934,
+        "length": 32
+       },
+       {
+        "start": 13163,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 18,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x3cf3e187864c8ffe960cc5a7ddefa810b9caeb2f22a4a6b29ab18b3445461bad",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol": "SuperPaymasterAdmin"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "Registry.sol:Registry",
+   "variants": [
+    {
+     "artifact": "Registry.sol/Registry.json",
+     "creationKeccak": "0x4a8d5d6caaf74891030344efe069995e597a0e4447a3d34798e9647aea1762c3",
+     "creationBytes": 23670,
+     "runtimeKeccak": "0xde3d06d860890b9e95a1e80202833efea49175a417958d3362d32e0231406e8b",
+     "runtimeBytes": 23306,
+     "runtimeKeccakImmutablesZeroed": "0xde3d06d860890b9e95a1e80202833efea49175a417958d3362d32e0231406e8b",
+     "immutableReferences": {
+      "230618": [
+       {
+        "start": 14470,
+        "length": 32
+       },
+       {
+        "start": 14735,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 2,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xae66c60f08c07422a140f18a5615995c962d273b1b5010638c9a2f885fe06ace",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/core/Registry.sol": "Registry"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "xPNTsTokenV2.sol:xPNTsTokenV2",
+   "variants": [
+    {
+     "artifact": "xPNTsTokenV2.sol/xPNTsTokenV2.json",
+     "creationKeccak": "0xedaaecbb8107e098860fa862476c2b98ecb60f6ce16071b2a95cf8eed3515730",
+     "creationBytes": 22172,
+     "runtimeKeccak": "0xb15c14c49929505baa68328af7638d60f87ebbfc0b6c80ee412ebbfc86850474",
+     "runtimeBytes": 20008,
+     "runtimeKeccakImmutablesZeroed": "0xb15c14c49929505baa68328af7638d60f87ebbfc0b6c80ee412ebbfc86850474",
+     "immutableReferences": {
+      "85888": [
+       {
+        "start": 3734,
+        "length": 32
+       },
+       {
+        "start": 13623,
+        "length": 32
+       }
+      ],
+      "90271": [
+       {
+        "start": 6998,
+        "length": 32
+       },
+       {
+        "start": 11153,
+        "length": 32
+       },
+       {
+        "start": 11539,
+        "length": 32
+       },
+       {
+        "start": 11921,
+        "length": 32
+       }
+      ],
+      "232145": [
+       {
+        "start": 14668,
+        "length": 32
+       }
+      ],
+      "232147": [
+       {
+        "start": 14857,
+        "length": 32
+       }
+      ],
+      "232149": [
+       {
+        "start": 14621,
+        "length": 32
+       }
+      ],
+      "232151": [
+       {
+        "start": 14747,
+        "length": 32
+       }
+      ],
+      "232153": [
+       {
+        "start": 14785,
+        "length": 32
+       }
+      ],
+      "232156": [
+       {
+        "start": 5603,
+        "length": 32
+       }
+      ],
+      "232159": [
+       {
+        "start": 5644,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 13,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xfc7be04c57662bde776b8fdee4a118b82c7b251b7b156f04b845b12f81e0e07b",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/xPNTsTokenV2.sol": "xPNTsTokenV2"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "xPNTsTokenV2.sol/xPNTsTokenV2.registry-size.json",
+     "creationKeccak": "0x54470346f9f634218d17d2e61802c51b56833abaf17a20e764c2b64557bf8220",
+     "creationBytes": 21751,
+     "runtimeKeccak": "0x815c46ace5b6f072c334edab398f10ef2615005b5d1343fb7a5c2fde6db10aed",
+     "runtimeBytes": 19587,
+     "runtimeKeccakImmutablesZeroed": "0x815c46ace5b6f072c334edab398f10ef2615005b5d1343fb7a5c2fde6db10aed",
+     "immutableReferences": {
+      "77679": [
+       {
+        "start": 3696,
+        "length": 32
+       },
+       {
+        "start": 13462,
+        "length": 32
+       }
+      ],
+      "82062": [
+       {
+        "start": 6935,
+        "length": 32
+       },
+       {
+        "start": 11024,
+        "length": 32
+       },
+       {
+        "start": 11412,
+        "length": 32
+       },
+       {
+        "start": 11795,
+        "length": 32
+       }
+      ],
+      "234925": [
+       {
+        "start": 14496,
+        "length": 32
+       }
+      ],
+      "234927": [
+       {
+        "start": 14685,
+        "length": 32
+       }
+      ],
+      "234929": [
+       {
+        "start": 14442,
+        "length": 32
+       }
+      ],
+      "234931": [
+       {
+        "start": 14575,
+        "length": 32
+       }
+      ],
+      "234933": [
+       {
+        "start": 14613,
+        "length": 32
+       }
+      ],
+      "234936": [
+       {
+        "start": 5550,
+        "length": 32
+       }
+      ],
+      "234939": [
+       {
+        "start": 5591,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 13,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x23e04ea4615e7a7d3a16c450b20a1e4cfa3fe8c12f3abca57dbd8d299f9d310a",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/xPNTsTokenV2.sol": "xPNTsTokenV2"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "xPNTsTokenV2Ext.sol:xPNTsTokenV2Ext",
+   "variants": [
+    {
+     "artifact": "xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json",
+     "creationKeccak": "0x956b078162d53178417ecd4e1242f90140f4e2c3b15fb1c577886d7cfb171e04",
+     "creationBytes": 24143,
+     "runtimeKeccak": "0x449f651a10251b654334a475b20f4220e784dc98c6867a8a48c07803b10d2604",
+     "runtimeBytes": 22005,
+     "runtimeKeccakImmutablesZeroed": "0x449f651a10251b654334a475b20f4220e784dc98c6867a8a48c07803b10d2604",
+     "immutableReferences": {
+      "90271": [
+       {
+        "start": 1610,
+        "length": 32
+       },
+       {
+        "start": 3005,
+        "length": 32
+       },
+       {
+        "start": 4880,
+        "length": 32
+       },
+       {
+        "start": 5731,
+        "length": 32
+       },
+       {
+        "start": 6569,
+        "length": 32
+       },
+       {
+        "start": 6820,
+        "length": 32
+       },
+       {
+        "start": 7324,
+        "length": 32
+       },
+       {
+        "start": 9252,
+        "length": 32
+       },
+       {
+        "start": 12259,
+        "length": 32
+       },
+       {
+        "start": 12711,
+        "length": 32
+       }
+      ],
+      "232145": [
+       {
+        "start": 17503,
+        "length": 32
+       }
+      ],
+      "232147": [
+       {
+        "start": 17692,
+        "length": 32
+       }
+      ],
+      "232149": [
+       {
+        "start": 17456,
+        "length": 32
+       }
+      ],
+      "232151": [
+       {
+        "start": 17582,
+        "length": 32
+       }
+      ],
+      "232153": [
+       {
+        "start": 17620,
+        "length": 32
+       }
+      ],
+      "232156": [
+       {
+        "start": 7975,
+        "length": 32
+       }
+      ],
+      "232159": [
+       {
+        "start": 8016,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 17,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x778aae67a3508af15a908b0325529d8b7115de65d3ba20a9a8f8498662646fe9",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol": "xPNTsTokenV2Ext"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.registry-size.json",
+     "creationKeccak": "0x61c323f4a6e2bb067a04188440694509b8ea34a2b3a35858b548bf3191f395f0",
+     "creationBytes": 23880,
+     "runtimeKeccak": "0x6699848e70790913f6bf7344f9a0695a412b9cacfa157fb73b8bbf842e36b920",
+     "runtimeBytes": 21742,
+     "runtimeKeccakImmutablesZeroed": "0x6699848e70790913f6bf7344f9a0695a412b9cacfa157fb73b8bbf842e36b920",
+     "immutableReferences": {
+      "82062": [
+       {
+        "start": 1609,
+        "length": 32
+       },
+       {
+        "start": 3020,
+        "length": 32
+       },
+       {
+        "start": 4759,
+        "length": 32
+       },
+       {
+        "start": 5608,
+        "length": 32
+       },
+       {
+        "start": 6448,
+        "length": 32
+       },
+       {
+        "start": 6699,
+        "length": 32
+       },
+       {
+        "start": 7203,
+        "length": 32
+       },
+       {
+        "start": 9087,
+        "length": 32
+       },
+       {
+        "start": 12097,
+        "length": 32
+       },
+       {
+        "start": 12552,
+        "length": 32
+       }
+      ],
+      "234925": [
+       {
+        "start": 17439,
+        "length": 32
+       }
+      ],
+      "234927": [
+       {
+        "start": 17628,
+        "length": 32
+       }
+      ],
+      "234929": [
+       {
+        "start": 17385,
+        "length": 32
+       }
+      ],
+      "234931": [
+       {
+        "start": 17518,
+        "length": 32
+       }
+      ],
+      "234933": [
+       {
+        "start": 17556,
+        "length": 32
+       }
+      ],
+      "234936": [
+       {
+        "start": 7844,
+        "length": 32
+       }
+      ],
+      "234939": [
+       {
+        "start": 7885,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 17,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x580e328508e3a5f81cce4029dbb73196be29887cf17b0ce1078420833a0d0f5b",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol": "xPNTsTokenV2Ext"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "xPNTsFactoryV2.sol:xPNTsFactoryV2",
+   "variants": [
+    {
+     "artifact": "xPNTsFactoryV2.sol/xPNTsFactoryV2.json",
+     "creationKeccak": "0xb236ad223c88047ad1be002c1752d1be589e8281ca6c0a171544e6d058113b61",
+     "creationBytes": 10756,
+     "runtimeKeccak": "0xc5c8222627d1d42f755459671acb338e2c47fee775128a07e8d3552789d91776",
+     "runtimeBytes": 8537,
+     "runtimeKeccakImmutablesZeroed": "0xc5c8222627d1d42f755459671acb338e2c47fee775128a07e8d3552789d91776",
+     "immutableReferences": {
+      "84439": [
+       {
+        "start": 3126,
+        "length": 32
+       },
+       {
+        "start": 7439,
+        "length": 32
+       }
+      ],
+      "84442": [
+       {
+        "start": 1568,
+        "length": 32
+       },
+       {
+        "start": 2982,
+        "length": 32
+       },
+       {
+        "start": 5687,
+        "length": 32
+       }
+      ],
+      "84445": [
+       {
+        "start": 1289,
+        "length": 32
+       },
+       {
+        "start": 3017,
+        "length": 32
+       }
+      ],
+      "84447": [
+       {
+        "start": 4934,
+        "length": 32
+       },
+       {
+        "start": 7082,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 9,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x868178745f75a874d54d2eba4276d6bb51df649b2ee5cc9dd7eaf348bfa5c140",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/xPNTsFactoryV2.sol": "xPNTsFactoryV2"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "xPNTsFactoryV2.sol/xPNTsFactoryV2.registry-size.json",
+     "creationKeccak": "0x39d4f84487c79d95439b98d32c0bdb46632b3e0d956edd58f9f8ebd09cb8df9c",
+     "creationBytes": 10741,
+     "runtimeKeccak": "0xa29b62bb61417be961cb90dcd9b06d5c8e92fca143df6b08b1fdfb162f975eed",
+     "runtimeBytes": 8522,
+     "runtimeKeccakImmutablesZeroed": "0xa29b62bb61417be961cb90dcd9b06d5c8e92fca143df6b08b1fdfb162f975eed",
+     "immutableReferences": {
+      "76230": [
+       {
+        "start": 3140,
+        "length": 32
+       },
+       {
+        "start": 7420,
+        "length": 32
+       }
+      ],
+      "76233": [
+       {
+        "start": 1567,
+        "length": 32
+       },
+       {
+        "start": 2996,
+        "length": 32
+       },
+       {
+        "start": 5674,
+        "length": 32
+       }
+      ],
+      "76236": [
+       {
+        "start": 1288,
+        "length": 32
+       },
+       {
+        "start": 3031,
+        "length": 32
+       }
+      ],
+      "76238": [
+       {
+        "start": 4931,
+        "length": 32
+       },
+       {
+        "start": 7074,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 9,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x92510ba3fe3549c774081ed150d1353b65889a2213aa6049e485b241b24a268a",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/xPNTsFactoryV2.sol": "xPNTsFactoryV2"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "xPNTsFactory.sol:xPNTsFactory",
+   "variants": [
+    {
+     "artifact": "xPNTsFactory.sol/xPNTsFactory.json",
+     "creationKeccak": "0x1e6599916e5ed08f24033572e42f49a0543aa605a926cf77b02d596c3c58f6ad",
+     "creationBytes": 25182,
+     "runtimeKeccak": "0x710836a4fa7c6f6460b7638f59607ae5b7b838f9269dc084a8829cb8eab7800a",
+     "runtimeBytes": 6802,
+     "runtimeKeccakImmutablesZeroed": "0x710836a4fa7c6f6460b7638f59607ae5b7b838f9269dc084a8829cb8eab7800a",
+     "immutableReferences": {
+      "91520": [
+       {
+        "start": 2469,
+        "length": 32
+       },
+       {
+        "start": 5810,
+        "length": 32
+       }
+      ],
+      "91523": [
+       {
+        "start": 2581,
+        "length": 32
+       },
+       {
+        "start": 4143,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 4,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x5d5bcc439b8eea5d93e34baf0f51a0f2e5e9e1d61ea6004a3bcaf46e8eb6dad6",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/xPNTsFactory.sol": "xPNTsFactory"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "xPNTsFactory.sol/xPNTsFactory.registry-size.json",
+     "creationKeccak": "0xc7de0b0311c6de86ca13700ffbb929875a5c0321736144dd77e49151dd816111",
+     "creationBytes": 25050,
+     "runtimeKeccak": "0xfbe10e85999bca9ea26dbfccf2a20db278ef3597fbda7230c9e2cd216388e50b",
+     "runtimeBytes": 6815,
+     "runtimeKeccakImmutablesZeroed": "0xfbe10e85999bca9ea26dbfccf2a20db278ef3597fbda7230c9e2cd216388e50b",
+     "immutableReferences": {
+      "83311": [
+       {
+        "start": 2481,
+        "length": 32
+       },
+       {
+        "start": 5815,
+        "length": 32
+       }
+      ],
+      "83314": [
+       {
+        "start": 2595,
+        "length": 32
+       },
+       {
+        "start": 4148,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 4,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x96925fb52b9790823723d606a3c7f0f49de1b8175ccba1e008606a9c6e15b82e",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/xPNTsFactory.sol": "xPNTsFactory"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "APNTsCapped.sol:APNTsCapped",
+   "variants": [
+    {
+     "artifact": "APNTsCapped.sol/APNTsCapped.json",
+     "creationKeccak": "0xf6b8ecabe2090bfdb7ca86ede5394dc46acdd7043899fbe48e7bdedb9e176f11",
+     "creationBytes": 7683,
+     "runtimeKeccak": "0x16a1a114c5c16b566e056ef5d9701652cb647926a7cde85432ff6b79692c1304",
+     "runtimeBytes": 5346,
+     "runtimeKeccakImmutablesZeroed": "0x16a1a114c5c16b566e056ef5d9701652cb647926a7cde85432ff6b79692c1304",
+     "immutableReferences": {
+      "232145": [
+       {
+        "start": 4587,
+        "length": 32
+       }
+      ],
+      "232147": [
+       {
+        "start": 4776,
+        "length": 32
+       }
+      ],
+      "232149": [
+       {
+        "start": 4540,
+        "length": 32
+       }
+      ],
+      "232151": [
+       {
+        "start": 4666,
+        "length": 32
+       }
+      ],
+      "232153": [
+       {
+        "start": 4704,
+        "length": 32
+       }
+      ],
+      "232156": [
+       {
+        "start": 1597,
+        "length": 32
+       }
+      ],
+      "232159": [
+       {
+        "start": 1638,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 7,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xcf757512dfdf9bda1b03721c5795e6d4867997653d608b04150c2701fed30f4d",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/APNTsCapped.sol": "APNTsCapped"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "APNTsCapped.sol/APNTsCapped.registry-size.json",
+     "creationKeccak": "0xb4bf694ec447dc31c9c2ed8689496b33a368360bddf4d7553f6238f31497a455",
+     "creationBytes": 7657,
+     "runtimeKeccak": "0x59c410af856e371a17f54fb5a52f17f14eaefc7ae13137a0d99bfa5737d2c701",
+     "runtimeBytes": 5320,
+     "runtimeKeccakImmutablesZeroed": "0x59c410af856e371a17f54fb5a52f17f14eaefc7ae13137a0d99bfa5737d2c701",
+     "immutableReferences": {
+      "234925": [
+       {
+        "start": 4561,
+        "length": 32
+       }
+      ],
+      "234927": [
+       {
+        "start": 4750,
+        "length": 32
+       }
+      ],
+      "234929": [
+       {
+        "start": 4507,
+        "length": 32
+       }
+      ],
+      "234931": [
+       {
+        "start": 4640,
+        "length": 32
+       }
+      ],
+      "234933": [
+       {
+        "start": 4678,
+        "length": 32
+       }
+      ],
+      "234936": [
+       {
+        "start": 1581,
+        "length": 32
+       }
+      ],
+      "234939": [
+       {
+        "start": 1622,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 7,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x9e622d7db4e728ea7fbeffcef50fc21fbcc3959b5245ea919e3d76709809035b",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/APNTsCapped.sol": "APNTsCapped"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "TimelockController.sol:TimelockController",
+   "variants": [
+    {
+     "artifact": "TimelockController.sol/TimelockController.default.json",
+     "creationKeccak": "0xafdb3ef7dcdafe1802f0e033efe53b0cc95552f7eaffa0d6c79a8c8bbb3c4a9e",
+     "creationBytes": 6763,
+     "runtimeKeccak": "0x41aec1b7c7ca0a08113cd691258bd8e41aa99ed54e1fd2b668807b86f04d8ff6",
+     "runtimeBytes": 5458,
+     "runtimeKeccakImmutablesZeroed": "0x41aec1b7c7ca0a08113cd691258bd8e41aa99ed54e1fd2b668807b86f04d8ff6",
+     "immutableReferences": {},
+     "immutableRanges": 0,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xcfb354515f3d7381f9df076f957de94262721683435b52cea5498b1e65eb90ac",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol": "TimelockController"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "TimelockController.sol/TimelockController.registry-size.json",
+     "creationKeccak": "0x4ba309b4591898929102ec939774b99bbee5e7875ca3819377e284a8406bb19e",
+     "creationBytes": 6714,
+     "runtimeKeccak": "0x169747e53bc3119109468802c0028c54b150a95a196e18bbe56c04c96dec9f28",
+     "runtimeBytes": 5409,
+     "runtimeKeccakImmutablesZeroed": "0x169747e53bc3119109468802c0028c54b150a95a196e18bbe56c04c96dec9f28",
+     "immutableReferences": {},
+     "immutableRanges": 0,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x03b0052ac36795e5bd37543393a3aad19ff5f9c00afe4b27b3c403555009ec71",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol": "TimelockController"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "SuperPaymasterLens.sol:SuperPaymasterLens",
+   "variants": [
+    {
+     "artifact": "SuperPaymasterLens.sol/SuperPaymasterLens.json",
+     "creationKeccak": "0xb2b98f672229d0bdb0efa903210564c3d5e9b7edb4756b86e9bf7c7d5e0a61d5",
+     "creationBytes": 5439,
+     "runtimeKeccak": "0x4435e4a51e3293245ec1856bc9aa8d5606b9dc45b9a3dbd9742cf625e3cad3c1",
+     "runtimeBytes": 5413,
+     "runtimeKeccakImmutablesZeroed": "0x4435e4a51e3293245ec1856bc9aa8d5606b9dc45b9a3dbd9742cf625e3cad3c1",
+     "immutableReferences": {},
+     "immutableRanges": 0,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x4ed73a77e8e95b19d53bdeda93495ebcb9d93364099f11381e85d219b3684be5",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol": "SuperPaymasterLens"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "SuperPaymasterLens.sol/SuperPaymasterLens.registry-size.json",
+     "creationKeccak": "0x93519cf3f2a5d6f946926bfda1b2add277604117557d14a1261fa6bad7476962",
+     "creationBytes": 5419,
+     "runtimeKeccak": "0x3648ace809373df54b7b76ed63bc83b7dcc04b42f33d831279f5867591a310fe",
+     "runtimeBytes": 5393,
+     "runtimeKeccakImmutablesZeroed": "0x3648ace809373df54b7b76ed63bc83b7dcc04b42f33d831279f5867591a310fe",
+     "immutableReferences": {},
+     "immutableRanges": 0,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xabe9e61bfcda5e8c14bc4526da7180ab71f930a17774ce953f7f40e1208772d2",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol": "SuperPaymasterLens"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "AOAProtocolRegistry.sol:AOAProtocolRegistry",
+   "variants": [
+    {
+     "artifact": "AOAProtocolRegistry.sol/AOAProtocolRegistry.json",
+     "creationKeccak": "0x8342ddc6b8e0d50225fd41573c0ad191a7e2d8d3145288d04d96de17ca15c2e0",
+     "creationBytes": 2955,
+     "runtimeKeccak": "0x14b95e6c2b6630b835f4253ac5d667980288de98461dcda9580e25df78fb5551",
+     "runtimeBytes": 2746,
+     "runtimeKeccakImmutablesZeroed": "0x14b95e6c2b6630b835f4253ac5d667980288de98461dcda9580e25df78fb5551",
+     "immutableReferences": {},
+     "immutableRanges": 0,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xf90938796b5723c19236d85f7d06fa05e3e0d1e05534afd955c74d20e08b9373",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/AOAProtocolRegistry.sol": "AOAProtocolRegistry"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "AOAProtocolRegistry.sol/AOAProtocolRegistry.registry-size.json",
+     "creationKeccak": "0xf9e09aee44eb3299a9e0990f6db7a2169bc6464c88118fd04f1f6ab54d25a5b9",
+     "creationBytes": 2914,
+     "runtimeKeccak": "0x15b8171f9df0db179657470a21148a9d06db8b92ec805b027776da5bf3ae8311",
+     "runtimeBytes": 2705,
+     "runtimeKeccakImmutablesZeroed": "0x15b8171f9df0db179657470a21148a9d06db8b92ec805b027776da5bf3ae8311",
+     "immutableReferences": {},
+     "immutableRanges": 0,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x15b89d6d5622f3a45dc17f4b78b01cb75678c6e20ecb0f3d6ab591e927b33a8c",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/AOAProtocolRegistry.sol": "AOAProtocolRegistry"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "GlobalTierSource.sol:GlobalTierSource",
+   "variants": [
+    {
+     "artifact": "GlobalTierSource.sol/GlobalTierSource.json",
+     "creationKeccak": "0xf2237df8b5de2d2ec50096a92ccf527455a803ad1e6e9e43c748f663ae998ae9",
+     "creationBytes": 737,
+     "runtimeKeccak": "0x73c8f2f26dcf342874cc68b8e8b766d18269b302ae04334a166f8ae1b58e84f7",
+     "runtimeBytes": 542,
+     "runtimeKeccakImmutablesZeroed": "0x73c8f2f26dcf342874cc68b8e8b766d18269b302ae04334a166f8ae1b58e84f7",
+     "immutableReferences": {
+      "84203": [
+       {
+        "start": 142,
+        "length": 32
+       },
+       {
+        "start": 471,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 2,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xa6f0278930e6d490c455aa7a9c66d960598590f08b3f983d894a8a2805b3b3e7",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/GlobalTierSource.sol": "GlobalTierSource"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "GlobalTierSource.sol/GlobalTierSource.registry-size.json",
+     "creationKeccak": "0x129150078ce614b5b0d6c6d4b970efedfb8c7d9a0ec05e055575a968a23f821c",
+     "creationBytes": 733,
+     "runtimeKeccak": "0xf0409686597fe1c6a258aee934514d95824eaed332f86d9f5c44c1dd0c607f6d",
+     "runtimeBytes": 538,
+     "runtimeKeccakImmutablesZeroed": "0xf0409686597fe1c6a258aee934514d95824eaed332f86d9f5c44c1dd0c607f6d",
+     "immutableReferences": {
+      "75994": [
+       {
+        "start": 137,
+        "length": 32
+       },
+       {
+        "start": 456,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 2,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x2c4a52843d7f1b90c360742cc93b462fc6e2cdfe006c633f26d9211bf01f4190",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/v2/GlobalTierSource.sol": "GlobalTierSource"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "ERC1967Proxy.sol:ERC1967Proxy",
+   "variants": [
+    {
+     "artifact": "ERC1967Proxy.sol/ERC1967Proxy.default.json",
+     "creationKeccak": "0xafdd50c19c0f9228b76b5672c613f5e2e0bb4dd7691c3ab8d91411d03b98c60e",
+     "creationBytes": 639,
+     "runtimeKeccak": "0xbfa8a49f3061225d6e1298934a59b43ee6ab3c042b13fc572712709ff6cc7ec0",
+     "runtimeBytes": 100,
+     "runtimeKeccakImmutablesZeroed": "0xbfa8a49f3061225d6e1298934a59b43ee6ab3c042b13fc572712709ff6cc7ec0",
+     "immutableReferences": {},
+     "immutableRanges": 0,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xcdab9a2b815e2d6a329157a1b76cd27b0c9edffa64c9f73ec9e53ea4bf969b21",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol": "ERC1967Proxy"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "ERC1967Proxy.sol/ERC1967Proxy.registry-size.json",
+     "creationKeccak": "0x9cf58042e31b4c29f3d70ae542d2eb49ecd067806e996ce5daaaa75f60c8d04d",
+     "creationBytes": 628,
+     "runtimeKeccak": "0xf83adf10f05f94fef4ed0a49925b1677b93b1b2ee0af655887d4d4f6d6937604",
+     "runtimeBytes": 89,
+     "runtimeKeccakImmutablesZeroed": "0xf83adf10f05f94fef4ed0a49925b1677b93b1b2ee0af655887d4d4f6d6937604",
+     "immutableReferences": {},
+     "immutableRanges": 0,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xfef75a37462d15bc8d3d5735a60f866fd5232b9f8fec0ee71d906b34c998e972",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol": "ERC1967Proxy"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "SimpleAccount.sol:SimpleAccount",
+   "variants": [
+    {
+     "artifact": "SimpleAccount.sol/SimpleAccount.default.json",
+     "creationKeccak": "0x46c5cb73c939cb348c90131652bca3b3207ca0d953791f01029650e173fe56d6",
+     "creationBytes": 5152,
+     "runtimeKeccak": "0x922697f58253261ab6a22366472c59e2b9fe1b7f62e8b12a0f711aebb412bd28",
+     "runtimeBytes": 4768,
+     "runtimeKeccakImmutablesZeroed": "0x922697f58253261ab6a22366472c59e2b9fe1b7f62e8b12a0f711aebb412bd28",
+     "immutableReferences": {
+      "224601": [
+       {
+        "start": 628,
+        "length": 32
+       },
+       {
+        "start": 1190,
+        "length": 32
+       },
+       {
+        "start": 1343,
+        "length": 32
+       },
+       {
+        "start": 2251,
+        "length": 32
+       },
+       {
+        "start": 2568,
+        "length": 32
+       },
+       {
+        "start": 3104,
+        "length": 32
+       },
+       {
+        "start": 3670,
+        "length": 32
+       },
+       {
+        "start": 3987,
+        "length": 32
+       }
+      ],
+      "227838": [
+       {
+        "start": 1667,
+        "length": 32
+       },
+       {
+        "start": 2009,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 10,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x74482a3169825445d55422bd19797e5856039fa4c932d4727cdd63acccc7f7d7",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/account-abstraction-v7/contracts/samples/SimpleAccount.sol": "SimpleAccount"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "SimpleAccount.sol/SimpleAccount.registry-size.json",
+     "creationKeccak": "0x97d237a612a95f8444ba9a88e1c8ac2e22f585c45ab6f4188d9bbfd10a15f498",
+     "creationBytes": 5059,
+     "runtimeKeccak": "0x11632620e29eab7c3703c2cbe0c714a54f23eb9acacbaa7985de1f6dbd1f667d",
+     "runtimeBytes": 4675,
+     "runtimeKeccakImmutablesZeroed": "0x11632620e29eab7c3703c2cbe0c714a54f23eb9acacbaa7985de1f6dbd1f667d",
+     "immutableReferences": {
+      "227381": [
+       {
+        "start": 617,
+        "length": 32
+       },
+       {
+        "start": 1175,
+        "length": 32
+       },
+       {
+        "start": 1328,
+        "length": 32
+       },
+       {
+        "start": 2179,
+        "length": 32
+       },
+       {
+        "start": 2503,
+        "length": 32
+       },
+       {
+        "start": 3026,
+        "length": 32
+       },
+       {
+        "start": 3579,
+        "length": 32
+       },
+       {
+        "start": 3900,
+        "length": 32
+       }
+      ],
+      "230618": [
+       {
+        "start": 1660,
+        "length": 32
+       },
+       {
+        "start": 1956,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 10,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x46aed3b6dc5fa215ddc561d2f141f4e9e25e0fa069e247b5cd45b36e642fc863",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/account-abstraction-v7/contracts/samples/SimpleAccount.sol": "SimpleAccount"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "SimpleAccountFactory.sol:SimpleAccountFactory",
+   "variants": [
+    {
+     "artifact": "SimpleAccountFactory.sol/SimpleAccountFactory.default.json",
+     "creationKeccak": "0x63571780e1657ada360d7e2085992636cdea03e2f7b2dde540fcf20d6fe767f7",
+     "creationBytes": 6807,
+     "runtimeKeccak": "0xed181ffdc7ab14e9bb4810c1d97bc52b04f6439eef7f2dff7e07cdab7d40291e",
+     "runtimeBytes": 1447,
+     "runtimeKeccakImmutablesZeroed": "0xed181ffdc7ab14e9bb4810c1d97bc52b04f6439eef7f2dff7e07cdab7d40291e",
+     "immutableReferences": {
+      "224959": [
+       {
+        "start": 161,
+        "length": 32
+       },
+       {
+        "start": 462,
+        "length": 32
+       },
+       {
+        "start": 664,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 3,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x04f519e612738597f7ec79f7d78a9a7975515e1a182b592628025ea890559bf1",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/account-abstraction-v7/contracts/samples/SimpleAccountFactory.sol": "SimpleAccountFactory"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "SimpleAccountFactory.sol/SimpleAccountFactory.registry-size.json",
+     "creationKeccak": "0xf0d435142e23ac6bec28187741448a2b0da9f397b1d0ada9b9b93071759c6151",
+     "creationBytes": 6710,
+     "runtimeKeccak": "0xd68704d3e352a441143890702f9b9284b26b67c62b8627682d7630a8fda220d8",
+     "runtimeBytes": 1443,
+     "runtimeKeccakImmutablesZeroed": "0xd68704d3e352a441143890702f9b9284b26b67c62b8627682d7630a8fda220d8",
+     "immutableReferences": {
+      "227739": [
+       {
+        "start": 151,
+        "length": 32
+       },
+       {
+        "start": 459,
+        "length": 32
+       },
+       {
+        "start": 671,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 3,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x364c3c9c8944b8e246472460f531e811aa62a5ae55ef448a16ddf9bfd0a5342e",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/account-abstraction-v7/contracts/samples/SimpleAccountFactory.sol": "SimpleAccountFactory"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "BLayerAccounts.sol:MockAirAccount",
+   "variants": [
+    {
+     "artifact": "BLayerAccounts.sol/MockAirAccount.json",
+     "creationKeccak": "0x6d06ec390fbbba75f9e4cd08bc3a2c0e5418a284333343eb75d8ce52a74e1b78",
+     "creationBytes": 2238,
+     "runtimeKeccak": "0x228d7a592257a017cbf40d0129041dd88124cbac86909add84da08a5d824bc9c",
+     "runtimeBytes": 2097,
+     "runtimeKeccakImmutablesZeroed": "0x228d7a592257a017cbf40d0129041dd88124cbac86909add84da08a5d824bc9c",
+     "immutableReferences": {
+      "95667": [
+       {
+        "start": 258,
+        "length": 32
+       },
+       {
+        "start": 872,
+        "length": 32
+       },
+       {
+        "start": 1635,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 3,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x3ef46bfaf74c40818105d20e65724d81d21e83932d48efc45d587deaf8628a90",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/test/bundler/BLayerAccounts.sol": "MockAirAccount"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "BLayerAccounts.sol:MockAirAccountFactory",
+   "variants": [
+    {
+     "artifact": "BLayerAccounts.sol/MockAirAccountFactory.json",
+     "creationKeccak": "0xe2324a1dd27c47fab2e69f34bbde8b808ac190a183dda6180610580492e3cf0a",
+     "creationBytes": 3414,
+     "runtimeKeccak": "0x88d524f149466ff2a1a27b9fd6fe4ff049bd6d135878a2dd30d928cd678ebfe9",
+     "runtimeBytes": 3264,
+     "runtimeKeccakImmutablesZeroed": "0x88d524f149466ff2a1a27b9fd6fe4ff049bd6d135878a2dd30d928cd678ebfe9",
+     "immutableReferences": {
+      "95861": [
+       {
+        "start": 167,
+        "length": 32
+       },
+       {
+        "start": 243,
+        "length": 32
+       },
+       {
+        "start": 596,
+        "length": 32
+       },
+       {
+        "start": 856,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 4,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x244a6b0978c29cfa872a69a054af5a462eb72eca1dbc99ff78061cf03d29ec42",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/test/bundler/BLayerAccounts.sol": "MockAirAccountFactory"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "xPNTsToken.sol:xPNTsToken",
+   "variants": [
+    {
+     "artifact": "xPNTsToken.sol/xPNTsToken.json",
+     "creationKeccak": "0x8774b7dd9755506f2b115069ecb10f0a73aa192847c362386a61df16ef7c54fe",
+     "creationBytes": 17292,
+     "runtimeKeccak": "0x9ace275d6a97ecd50e84e4c6856942d42c2af1c089c385c5749db196962aff4e",
+     "runtimeBytes": 15301,
+     "runtimeKeccakImmutablesZeroed": "0x9ace275d6a97ecd50e84e4c6856942d42c2af1c089c385c5749db196962aff4e",
+     "immutableReferences": {
+      "232145": [
+       {
+        "start": 12367,
+        "length": 32
+       }
+      ],
+      "232147": [
+       {
+        "start": 12556,
+        "length": 32
+       }
+      ],
+      "232149": [
+       {
+        "start": 12320,
+        "length": 32
+       }
+      ],
+      "232151": [
+       {
+        "start": 12446,
+        "length": 32
+       }
+      ],
+      "232153": [
+       {
+        "start": 12484,
+        "length": 32
+       }
+      ],
+      "232156": [
+       {
+        "start": 5695,
+        "length": 32
+       }
+      ],
+      "232159": [
+       {
+        "start": 5736,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 7,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x777597b91b200e1bf1eb6df138f4260b7f3fed5f1d47d74a05e8012b05b37a16",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/xPNTsToken.sol": "xPNTsToken"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "xPNTsToken.sol/xPNTsToken.registry-size.json",
+     "creationKeccak": "0x4118c50fed0a63b71f5ba964e4b0441ee5171dcb1063d3e46577c63e7e751dde",
+     "creationBytes": 17147,
+     "runtimeKeccak": "0xf583a6a2640694d4f6b9211e4df4ae0367ff40143b696e35ffdfb0c911b7dade",
+     "runtimeBytes": 15156,
+     "runtimeKeccakImmutablesZeroed": "0xf583a6a2640694d4f6b9211e4df4ae0367ff40143b696e35ffdfb0c911b7dade",
+     "immutableReferences": {
+      "234925": [
+       {
+        "start": 12223,
+        "length": 32
+       }
+      ],
+      "234927": [
+       {
+        "start": 12412,
+        "length": 32
+       }
+      ],
+      "234929": [
+       {
+        "start": 12169,
+        "length": 32
+       }
+      ],
+      "234931": [
+       {
+        "start": 12302,
+        "length": 32
+       }
+      ],
+      "234933": [
+       {
+        "start": 12340,
+        "length": 32
+       }
+      ],
+      "234936": [
+       {
+        "start": 5595,
+        "length": 32
+       }
+      ],
+      "234939": [
+       {
+        "start": 5636,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 7,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x2964812996ca182b6bf04e12b18386526ae40a8a895f99882c1e8b1692a3c771",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/xPNTsToken.sol": "xPNTsToken"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "MySBT.sol:MySBT",
+   "variants": [
+    {
+     "artifact": "MySBT.sol/MySBT.json",
+     "creationKeccak": "0xfeb9afc8f52d494f43885458d0d93fd55b12ab4a7846879912c1b3d3407c9f7c",
+     "creationBytes": 13332,
+     "runtimeKeccak": "0xb8d154994531d835a55477b6df9e4b6da8cc91c46ec02c160906cc1a6c1a6df7",
+     "runtimeBytes": 12111,
+     "runtimeKeccakImmutablesZeroed": "0xb8d154994531d835a55477b6df9e4b6da8cc91c46ec02c160906cc1a6c1a6df7",
+     "immutableReferences": {
+      "82152": [
+       {
+        "start": 3464,
+        "length": 32
+       }
+      ],
+      "82154": [
+       {
+        "start": 3341,
+        "length": 32
+       }
+      ],
+      "82156": [
+       {
+        "start": 826,
+        "length": 32
+       },
+       {
+        "start": 1692,
+        "length": 32
+       },
+       {
+        "start": 4092,
+        "length": 32
+       },
+       {
+        "start": 5349,
+        "length": 32
+       },
+       {
+        "start": 5447,
+        "length": 32
+       },
+       {
+        "start": 6263,
+        "length": 32
+       },
+       {
+        "start": 7362,
+        "length": 32
+       },
+       {
+        "start": 11300,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 10,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x314e0309c6c667fca95ef6495c087aea809df172779b1564fb0e005a98a4f13f",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/MySBT.sol": "MySBT"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "MySBT.sol/MySBT.registry-size.json",
+     "creationKeccak": "0xcdcc77a1acfbbcf815e4f306b3b2ebf7aa9515ecb76dfa364c24056aa8f7467e",
+     "creationBytes": 13314,
+     "runtimeKeccak": "0x9a7cdf50b68da3755351dc18059527f8a7a1fed2732e6bf7e8f7a70127cac035",
+     "runtimeBytes": 12093,
+     "runtimeKeccakImmutablesZeroed": "0x9a7cdf50b68da3755351dc18059527f8a7a1fed2732e6bf7e8f7a70127cac035",
+     "immutableReferences": {
+      "73943": [
+       {
+        "start": 3430,
+        "length": 32
+       }
+      ],
+      "73945": [
+       {
+        "start": 3306,
+        "length": 32
+       }
+      ],
+      "73947": [
+       {
+        "start": 817,
+        "length": 32
+       },
+       {
+        "start": 1662,
+        "length": 32
+       },
+       {
+        "start": 4061,
+        "length": 32
+       },
+       {
+        "start": 5320,
+        "length": 32
+       },
+       {
+        "start": 5418,
+        "length": 32
+       },
+       {
+        "start": 6226,
+        "length": 32
+       },
+       {
+        "start": 7313,
+        "length": 32
+       },
+       {
+        "start": 11271,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 10,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xa6d7f9755968ccc2c3cd83c27e51fd858755d5c25a6e996322c229ff811a2038",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/MySBT.sol": "MySBT"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "GTokenStaking.sol:GTokenStaking",
+   "variants": [
+    {
+     "artifact": "GTokenStaking.sol/GTokenStaking.json",
+     "creationKeccak": "0xb7e201ea9864cd0ae8ee08a8399a95707965b9537763208fe5eca673303d7e12",
+     "creationBytes": 9520,
+     "runtimeKeccak": "0x605e439eec3f849398d59979ad1cb8b5e578780ca44e5bc7d8cad7b098987114",
+     "runtimeBytes": 9061,
+     "runtimeKeccakImmutablesZeroed": "0x605e439eec3f849398d59979ad1cb8b5e578780ca44e5bc7d8cad7b098987114",
+     "immutableReferences": {
+      "57200": [
+       {
+        "start": 2503,
+        "length": 32
+       },
+       {
+        "start": 2747,
+        "length": 32
+       },
+       {
+        "start": 3803,
+        "length": 32
+       },
+       {
+        "start": 4735,
+        "length": 32
+       },
+       {
+        "start": 5459,
+        "length": 32
+       },
+       {
+        "start": 5518,
+        "length": 32
+       },
+       {
+        "start": 7151,
+        "length": 32
+       },
+       {
+        "start": 7256,
+        "length": 32
+       }
+      ],
+      "57202": [
+       {
+        "start": 969,
+        "length": 32
+       },
+       {
+        "start": 1482,
+        "length": 32
+       },
+       {
+        "start": 3243,
+        "length": 32
+       },
+       {
+        "start": 4638,
+        "length": 32
+       },
+       {
+        "start": 5042,
+        "length": 32
+       },
+       {
+        "start": 6080,
+        "length": 32
+       },
+       {
+        "start": 8417,
+        "length": 32
+       },
+       {
+        "start": 8628,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 16,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xb396ccee3406926119a52cbf248ad9963be511b13f343fdf46a2c60755f6eb41",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/core/GTokenStaking.sol": "GTokenStaking"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "GTokenStaking.sol/GTokenStaking.registry-size.json",
+     "creationKeccak": "0x746b06d6394bfd9969eb59a802818d110986d31f454c5eda9d0dd21feb0c3550",
+     "creationBytes": 9545,
+     "runtimeKeccak": "0x8776d160bb86d5c0bb8b288520a771cfb9ef63dae9f15f0e4100542b9fd0e6e4",
+     "runtimeBytes": 9086,
+     "runtimeKeccakImmutablesZeroed": "0x8776d160bb86d5c0bb8b288520a771cfb9ef63dae9f15f0e4100542b9fd0e6e4",
+     "immutableReferences": {
+      "49568": [
+       {
+        "start": 2499,
+        "length": 32
+       },
+       {
+        "start": 2735,
+        "length": 32
+       },
+       {
+        "start": 3815,
+        "length": 32
+       },
+       {
+        "start": 4748,
+        "length": 32
+       },
+       {
+        "start": 5471,
+        "length": 32
+       },
+       {
+        "start": 5532,
+        "length": 32
+       },
+       {
+        "start": 7158,
+        "length": 32
+       },
+       {
+        "start": 7267,
+        "length": 32
+       }
+      ],
+      "49570": [
+       {
+        "start": 956,
+        "length": 32
+       },
+       {
+        "start": 1469,
+        "length": 32
+       },
+       {
+        "start": 3247,
+        "length": 32
+       },
+       {
+        "start": 4644,
+        "length": 32
+       },
+       {
+        "start": 5047,
+        "length": 32
+       },
+       {
+        "start": 6082,
+        "length": 32
+       },
+       {
+        "start": 8425,
+        "length": 32
+       },
+       {
+        "start": 8636,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 16,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0xc57cf0f095e3cee84d40bd31839fb2320c4f938fd903205be8f45147586acdf0",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/core/GTokenStaking.sol": "GTokenStaking"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "GTokenAuthorization.sol:GTokenAuthorization",
+   "variants": [
+    {
+     "artifact": "GTokenAuthorization.sol/GTokenAuthorization.json",
+     "creationKeccak": "0x3553493e9f687afffff5afe746f422a394f3d942a79b646d6dd909fa12386046",
+     "creationBytes": 8268,
+     "runtimeKeccak": "0x884bcd80ef9f8e24dcfb8ba48adfb666e6d27cc8f75d49486a74a3f431fa0cca",
+     "runtimeBytes": 6113,
+     "runtimeKeccakImmutablesZeroed": "0x884bcd80ef9f8e24dcfb8ba48adfb666e6d27cc8f75d49486a74a3f431fa0cca",
+     "immutableReferences": {
+      "81514": [
+       {
+        "start": 985,
+        "length": 32
+       },
+       {
+        "start": 2111,
+        "length": 32
+       }
+      ],
+      "228759": [
+       {
+        "start": 3402,
+        "length": 32
+       },
+       {
+        "start": 3562,
+        "length": 32
+       },
+       {
+        "start": 3623,
+        "length": 32
+       }
+      ],
+      "232145": [
+       {
+        "start": 5322,
+        "length": 32
+       }
+      ],
+      "232147": [
+       {
+        "start": 5511,
+        "length": 32
+       }
+      ],
+      "232149": [
+       {
+        "start": 5275,
+        "length": 32
+       }
+      ],
+      "232151": [
+       {
+        "start": 5401,
+        "length": 32
+       }
+      ],
+      "232153": [
+       {
+        "start": 5439,
+        "length": 32
+       }
+      ],
+      "232156": [
+       {
+        "start": 2695,
+        "length": 32
+       }
+      ],
+      "232159": [
+       {
+        "start": 2736,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 12,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x0b5512a114d747663e5464fb51f423340e1bc733e487a4fa854fc4f658a50100",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "contracts/src/tokens/GTokenAuthorization.sol": "GTokenAuthorization"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  },
+  {
+   "target": "DeployBLayerAnvil.s.sol:BLayerPriceFeed",
+   "missing": true
+  },
+  {
+   "target": "EntryPoint.sol:EntryPoint",
+   "variants": [
+    {
+     "artifact": "EntryPoint.sol/EntryPoint.default.json",
+     "creationKeccak": "0x86fa42af64d1dbcbd033e4169b554d7354c0b406bf121e4b80692afd0e8ace98",
+     "creationBytes": 12596,
+     "runtimeKeccak": "0x301115b598934182d643f2828ac3a171e99a55e63dcb0f171573e7ebf2625dff",
+     "runtimeBytes": 12143,
+     "runtimeKeccakImmutablesZeroed": "0x301115b598934182d643f2828ac3a171e99a55e63dcb0f171573e7ebf2625dff",
+     "immutableReferences": {
+      "221004": [
+       {
+        "start": 2571,
+        "length": 32
+       },
+       {
+        "start": 9645,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 2,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x762e472cc9295bed238c55f0b787bb6afdf35b592605735ec4066d25515eb07b",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 500
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/account-abstraction-v7/contracts/core/EntryPoint.sol": "EntryPoint"
+      },
+      "libraries": {}
+     }
+    },
+    {
+     "artifact": "EntryPoint.sol/EntryPoint.registry-size.json",
+     "creationKeccak": "0x6f01de0be96f859621981eb36a4bb2847d15d37f4b3af03f33ddb7575141df28",
+     "creationBytes": 12362,
+     "runtimeKeccak": "0x436c57968e535450317187b74de5cdcbb687471e687496e4b8068f8743a6559c",
+     "runtimeBytes": 11921,
+     "runtimeKeccakImmutablesZeroed": "0x436c57968e535450317187b74de5cdcbb687471e687496e4b8068f8743a6559c",
+     "immutableReferences": {
+      "223784": [
+       {
+        "start": 2505,
+        "length": 32
+       },
+       {
+        "start": 9456,
+        "length": 32
+       }
+      ]
+     },
+     "immutableRanges": 2,
+     "linkReferences": {
+      "creation": {},
+      "runtime": {}
+     },
+     "runtimeCborTail": {
+      "hex": "0xa164736f6c6343000821",
+      "decoded": {
+       "solc": "0x000821",
+       "solcVersion": "0.8.33"
+      }
+     },
+     "rawMetadataKeccak": "0x0c5e6472e337b8f55207643d3f2f0b226a8549564835b3bdb836ef612afc2fe9",
+     "compiler": "0.8.33+commit.64118f21",
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+       "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+       "singleton-paymaster/lib/account-abstraction-v7/contracts/core/EntryPoint.sol": "EntryPoint"
+      },
+      "libraries": {}
+     }
+    }
+   ]
+  }
+ ]
+}

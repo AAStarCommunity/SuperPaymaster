@@ -1,0 +1,4 @@
+aa0a26386054bfb290faa16e2dd7238ea83b2fc0d9b6e3d4e013a6fea357f8b2  fixture/Rams2a.t.sol.txt
+e7f68b3358b848422c2a56b40658a693e1eae88a3b47d4f820013f0d72105793  fixture/SuperPaymasterV55Gas.artifact-run.t.sol.txt
+25ebbb37112653a3ab3936b15b0c6818e8b0a8bf9c93e6e7dcad37ab10bcb8a3  fixture/artifact-run.diff
+faaf15dd41330b5713aa0afc2736742bf0b85844796847265b8f0dd7aa7a5c6f  fixture/control-original-fixture.diff
