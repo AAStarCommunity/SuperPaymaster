@@ -16,3 +16,5 @@ M15	test_A1_oldPausePath_blocksAllOperators	exact SIG_FAILURE required
 M16	test_A7_readbackGate	RAMS gate: inventory commitment
 M17	test_A6c_registryRegistrationStop	RAMS A6c: post-freeze RoleNotConfigured required
 M18	test_A6b_safeRoute_preUpgradeGap	RAMS A6b: new operator sponsored in gap
+M19	test_A6e_safeRoute_gapClosedByHolderPauseAndFreeze	RAMS A6e: residual holder sponsored after closure
+M20	test_A6e_safeRoute_gapClosedByHolderPauseAndFreeze	RAMS A6e: new PAYMASTER_SUPER grant admitted after freeze
