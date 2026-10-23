@@ -19,8 +19,9 @@ SAFE = "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
 
 import re
 
-EVM_FAILURE = re.compile(r"out of gas|outofgas|\b\w*oog\b|gas required exceeds|gas exhausted|intrinsic gas too (?:low|high)|"
-                         r"callgascostmorethangaslimit|gasfloormorethangaslimit|execution reverted|reentrancy\s*sentry", re.I)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+from rpc_strict import HEXDATA, QTY, HASH32, classify  # noqa: E402  (shared strict classifier, R2-F1)
+EXPECTED_CHAIN = int(os.environ.get("EXPECTED_CHAIN_ID", "11155111"))
 _next_id = 0
 FAULTS = []  # every RPC fault / malformed response seen; any entry makes the run exit 1
 
@@ -49,10 +50,10 @@ def rpc(url, method, params, allow_method_not_found=False):
             FAULTS.append(f"{method}: malformed error")
             return {"malformedError": True}
         err = {"code": e["code"], "message": re.sub(r"https?://\S+", "<url>", e["message"])[:160]}
-        if EVM_FAILURE.search(e["message"]):
-            return {"evmFailure": err}
         if allow_method_not_found and e["code"] == -32601:
             return {"unsupported": err}
+        if classify(e) == "evm-failure":
+            return {"evmFailure": err}
         FAULTS.append(f"{method}: RPC fault code={e['code']}")
         return {"rpcFault": err}
     return {"result": d["result"]}
@@ -64,40 +65,54 @@ def main():
     eps = {k: os.environ[f"RPC_{k}"] for k in "ABC" if os.environ.get(f"RPC_{k}")}
     steps = [s for s in pk["steps"] if s["id"] in ("S1", "S2", "S3")]
     out = {"note": "read-only; RPC URLs omitted", "block": int(blk, 16), "endpoints": {}}
+    def need(cond, what):
+        if not cond:
+            FAULTS.append(what)
+
     for k, u in eps.items():
         e = {}
         e["chainId"] = rpc(u, "eth_chainId", [])
+        cid = e["chainId"].get("result")
+        need(isinstance(cid, str) and QTY.fullmatch(cid) and int(cid, 16) == EXPECTED_CHAIN, f"{k}: chainId wrong or malformed")
         b = rpc(u, "eth_getBlockByNumber", [blk, False])
-        e["block"] = ({"hash": b["result"]["hash"], "timestamp": int(b["result"]["timestamp"], 16)}
-                      if isinstance(b.get("result"), dict) else b)
+        br = b.get("result")
+        ok_block = (isinstance(br, dict) and isinstance(br.get("hash"), str) and HASH32.fullmatch(br["hash"])
+                    and br.get("number") == blk and isinstance(br.get("timestamp"), str) and QTY.fullmatch(br["timestamp"]))
+        need(ok_block, f"{k}: block missing, wrong number or malformed")
+        e["block"] = {"hash": br["hash"], "timestamp": int(br["timestamp"], 16)} if ok_block else b
         e["clientVersion"] = rpc(u, "web3_clientVersion", [])
         e["eth_config"] = rpc(u, "eth_config", [], allow_method_not_found=True)
-        e["deployerNonceAtBlock"] = rpc(u, "eth_getTransactionCount", [DEPLOYER, blk])
-        e["deployerNoncePendingNow"] = rpc(u, "eth_getTransactionCount", [DEPLOYER, "pending"])
+        for name, params in (("deployerNonceAtBlock", [DEPLOYER, blk]), ("deployerNoncePendingNow", [DEPLOYER, "pending"])):
+            e[name] = rpc(u, "eth_getTransactionCount", params)
+            v = e[name].get("result")
+            need(isinstance(v, str) and QTY.fullmatch(v), f"{k}: {name} malformed")
         e["safeNonceAtBlock"] = rpc(u, "eth_call", [{"to": SAFE, "data": "0xaffed0e0"}, blk])
+        v = e["safeNonceAtBlock"].get("result")
+        need(isinstance(v, str) and HEXDATA.fullmatch(v) and len(v) == 66, f"{k}: safe nonce malformed")
         e["steps"] = {}
         for s in steps:
             tx = {"from": s["from"], "data": s["calldata"]}
             if s["to"]:
                 tx["to"] = s["to"]
+            est = rpc(u, "eth_estimateGas", [tx, blk])
+            if "result" in est:
+                need(isinstance(est["result"], str) and QTY.fullmatch(est["result"]), f"{k}: {s['id']} estimate malformed")
+            call = rpc(u, "eth_call", [dict(tx, gas=hex(int(s["suggestedGasLimit"]))), blk])
+            if "result" in call:
+                need(isinstance(call["result"], str) and HEXDATA.fullmatch(call["result"]), f"{k}: {s['id']} eth_call malformed")
             e["steps"][s["id"]] = {
                 "packetSuggestedGasLimit": int(s["suggestedGasLimit"]),
                 "forkGasUsedInV4": int(s["gasUsedInFork"]),
-                "estimateGas": rpc(u, "eth_estimateGas", [tx, blk]),
-                "ethCallAtPacketLimit": rpc(u, "eth_call", [dict(tx, gas=hex(int(s["suggestedGasLimit"]))), blk]),
+                "estimateGas": est,
+                "ethCallAtPacketLimit": call,
             }
         out["endpoints"][k] = e
     json.dump(out, sys.stdout, indent=1)
     print()
-    # Exit non-zero on any RPC fault / malformed response, or unless every endpoint answered a
-    # well-formed chainId and the pinned block (so an all-failing run cannot look like an archive).
-    ok = not FAULTS and all(
-        isinstance(e["chainId"].get("result"), str) and isinstance(e["block"], dict)
-        and isinstance(e["block"].get("hash"), str) and len(e["block"]["hash"]) == 66
-        for e in out["endpoints"].values())
+    # Exit non-zero on any RPC fault, malformed response, wrong chain or wrong block.
     if FAULTS:
         print("rams-capture: faults: " + "; ".join(FAULTS[:10]), file=sys.stderr)
-    sys.exit(0 if ok and out["endpoints"] else 1)
+    sys.exit(0 if not FAULTS and out["endpoints"] else 1)
 
 
 if __name__ == "__main__":

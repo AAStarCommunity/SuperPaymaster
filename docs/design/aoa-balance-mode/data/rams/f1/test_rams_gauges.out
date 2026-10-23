@@ -1,0 +1,22 @@
+probe     valid                      exit 0          want 0 ok
+probe     embedded-revert            exit exception  want nonzero ok
+probe     word-oog                   exit exception  want nonzero ok
+probe     fault-code-with-evm-text   exit exception  want nonzero ok
+probe     flaky-search               exit exception  want nonzero ok
+capture   valid                      exit 0          want 0 ok
+capture   chain-0x1                  exit 1          want 1 ok
+capture   chain-banana               exit 1          want 1 ok
+capture   hash-gg                    exit 1          want 1 ok
+capture   hash-0X                    exit 1          want 1 ok
+capture   number-int                 exit 1          want 1 ok
+capture   call-null                  exit 1          want 1 ok
+capture   estimate-bool              exit 1          want 1 ok
+capture   nonce-garbage              exit 1          want 1 ok
+capture   embedded-revert            exit 1          want 1 ok
+capture   word-oog                   exit 1          want 1 ok
+calibrate valid                      exit 0          want 0 ok
+calibrate http-429                   exit 3          want nonzero ok
+calibrate embedded-revert            exit 3          want nonzero ok
+calibrate word-oog                   exit 3          want nonzero ok
+calibrate flaky-search               exit 3          want nonzero ok
+PASS

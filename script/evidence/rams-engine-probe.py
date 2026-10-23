@@ -25,14 +25,8 @@ class Fail(Exception):
     pass
 
 
-HEXDATA = re.compile(r"0x([0-9a-fA-F]{2})*")
-QTY = re.compile(r"0x(0|[1-9a-fA-F][0-9a-fA-F]*)")
-HASH32 = re.compile(r"0x[0-9a-fA-F]{64}")
-# Deterministic EVM outcomes of "this gas limit is not enough / execution failed". Anything else
-# (rate limit, internal error, transport, unknown codes) is an RPC fault and aborts the run: it must
-# never be read as a gas boundary.
-EVM_FAILURE = re.compile(r"out of gas|outofgas|\b\w*oog\b|gas required exceeds|gas exhausted|intrinsic gas too (?:low|high)|"
-                         r"callgascostmorethangaslimit|gasfloormorethangaslimit|execution reverted|reentrancy\s*sentry", re.I)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+from rpc_strict import HEXDATA, QTY, HASH32, classify  # noqa: E402  (shared strict classifier, R2-F1)
 _next_id = 0
 
 
@@ -55,9 +49,9 @@ def rpc(url, method, params):
         e = d["error"]
         if not isinstance(e, dict) or type(e.get("code")) is not int or not isinstance(e.get("message"), str):
             raise Fail(f"{method}: malformed error object")
-        if EVM_FAILURE.search(e["message"]):
+        if classify(e) == "evm-failure":
             return "evm-failure", {"code": e["code"], "message": e["message"][:120]}
-        raise Fail(f"{method}: RPC fault code={e['code']} (not an EVM gas/execution failure)")
+        raise Fail(f"{method}: RPC fault code={e['code']} (not a whitelisted EVM gas/execution failure)")
     return "ok", d["result"]
 
 
@@ -80,23 +74,35 @@ def call_outcome(url, tx, gas, blk):
     return True, {"returnBytes": (len(v) - 2) // 2}
 
 
-def min_gas(url, tx, blk):
-    """Minimum gas for which eth_call succeeds; also returns the raw outcomes at min-1 and min."""
-    # Lower bound 0, not 21,000: EIP-2780 lowers intrinsic costs, so sub-21k thresholds are real.
+def _search(url, tx, blk):
     lo, hi = 0, HI
     if not call_outcome(url, tx, hi, blk)[0]:
-        return None, None
+        return None
     while lo < hi:
         mid = (lo + hi) // 2
         if call_outcome(url, tx, mid, blk)[0]:
             hi = mid
         else:
             lo = mid + 1
+    return lo
+
+
+def min_gas(url, tx, blk):
+    """Minimum gas for which eth_call succeeds; also returns the raw outcomes at min-1 and min.
+    The binary search runs twice independently and both runs must agree, so a transient endpoint
+    fault inside one search cannot move the threshold silently."""
+    # Lower bound 0, not 21,000: EIP-2780 lowers intrinsic costs, so sub-21k thresholds are real.
+    first, second = _search(url, tx, blk), _search(url, tx, blk)
+    if first != second:
+        raise Fail(f"eth_call: threshold not stable across two searches ({first} vs {second})")
+    if first is None:
+        return None, None
+    lo = first
     below = call_outcome(url, tx, lo - 1, blk) if lo > 0 else (False, {"note": "gas 0"})
     at = call_outcome(url, tx, lo, blk)
     if below[0] or not at[0]:
         raise Fail("eth_call: threshold not reproducible (min-1 succeeded or min failed)")
-    return lo, {"minMinus1": below[1], "min": at[1]}
+    return lo, {"minMinus1": below[1], "min": at[1], "searches": 2}
 
 
 def estimate(url, tx, blk):

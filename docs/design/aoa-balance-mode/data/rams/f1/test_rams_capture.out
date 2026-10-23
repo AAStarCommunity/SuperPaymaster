@@ -1,0 +1,8 @@
+valid-control: exit 0 (want 0)
+null-chain: exit 1 (want 1)
+null-block-hash: exit 1 (want 1)
+wrong-id: exit 1 (want 1)
+result-and-error: exit 1 (want 1)
+rate-limit-on-call: exit 1 (want 1)
+transport: exit 1 (want 1)
+PASS

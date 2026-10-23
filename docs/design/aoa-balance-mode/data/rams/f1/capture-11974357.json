@@ -1,14 +1,14 @@
 {
  "note": "read-only; RPC URLs omitted",
- "block": 11974274,
+ "block": 11974357,
  "endpoints": {
   "A": {
    "chainId": {
     "result": "0xaa36a7"
    },
    "block": {
-    "hash": "0x7ce33d8fcea00dfec57c4206be1c5cdf3a5bce094da2b87e9804e2187f761c59",
-    "timestamp": 1792729572
+    "hash": "0x0f2303fae3797ae87c332b5ff224ce44dd419b9421a89806ed90a9cd0bb6550f",
+    "timestamp": 1792730568
    },
    "clientVersion": {
     "result": "reth/v2.7.0-3d592ec/x86_64-unknown-linux-gnu"
@@ -114,8 +114,8 @@
     "result": "0xaa36a7"
    },
    "block": {
-    "hash": "0x7ce33d8fcea00dfec57c4206be1c5cdf3a5bce094da2b87e9804e2187f761c59",
-    "timestamp": 1792729572
+    "hash": "0x0f2303fae3797ae87c332b5ff224ce44dd419b9421a89806ed90a9cd0bb6550f",
+    "timestamp": 1792730568
    },
    "clientVersion": {
     "result": "reth/v2.8.0-05ba481/x86_64-unknown-linux-gnu"
@@ -221,8 +221,8 @@
     "result": "0xaa36a7"
    },
    "block": {
-    "hash": "0x7ce33d8fcea00dfec57c4206be1c5cdf3a5bce094da2b87e9804e2187f761c59",
-    "timestamp": 1792729572
+    "hash": "0x0f2303fae3797ae87c332b5ff224ce44dd419b9421a89806ed90a9cd0bb6550f",
+    "timestamp": 1792730568
    },
    "clientVersion": {
     "result": "Tenderly/1.0"

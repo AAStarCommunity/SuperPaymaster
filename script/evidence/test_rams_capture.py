@@ -33,7 +33,7 @@ def run(case):
         if method == "eth_chainId":
             r["result"] = None if case == "null-chain" else "0xaa36a7"
         elif method == "eth_getBlockByNumber":
-            r["result"] = {"hash": None if case == "null-block-hash" else "0x" + "ab" * 32, "timestamp": "0x1"}
+            r["result"] = {"hash": None if case == "null-block-hash" else "0x" + "ab" * 32, "number": req["params"][0], "timestamp": "0x1"}
         elif method == "web3_clientVersion":
             r["result"] = "fixture/1"
         elif method == "eth_config":

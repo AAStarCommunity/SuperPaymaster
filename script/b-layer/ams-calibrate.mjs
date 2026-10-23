@@ -14,9 +14,19 @@ const PROBES = [
 ];
 const EXPECTED_CHAIN = BigInt(process.env.EXPECTED_CHAIN_ID ?? "31337"); // local anvil as started by the B-layer scripts
 const HEXDATA = /^0x([0-9a-fA-F]{2})*$/, QTY = /^0x(0|[1-9a-fA-F][0-9a-fA-F]*)$/;
-// Deterministic EVM failure at this gas limit. Any other error (rate limit, internal, unknown) is an RPC
-// fault and aborts the run; it is never read as a gas boundary.
-const EVM_FAILURE = /out of gas|outofgas|\b\w*oog\b|gas required exceeds|gas exhausted|intrinsic gas too (?:low|high)|callgascostmorethangaslimit|gasfloormorethangaslimit|execution reverted|reentrancy\s*sentry/i;
+// Deterministic EVM failure at this gas limit: an explicit (code, full message) whitelist, mirrored from
+// script/evidence/lib/rpc_strict.py. Known RPC-fault codes always win; anything else aborts the run and is
+// never read as a gas boundary.
+const FAULT_CODES = new Set([-32700, -32600, -32601, -32602, -32603, -32004, -32005, -32006, -32016, -32099, 429]);
+const EVM_FAILURES = [
+  [[-32003, -32015], /^out of gas: gas required exceeds: \d+$/],
+  [[-32003, -32015], /^out of gas: gas exhausted during [a-z ]+: \d+$/],
+  [[-32000], /^intrinsic gas too low$/],
+  [[3, -32003, -32015], /^execution reverted(: .{0,200})?$/],
+  [[-32003], /^EVM error (OutOfGas|MemoryOOG|MemoryLimitOOG|PrecompileOOG|InvalidOperandOOG|ReentrancySentryOOG)$/],
+  [[-32000], /^intrinsic gas too high -- (CallGasCostMoreThanGasLimit|GasFloorMoreThanGasLimit)$/],
+];
+const isEvmFailure = (e) => !FAULT_CODES.has(e.code) && EVM_FAILURES.some(([codes, rx]) => codes.includes(e.code) && rx.test(e.message));
 function die(msg) { console.error(`BLOCKED-TOOL: ${msg}`); process.exit(3); }
 let id = 0;
 async function call(method, params) {
@@ -25,6 +35,7 @@ async function call(method, params) {
   try {
     const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: rid, method, params }) });
+    if (!r.ok || r.status !== 200) die(`${method}: HTTP status ${r.status}`);
     d = await r.json();
   } catch (e) { die(`${method}: transport error (${e?.name ?? "error"})`); }
   if (!d || typeof d !== "object" || d.jsonrpc !== "2.0" || d.id !== rid || (("result" in d) === ("error" in d)))
@@ -32,7 +43,7 @@ async function call(method, params) {
   if ("error" in d) {
     const e = d.error;
     if (!e || typeof e !== "object" || !Number.isInteger(e.code) || typeof e.message !== "string") die(`${method}: malformed error`);
-    if (EVM_FAILURE.test(e.message)) return { evmFailure: { code: e.code, message: e.message.slice(0, 120) } };
+    if (isEvmFailure(e)) return { evmFailure: { code: e.code, message: e.message.slice(0, 120) } };
     die(`${method}: RPC fault code=${e.code} (not an EVM gas/execution failure)`);
   }
   return { result: d.result };
@@ -52,9 +63,17 @@ if (BigInt(ch.result) !== EXPECTED_CHAIN) die(`chain id ${BigInt(ch.result)} != 
 const meta = { clientVersion: typeof cv.result === "string" ? cv.result : null, chainId: ch.result };
 const rows = [];
 for (const p of PROBES) {
-  let lo = 0, hi = 30_000_000; // invariant: !ok(lo) (gas 0 always fails), ok(hi)
-  if (!(await ok(p.tx, hi))) { rows.push({ ...p, measured: null, match: false, note: "fails at 30M" }); continue; }
-  while (hi - lo > 1) { const m = Math.floor((lo + hi) / 2); if (await ok(p.tx, m)) hi = m; else lo = m; }
+  // Two independent binary searches must agree, so a transient fault inside one cannot move the threshold.
+  const search = async () => {
+    let lo = 0, hi = 30_000_000; // invariant: !ok(lo) (gas 0 always fails), ok(hi)
+    if (!(await ok(p.tx, hi))) return null;
+    while (hi - lo > 1) { const m = Math.floor((lo + hi) / 2); if (await ok(p.tx, m)) hi = m; else lo = m; }
+    return hi;
+  };
+  const h1 = await search(), h2 = await search();
+  if (h1 !== h2) die(`${p.name}: threshold not stable across two searches (${h1} vs ${h2})`);
+  if (h1 === null) { rows.push({ ...p, measured: null, match: false, note: "fails at 30M" }); continue; }
+  const hi = h1;
   const below = await outcome(p.tx, hi - 1), at = await outcome(p.tx, hi);
   if (below.ok || !at.ok) die(`${p.name}: threshold not reproducible`);
   const e = await call("eth_estimateGas", [{ from: FROM, ...p.tx }, "latest"]);
