@@ -33,7 +33,7 @@ for i, h in enumerate(hashes):
     port = 18900 + i
     local = f"http://127.0.0.1:{port}"
     p = subprocess.Popen([anvil, "--fork-url", url, "--fork-block-number", str(n - 1), "--port", str(port),
-                          "--silent", "--hardfork", hf, "--no-mining"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                          "--silent", "--hardfork", hf, "--no-mining", "--order", "fifo"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     row = {"tx": h, "block": n, "index": idx, "chain_gasUsed": int(rc["gasUsed"], 16), "chain_status": rc["status"]}
     try:
         for _ in range(120):
@@ -69,7 +69,8 @@ for i, h in enumerate(hashes):
             row.update(engine_gasUsed=None, engine_status=None, local_hash=None, error=lh, match=False)
         else:
             lr = rpc(local, "eth_getTransactionReceipt", [lh])
-            # Order check (#526 N2): anvil may order its pool by fee, not submission. The target must land at
+            # Order check (#526 N2): anvil orders its pool by fee by default (observed: 9/10 blocks reordered), so it runs
+            # with --order fifo. The target must land at
             # the chain index, and the mined block must hold exactly the replayed txs, in submission order.
             lb = rpc(local, "eth_getBlockByNumber", [lr["blockNumber"], False])
             ok_sent = [s for s in sent if not str(s).startswith("ERR")]
