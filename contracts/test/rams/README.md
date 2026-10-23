@@ -56,7 +56,12 @@ operator was not omitted. Historical logs are not obtained with `vm.getRawLogs`;
 | `test_A4_legacyContexts` | A real `handleOps` call settles/burns on 5.4.2 before the upgrade; a freshly signed pre-pause op is rejected both directly and by EntryPoint after pause. Advancing the block then upgrading leaves the earlier execution already settled. |
 | `test_A4_hypotheticalSmartAccountOwner_midBundle` | Counterfactual transfer to a SimpleAccount; its first UserOp atomically upgrades/pauses after all bundle validation. Victim's 160-byte old context yields exact `PostOpReverted(InvalidContextLength())`, failed UserOperationEvent, rolled-back execution and no user burn/settlement; operator validation debit and protocolRevenue increase both remain stranded and are asserted/logged (306 aPNTs in the pinned fixture). |
 | `test_A5_governanceTimeline_EOAowner` | Queue tuple/ETA; exact GasParamsTimelock failures immediately and at ETA−1; activation at ETA; complete gas read-back/pending clear; resume; real V2 `handleOps` settlement at postOp=440k / pmV=1150k; 300k rejected. |
-| `test_A5b_settleBindingAnalysis` | Activate SETTLE=420k and 160k via real queue/execute with MIN=440k; binary-search callback success gas, assert no admissible no-OOG band for this V2 fixture, and settle via real `handleOps` at the minimum for both tuples. SETTLE is defense in depth; M5 is killed only by read-back. |
+| `test_A5b_settleBindingAnalysis` | Synthetic guard-crossing measurements with cost=100000 and fee=1; not settlement exhaustion or a universal margin. |
+| `test_A5c_handleOps_minBoundaries` | Real handleOps at MIN−1 (AA34), MIN, and MIN+1 (execution and settlement). |
+| `test_A3b_probeOnly_globalPause` | Probe retained when M14 disables upgrade read-backs and atomic pause. |
+| `test_A6b_safeRoute_preUpgradeGap` | New registration and sponsorship during Safe-owned wait; pause cannot mature by earliest upgrade. |
+| `test_A6c_registryRegistrationStop` | Owner disables PAYMASTER_SUPER grants with configureRole; existing grants remain valid. |
+| `test_A6d_EOAfirst_thenTimelock` | Direct atomic EOA upgrade and queue, then real timelock acceptance/activation batch after 48h or 96h. |
 | `test_A6_governanceTimeline_SafeTimelock` | Closed Safe-only proposer/executor roles, old single-step ownership transfer, delayed atomic upgrade+queue batch, exact pre-ETA reverts, exact unexecuted-predecessor rejection on 5.5.0, non-Safe execution rejection after the role audit, and branched 48h overlapping versus 96h sequential waits **after upgrade**. Both include an additional initial 48h before the upgrade: 96h / 144h total downtime from the first pause. |
 | `test_A7_readbackGate` | New two-step ownership transfer; exact gas/pending values, owner, guardian, implementation/codehash/version, global/operator pauses, configured inventory and timelock state/timestamp. Each gas component, pending slot, owner, guardian, pause, implementation, each operator's configured/pause bits, and timelock state are independently corrupted with `vm.store`; code is corrupted with `vm.etch`. Missing inputs also fail. Every restored state passes again. |
 
@@ -99,12 +104,14 @@ operator was not omitted. Historical logs are not obtained with `vm.getRawLogs`;
   Compilation and offline skips alone cannot validate these assertions.
 
 The pre-upgrade sponsorship gap remains: newly registered operators can be sponsored
-on 5.4.2 after the listed operators have paused (A2). Re-enumerate and pause additions
-immediately before the upgrade transaction; minimize and monitor this window.
+on 5.4.2 after the listed operators have paused (A2/A6b). Once the timelock owns
+5.4.2, pausing additions also takes 48h. Re-enumeration alone cannot close that gap.
 The stop guarantee starts at the atomic upgrade.
 
 Mutation definitions and rerun instructions are in
-`docs/design/aoa-balance-mode/data/rams-a/MUTATIONS.md`. The current M1–M13 patches
-are regenerated with `bash script/evidence/rams-a-mutations-generate.sh`.
+`docs/design/aoa-balance-mode/data/rams-a/MUTATIONS.md`. The current M1–M16 patches
+are regenerated with `bash script/evidence/rams-a-mutations-generate.sh OUTPUT_DIRECTORY`.
 `targets.tsv` includes the expected first-failure substring; a different failure
 is WRONG-ASSERTION. Historical fork logs do not validate this revised fixture.
+
+Review 2 evidence scope, unresolved assumptions, scan reproduction, and both governance orderings are recorded in `docs/design/aoa-balance-mode/data/rams-a/README.md` and `REVIEW-2.md`. Current definitions await fork rerun.

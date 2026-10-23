@@ -65,6 +65,8 @@ contract RamsARouteRehearsalTest is Test {
     uint256 pauseSlot;
     uint256 opSlot;
     bool forkEnabled;
+    bytes32 inventoryHash;
+    uint256 sigFailureProbes;
 
     modifier forkOnly() {
         if (!forkEnabled) vm.skip(true);
@@ -91,6 +93,7 @@ contract RamsARouteRehearsalTest is Test {
         assertEq(RamsSafe(SAFE).getThreshold(), 2, "RAMS: Safe threshold drift");
         assertEq(RamsSafe(SAFE).getOwners().length, 3, "RAMS: Safe owners drift");
         operators = vm.envAddress("OPERATORS", ",");
+        inventoryHash = keccak256(abi.encode(operators));
         require(operators.length != 0, "RAMS: archive operator inventory missing");
         bool ownerSeen;
         bool anniSeen;
@@ -106,6 +109,11 @@ contract RamsARouteRehearsalTest is Test {
             anniSeen = anniSeen || op == ANNI;
         }
         require(ownerSeen && anniSeen, "RAMS: known operators absent from inventory");
+        emit log_named_string("Registry source version (must match inspected tag)", RamsRegistry(REGISTRY).version());
+        assertEq(RamsRegistry(REGISTRY).version(), "Registry-5.4.2", "RAMS: inspect Registry source on version drift");
+        emit log_named_uint("EVM block gas limit (not transaction cap)", block.gaslimit);
+        emit log_named_uint("R0 comparison 2^24", 1 << 24);
+        emit log("Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.");
         emit log_named_uint("Pinned fork block", forkBlock);
         emit log_named_uint("Archive inventory entries (completeness externally attested)", operators.length);
         newImpl = address(new SuperPaymaster(ep, sp.REGISTRY(), address(sp.ETH_USD_PRICE_FEED())));
@@ -298,6 +306,7 @@ contract RamsARouteRehearsalTest is Test {
     /// @dev Roll back both the optimistic debit (5.4.2) and reservation (5.5.0).
     function _probe(PackedUserOperation memory op, bool success, uint256 contextLength) internal {
         if (success) _assertBudget(op);
+        uint256 beforeFailures = sigFailureProbes;
         uint256 snapshot = vm.snapshot();
         bytes32 h = ep.getUserOpHash(op);
         uint256 maxCost = RamsBudget.maxCost(op);
@@ -317,7 +326,9 @@ contract RamsARouteRehearsalTest is Test {
             assertEq(vd, 1, "RAMS: exact SIG_FAILURE required");
             assertEq(context.length, 0, "RAMS: rejected op must have no context");
         }
+        bool rejected = vd == 1 && context.length == 0;
         assertTrue(vm.revertTo(snapshot), "RAMS: probe rollback");
+        sigFailureProbes = beforeFailures + (rejected ? 1 : 0);
     }
 
     function _upgrade(bool atomicPause) internal {
@@ -403,6 +414,14 @@ contract RamsARouteRehearsalTest is Test {
         _fundOperator(operator);
     }
 
+    function _mustReject(address destination, bytes memory data, bytes memory expected, string memory message)
+        internal
+    {
+        (bool ok, bytes memory reason) = destination.call(data);
+        require(!ok, message);
+        assertEq(reason, expected, message);
+    }
+
     function test_A1_oldPausePath_blocksAllOperators() public forkOnly {
         PackedUserOperation[] memory signed = new PackedUserOperation[](operators.length);
         for (uint256 i; i < operators.length; ++i) {
@@ -417,8 +436,7 @@ contract RamsARouteRehearsalTest is Test {
         assertEq(sp.version(), "SuperPaymaster-5.4.2", "RAMS: old pause path only");
     }
 
-    function test_A2_newOperatorRisk_window() public forkOnly {
-        _pauseAll(true);
+    function _registerNewOperator() internal {
         RamsRegistry reg = RamsRegistry(REGISTRY);
         address ownerToken = _token(OWNER);
         address registryOwner = reg.owner();
@@ -467,6 +485,11 @@ contract RamsARouteRehearsalTest is Test {
         _fundOperator(NEW_OPERATOR);
         _fundLegacyUser(tok);
         _probe(_op(NEW_OPERATOR, 440_000, false), true, 160);
+    }
+
+    function test_A2_newOperatorRisk_window() public forkOnly {
+        _pauseAll(true);
+        _registerNewOperator();
         for (uint256 i; i < operators.length; ++i) {
             _assertOperatorPause(operators[i], true);
         }
@@ -492,14 +515,13 @@ contract RamsARouteRehearsalTest is Test {
         assertEq(sp.owner(), OWNER, "RAMS: owner preserved by atomic delegatecall");
         _assertGas(false);
         uint128[5] memory limits = [uint128(0), 200_000, 300_000, 440_000, type(uint128).max];
-        uint256 rejectedProbes;
+        uint256 beforeProbes = sigFailureProbes;
         for (uint256 i; i < operators.length; ++i) {
             for (uint256 j; j < limits.length; ++j) {
                 _probe(_op(operators[i], limits[j], false), false, 0);
-                ++rejectedProbes;
             }
         }
-        assertEq(rejectedProbes, operators.length * limits.length, "RAMS: all operator classes probed");
+        assertEq(sigFailureProbes - beforeProbes, operators.length * limits.length, "RAMS: all operator classes probed");
         PackedUserOperation memory unknown = _op(OWNER, 300_000, false);
         unknown.paymasterAndData =
             abi.encodePacked(SP, uint128(1_150_000), uint128(300_000), NEW_OPERATOR, type(uint256).max);
@@ -603,8 +625,12 @@ contract RamsARouteRehearsalTest is Test {
         _probe(signedBeforePause, false, 0);
         PackedUserOperation[] memory rejected = new PackedUserOperation[](1);
         rejected[0] = signedBeforePause;
-        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
-        ep.handleOps(rejected, payable(address(0xBEEF)));
+        _mustReject(
+            EP,
+            abi.encodeCall(ep.handleOps, (rejected, payable(address(0xBEEF)))),
+            abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"),
+            "RAMS A4: pre-signed operation escaped pause"
+        );
         vm.roll(vm.getBlockNumber() + 1);
         _upgrade(true); // Models the subsequent top-level upgrade; no suspended EntryPoint call exists.
         emit log("Separate handleOps transactions cannot straddle an upgrade: validation and postOp share one call tree.");
@@ -672,7 +698,8 @@ contract RamsARouteRehearsalTest is Test {
         _assertGas(false);
         vm.warp(eta);
         vm.prank(OWNER);
-        sp.executeGasParams();
+        (bool activated,) = SP.call(abi.encodeWithSignature("executeGasParams()"));
+        require(activated, "RAMS A5: activation not mature");
         _assertGas(true);
         _freshPrice();
         xPNTsTokenV2 token = _v2Ready();
@@ -725,14 +752,45 @@ contract RamsARouteRehearsalTest is Test {
                 else low = mid;
             }
             emit log_named_uint("Analysis SETTLE", bounds[i]);
-            emit log_named_uint("Measured callback success threshold", high);
-            bool admissibleNoOogBand = high > active.minPostOpGas;
-            emit log_named_uint("Admissible no-OOG band exists (fixture)", admissibleNoOogBand ? 1 : 0);
-            assertFalse(admissibleNoOogBand, "RAMS: no admissible no-OOG band at MIN 440k in fixture");
+            emit log_named_uint("Synthetic callback guard crossing (not settlement exhaustion)", high);
+            emit log_named_uint("Synthetic guard overhead including call/EIP-150", high - bounds[i]);
             assertTrue(vm.revertTo(validationSnapshot), "RAMS: restore before minimum handleOps control");
             _settleOne(op); // Real EntryPoint forwarding at the smallest admissible limit, for BOTH tuples.
             assertTrue(vm.revertTo(branch), "RAMS: analysis branch rollback");
         }
+    }
+
+    function test_A5c_handleOps_minBoundaries() public forkOnly {
+        _pauseAll(true);
+        _upgrade(true);
+        _v2Ready();
+        uint256 eta = _queue();
+        vm.warp(eta);
+        vm.prank(OWNER);
+        sp.executeGasParams();
+        _freshPrice();
+        _pauseAll(false);
+        vm.prank(OWNER);
+        sp.setGlobalPaused(false);
+        PackedUserOperation[] memory rejected = new PackedUserOperation[](1);
+        rejected[0] = _op(OWNER, 439_999, true);
+        _mustReject(
+            EP,
+            abi.encodeCall(ep.handleOps, (rejected, payable(address(0xBEEF)))),
+            abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"),
+            "RAMS A5c: MIN-1 admitted"
+        );
+        _settleOne(_op(OWNER, 440_000, true));
+        _settleOne(_op(OWNER, 440_001, true));
+    }
+
+    function test_A3b_probeOnly_globalPause() public forkOnly {
+        _pauseAll(true);
+        _upgrade(true);
+        _v2Ready();
+        vm.prank(OWNER);
+        sp.setOperatorPaused(OWNER, false);
+        _probe(_op(OWNER, 440_000, true), false, 0);
     }
 
     function _postOpAtGas(bytes memory context, uint256 gasLimit) internal returns (bool ok) {
@@ -774,7 +832,125 @@ contract RamsARouteRehearsalTest is Test {
         assertEq(sp.owner(), address(tl), "RAMS: timelock ownership read-back");
     }
 
+    function _logSafe() internal {
+        address cursor = address(1);
+        do {
+            (address[] memory modules, address next) = RamsSafe(SAFE).getModulesPaginated(cursor, 32);
+            for (uint256 i; i < modules.length; ++i) {
+                emit log_named_address("Live Safe module", modules[i]);
+            }
+            emit log_named_uint("Live Safe module page count", modules.length);
+            cursor = next;
+        } while (cursor != address(1));
+        emit log_named_bytes32(
+            "Live Safe guard slot", vm.load(SAFE, 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8)
+        );
+    }
+
+    function test_A6b_safeRoute_preUpgradeGap() public forkOnly {
+        _pauseAll(true);
+        TimelockController tl = _timelock();
+        _transferToTimelock(tl);
+        uint256 began = vm.getBlockTimestamp();
+        bytes memory upgrade = abi.encodeWithSignature(
+            "upgradeToAndCall(address,bytes)", newImpl, abi.encodeWithSignature("setGlobalPaused(bool)", true)
+        );
+        bytes32 upgradeSalt = keccak256("RAMS gap upgrade");
+        vm.prank(SAFE);
+        tl.schedule(SP, 0, upgrade, bytes32(0), upgradeSalt, DELAY);
+        vm.warp(began + 1 hours);
+        _freshPrice();
+        _registerNewOperator(); // Includes real role grants, configureOperator and valid sponsorship probe.
+        _settleOne(_op(NEW_OPERATOR, 440_000, false));
+        bytes memory pause = abi.encodeWithSignature("setOperatorPaused(address,bool)", NEW_OPERATOR, true);
+        bytes32 salt = keccak256("RAMS gap pause");
+        vm.prank(SAFE);
+        tl.schedule(SP, 0, pause, bytes32(0), salt, DELAY);
+        vm.warp(began + DELAY); // The earliest modeled upgrade time, one hour before this pause matures.
+        vm.prank(SAFE);
+        (bool ok,) = address(tl).call(abi.encodeCall(tl.execute, (SP, 0, pause, bytes32(0), salt)));
+        require(!ok, "RAMS A6b: new operator pause unexpectedly ready");
+        _freshPrice();
+        _probe(_op(NEW_OPERATOR, 440_000, false), true, 160);
+        vm.prank(SAFE);
+        tl.execute(SP, 0, upgrade, bytes32(0), upgradeSalt);
+        _assertUpgrade(true);
+        _probe(_op(NEW_OPERATOR, 440_000, false), false, 0);
+        emit log_named_uint("Safe route pre-upgrade hours", DELAY / 1 hours);
+    }
+
+    function test_A6c_registryRegistrationStop() public forkOnly {
+        _pauseAll(true);
+        TimelockController tl = _timelock();
+        _transferToTimelock(tl);
+        RamsRegistry reg = RamsRegistry(REGISTRY);
+        IRegistry.RoleConfig memory config = reg.getRoleConfig(SUPER);
+        emit log_named_address("Live Registry owner", reg.owner());
+        emit log_named_address("Live PAYMASTER_SUPER config owner", config.owner);
+        config.isActive = false;
+        vm.prank(reg.owner());
+        reg.configureRole(SUPER, config);
+        assertFalse(reg.getRoleConfig(SUPER).isActive, "RAMS: role stop read-back");
+        vm.prank(NEW_OPERATOR);
+        _mustReject(
+            REGISTRY,
+            abi.encodeCall(reg.registerRole, (SUPER, NEW_OPERATOR, abi.encode(config.minStake))),
+            abi.encodeWithSignature("RoleNotConfigured(bytes32,bool)", SUPER, false),
+            "RAMS A6c: disabled role granted"
+        );
+        address ownerToken = _token(OWNER);
+        vm.prank(NEW_OPERATOR);
+        _mustReject(
+            SP,
+            abi.encodeWithSignature("configureOperator(address,address)", ownerToken, NEW_OPERATOR),
+            abi.encodeWithSelector(SuperPaymasterStorage.Unauthorized.selector),
+            "RAMS A6c: unregistered operator configured"
+        );
+        assertTrue(sp.REGISTRY().hasRole(SUPER, OWNER), "RAMS: stop does not revoke existing grants");
+    }
+
+    function test_A6d_EOAfirst_thenTimelock() public forkOnly {
+        uint256 pausedAt = vm.getBlockTimestamp();
+        _pauseAll(true);
+        _upgrade(true);
+        emit log_named_uint("EOA-first modeled pre-upgrade seconds", vm.getBlockTimestamp() - pausedAt);
+        uint256 eta = _queue(); // EOA queues while still owner, immediately after upgrade.
+        TimelockController tl = _timelock();
+        vm.prank(OWNER);
+        sp.transferOwnership(address(tl));
+        assertEq(sp.pendingOwner(), address(tl), "RAMS: pending timelock");
+        uint256 snapshot = vm.snapshot();
+        _acceptAndActivate(tl, eta, pausedAt, false);
+        assertTrue(vm.revertTo(snapshot), "RAMS: EOA-first branch rollback");
+        _acceptAndActivate(tl, eta, pausedAt, true);
+    }
+
+    function _acceptAndActivate(TimelockController tl, uint256 eta, uint256 pausedAt, bool sequential) internal {
+        if (sequential) vm.warp(eta);
+        address[] memory targets = new address[](2);
+        targets[0] = SP;
+        targets[1] = SP;
+        uint256[] memory values = new uint256[](2);
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSignature("acceptOwnership()");
+        data[1] = abi.encodeWithSignature("executeGasParams()");
+        bytes32 salt = keccak256(abi.encode("RAMS EOA handover", sequential));
+        vm.prank(SAFE);
+        tl.scheduleBatch(targets, values, data, bytes32(0), salt, DELAY);
+        vm.warp(vm.getBlockTimestamp() + DELAY);
+        vm.prank(SAFE);
+        tl.executeBatch(targets, values, data, bytes32(0), salt);
+        assertEq(sp.owner(), address(tl), "RAMS: accepted timelock owner");
+        _assertGas(true);
+        assertTrue(sp.paused(), "RAMS: handover preserves pause");
+        assertEq(vm.getBlockTimestamp() - pausedAt, sequential ? 96 hours : 48 hours, "RAMS: EOA-first downtime");
+        emit log_named_uint(
+            "EOA-first total downtime hours (through gas activation)", (vm.getBlockTimestamp() - pausedAt) / 1 hours
+        );
+    }
+
     function test_A6_governanceTimeline_SafeTimelock() public forkOnly {
+        _logSafe();
         _pauseAll(true);
         TimelockController tl = _timelock();
         _transferToTimelock(tl); // Live 5.4.2 transfer completes in one step.
@@ -802,22 +978,26 @@ contract RamsARouteRehearsalTest is Test {
         assertTrue(tl.isOperationPending(batchId), "RAMS: batch pending");
         vm.warp(scheduled + DELAY - 1);
         vm.prank(SAFE);
-        vm.expectRevert(
+        _mustReject(
+            address(tl),
+            abi.encodeCall(tl.executeBatch, (targets, values, data, bytes32(0), salt)),
             abi.encodeWithSelector(
                 TimelockController.TimelockUnexpectedOperationState.selector,
                 batchId,
                 bytes32(uint256(1) << uint8(TimelockController.OperationState.Ready))
-            )
+            ),
+            "RAMS A6: upgrade batch executed before delay"
         );
-        tl.executeBatch(targets, values, data, bytes32(0), salt);
         vm.warp(scheduled + DELAY);
         vm.prank(ownerAccount);
-        vm.expectRevert(
+        _mustReject(
+            address(tl),
+            abi.encodeCall(tl.executeBatch, (targets, values, data, bytes32(0), salt)),
             abi.encodeWithSignature(
                 "AccessControlUnauthorizedAccount(address,bytes32)", ownerAccount, keccak256("EXECUTOR_ROLE")
-            )
+            ),
+            "RAMS A6: non-Safe executor accepted"
         );
-        tl.executeBatch(targets, values, data, bytes32(0), salt);
         vm.prank(SAFE);
         tl.executeBatch(targets, values, data, bytes32(0), salt);
         assertTrue(tl.isOperationDone(batchId), "RAMS: upgrade batch done");
@@ -857,8 +1037,10 @@ contract RamsARouteRehearsalTest is Test {
         assertTrue(vm.revertTo(snapshot), "RAMS: predecessor branch rollback");
         snapshot = vm.snapshot();
         _activateViaTimelock(tl, batchId, eta, upgradedAt, false);
+        emit log_named_uint("Safe total downtime hours", (vm.getBlockTimestamp() - scheduled) / 1 hours);
         assertTrue(vm.revertTo(snapshot), "RAMS: timeline branch rollback");
         _activateViaTimelock(tl, batchId, eta, upgradedAt, true);
+        emit log_named_uint("Safe total downtime hours", (vm.getBlockTimestamp() - scheduled) / 1 hours);
     }
 
     function _activateViaTimelock(
@@ -941,12 +1123,11 @@ contract RamsARouteRehearsalTest is Test {
             g.pendingHash != bytes32(0) && keccak256(abi.encode(q)) == g.pendingHash, "RAMS gate: pending parameters"
         );
         require(
-            g.inventory.length != 0 && g.inventory.length == operators.length
+            g.inventory.length != 0 && keccak256(abi.encode(g.inventory)) == inventoryHash
                 && g.operatorPauses.length == g.inventory.length,
             "RAMS gate: missing inventory"
         );
         for (uint256 i; i < g.inventory.length; ++i) {
-            require(g.inventory[i] == operators[i], "RAMS gate: inventory mismatch");
             (, bool configured, bool stopped,,,,,,) = sp.operators(g.inventory[i]);
             require(configured, "RAMS gate: operator missing");
             require(stopped == g.operatorPauses[i], "RAMS gate: operator pause");
@@ -966,8 +1147,12 @@ contract RamsARouteRehearsalTest is Test {
         bytes32 original = vm.load(account, slot);
         require(original != bad, "RAMS: negative control did not change storage");
         vm.store(account, slot, bad);
-        vm.expectRevert(bytes(reason));
-        this.readbackGate(g);
+        _mustReject(
+            address(this),
+            abi.encodeCall(this.readbackGate, (g)),
+            abi.encodeWithSignature("Error(string)", reason),
+            string.concat("RAMS gate negative: ", reason)
+        );
         vm.store(account, slot, original);
         this.readbackGate(g);
     }
@@ -995,7 +1180,7 @@ contract RamsARouteRehearsalTest is Test {
         g.paused = true;
         g.gasHash = keccak256(abi.encode(SuperPaymasterStorage.GasParams(440_000, 420_000, 5000, 340_000)));
         g.pendingHash = keccak256(abi.encode(SuperPaymasterStorage.PendingGasParams(0, 0, 0, 0, 0)));
-        g.inventory = operators;
+        g.inventory = vm.envAddress("OPERATORS", ",");
         g.operatorPauses = new bool[](operators.length);
         for (uint256 i; i < operators.length; ++i) {
             g.operatorPauses[i] = true;
@@ -1047,7 +1232,7 @@ contract RamsARouteRehearsalTest is Test {
         g.inventory = new address[](0);
         vm.expectRevert(bytes("RAMS gate: missing inventory"));
         this.readbackGate(g);
-        g.inventory = operators;
+        g.inventory = vm.envAddress("OPERATORS", ",");
         g.operation = bytes32(0);
         vm.expectRevert(bytes("RAMS gate: missing timelock operation"));
         this.readbackGate(g);

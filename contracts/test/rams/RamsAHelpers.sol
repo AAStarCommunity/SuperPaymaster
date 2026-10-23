@@ -65,6 +65,8 @@ interface RamsRegistry {
         string ensName;
         uint256 stakeAmount;
     }
+    function version() external view returns (string memory);
+    function configureRole(bytes32, IRegistry.RoleConfig calldata) external;
     function owner() external view returns (address);
     function GTOKEN_STAKING() external view returns (address);
     function getRoleConfig(bytes32) external view returns (IRegistry.RoleConfig memory);
@@ -89,6 +91,7 @@ interface RamsMint {
 interface RamsSafe {
     function getThreshold() external view returns (uint256);
     function getOwners() external view returns (address[] memory);
+    function getModulesPaginated(address, uint256) external view returns (address[] memory, address);
 }
 
 /// @dev Compiler-derived layout only. Never installed in the live proxy.

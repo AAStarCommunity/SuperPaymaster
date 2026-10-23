@@ -2,7 +2,7 @@
 # Local patches only; fork execution requires caller-provided archive RPC and inventory.
 set -euo pipefail
 cd "$(dirname -- "${BASH_SOURCE[0]}")/../.."
-D="${1:-docs/design/aoa-balance-mode/data/rams-a/mutations-run2}"
+D="${1:-docs/design/aoa-balance-mode/data/rams-a/mutations-def4}"
 OUT="${2:-$D}"
 forge_bin="${FORGE:-forge}"
 export SEPOLIA_FORK_RPC="${SEPOLIA_FORK_RPC:-${RPC:-}}"
@@ -17,14 +17,19 @@ source script/evidence/rams-a-header.sh
 mkdir -p "$OUT"
 target='contracts/test/rams/RamsARouteRehearsal.t.sol'
 baseline=$(mktemp)
-cp "$target" "$baseline"
+git show "HEAD:$target" > "$baseline"
+if ! cmp -s "$baseline" "$target"; then
+    printf 'Refusing mutation run: %s differs from HEAD. Commit the reviewed baseline before running.\n' "$target" >&2
+    rm -f "$baseline"
+    exit 1
+fi
 trap 'cp "$baseline" "$target"; rm -f "$baseline"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 run() {
     local args=(test --match-path "$target" --match-test "$1" --no-isolate --hardfork amsterdam -vv)
     { rams_header "${args[@]}"; "$forge_bin" "${args[@]}"; } 2>&1 |
-        sed -E 's#https?://[^[:space:]]*#<redacted>#g'
+        rams_redact
 }
 printf 'ID\tTARGET\tRESULT\tFIRST_FAIL\n' > "$OUT/summary.tsv"
 run '^test_A' > "$OUT/CONTROL.log" || true
@@ -54,5 +59,4 @@ while IFS=$'\t' read -r m test expected; do
     [[ "$r" = KILLED ]] || failed=1
 done < "$D/targets.tsv"
 cp "$baseline" "$target"
-cmp -s "$baseline" "$target"
 [[ "$control" = GREEN && "$failed" = 0 ]]

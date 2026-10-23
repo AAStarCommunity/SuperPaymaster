@@ -37,5 +37,5 @@ args+=("$@")
         printf 'OFFLINE: all fork tests must SKIP. This is not Amsterdam acceptance evidence.\n'
     fi
     "$forge_bin" "${args[@]}"
-} 2>&1 | sed -E 's#https?://[^[:space:]]*#<redacted>#g' | tee "$log_file"
+} 2>&1 | rams_redact | tee "$log_file"
 printf 'Evidence: %s\n' "$log_file"

@@ -1,0 +1,11 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -275,7 +275,7 @@
+         address authority = sp.owner();
+         for (uint256 i; i < operators.length; ++i) {
+             vm.prank(authority);
+-            sp.setOperatorPaused(operators[i], stopped);
++            if (i != 0) sp.setOperatorPaused(operators[i], stopped);
+             _assertOperatorPause(operators[i], stopped);
+         }
+     }
