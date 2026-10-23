@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 : "${RPC_FILE:?}" "${NIGHTLY_ANVIL:?}" "${ANVIL_186:?}" "${ANVIL_171:?}"
 FROM="${FROM:-11974600}"; TO="${TO:-11975000}"
-OUT=docs/design/aoa-balance-mode/data/rams-rr
+OUT="${OUT_DIR:-docs/design/aoa-balance-mode/data/rams-rr}"
 mkdir -p "$OUT"
 redact() { sed -E 's#(https?|wss?)://[^[:space:]"]*#<redacted>#g'; }
 {
