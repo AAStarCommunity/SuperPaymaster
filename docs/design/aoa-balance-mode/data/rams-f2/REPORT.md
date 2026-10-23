@@ -21,8 +21,9 @@ None of them is an accepted default.**
 1. **The G/B gap is a fixture gap, and it closes.** With the G fixture deployed from rc.4 release bytes and run with
    transaction isolation (`--isolate`: each `handleOps` its own transaction, as on chain and in the B layer), G and B agree on
    the SuperPaymaster side to **18 gas** for balance and SP_RENEW, fresh and warm SP (882,348 vs 882,366; 998,847 vs 998,865;
-   784,428 vs 784,446; 900,927 vs 900,945). The remaining G/B differences are each a constant traced to one fixture element
-   (§2): account implementation (+5,044 v), factory/account deployment model (v 823,722 vs 3.89–3.98M), credit-tier source
+   784,428 vs 784,446; 900,927 vs 900,945). The remaining G/B differences are attributed to fixture elements in §2, with
+   different strength of evidence (F-1 is neither constant nor traced; F-5 rests on the access sets only; F-8 is not
+   attributed): account implementation (+5,044 v), factory/account deployment model (v 823,722 vs 3.89–3.98M), credit-tier source
    (+22,039 pmV), the G operator's rate limit, and R-AMS-2a's `--no-isolate` (−62,417 pmV on the balance first op).
 2. **"pmV 945k / initCode 925k" (G §5.4) vs "pmV 1.15M / initCode 4.6M" (B (c))** differ because G §5.4 took the balance
    first op only, under `--no-isolate`, on `registry-size` bytes, with a SimpleAccount proxy factory; B took the maximum over
@@ -36,7 +37,7 @@ None of them is an accepted default.**
    its floor); **Alto v1.2.5 accepts PVG = 1** and then loses 52,592 gas on that op. For every other measured op (warm SP,
    second op, credit, SP_RENEW, initCode, 3-op bundle) the ops' actualGasUsed exceeds the tx gasUsed. Measured at PVG 100,000
    per op: surplus 254,993–351,143 per single-op bundle (1,119,421 for the 3-op bundle = 373,140 per op). Recomputed for
-   PVG 0 (surplus − 100,000 per op): **154,993–273,139 per op** (= −break-even; break-even PVG negative).
+   PVG 0 (surplus − 100,000 per op): **154,993–273,140 per op** (= −break-even; break-even PVG negative). The 3-op value is −273,140.33 exactly; the committed `pvg-direct.json` / `f2-summary.json` show −273,139 because `script/b-layer/ams-pvg.mjs` rounded with `(x+n-1)/n`, which is not a ceiling for negative BigInts (truncation toward zero). The script is fixed (`ceilDiv`); the raw files are left as produced. Single-op rows are exact divisions and unaffected.
 
 ## 1. Unified table (minimum per field, all other fields generous; same success predicate on both sides)
 
@@ -174,7 +175,7 @@ governance + setup, then from one snapshot (`script/b-layer/ams-pvg.mjs`):
 | b8 first op, warm SP | 805,562 | 1,156,705 | 351,143 | −251,143 | — | — | — | — |
 | b7 credit first op (warm SP) | 720,385 | 975,378 | 254,993 | −154,993 | 46,187 (46,152–46,188) | 720,361 / 921,565 / +201,204 | 1 | +155,018 |
 | b5 SP_RENEW (warm SP) | 922,085 | 1,273,204 | 351,119 | −251,119 | — | — | — | — |
-| 3-op bundle b3a/b3b/b3c | 2,125,513 | 3,244,934 | 1,119,421 | −273,139 | — | — | — | — |
+| 3-op bundle b3a/b3b/b3c | 2,125,513 | 3,244,934 | 1,119,421 | −273,140 (raw file: −273,139, see §0 item 4) | — | — | — | — |
 | initCode b4-ok | 4,568,024 | 4,917,499 | 349,475 | −249,475 | not reachable: precheck v+pmV 5,735,000 > 5M at every PVG | — | 1 | +249,488 |
 
 Sources: `d-pvg/pvg-direct.{json,log}`, `d-pvg/pvg-rundler.{json,log}` (+ `pvg-rundler-bundler.log`),

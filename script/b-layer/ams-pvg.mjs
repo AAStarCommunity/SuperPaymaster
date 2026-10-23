@@ -73,10 +73,13 @@ async function analyzeTx(hash, ops) {
         sumActualGasUsed: sumUsed.toString(), sumPVG: sumPvg.toString(),
         surplusGas_sumActualGasUsed_minus_txGasUsed: surplus.toString(),
         gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG: (used - (sumUsed - sumPvg)).toString(),
-        breakEvenPVGperOp: n ? ((sumPvg - surplus + n - 1n) / n).toString() : null,
-        gapNoPVGperOp: n ? ((used - (sumUsed - sumPvg) + n - 1n) / n).toString() : null,
+        // ceilDiv: (x+n-1)/n is a ceiling only for x >= 0; BigInt division truncates toward zero.
+        breakEvenPVGperOp: n ? ceilDiv(sumPvg - surplus, n).toString() : null,
+        gapNoPVGperOp: n ? ceilDiv(used - (sumUsed - sumPvg), n).toString() : null,
     };
 }
+
+const ceilDiv = (x, n) => (x >= 0n ? (x + n - 1n) / n : -((-x) / n));
 
 async function direct(outJson) {
     await ensureSpStake();

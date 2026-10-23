@@ -142,7 +142,7 @@ Hence the R-AMS-2a G numbers were **not** measured on rc.4 release bytes. They a
 ### 4.2 Re-test method
 
 Throwaway copy of the rc.4 tree (`/tmp/f4g`), R-AMS-2a scratch restored (sha256 `7098abba…` = committed
-`rams-2a/scratch/Rams2a.t.sol.txt`), plus one added test `test_B4b` (band at the proposed SETTLE 420k). In the copy of
+`rams-2a/scratch/Rams2a.t.sol.txt`), plus two added tests: `test_B4b` (band at the proposed SETTLE 420k) and `test_F2_matrix` (the unified table of `../rams-f2/REPORT.md` §1). In the copy of
 `SuperPaymasterV55Gas.t.sol` every product contract the fixture creates is deployed with **`deployCode()` from the rc.4
 forge-1.7.1 profile.default artifact JSON**, read from `f4art/<Name>.json` in the throwaway tree. `f4art/` is not committed separately: each of its eight files is byte-identical to a committed `artifacts/` file (`checksums/f4art.sha256.txt`; `scripts/setup_f4g.sh` recreates `f4art/` from `artifacts/` and checks the sha256): `SuperPaymaster.json`, `AOAProtocolRegistry.json`, `GlobalTierSource.json`, `xPNTsTokenV2.json`, `xPNTsTokenV2Ext.json`, `xPNTsFactoryV2.json` = `artifacts/<Name>.sol/<Name>.json`; `ERC1967Proxy.json` = `artifacts/ERC1967Proxy.sol/ERC1967Proxy.default.json`; `SimpleAccountFactory.json` = `artifacts/SimpleAccountFactory.sol/SimpleAccountFactory.default.json`. Deployed this way: SuperPaymaster impl (its
 constructor creates the Admin), ERC1967Proxy, AOAProtocolRegistry, GlobalTierSource, xPNTsTokenV2Ext, xPNTsTokenV2,
@@ -154,8 +154,8 @@ In that first run the B4 pattern was `test_B4_no_oog_band$`, which matches no te
 with its `()` suffix); B4 was re-run by hand with `test_B4_no_oog` (timeline lines 15–16 and 30–31). The committed
 `scripts/run_g.sh` was edited to `test_B4_no_oog` after that run; its header now records this.
 
-**Reproduction with the committed scripts (2026-10-23T06:26Z).** `scripts/setup_f4g.sh` (rebuilds `/tmp/f4g` from the rc.4
-worktree, `fixture/*.txt` and `artifacts/`, sha256-checked), then `scripts/run_g.sh logs/g-r2` (`--no-isolate`) and
+**Reproduction with the committed scripts (2026-10-23T06:26Z).** `scripts/setup_f4g.sh` (creates `/tmp/f4g` from the rc.4
+worktree if absent — it reuses an existing `/tmp/f4g` without reset, so start from a clean `/tmp`; the tree line in each log header records what ran, `fixture/*.txt` and `artifacts/`, sha256-checked), then `scripts/run_g.sh logs/g-r2` (`--no-isolate`) and
 `scripts/run_g_isolate.sh logs/g-isolate-r2` (`--isolate --gas-limit 100000000000`). Every log starts with `# cmd:` (the full
 forge command line), `# env:`, `# forge:` (version + binary sha256) and `# tree:` (commit, `contracts/src` tree,
 `foundry.toml` blob, fixture sha256) lines; each timeline starts with the script's sha256. Result
@@ -216,8 +216,8 @@ every other isolate test: `logs/g-isolate-r2/` (timeline `logs/g-isolate-r2/time
 e.g. `test_B3_min_paymasterVerificationGasLimit_amsterdam_isolate.log:1` =
 `(cd /tmp/f4g && /tmp/fd/nightly/forge test --offline --isolate --gas-limit 100000000000 --evm-version prague --match-path
 contracts/test/zz_rams2a/Rams2a.t.sol -vv --match-test test_B3_min_paymasterVerificationGasLimit --hardfork amsterdam)`), rows
-identical to `logs/g-isolate/` (882,357 / 695,045 at `:14-15`; 129,390 / 823,722 in `…verificationGasLimit_account…:14-15`;
-4,715 / 118,354 / 232,071 in `…callGasLimit…:14-16`). Full diff vs §4.3:
+identical to `logs/g-isolate/` (882,357 / 695,045 at `logs/g-isolate-r2/…:14-15`, original `logs/g-isolate/…:9-10`; 129,390 / 823,722 at r2 `…verificationGasLimit_account…:14-15`, original `:9-10`;
+4,715 / 118,354 / 232,071 at r2 `…callGasLimit…:14-16`, original `:9-11`). Full diff vs §4.3:
 [`g_cmp_isolate_vs_noisolate.md`](g_cmp_isolate_vs_noisolate.md)). Each external call of the test becomes its own
 transaction, so the state the setup wrote is committed before `handleOps` runs — the on-chain/B-layer situation (the
 warm/fresh-slot explanation of the difference is not traced, see §0). Not applicable to B4 (direct `postOp` after a separate validation call; in reality both are in one tx).
@@ -281,10 +281,9 @@ statement that the tested balance-mode cases at the current defaults meet the fe
 |---|---|---|---|---|
 | 1 | §0 G row, §4.3 | "gas numbers move by −630…+16,675" | exact per-class ranges: measured 80 down −612 … −13, 16 up (+290 … +600 ×15, +16,675 ×1), 314 zero; derived 6 down −1,123 … −1, 13 zero | `scripts/delta_g.py` → `g_delta.md` over `rams-2a/logs/scratch` vs `logs/g` |
 | 3 | §4.2, §4.4, `scripts/` | isolate command not committed; `run_g.sh` hard-coded `--no-isolate`; isolate timeline lacked the three B3 `min_*` runs; B4 pattern differed from the timeline | `setup_f4g.sh`, `run_g.sh` (ISOLATE flag, command-line header per log, B4 history), `run_g_isolate.sh`; full re-run `logs/g-r2/`, `logs/g-isolate-r2/` with timelines; rows identical | `logs/rerun-check.txt` (27/27 IDENTICAL) |
+| 4 | §0, §4.4 | warm / not-fresh storage stated as the cause of the isolate difference | "consistent with, not traced" | — |
 | 5 | §1 tag row | "`git diff fbd74fb1 origin/main` touches … only lockfiles" | the exact 353-file breakdown; `contracts/src` `f1d39b5b` and `foundry.toml` `065d0bd7` identical | `git-diff-rc4-vs-main.txt` |
 | 7 | §2.1 | CBOR tail `0xa164736f6c6343000821` | `0xa164736f6c6343000821000a` (map + length `000a`) | last 12 bytes of all 28 runtimes in `artifacts/*/*.json` |
 | 8 | §1, §4.2, §6 | `f4art/` cited as if committed | mapped to the committed `artifacts/` paths; `setup_f4g.sh` recreates and sha256-checks it | `checksums/f4art.sha256.txt` vs `sha256sum artifacts/*/*.json` (8/8 match) |
-
-| 4 | §0, §4.4 | warm / not-fresh storage stated as the cause of the isolate difference | "consistent with, not traced" | — |
 
 No measured value in §2–§4 changed. (Items 2 and 6 of the review concern `../rams-f2/REPORT.md`.)
