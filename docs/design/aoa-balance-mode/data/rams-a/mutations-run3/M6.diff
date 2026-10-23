@@ -1,0 +1,14 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -747,7 +747,10 @@
+     function _timelock() internal returns (TimelockController tl) {
+         address[] memory safeOnly = new address[](1);
+         safeOnly[0] = SAFE;
+-        tl = new TimelockController(DELAY, safeOnly, safeOnly, address(0));
++        address[] memory executors = new address[](2);
++        executors[0] = SAFE;
++        executors[1] = ownerAccount;
++        tl = new TimelockController(DELAY, safeOnly, executors, address(0));
+         assertEq(tl.getMinDelay(), DELAY, "RAMS: external delay");
+         assertTrue(tl.hasRole(tl.PROPOSER_ROLE(), SAFE), "RAMS: Safe proposer");
+         assertTrue(tl.hasRole(tl.EXECUTOR_ROLE(), SAFE), "RAMS: Safe executor");

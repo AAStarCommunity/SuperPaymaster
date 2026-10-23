@@ -1,0 +1,11 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -670,7 +670,7 @@
+         sp.executeGasParams();
+         assertTrue(sp.paused(), "RAMS: pause holds through internal timelock");
+         _assertGas(false);
+-        vm.warp(eta);
++        vm.warp(eta - 1);
+         vm.prank(OWNER);
+         sp.executeGasParams();
+         _assertGas(true);

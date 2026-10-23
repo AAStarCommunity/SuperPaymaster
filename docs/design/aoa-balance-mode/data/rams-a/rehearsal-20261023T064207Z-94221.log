@@ -1,0 +1,141 @@
+Route A evidence UTC: 2026-10-23T06:42:07Z
+Commit: e704f1f529bc135072caa931ff76e66206f4d0c8
+Dirty paths: 1
+  dirty: ?? docs/design/aoa-balance-mode/data/rams-a/rehearsal-20261023T064207Z-94221.log
+forge Version: 1.8.7-nightly
+Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827
+Build Timestamp: 2026-10-22T06:12:29.900488000Z (1792649549)
+Build Profile: dist
+FORK_BLOCK=11974561
+OPERATORS=0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+RPC host: <redacted>
+FOUNDRY_ISOLATE=false
+Command: /Users/jason/Dev/aastar/tools/foundry-rams/nightly-926eb1d/forge test --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --no-isolate -vvv --hardfork amsterdam
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 7.73s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 10 tests for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[PASS] test_A1_oldPausePath_blocksAllOperators() (gas: 3472312)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+[PASS] test_A2_newOperatorRisk_window() (gas: 13583688)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Registry configuration authority: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  COMMUNITY role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  PAYMASTER_SUPER role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  Role acquisition: self registerRole; existing communities may sponsor safeMintForRole. Stake/ticket and active-role gates apply.
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+[PASS] test_A3_atomicUpgradeWithGlobalPause() (gas: 4591737)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+
+[PASS] test_A3_emptyUpgradeData_admitsUnsafeLimit() (gas: 4677057)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2410000000000000
+  Positive control reservation (aPNTs): 289200000000000000000
+
+[PASS] test_A4_hypotheticalSmartAccountOwner_midBundle() (gas: 2417603)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Stranded operator aPNTs (token wei): 306000000000000000000
+  Protocol revenue delta (token wei): 306000000000000000000
+  Counterfactual ownership only. EOA cannot be this account; Safe-only executor blocks arbitrary account calls (A6). Safe AA modules/delegation must remain excluded operationally.
+
+[PASS] test_A4_legacyContexts() (gas: 2998431)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Separate handleOps transactions cannot straddle an upgrade: validation and postOp share one call tree.
+
+[PASS] test_A5_governanceTimeline_EOAowner() (gas: 5885544)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+[PASS] test_A5b_settleBindingAnalysis() (gas: 4397701)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Analysis SETTLE: 420000
+  Measured callback success threshold: 438786
+  Admissible no-OOG band exists (fixture): 0
+  Analysis SETTLE: 160000
+  Measured callback success threshold: 174659
+  Admissible no-OOG band exists (fixture): 0
+
+[PASS] test_A6_governanceTimeline_SafeTimelock() (gas: 10200634)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Parallel hours AFTER upgrade: 48
+  Sequential hours AFTER upgrade: 96
+
+[PASS] test_A7_readbackGate() (gas: 10927072)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 420.05ms (130.44ms CPU time)
+
+Ran 1 test suite in 420.99ms (420.05ms CPU time): 10 tests passed, 0 failed, 0 skipped (10 total tests)

@@ -1,17 +1,21 @@
 # R-AMS-3 / 方案 A：受保护升级的离线演练（DSR CC-125 b31ada57，报告 AOA_RAMS_522_523 §4）
 
-下列历史证据在本地 fork 上运行（本次 review 修订尚待 fork 重跑）：fork 源是 Sepolia 块 **11,974,561**，引擎为 foundry nightly `926eb1d`，加 `--hardfork amsterdam`、`--no-isolate`、`FOUNDRY_ISOLATE=false`。**没有签名，没有广播，没有改动 `contracts/src`、`contracts/script`、`foundry.toml`。**
+下列证据在本地 fork 上运行：fork 源是 Sepolia 块 **11,974,561**，引擎为 foundry nightly `926eb1d`，加 `--hardfork amsterdam`、`--no-isolate`、`FOUNDRY_ISOLATE=false`。**没有签名，没有广播，没有改动 `contracts/src`、`contracts/script`、`foundry.toml`。**
 
 测试代码在 `contracts/test/rams/`，说明见那里的 `README.md`。运行脚本：`script/evidence/rams-a-rehearsal.sh`。变异运行器：`script/evidence/rams-a-mutations-inplace.sh`。
 
-## 历史结果（修订版尚未 fork 重跑）
+## 结果（干净树 e704f1f5，2026-10-23）
 
 | 项 | 结果 | 文件 |
 |---|---|---|
-| fork 实跑（最终夹具） | **15/15 PASS**：9 个路线测试，外加 6 个预算 / 代币回归测试 | `fork-run2-11974561.log` |
-| 首次 fork 实跑（夹具缺陷） | 2/9 PASS。7 个失败都是 `SingleTxLimitExceeded()`：夹具一笔存入 1e23 aPNTs，超过了线上 xPNTs v1 的 `maxSingleTxLimit`。修复办法是按线上限额分块存入，op 的 maxCost 按 token / 余额 / 信用 / 授权的限额定尺寸，断言没有放宽 | `fork-run1-11974465.log`、`fork-A1-trace-11974465.log` |
-| operator 清单 | 两个独立端点（Alchemy、Tenderly）各自扫描 SP 代理从创建块 11,151,016 到 11,974,561 的全部 `OperatorConfigured`，**结果完全一致**：都是 4 条日志、2 个 operator（OWNER `0xb560…df0e`、ANNI `0xecaa…33c9`）；创建块前一块 `eth_getCode` 为 `0x` | `operator-inventory-11974561.json` |
-| 变异（判别力） | 历史 CONTROL GREEN；M1–M10 历史结果；当前修订和 M11–M13 待 fork 重跑 | `mutations-run2/summary.tsv`、`MUTATIONS.md` |
+| fork 实跑 | **10/10 PASS**（A1–A7、A3_empty、A4_hypothetical、A5b）。header 中 `Dirty paths: 1`，是该日志文件本身（tee 先建文件后写 header） | `rehearsal-20261023T064207Z-94221.log` |
+| 变异（判别力） | CONTROL 10/10 GREEN；**M1–M13 全部 KILLED**，且每个变异都在 `targets.tsv` 第 3 列指定的断言上失败（否则会记为 WRONG-ASSERTION） | `mutations-run3/summary.tsv`、`MUTATIONS.md` |
+| 同一组测试在未提交树上的先前运行 | fork 10/10、变异 13/13，与上面一致。但 header 的 Commit 行写的是 5b60c80b，实际跑的是未提交的修改，所以只作历史记录 | `rehearsal-20261023T063226Z-67134.log`、`mutations-run2/` |
+| 更早的 fork 实跑（修订前夹具） | 15/15、2/9（`SingleTxLimitExceeded`，夹具缺陷，已修） | `fork-run2-11974561.log`、`fork-run1-11974465.log` |
+| operator 清单 | 两个独立端点（Alchemy、Tenderly）对区块 11,151,016–11,974,561 的 `OperatorConfigured` 扫描结果一致，都是 4 条日志、2 个 operator（OWNER `0xb560…df0e`、ANNI `0xecaa…33c9`） | `operator-inventory-11974561.json` |
+| `mutations-run1-INVALID/` | 无效：临时 worktree 中缺少未提交的测试，子模块克隆也失败 | — |
+
+关键数值：A4_hypothetical 中滞留 **306 aPNTs**（operator 预扣 = protocolRevenue 增量 = reservation）；从第一次暂停起算，Safe 路线的停服时长为 **96h（并行）/ 144h（顺序）**；升级前存在缺口（新注册的 operator 在 5.4.2 上仍可获得赞助），需要在升级交易前立即重新枚举 operator。
 
 ## 对照 DSR §4 的五项要求
 
@@ -30,7 +34,7 @@
    - A7 读回门检查 gasParams、owner / guardian、implementation 槽与 runtime、全局暂停位、各 operator 暂停位、timelock 操作状态。对每个字段分别做篡改，都被拒绝；缺少输入时同样拒绝。
 5. **新执行器与新包**：不在本次范围内，后续单独交付。
 
-## 历史 M1–M10 变异（当前重跑定义见 MUTATIONS.md）
+## M1–M10 变异（M11–M13 及完整定义见 MUTATIONS.md）
 
 | ID | 改动 | 被哪条断言抓到 |
 |---|---|---|
@@ -53,7 +57,7 @@
 
 ## Review corrections / evidence scope
 
-**M5 is killed only by the read-back gate.** Settlement does not discriminate SETTLE=420000 versus 160000 at MIN=440000; SETTLE is defense in depth there. The previous claim that every mutant was killed at its named settlement assertion is withdrawn. `test_A5b_settleBindingAnalysis` activates each tuple through queue/execute, measures callback success thresholds for the same real V2 fixture, logs whether any admissible limit intersects the no-OOG band, and asserts that none does. This fixed-path measurement is not a universal bound for arbitrary tokens/states. Revised tests and M11–M13 have not been rerun on the fork; existing logs are historical.
+**M5 is killed only by the read-back gate.** Settlement does not discriminate SETTLE=420000 versus 160000 at MIN=440000; SETTLE is defense in depth there. The previous claim that every mutant was killed at its named settlement assertion is withdrawn. `test_A5b_settleBindingAnalysis` activates each tuple through queue/execute, measures callback success thresholds for the same real V2 fixture, logs whether any admissible limit intersects the no-OOG band, and asserts that none does. This fixed-path measurement is not a universal bound for arbitrary tokens/states. Fork rerun on clean tree e704f1f5 (`rehearsal-20261023T064207Z-94221.log`): callback success threshold **438,786** at SETTLE 420000 and **174,659** at SETTLE 160000; no admissible no-OOG band at MIN 440000 for either tuple. Note the margin at the proposed tuple: MIN 440000 exceeds the measured 438,786 by only **1,214 gas (0.28%)** on this fixture — a different token/state path needing more than 440k would OOG for an op that sets exactly MIN; this is an input to the R-AMS-3 parameter choice, not settled here.
 
 **Pre-upgrade gap:** after pausing all listed operators and before the upgrade, a newly registered operator can still be sponsored on 5.4.2 (A2 proves it). The sponsorship-stop guarantee starts at the atomic upgrade, not at the first operator pause. Minimize and monitor this window; **re-enumerate operators immediately before the upgrade transaction**, pause any additions, and continue monitoring registrations until upgrade inclusion.
 
