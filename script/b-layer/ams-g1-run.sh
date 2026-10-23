@@ -16,7 +16,7 @@
 #    RUNDLER_EXTRA="--flag value ..." is appended to Rundler's command line;
 #  - deployment receipts (hash, gas limit, gasUsed, status) of every broadcast tx -> deploy-receipts.json.
 # Local node only, anvil's public dev keys only, no public RPC.
-# Usage: script/b-layer/ams-g1-run.sh <workDir> <rundlerDir> <altoDir> <a|b|c>
+# Usage: script/b-layer/ams-g1-run.sh <workDir> <rundlerDir> <altoDir> <a|b|c|d>
 set -euo pipefail
 W="$1"; RUNDLER_DIR="$2"; ALTO_DIR="$3"; VARIANT="$4"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -34,7 +34,13 @@ case "$VARIANT" in
      GP=(400000 380000 5000 340000) ;;
   c) export G1_GAS_JSON='{"verificationGasLimit":"150000","verificationGasLimitInit":"4600000","pmVerificationGasLimit":"1150000","pmPostOpGasLimit":"440000"}' G1_MIN_POST_OP_GAS=440000
      GP=(440000 420000 5000 340000) ;;
-  *) echo "variant a|b|c" >&2; exit 1 ;;
+  # R2-F2 variant (d): (c) with v 175000 (B6 need 150,839 + 15 % = 173,465) and v with initCode
+  # 4585000 (max B4 need 3,983,015 + 15 % = 4,580,468, rounded up to 5k). v + pmV = 5,735,000 does not
+  # fit Rundler's default max_verification_gas 5,000,000; run once at the default and once with
+  # RUNDLER_EXTRA="--max_verification_gas 6000000".
+  d) export G1_GAS_JSON='{"verificationGasLimit":"175000","verificationGasLimitInit":"4585000","pmVerificationGasLimit":"1150000","pmPostOpGasLimit":"440000"}' G1_MIN_POST_OP_GAS=440000
+     GP=(440000 420000 5000 340000) ;;
+  *) echo "variant a|b|c|d" >&2; exit 1 ;;
 esac
 mkdir -p "$W" "$CASES"
 PIDS=()

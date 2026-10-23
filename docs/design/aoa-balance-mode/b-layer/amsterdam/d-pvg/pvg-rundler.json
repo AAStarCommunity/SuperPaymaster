@@ -1,0 +1,586 @@
+{
+ "mode": "bundler",
+ "kind": "rundler",
+ "bundlerUrl": "http://127.0.0.1:18750",
+ "gas": {
+  "verificationGasLimit": "175000",
+  "verificationGasLimitInit": "4585000",
+  "callGasLimit": "60000",
+  "preVerificationGas": "100000",
+  "pmVerificationGasLimit": "1150000",
+  "pmPostOpGasLimit": "440000",
+  "maxFeePerGas": "3000000000",
+  "maxPriorityFeePerGas": "2000000000"
+ },
+ "cases": {
+  "b1_first_op_fresh_SP": {
+   "probes": [
+    {
+     "pvg": 400000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 0,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 0 but must be at least 46152"
+     }
+    },
+    {
+     "pvg": 200000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 100000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 50000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 25000,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 25000 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 37500,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 37500 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 43750,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 43750 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46875,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 45312,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 45312 but must be at least 46176"
+     }
+    },
+    {
+     "pvg": 46093,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46093 but must be at least 46164"
+     }
+    },
+    {
+     "pvg": 46484,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46288,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46190,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46141,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46141 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46165,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46165 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46177,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46177 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46183,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46183 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46186,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46184,
+     "ok": true,
+     "error": null
+    }
+   ],
+   "estimate": {
+    "preVerificationGas": "0x186a0",
+    "callGasLimit": "0xea60",
+    "verificationGasLimit": "0x2ab98",
+    "paymasterVerificationGasLimit": "0x118c30"
+   },
+   "minAcceptedPVG": 46184,
+   "rejectionAtMinMinus1": {
+    "code": -32000,
+    "message": "precheck failed: preVerificationGas is 46183 but must be at least 46188"
+   },
+   "submitAtMin": "ok",
+   "bundle": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "0xc1d80d2d56c46b76fca57cf9432fdd163273823f3f127a69c931794fb563c263"
+   },
+   "onchain": {
+    "tx": "0xc1d80d2d56c46b76fca57cf9432fdd163273823f3f127a69c931794fb563c263",
+    "status": "success",
+    "txGasLimit": "1983721",
+    "txGasUsed": "1207218",
+    "effectiveGasPrice": "1000000570",
+    "calldata": {
+     "bytes": 932,
+     "zero": 720,
+     "nonzero": 212
+    },
+    "nOps": 1,
+    "allSuccess": true,
+    "ops": [
+     {
+      "userOpHash": "0x428165a05da04dca1f795050919d2defd7e446b8613f98071550ed9375524a25",
+      "success": true,
+      "actualGasCost": "2401618684461130",
+      "actualGasUsed": "1200809",
+      "preVerificationGas": "46184"
+     }
+    ],
+    "sumActualGasUsed": "1200809",
+    "sumPVG": "46184",
+    "surplusGas_sumActualGasUsed_minus_txGasUsed": "-6409",
+    "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "52593",
+    "breakEvenPVGperOp": "52593",
+    "gapNoPVGperOp": "52593"
+   }
+  },
+  "b1_second_op_same_sender": {
+   "probes": [
+    {
+     "pvg": 400000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 0,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 0 but must be at least 46164"
+     }
+    },
+    {
+     "pvg": 200000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 100000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 50000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 25000,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 25000 but must be at least 46164"
+     }
+    },
+    {
+     "pvg": 37500,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 37500 but must be at least 46200"
+     }
+    },
+    {
+     "pvg": 43750,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 43750 but must be at least 46200"
+     }
+    },
+    {
+     "pvg": 46875,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 45312,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 45312 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46093,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46093 but must be at least 46200"
+     }
+    },
+    {
+     "pvg": 46484,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46288,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46190,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46190 but must be at least 46200"
+     }
+    },
+    {
+     "pvg": 46239,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46214,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46202,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46196,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46196 but must be at least 46200"
+     }
+    },
+    {
+     "pvg": 46199,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46199 but must be at least 46200"
+     }
+    },
+    {
+     "pvg": 46200,
+     "ok": true,
+     "error": null
+    }
+   ],
+   "estimate": {
+    "preVerificationGas": "0x186a0",
+    "callGasLimit": "0xea60",
+    "verificationGasLimit": "0x2ab98",
+    "paymasterVerificationGasLimit": "0x118c30"
+   },
+   "minAcceptedPVG": 46200,
+   "rejectionAtMinMinus1": {
+    "code": -32000,
+    "message": "precheck failed: preVerificationGas is 46199 but must be at least 46200"
+   },
+   "submitAtMin": "ok",
+   "bundle": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "0x06522285a93fb9babe7eff1595d3c22dcb234388eb7e6009dd5217ff0058e0a0"
+   },
+   "onchain": {
+    "tx": "0x06522285a93fb9babe7eff1595d3c22dcb234388eb7e6009dd5217ff0058e0a0",
+    "status": "success",
+    "txGasLimit": "1983747",
+    "txGasUsed": "511802",
+    "effectiveGasPrice": "1000000502",
+    "calldata": {
+     "bytes": 932,
+     "zero": 718,
+     "nonzero": 214
+    },
+    "nOps": 1,
+    "allSuccess": true,
+    "ops": [
+     {
+      "userOpHash": "0x504a539ded2bddc97c2a9e71242e18228572b04077b45617d84b8d96b841ae33",
+      "success": true,
+      "actualGasCost": "1618290406190790",
+      "actualGasUsed": "809145",
+      "preVerificationGas": "46200"
+     }
+    ],
+    "sumActualGasUsed": "809145",
+    "sumPVG": "46200",
+    "surplusGas_sumActualGasUsed_minus_txGasUsed": "297343",
+    "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-251143",
+    "breakEvenPVGperOp": "-251143",
+    "gapNoPVGperOp": "-251143"
+   }
+  },
+  "b7_credit_first_op": {
+   "probes": [
+    {
+     "pvg": 400000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 0,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 0 but must be at least 46164"
+     }
+    },
+    {
+     "pvg": 200000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 100000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 50000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 25000,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 25000 but must be at least 46176"
+     }
+    },
+    {
+     "pvg": 37500,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 37500 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 43750,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 43750 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46875,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 45312,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 45312 but must be at least 46152"
+     }
+    },
+    {
+     "pvg": 46093,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46093 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46484,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46288,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46190,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46141,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46141 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46165,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46165 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46177,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46177 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46183,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46183 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46186,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: preVerificationGas is 46186 but must be at least 46188"
+     }
+    },
+    {
+     "pvg": 46188,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 46187,
+     "ok": true,
+     "error": null
+    }
+   ],
+   "estimate": {
+    "preVerificationGas": "0x186a0",
+    "callGasLimit": "0xea60",
+    "verificationGasLimit": "0x2ab98",
+    "paymasterVerificationGasLimit": "0x118c30"
+   },
+   "minAcceptedPVG": 46187,
+   "rejectionAtMinMinus1": {
+    "code": -32000,
+    "message": "precheck failed: preVerificationGas is 46186 but must be at least 46188"
+   },
+   "submitAtMin": "ok",
+   "bundle": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "0xbdeb48f6951a9bbcd62102a005f0d5d720382535bf5ecf5e1bcd9db2c54bbc01"
+   },
+   "onchain": {
+    "tx": "0xbdeb48f6951a9bbcd62102a005f0d5d720382535bf5ecf5e1bcd9db2c54bbc01",
+    "status": "success",
+    "txGasLimit": "1983734",
+    "txGasUsed": "720361",
+    "effectiveGasPrice": "1000000441",
+    "calldata": {
+     "bytes": 932,
+     "zero": 719,
+     "nonzero": 213
+    },
+    "nOps": 1,
+    "allSuccess": true,
+    "ops": [
+     {
+      "userOpHash": "0x60b2270d309ca5ecdd58fdbb4f441fcd259aafb517612eff0674ed8b367f2f19",
+      "success": true,
+      "actualGasCost": "1843130406410165",
+      "actualGasUsed": "921565",
+      "preVerificationGas": "46187"
+     }
+    ],
+    "sumActualGasUsed": "921565",
+    "sumPVG": "46187",
+    "surplusGas_sumActualGasUsed_minus_txGasUsed": "201204",
+    "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-155017",
+    "breakEvenPVGperOp": "-155017",
+    "gapNoPVGperOp": "-155017"
+   }
+  },
+  "initCode_b4ok": {
+   "probes": [
+    {
+     "pvg": 400000,
+     "ok": false,
+     "error": {
+      "code": -32000,
+      "message": "precheck failed: verificationGasLimit is 5735000 but must be at most 5000000"
+     }
+    }
+   ],
+   "estimate": {
+    "preVerificationGas": "0x186a0",
+    "callGasLimit": "0xea60",
+    "verificationGasLimit": "0x45f628",
+    "paymasterVerificationGasLimit": "0x118c30"
+   },
+   "error": "not accepted even at PVG 400000"
+  }
+ },
+ "bundlingMode": {
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "ok"
+ }
+}

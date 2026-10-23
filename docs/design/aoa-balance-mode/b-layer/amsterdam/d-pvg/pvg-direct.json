@@ -1,0 +1,233 @@
+{
+ "mode": "direct",
+ "beneficiary": "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+ "gas": {
+  "verificationGasLimit": "175000",
+  "verificationGasLimitInit": "4585000",
+  "callGasLimit": "60000",
+  "preVerificationGas": "100000",
+  "pmVerificationGasLimit": "1150000",
+  "pmPostOpGasLimit": "440000",
+  "maxFeePerGas": "3000000000",
+  "maxPriorityFeePerGas": "2000000000"
+ },
+ "cases": {
+  "b1_first_op_fresh_SP": {
+   "tx": "0x305ade1979dc0892809d11d8c49f67e03a7ab7b46dbb619b51c06ac5a495f46b",
+   "status": "success",
+   "txGasLimit": "15000000",
+   "txGasUsed": "1207254",
+   "effectiveGasPrice": "1000000570",
+   "calldata": {
+    "bytes": 932,
+    "zero": 717,
+    "nonzero": 215
+   },
+   "nOps": 1,
+   "allSuccess": true,
+   "ops": [
+    {
+     "userOpHash": "0x82590ad64258a32c611dac4972b9dbcae0bac4db172b5ded852c54f1c17ee316",
+     "success": true,
+     "actualGasCost": "2509250715136250",
+     "actualGasUsed": "1254625",
+     "preVerificationGas": "100000"
+    }
+   ],
+   "sumActualGasUsed": "1254625",
+   "sumPVG": "100000",
+   "surplusGas_sumActualGasUsed_minus_txGasUsed": "47371",
+   "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "52629",
+   "breakEvenPVGperOp": "52629",
+   "gapNoPVGperOp": "52629"
+  },
+  "b1_second_op_same_sender": {
+   "tx": "0x169d75829e807affb133039ed89ee5010e67ed0c936677ea8669ccd441ce4293",
+   "status": "success",
+   "txGasLimit": "15000000",
+   "txGasUsed": "511826",
+   "effectiveGasPrice": "1000000502",
+   "calldata": {
+    "bytes": 932,
+    "zero": 716,
+    "nonzero": 216
+   },
+   "nOps": 1,
+   "allSuccess": true,
+   "ops": [
+    {
+     "userOpHash": "0x21da91ae2d603288ceb24073a2f91a8a22ed2cefc3244df6335bc906d04b932b",
+     "success": true,
+     "actualGasCost": "1725890433198390",
+     "actualGasUsed": "862945",
+     "preVerificationGas": "100000"
+    }
+   ],
+   "sumActualGasUsed": "862945",
+   "sumPVG": "100000",
+   "surplusGas_sumActualGasUsed_minus_txGasUsed": "351119",
+   "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-251119",
+   "breakEvenPVGperOp": "-251119",
+   "gapNoPVGperOp": "-251119"
+  },
+  "b8_first_op_of_sender_warm_SP": {
+   "tx": "0x25d29e0af222e7187bc4835626533bc5f95e81483205d300b4f239a93e1897be",
+   "status": "success",
+   "txGasLimit": "15000000",
+   "txGasUsed": "805562",
+   "effectiveGasPrice": "1000000441",
+   "calldata": {
+    "bytes": 932,
+    "zero": 718,
+    "nonzero": 214
+   },
+   "nOps": 1,
+   "allSuccess": true,
+   "ops": [
+    {
+     "userOpHash": "0xea29fa8437de1bad25e7676c158a02e62e94ade688df65b768ff613b1d038c34",
+     "success": true,
+     "actualGasCost": "2313410510106905",
+     "actualGasUsed": "1156705",
+     "preVerificationGas": "100000"
+    }
+   ],
+   "sumActualGasUsed": "1156705",
+   "sumPVG": "100000",
+   "surplusGas_sumActualGasUsed_minus_txGasUsed": "351143",
+   "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-251143",
+   "breakEvenPVGperOp": "-251143",
+   "gapNoPVGperOp": "-251143"
+  },
+  "b7_credit_first_op": {
+   "tx": "0xf0e2b16c1c8461a44cdf559d04d3a342f0e3f3f3387504e56cda6104c49dbfde",
+   "status": "success",
+   "txGasLimit": "15000000",
+   "txGasUsed": "720385",
+   "effectiveGasPrice": "1000000388",
+   "calldata": {
+    "bytes": 932,
+    "zero": 717,
+    "nonzero": 215
+   },
+   "nOps": 1,
+   "allSuccess": true,
+   "ops": [
+    {
+     "userOpHash": "0xbdf1675c791a3e048352d0b02591ae5432fd7f7d33e48e880c13acd73207681a",
+     "success": true,
+     "actualGasCost": "1950756378446664",
+     "actualGasUsed": "975378",
+     "preVerificationGas": "100000"
+    }
+   ],
+   "sumActualGasUsed": "975378",
+   "sumPVG": "100000",
+   "surplusGas_sumActualGasUsed_minus_txGasUsed": "254993",
+   "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-154993",
+   "breakEvenPVGperOp": "-154993",
+   "gapNoPVGperOp": "-154993"
+  },
+  "bundle3_b3abc_first_ops": {
+   "tx": "0x5ccf9ef0251ebf589b8478652df5e4e26a16211ee3271518c65b45ff8b3ea01f",
+   "status": "success",
+   "txGasLimit": "15000000",
+   "txGasUsed": "2125513",
+   "effectiveGasPrice": "1000000341",
+   "calldata": {
+    "bytes": 2596,
+    "zero": 2001,
+    "nonzero": 595
+   },
+   "nOps": 3,
+   "allSuccess": true,
+   "ops": [
+    {
+     "userOpHash": "0x32aa7951466317facb10ed7c25a18b61c9001e1d60ddf30c14c9eaf86c0b59dc",
+     "success": true,
+     "actualGasCost": "2313420394438110",
+     "actualGasUsed": "1156710",
+     "preVerificationGas": "100000"
+    },
+    {
+     "userOpHash": "0x15e660d7f40245902817acebffb1ff03dfc2cd750c543177cb04d9850150452b",
+     "success": true,
+     "actualGasCost": "2088216356040828",
+     "actualGasUsed": "1044108",
+     "preVerificationGas": "100000"
+    },
+    {
+     "userOpHash": "0xbdf1c482ac69d31b480b363f10ce66af0bbfca1cdc98aaf703c037d7036289bd",
+     "success": true,
+     "actualGasCost": "2088232356043556",
+     "actualGasUsed": "1044116",
+     "preVerificationGas": "100000"
+    }
+   ],
+   "sumActualGasUsed": "3244934",
+   "sumPVG": "300000",
+   "surplusGas_sumActualGasUsed_minus_txGasUsed": "1119421",
+   "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-819421",
+   "breakEvenPVGperOp": "-273139",
+   "gapNoPVGperOp": "-273139"
+  },
+  "initCode_b4ok": {
+   "tx": "0xc6072a9f51af8b0537b380ef7aa979734f010cbe70fbdcc93b4d1bb092001b0f",
+   "status": "success",
+   "txGasLimit": "15000000",
+   "txGasUsed": "4568024",
+   "effectiveGasPrice": "1000000302",
+   "calldata": {
+    "bytes": 1092,
+    "zero": 791,
+    "nonzero": 301
+   },
+   "nOps": 1,
+   "allSuccess": true,
+   "ops": [
+    {
+     "userOpHash": "0xf68cf21dda7dfff907f1e86f733a029ea69c992dfc538ba4714fbb12d498d5c6",
+     "success": true,
+     "actualGasCost": "9834999485084698",
+     "actualGasUsed": "4917499",
+     "preVerificationGas": "100000"
+    }
+   ],
+   "sumActualGasUsed": "4917499",
+   "sumPVG": "100000",
+   "surplusGas_sumActualGasUsed_minus_txGasUsed": "349475",
+   "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-249475",
+   "breakEvenPVGperOp": "-249475",
+   "gapNoPVGperOp": "-249475"
+  },
+  "b5_SP_RENEW": {
+   "tx": "0x65f95dac6a8adbad26c0db1bb6bf21de1a2ff6adfb0ef65c9e14d6daf743f650",
+   "status": "success",
+   "txGasLimit": "15000000",
+   "txGasUsed": "922085",
+   "effectiveGasPrice": "1000000270",
+   "calldata": {
+    "bytes": 932,
+    "zero": 716,
+    "nonzero": 216
+   },
+   "nOps": 1,
+   "allSuccess": true,
+   "ops": [
+    {
+     "userOpHash": "0x3c55ed66eda797755915c4c99fe44171bb0d4f6cd2be59231d7b96a7ae7ae16a",
+     "success": true,
+     "actualGasCost": "2546408343765080",
+     "actualGasUsed": "1273204",
+     "preVerificationGas": "100000"
+    }
+   ],
+   "sumActualGasUsed": "1273204",
+   "sumPVG": "100000",
+   "surplusGas_sumActualGasUsed_minus_txGasUsed": "351119",
+   "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-251119",
+   "breakEvenPVGperOp": "-251119",
+   "gapNoPVGperOp": "-251119"
+  }
+ }
+}

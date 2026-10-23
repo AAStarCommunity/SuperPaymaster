@@ -1,0 +1,645 @@
+  2026-10-23T05:21:15.382384Z  INFO rundler::cli: Parsed CLI options: Cli {
+    command: Node(
+        NodeCliArgs {
+            pool: PoolArgs {
+                port: 50051,
+                host: "127.0.0.1",
+                max_size_in_bytes: 500000000,
+                same_sender_mempool_count: 4,
+                min_replacement_fee_increase_percentage: 10,
+                blocklist_path: None,
+                allowlist_path: None,
+                chain_poll_interval_millis: 100,
+                chain_sync_max_retries: 5,
+                chain_update_channel_capacity: None,
+                throttled_entity_mempool_count: 4,
+                throttled_entity_live_blocks: 10,
+                paymaster_tracking_enabled: true,
+                paymaster_cache_length: 10000,
+                reputation_tracking_enabled: true,
+                drop_min_num_blocks: 10,
+                max_time_in_pool_secs: None,
+            },
+            builder: BuilderArgs {
+                port: 50051,
+                host: "127.0.0.1",
+                signer_args: SignerArgs {
+                    private_keys: [
+                        SecretBox<str>([REDACTED]),
+                    ],
+                    mnemonic: None,
+                    aws_kms_key_ids: [],
+                    aws_kms_grouped_keys: [],
+                    enable_kms_funding: false,
+                    enable_kms_locking: false,
+                    redis_uri: "",
+                    redis_lock_ttl_millis: 60000,
+                    fund_below: None,
+                    fund_to: None,
+                    funding_txn_poll_interval_ms: 1000,
+                    funding_txn_poll_max_retries: 20,
+                    funding_txn_priority_fee_multiplier: 2.0,
+                    funding_txn_base_fee_multiplier: 2.0,
+                },
+                max_bundle_size: 128,
+                sender_type: Raw,
+                submit_url: None,
+                use_conditional_rpc: false,
+                flashbots_relay_builders: [
+                    "flashbots",
+                ],
+                flashbots_relay_auth_key: None,
+                bloxroute_auth_header: None,
+                max_blocks_to_wait_for_mine: 2,
+                replacement_fee_percent_increase: 10,
+                max_cancellation_fee_increases: 15,
+                max_replacement_underpriced_blocks: 20,
+                assigner_max_ops_per_request: 1024,
+            },
+            rpc: RpcArgs {
+                port: 18650,
+                host: "0.0.0.0",
+                api: [
+                    "eth",
+                    "debug",
+                    "rundler",
+                ],
+                timeout_seconds: "20",
+                max_connections: 100,
+                corsdomain: None,
+                permissions_enabled: false,
+                priority_fee_suggested_buffer_percent: 30,
+                base_fee_suggested_buffer_percent: 50,
+            },
+        },
+    ),
+    common: CommonArgs {
+        network: None,
+        chain_spec: Some(
+            "/home/user/SuperPaymaster/docs/design/aoa-balance-mode/b-layer/rundler-chain-31337.toml",
+        ),
+        node_http: Some(
+            "http://127.0.0.1:18646",
+        ),
+        unsafe_mode: false,
+        max_verification_gas: 5000000,
+        max_uo_cost: None,
+        target_bundle_transaction_gas_limit_ratio: 0.5,
+        max_bundle_transaction_gas_limit_ratio: 0.9,
+        min_stake_value: 1000000000000000000,
+        min_unstake_delay: 86400,
+        tracer_timeout: "10s",
+        enable_unsafe_fallback: false,
+        user_operation_event_block_distance: None,
+        user_operation_event_block_distance_fallback: None,
+        verification_estimation_gas_fee: 1000000000000,
+        bundle_base_fee_overhead_percent: 27,
+        bundle_priority_fee_overhead_percent: 0,
+        priority_fee_mode_kind: "priority_fee_increase_percent",
+        priority_fee_mode_value: 0,
+        base_fee_accept_percent: 50,
+        pre_verification_gas_accept_percent: 50,
+        execution_gas_limit_efficiency_reject_threshold: 0.0,
+        verification_gas_limit_efficiency_reject_threshold: 0.0,
+        verification_gas_allowed_error_pct: 15,
+        call_gas_allowed_error_pct: 15,
+        max_gas_estimation_gas: 550000000,
+        max_gas_estimation_rounds: 3,
+        mempool_config_path: None,
+        builders_config_path: None,
+        enabled_entry_points: [
+            V0_7,
+        ],
+        num_builders_v0_6: 1,
+        num_builders_v0_7: 1,
+        num_builders_v0_8: 1,
+        num_builders_v0_9: 1,
+        da_gas_tracking_enabled: false,
+        provider_client_timeout_seconds: 10,
+        provider_rate_limit_retry_enabled: false,
+        provider_consistency_retry_enabled: false,
+        max_expected_storage_slots: None,
+        enabled_aggregators: [],
+        aggregator_options: [],
+        eip7702_authority_pending_check_enabled: false,
+    },
+    metrics: MetricsArgs {
+        port: 18651,
+        host: "0.0.0.0",
+        tags: [],
+        sample_interval_millis: 1000,
+        buckets: [
+            0.0,
+            1.0,
+            2.0,
+            4.0,
+            8.0,
+            16.0,
+            32.0,
+            64.0,
+            128.0,
+            256.0,
+            500.0,
+            600.0,
+            700.0,
+            800.0,
+            900.0,
+            1000.0,
+            2000.0,
+            3000.0,
+            4000.0,
+            5000.0,
+            7500.0,
+            10000.0,
+        ],
+    },
+    logs: LogsArgs {
+        file: None,
+        json: false,
+        otlp_grpc_endpoint: None,
+    },
+}
+    at bin/rundler/src/cli/mod.rs:71
+
+  2026-10-23T05:21:15.384717Z  INFO rundler::cli: Chain spec: ChainSpec {
+    name: "B-layer anvil (Osaka)",
+    id: 31337,
+    entry_point_address_v0_6: 0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789,
+    entry_point_address_v0_7: 0x0000000071727de22e5e9d8baf0edac6f37da032,
+    entry_point_address_v0_8: 0x4337084d9e255ff0702461cf8895ce9e3b5ff108,
+    entry_point_address_v0_9: 0x433709009b8330fda32311df1c2afa402ed8d009,
+    multicall3_address: 0xca11bde05977b3631167028862be2a173976ca11,
+    flashblocks_enabled: false,
+    deposit_transfer_overhead: 30000,
+    max_transaction_size_bytes: 131072,
+    block_gas_limit: 30000000,
+    transaction_gas_limit: 0,
+    transaction_intrinsic_gas: 21000,
+    per_user_op_v0_6_gas: 18300,
+    per_user_op_v0_7_gas: 19500,
+    per_user_op_deploy_overhead_gas: 0,
+    per_user_op_word_gas: 4,
+    calldata_zero_byte_gas: 4,
+    calldata_non_zero_byte_gas: 16,
+    da_pre_verification_gas: false,
+    da_gas_oracle_type: None,
+    da_gas_oracle_contract_address: 0x0000000000000000000000000000000000000000,
+    include_da_gas_in_gas_limit: false,
+    eip1559_enabled: true,
+    eip7702_enabled: true,
+    eip7623_enabled: true,
+    eip7623_calldata_floor_zero_byte_gas: 10,
+    eip7623_calldata_floor_non_zero_byte_gas: 40,
+    priority_fee_oracle_type: Provider,
+    min_max_priority_fee_per_gas: 50000000,
+    max_max_priority_fee_per_gas: 18446744073709551615,
+    congestion_trigger_usage_ratio_threshold: 0.75,
+    charge_gas_limit_via_pvg: false,
+    bundle_max_send_interval_millis: 250,
+    flashbots_enabled: true,
+    flashbots_relay_url: Some(
+        "https://relay.flashbots.net",
+    ),
+    bloxroute_enabled: false,
+    chain_history_size: 64,
+    signature_aggregators: ContractRegistry {
+        contracts: {},
+    },
+    submission_proxies: ContractRegistry {
+        contracts: {},
+    },
+}
+    at bin/rundler/src/cli/mod.rs:96
+
+  2026-10-23T05:21:15.384777Z  INFO rundler::cli::pool: blocklist: None
+    at bin/rundler/src/cli/pool.rs:197
+
+  2026-10-23T05:21:15.384780Z  INFO rundler::cli::pool: allowlist: None
+    at bin/rundler/src/cli/pool.rs:198
+
+  2026-10-23T05:21:15.384800Z  INFO rundler::cli::builder: Builder bundle limits: Chain transaction gas limit: 30000000. Target bundle gas: 15000000. Max bundle gas: 27000000
+    at bin/rundler/src/cli/builder.rs:263
+
+  2026-10-23T05:21:15.392085Z  INFO rundler_pool::task: Chain id: 31337
+    at crates/pool/src/task.rs:96
+
+  2026-10-23T05:21:15.392111Z  INFO rundler_pool::task: Http url: "http://127.0.0.1:18646"
+    at crates/pool/src/task.rs:97
+
+  2026-10-23T05:21:15.392233Z  INFO rundler_pool::task: Started op_pool
+    at crates/pool/src/task.rs:181
+
+  2026-10-23T05:21:15.392252Z  INFO rundler_builder::task: Mempool config for ep V0_7: {}
+    at crates/builder/src/task.rs:331
+
+  2026-10-23T05:21:15.399984Z  INFO rundler_builder::task: Started bundle builder
+    at crates/builder/src/task.rs:264
+
+  2026-10-23T05:21:15.400028Z  INFO rundler_rpc::task: Starting rpc server on 0.0.0.0:18650
+    at crates/rpc/src/task.rs:112
+
+  2026-10-23T05:21:15.400141Z  INFO rundler_rpc::task: Started RPC server
+    at crates/rpc/src/task.rs:257
+
+  2026-10-23T05:21:15.688638Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0x99b2ff7684080eeb7c3cc572dbc7617f58b9f970e27628f3f10003ed1f962ff3, block_number: 119, address_updates: [] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:18.256149Z  INFO rundler_builder::bundle_sender: changing bundling mode to Manual
+    at crates/builder/src/bundle_sender.rs:1379
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:19.453206Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0xd693b6e0d4ddddf297572881dc3e97f5d1c04ef4b041ad2783c5842ab3c7f486, block_number: 120, address_updates: [AddressUpdate { address: 0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc, balance: 10000000000000000000000, nonce: None, mined_tx_hashes: [] }] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:20.472622Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0xfb96796e9981d7df87700441552f623ec427912767f26cb8b8efeb6d4a308381    Sender: 0xf8d164499810e370928c6994a381c07dfd05d4da    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:20.878680Z  INFO rundler_builder::bundle_sender: Selected bundle: nonce: 0. Ops: [(0xf8d164499810e370928c6994a381c07dfd05d4da, 0xfb96796e9981d7df87700441552f623ec427912767f26cb8b8efeb6d4a308381)]. Num rejected ops: 0. Num updated entities: 0
+    at crates/builder/src/bundle_sender.rs:875
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:20.878733Z  INFO rundler_builder::transaction_tracker: Sending transaction with nonce: 0 gas fees: GasFees { max_fee_per_gas: 1000000723, max_priority_fee_per_gas: 1000000000 } gas limit: 1983747
+    at crates/builder/src/transaction_tracker.rs:342
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:20.881388Z  INFO rundler_builder::transaction_tracker: Sent transaction 0x9c74c8d0d3739c969f2449c41e3af535f4229d5541cbc97a7fd1ce8d7228f2d0 nonce: 0
+    at crates/builder/src/transaction_tracker.rs:365
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:20.881448Z  INFO rundler_utils::emit: Bundle transaction sent!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x9c74c8d0d3739c969f2449c41e3af535f4229d5541cbc97a7fd1ce8d7228f2d0    Nonce: 0    Fee increases: 0    Required maxFeePerGas: (default)    Required maxPriorityFeePerGas: (default)    Ops: (sender: 0xf8d164499810e370928c6994a381c07dfd05d4da hash: 0xfb96796e9981d7df87700441552f623ec427912767f26cb8b8efeb6d4a308381)    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:20.881496Z  INFO rundler_builder::bundle_sender: Bundle sent successfully
+    at crates/builder/src/bundle_sender.rs:281
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:20.890830Z  INFO rundler_pool::mempool::uo_pool: 1 op(s) mined on entry point 0x0000000071727de22e5e9d8baf0edac6f37da032 when advancing to block with number 121, hash 0xe134d703bffaee75a068b4f78050372081dd719216464e5221ba418a52f9f51b.
+    at crates/pool/src/mempool/uo_pool.rs:374
+    in rundler_pool::mempool::uo_pool::on_chain_update
+
+  2026-10-23T05:21:20.893388Z  INFO rundler_builder::transaction_tracker: Tracker update: nonce has changed from 0 to 1, balance change: "1302008.027008310"gwei, transactions mined: [0x9c74c8d0d3739c969f2449c41e3af535f4229d5541cbc97a7fd1ce8d7228f2d0]
+    at crates/builder/src/transaction_tracker.rs:515
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:20.895195Z  INFO rundler_builder::bundle_sender: Bundle transaction mined: block number 121, attempt number 0, gas limit Some(1983747), gas used Some(1207242), tx hash 0x9c74c8d0d3739c969f2449c41e3af535f4229d5541cbc97a7fd1ce8d7228f2d0, nonce 0, success true
+    at crates/builder/src/bundle_sender.rs:414
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:20.895261Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0xe134d703bffaee75a068b4f78050372081dd719216464e5221ba418a52f9f51b, block_number: 121, address_updates: [AddressUpdate { address: 0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc, balance: 10000001302008027008310, nonce: Some(0), mined_tx_hashes: [0x9c74c8d0d3739c969f2449c41e3af535f4229d5541cbc97a7fd1ce8d7228f2d0] }] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:20.895272Z  INFO rundler_utils::emit: Transaction mined!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x9c74c8d0d3739c969f2449c41e3af535f4229d5541cbc97a7fd1ce8d7228f2d0    Nonce: 0    Block number: 121    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:23.321104Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0x82590ad64258a32c611dac4972b9dbcae0bac4db172b5ded852c54f1c17ee316    Sender: 0x5cc265204f1078facf17e4ebb2b9dad9b7a91bbb    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:23.734797Z  INFO rundler_builder::bundle_sender: Selected bundle: nonce: 1. Ops: [(0x5cc265204f1078facf17e4ebb2b9dad9b7a91bbb, 0x82590ad64258a32c611dac4972b9dbcae0bac4db172b5ded852c54f1c17ee316)]. Num rejected ops: 0. Num updated entities: 0
+    at crates/builder/src/bundle_sender.rs:875
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:23.734835Z  INFO rundler_builder::transaction_tracker: Sending transaction with nonce: 1 gas fees: GasFees { max_fee_per_gas: 1000000637, max_priority_fee_per_gas: 1000000000 } gas limit: 1983759
+    at crates/builder/src/transaction_tracker.rs:342
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:23.736357Z  INFO rundler_builder::transaction_tracker: Sent transaction 0x7acedc279b8bda48430a284e400eea626cda25ad8e639e8e60c2276639fabffd nonce: 1
+    at crates/builder/src/transaction_tracker.rs:365
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:23.736437Z  INFO rundler_builder::bundle_sender: Bundle sent successfully
+    at crates/builder/src/bundle_sender.rs:281
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:23.736433Z  INFO rundler_utils::emit: Bundle transaction sent!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x7acedc279b8bda48430a284e400eea626cda25ad8e639e8e60c2276639fabffd    Nonce: 1    Fee increases: 0    Required maxFeePerGas: (default)    Required maxPriorityFeePerGas: (default)    Ops: (sender: 0x5cc265204f1078facf17e4ebb2b9dad9b7a91bbb hash: 0x82590ad64258a32c611dac4972b9dbcae0bac4db172b5ded852c54f1c17ee316)    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:23.820079Z  INFO rundler_pool::mempool::uo_pool: 1 op(s) mined on entry point 0x0000000071727de22e5e9d8baf0edac6f37da032 when advancing to block with number 122, hash 0x8b6eaac61e42f852db1811db79a0abfaf043e0bf39de381e0474bd915ee2c038.
+    at crates/pool/src/mempool/uo_pool.rs:374
+    in rundler_pool::mempool::uo_pool::on_chain_update
+
+  2026-10-23T05:21:23.823119Z  INFO rundler_builder::transaction_tracker: Tracker update: nonce has changed from 1 to 2, balance change: "1507836.176267762"gwei, transactions mined: [0x7acedc279b8bda48430a284e400eea626cda25ad8e639e8e60c2276639fabffd]
+    at crates/builder/src/transaction_tracker.rs:515
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:23.826229Z  INFO rundler_builder::bundle_sender: Bundle transaction mined: block number 122, attempt number 0, gas limit Some(1983759), gas used Some(805574), tx hash 0x7acedc279b8bda48430a284e400eea626cda25ad8e639e8e60c2276639fabffd, nonce 1, success true
+    at crates/builder/src/bundle_sender.rs:414
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:23.826316Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0x8b6eaac61e42f852db1811db79a0abfaf043e0bf39de381e0474bd915ee2c038, block_number: 122, address_updates: [AddressUpdate { address: 0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc, balance: 10000002809844203276072, nonce: Some(1), mined_tx_hashes: [0x7acedc279b8bda48430a284e400eea626cda25ad8e639e8e60c2276639fabffd] }] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:23.826350Z  INFO rundler_utils::emit: Transaction mined!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x7acedc279b8bda48430a284e400eea626cda25ad8e639e8e60c2276639fabffd    Nonce: 1    Block number: 122    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:26.320878Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0x32aa7951466317facb10ed7c25a18b61c9001e1d60ddf30c14c9eaf86c0b59dc    Sender: 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:27.240492Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0x15e660d7f40245902817acebffb1ff03dfc2cd750c543177cb04d9850150452b    Sender: 0xe81ce1f4d7e4cc5e49e5d841cc3918d5b0ef5bdd    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:28.125506Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0xbdf1c482ac69d31b480b363f10ce66af0bbfca1cdc98aaf703c037d7036289bd    Sender: 0xa70286c702ecb6d515a1e0b7fa38da8571196678    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:28.564350Z  INFO rundler_builder::bundle_sender: Selected bundle: nonce: 2. Ops: [(0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263, 0x32aa7951466317facb10ed7c25a18b61c9001e1d60ddf30c14c9eaf86c0b59dc), (0xe81ce1f4d7e4cc5e49e5d841cc3918d5b0ef5bdd, 0x15e660d7f40245902817acebffb1ff03dfc2cd750c543177cb04d9850150452b), (0xa70286c702ecb6d515a1e0b7fa38da8571196678, 0xbdf1c482ac69d31b480b363f10ce66af0bbfca1cdc98aaf703c037d7036289bd)]. Num rejected ops: 0. Num updated entities: 0
+    at crates/builder/src/bundle_sender.rs:875
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:28.564403Z  INFO rundler_builder::transaction_tracker: Sending transaction with nonce: 2 gas fees: GasFees { max_fee_per_gas: 1000000560, max_priority_fee_per_gas: 1000000000 } gas limit: 5907179
+    at crates/builder/src/transaction_tracker.rs:342
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:28.566152Z  INFO rundler_builder::transaction_tracker: Sent transaction 0xe0c0323a702365641e146a14d1c2091b3bba5914a655a7e4cbd6b2489dc5295c nonce: 2
+    at crates/builder/src/transaction_tracker.rs:365
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:28.566254Z  INFO rundler_utils::emit: Bundle transaction sent!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0xe0c0323a702365641e146a14d1c2091b3bba5914a655a7e4cbd6b2489dc5295c    Nonce: 2    Fee increases: 0    Required maxFeePerGas: (default)    Required maxPriorityFeePerGas: (default)    Ops: (sender: 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 hash: 0x32aa7951466317facb10ed7c25a18b61c9001e1d60ddf30c14c9eaf86c0b59dc), (sender: 0xe81ce1f4d7e4cc5e49e5d841cc3918d5b0ef5bdd hash: 0x15e660d7f40245902817acebffb1ff03dfc2cd750c543177cb04d9850150452b), (sender: 0xa70286c702ecb6d515a1e0b7fa38da8571196678 hash: 0xbdf1c482ac69d31b480b363f10ce66af0bbfca1cdc98aaf703c037d7036289bd)    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:28.566366Z  INFO rundler_builder::bundle_sender: Bundle sent successfully
+    at crates/builder/src/bundle_sender.rs:281
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:28.648068Z  INFO rundler_pool::mempool::uo_pool: 3 op(s) mined on entry point 0x0000000071727de22e5e9d8baf0edac6f37da032 when advancing to block with number 123, hash 0x14a6684491833044aefd7fc52e545bbf6482a1fb5c4e90ef7a09111abe16b026.
+    at crates/pool/src/mempool/uo_pool.rs:374
+    in rundler_pool::mempool::uo_pool::on_chain_update
+
+  2026-10-23T05:21:28.650620Z  INFO rundler_builder::transaction_tracker: Tracker update: nonce has changed from 2 to 3, balance change: "4364355.493664661"gwei, transactions mined: [0xe0c0323a702365641e146a14d1c2091b3bba5914a655a7e4cbd6b2489dc5295c]
+    at crates/builder/src/transaction_tracker.rs:515
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:28.654916Z  INFO rundler_builder::bundle_sender: Bundle transaction mined: block number 123, attempt number 0, gas limit Some(5907179), gas used Some(2125513), tx hash 0xe0c0323a702365641e146a14d1c2091b3bba5914a655a7e4cbd6b2489dc5295c, nonce 2, success true
+    at crates/builder/src/bundle_sender.rs:414
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:28.655001Z  INFO rundler_utils::emit: Transaction mined!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0xe0c0323a702365641e146a14d1c2091b3bba5914a655a7e4cbd6b2489dc5295c    Nonce: 2    Block number: 123    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:28.655020Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0x14a6684491833044aefd7fc52e545bbf6482a1fb5c4e90ef7a09111abe16b026, block_number: 123, address_updates: [AddressUpdate { address: 0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc, balance: 10000007174199696940733, nonce: Some(2), mined_tx_hashes: [0xe0c0323a702365641e146a14d1c2091b3bba5914a655a7e4cbd6b2489dc5295c] }] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:31.301341Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0x3c55ed66eda797755915c4c99fe44171bb0d4f6cd2be59231d7b96a7ae7ae16a    Sender: 0x778aa6fe345d06ad86abafe7e5dd1a3f8aebedf1    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:31.732661Z  INFO rundler_builder::bundle_sender: Selected bundle: nonce: 3. Ops: [(0x778aa6fe345d06ad86abafe7e5dd1a3f8aebedf1, 0x3c55ed66eda797755915c4c99fe44171bb0d4f6cd2be59231d7b96a7ae7ae16a)]. Num rejected ops: 0. Num updated entities: 0
+    at crates/builder/src/bundle_sender.rs:875
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:31.732701Z  INFO rundler_builder::transaction_tracker: Sending transaction with nonce: 3 gas fees: GasFees { max_fee_per_gas: 1000000495, max_priority_fee_per_gas: 1000000000 } gas limit: 1983772
+    at crates/builder/src/transaction_tracker.rs:342
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:31.734500Z  INFO rundler_builder::transaction_tracker: Sent transaction 0xd9b1c5737d57aa1e64b67b4c184a16315c46335c2aa7eb79f3f26df24fe944fb nonce: 3
+    at crates/builder/src/transaction_tracker.rs:365
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:31.734538Z  INFO rundler_utils::emit: Bundle transaction sent!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0xd9b1c5737d57aa1e64b67b4c184a16315c46335c2aa7eb79f3f26df24fe944fb    Nonce: 3    Fee increases: 0    Required maxFeePerGas: (default)    Required maxPriorityFeePerGas: (default)    Ops: (sender: 0x778aa6fe345d06ad86abafe7e5dd1a3f8aebedf1 hash: 0x3c55ed66eda797755915c4c99fe44171bb0d4f6cd2be59231d7b96a7ae7ae16a)    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:31.734589Z  INFO rundler_builder::bundle_sender: Bundle sent successfully
+    at crates/builder/src/bundle_sender.rs:281
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:31.773907Z  INFO rundler_pool::mempool::uo_pool: 1 op(s) mined on entry point 0x0000000071727de22e5e9d8baf0edac6f37da032 when advancing to block with number 124, hash 0x57ce431cbea0adffa2bf94952a69c13f2e6b2f84b30f999ef3c16597ba66b089.
+    at crates/pool/src/mempool/uo_pool.rs:374
+    in rundler_pool::mempool::uo_pool::on_chain_update
+
+  2026-10-23T05:21:31.776933Z  INFO rundler_builder::transaction_tracker: Tracker update: nonce has changed from 3 to 4, balance change: "1624323.136936410"gwei, transactions mined: [0xd9b1c5737d57aa1e64b67b4c184a16315c46335c2aa7eb79f3f26df24fe944fb]
+    at crates/builder/src/transaction_tracker.rs:515
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:31.779254Z  INFO rundler_builder::bundle_sender: Bundle transaction mined: block number 124, attempt number 0, gas limit Some(1983772), gas used Some(922085), tx hash 0xd9b1c5737d57aa1e64b67b4c184a16315c46335c2aa7eb79f3f26df24fe944fb, nonce 3, success true
+    at crates/builder/src/bundle_sender.rs:414
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:31.779358Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0x57ce431cbea0adffa2bf94952a69c13f2e6b2f84b30f999ef3c16597ba66b089, block_number: 124, address_updates: [AddressUpdate { address: 0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc, balance: 10000008798522833877143, nonce: Some(3), mined_tx_hashes: [0xd9b1c5737d57aa1e64b67b4c184a16315c46335c2aa7eb79f3f26df24fe944fb] }] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:31.779384Z  INFO rundler_utils::emit: Transaction mined!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0xd9b1c5737d57aa1e64b67b4c184a16315c46335c2aa7eb79f3f26df24fe944fb    Nonce: 3    Block number: 124    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:34.193806Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0xd101c4e26a6500eaf0d2d45442239581c99342c0f949be4268551f4cb75cb270    Sender: 0x94baa886707af8d009df9186b1237c2dee0b3bbd    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:34.656915Z  INFO rundler_builder::bundle_sender: Selected bundle: nonce: 4. Ops: [(0x94baa886707af8d009df9186b1237c2dee0b3bbd, 0xd101c4e26a6500eaf0d2d45442239581c99342c0f949be4268551f4cb75cb270)]. Num rejected ops: 0. Num updated entities: 0
+    at crates/builder/src/bundle_sender.rs:875
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:34.656959Z  INFO rundler_builder::transaction_tracker: Sending transaction with nonce: 4 gas fees: GasFees { max_fee_per_gas: 1000000435, max_priority_fee_per_gas: 1000000000 } gas limit: 1983772
+    at crates/builder/src/transaction_tracker.rs:342
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:34.661682Z  INFO rundler_builder::transaction_tracker: Sent transaction 0x347e9923d3a825220de1762a62e3b7351e4fde566cbe7733ef750f90bd46785b nonce: 4
+    at crates/builder/src/transaction_tracker.rs:365
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:34.661734Z  INFO rundler_utils::emit: Bundle transaction sent!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x347e9923d3a825220de1762a62e3b7351e4fde566cbe7733ef750f90bd46785b    Nonce: 4    Fee increases: 0    Required maxFeePerGas: (default)    Required maxPriorityFeePerGas: (default)    Ops: (sender: 0x94baa886707af8d009df9186b1237c2dee0b3bbd hash: 0xd101c4e26a6500eaf0d2d45442239581c99342c0f949be4268551f4cb75cb270)    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:34.661829Z  INFO rundler_builder::bundle_sender: Bundle sent successfully
+    at crates/builder/src/bundle_sender.rs:281
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:34.696743Z  INFO rundler_pool::mempool::uo_pool: 1 op(s) mined on entry point 0x0000000071727de22e5e9d8baf0edac6f37da032 when advancing to block with number 125, hash 0xf9c6500c800acee3f90ade8deeb67372b54cfbd78a2e1c6ee1238743a03cd852.
+    at crates/pool/src/mempool/uo_pool.rs:374
+    in rundler_pool::mempool::uo_pool::on_chain_update
+
+  2026-10-23T05:21:34.699222Z  INFO rundler_builder::transaction_tracker: Tracker update: nonce has changed from 4 to 5, balance change: "1522517.120433817"gwei, transactions mined: [0x347e9923d3a825220de1762a62e3b7351e4fde566cbe7733ef750f90bd46785b]
+    at crates/builder/src/transaction_tracker.rs:515
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:34.701265Z  INFO rundler_builder::bundle_sender: Bundle transaction mined: block number 125, attempt number 0, gas limit Some(1983772), gas used Some(820279), tx hash 0x347e9923d3a825220de1762a62e3b7351e4fde566cbe7733ef750f90bd46785b, nonce 4, success true
+    at crates/builder/src/bundle_sender.rs:414
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:34.701388Z  INFO rundler_utils::emit: Transaction mined!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x347e9923d3a825220de1762a62e3b7351e4fde566cbe7733ef750f90bd46785b    Nonce: 4    Block number: 125    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:34.701404Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0xf9c6500c800acee3f90ade8deeb67372b54cfbd78a2e1c6ee1238743a03cd852, block_number: 125, address_updates: [AddressUpdate { address: 0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc, balance: 10000010321039954310960, nonce: Some(4), mined_tx_hashes: [0x347e9923d3a825220de1762a62e3b7351e4fde566cbe7733ef750f90bd46785b] }] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:37.329507Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0xbdf1675c791a3e048352d0b02591ae5432fd7f7d33e48e880c13acd73207681a    Sender: 0xf6a0cd9b78de9a2098bbfd607462b07df266b938    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:37.865413Z  INFO rundler_builder::bundle_sender: Selected bundle: nonce: 5. Ops: [(0xf6a0cd9b78de9a2098bbfd607462b07df266b938, 0xbdf1675c791a3e048352d0b02591ae5432fd7f7d33e48e880c13acd73207681a)]. Num rejected ops: 0. Num updated entities: 0
+    at crates/builder/src/bundle_sender.rs:875
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:37.865454Z  INFO rundler_builder::transaction_tracker: Sending transaction with nonce: 5 gas fees: GasFees { max_fee_per_gas: 1000000383, max_priority_fee_per_gas: 1000000000 } gas limit: 1983759
+    at crates/builder/src/transaction_tracker.rs:342
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:37.867304Z  INFO rundler_builder::transaction_tracker: Sent transaction 0x486ae9bd3c95611303a70dbcdbb57e0599df66d40a62a3286081fb0a3ee7b5f9 nonce: 5
+    at crates/builder/src/transaction_tracker.rs:365
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:37.867364Z  INFO rundler_builder::bundle_sender: Bundle sent successfully
+    at crates/builder/src/bundle_sender.rs:281
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:37.867349Z  INFO rundler_utils::emit: Bundle transaction sent!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x486ae9bd3c95611303a70dbcdbb57e0599df66d40a62a3286081fb0a3ee7b5f9    Nonce: 5    Fee increases: 0    Required maxFeePerGas: (default)    Required maxPriorityFeePerGas: (default)    Ops: (sender: 0xf6a0cd9b78de9a2098bbfd607462b07df266b938 hash: 0xbdf1675c791a3e048352d0b02591ae5432fd7f7d33e48e880c13acd73207681a)    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:37.935927Z  INFO rundler_pool::mempool::uo_pool: 1 op(s) mined on entry point 0x0000000071727de22e5e9d8baf0edac6f37da032 when advancing to block with number 126, hash 0x59de3a46adeb3436dbecc832817557ce087f2a856bb7c48fd4b81bb4c695e54a.
+    at crates/pool/src/mempool/uo_pool.rs:374
+    in rundler_pool::mempool::uo_pool::on_chain_update
+
+  2026-10-23T05:21:37.938222Z  INFO rundler_builder::transaction_tracker: Tracker update: nonce has changed from 5 to 6, balance change: "1230371.077007886"gwei, transactions mined: [0x486ae9bd3c95611303a70dbcdbb57e0599df66d40a62a3286081fb0a3ee7b5f9]
+    at crates/builder/src/transaction_tracker.rs:515
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:37.940301Z  INFO rundler_builder::bundle_sender: Bundle transaction mined: block number 126, attempt number 0, gas limit Some(1983759), gas used Some(720385), tx hash 0x486ae9bd3c95611303a70dbcdbb57e0599df66d40a62a3286081fb0a3ee7b5f9, nonce 5, success true
+    at crates/builder/src/bundle_sender.rs:414
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:37.940380Z  INFO rundler_utils::emit: Transaction mined!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x486ae9bd3c95611303a70dbcdbb57e0599df66d40a62a3286081fb0a3ee7b5f9    Nonce: 5    Block number: 126    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:37.940416Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0x59de3a46adeb3436dbecc832817557ce087f2a856bb7c48fd4b81bb4c695e54a, block_number: 126, address_updates: [AddressUpdate { address: 0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc, balance: 10000011551411031318846, nonce: Some(5), mined_tx_hashes: [0x486ae9bd3c95611303a70dbcdbb57e0599df66d40a62a3286081fb0a3ee7b5f9] }] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:40.358160Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0xea29fa8437de1bad25e7676c158a02e62e94ade688df65b768ff613b1d038c34    Sender: 0x029a281de95403ea1a8e6d110011cdb0f5af3f70    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:40.719523Z  INFO rundler_builder::bundle_sender: Selected bundle: nonce: 6. Ops: [(0x029a281de95403ea1a8e6d110011cdb0f5af3f70, 0xea29fa8437de1bad25e7676c158a02e62e94ade688df65b768ff613b1d038c34)]. Num rejected ops: 0. Num updated entities: 0
+    at crates/builder/src/bundle_sender.rs:875
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:40.719565Z  INFO rundler_builder::transaction_tracker: Sending transaction with nonce: 6 gas fees: GasFees { max_fee_per_gas: 1000000337, max_priority_fee_per_gas: 1000000000 } gas limit: 1983747
+    at crates/builder/src/transaction_tracker.rs:342
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:40.721498Z  INFO rundler_builder::transaction_tracker: Sent transaction 0x52770657da73a49a836a3658f1696ea83a35a54816f606ed2545480e94d4eb96 nonce: 6
+    at crates/builder/src/transaction_tracker.rs:365
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:40.721536Z  INFO rundler_utils::emit: Bundle transaction sent!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x52770657da73a49a836a3658f1696ea83a35a54816f606ed2545480e94d4eb96    Nonce: 6    Fee increases: 0    Required maxFeePerGas: (default)    Required maxPriorityFeePerGas: (default)    Ops: (sender: 0x029a281de95403ea1a8e6d110011cdb0f5af3f70 hash: 0xea29fa8437de1bad25e7676c158a02e62e94ade688df65b768ff613b1d038c34)    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:40.721577Z  INFO rundler_builder::bundle_sender: Bundle sent successfully
+    at crates/builder/src/bundle_sender.rs:281
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:40.758563Z  INFO rundler_pool::mempool::uo_pool: 1 op(s) mined on entry point 0x0000000071727de22e5e9d8baf0edac6f37da032 when advancing to block with number 127, hash 0x12ef937bff15c44c384d745023557531e3e774f7735c713cb5a56c0d47734a79.
+    at crates/pool/src/mempool/uo_pool.rs:374
+    in rundler_pool::mempool::uo_pool::on_chain_update
+
+  2026-10-23T05:21:40.761845Z  INFO rundler_builder::transaction_tracker: Tracker update: nonce has changed from 6 to 7, balance change: "1507848.093404038"gwei, transactions mined: [0x52770657da73a49a836a3658f1696ea83a35a54816f606ed2545480e94d4eb96]
+    at crates/builder/src/transaction_tracker.rs:515
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:40.765392Z  INFO rundler_builder::bundle_sender: Bundle transaction mined: block number 127, attempt number 0, gas limit Some(1983747), gas used Some(805562), tx hash 0x52770657da73a49a836a3658f1696ea83a35a54816f606ed2545480e94d4eb96, nonce 6, success true
+    at crates/builder/src/bundle_sender.rs:414
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:40.765465Z  INFO rundler_utils::emit: Transaction mined!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0x52770657da73a49a836a3658f1696ea83a35a54816f606ed2545480e94d4eb96    Nonce: 6    Block number: 127    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:40.765484Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0x12ef937bff15c44c384d745023557531e3e774f7735c713cb5a56c0d47734a79, block_number: 127, address_updates: [AddressUpdate { address: 0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc, balance: 10000013059259124722884, nonce: Some(6), mined_tx_hashes: [0x52770657da73a49a836a3658f1696ea83a35a54816f606ed2545480e94d4eb96] }] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:45.211163Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0xfea93933654fbd27bcae9d6152846463db193ae4443127b305c6a4e0e73f6dd4    Sender: 0xbc4af805323f4f7829f6eabe282c79b005b023b7    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:46.024987Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0x6641682ce7a4d2fd7d9bd14119a0b033f24e6393a971736a57596571fae11a70    Sender: 0xbc4af805323f4f7829f6eabe282c79b005b023b7    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:46.392300Z  INFO rundler_builder::bundle_sender: Selected bundle: nonce: 7. Ops: [(0xbc4af805323f4f7829f6eabe282c79b005b023b7, 0xfea93933654fbd27bcae9d6152846463db193ae4443127b305c6a4e0e73f6dd4), (0xbc4af805323f4f7829f6eabe282c79b005b023b7, 0x6641682ce7a4d2fd7d9bd14119a0b033f24e6393a971736a57596571fae11a70)]. Num rejected ops: 0. Num updated entities: 0
+    at crates/builder/src/bundle_sender.rs:875
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:46.392352Z  INFO rundler_builder::transaction_tracker: Sending transaction with nonce: 7 gas fees: GasFees { max_fee_per_gas: 1000000297, max_priority_fee_per_gas: 1000000000 } gas limit: 3945482
+    at crates/builder/src/transaction_tracker.rs:342
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:46.394047Z  INFO rundler_builder::transaction_tracker: Sent transaction 0xa7768e7be91fba5e101a41c6d99250771f280094aff951d65a6dc7c56408df54 nonce: 7
+    at crates/builder/src/transaction_tracker.rs:365
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:46.394143Z  INFO rundler_utils::emit: Bundle transaction sent!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0xa7768e7be91fba5e101a41c6d99250771f280094aff951d65a6dc7c56408df54    Nonce: 7    Fee increases: 0    Required maxFeePerGas: (default)    Required maxPriorityFeePerGas: (default)    Ops: (sender: 0xbc4af805323f4f7829f6eabe282c79b005b023b7 hash: 0xfea93933654fbd27bcae9d6152846463db193ae4443127b305c6a4e0e73f6dd4), (sender: 0xbc4af805323f4f7829f6eabe282c79b005b023b7 hash: 0x6641682ce7a4d2fd7d9bd14119a0b033f24e6393a971736a57596571fae11a70)    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:46.394198Z  INFO rundler_builder::bundle_sender: Bundle sent successfully
+    at crates/builder/src/bundle_sender.rs:281
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:46.445624Z  INFO rundler_pool::mempool::uo_pool: 2 op(s) mined on entry point 0x0000000071727de22e5e9d8baf0edac6f37da032 when advancing to block with number 128, hash 0x4190e1045a3601710ed26dc10ecf7430d178325ebe3e3db8fc6e79f58ad15702.
+    at crates/pool/src/mempool/uo_pool.rs:374
+    in rundler_pool::mempool::uo_pool::on_chain_update
+
+  2026-10-23T05:21:46.448405Z  INFO rundler_builder::transaction_tracker: Tracker update: nonce has changed from 7 to 8, balance change: "2477774.147024540"gwei, transactions mined: [0xa7768e7be91fba5e101a41c6d99250771f280094aff951d65a6dc7c56408df54]
+    at crates/builder/src/transaction_tracker.rs:515
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:46.451125Z  INFO rundler_builder::bundle_sender: Bundle transaction mined: block number 128, attempt number 0, gas limit Some(3945482), gas used Some(1221154), tx hash 0xa7768e7be91fba5e101a41c6d99250771f280094aff951d65a6dc7c56408df54, nonce 7, success true
+    at crates/builder/src/bundle_sender.rs:414
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:46.451200Z  INFO rundler_builder::server::local: received new head: NewHead { block_hash: 0x4190e1045a3601710ed26dc10ecf7430d178325ebe3e3db8fc6e79f58ad15702, block_number: 128, address_updates: [AddressUpdate { address: 0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc, balance: 10000015537033271747424, nonce: Some(7), mined_tx_hashes: [0xa7768e7be91fba5e101a41c6d99250771f280094aff951d65a6dc7c56408df54] }] }
+    at crates/builder/src/server/local.rs:228
+
+  2026-10-23T05:21:46.451248Z  INFO rundler_utils::emit: Transaction mined!    Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Transaction hash: 0xa7768e7be91fba5e101a41c6d99250771f280094aff951d65a6dc7c56408df54    Nonce: 7    Block number: 128    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:47.953924Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+    at crates/rpc/src/debug.rs:259
+
+  2026-10-23T05:21:48.955652Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+    at crates/rpc/src/debug.rs:259
+
+  2026-10-23T05:21:49.956292Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+    at crates/rpc/src/debug.rs:259
+
+  2026-10-23T05:21:53.388829Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0x46a17938322967fe9d08fabe0ca42d853e8e520971dd5dfabd0c06254414b08d    Sender: 0x5f326c848456ec934b6f9206b638c46e9f7313c1    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:54.247715Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0x48289f23181b050716c1a6f5d64f8a2c8980b63f01b904b57ece686e55e8551c    Sender: 0x5f326c848456ec934b6f9206b638c46e9f7313c1    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:55.070653Z  INFO rundler_utils::emit: Pool accepted op.    Op hash: 0x4176d9cf3fe070c43d36e91771d71bdbe446113551298755a4a88aa0b0bbfdb7    Sender: 0x5f326c848456ec934b6f9206b638c46e9f7313c1    Paymaster: 0x0b306bf915c4d645ff596e518faf3f9669b97016    maxFeePerGas: 3000000000    maxPriorityFeePerGas: 2000000000    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:55.497848Z  INFO rundler_builder::bundle_proposer: Rejected op because it failed during gas estimation with a paymaster 0x0b306bf915c4d645ff596e518faf3f9669b97016 error AA34 signature error.
+    at crates/builder/src/bundle_proposer.rs:1156
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:55.497911Z  INFO rundler_builder::bundle_proposer: Bundle gas estimation failed. Retrying after removing rejected op(s).
+    at crates/builder/src/bundle_proposer.rs:319
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:55.497994Z  INFO rundler_builder::bundle_sender: Empty bundle with 3 rejected ops and 1 rejected entities. Removing them from pool.
+    at crates/builder/src/bundle_sender.rs:853
+    in rundler_builder::bundle_sender::step_state with entry_point: "0x0000000071727De22E5E9d8BAf0edAc6f37da032", tag: "0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+
+  2026-10-23T05:21:55.498071Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+    at crates/rpc/src/debug.rs:259
+
+  2026-10-23T05:21:55.498128Z  INFO rundler_utils::emit: Op rejected from bundle and removed from pool.   Builder tag: 0x0000000071727De22E5E9d8BAf0edAc6f37da032:any:0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc    Op hash: 0x4176d9cf3fe070c43d36e91771d71bdbe446113551298755a4a88aa0b0bbfdb7    Reason: FailedInBundle { message: "AA34 signature error" }    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:55.498161Z  INFO rundler_utils::emit: Removed op from pool.    Op hash: 0x46a17938322967fe9d08fabe0ca42d853e8e520971dd5dfabd0c06254414b08d    Reason: Requested    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:55.498167Z  INFO rundler_utils::emit: Removed op from pool.    Op hash: 0x48289f23181b050716c1a6f5d64f8a2c8980b63f01b904b57ece686e55e8551c    Reason: Requested    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:55.498186Z  INFO rundler_utils::emit: Removed op from pool.    Op hash: 0x4176d9cf3fe070c43d36e91771d71bdbe446113551298755a4a88aa0b0bbfdb7    Reason: Requested    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:55.498191Z  INFO rundler_utils::emit: Removed entity from pool.    Entity: paymaster:"0x0B306BF915C4d645ff596e518fAf3F9669b97016"    Entrypoint: 0x0000000071727de22e5e9d8baf0edac6f37da032
+    at crates/utils/src/emit.rs:86
+
+  2026-10-23T05:21:56.500092Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+    at crates/rpc/src/debug.rs:259
+
+  2026-10-23T05:21:57.502027Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+    at crates/rpc/src/debug.rs:259
+
+  2026-10-23T05:22:00.005937Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+    at crates/rpc/src/debug.rs:259
+
+  2026-10-23T05:22:01.007821Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+    at crates/rpc/src/debug.rs:259
+
+  2026-10-23T05:22:02.010032Z  INFO rundler_rpc::debug: No ops to send, retrying after 1 second
+    at crates/rpc/src/debug.rs:259
+
