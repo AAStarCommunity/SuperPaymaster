@@ -110,7 +110,9 @@ contract RamsARouteRehearsalTest is Test {
         }
         require(ownerSeen && anniSeen, "RAMS: known operators absent from inventory");
         emit log_named_string("Registry source version (must match inspected tag)", RamsRegistry(REGISTRY).version());
-        assertEq(RamsRegistry(REGISTRY).version(), "Registry-5.4.2", "RAMS: inspect Registry source on version drift");
+        // Live Sepolia Registry reports Registry-5.8.0 (introduced bb2610e8, replaced at dfdbf742). configureRole,
+        // registerRole's isActive gate and RoleConfig are identical at both ends of that range.
+        assertEq(RamsRegistry(REGISTRY).version(), "Registry-5.8.0", "RAMS: inspect Registry source on version drift");
         emit log_named_uint("EVM block gas limit (not transaction cap)", block.gaslimit);
         emit log_named_uint("R0 comparison 2^24", 1 << 24);
         emit log("Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.");
