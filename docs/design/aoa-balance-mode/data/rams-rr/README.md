@@ -1,5 +1,14 @@
 # R2-F3 prerequisite: positive control for the reservoir regime (RR) on a local engine
 
+> **Correction (2026-10-23, #526 review N2).** The first version of this file said the replay runs "every preceding tx
+> of the block in order". That was not true for the original run: anvil orders its pool by fee by default. A rerun that
+> records the local block order (`run2-fee-order/`) shows **9/10 blocks reordered**: the target landed at local index 75
+> instead of 84, so some "preceding" txs ran after it. gasUsed still matched 10/10, but not in the chain's in-block state.
+> The replay now runs anvil with `--order fifo` and counts a match only if the local block holds exactly the replayed
+> txs in submission order **and** the target sits at the chain index. `run3-fifo/` (current): nightly **10/10** (order
+> 10/10, index 10/10, 0 preceding errors); 1.8.6 10/10 (3 blocks with one preceding error); 1.7.1/prague 0/3. The top-level
+> `replay-*.json` / `run.log` are the original run and are kept as produced.
+
 DSR (CC-125, 2026-10-23) left R2-F3 open: every G/B gas result so far was taken in the R0 regime
 (transaction gasLimit ≤ 2^24, so the starting reservoir is 0). Any bundler can submit `handleOps` with
 gasLimit > 2^24, and then the state-gas reservoir (EIP-8037) is non-zero. SP proposed option (i): measure
@@ -19,7 +28,7 @@ transactions**. This directory is that prerequisite. It is **not** the RR measur
 3. `script/evidence/rams-rr-positive-control.sh` runs both scripts and writes `run.log` (with the header:
    commit, dirty count, range; RPC redacted).
 
-## Results (`run.log`, `replay-*.json`)
+## Results — original run (`run.log`, `replay-*.json`; superseded by `run3-fifo/`, same counts)
 
 | engine | hardfork | match | preceding-tx replay errors | role |
 |---|---|---|---|---|
@@ -29,8 +38,8 @@ transactions**. This directory is that prerequisite. It is **not** the RR measur
 
 ## What this does and does not establish
 
-- **Does:** on these 10 real RR txs (gasUsed 17.2M–88.8M class), nightly 926eb1d reproduces gasUsed and status
-  exactly, inside the real block context. The comparison can fail: 1.7.1 fails it. So option (i) is decidable
+- **Does:** on these 10 real RR txs (gasUsed 17,904,329–70,412,677; 88,769,372 is the maximum over all 88, not a replayed tx),
+  nightly 926eb1d reproduces gasUsed and status exactly, in the real block order (`run3-fifo/`, see Correction). The comparison can fail: 1.7.1 fails it. So option (i) is decidable
   with this engine.
 - **Does not:** discriminate nightly from 1.8.6 on the target txs. Both match. 1.8.6's known defect (it
   undercounts CREATE state gas in the R-AMS probe, 6/14) shows here only as errors replaying some
