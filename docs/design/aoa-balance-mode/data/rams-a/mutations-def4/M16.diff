@@ -1,11 +1,33 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -1183,6 +1183,8 @@
+@@ -1124,11 +1124,8 @@
+         require(
+             g.pendingHash != bytes32(0) && keccak256(abi.encode(q)) == g.pendingHash, "RAMS gate: pending parameters"
+         );
+-        require(
+-            g.inventory.length != 0 && keccak256(abi.encode(g.inventory)) == inventoryHash
+-                && g.operatorPauses.length == g.inventory.length,
+-            "RAMS gate: missing inventory"
+-        );
++        require(g.inventory.length != 0 && g.operatorPauses.length == g.inventory.length, "RAMS gate: inventory length");
++        require(keccak256(abi.encode(g.inventory)) == inventoryHash, "RAMS gate: inventory commitment");
+         for (uint256 i; i < g.inventory.length; ++i) {
+             (, bool configured, bool stopped,,,,,,) = sp.operators(g.inventory[i]);
+             require(configured, "RAMS gate: operator missing");
+@@ -1183,6 +1180,7 @@
          g.gasHash = keccak256(abi.encode(SuperPaymasterStorage.GasParams(440_000, 420_000, 5000, 340_000)));
          g.pendingHash = keccak256(abi.encode(SuperPaymasterStorage.PendingGasParams(0, 0, 0, 0, 0)));
          g.inventory = vm.envAddress("OPERATORS", ",");
-+        g.inventory = new address[](1);
-+        g.inventory[0] = OWNER;
++        g.inventory[0] = g.inventory[0] == OWNER ? ANNI : OWNER; // M16: same length, configured and paused, different commitment.
          g.operatorPauses = new bool[](operators.length);
          for (uint256 i; i < operators.length; ++i) {
              g.operatorPauses[i] = true;
+@@ -1232,7 +1230,7 @@
+         this.readbackGate(g);
+         g.runtimeHash = newHash;
+         g.inventory = new address[](0);
+-        vm.expectRevert(bytes("RAMS gate: missing inventory"));
++        vm.expectRevert(bytes("RAMS gate: inventory length"));
+         this.readbackGate(g);
+         g.inventory = vm.envAddress("OPERATORS", ",");
+         g.operation = bytes32(0);

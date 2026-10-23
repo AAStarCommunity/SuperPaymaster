@@ -13,6 +13,10 @@ if [[ -n "$SEPOLIA_FORK_RPC" ]]; then
 else
     export FOUNDRY_OFFLINE=true
 fi
+if [[ -n "$(git status --porcelain -- contracts/src contracts/test foundry.toml)" ]]; then
+    printf 'Refusing mutation run: protected source/test/config paths differ from HEAD.\n' >&2
+    exit 1
+fi
 source script/evidence/rams-a-header.sh
 mkdir -p "$OUT"
 target='contracts/test/rams/RamsARouteRehearsal.t.sol'

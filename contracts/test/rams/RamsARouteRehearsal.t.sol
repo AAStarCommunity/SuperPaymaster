@@ -782,8 +782,11 @@ contract RamsARouteRehearsalTest is Test {
             abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"),
             "RAMS A5c: MIN-1 admitted"
         );
+        emit log("RAMS A5c: 439,999 rejected with AA34 signature error");
         _settleOne(_op(OWNER, 440_000, true));
+        emit log("RAMS A5c: 440,000 executed and settled");
         _settleOne(_op(OWNER, 440_001, true));
+        emit log("RAMS A5c: 440,001 executed and settled");
     }
 
     function test_A3b_probeOnly_globalPause() public forkOnly {
@@ -869,16 +872,32 @@ contract RamsARouteRehearsalTest is Test {
         vm.prank(SAFE);
         tl.schedule(SP, 0, pause, bytes32(0), salt, DELAY);
         vm.warp(began + DELAY); // The earliest modeled upgrade time, one hour before this pause matures.
+        bytes32 pauseId = tl.hashOperation(SP, 0, pause, bytes32(0), salt);
         vm.prank(SAFE);
-        (bool ok,) = address(tl).call(abi.encodeCall(tl.execute, (SP, 0, pause, bytes32(0), salt)));
-        require(!ok, "RAMS A6b: new operator pause unexpectedly ready");
+        _mustReject(
+            address(tl),
+            abi.encodeCall(tl.execute, (SP, 0, pause, bytes32(0), salt)),
+            abi.encodeWithSelector(
+                TimelockController.TimelockUnexpectedOperationState.selector,
+                pauseId,
+                bytes32(uint256(1) << uint8(TimelockController.OperationState.Ready))
+            ),
+            "RAMS A6b: new operator pause unexpectedly ready"
+        );
         _freshPrice();
-        _probe(_op(NEW_OPERATOR, 440_000, false), true, 160);
+        uint256 gapSnapshot = vm.snapshot();
+        PackedUserOperation memory gapOp = _op(NEW_OPERATOR, 440_000, false);
+        bytes32 gapHash = ep.getUserOpHash(gapOp);
+        vm.prank(EP);
+        (bytes memory gapContext, uint256 gapValidation) =
+            sp.validatePaymasterUserOp(gapOp, gapHash, RamsBudget.maxCost(gapOp));
+        require(uint160(gapValidation) == 0 && gapContext.length == 160, "RAMS A6b: new operator sponsored in gap");
+        assertTrue(vm.revertTo(gapSnapshot), "RAMS A6b: gap probe rollback");
         vm.prank(SAFE);
         tl.execute(SP, 0, upgrade, bytes32(0), upgradeSalt);
         _assertUpgrade(true);
         _probe(_op(NEW_OPERATOR, 440_000, false), false, 0);
-        emit log_named_uint("Safe route pre-upgrade hours", DELAY / 1 hours);
+        emit log_named_uint("Safe route pre-upgrade hours", (vm.getBlockTimestamp() - began) / 1 hours);
     }
 
     function test_A6c_registryRegistrationStop() public forkOnly {
@@ -889,6 +908,24 @@ contract RamsARouteRehearsalTest is Test {
         IRegistry.RoleConfig memory config = reg.getRoleConfig(SUPER);
         emit log_named_address("Live Registry owner", reg.owner());
         emit log_named_address("Live PAYMASTER_SUPER config owner", config.owner);
+        bytes memory registration = abi.encodeCall(reg.registerRole, (SUPER, NEW_OPERATOR, abi.encode(config.minStake)));
+        uint256 controlSnapshot = vm.snapshot();
+        vm.prank(NEW_OPERATOR);
+        (bool controlOk, bytes memory controlData) = REGISTRY.call(registration);
+        if (controlOk) {
+            assertTrue(sp.REGISTRY().hasRole(SUPER, NEW_OPERATOR), "RAMS A6c: control grant missing");
+            emit log("RAMS A6c: pre-freeze registerRole succeeded");
+        } else {
+            bytes4 selector;
+            if (controlData.length >= 4) {
+                assembly { selector := mload(add(controlData, 32)) }
+            }
+            assertTrue(
+                selector != bytes4(keccak256("RoleNotConfigured(bytes32,bool)")), "RAMS A6c: control role inactive"
+            );
+            emit log_named_bytes("RAMS A6c: pre-freeze registerRole revert", controlData);
+        }
+        assertTrue(vm.revertTo(controlSnapshot), "RAMS A6c: control rollback");
         config.isActive = false;
         vm.prank(reg.owner());
         reg.configureRole(SUPER, config);
@@ -896,17 +933,9 @@ contract RamsARouteRehearsalTest is Test {
         vm.prank(NEW_OPERATOR);
         _mustReject(
             REGISTRY,
-            abi.encodeCall(reg.registerRole, (SUPER, NEW_OPERATOR, abi.encode(config.minStake))),
+            registration,
             abi.encodeWithSignature("RoleNotConfigured(bytes32,bool)", SUPER, false),
-            "RAMS A6c: disabled role granted"
-        );
-        address ownerToken = _token(OWNER);
-        vm.prank(NEW_OPERATOR);
-        _mustReject(
-            SP,
-            abi.encodeWithSignature("configureOperator(address,address)", ownerToken, NEW_OPERATOR),
-            abi.encodeWithSelector(SuperPaymasterStorage.Unauthorized.selector),
-            "RAMS A6c: unregistered operator configured"
+            "RAMS A6c: post-freeze RoleNotConfigured required"
         );
         assertTrue(sp.REGISTRY().hasRole(SUPER, OWNER), "RAMS: stop does not revoke existing grants");
     }
@@ -1124,11 +1153,8 @@ contract RamsARouteRehearsalTest is Test {
         require(
             g.pendingHash != bytes32(0) && keccak256(abi.encode(q)) == g.pendingHash, "RAMS gate: pending parameters"
         );
-        require(
-            g.inventory.length != 0 && keccak256(abi.encode(g.inventory)) == inventoryHash
-                && g.operatorPauses.length == g.inventory.length,
-            "RAMS gate: missing inventory"
-        );
+        require(g.inventory.length != 0 && g.operatorPauses.length == g.inventory.length, "RAMS gate: inventory length");
+        require(keccak256(abi.encode(g.inventory)) == inventoryHash, "RAMS gate: inventory commitment");
         for (uint256 i; i < g.inventory.length; ++i) {
             (, bool configured, bool stopped,,,,,,) = sp.operators(g.inventory[i]);
             require(configured, "RAMS gate: operator missing");
@@ -1232,7 +1258,7 @@ contract RamsARouteRehearsalTest is Test {
         this.readbackGate(g);
         g.runtimeHash = newHash;
         g.inventory = new address[](0);
-        vm.expectRevert(bytes("RAMS gate: missing inventory"));
+        vm.expectRevert(bytes("RAMS gate: inventory length"));
         this.readbackGate(g);
         g.inventory = vm.envAddress("OPERATORS", ",");
         g.operation = bytes32(0);

@@ -13,4 +13,6 @@ M12	test_A3_atomicUpgradeWithGlobalPause	all operator classes probed
 M13	test_A6_governanceTimeline_SafeTimelock	RAMS A6: non-Safe executor accepted
 M14	test_A3b_probeOnly_globalPause	exact SIG_FAILURE required
 M15	test_A1_oldPausePath_blocksAllOperators	exact SIG_FAILURE required
-M16	test_A7_readbackGate	RAMS gate: missing inventory
+M16	test_A7_readbackGate	RAMS gate: inventory commitment
+M17	test_A6c_registryRegistrationStop	RAMS A6c: post-freeze RoleNotConfigured required
+M18	test_A6b_safeRoute_preUpgradeGap	RAMS A6b: new operator sponsored in gap

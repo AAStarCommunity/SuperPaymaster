@@ -1,6 +1,6 @@
 # Review 2 response
 
-Review 2 is an offline edit at base HEAD `3eed99a7`, branch `cc125/rams-a-rehearsal`. No RPC, network, broadcast, signing operation, commit, or push was performed. Fork execution and mutation verdicts remain for the owner's archive-RPC rerun. Existing historical logs were retained.
+**Historical Review 2 authoring record (subsequent fork results are in README “Current results”).** Review 2 is an offline edit at base HEAD `3eed99a7`, branch `cc125/rams-a-rehearsal`. No RPC, network, broadcast, signing operation, commit, or push was performed. Fork execution and mutation verdicts remain for the owner's archive-RPC rerun. Existing historical logs were retained.
 
 | Finding | Change or remaining assumption |
 | --- | --- |
@@ -16,4 +16,23 @@ Review 2 is an offline edit at base HEAD `3eed99a7`, branch `cc125/rams-a-rehear
 | LOW, inventory scan | Added `script/evidence/rams-a-inventory.sh`: environment-only RPC inputs, two labeled endpoints, chunked scan, pinned configured-state read-backs, creation−1 negative and creation positive controls, fresh output creation. Historical A/C labels lack a preserved provider mapping, now stated in README/JSON. The historical JSON lacks a creation positive control; it is marked missing, not invented. Scanner was not executed because network/RPC use is forbidden. README uses “isConfigured=true has a single write site (v5.4.2:298)”. |
 | LOW, downtime and R0 | Tests log Safe 96h/144h and EOA-first 48h/96h through activation. Setup logs block gas limit and 2^24, and explicitly says transaction gas limit, cap-enable flag, and reservoir are not introspectable there. R0 remains a runner assumption. |
 
-Offline verification is recorded in `review-2-offline.log`: requested build succeeds, all 15 route tests skip without RPC, and all six RamsABudget tests pass. All five changed shell scripts pass `bash -n`; embedded Python parses; all 16 diffs apply with zero fuzz. No new fork result or mutation kill is claimed.
+Offline verification is recorded in `review-2-offline.log`: requested build succeeds, all 15 route tests skip without RPC, and all six RamsABudget tests pass. All five changed shell scripts pass `bash -n`; embedded Python parses; all 16 diffs apply with zero fuzz. **Historical statement at Review 2 authoring time:** no new fork result or mutation kill was claimed then. Subsequent fork and mutation results are in README “Current results”.
+
+## Review 3
+
+This is an offline, edit-only response at HEAD `e64568e3`. Historical Review 2 results remain in README “Current results”; revised fork controls and mutations await the owner’s rerun. The owner will supply Cancun and Prague results in `review-3-offline-gates.log`.
+
+| Finding | Change |
+| --- | --- |
+| M1, independent inventory commitment | Split length and commitment requirements with distinct messages. M16 replaces one member while preserving both lengths; targets.tsv expects `RAMS gate: inventory commitment`. Regenerated definitions against HEAD; M1–M15 remain byte-identical. |
+| M2, causal Registry freeze control | A6c calls the same user’s registration before freeze, captures/logs the revert and excludes the `RoleNotConfigured` selector, or asserts/logs a successful grant. Snapshot rollback preserves identical preconditions for the exact post-freeze payload check. Removed unrelated configureOperator rejection. README labels safeMintForRole source-checked (same isActive gate), not executed on the fork. |
+| M3, stale evidence narrative | Updated README to distinguish recorded Review 2 results from pending revised controls, removed obsolete baseline/rerun claims, and explicitly marked the earlier Review 2 no-results statement historical. |
+| M4, inventory provenance | Scanner emits UTC generation time and optional operator-supplied A/C labels, rejecting `://` before any RPC call. Review 2 JSON annotates its hand-added metadata. README states labels do not verify provider identity. |
+| M5, offline evidence reference | README’s offline row links `review-3-offline-gates.log` with “results in that file”; the owner will create it with Cancun/Prague results. |
+| LOW, A6b elapsed time and exact revert | Logs hours from elapsed block timestamps. Too-early pause checks the exact TimelockUnexpectedOperationState operation ID/Ready bitmap; computes the ID before the Safe prank. Added a distinct sponsorship-in-gap assertion. |
+| LOW, A5c boundary logs | Logs the validated outcome after each of 439,999, 440,000, and 440,001. |
+| LOW, redaction | Limits bare hostname forms to common TLDs, preserves Registry.sol:526, and redacts scheme-less common-TLD /v2/key and /v3/key paths. Offline diagnostic covers those cases and existing URL/IP/time forms. |
+| LOW, mutation baseline and dirty guard | Runner refuses any porcelain entry under contracts/src, contracts/test, or foundry.toml. Generator reads HEAD’s test file; M16–M18 include only revised bodies required by their controls while M1–M15 stay unchanged. |
+| LOW, M17 and M18 | Added unique expected messages to targets.tsv. M17 retains active role and bypasses freeze read-back to reach the post-freeze exact-payload assertion. M18 executes an upgrade-and-pause batch before the distinct gap sponsorship assertion. |
+
+Review 3 offline verification is recorded in `review-3-validation.log`: build passed with warnings, six budget tests passed and all 15 fork tests skipped; four changed shell scripts passed `bash -n`; all 18 patches dry-ran against HEAD with zero fuzz and no offsets; M1–M15 were byte-identical; tooling diagnostics passed. This is separate from the owner’s `review-3-offline-gates.log`; no full-suite Cancun/Prague result is inferred here.

@@ -3,13 +3,15 @@
 set -euo pipefail
 cd "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 python3 - "${1:?Usage: $0 OUTPUT_DIRECTORY}" <<'PYTHON'
-"""Regenerate procedure diffs from the current rehearsal; every anchor must be unique."""
+"""Regenerate procedure diffs against HEAD, carrying revised assertion bodies only where required; every anchor must be unique."""
 from pathlib import Path
 import difflib
 import sys
+import subprocess
 
 source = Path('contracts/test/rams/RamsARouteRehearsal.t.sol')
-base = source.read_text()
+base = subprocess.check_output(['git', 'show', 'HEAD:' + str(source)], text=True)
+reviewed = source.read_text()
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
 
@@ -55,7 +57,40 @@ mutants[14] = replace(s, '        _assertUpgrade(atomicPause);', '        // M14
 # M15: the prank must sit inside the condition, or an unconsumed prank at i == 0 breaks the next iteration
 # (first version did exactly that: WRONG-ASSERTION in mutations-run4).
 mutants[15] = replace(base, '            vm.prank(authority);\n            sp.setOperatorPaused(operators[i], stopped);\n            _assertOperatorPause(operators[i], stopped);\n', '            // M15: skip operator 0 and omit the pause read-back; the retained A1 probe must reject.\n            if (i != 0) {\n                vm.prank(authority);\n                sp.setOperatorPaused(operators[i], stopped);\n            }\n')
-mutants[16] = scoped(base, 'test_A7_readbackGate', '        g.operatorPauses = new bool[](operators.length);', '        g.inventory = new address[](1);\n        g.inventory[0] = OWNER;\n        g.operatorPauses = new bool[](operators.length);')
+# M1-M15 remain byte-identical against HEAD. New controls travel with M16-M18
+# until the owner commits the reviewed baseline; every patch still applies to HEAD.
+def body(s, name):
+    start = s.index('    function ' + name + '(')
+    end = s.find('\n    function ', start + 1)
+    return s[start:end if end >= 0 else len(s)]
+
+def with_reviewed(*names):
+    s = base
+    for name in names:
+        s = replace(s, body(s, name), body(reviewed, name))
+    return s
+
+s = with_reviewed('readbackGate', 'test_A7_readbackGate')
+mutants[16] = scoped(s, 'test_A7_readbackGate', '        g.operatorPauses = new bool[](operators.length);', '        g.inventory[0] = g.inventory[0] == OWNER ? ANNI : OWNER; // M16: same length, configured and paused, different commitment.\n        g.operatorPauses = new bool[](operators.length);')
+s = with_reviewed('test_A6c_registryRegistrationStop')
+mutants[17] = scoped(s, 'test_A6c_registryRegistrationStop', '        config.isActive = false;', '        config.isActive = true; // M17: retain active role.')
+# Remove the freeze read-back so the post-freeze exact-payload assertion discriminates.
+mutants[17] = scoped(mutants[17], 'test_A6c_registryRegistrationStop', '        assertFalse(reg.getRoleConfig(SUPER).isActive, "RAMS: role stop read-back");\n', '')
+a6b = 'test_A6b_safeRoute_preUpgradeGap'
+s = with_reviewed(a6b)
+s = scoped(s, a6b, '        bytes32 upgradeSalt =', '''        address[] memory gapTargets = new address[](2);
+        gapTargets[0] = SP;
+        gapTargets[1] = SP;
+        uint256[] memory gapValues = new uint256[](2);
+        bytes[] memory gapData = new bytes[](2);
+        gapData[0] = upgrade;
+        gapData[1] = abi.encodeWithSignature("setOperatorPaused(address,bool)", NEW_OPERATOR, true);
+        bytes32 upgradeSalt =''')
+s = scoped(s, a6b, 'tl.schedule(SP, 0, upgrade, bytes32(0), upgradeSalt, DELAY);', 'tl.scheduleBatch(gapTargets, gapValues, gapData, bytes32(0), upgradeSalt, DELAY);')
+s = scoped(s, a6b, '        uint256 gapSnapshot =', '''        vm.prank(SAFE);
+        tl.executeBatch(gapTargets, gapValues, gapData, bytes32(0), upgradeSalt);
+        uint256 gapSnapshot =''')
+mutants[18] = scoped(s, a6b, '        vm.prank(SAFE);\n        tl.execute(SP, 0, upgrade, bytes32(0), upgradeSalt);', '')
 for n, mutated in mutants.items():
     diff = ''.join(difflib.unified_diff(base.splitlines(True), mutated.splitlines(True), fromfile='a/' + str(source), tofile='b/' + str(source)))
     (out / f'M{n}.diff').write_text(diff)

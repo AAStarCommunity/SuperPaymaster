@@ -1,4 +1,5 @@
 {
+  "annotation": "endpointLabels and generatedUTC were added by hand after generation (pre-Review-3 script)",
   "note": "Read-only; endpoint labels A/C correspond to RAMS_RPC_A/C, provider identities not inferred; URLs omitted",
   "sp": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
   "topic": "0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1",

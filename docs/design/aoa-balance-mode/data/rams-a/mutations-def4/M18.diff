@@ -1,0 +1,61 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -857,9 +857,16 @@
+         bytes memory upgrade = abi.encodeWithSignature(
+             "upgradeToAndCall(address,bytes)", newImpl, abi.encodeWithSignature("setGlobalPaused(bool)", true)
+         );
++        address[] memory gapTargets = new address[](2);
++        gapTargets[0] = SP;
++        gapTargets[1] = SP;
++        uint256[] memory gapValues = new uint256[](2);
++        bytes[] memory gapData = new bytes[](2);
++        gapData[0] = upgrade;
++        gapData[1] = abi.encodeWithSignature("setOperatorPaused(address,bool)", NEW_OPERATOR, true);
+         bytes32 upgradeSalt = keccak256("RAMS gap upgrade");
+         vm.prank(SAFE);
+-        tl.schedule(SP, 0, upgrade, bytes32(0), upgradeSalt, DELAY);
++        tl.scheduleBatch(gapTargets, gapValues, gapData, bytes32(0), upgradeSalt, DELAY);
+         vm.warp(began + 1 hours);
+         _freshPrice();
+         _registerNewOperator(); // Includes real role grants, configureOperator and valid sponsorship probe.
+@@ -869,16 +876,33 @@
+         vm.prank(SAFE);
+         tl.schedule(SP, 0, pause, bytes32(0), salt, DELAY);
+         vm.warp(began + DELAY); // The earliest modeled upgrade time, one hour before this pause matures.
+-        vm.prank(SAFE);
+-        (bool ok,) = address(tl).call(abi.encodeCall(tl.execute, (SP, 0, pause, bytes32(0), salt)));
+-        require(!ok, "RAMS A6b: new operator pause unexpectedly ready");
++        bytes32 pauseId = tl.hashOperation(SP, 0, pause, bytes32(0), salt);
++        vm.prank(SAFE);
++        _mustReject(
++            address(tl),
++            abi.encodeCall(tl.execute, (SP, 0, pause, bytes32(0), salt)),
++            abi.encodeWithSelector(
++                TimelockController.TimelockUnexpectedOperationState.selector,
++                pauseId,
++                bytes32(uint256(1) << uint8(TimelockController.OperationState.Ready))
++            ),
++            "RAMS A6b: new operator pause unexpectedly ready"
++        );
+         _freshPrice();
+-        _probe(_op(NEW_OPERATOR, 440_000, false), true, 160);
+-        vm.prank(SAFE);
+-        tl.execute(SP, 0, upgrade, bytes32(0), upgradeSalt);
++        vm.prank(SAFE);
++        tl.executeBatch(gapTargets, gapValues, gapData, bytes32(0), upgradeSalt);
++        uint256 gapSnapshot = vm.snapshot();
++        PackedUserOperation memory gapOp = _op(NEW_OPERATOR, 440_000, false);
++        bytes32 gapHash = ep.getUserOpHash(gapOp);
++        vm.prank(EP);
++        (bytes memory gapContext, uint256 gapValidation) =
++            sp.validatePaymasterUserOp(gapOp, gapHash, RamsBudget.maxCost(gapOp));
++        require(uint160(gapValidation) == 0 && gapContext.length == 160, "RAMS A6b: new operator sponsored in gap");
++        assertTrue(vm.revertTo(gapSnapshot), "RAMS A6b: gap probe rollback");
++
+         _assertUpgrade(true);
+         _probe(_op(NEW_OPERATOR, 440_000, false), false, 0);
+-        emit log_named_uint("Safe route pre-upgrade hours", DELAY / 1 hours);
++        emit log_named_uint("Safe route pre-upgrade hours", (vm.getBlockTimestamp() - began) / 1 hours);
+     }
+ 
+     function test_A6c_registryRegistrationStop() public forkOnly {

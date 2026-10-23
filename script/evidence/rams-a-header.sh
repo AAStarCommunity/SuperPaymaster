@@ -20,11 +20,11 @@ rams_header() {
     printf 'Command:'; printf ' %q' "$forge_bin" "$@"; printf '\n'
 }
 
-# Strip all URL transports and bare hostname/IP:port forms before evidence reaches disk.
+# Strip URL transports, IP:port, and common-TLD RPC host:port or /v2|v3/key forms.
 rams_redact() {
     python3 -u -c '
 import re, sys
-pattern = re.compile(r"(?P<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)|(?P<url>(?:https?|wss?)://\S+)|(?P<host>(?<![\w.-])(?:\[[0-9a-fA-F:]+\]|[\w.-]+):[0-9]{1,5}[^\s]*)")
+pattern = re.compile(r"(?P<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)|(?P<url>(?:https?|wss?)://\S+)|(?P<host>(?<![\w.-])(?:\[[0-9a-fA-F:]+\]|(?:\d{1,3}\.){3}\d{1,3}):[0-9]{1,5}[^\s]*|(?<![\w.-])(?:[\w-]+\.)+(?:com|io|org|net|co|xyz|app|dev|cloud|network)(?::[0-9]{1,5}[^\s]*|/v[23]/[^\s]+))")
 for line in sys.stdin:
     print(pattern.sub(lambda m: m[0] if m["time"] else "<redacted>" if m["url"] else "<redacted-rpc-host>", line), end="")
 '
