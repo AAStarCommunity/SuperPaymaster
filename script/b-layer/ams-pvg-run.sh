@@ -60,5 +60,5 @@ if ! node "$ROOT/script/b-layer/ams-pvg.mjs" "$OUT/setup.json" bundler alto http
 fi
 kill "$AP" 2>/dev/null || true; sleep 2
 sed 's/\x1b\[[0-9;]*m//g' "$W/alto.log" > "$OUT/pvg-alto-bundler.log"
+if [ "${#FAILS[@]}" -gt 0 ]; then echo "ams-pvg-run: FAILED bundler runs: ${FAILS[*]} (outputs in $OUT are incomplete)" >&2; exit 1; fi
 echo "R2-F2 PVG run complete: $OUT"
-if [ "${#FAILS[@]}" -gt 0 ]; then echo "ams-pvg-run: FAILED bundler runs: ${FAILS[*]}" >&2; exit 1; fi

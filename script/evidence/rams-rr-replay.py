@@ -69,9 +69,17 @@ for i, h in enumerate(hashes):
             row.update(engine_gasUsed=None, engine_status=None, local_hash=None, error=lh, match=False)
         else:
             lr = rpc(local, "eth_getTransactionReceipt", [lh])
+            # Order check (#526 N2): anvil may order its pool by fee, not submission. The target must land at
+            # the chain index, and the mined block must hold exactly the replayed txs, in submission order.
+            lb = rpc(local, "eth_getBlockByNumber", [lr["blockNumber"], False])
+            ok_sent = [s for s in sent if not str(s).startswith("ERR")]
             row.update(engine_gasUsed=int(lr["gasUsed"], 16), engine_status=lr["status"], local_hash=lh,
-                       local_hash_differs=lh.lower() != h.lower())
-            row["match"] = row["engine_gasUsed"] == row["chain_gasUsed"] and lr["status"] == rc["status"] and row["local_hash_differs"]
+                       local_hash_differs=lh.lower() != h.lower(),
+                       local_index=int(lr["transactionIndex"], 16),
+                       same_order=[x.lower() for x in lb["transactions"]] == [x.lower() for x in ok_sent])
+            row["match"] = (row["engine_gasUsed"] == row["chain_gasUsed"] and lr["status"] == rc["status"]
+                            and row["local_hash_differs"] and row["same_order"]
+                            and row["local_index"] == idx - row["preceding_replay_errors"])
     except Exception as e:
         row.update(error=str(e)[:200], match=False)
     finally:
