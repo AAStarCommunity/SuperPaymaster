@@ -127,7 +127,7 @@ H-01 的旧报告 SHA 固定于 `8c23cfb3eb40474e5b2820d5ae949caadec9703b:docs/d
 
 | manifest / generation | OK | FAILED | shasum exit |
 |---|---:|---:|---:|
-| 总 `EVIDENCE.sha256` | 2950 | 0 | 0 |
+| 总 `EVIDENCE.sha256` | 2964 | 0 | 0 |
 | `data/d5c1-rc2-serial/EVIDENCE.sha256` | 29 | 0 | 0 |
 | `data/d5c1-rc2-rerun/EVIDENCE.sha256` | 27 | 0 | 0 |
 | `data/i9-rc2-final/EVIDENCE.sha256` | 58 | 0 | 0 |

@@ -17,21 +17,45 @@ DEPLOYER = "0xb5600060e6de5E11D3636731964218E53caadf0E"
 SAFE = "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
 
 
-def rpc(url, method, params):
-    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
+import re
+
+EVM_FAILURE = re.compile(r"out of gas|outofgas|\b\w*oog\b|gas required exceeds|gas exhausted|intrinsic gas too (?:low|high)|"
+                         r"callgascostmorethangaslimit|gasfloormorethangaslimit|execution reverted|reentrancy\s*sentry", re.I)
+_next_id = 0
+FAULTS = []  # every RPC fault / malformed response seen; any entry makes the run exit 1
+
+
+def rpc(url, method, params, allow_method_not_found=False):
+    """Records one of: {"result"}, {"evmFailure"} (deterministic execution outcome), or a fault.
+    Faults (transport, malformed envelope, non-EVM errors) are also appended to FAULTS."""
+    global _next_id
+    _next_id += 1
+    rid = _next_id
+    body = json.dumps({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}).encode()
     try:
         req = urllib.request.Request(url, body, {"Content-Type": "application/json", "User-Agent": "rams-capture"})
         with urllib.request.urlopen(req, timeout=120) as r:
             d = json.load(r)
     except Exception as e:
+        FAULTS.append(f"{method}: transport {type(e).__name__}")
         return {"transportError": type(e).__name__}
-    if not isinstance(d, dict) or d.get("jsonrpc") != "2.0" or d.get("id") != 1:
+    if (not isinstance(d, dict) or d.get("jsonrpc") != "2.0" or type(d.get("id")) is not int
+            or d["id"] != rid or (("result" in d) == ("error" in d))):
+        FAULTS.append(f"{method}: malformed envelope")
         return {"malformedEnvelope": True}
     if "error" in d:
         e = d["error"]
-        return {"error": {"code": e.get("code") if isinstance(e, dict) else None,
-                          "message": (e.get("message", "") if isinstance(e, dict) else "")[:160]}}
-    return {"result": d.get("result")}
+        if not isinstance(e, dict) or type(e.get("code")) is not int or not isinstance(e.get("message"), str):
+            FAULTS.append(f"{method}: malformed error")
+            return {"malformedError": True}
+        err = {"code": e["code"], "message": re.sub(r"https?://\S+", "<url>", e["message"])[:160]}
+        if EVM_FAILURE.search(e["message"]):
+            return {"evmFailure": err}
+        if allow_method_not_found and e["code"] == -32601:
+            return {"unsupported": err}
+        FAULTS.append(f"{method}: RPC fault code={e['code']}")
+        return {"rpcFault": err}
+    return {"result": d["result"]}
 
 
 def main():
@@ -47,7 +71,7 @@ def main():
         e["block"] = ({"hash": b["result"]["hash"], "timestamp": int(b["result"]["timestamp"], 16)}
                       if isinstance(b.get("result"), dict) else b)
         e["clientVersion"] = rpc(u, "web3_clientVersion", [])
-        e["eth_config"] = rpc(u, "eth_config", [])
+        e["eth_config"] = rpc(u, "eth_config", [], allow_method_not_found=True)
         e["deployerNonceAtBlock"] = rpc(u, "eth_getTransactionCount", [DEPLOYER, blk])
         e["deployerNoncePendingNow"] = rpc(u, "eth_getTransactionCount", [DEPLOYER, "pending"])
         e["safeNonceAtBlock"] = rpc(u, "eth_call", [{"to": SAFE, "data": "0xaffed0e0"}, blk])
@@ -65,10 +89,14 @@ def main():
         out["endpoints"][k] = e
     json.dump(out, sys.stdout, indent=1)
     print()
-    # Exit non-zero unless every endpoint answered chainId and the pinned block, so a run in which
-    # all endpoints failed cannot look like a successful archive.
-    ok = all("result" in e["chainId"] and isinstance(e["block"], dict) and "hash" in e["block"]
-             for e in out["endpoints"].values())
+    # Exit non-zero on any RPC fault / malformed response, or unless every endpoint answered a
+    # well-formed chainId and the pinned block (so an all-failing run cannot look like an archive).
+    ok = not FAULTS and all(
+        isinstance(e["chainId"].get("result"), str) and isinstance(e["block"], dict)
+        and isinstance(e["block"].get("hash"), str) and len(e["block"]["hash"]) == 66
+        for e in out["endpoints"].values())
+    if FAULTS:
+        print("rams-capture: faults: " + "; ".join(FAULTS[:10]), file=sys.stderr)
     sys.exit(0 if ok and out["endpoints"] else 1)
 
 

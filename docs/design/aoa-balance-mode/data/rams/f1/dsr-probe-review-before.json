@@ -1,0 +1,83 @@
+{
+  "mode": "offline-mocked-rpc",
+  "source": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/old-probe.py",
+  "results": [
+    {
+      "case": "valid-control",
+      "exit": 0,
+      "exception": null,
+      "accepted": true,
+      "expectedAcceptance": true,
+      "correct": true,
+      "allMatch": true,
+      "sameChainAndBlock": true,
+      "probeCount": 14
+    },
+    {
+      "case": "null-result",
+      "exit": 0,
+      "exception": null,
+      "accepted": true,
+      "expectedAcceptance": false,
+      "correct": false,
+      "allMatch": true,
+      "sameChainAndBlock": true,
+      "probeCount": 14
+    },
+    {
+      "case": "boolean-result",
+      "exit": 0,
+      "exception": null,
+      "accepted": true,
+      "expectedAcceptance": false,
+      "correct": false,
+      "allMatch": true,
+      "sameChainAndBlock": true,
+      "probeCount": 14
+    },
+    {
+      "case": "result-and-error",
+      "exit": 0,
+      "exception": null,
+      "accepted": true,
+      "expectedAcceptance": false,
+      "correct": false,
+      "allMatch": true,
+      "sameChainAndBlock": true,
+      "probeCount": 14
+    },
+    {
+      "case": "wrong-chain",
+      "exit": 0,
+      "exception": null,
+      "accepted": true,
+      "expectedAcceptance": false,
+      "correct": false,
+      "allMatch": true,
+      "sameChainAndBlock": true,
+      "probeCount": 14
+    },
+    {
+      "case": "null-block-hash",
+      "exit": 0,
+      "exception": null,
+      "accepted": true,
+      "expectedAcceptance": false,
+      "correct": false,
+      "allMatch": true,
+      "sameChainAndBlock": true,
+      "probeCount": 14
+    },
+    {
+      "case": "rate-limit-as-gas-boundary",
+      "exit": 0,
+      "exception": null,
+      "accepted": true,
+      "expectedAcceptance": false,
+      "correct": false,
+      "allMatch": true,
+      "sameChainAndBlock": true,
+      "probeCount": 14
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "mode": "offline-mocked-fetch",
+  "sourceName": "ams-calibrate.mjs",
+  "sourceSha256": "a488e66dabac2315b7d11c6722277abd176c1b371d444b3d1634792433a2dc55",
+  "results": [
+    {
+      "case": "valid-control",
+      "exit": 0,
+      "accepted": true,
+      "expectedAcceptance": true,
+      "correct": true,
+      "reportedPass": true,
+      "probeCount": 5
+    },
+    {
+      "case": "null-result",
+      "exit": 3,
+      "accepted": false,
+      "expectedAcceptance": false,
+      "correct": true,
+      "reportedPass": null,
+      "probeCount": 0
+    },
+    {
+      "case": "boolean-result",
+      "exit": 3,
+      "accepted": false,
+      "expectedAcceptance": false,
+      "correct": true,
+      "reportedPass": null,
+      "probeCount": 0
+    },
+    {
+      "case": "missing-result",
+      "exit": 3,
+      "accepted": false,
+      "expectedAcceptance": false,
+      "correct": true,
+      "reportedPass": null,
+      "probeCount": 0
+    },
+    {
+      "case": "wrong-envelope-id",
+      "exit": 3,
+      "accepted": false,
+      "expectedAcceptance": false,
+      "correct": true,
+      "reportedPass": null,
+      "probeCount": 0
+    },
+    {
+      "case": "wrong-chain",
+      "exit": 3,
+      "accepted": false,
+      "expectedAcceptance": false,
+      "correct": true,
+      "reportedPass": null,
+      "probeCount": 0
+    },
+    {
+      "case": "rate-limit-as-boundary",
+      "exit": 3,
+      "accepted": false,
+      "expectedAcceptance": false,
+      "correct": true,
+      "reportedPass": null,
+      "probeCount": 0
+    }
+  ]
+}
