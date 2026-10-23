@@ -1,0 +1,12 @@
+ID	RESULT	OBSERVED TEST / MESSAGE	LOG
+CONTROL	GREEN	9/9 named route passes	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/CONTROL.log
+M1	INVALID/SURVIVED	test_A3_atomicUpgradeWithGlobalPause: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M1.log
+M2	INVALID/SURVIVED	test_A1_oldPausePath_blocksAllOperators: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M2.log
+M3	INVALID/SURVIVED	test_A5_governanceTimeline_EOAowner: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M3.log
+M4	INVALID/SURVIVED	test_A5_governanceTimeline_EOAowner: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M4.log
+M5	INVALID/SURVIVED	test_A5_governanceTimeline_EOAowner: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M5.log
+M6	INVALID/SURVIVED	test_A6_governanceTimeline_SafeTimelock: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M6.log
+M7	INVALID/SURVIVED	test_A6_governanceTimeline_SafeTimelock: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M7.log
+M8	INVALID/SURVIVED	test_A7_readbackGate: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M8.log
+M9	INVALID/SURVIVED	test_A2_newOperatorRisk_window: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M9.log
+M10	INVALID/SURVIVED	test_A4_legacyContexts: No named target failure (infrastructure/compile/skip/survivor)	/Users/jason/Dev/aastar/sp-wt/rams-a/docs/design/aoa-balance-mode/data/rams-a/mutations-20261023T060046Z-40840/M10.log

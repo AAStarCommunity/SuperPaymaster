@@ -1,0 +1,11 @@
+--- /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/control.sol	2026-10-23 13:00:46
++++ /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/worktree/contracts/test/rams/RamsARouteRehearsal.t.sol	2026-10-23 13:04:06
+@@ -664,7 +664,7 @@
+         sp.executeGasParams();
+         assertTrue(sp.paused(), "RAMS: pause holds through internal timelock");
+         _assertGas(false);
+-        vm.warp(eta);
++        vm.warp(eta - 1);
+         vm.prank(OWNER);
+         sp.executeGasParams();
+         _assertGas(true);

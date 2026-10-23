@@ -1,0 +1,30 @@
+--- /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/control.sol	2026-10-23 13:00:46
++++ /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/worktree/contracts/test/rams/RamsARouteRehearsal.t.sol	2026-10-23 13:04:13
+@@ -664,13 +664,16 @@
+         sp.executeGasParams();
+         assertTrue(sp.paused(), "RAMS: pause holds through internal timelock");
+         _assertGas(false);
++        _freshPrice();
++        xPNTsTokenV2 token = _v2Ready();
++        _pauseAll(false);
++        vm.prank(OWNER);
++        sp.setGlobalPaused(false);
++        _probe(_op(OWNER, 300_000, true), false, 0);
+         vm.warp(eta);
+         vm.prank(OWNER);
+         sp.executeGasParams();
+         _assertGas(true);
+-        _freshPrice();
+-        xPNTsTokenV2 token = _v2Ready();
+-        _pauseAll(false);
+         vm.prank(OWNER);
+         sp.setGlobalPaused(false);
+         assertFalse(sp.paused(), "RAMS: resumed only after gas read-back");
+@@ -679,7 +682,6 @@
+         bytes32 hash = ep.getUserOpHash(op);
+         _settleOne(op); // The orchestrator must run under nightly --hardfork amsterdam.
+         assertTrue(token.usedOpHashes(hash), "RAMS: V2 token settlement read-back");
+-        _probe(_op(OWNER, 300_000, true), false, 0);
+     }
+ 
+     function _timelock() internal returns (TimelockController tl) {

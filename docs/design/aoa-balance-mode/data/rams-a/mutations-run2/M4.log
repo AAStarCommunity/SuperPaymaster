@@ -1,0 +1,28 @@
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 12.34s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS: exact SIG_FAILURE required: 2620340975123532654952617401813277457301752018079659851776 != 1] test_A5_governanceTimeline_EOAowner() (block: 11974561) (gas: 1850394)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 328.93ms (3.77ms CPU time)
+
+Ran 1 test suite in 329.41ms (328.93ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS: exact SIG_FAILURE required: 2620340975123532654952617401813277457301752018079659851776 != 1] test_A5_governanceTimeline_EOAowner() (block: 11974561) (gas: 1850394)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

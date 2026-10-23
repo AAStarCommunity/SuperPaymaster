@@ -1,0 +1,26 @@
+FORK_BLOCK=11974561
+OPERATORS=0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+FOUNDRY_ISOLATE=false
+FOUNDRY_OFFLINE=true
+forge Version: 1.8.7-nightly
+Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827
+Build Timestamp: 2026-10-22T06:12:29.900488000Z (1792649549)
+Build Profile: dist
+forge test --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --no-isolate -vvv --hardfork amsterdam --match-test \^test_A5_governanceTimeline_EOAowner\$
+Missing dependencies found. Installing now...
+fatal: destination path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts'. Retry scheduled
+fatal: destination path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/solady' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/Vectorized/solady.git' into submodule path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/solady' failed
+Failed to clone 'contracts/lib/solady'. Retry scheduled
+fatal: destination path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts' a second time, aborting
+Warning: Your project has missing dependencies that could not be installed.
+No files changed, compilation skipped
+Warning: no tests match the provided pattern:
+	match-test: `^test_A5_governanceTimeline_EOAowner$`
+	match-path: `contracts/test/rams/RamsARouteRehearsal.t.sol`
+
+Did you mean `test_A5_governanceTimeline_EOAowner`?

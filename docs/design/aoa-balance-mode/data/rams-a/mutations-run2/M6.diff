@@ -1,0 +1,14 @@
+--- /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/control.sol	2026-10-23 13:00:46
++++ /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/worktree/contracts/test/rams/RamsARouteRehearsal.t.sol	2026-10-23 13:04:26
+@@ -685,7 +685,10 @@
+     function _timelock() internal returns (TimelockController tl) {
+         address[] memory safeOnly = new address[](1);
+         safeOnly[0] = SAFE;
+-        tl = new TimelockController(DELAY, safeOnly, safeOnly, address(0));
++        address[] memory executors = new address[](2);
++        executors[0] = SAFE;
++        executors[1] = ownerAccount;
++        tl = new TimelockController(DELAY, safeOnly, executors, address(0));
+         assertEq(tl.getMinDelay(), DELAY, "RAMS: external delay");
+         assertTrue(tl.hasRole(tl.PROPOSER_ROLE(), SAFE), "RAMS: Safe proposer");
+         assertTrue(tl.hasRole(tl.EXECUTOR_ROLE(), SAFE), "RAMS: Safe executor");

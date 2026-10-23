@@ -1,0 +1,150 @@
+FORK_BLOCK=11974561
+OPERATORS=0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+FOUNDRY_ISOLATE=false
+FOUNDRY_OFFLINE=true
+forge Version: 1.8.7-nightly
+Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827
+Build Timestamp: 2026-10-22T06:12:29.900488000Z (1792649549)
+Build Profile: dist
+forge test --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --no-isolate -vvv --hardfork amsterdam ''
+Missing dependencies found. Installing now...
+fatal: destination path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts'. Retry scheduled
+fatal: destination path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/solady' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/Vectorized/solady.git' into submodule path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/solady' failed
+Failed to clone 'contracts/lib/solady'. Retry scheduled
+fatal: destination path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/private/var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/rams-a-mutations.tQdezddG/worktree/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts' a second time, aborting
+Warning: Your project has missing dependencies that could not be installed.
+Compiling 41 files with Solc 0.8.33
+Compiling 179 files with Solc 0.8.33
+Solc 0.8.33 finished in 13.79s
+Solc 0.8.33 finished in 170.07s
+Compiler run successful with warnings:
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 9 tests for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[PASS] test_A1_oldPausePath_blocksAllOperators() (gas: 3472290)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+[PASS] test_A2_newOperatorRisk_window() (gas: 13583644)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Registry configuration authority: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  COMMUNITY role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  PAYMASTER_SUPER role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  Role acquisition: self registerRole; existing communities may sponsor safeMintForRole. Stake/ticket and active-role gates apply.
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+[PASS] test_A3_atomicUpgradeWithGlobalPause() (gas: 4589875)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+
+[PASS] test_A3_emptyUpgradeData_admitsUnsafeLimit() (gas: 4677035)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2410000000000000
+  Positive control reservation (aPNTs): 289200000000000000000
+
+[PASS] test_A4_hypotheticalSmartAccountOwner_midBundle() (gas: 2391970)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Counterfactual ownership only. EOA cannot be this account; Safe-only executor blocks arbitrary account calls (A6). Safe AA modules/delegation must remain excluded operationally.
+
+[PASS] test_A4_legacyContexts() (gas: 3002352)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Separate handleOps transactions cannot straddle an upgrade: validation and postOp share one call tree.
+
+[PASS] test_A5_governanceTimeline_EOAowner() (gas: 5886967)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+[PASS] test_A6_governanceTimeline_SafeTimelock() (gas: 9937102)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Parallel hours AFTER upgrade: 48
+  Sequential hours AFTER upgrade: 96
+
+[PASS] test_A7_readbackGate() (gas: 10926108)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 920.50ms (584.24ms CPU time)
+
+Ran 1 test suite in 1.13s (920.50ms CPU time): 9 tests passed, 0 failed, 0 skipped (9 total tests)

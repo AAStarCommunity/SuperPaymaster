@@ -1,0 +1,11 @@
+--- /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/control.sol	2026-10-23 13:00:46
++++ /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/worktree/contracts/test/rams/RamsARouteRehearsal.t.sol	2026-10-23 13:03:48
+@@ -322,7 +322,7 @@
+ 
+     function _upgrade(bool atomicPause) internal {
+         vm.prank(sp.owner());
+-        sp.upgradeToAndCall(newImpl, atomicPause ? abi.encodeWithSignature("setGlobalPaused(bool)", true) : bytes(""));
++        sp.upgradeToAndCall(newImpl, atomicPause ? bytes("") : bytes(""));
+         _assertUpgrade(atomicPause);
+     }
+ 

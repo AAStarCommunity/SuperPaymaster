@@ -1,0 +1,98 @@
+Compiling 179 files with Solc 0.8.33
+Compiling 41 files with Solc 0.8.33
+Solc 0.8.33 finished in 18.90s
+Solc 0.8.33 finished in 181.77s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 9 tests for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: SingleTxLimitExceeded()] test_A1_oldPausePath_blocksAllOperators() (block: 11974465) (gas: 236253)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+
+[FAIL: SingleTxLimitExceeded()] test_A2_newOperatorRisk_window() (block: 11974465) (gas: 1592996)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+  Registry configuration authority: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  COMMUNITY role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  PAYMASTER_SUPER role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  Role acquisition: self registerRole; existing communities may sponsor safeMintForRole. Stake/ticket and active-role gates apply.
+
+[FAIL: SingleTxLimitExceeded()] test_A3_atomicUpgradeWithGlobalPause() (block: 11974465) (gas: 1158911)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+
+[FAIL: SingleTxLimitExceeded()] test_A3_emptyUpgradeData_admitsUnsafeLimit() (block: 11974465) (gas: 710614)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+
+[FAIL: SingleTxLimitExceeded()] test_A4_hypotheticalSmartAccountOwner_midBundle() (block: 11974465) (gas: 231164)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+
+[FAIL: SingleTxLimitExceeded()] test_A4_legacyContexts() (block: 11974465) (gas: 231142)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+
+[FAIL: SingleTxLimitExceeded()] test_A5_governanceTimeline_EOAowner() (block: 11974465) (gas: 896075)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+
+[PASS] test_A6_governanceTimeline_SafeTimelock() (gas: 9928904)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+  Parallel hours AFTER upgrade: 48
+  Sequential hours AFTER upgrade: 96
+
+[PASS] test_A7_readbackGate() (gas: 10864021)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+
+Suite result: FAILED. 2 passed; 7 failed; 0 skipped; finished in 8.11s (7.91s CPU time)
+
+Ran 1 test suite in 8.11s (8.11s CPU time): 2 tests passed, 7 failed, 0 skipped (9 total tests)
+
+Failing tests:
+Encountered 7 failing tests in contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: SingleTxLimitExceeded()] test_A1_oldPausePath_blocksAllOperators() (block: 11974465) (gas: 236253)
+[FAIL: SingleTxLimitExceeded()] test_A2_newOperatorRisk_window() (block: 11974465) (gas: 1592996)
+[FAIL: SingleTxLimitExceeded()] test_A3_atomicUpgradeWithGlobalPause() (block: 11974465) (gas: 1158911)
+[FAIL: SingleTxLimitExceeded()] test_A3_emptyUpgradeData_admitsUnsafeLimit() (block: 11974465) (gas: 710614)
+[FAIL: SingleTxLimitExceeded()] test_A4_hypotheticalSmartAccountOwner_midBundle() (block: 11974465) (gas: 231164)
+[FAIL: SingleTxLimitExceeded()] test_A4_legacyContexts() (block: 11974465) (gas: 231142)
+[FAIL: SingleTxLimitExceeded()] test_A5_governanceTimeline_EOAowner() (block: 11974465) (gas: 896075)
+
+Encountered a total of 7 failing tests, 2 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 7 failed tests
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

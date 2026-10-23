@@ -1,0 +1,10 @@
+M1	test_A3_atomicUpgradeWithGlobalPause
+M2	test_A1_oldPausePath_blocksAllOperators
+M3	test_A5_governanceTimeline_EOAowner
+M4	test_A5_governanceTimeline_EOAowner
+M5	test_A5_governanceTimeline_EOAowner
+M6	test_A6_governanceTimeline_SafeTimelock
+M7	test_A6_governanceTimeline_SafeTimelock
+M8	test_A7_readbackGate
+M9	test_A2_newOperatorRisk_window
+M10	test_A4_legacyContexts

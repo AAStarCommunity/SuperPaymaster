@@ -1,0 +1,31 @@
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 9.04s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS: SETTLE read-back: 160000 != 420000] test_A5_governanceTimeline_EOAowner() (block: 11974561) (gas: 2282260)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 350.37ms (4.63ms CPU time)
+
+Ran 1 test suite in 350.82ms (350.37ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS: SETTLE read-back: 160000 != 420000] test_A5_governanceTimeline_EOAowner() (block: 11974561) (gas: 2282260)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

@@ -1,6 +1,6 @@
 # Route-A procedure mutations
 
-Status: authored and checked locally only. **No fork/control/mutation Forge run has been performed for this table.** The expected diagnostics below are hypotheses to verify, not observed kills. The existing `fork-run2-11974561.log` records 15 passes: nine route tests and six budget tests. The rehearsal runner's `--match-path contracts/test/rams/RamsARouteRehearsal.t.sol` selects the nine route tests; this script uses that same filter for its unmutated control.
+Status (2026-10-23): **run on the Sepolia fork, block 11974561, foundry nightly 926eb1d, `--hardfork amsterdam`. CONTROL GREEN (9/9); M1–M10 all KILLED by the named assertion** (`mutations-run2/summary.tsv`, per-mutant logs and diffs in `mutations-run2/`). The authoritative runner is `script/evidence/rams-a-mutations-inplace.sh` (applies each `mutations-run2/Mn.diff` to the tracked file, runs the target from `mutations-run2/targets.tsv`, restores with git). The first runner below (temp worktree) produced an INVALID run (`mutations-run1-INVALID/`: its worktree lacked the then-uncommitted test files and its submodule clone failed; all ten "survivors" were "no tests match", not survivals) and is kept only as that record (`mutations-run1-INVALID/rams-a-mutations.sh.superseded`). The "expected" column below was written before the run; the observed first failure for each mutant is in `summary.tsv`.
 
 Run from any directory with the same nightly and complete archive operator inventory used by the rehearsal:
 

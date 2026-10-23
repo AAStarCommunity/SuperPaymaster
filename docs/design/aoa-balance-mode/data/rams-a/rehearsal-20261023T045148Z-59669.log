@@ -1,0 +1,18 @@
+Route A rehearsal UTC: 2026-10-23T04:51:48Z
+Commit: 5ae59926b91d971170c3bb5c8fb5f05ad1359034
+FORK_BLOCK=unset
+OPERATORS=unset
+FOUNDRY_ISOLATE=false
+OFFLINE: all fork tests must SKIP. This is not Amsterdam acceptance evidence.
+forge Version: 1.7.1
+Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
+Build Timestamp: 2026-05-08T07:54:31.470926000Z (1778226871)
+Build Profile: dist
+Arguments: --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --no-isolate -vvv
+error: unexpected argument '--no-isolate' found
+
+  tip: a similar argument exists: '--isolate'
+
+Usage: forge test --match-path <GLOB> --isolate [PATH]
+
+For more information, try '--help'.

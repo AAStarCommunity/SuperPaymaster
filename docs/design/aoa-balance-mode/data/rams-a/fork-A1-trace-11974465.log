@@ -1,0 +1,287 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: SingleTxLimitExceeded()] test_A1_oldPausePath_blocksAllOperators() (block: 11974465) (gas: 236253)
+Logs:
+  Pinned fork block: 11974465
+  Archive inventory entries (completeness externally attested): 2
+
+Traces:
+  [22031001] RamsARouteRehearsalTest::setUp()
+    ├─ [0] VM::envOr("SEPOLIA_FORK_RPC", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envUint("FORK_BLOCK") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envString("SEPOLIA_FORK_RPC") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::createSelectFork("<rpc url>", 11974465 [1.197e7])
+    │   └─ ← [Return] 0
+    ├─ [0] VM::assertEq(11155111 [1.115e7], 11155111 [1.115e7], "RAMS: Sepolia only") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::getBlockNumber() [staticcall]
+    │   └─ ← [Return] 11974465 [1.197e7]
+    ├─ [0] VM::assertEq(11974465 [1.197e7], 11974465 [1.197e7], "RAMS: wrong fork block") [staticcall]
+    │   └─ ← [Return]
+    ├─ [6050] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::version() [staticcall]
+    │   ├─ [855] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::version() [delegatecall]
+    │   │   └─ ← [Return] "SuperPaymaster-5.4.2"
+    │   └─ ← [Return] "SuperPaymaster-5.4.2"
+    ├─ [0] VM::assertEq("SuperPaymaster-5.4.2", "SuperPaymaster-5.4.2", "RAMS: expected live 5.4.2") [staticcall]
+    │   └─ ← [Return]
+    ├─ [3572] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::owner() [staticcall]
+    │   ├─ [3283] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::owner() [delegatecall]
+    │   │   └─ ← [Return] 0xb5600060e6de5E11D3636731964218E53caadf0E
+    │   └─ ← [Return] 0xb5600060e6de5E11D3636731964218E53caadf0E
+    ├─ [0] VM::assertEq(0xb5600060e6de5E11D3636731964218E53caadf0E, 0xb5600060e6de5E11D3636731964218E53caadf0E, "RAMS: live owner drift") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertEq(0, 0, "RAMS: live owner must be an undelegated EOA") [staticcall]
+    │   └─ ← [Return]
+    ├─ [1733] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::entryPoint() [staticcall]
+    │   ├─ [1444] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::entryPoint() [delegatecall]
+    │   │   └─ ← [Return] 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+    │   └─ ← [Return] 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+    ├─ [0] VM::assertEq(0x0000000071727De22E5E9d8BAf0edAc6f37da032, 0x0000000071727De22E5E9d8BAf0edAc6f37da032, "RAMS: EP immutable drift") [staticcall]
+    │   └─ ← [Return]
+    ├─ [479] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::REGISTRY() [staticcall]
+    │   ├─ [190] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::REGISTRY() [delegatecall]
+    │   │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    ├─ [0] VM::assertEq(0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71, 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71, "RAMS: Registry immutable drift") [staticcall]
+    │   └─ ← [Return]
+    ├─ [1755] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::ETH_USD_PRICE_FEED() [staticcall]
+    │   ├─ [1466] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::ETH_USD_PRICE_FEED() [delegatecall]
+    │   │   └─ ← [Return] 0x694AA1769357215DE4FAC081bf1f309aDC325306
+    │   └─ ← [Return] 0x694AA1769357215DE4FAC081bf1f309aDC325306
+    ├─ [0] VM::assertEq(0x694AA1769357215DE4FAC081bf1f309aDC325306, 0x694AA1769357215DE4FAC081bf1f309aDC325306, "RAMS: feed immutable drift") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::assertGt(16035 [1.603e4], 0, "RAMS: missing EntryPoint") [staticcall]
+    │   └─ ← [Return]
+    ├─ [7633] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getThreshold() [staticcall]
+    │   ├─ [2402] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getThreshold() [delegatecall]
+    │   │   └─ ← [Return] 2
+    │   └─ ← [Return] 2
+    ├─ [0] VM::assertEq(2, 2, "RAMS: Safe threshold drift") [staticcall]
+    │   └─ ← [Return]
+    ├─ [12743] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getOwners() [staticcall]
+    │   ├─ [12394] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getOwners() [delegatecall]
+    │   │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    ├─ [0] VM::assertEq(3, 3, "RAMS: Safe owners drift") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::envAddress("OPERATORS", ",") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [11542] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::operators(0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   ├─ [11208] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::operators(0xb5600060e6de5E11D3636731964218E53caadf0E) [delegatecall]
+    │   │   └─ ← [Return] 1690008712737068326800 [1.69e21], true, false, 0x696A73701b104c6cCBbAadDD2216788ea08EaB89, 100, 60, 0xb5600060e6de5E11D3636731964218E53caadf0E, 1174614808208040000000 [1.174e21], 6
+    │   └─ ← [Return] 1690008712737068326800 [1.69e21], true, false, 0x696A73701b104c6cCBbAadDD2216788ea08EaB89, 100, 60, 0xb5600060e6de5E11D3636731964218E53caadf0E, 1174614808208040000000 [1.174e21], 6
+    ├─ [11542] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::operators(0xEcAACb915f7D92e9916f449F7ad42BD0408733c9) [staticcall]
+    │   ├─ [11208] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::operators(0xEcAACb915f7D92e9916f449F7ad42BD0408733c9) [delegatecall]
+    │   │   └─ ← [Return] 844540702843415794600 [8.445e20], true, false, 0xE6579A90dc498a710008de12119812D0FB7aA224, 0, 0, 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9, 587307404104020000000 [5.873e20], 3
+    │   └─ ← [Return] 844540702843415794600 [8.445e20], true, false, 0xE6579A90dc498a710008de12119812D0FB7aA224, 0, 0, 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9, 587307404104020000000 [5.873e20], 3
+    ├─ emit log_named_uint(key: "Pinned fork block", val: 11974465 [1.197e7])
+    ├─ emit log_named_uint(key: "Archive inventory entries (completeness externally attested)", val: 2)
+    ├─ [479] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::REGISTRY() [staticcall]
+    │   ├─ [190] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::REGISTRY() [delegatecall]
+    │   │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    ├─ [1755] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::ETH_USD_PRICE_FEED() [staticcall]
+    │   ├─ [1466] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::ETH_USD_PRICE_FEED() [delegatecall]
+    │   │   └─ ← [Return] 0x694AA1769357215DE4FAC081bf1f309aDC325306
+    │   └─ ← [Return] 0x694AA1769357215DE4FAC081bf1f309aDC325306
+    ├─ [0] VM::deployCode("contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster", 0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da032000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71000000000000000000000000694aa1769357215de4fac081bf1f309adc325306)
+    │   ├─ [51655181] → new SuperPaymaster@0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f
+    │   │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: RamsARouteRehearsalTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496])
+    │   │   ├─ emit Initialized(version: 18446744073709551615 [1.844e19])
+    │   │   ├─ [29865411] → new SuperPaymasterAdmin@0x104fBc016F4bb334D775a19E8A6510109AC63E00
+    │   │   │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: SuperPaymaster: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f])
+    │   │   │   ├─ emit Initialized(version: 18446744073709551615 [1.844e19])
+    │   │   │   ├─ emit OwnershipTransferred(previousOwner: SuperPaymaster: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], newOwner: 0x0000000000000000000000000000000000000000)
+    │   │   │   └─ ← [Return] 19214 bytes of code
+    │   │   └─ ← [Return] 13744 bytes of code
+    │   └─ ← [Return] SuperPaymaster: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]
+    ├─ [479] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::REGISTRY() [staticcall]
+    │   ├─ [190] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::REGISTRY() [delegatecall]
+    │   │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    │   └─ ← [Return] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
+    ├─ [8336374] → new RamsStorageSlots@0x2e234DAe75C793f67A35089C9d99245E1C58470b
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: RamsARouteRehearsalTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496])
+    │   ├─ emit Initialized(version: 18446744073709551615 [1.844e19])
+    │   └─ ← [Return] 5084 bytes of code
+    ├─ [402] RamsStorageSlots::slots() [staticcall]
+    │   └─ ← [Return] 38, 39, 40, 5
+    ├─ [0] VM::load(0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, 0x0000000000000000000000000000000000000000000000000000000000000026) [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [0] VM::assertEq(0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000, "RAMS: legacy gas slot not zero") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::load(0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, 0x0000000000000000000000000000000000000000000000000000000000000027) [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [0] VM::assertEq(0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000, "RAMS: legacy pending slot not zero") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::load(0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, 0x0000000000000000000000000000000000000000000000000000000000000028) [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [0] VM::assertEq(0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000, "RAMS: legacy guardian/pause slot not zero") [staticcall]
+    │   └─ ← [Return]
+    ├─ [9820360] → new SimpleAccountFactory@0xF62849F9A0B5Bf2913b396098F7c7019b51A820a
+    │   ├─ [7408656] → new SimpleAccount@0x4f81992FCe2E1846dD528eC0102e6eE1f61ed3e2
+    │   │   ├─ emit Initialized(version: 18446744073709551615 [1.844e19])
+    │   │   └─ ← [Return] 4768 bytes of code
+    │   └─ ← [Return] 1447 bytes of code
+    ├─ [0] VM::addr(<pk>) [staticcall]
+    │   └─ ← [Return] 0x330072DBeebebcDe88C34eddF5c7A7717767932d
+    ├─ [691498] SimpleAccountFactory::createAccount(0x330072DBeebebcDe88C34eddF5c7A7717767932d, 0)
+    │   ├─ [490122] → new ERC1967Proxy.default@0xdE74D331bFC24f4e0fA34c85CF697a924780FCAf
+    │   │   ├─ emit Upgraded(implementation: SimpleAccount: [0x4f81992FCe2E1846dD528eC0102e6eE1f61ed3e2])
+    │   │   ├─ [224390] SimpleAccount::initialize(0x330072DBeebebcDe88C34eddF5c7A7717767932d) [delegatecall]
+    │   │   │   ├─ emit SimpleAccountInitialized(entryPoint: 0x0000000071727De22E5E9d8BAf0edAc6f37da032, owner: 0x330072DBeebebcDe88C34eddF5c7A7717767932d)
+    │   │   │   ├─ emit Initialized(version: 1)
+    │   │   │   └─ ← [Stop]
+    │   │   └─ ← [Return] 100 bytes of code
+    │   └─ ← [Return] ERC1967Proxy.default: [0xdE74D331bFC24f4e0fA34c85CF697a924780FCAf]
+    ├─ [0] VM::addr(<pk>) [staticcall]
+    │   └─ ← [Return] 0xa50231c88caE846C5a10D6812fc6e9D90CdE0885
+    ├─ [691498] SimpleAccountFactory::createAccount(0xa50231c88caE846C5a10D6812fc6e9D90CdE0885, 0)
+    │   ├─ [490122] → new ERC1967Proxy.default@0xE8e4FE8d1ce39A406641B43B7FEB166673aFDAAc
+    │   │   ├─ emit Upgraded(implementation: SimpleAccount: [0x4f81992FCe2E1846dD528eC0102e6eE1f61ed3e2])
+    │   │   ├─ [224390] SimpleAccount::initialize(0xa50231c88caE846C5a10D6812fc6e9D90CdE0885) [delegatecall]
+    │   │   │   ├─ emit SimpleAccountInitialized(entryPoint: 0x0000000071727De22E5E9d8BAf0edAc6f37da032, owner: 0xa50231c88caE846C5a10D6812fc6e9D90CdE0885)
+    │   │   │   ├─ emit Initialized(version: 1)
+    │   │   │   └─ ← [Stop]
+    │   │   └─ ← [Return] 100 bytes of code
+    │   └─ ← [Return] ERC1967Proxy.default: [0xE8e4FE8d1ce39A406641B43B7FEB166673aFDAAc]
+    ├─ [209727] → new RamsTarget@0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9
+    │   └─ ← [Return] 137 bytes of code
+    ├─ [0] VM::deal(RamsARouteRehearsalTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 100000000000000000000 [1e20])
+    │   └─ ← [Return]
+    ├─ [14267] 0x0000000071727De22E5E9d8BAf0edAc6f37da032::depositTo{value: 20000000000000000000}(0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9)
+    │   ├─ emit Transfer(from: RamsARouteRehearsalTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], to: 0x0000000071727De22E5E9d8BAf0edAc6f37da032, amount: 20000000000000000000 [2e19])
+    │   ├─ emit Deposited(account: 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, totalDeposit: 20093470830000000000 [2.009e19])
+    │   └─ ← [Stop]
+    ├─ [112187] 0x0000000071727De22E5E9d8BAf0edAc6f37da032::depositTo{value: 5000000000000000000}(ERC1967Proxy.default: [0xE8e4FE8d1ce39A406641B43B7FEB166673aFDAAc])
+    │   ├─ emit Transfer(from: RamsARouteRehearsalTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], to: 0x0000000071727De22E5E9d8BAf0edAc6f37da032, amount: 5000000000000000000 [5e18])
+    │   ├─ emit Deposited(account: ERC1967Proxy.default: [0xE8e4FE8d1ce39A406641B43B7FEB166673aFDAAc], totalDeposit: 5000000000000000000 [5e18])
+    │   └─ ← [Stop]
+    ├─ [0] VM::prank(0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71)
+    │   └─ ← [Return]
+    ├─ [111979] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::updateSBTStatus(ERC1967Proxy.default: [0xdE74D331bFC24f4e0fA34c85CF697a924780FCAf], true)
+    │   ├─ [111687] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::updateSBTStatus(ERC1967Proxy.default: [0xdE74D331bFC24f4e0fA34c85CF697a924780FCAf], true) [delegatecall]
+    │   │   └─ ← [Return]
+    │   └─ ← [Return]
+    ├─ [2600] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::sbtHolders(ERC1967Proxy.default: [0xdE74D331bFC24f4e0fA34c85CF697a924780FCAf]) [staticcall]
+    │   ├─ [2308] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::sbtHolders(ERC1967Proxy.default: [0xdE74D331bFC24f4e0fA34c85CF697a924780FCAf]) [delegatecall]
+    │   │   └─ ← [Return] true
+    │   └─ ← [Return] true
+    ├─ [0] VM::assertTrue(true, "RAMS: synthetic account SBT fixture") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71, 0x2c333e25000000000000000000000000de74d331bfc24f4e0fa34c85cf697a924780fcaf, 0x000000000000000000000000000000000000000c9f2c9cd04674edea40000000)
+    │   └─ ← [Return]
+    ├─ [0] VM::getBlockTimestamp() [staticcall]
+    │   └─ ← [Return] 1792731876 [1.792e9]
+    ├─ [0] VM::getBlockTimestamp() [staticcall]
+    │   └─ ← [Return] 1792731876 [1.792e9]
+    ├─ [0] VM::mockCall(0x694AA1769357215DE4FAC081bf1f309aDC325306, 0xfeaf968c, 0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000002e90edd000000000000000000000000000000000000000000000000000000000006adaeae4000000000000000000000000000000000000000000000000000000006adaeae40000000000000000000000000000000000000000000000000000000000000001)
+    │   └─ ← [Return]
+    ├─ [46610] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::updatePrice()
+    │   ├─ [46324] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::updatePrice() [delegatecall]
+    │   │   ├─ [0] 0x694AA1769357215DE4FAC081bf1f309aDC325306::latestRoundData() [staticcall]
+    │   │   │   └─ ← [Return] 1, 200000000000 [2e11], 1792731876 [1.792e9], 1792731876 [1.792e9], 1
+    │   │   ├─ emit PriceUpdated(price: 200000000000 [2e11], timestamp: 1792731876 [1.792e9])
+    │   │   └─ ← [Return]
+    │   └─ ← [Return]
+    ├─ [2699] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::cachedPrice() [staticcall]
+    │   ├─ [2398] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::cachedPrice() [delegatecall]
+    │   │   └─ ← [Return] 200000000000 [2e11], 1792731876 [1.792e9]
+    │   └─ ← [Return] 200000000000 [2e11], 1792731876 [1.792e9]
+    ├─ [0] VM::assertEq(200000000000 [2e11], 200000000000 [2e11], "RAMS: oracle fixture price") [staticcall]
+    │   └─ ← [Return]
+    ├─ [0] VM::getBlockTimestamp() [staticcall]
+    │   └─ ← [Return] 1792731876 [1.792e9]
+    ├─ [0] VM::assertEq(1792731876 [1.792e9], 1792731876 [1.792e9], "RAMS: oracle fixture freshness") [staticcall]
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+  [432093] RamsARouteRehearsalTest::test_A1_oldPausePath_blocksAllOperators()
+    ├─ [8252] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::APNTS_TOKEN() [staticcall]
+    │   ├─ [3063] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::APNTS_TOKEN() [delegatecall]
+    │   │   └─ ← [Return] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+    │   └─ ← [Return] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+    ├─ [6115] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   ├─ [3043] 0xfdfb993dDCe4d95407C893E09556e31732A5BEb8::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [delegatecall]
+    │   │   └─ ← [Return] 11539844058786299999999 [1.153e22]
+    │   └─ ← [Return] 11539844058786299999999 [1.153e22]
+    ├─ [1215] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   ├─ [1043] 0xfdfb993dDCe4d95407C893E09556e31732A5BEb8::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [delegatecall]
+    │   │   └─ ← [Return] 11539844058786299999999 [1.153e22]
+    │   └─ ← [Return] 11539844058786299999999 [1.153e22]
+    ├─ [0] VM::record()
+    │   └─ ← [Return]
+    ├─ [1215] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   ├─ [1043] 0xfdfb993dDCe4d95407C893E09556e31732A5BEb8::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [delegatecall]
+    │   │   └─ ← [Return] 11539844058786299999999 [1.153e22]
+    │   └─ ← [Return] 11539844058786299999999 [1.153e22]
+    ├─ [0] VM::accesses(0x696A73701b104c6cCBbAadDD2216788ea08EaB89)
+    │   └─ ← [Return] [0x7262c9555adbb9680b174460c02c1e33ee2e9f18964e27ffd7e4d91b424f9ad4], []
+    ├─ [0] VM::load(0x696A73701b104c6cCBbAadDD2216788ea08EaB89, 0x7262c9555adbb9680b174460c02c1e33ee2e9f18964e27ffd7e4d91b424f9ad4) [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000002719381d6c07f6176ff
+    ├─ [0] VM::load(0x696A73701b104c6cCBbAadDD2216788ea08EaB89, 0x7262c9555adbb9680b174460c02c1e33ee2e9f18964e27ffd7e4d91b424f9ad4) [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000002719381d6c07f6176ff
+    ├─ [1215] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   ├─ [1043] 0xfdfb993dDCe4d95407C893E09556e31732A5BEb8::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [delegatecall]
+    │   │   └─ ← [Return] 11539844058786299999999 [1.153e22]
+    │   └─ ← [Return] 11539844058786299999999 [1.153e22]
+    ├─ [0] VM::store(0x696A73701b104c6cCBbAadDD2216788ea08EaB89, 0x7262c9555adbb9680b174460c02c1e33ee2e9f18964e27ffd7e4d91b424f9ad4, 0x0000000000000000000000000000000000000000000000000000000000000000)
+    │   └─ ← [Return]
+    ├─ [1215] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   ├─ [1043] 0xfdfb993dDCe4d95407C893E09556e31732A5BEb8::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [delegatecall]
+    │   │   └─ ← [Return] 0
+    │   └─ ← [Return] 0
+    ├─ [0] VM::store(0x696A73701b104c6cCBbAadDD2216788ea08EaB89, 0x7262c9555adbb9680b174460c02c1e33ee2e9f18964e27ffd7e4d91b424f9ad4, 0x0000000000000000000000000000000000000000000002719381d6c07f6176ff)
+    │   └─ ← [Return]
+    ├─ emit SlotFound(who: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89, fsig: 0x70a08231, keysHash: 0x7262c9555adbb9680b174460c02c1e33ee2e9f18964e27ffd7e4d91b424f9ad4, slot: 51738205303020317111295973337169282901685599353178663532690281889706995063508 [5.173e76])
+    ├─ [0] VM::load(0x696A73701b104c6cCBbAadDD2216788ea08EaB89, 0x7262c9555adbb9680b174460c02c1e33ee2e9f18964e27ffd7e4d91b424f9ad4) [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000002719381d6c07f6176ff
+    ├─ [0] VM::store(0x696A73701b104c6cCBbAadDD2216788ea08EaB89, 0x7262c9555adbb9680b174460c02c1e33ee2e9f18964e27ffd7e4d91b424f9ad4, 0x00000000000000000000000000000000000000000000179e9649b80b75e176ff)
+    │   └─ ← [Return]
+    ├─ [1215] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   ├─ [1043] 0xfdfb993dDCe4d95407C893E09556e31732A5BEb8::balanceOf(0xb5600060e6de5E11D3636731964218E53caadf0E) [delegatecall]
+    │   │   └─ ← [Return] 111539844058786299999999 [1.115e23]
+    │   └─ ← [Return] 111539844058786299999999 [1.115e23]
+    ├─ [0] VM::startPrank(0xb5600060e6de5E11D3636731964218E53caadf0E)
+    │   └─ ← [Return]
+    ├─ [14594] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89::approve(0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, 100000000000000000000000 [1e23])
+    │   ├─ [14416] 0xfdfb993dDCe4d95407C893E09556e31732A5BEb8::approve(0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, 100000000000000000000000 [1e23]) [delegatecall]
+    │   │   ├─ emit Approval(owner: 0xb5600060e6de5E11D3636731964218E53caadf0E, spender: 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, amount: 100000000000000000000000 [1e23])
+    │   │   └─ ← [Return] true
+    │   └─ ← [Return] true
+    ├─ [33961] 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9::deposit(100000000000000000000000 [1e23])
+    │   ├─ [33668] 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27::deposit(100000000000000000000000 [1e23]) [delegatecall]
+    │   │   ├─ [8350] 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71::hasRole(0x2024516755f401845808190bb830b0e4523d0df0845503cab52130a794699a0f, 0xb5600060e6de5E11D3636731964218E53caadf0E) [staticcall]
+    │   │   │   ├─ [3155] 0x9beD0F58d6001B0006923eb8c4b1Cc548D42ccEe::hasRole(0x2024516755f401845808190bb830b0e4523d0df0845503cab52130a794699a0f, 0xb5600060e6de5E11D3636731964218E53caadf0E) [delegatecall]
+    │   │   │   │   └─ ← [Return] true
+    │   │   │   └─ ← [Return] true
+    │   │   ├─ [7305] 0x696A73701b104c6cCBbAadDD2216788ea08EaB89::transferFrom(0xb5600060e6de5E11D3636731964218E53caadf0E, 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, 100000000000000000000000 [1e23])
+    │   │   │   ├─ [7122] 0xfdfb993dDCe4d95407C893E09556e31732A5BEb8::transferFrom(0xb5600060e6de5E11D3636731964218E53caadf0E, 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9, 100000000000000000000000 [1e23]) [delegatecall]
+    │   │   │   │   └─ ← [Revert] SingleTxLimitExceeded()
+    │   │   │   └─ ← [Revert] SingleTxLimitExceeded()
+    │   │   └─ ← [Revert] SingleTxLimitExceeded()
+    │   └─ ← [Revert] SingleTxLimitExceeded()
+    └─ ← [Revert] SingleTxLimitExceeded()
+
+Backtrace:
+  at 0xfdfb993dDCe4d95407C893E09556e31732A5BEb8.transferFrom
+  at 0x696A73701b104c6cCBbAadDD2216788ea08EaB89.transferFrom
+  at 0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27.deposit
+  at 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9.deposit
+  at RamsARouteRehearsalTest.test_A1_oldPausePath_blocksAllOperators
+
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 403.47ms (2.68ms CPU time)
+
+Ran 1 test suite in 429.07ms (403.47ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: SingleTxLimitExceeded()] test_A1_oldPausePath_blocksAllOperators() (block: 11974465) (gas: 236253)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

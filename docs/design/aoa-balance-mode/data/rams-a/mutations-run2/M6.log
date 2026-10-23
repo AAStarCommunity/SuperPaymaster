@@ -1,0 +1,23 @@
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 8.66s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS: extra executor] test_A6_governanceTimeline_SafeTimelock() (block: 11974561) (gas: 241648)
+Logs:
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 347.39ms (270.67µs CPU time)
+
+Ran 1 test suite in 347.88ms (347.39ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS: extra executor] test_A6_governanceTimeline_SafeTimelock() (block: 11974561) (gas: 241648)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

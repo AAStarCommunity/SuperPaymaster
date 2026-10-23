@@ -1,0 +1,11 @@
+--- /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/control.sol	2026-10-23 13:00:46
++++ /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/worktree/contracts/test/rams/RamsARouteRehearsal.t.sol	2026-10-23 13:04:40
+@@ -470,7 +470,7 @@
+         for (uint256 i; i < operators.length; ++i) {
+             _assertOperatorPause(operators[i], true);
+         }
+-        _upgrade(true);
++        _upgrade(false);
+         _probe(_op(NEW_OPERATOR, 440_000, false), false, 0);
+         _assertOperatorPause(NEW_OPERATOR, false);
+         // Isolate the global stop from 5.5.0's new token/layout requirements.
