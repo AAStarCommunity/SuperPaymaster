@@ -1,0 +1,10 @@
+Offline gates UTC: 2026-10-23T08:37:37Z
+Commit: 1eee2f82d614b0799e4caa50c50cc3359c92af01
+Dirty paths: 1
+forge: forge Version: 1.7.1
+== Cancun: forge test --offline
+Ran 151 test suites in 47.13s (262.10s CPU time): 1797 tests passed, 0 failed, 65 skipped (1862 total tests)
+cancun rc=
+== Prague: forge test --offline --evm-version prague
+Ran 151 test suites in 44.66s (191.47s CPU time): 1677 tests passed, 0 failed, 39 skipped (1716 total tests)
+prague rc=

@@ -81,15 +81,19 @@ for u in users:
     community = int(call(REG, has_sel + COMMUNITY[2:] + word(u)), 16) == 1
     token = "0x" + call(factory, tok_sel + word(u))[-40:]
     holders.append({"holder": u, "isConfigured": bool(w[1]), "isPaused": bool(w[2]), "hasCommunity": community,
-                    "factoryToken": token, "canConfigureNow": (not w[1]) and community and int(token, 16) != 0})
+                    "factoryToken": token, "configurableWithoutNewToken": (not w[1]) and community and int(token, 16) != 0})
 res = {"registry": REG, "sp": SP, "forkBlock": fork, "registryCreationBlock": created, "roleId": SUPER, "topic0": topic0,
        "roleRegisteredLogs": len(logs), "distinctUsers": len(users), "getRoleUserCount": count,
        "holdersAtFork": len(holders), "complete": len(holders) == count,
        "knownOperatorsPresent": KNOWN <= {h["holder"] for h in holders},
        "xpntsFactory": factory, "unconfigured": [h["holder"] for h in holders if not h["isConfigured"]],
-       "canConfigureNow": [h["holder"] for h in holders if h["canConfigureNow"]], "holders": holders}
+       "configurableWithoutNewToken": [h["holder"] for h in holders if h["configurableWithoutNewToken"]],
+       "note": "deployxPNTsToken (factory 2.3.0) only requires COMMUNITY, so an unconfigured holder with COMMUNITY "
+               "can self-activate (deploy token, then configureOperator) without any permission; an empty "
+               "configurableWithoutNewToken does NOT mean the holder is inert.",
+       "holders": holders}
 json.dump(res, open(sys.argv[1], "w"), indent=1)
-print(json.dumps({k: res[k] for k in ("roleRegisteredLogs", "distinctUsers", "getRoleUserCount", "holdersAtFork", "complete", "knownOperatorsPresent", "unconfigured", "canConfigureNow")}))
+print(json.dumps({k: res[k] for k in ("roleRegisteredLogs", "distinctUsers", "getRoleUserCount", "holdersAtFork", "complete", "knownOperatorsPresent", "unconfigured", "configurableWithoutNewToken")}))
 known_ok = all(h["hasCommunity"] and int(h["factoryToken"], 16) != 0 for h in holders if h["holder"] in KNOWN)
 res["knownOperatorsPreconditionsControl"] = known_ok
 json.dump(res, open(sys.argv[1], "w"), indent=1)

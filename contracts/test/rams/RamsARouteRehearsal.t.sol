@@ -961,6 +961,31 @@ contract RamsARouteRehearsalTest is Test {
         _fundLegacyUser(tok);
     }
 
+    // A prospective registrant that satisfies every PAYMASTER_SUPER precondition except the role itself: it holds
+    // COMMUNITY and the GToken for the SUPER stake and ticket. Makes the freeze decidable (without it, registration
+    // would fail on a missing prerequisite and the freeze would look load-bearing when it is not).
+    function _qualifyProspect(address who) internal returns (bytes memory superData) {
+        RamsRegistry reg = RamsRegistry(REGISTRY);
+        address staking = reg.GTOKEN_STAKING();
+        address gtoken = RamsStaking(staking).GTOKEN();
+        IRegistry.RoleConfig memory community = reg.getRoleConfig(COMMUNITY);
+        IRegistry.RoleConfig memory superRole = reg.getRoleConfig(SUPER);
+        deal(gtoken, who, community.minStake + community.ticketPrice + superRole.minStake + superRole.ticketPrice);
+        vm.startPrank(who);
+        IERC20(gtoken).approve(staking, type(uint256).max);
+        reg.registerRole(COMMUNITY, who, abi.encode(RamsRegistry.CommunityData("RAMS-prospect", "", community.minStake)));
+        vm.stopPrank();
+        assertTrue(sp.REGISTRY().hasRole(COMMUNITY, who), "RAMS A6e: prospect community");
+        assertFalse(sp.REGISTRY().hasRole(SUPER, who), "RAMS A6e: prospect already super");
+        superData = abi.encode(superRole.minStake);
+    }
+
+    function _superHolderCount() internal view returns (uint256) {
+        (bool ok, bytes memory r) = REGISTRY.staticcall(abi.encodeWithSignature("getRoleUserCount(bytes32)", SUPER));
+        require(ok, "RAMS A6e: getRoleUserCount");
+        return abi.decode(r, (uint256));
+    }
+
     function _validationData(address operator) internal returns (uint256 vd, uint256 contextLength) {
         PackedUserOperation memory op = _op(operator, 440_000, false);
         bytes32 h = ep.getUserOpHash(op); // compute before the prank: an external call in the arguments consumes it
@@ -989,9 +1014,23 @@ contract RamsARouteRehearsalTest is Test {
         (uint256 vdOpen, uint256 ctxOpen) = _validationData(residual[0]);
         require(uint160(vdOpen) == 0 && ctxOpen == 160, "RAMS A6e control: residual holder not sponsorable when gap is open");
         emit log("RAMS A6e control: residual holder self-activated and was sponsored in the open gap");
+        bytes memory controlData = _qualifyProspect(NEW_OPERATOR);
+        vm.prank(NEW_OPERATOR);
+        RamsRegistry(REGISTRY).registerRole(SUPER, NEW_OPERATOR, controlData);
+        assertTrue(sp.REGISTRY().hasRole(SUPER, NEW_OPERATOR), "RAMS A6e control: qualified prospect registers SUPER in the open gap");
+        emit log("RAMS A6e control: a qualified prospect obtained PAYMASTER_SUPER in the open gap (A6b covers configure + sponsorship)");
         assertTrue(vm.revertTo(control), "RAMS A6e: control rollback");
 
-        // Closure, all while the EOA still owns SP and the Registry.
+        // Closure, runbook order, all while the EOA still owns SP and the Registry:
+        // (1) freeze new PAYMASTER_SUPER grants, (2) confirm the enumerated holder set is still complete,
+        // (3) pause every holder, (4) read back, (5) transfer SP ownership.
+        bytes memory prospectData = _qualifyProspect(NEW_OPERATOR);
+        IRegistry.RoleConfig memory config = reg.getRoleConfig(SUPER);
+        config.isActive = false;
+        vm.prank(reg.owner());
+        reg.configureRole(SUPER, config);
+        assertFalse(reg.getRoleConfig(SUPER).isActive, "RAMS A6e: role stop read-back");
+        assertEq(_superHolderCount(), 5, "RAMS A6e: holder set differs from the enumeration");
         _pauseAll(true);
         address spOwner = sp.owner();
         for (uint256 i; i < residual.length; ++i) {
@@ -1000,11 +1039,6 @@ contract RamsARouteRehearsalTest is Test {
             (, bool configured, bool stopped,,,,,,) = sp.operators(residual[i]);
             require(!configured && stopped, "RAMS A6e: unconfigured holder pre-pause read-back");
         }
-        IRegistry.RoleConfig memory config = reg.getRoleConfig(SUPER);
-        config.isActive = false;
-        vm.prank(reg.owner());
-        reg.configureRole(SUPER, config);
-        assertFalse(reg.getRoleConfig(SUPER).isActive, "RAMS A6e: role stop read-back");
         tl = _timelock();
         _transferToTimelock(tl);
         uint256 began = vm.getBlockTimestamp();
@@ -1017,14 +1051,12 @@ contract RamsARouteRehearsalTest is Test {
             (uint256 vd, uint256 ctx) = _validationData(residual[i]);
             require(vd == 1 && ctx == 0, "RAMS A6e: residual holder sponsored after closure");
         }
-        // No new holder can appear: the freeze rejects registration with the exact payload.
+        // No new holder can appear: a fully qualified prospect is rejected by the freeze with the exact payload.
         vm.prank(NEW_OPERATOR);
-        _mustReject(
-            REGISTRY,
-            abi.encodeCall(reg.registerRole, (SUPER, NEW_OPERATOR, abi.encode(uint256(0)))),
-            abi.encodeWithSignature("RoleNotConfigured(bytes32,bool)", SUPER, false),
-            "RAMS A6e: new PAYMASTER_SUPER grant admitted after freeze"
-        );
+        (bool granted, bytes memory reason) =
+            REGISTRY.call(abi.encodeCall(reg.registerRole, (SUPER, NEW_OPERATOR, prospectData)));
+        require(!granted, "RAMS A6e: qualified prospect granted PAYMASTER_SUPER after freeze");
+        assertEq(reason, abi.encodeWithSignature("RoleNotConfigured(bytes32,bool)", SUPER, false), "RAMS A6e: freeze revert payload");
         emit log_named_uint("RAMS A6e: residual holders activated and rejected", residual.length);
         emit log_named_uint("RAMS A6e: hours into the gap at the check", (vm.getBlockTimestamp() - began) / 1 hours);
     }

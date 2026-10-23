@@ -17,7 +17,8 @@
   "0x368f8cb8cca42174b03156cea761bae31cee5c94",
   "0xf92dc383c74ea30d7791b929d5872dad18679516"
  ],
- "canConfigureNow": [],
+ "configurableWithoutNewToken": [],
+ "note": "deployxPNTsToken (factory 2.3.0) only requires COMMUNITY, so an unconfigured holder with COMMUNITY can self-activate (deploy token, then configureOperator) without any permission; an empty configurableWithoutNewToken does NOT mean the holder is inert.",
  "holders": [
   {
    "holder": "0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00",
@@ -25,7 +26,7 @@
    "isPaused": false,
    "hasCommunity": true,
    "factoryToken": "0x0000000000000000000000000000000000000000",
-   "canConfigureNow": false
+   "configurableWithoutNewToken": false
   },
   {
    "holder": "0x368f8cb8cca42174b03156cea761bae31cee5c94",
@@ -33,7 +34,7 @@
    "isPaused": false,
    "hasCommunity": true,
    "factoryToken": "0x0000000000000000000000000000000000000000",
-   "canConfigureNow": false
+   "configurableWithoutNewToken": false
   },
   {
    "holder": "0xb5600060e6de5e11d3636731964218e53caadf0e",
@@ -41,7 +42,7 @@
    "isPaused": false,
    "hasCommunity": true,
    "factoryToken": "0x696a73701b104c6ccbbaaddd2216788ea08eab89",
-   "canConfigureNow": false
+   "configurableWithoutNewToken": false
   },
   {
    "holder": "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
@@ -49,7 +50,7 @@
    "isPaused": false,
    "hasCommunity": true,
    "factoryToken": "0xe6579a90dc498a710008de12119812d0fb7aa224",
-   "canConfigureNow": false
+   "configurableWithoutNewToken": false
   },
   {
    "holder": "0xf92dc383c74ea30d7791b929d5872dad18679516",
@@ -57,7 +58,7 @@
    "isPaused": false,
    "hasCommunity": true,
    "factoryToken": "0x0000000000000000000000000000000000000000",
-   "canConfigureNow": false
+   "configurableWithoutNewToken": false
   }
  ],
  "knownOperatorsPreconditionsControl": true
