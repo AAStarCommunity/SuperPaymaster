@@ -1,0 +1,10 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -519,6 +519,7 @@
+         uint128[5] memory limits = [uint128(0), 200_000, 300_000, 440_000, type(uint128).max];
+         uint256 beforeProbes = sigFailureProbes;
+         for (uint256 i; i < operators.length; ++i) {
++            if (operators[i] == ANNI) continue; // M12: skip one mandatory class.
+             for (uint256 j; j < limits.length; ++j) {
+                 _probe(_op(operators[i], limits[j], false), false, 0);
+             }

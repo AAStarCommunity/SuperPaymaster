@@ -1,0 +1,56 @@
+Review 2 offline verification; HEAD 3eed99a7; uncommitted edits
+No RPC/network, fork, signing, or broadcast operations performed.
+
+$ ~/.foundry/bin/forge build --offline
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 28.41s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Exit: 0 (existing compiler/lint warnings)
+
+$ env -u SEPOLIA_FORK_RPC FOUNDRY_ISOLATE=false ~/.foundry/bin/forge test --offline --match-path contracts/test/rams/RamsARouteRehearsal.t.sol
+No files changed, compilation skipped
+
+Ran 15 tests for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[SKIP] test_A1_oldPausePath_blocksAllOperators() (gas: 0)
+[SKIP] test_A2_newOperatorRisk_window() (gas: 0)
+[SKIP] test_A3_atomicUpgradeWithGlobalPause() (gas: 0)
+[SKIP] test_A3_emptyUpgradeData_admitsUnsafeLimit() (gas: 0)
+[SKIP] test_A3b_probeOnly_globalPause() (gas: 0)
+[SKIP] test_A4_hypotheticalSmartAccountOwner_midBundle() (gas: 0)
+[SKIP] test_A4_legacyContexts() (gas: 0)
+[SKIP] test_A5_governanceTimeline_EOAowner() (gas: 0)
+[SKIP] test_A5b_settleBindingAnalysis() (gas: 0)
+[SKIP] test_A5c_handleOps_minBoundaries() (gas: 0)
+[SKIP] test_A6_governanceTimeline_SafeTimelock() (gas: 0)
+[SKIP] test_A6b_safeRoute_preUpgradeGap() (gas: 0)
+[SKIP] test_A6c_registryRegistrationStop() (gas: 0)
+[SKIP] test_A6d_EOAfirst_thenTimelock() (gas: 0)
+[SKIP] test_A7_readbackGate() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 15 skipped; finished in 2.67ms (944.79µs CPU time)
+
+Ran 1 test suite in 8.00ms (2.67ms CPU time): 0 tests passed, 0 failed, 15 skipped (15 total tests)
+
+$ env -u SEPOLIA_FORK_RPC FOUNDRY_ISOLATE=false ~/.foundry/bin/forge test --offline --match-path contracts/test/rams/RamsABudget.t.sol
+No files changed, compilation skipped
+
+Ran 6 tests for contracts/test/rams/RamsABudget.t.sol:RamsABudgetTest
+[PASS] test_AmsterdamPrefundAndReservation() (gas: 8223)
+[PASS] test_DepositChunks_realV1Token_fractionalRate() (gas: 3902357)
+[PASS] test_DepositChunks_realV1Token_highRate() (gas: 3857757)
+[PASS] test_DepositChunks_realV1Token_unitRate() (gas: 3857717)
+[PASS] test_DepositImpossible_failsExplicitly() (gas: 10411)
+[PASS] test_Reservation_roundsUpAtBothStages() (gas: 3913)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 1.39ms (2.71ms CPU time)
+
+Ran 1 test suite in 5.78ms (1.39ms CPU time): 6 tests passed, 0 failed, 0 skipped (6 total tests)
+
+bash -n: all 5 changed shell scripts OK
+Embedded Python AST parse: generator and scanner OK
+Mutation definition patch application: 16/16 with zero fuzz, temporary target only
+Dirty-target mutation runner: exit 1 with explicit refusal before mutation (expected)
+Header: effective isolation, own-log exclusion, retained other dirty paths and input diffs OK
+Redaction: HTTP/HTTPS/WS/WSS, hostname/IPv4/IPv6:port removed; ISO timestamp preserved
+git diff --check: OK
+Archive scanner: NOT RUN; requires RPC and positive creation control
+Fork/mutation execution: NOT RUN; owner rerun required

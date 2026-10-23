@@ -1,0 +1,14 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -926,10 +926,9 @@
+             emit log_named_bytes("RAMS A6c: pre-freeze registerRole revert", controlData);
+         }
+         assertTrue(vm.revertTo(controlSnapshot), "RAMS A6c: control rollback");
+-        config.isActive = false;
++        config.isActive = true; // M17: retain active role.
+         vm.prank(reg.owner());
+         reg.configureRole(SUPER, config);
+-        assertFalse(reg.getRoleConfig(SUPER).isActive, "RAMS: role stop read-back");
+         vm.prank(NEW_OPERATOR);
+         _mustReject(
+             REGISTRY,

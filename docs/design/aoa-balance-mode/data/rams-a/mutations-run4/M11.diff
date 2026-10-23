@@ -1,0 +1,11 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -1016,7 +1016,7 @@
+         tl.scheduleBatch(targets, values, data, bytes32(0), replaySalt, DELAY);
+         bytes memory activation = abi.encodeWithSignature("executeGasParams()");
+         bytes32 activationSalt = keccak256("RAMS predecessor negative");
+-        bytes32 requiredPredecessor = requiredBatch;
++        bytes32 requiredPredecessor = bytes32(0);
+         vm.prank(SAFE);
+         tl.schedule(SP, 0, activation, requiredPredecessor, activationSalt, DELAY);
+         vm.warp(eta);

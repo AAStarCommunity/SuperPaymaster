@@ -1,0 +1,21 @@
+M1	test_A3_atomicUpgradeWithGlobalPause	atomic global pause
+M2	test_A1_oldPausePath_blocksAllOperators	operator pause read-back
+M3	test_A5_governanceTimeline_EOAowner	RAMS A5: activation not mature
+M4	test_A5_governanceTimeline_EOAowner	exact SIG_FAILURE required
+M5	test_A5_governanceTimeline_EOAowner	SETTLE read-back
+M6	test_A6_governanceTimeline_SafeTimelock	extra executor
+M7	test_A6_governanceTimeline_SafeTimelock	RAMS A6: upgrade batch executed before delay
+M8	test_A7_readbackGate	RAMS gate negative: RAMS gate: guardian
+M9	test_A2_newOperatorRisk_window	exact SIG_FAILURE required
+M10	test_A4_legacyContexts	RAMS A4: pre-signed operation escaped pause
+M11	test_A6_governanceTimeline_SafeTimelock	TimelockUnexecutedPredecessor
+M12	test_A3_atomicUpgradeWithGlobalPause	all operator classes probed
+M13	test_A6_governanceTimeline_SafeTimelock	RAMS A6: non-Safe executor accepted
+M14	test_A3b_probeOnly_globalPause	exact SIG_FAILURE required
+M15	test_A1_oldPausePath_blocksAllOperators	exact SIG_FAILURE required
+M16	test_A7_readbackGate	RAMS gate: inventory commitment
+M17	test_A6c_registryRegistrationStop	RAMS A6c: post-freeze RoleNotConfigured required
+M18	test_A6b_safeRoute_preUpgradeGap	RAMS A6b: new operator sponsored in gap
+M19	test_A6e_safeRoute_gapClosedByHolderPauseAndFreeze	RAMS A6e: pre-set pause lost after configureOperator
+M20	test_A6e_safeRoute_gapClosedByHolderPauseAndFreeze	RAMS A6e: qualified prospect granted PAYMASTER_SUPER after freeze
+M21	test_A6e_safeRoute_gapClosedByHolderPauseAndFreeze	RAMS A6e: residual holder sponsored after closure

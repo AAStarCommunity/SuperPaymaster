@@ -375,3 +375,9 @@ D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 �
 3. 原稿数据集里有两个文件内容完全相同（§1.4）。
 4. forge 1.7.1 的 broadcast 文件里，`transactions[i].hash` 与该条目的合约名 / 函数名可能错配（本次 fork 上不带 `--slow` 的 `run()` 运行中实际出现过：两次运行给同一个 hash 标了不同的函数）；`collect-receipts.mjs` 因此改为按链上交易本身（CREATE 地址或完整 calldata）重新标注，不信任数组顺序。L-01（带 `--slow`）的 6 个标签已按 calldata 逐笔核对，全部正确。
 5. **（2026-10-09）`--solver-timeout-assertion` 的单位**：DSR 复跑 I9 witness 时认为 Halmos 0.3.3 把裸数按秒解析（300000 ≈ 83.3 h）。本机 Halmos 0.3.3 的源码、自带解析器与实测都显示裸数按**毫秒**解析（证据见 H-10），`D5c-1-halmos.md` §2.6 与 `D5c-2-halmos.md` 里"`300000` = 300 s"的写法是对的，不改（两份文档的 sha256 钉在发布证明 §4 里）。真正的缺口是 H-06 复现命令没有总墙钟上限、超时没有写明判为 INCONCLUSIVE——由 H-10 补上。
+
+## Route A Review 2 offline refresh
+
+`data/rams-a/REVIEW-2.md` maps the findings to edits and assumptions. `data/rams-a/review-2-offline.log` records offline verification. The manifest includes the historical `mutations-run3/` and timestamped rehearsal logs, plus revised `mutations-run2/M1.diff` through `M16.diff` and `targets.tsv`. Historical mutation logs do not validate the revised definitions. No Review 2 fork or RPC scan was run.
+
+Fork reruns (archive RPC, clean tree), Review 4: `rehearsal-20261023T084836Z-51573.log` 16/16 PASS; `mutations-run10/` M1–M21 all KILLED by the expected assertion (superseded: run9 M20 not decidable, run8 M19 WRONG-ASSERTION, run7 pre-A6e, run6 PATCH-FAILED, run5 Review 2, run4 M15 WRONG-ASSERTION); holder enumeration `super-holders-11974561.json`; inventory rescan `operator-inventory-11974561-review2.json`. Offline gates: `data/rams-a/review-3-offline-gates.log`. Manifest after merging main: regenerated with `node script/evidence/build-manifest.mjs`, checked with `shasum -a 256 -c EVIDENCE.sha256` (count in the PR body; not written here because this file is itself in the manifest). The table near the top of this file is an earlier snapshot.

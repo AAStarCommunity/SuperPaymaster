@@ -1,0 +1,15 @@
+ID	TARGET	RESULT	FIRST_FAIL
+CONTROL	all	GREEN	10 pass / 0 fail
+M1	test_A3_atomicUpgradeWithGlobalPause	KILLED	[FAIL: RAMS: atomic global pause: false != true] test_A3_atomicUpgradeWithGlobalPause() (block: 11974561) (gas: 121374)
+M2	test_A1_oldPausePath_blocksAllOperators	KILLED	[FAIL: RAMS: operator pause read-back: false != true] test_A1_oldPausePath_blocksAllOperators() (block: 11974561) (gas: 2888094)
+M3	test_A5_governanceTimeline_EOAowner	KILLED	[FAIL: GasParamsTimelock()] test_A5_governanceTimeline_EOAowner() (block: 11974561) (gas: 215508)
+M4	test_A5_governanceTimeline_EOAowner	KILLED	[FAIL: RAMS: exact SIG_FAILURE required: 2620340975123532654952617401813277457301752018079659851776 != 1] test_A5_governanceTimeline_EOAowner() (block: 11974561) (gas: 1848980)
+M5	test_A5_governanceTimeline_EOAowner	KILLED	[FAIL: RAMS: SETTLE read-back: 160000 != 420000] test_A5_governanceTimeline_EOAowner() (block: 11974561) (gas: 2280770)
+M6	test_A6_governanceTimeline_SafeTimelock	KILLED	[FAIL: RAMS: extra executor] test_A6_governanceTimeline_SafeTimelock() (block: 11974561) (gas: 241808)
+M7	test_A6_governanceTimeline_SafeTimelock	KILLED	[FAIL: FailedInnerCall()] test_A6_governanceTimeline_SafeTimelock() (block: 11974561) (gas: 351246)
+M8	test_A7_readbackGate	KILLED	[FAIL: next call did not revert as expected] test_A7_readbackGate() (block: 11974561) (gas: 916857)
+M9	test_A2_newOperatorRisk_window	KILLED	[FAIL: RAMS: exact SIG_FAILURE required: 2620088429102103512259254723277868916312238492592166141952 != 1] test_A2_newOperatorRisk_window() (block: 11974561) (gas: 4298749)
+M10	test_A4_legacyContexts	KILLED	[FAIL: next call did not revert as expected] test_A4_legacyContexts() (block: 11974561) (gas: 2245162)
+M11	test_A6_governanceTimeline_SafeTimelock	KILLED	[FAIL: RAMS: TimelockUnexecutedPredecessor required] test_A6_governanceTimeline_SafeTimelock() (block: 11974561) (gas: 542187)
+M12	test_A3_atomicUpgradeWithGlobalPause	KILLED	[FAIL: RAMS: all operator classes probed: 5 != 10] test_A3_atomicUpgradeWithGlobalPause() (block: 11974561) (gas: 354981)
+M13	test_A6_governanceTimeline_SafeTimelock	KILLED	[FAIL: next call did not revert as expected] test_A6_governanceTimeline_SafeTimelock() (block: 11974561) (gas: 415488)

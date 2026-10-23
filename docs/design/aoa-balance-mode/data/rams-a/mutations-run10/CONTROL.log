@@ -1,0 +1,277 @@
+Route A evidence UTC: 2026-10-23T08:48:37Z
+Commit: ec8f2c0ce38a72cea84ee924c1c39ff8fd961efd
+Dirty paths: 1
+  dirty: ?? docs/design/aoa-balance-mode/data/rams-a/rehearsal-20261023T084836Z-51573.log
+forge Version: 1.8.7-nightly
+Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827
+Build Timestamp: 2026-10-22T06:12:29.900488000Z (1792649549)
+Build Profile: dist
+FORK_BLOCK=11974561
+OPERATORS=0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+RPC host: <redacted>
+FOUNDRY_ISOLATE=false
+Command: /Users/jason/Dev/aastar/tools/foundry-rams/nightly-926eb1d/forge test --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --match-test \^test_A --no-isolate --hardfork amsterdam -vv
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 16 tests for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[PASS] test_A1_oldPausePath_blocksAllOperators() (gas: 3583702)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+[PASS] test_A2_newOperatorRisk_window() (gas: 13695951)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Registry configuration authority: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  COMMUNITY role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  PAYMASTER_SUPER role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  Role acquisition: self registerRole; existing communities may sponsor safeMintForRole. Stake/ticket and active-role gates apply.
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+[PASS] test_A3_atomicUpgradeWithGlobalPause() (gas: 4706250)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+
+[PASS] test_A3_emptyUpgradeData_admitsUnsafeLimit() (gas: 4679585)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2410000000000000
+  Positive control reservation (aPNTs): 289200000000000000000
+
+[PASS] test_A3b_probeOnly_globalPause() (gas: 4391525)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+
+[PASS] test_A4_hypotheticalSmartAccountOwner_midBundle() (gas: 2420168)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Stranded operator aPNTs (token wei): 306000000000000000000
+  Protocol revenue delta (token wei): 306000000000000000000
+  Counterfactual ownership only. EOA cannot be this account; Safe-only executor blocks arbitrary account calls (A6). Safe AA modules/delegation must remain excluded operationally.
+
+[PASS] test_A4_legacyContexts() (gas: 3120303)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Separate handleOps transactions cannot straddle an upgrade: validation and postOp share one call tree.
+
+[PASS] test_A5_governanceTimeline_EOAowner() (gas: 5995982)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+
+[PASS] test_A5b_settleBindingAnalysis() (gas: 4396132)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Analysis SETTLE: 420000
+  Synthetic callback guard crossing (not settlement exhaustion): 438786
+  Synthetic guard overhead including call/EIP-150: 18786
+  Analysis SETTLE: 160000
+  Synthetic callback guard crossing (not settlement exhaustion): 174659
+  Synthetic guard overhead including call/EIP-150: 14659
+
+[PASS] test_A5c_handleOps_minBoundaries() (gas: 6008713)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  RAMS A5c: 439,999 rejected with AA34 signature error
+  RAMS A5c: 440,000 executed and settled
+  RAMS A5c: 440,001 executed and settled
+
+[PASS] test_A6_governanceTimeline_SafeTimelock() (gas: 10223989)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Live Safe module page count: 0
+  Live Safe guard slot: 0x0000000000000000000000000000000000000000000000000000000000000000
+  Parallel hours AFTER upgrade: 48
+  Safe total downtime hours: 96
+  Sequential hours AFTER upgrade: 96
+  Safe total downtime hours: 144
+
+[PASS] test_A6b_safeRoute_preUpgradeGap() (gas: 20313577)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Registry configuration authority: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  COMMUNITY role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  PAYMASTER_SUPER role configuration owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  Role acquisition: self registerRole; existing communities may sponsor safeMintForRole. Stake/ticket and active-role gates apply.
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Positive control maxCost (wei): 2550000000000000
+  Positive control reservation (aPNTs): 306000000000000000000
+  Safe route pre-upgrade hours: 48
+
+[PASS] test_A6c_registryRegistrationStop() (gas: 9242499)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Live Registry owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  Live PAYMASTER_SUPER config owner: 0xb5600060e6de5E11D3636731964218E53caadf0E
+  RAMS A6c: pre-freeze registerRole revert: 0xe9007bcce94d78b6d8fb99b2c21131eb4552924a60f564d8515a3cc90ef300fc9735c074000000000000000000000000000000000000000000000000000000000a522523
+
+[PASS] test_A6d_EOAfirst_thenTimelock() (gas: 9660733)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  EOA-first modeled pre-upgrade seconds: 0
+  EOA-first total downtime hours (through gas activation): 48
+  EOA-first total downtime hours (through gas activation): 96
+
+[PASS] test_A6e_safeRoute_gapClosedByHolderPauseAndFreeze() (gas: 42564142)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  RAMS A6e control: residual holder self-activated and was sponsored in the open gap
+  RAMS A6e control: a qualified prospect obtained PAYMASTER_SUPER in the open gap (A6b covers configure + sponsorship)
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+  RAMS A6e: residual holders activated and rejected: 3
+  RAMS A6e: hours into the gap at the check: 1
+
+[PASS] test_A7_readbackGate() (gas: 10932715)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+
+Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 354.68ms (103.44ms CPU time)
+
+Ran 1 test suite in 355.49ms (354.68ms CPU time): 16 tests passed, 0 failed, 0 skipped (16 total tests)

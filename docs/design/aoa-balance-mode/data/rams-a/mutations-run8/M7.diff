@@ -1,0 +1,11 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -1095,7 +1095,7 @@
+         tl.scheduleBatch(targets, values, data, bytes32(0), salt, DELAY);
+         assertEq(tl.getTimestamp(batchId), scheduled + DELAY, "RAMS: batch ETA");
+         assertTrue(tl.isOperationPending(batchId), "RAMS: batch pending");
+-        vm.warp(scheduled + DELAY - 1);
++        vm.warp(scheduled + DELAY);
+         vm.prank(SAFE);
+         _mustReject(
+             address(tl),

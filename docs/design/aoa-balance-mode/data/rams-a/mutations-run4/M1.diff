@@ -1,0 +1,11 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -333,7 +333,7 @@
+ 
+     function _upgrade(bool atomicPause) internal {
+         vm.prank(sp.owner());
+-        sp.upgradeToAndCall(newImpl, atomicPause ? abi.encodeWithSignature("setGlobalPaused(bool)", true) : bytes(""));
++        sp.upgradeToAndCall(newImpl, atomicPause ? bytes("") : bytes(""));
+         _assertUpgrade(atomicPause);
+     }
+ 

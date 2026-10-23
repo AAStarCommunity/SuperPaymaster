@@ -1,0 +1,30 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -660,7 +660,10 @@
+     function test_A5_governanceTimeline_EOAowner() public forkOnly {
+         _pauseAll(true);
+         _upgrade(true);
+-        uint256 eta = _queue();
++        vm.prank(OWNER);
++        sp.queueGasParams(440_000, 160_000, 5000, 340_000);
++        (, SuperPaymasterStorage.PendingGasParams memory queued) = sp.gasParams();
++        uint256 eta = queued.eta;
+         vm.prank(OWNER);
+         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
+         sp.executeGasParams();
+@@ -673,7 +676,6 @@
+         vm.warp(eta);
+         vm.prank(OWNER);
+         sp.executeGasParams();
+-        _assertGas(true);
+         _freshPrice();
+         xPNTsTokenV2 token = _v2Ready();
+         _pauseAll(false);
+@@ -684,6 +686,7 @@
+         _probe(op, true, 384);
+         bytes32 hash = ep.getUserOpHash(op);
+         _settleOne(op); // The orchestrator must run under nightly --hardfork amsterdam.
++        _assertGas(true);
+         assertTrue(token.usedOpHashes(hash), "RAMS: V2 token settlement read-back");
+         _probe(_op(OWNER, 300_000, true), false, 0);
+     }

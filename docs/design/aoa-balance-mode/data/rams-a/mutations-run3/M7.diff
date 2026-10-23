@@ -1,0 +1,22 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -798,6 +798,10 @@
+         uint256 scheduled = vm.getBlockTimestamp();
+         vm.prank(SAFE);
+         tl.scheduleBatch(targets, values, data, bytes32(0), salt, DELAY);
++        bytes memory earlyData = abi.encodeWithSignature("executeGasParams()");
++        bytes32 earlySalt = keccak256("RAMS M7 no predecessor");
++        vm.prank(SAFE);
++        tl.schedule(SP, 0, earlyData, bytes32(0), earlySalt, DELAY);
+         assertEq(tl.getTimestamp(batchId), scheduled + DELAY, "RAMS: batch ETA");
+         assertTrue(tl.isOperationPending(batchId), "RAMS: batch pending");
+         vm.warp(scheduled + DELAY - 1);
+@@ -811,6 +815,8 @@
+         );
+         tl.executeBatch(targets, values, data, bytes32(0), salt);
+         vm.warp(scheduled + DELAY);
++        vm.prank(SAFE);
++        tl.execute(SP, 0, earlyData, bytes32(0), earlySalt);
+         vm.prank(ownerAccount);
+         vm.expectRevert(
+             abi.encodeWithSignature(

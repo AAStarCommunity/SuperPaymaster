@@ -1,0 +1,95 @@
+Review 3 offline validation
+UTC: 2026-10-23T07:52:38Z
+HEAD: e64568e34761bc5bfe96e92a059fcbe6a6ef6c42
+Process prerequisite: sandbox pgrep exited 3 (process list unavailable); owner confirmed via external pgrep that no forge process was running before build.
+Scope: offline only; no fork or mutation executions, RPC, network, commits, or production/config edits.
+
+$ ~/.foundry/bin/forge build --offline
+Exit: 0
+Compiling 2 files with Solc 0.8.33
+Solc 0.8.33 finished in 14.84s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Remaining existing compiler/lint warning output omitted from this summary; full local output: /tmp/rams-review3-build.log
+An initial build caught RamsRegistry.hasRole missing from its local interface; corrected to sp.REGISTRY().hasRole before the successful build.
+
+$ FOUNDRY_ISOLATE=false ~/.foundry/bin/forge test --offline --match-path 'contracts/test/rams/*'
+Exit: 0
+No files changed, compilation skipped
+
+Ran 6 tests for contracts/test/rams/RamsABudget.t.sol:RamsABudgetTest
+[PASS] test_AmsterdamPrefundAndReservation() (gas: 8223)
+[PASS] test_DepositChunks_realV1Token_fractionalRate() (gas: 3902357)
+[PASS] test_DepositChunks_realV1Token_highRate() (gas: 3857757)
+[PASS] test_DepositChunks_realV1Token_unitRate() (gas: 3857717)
+[PASS] test_DepositImpossible_failsExplicitly() (gas: 10411)
+[PASS] test_Reservation_roundsUpAtBothStages() (gas: 3913)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 1.23ms (2.52ms CPU time)
+
+Ran 15 tests for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[SKIP] test_A1_oldPausePath_blocksAllOperators() (gas: 0)
+[SKIP] test_A2_newOperatorRisk_window() (gas: 0)
+[SKIP] test_A3_atomicUpgradeWithGlobalPause() (gas: 0)
+[SKIP] test_A3_emptyUpgradeData_admitsUnsafeLimit() (gas: 0)
+[SKIP] test_A3b_probeOnly_globalPause() (gas: 0)
+[SKIP] test_A4_hypotheticalSmartAccountOwner_midBundle() (gas: 0)
+[SKIP] test_A4_legacyContexts() (gas: 0)
+[SKIP] test_A5_governanceTimeline_EOAowner() (gas: 0)
+[SKIP] test_A5b_settleBindingAnalysis() (gas: 0)
+[SKIP] test_A5c_handleOps_minBoundaries() (gas: 0)
+[SKIP] test_A6_governanceTimeline_SafeTimelock() (gas: 0)
+[SKIP] test_A6b_safeRoute_preUpgradeGap() (gas: 0)
+[SKIP] test_A6c_registryRegistrationStop() (gas: 0)
+[SKIP] test_A6d_EOAfirst_thenTimelock() (gas: 0)
+[SKIP] test_A7_readbackGate() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 15 skipped; finished in 1.46ms (374.21µs CPU time)
+
+Ran 2 test suites in 6.07ms (2.70ms CPU time): 6 tests passed, 0 failed, 15 skipped (21 total tests)
+
+PASS bash -n script/evidence/rams-a-header.sh
+PASS bash -n script/evidence/rams-a-inventory.sh
+PASS embedded Python syntax script/evidence/rams-a-inventory.sh
+PASS bash -n script/evidence/rams-a-mutations-generate.sh
+PASS embedded Python syntax script/evidence/rams-a-mutations-generate.sh
+PASS bash -n script/evidence/rams-a-mutations-inplace.sh
+PASS diagnostic Python syntax
+
+$ python3 script/evidence/rams-a-review3-diagnostic.py
+PASS redaction: Registry.sol:526:5 -> Registry.sol:526:5
+PASS redaction: rpc.example.com:443/key -> <redacted-rpc-host>
+PASS redaction: rpc.example.io/v2/secret -> <redacted-rpc-host>
+PASS redaction: rpc.example.network/v3/secret -> <redacted-rpc-host>
+PASS redaction: 127.0.0.1:8545/key -> <redacted-rpc-host>
+PASS redaction: [::1]:8545/key -> <redacted-rpc-host>
+PASS redaction: 2026-10-23T07:26:28Z -> 2026-10-23T07:26:28Z
+PASS redaction: http://rpc.example.com/secret -> <redacted>
+PASS redaction: https://rpc.example.com/secret -> <redacted>
+PASS redaction: ws://rpc.example.com/secret -> <redacted>
+PASS redaction: wss://rpc.example.com/secret -> <redacted>
+PASS HEAD patch --dry-run --batch --fuzz=0: M1
+PASS HEAD patch --dry-run --batch --fuzz=0: M2
+PASS HEAD patch --dry-run --batch --fuzz=0: M3
+PASS HEAD patch --dry-run --batch --fuzz=0: M4
+PASS HEAD patch --dry-run --batch --fuzz=0: M5
+PASS HEAD patch --dry-run --batch --fuzz=0: M6
+PASS HEAD patch --dry-run --batch --fuzz=0: M7
+PASS HEAD patch --dry-run --batch --fuzz=0: M8
+PASS HEAD patch --dry-run --batch --fuzz=0: M9
+PASS HEAD patch --dry-run --batch --fuzz=0: M10
+PASS HEAD patch --dry-run --batch --fuzz=0: M11
+PASS HEAD patch --dry-run --batch --fuzz=0: M12
+PASS HEAD patch --dry-run --batch --fuzz=0: M13
+PASS HEAD patch --dry-run --batch --fuzz=0: M14
+PASS HEAD patch --dry-run --batch --fuzz=0: M15
+PASS HEAD patch --dry-run --batch --fuzz=0: M16
+PASS HEAD patch --dry-run --batch --fuzz=0: M17
+PASS HEAD patch --dry-run --batch --fuzz=0: M18
+PASS M1-M15 regenerate byte-identically, including hunk line numbers
+PASS inventory emits generatedUTC and operator-supplied labels (stubbed transport)
+PASS RAMS_LABEL_A rejects :// before transport or output
+PASS RAMS_LABEL_C rejects :// before transport or output
+PASS mutation runner refuses dirty protected paths before Forge
+
+PASS git diff --check
+
+Full-suite Cancun and Prague results are owner-supplied in review-3-offline-gates.log; that file was not created or populated by this validation.
