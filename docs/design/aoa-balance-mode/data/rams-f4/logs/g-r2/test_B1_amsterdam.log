@@ -1,0 +1,216 @@
+# cmd: (cd /tmp/f4g && /tmp/fd/nightly/forge test --offline --no-isolate --evm-version prague --match-path contracts/test/zz_rams2a/Rams2a.t.sol -vv --match-test test_B1 --hardfork amsterdam)
+# env: FOUNDRY_ISOLATE=false FOUNDRY_OUT=/tmp/f4g-out FOUNDRY_CACHE_PATH=/tmp/f4g-cache FOUNDRY_DISABLE_NIGHTLY_WARNING=1
+# forge: forge Version: 1.8.7-nightly Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827 Build Timestamp: 2026-10-22T06:24:10.676280092Z (1792650250) Build Profile: dist sha256 9f19c41c970c64cfa1c836ef420e7ef071e032f22b617bf37c853a6866d5db85
+# tree: fbd74fb1e2e9d948996e6d6c02c48dc1c1778107 contracts/src f1d39b5bb4081c51e69c9b4a64346dd769193f31 foundry.toml 065d0bd7cd8e4d1de606cf438471c1f66fa5c659; Rams2a.t.sol aa0a26386054bfb290faa16e2dd7238ea83b2fc0d9b6e3d4e013a6fea357f8b2; SuperPaymasterV55Gas.t.sol e7f68b3358b848422c2a56b40658a693e1eae88a3b47d4f820013f0d72105793
+# start: 2026-10-23T06:26:02Z
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B1_cases_ample_limits() (gas: 181882690)
+Logs:
+  R2A|B1.balance_first_op.bundleReverted|0
+  R2A|B1.balance_first_op.success|1
+  R2A|B1.balance_first_op.userRevertEvent|0
+  R2A|B1.balance_first_op.postOpReverted|0
+  R2A|B1.balance_first_op.postOpRevertSelector|0
+  R2A|B1.balance_first_op.postOpRevertReasonLen|0
+  R2A|B1.balance_first_op.prefundTooLow|0
+  R2A|B1.balance_first_op.actualGasUsed|1339728
+  R2A|B1.balance_first_op.actualGasCost_wei|1339728000000000
+  R2A|B1.balance_first_op.spEpDepositDelta_wei|1339728000000000
+  R2A|B1.balance_first_op.charge_aPNTs|149456340000000000000
+  R2A|B1.balance_first_op.need_aPNTs(full cost at snapshot)|147370080000000000000
+  R2A|B1.balance_first_op.chargeCoversNeed(I9/G2)|1
+  R2A|B1.balance_first_op.a0(clamp)|726000000000000000000
+  R2A|B1.balance_first_op.chargeClampedAtA0|0
+  R2A|B1.balance_first_op.charge_minus_need_aPNTs|2086260000000000000
+  R2A|B1.balance_first_op.userBurn_xPNTs|149456340000000000000
+  R2A|B1.balance_first_op.userDebtDelta_xPNTs|0
+  R2A|B1.balance_first_op.testFrameGas_handleOps|1429516
+  R2A|B1.balance_second_op.bundleReverted|0
+  R2A|B1.balance_second_op.success|1
+  R2A|B1.balance_second_op.userRevertEvent|0
+  R2A|B1.balance_second_op.postOpReverted|0
+  R2A|B1.balance_second_op.postOpRevertSelector|0
+  R2A|B1.balance_second_op.postOpRevertReasonLen|0
+  R2A|B1.balance_second_op.prefundTooLow|0
+  R2A|B1.balance_second_op.actualGasUsed|771229
+  R2A|B1.balance_second_op.actualGasCost_wei|771229000000000
+  R2A|B1.balance_second_op.spEpDepositDelta_wei|771229000000000
+  R2A|B1.balance_second_op.charge_aPNTs|99783530000000000000
+  R2A|B1.balance_second_op.need_aPNTs(full cost at snapshot)|84835190000000000000
+  R2A|B1.balance_second_op.chargeCoversNeed(I9/G2)|1
+  R2A|B1.balance_second_op.a0(clamp)|726000000000000000000
+  R2A|B1.balance_second_op.chargeClampedAtA0|0
+  R2A|B1.balance_second_op.charge_minus_need_aPNTs|14948340000000000000
+  R2A|B1.balance_second_op.userBurn_xPNTs|99783530000000000000
+  R2A|B1.balance_second_op.userDebtDelta_xPNTs|0
+  R2A|B1.balance_second_op.testFrameGas_handleOps|353824
+  R2A|B1.credit_first_op.bundleReverted|0
+  R2A|B1.credit_first_op.success|1
+  R2A|B1.credit_first_op.userRevertEvent|0
+  R2A|B1.credit_first_op.postOpReverted|0
+  R2A|B1.credit_first_op.postOpRevertSelector|0
+  R2A|B1.credit_first_op.postOpRevertReasonLen|0
+  R2A|B1.credit_first_op.prefundTooLow|0
+  R2A|B1.credit_first_op.actualGasUsed|1226508
+  R2A|B1.credit_first_op.actualGasCost_wei|1226508000000000
+  R2A|B1.credit_first_op.spEpDepositDelta_wei|1226508000000000
+  R2A|B1.credit_first_op.charge_aPNTs|126894020000000000000
+  R2A|B1.credit_first_op.need_aPNTs(full cost at snapshot)|134915880000000000000
+  R2A|B1.credit_first_op.chargeCoversNeed(I9/G2)|0
+  R2A|B1.credit_first_op.a0(clamp)|726000000000000000000
+  R2A|B1.credit_first_op.chargeClampedAtA0|0
+  R2A|B1.credit_first_op.charge_minus_need_aPNTs|-8021860000000000000
+  R2A|B1.credit_first_op.userBurn_xPNTs|0
+  R2A|B1.credit_first_op.userDebtDelta_xPNTs|126894020000000000000
+  R2A|B1.credit_first_op.testFrameGas_handleOps|1326624
+  R2A|B1.balance_user_call_reverts.bundleReverted|0
+  R2A|B1.balance_user_call_reverts.success|0
+  R2A|B1.balance_user_call_reverts.userRevertEvent|0
+  R2A|B1.balance_user_call_reverts.postOpReverted|0
+  R2A|B1.balance_user_call_reverts.postOpRevertSelector|0
+  R2A|B1.balance_user_call_reverts.postOpRevertReasonLen|0
+  R2A|B1.balance_user_call_reverts.prefundTooLow|0
+  R2A|B1.balance_user_call_reverts.actualGasUsed|1288926
+  R2A|B1.balance_user_call_reverts.actualGasCost_wei|1288926000000000
+  R2A|B1.balance_user_call_reverts.spEpDepositDelta_wei|1288926000000000
+  R2A|B1.balance_user_call_reverts.charge_aPNTs|144406240000000000000
+  R2A|B1.balance_user_call_reverts.need_aPNTs(full cost at snapshot)|141781860000000000000
+  R2A|B1.balance_user_call_reverts.chargeCoversNeed(I9/G2)|1
+  R2A|B1.balance_user_call_reverts.a0(clamp)|612000000000000000000
+  R2A|B1.balance_user_call_reverts.chargeClampedAtA0|0
+  R2A|B1.balance_user_call_reverts.charge_minus_need_aPNTs|2624380000000000000
+  R2A|B1.balance_user_call_reverts.userBurn_xPNTs|144406240000000000000
+  R2A|B1.balance_user_call_reverts.userDebtDelta_xPNTs|0
+  R2A|B1.balance_user_call_reverts.testFrameGas_handleOps|1479172
+  R2A|B1.balance_user_writes_1_fresh_slots.bundleReverted|0
+  R2A|B1.balance_user_writes_1_fresh_slots.success|1
+  R2A|B1.balance_user_writes_1_fresh_slots.userRevertEvent|0
+  R2A|B1.balance_user_writes_1_fresh_slots.postOpReverted|0
+  R2A|B1.balance_user_writes_1_fresh_slots.postOpRevertSelector|0
+  R2A|B1.balance_user_writes_1_fresh_slots.postOpRevertReasonLen|0
+  R2A|B1.balance_user_writes_1_fresh_slots.prefundTooLow|0
+  R2A|B1.balance_user_writes_1_fresh_slots.actualGasUsed|1440891
+  R2A|B1.balance_user_writes_1_fresh_slots.actualGasCost_wei|1440891000000000
+  R2A|B1.balance_user_writes_1_fresh_slots.spEpDepositDelta_wei|1440891000000000
+  R2A|B1.balance_user_writes_1_fresh_slots.charge_aPNTs|161817810000000000000
+  R2A|B1.balance_user_writes_1_fresh_slots.need_aPNTs(full cost at snapshot)|158498010000000000000
+  R2A|B1.balance_user_writes_1_fresh_slots.chargeCoversNeed(I9/G2)|1
+  R2A|B1.balance_user_writes_1_fresh_slots.a0(clamp)|726000000000000000000
+  R2A|B1.balance_user_writes_1_fresh_slots.chargeClampedAtA0|0
+  R2A|B1.balance_user_writes_1_fresh_slots.charge_minus_need_aPNTs|3319800000000000000
+  R2A|B1.balance_user_writes_1_fresh_slots.userBurn_xPNTs|161817810000000000000
+  R2A|B1.balance_user_writes_1_fresh_slots.userDebtDelta_xPNTs|0
+  R2A|B1.balance_user_writes_1_fresh_slots.testFrameGas_handleOps|1542661
+  R2A|B1.balance_user_writes_1_fresh_slots.executionKept|1
+  R2A|B1.balance_user_writes_1_fresh_slots.lockedAfter|0
+  R2A|B1.balance_user_writes_2_fresh_slots.bundleReverted|0
+  R2A|B1.balance_user_writes_2_fresh_slots.success|1
+  R2A|B1.balance_user_writes_2_fresh_slots.userRevertEvent|0
+  R2A|B1.balance_user_writes_2_fresh_slots.postOpReverted|0
+  R2A|B1.balance_user_writes_2_fresh_slots.postOpRevertSelector|0
+  R2A|B1.balance_user_writes_2_fresh_slots.postOpRevertReasonLen|0
+  R2A|B1.balance_user_writes_2_fresh_slots.prefundTooLow|0
+  R2A|B1.balance_user_writes_2_fresh_slots.actualGasUsed|1540063
+  R2A|B1.balance_user_writes_2_fresh_slots.actualGasCost_wei|1540063000000000
+  R2A|B1.balance_user_writes_2_fresh_slots.spEpDepositDelta_wei|1540063000000000
+  R2A|B1.balance_user_writes_2_fresh_slots.charge_aPNTs|173938820000000000000
+  R2A|B1.balance_user_writes_2_fresh_slots.need_aPNTs(full cost at snapshot)|169406930000000000000
+  R2A|B1.balance_user_writes_2_fresh_slots.chargeCoversNeed(I9/G2)|1
+  R2A|B1.balance_user_writes_2_fresh_slots.a0(clamp)|726000000000000000000
+  R2A|B1.balance_user_writes_2_fresh_slots.chargeClampedAtA0|0
+  R2A|B1.balance_user_writes_2_fresh_slots.charge_minus_need_aPNTs|4531890000000000000
+  R2A|B1.balance_user_writes_2_fresh_slots.userBurn_xPNTs|173938820000000000000
+  R2A|B1.balance_user_writes_2_fresh_slots.userDebtDelta_xPNTs|0
+  R2A|B1.balance_user_writes_2_fresh_slots.testFrameGas_handleOps|1652940
+  R2A|B1.balance_user_writes_2_fresh_slots.executionKept|1
+  R2A|B1.balance_user_writes_2_fresh_slots.lockedAfter|0
+  R2A|B1.balance_user_writes_3_fresh_slots.bundleReverted|0
+  R2A|B1.balance_user_writes_3_fresh_slots.success|1
+  R2A|B1.balance_user_writes_3_fresh_slots.userRevertEvent|0
+  R2A|B1.balance_user_writes_3_fresh_slots.postOpReverted|0
+  R2A|B1.balance_user_writes_3_fresh_slots.postOpRevertSelector|0
+  R2A|B1.balance_user_writes_3_fresh_slots.postOpRevertReasonLen|0
+  R2A|B1.balance_user_writes_3_fresh_slots.prefundTooLow|0
+  R2A|B1.balance_user_writes_3_fresh_slots.actualGasUsed|1639235
+  R2A|B1.balance_user_writes_3_fresh_slots.actualGasCost_wei|1639235000000000
+  R2A|B1.balance_user_writes_3_fresh_slots.spEpDepositDelta_wei|1639235000000000
+  R2A|B1.balance_user_writes_3_fresh_slots.charge_aPNTs|186059830000000000000
+  R2A|B1.balance_user_writes_3_fresh_slots.need_aPNTs(full cost at snapshot)|180315850000000000000
+  R2A|B1.balance_user_writes_3_fresh_slots.chargeCoversNeed(I9/G2)|1
+  R2A|B1.balance_user_writes_3_fresh_slots.a0(clamp)|726000000000000000000
+  R2A|B1.balance_user_writes_3_fresh_slots.chargeClampedAtA0|0
+  R2A|B1.balance_user_writes_3_fresh_slots.charge_minus_need_aPNTs|5743980000000000000
+  R2A|B1.balance_user_writes_3_fresh_slots.userBurn_xPNTs|186059830000000000000
+  R2A|B1.balance_user_writes_3_fresh_slots.userDebtDelta_xPNTs|0
+  R2A|B1.balance_user_writes_3_fresh_slots.testFrameGas_handleOps|1763220
+  R2A|B1.balance_user_writes_3_fresh_slots.executionKept|1
+  R2A|B1.balance_user_writes_3_fresh_slots.lockedAfter|0
+  R2A|B1.credit_user_writes_1_fresh_slots.bundleReverted|0
+  R2A|B1.credit_user_writes_1_fresh_slots.success|1
+  R2A|B1.credit_user_writes_1_fresh_slots.userRevertEvent|0
+  R2A|B1.credit_user_writes_1_fresh_slots.postOpReverted|0
+  R2A|B1.credit_user_writes_1_fresh_slots.postOpRevertSelector|0
+  R2A|B1.credit_user_writes_1_fresh_slots.postOpRevertReasonLen|0
+  R2A|B1.credit_user_writes_1_fresh_slots.prefundTooLow|0
+  R2A|B1.credit_user_writes_1_fresh_slots.actualGasUsed|1327671
+  R2A|B1.credit_user_writes_1_fresh_slots.actualGasCost_wei|1327671000000000
+  R2A|B1.credit_user_writes_1_fresh_slots.spEpDepositDelta_wei|1327671000000000
+  R2A|B1.credit_user_writes_1_fresh_slots.charge_aPNTs|139255490000000000000
+  R2A|B1.credit_user_writes_1_fresh_slots.need_aPNTs(full cost at snapshot)|146043810000000000000
+  R2A|B1.credit_user_writes_1_fresh_slots.chargeCoversNeed(I9/G2)|0
+  R2A|B1.credit_user_writes_1_fresh_slots.a0(clamp)|726000000000000000000
+  R2A|B1.credit_user_writes_1_fresh_slots.chargeClampedAtA0|0
+  R2A|B1.credit_user_writes_1_fresh_slots.charge_minus_need_aPNTs|-6788320000000000000
+  R2A|B1.credit_user_writes_1_fresh_slots.userBurn_xPNTs|0
+  R2A|B1.credit_user_writes_1_fresh_slots.userDebtDelta_xPNTs|139255490000000000000
+  R2A|B1.credit_user_writes_1_fresh_slots.testFrameGas_handleOps|1439918
+  R2A|B1.credit_user_writes_1_fresh_slots.executionKept|1
+  R2A|B1.credit_user_writes_2_fresh_slots.bundleReverted|0
+  R2A|B1.credit_user_writes_2_fresh_slots.success|1
+  R2A|B1.credit_user_writes_2_fresh_slots.userRevertEvent|0
+  R2A|B1.credit_user_writes_2_fresh_slots.postOpReverted|0
+  R2A|B1.credit_user_writes_2_fresh_slots.postOpRevertSelector|0
+  R2A|B1.credit_user_writes_2_fresh_slots.postOpRevertReasonLen|0
+  R2A|B1.credit_user_writes_2_fresh_slots.prefundTooLow|0
+  R2A|B1.credit_user_writes_2_fresh_slots.actualGasUsed|1426843
+  R2A|B1.credit_user_writes_2_fresh_slots.actualGasCost_wei|1426843000000000
+  R2A|B1.credit_user_writes_2_fresh_slots.spEpDepositDelta_wei|1426843000000000
+  R2A|B1.credit_user_writes_2_fresh_slots.charge_aPNTs|151376500000000000000
+  R2A|B1.credit_user_writes_2_fresh_slots.need_aPNTs(full cost at snapshot)|156952730000000000000
+  R2A|B1.credit_user_writes_2_fresh_slots.chargeCoversNeed(I9/G2)|0
+  R2A|B1.credit_user_writes_2_fresh_slots.a0(clamp)|726000000000000000000
+  R2A|B1.credit_user_writes_2_fresh_slots.chargeClampedAtA0|0
+  R2A|B1.credit_user_writes_2_fresh_slots.charge_minus_need_aPNTs|-5576230000000000000
+  R2A|B1.credit_user_writes_2_fresh_slots.userBurn_xPNTs|0
+  R2A|B1.credit_user_writes_2_fresh_slots.userDebtDelta_xPNTs|151376500000000000000
+  R2A|B1.credit_user_writes_2_fresh_slots.testFrameGas_handleOps|1550192
+  R2A|B1.credit_user_writes_2_fresh_slots.executionKept|1
+  R2A|B1.credit_user_writes_3_fresh_slots.bundleReverted|0
+  R2A|B1.credit_user_writes_3_fresh_slots.success|1
+  R2A|B1.credit_user_writes_3_fresh_slots.userRevertEvent|0
+  R2A|B1.credit_user_writes_3_fresh_slots.postOpReverted|0
+  R2A|B1.credit_user_writes_3_fresh_slots.postOpRevertSelector|0
+  R2A|B1.credit_user_writes_3_fresh_slots.postOpRevertReasonLen|0
+  R2A|B1.credit_user_writes_3_fresh_slots.prefundTooLow|0
+  R2A|B1.credit_user_writes_3_fresh_slots.actualGasUsed|1526015
+  R2A|B1.credit_user_writes_3_fresh_slots.actualGasCost_wei|1526015000000000
+  R2A|B1.credit_user_writes_3_fresh_slots.spEpDepositDelta_wei|1526015000000000
+  R2A|B1.credit_user_writes_3_fresh_slots.charge_aPNTs|163497510000000000000
+  R2A|B1.credit_user_writes_3_fresh_slots.need_aPNTs(full cost at snapshot)|167861650000000000000
+  R2A|B1.credit_user_writes_3_fresh_slots.chargeCoversNeed(I9/G2)|0
+  R2A|B1.credit_user_writes_3_fresh_slots.a0(clamp)|726000000000000000000
+  R2A|B1.credit_user_writes_3_fresh_slots.chargeClampedAtA0|0
+  R2A|B1.credit_user_writes_3_fresh_slots.charge_minus_need_aPNTs|-4364140000000000000
+  R2A|B1.credit_user_writes_3_fresh_slots.userBurn_xPNTs|0
+  R2A|B1.credit_user_writes_3_fresh_slots.userDebtDelta_xPNTs|163497510000000000000
+  R2A|B1.credit_user_writes_3_fresh_slots.testFrameGas_handleOps|1660466
+  R2A|B1.credit_user_writes_3_fresh_slots.executionKept|1
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 20.88ms (19.07ms CPU time)
+
+Ran 1 test suite in 22.20ms (20.88ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

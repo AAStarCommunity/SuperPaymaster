@@ -16,7 +16,7 @@ report (`SuperPaymaster.sol/SuperPaymaster.json`, `….registry-size.json`, `…
 | line | which bytes it executed | equal to rc.4 release bytes? | consequence |
 |---|---|---|---|
 | **B layer** (`b-layer/amsterdam/{a,b,c,c-rundler-mvg6m}`) | SP impl, SuperPaymasterAdmin (created by the SP constructor), Lens, Registry impl, xPNTsTokenV2 impl, xPNTsTokenV2Ext, xPNTsFactoryV2, AOAProtocolRegistry, GlobalTierSource = the **profile.default (release) variants** (§3) | **yes**, for every release-list contract the stack contains (APNTsCapped is not part of the B stack) | B numbers stand as release-byte measurements |
-| **G layer, R-AMS-2a scratch** (`data/rams-2a/logs/scratch/`) | the **`registry-size` variants** (optimizer runs **200**) of SuperPaymaster, SuperPaymasterAdmin, xPNTsTokenV2, xPNTsTokenV2Ext, xPNTsFactoryV2, AOAProtocolRegistry, GlobalTierSource, ERC1967Proxy, SimpleAccount(+Factory) (§4.1) | **no** (release = runs 500) | R-AMS-2a G numbers are **diagnostic**. Re-tested with the release bytes (§4.2): every verdict is unchanged; gas numbers move by −630…+16,675 gas (table §4.3) |
+| **G layer, R-AMS-2a scratch** (`data/rams-2a/logs/scratch/`) | the **`registry-size` variants** (optimizer runs **200**) of SuperPaymaster, SuperPaymasterAdmin, xPNTsTokenV2, xPNTsTokenV2Ext, xPNTsFactoryV2, AOAProtocolRegistry, GlobalTierSource, ERC1967Proxy, SimpleAccount(+Factory) (§4.1) | **no** (release = runs 500) | R-AMS-2a G numbers are **diagnostic**. Re-tested with the release bytes (§4.2): every verdict is unchanged. Gas-unit deltas (release − R-AMS-2a, 429 compared gas values): measured rows 80 down (−612 … −13), 16 up (15 frame-gas rows +290 … +600, initCode v +16,675), 314 zero; derived difference rows 6 down (−1,123 … −1), 13 zero (§4.3, [`g_delta.md`](g_delta.md)) |
 | G layer, deployment table (R-AMS-2a §6) | init code taken from the profile.default artifacts (`rams-2a/deploy/resolve.log`: `SuperPaymaster.json`, `Registry.json`, … `.default.json`) | **yes** by artifact identity (40/40 variants byte-identical across forge 1.7.1-cancun, nightly-prague and nightly-cancun, §2.2); not re-run | stands |
 
 The compiler line (forge 1.7.1 vs nightly, `--evm-version cancun` vs `prague`) does **not** change any byte (§2.2). The
@@ -25,20 +25,21 @@ difference comes from **which compile unit's code a test creates**: a test that 
 embeds that job's `X` — not the shipped runs-500 artifact.
 
 A second, larger fixture effect was found while re-testing and is reported in R2-F2 (`../rams-f2/REPORT.md` §2): the
-R-AMS-2a scratch ran with `--no-isolate` (the whole test is one transaction, so storage written during setup is warm and not
-fresh). With `--isolate` (each `handleOps` its own transaction, as on chain and in the B layer) the G numbers rise
-(pmV 819,940 → 882,357) and match the B layer to within 18 gas. §4.4 lists the `--isolate` re-run of the same measurements.
+R-AMS-2a scratch ran with `--no-isolate` (the whole test is one transaction). With `--isolate` (each `handleOps` its own
+transaction, as on chain and in the B layer) the G numbers rise (pmV 819,940 → 882,357) and match the B layer to within
+18 gas. The rise is consistent with storage written earlier in the same transaction being warm and no longer zero (no
+EIP-8037 zero→non-zero charge) under `--no-isolate`; this was not traced at opcode level. §4.4 lists the `--isolate` re-run of the same measurements.
 
 ## 1. Tools and build
 
 | item | value |
 |---|---|
-| tag | `v5.5.0-rc.4`, tag object `67f78f60…`, peeled **`fbd74fb1e2e9d948996e6d6c02c48dc1c1778107`**; `contracts/src` tree `f1d39b5b…` = `origin/main` = `79c0c6f` (R-AMS-2a) = `c3eb1011` (B layer); `foundry.toml` `065d0bd7…` in all four; `git diff fbd74fb1 origin/main` touches no `.sol` file (only lockfiles under `singleton-paymaster/lib`) |
+| tag | `v5.5.0-rc.4`, tag object `67f78f60…`, peeled **`fbd74fb1e2e9d948996e6d6c02c48dc1c1778107`**; `contracts/src` tree `f1d39b5b…` = `origin/main` = `79c0c6f` (R-AMS-2a) = `c3eb1011` (B layer); `foundry.toml` `065d0bd7…` in all four. `git diff fbd74fb1 5ae59926` (origin/main when this item started; the current origin/main `f7eefb19` has the same two hashes) touches **353 files, none under `contracts/` and no `.sol` file**: `docs/design` 252, `docs/release` 63, `script/b-layer` 16, `script/evidence` 6, `script/gasless-tests/{package.json,pnpm-lock.yaml}`, `packages/x402-facilitator-node/{package.json,pnpm-lock.yaml}`, `scripts/{merge-preflight.sh,test_merge_preflight_strict.py}`, `.github/workflows/preflight-selftest.yml` (added), `CHANGELOG.md`, `README.md`, and 7 files under `singleton-paymaster/lib` (6 lockfiles + `openzeppelin-contracts-v5.1.0/package.json`). Full list: [`git-diff-rc4-vs-main.txt`](git-diff-rc4-vs-main.txt). The `contracts/src` tree `f1d39b5b…` and `foundry.toml` blob `065d0bd7…` are identical on both sides |
 | build | `git worktree add /tmp/rc4 fbd74fb1`, submodules `contracts/lib/{chainlink-brownie-contracts,solady}` at the recorded gitlinks; **`/tmp/fd/v1.7.1/forge build --offline`** (no `FOUNDRY_PROFILE` = profile.default, as `deploy-core`); log `builds/rc4-build.log.gz` |
 | forge 1.7.1 | `foundry_v1.7.1_linux_amd64.tar.gz` sha256 `cf7e688e…c88b` = release `.sha256`; forge `4f77da08…355c` |
 | nightly | `nightly-926eb1d087523f1de437e3c0c49ea6d26407e827`, tarball sha256 `df74eb56…a6a1` = release `.sha256`; forge `9f19c41c…db85`, anvil `7f483b2a…5142` |
 | solc | 0.8.33+commit.64118f21 (`solc-static-linux` from the GitHub release, sha256 `1274e5c4…5468`) |
-| records | `checksums/tools.sha256.txt` (all of the above + Rundler/Alto commits), `checksums/f4art.sha256.txt`, `checksums/fixture.sha256.txt` |
+| records | `checksums/tools.sha256.txt` (all of the above + Rundler/Alto commits), `checksums/f4art.sha256.txt` (the eight G re-run inputs; each equals a committed `artifacts/` file, mapping in §4.2), `checksums/fixture.sha256.txt` |
 | other builds of the same tree (§2.2) | nightly `--evm-version prague` → `/tmp/g-out-prague`, nightly default (cancun) → `/tmp/g-out-cancun`, forge 1.7.1 of this checkout (`out/`, used by the B scripts); logs `builds/*.log.gz` |
 
 ## 2. rc.4 artifacts (forge 1.7.1, profile.default)
@@ -66,7 +67,7 @@ zeroed, the full `immutableReferences` map (AST id → byte ranges), `linkRefere
 contract also has a `registry-size` variant (runs 200, e.g. SP runtime 13,334 B `0x81adb28b…`), except Registry itself.
 
 Common to all artifacts: **no library links** (`linkReferences` empty in creation and runtime of all 40 variants);
-`bytecode_hash = "none"`, so the runtime CBOR tail is `0xa164736f6c6343000821` = `{solc: 0.8.33}` with no metadata hash;
+`bytecode_hash = "none"`, so the runtime ends with the CBOR map `a164736f6c6343000821` = `{solc: 0.8.33}` (10 bytes) followed by its 2-byte big-endian length `000a`, i.e. the last 12 bytes of every runtime are **`0xa164736f6c6343000821000a`** (checked: all 28 runtimes in the committed `artifacts/` end with these 12 bytes); no metadata hash;
 the metadata JSON is identified by `rawMetadataKeccak` (it differs between forge 1.7.1 and nightly only in its JSON text,
 e.g. `evmVersion`; it is not embedded in the code).
 
@@ -143,17 +144,37 @@ Hence the R-AMS-2a G numbers were **not** measured on rc.4 release bytes. They a
 Throwaway copy of the rc.4 tree (`/tmp/f4g`), R-AMS-2a scratch restored (sha256 `7098abba…` = committed
 `rams-2a/scratch/Rams2a.t.sol.txt`), plus one added test `test_B4b` (band at the proposed SETTLE 420k). In the copy of
 `SuperPaymasterV55Gas.t.sol` every product contract the fixture creates is deployed with **`deployCode()` from the rc.4
-forge-1.7.1 profile.default artifact JSON** (`f4art/`, sha256 in `checksums/f4art.sha256.txt`): SuperPaymaster impl (its
+forge-1.7.1 profile.default artifact JSON**, read from `f4art/<Name>.json` in the throwaway tree. `f4art/` is not committed separately: each of its eight files is byte-identical to a committed `artifacts/` file (`checksums/f4art.sha256.txt`; `scripts/setup_f4g.sh` recreates `f4art/` from `artifacts/` and checks the sha256): `SuperPaymaster.json`, `AOAProtocolRegistry.json`, `GlobalTierSource.json`, `xPNTsTokenV2.json`, `xPNTsTokenV2Ext.json`, `xPNTsFactoryV2.json` = `artifacts/<Name>.sol/<Name>.json`; `ERC1967Proxy.json` = `artifacts/ERC1967Proxy.sol/ERC1967Proxy.default.json`; `SimpleAccountFactory.json` = `artifacts/SimpleAccountFactory.sol/SimpleAccountFactory.default.json`. Deployed this way: SuperPaymaster impl (its
 constructor creates the Admin), ERC1967Proxy, AOAProtocolRegistry, GlobalTierSource, xPNTsTokenV2Ext, xPNTsTokenV2,
 xPNTsFactoryV2, SimpleAccountFactory (creates SimpleAccount). Diff: `fixture/artifact-run.diff`; full files
 `fixture/*.txt`. The deployed runtime was dumped and matched (`g-executed-bytecode-artifact-run.json`): **all equal to the
 release artifacts** (table §4.1, right column). Runtime: nightly forge, `--hardfork amsterdam`, `--no-isolate`,
-`--evm-version prague` for the test-only contracts, same flags as R-AMS-2a (`scripts/run_g.sh`; logs `logs/g/`,
-timeline `logs/g/timeline.txt`; the first B4 invocation used a pattern that matched no test and was re-run, as recorded).
+`--evm-version prague` for the test-only contracts, same flags as R-AMS-2a. Logs `logs/g/`, timeline `logs/g/timeline.txt`.
+In that first run the B4 pattern was `test_B4_no_oog_band$`, which matches no test (forge matches the regex against the name
+with its `()` suffix); B4 was re-run by hand with `test_B4_no_oog` (timeline lines 15–16 and 30–31). The committed
+`scripts/run_g.sh` was edited to `test_B4_no_oog` after that run; its header now records this.
+
+**Reproduction with the committed scripts (2026-10-23T06:26Z).** `scripts/setup_f4g.sh` (rebuilds `/tmp/f4g` from the rc.4
+worktree, `fixture/*.txt` and `artifacts/`, sha256-checked), then `scripts/run_g.sh logs/g-r2` (`--no-isolate`) and
+`scripts/run_g_isolate.sh logs/g-isolate-r2` (`--isolate --gas-limit 100000000000`). Every log starts with `# cmd:` (the full
+forge command line), `# env:`, `# forge:` (version + binary sha256) and `# tree:` (commit, `contracts/src` tree,
+`foundry.toml` blob, fixture sha256) lines; each timeline starts with the script's sha256. Result
+([`logs/rerun-check.txt`](logs/rerun-check.txt), `scripts/rerun_check.sh`): the `R2A|` rows of all 14 `--no-isolate` and all 13
+`--isolate` logs are **identical** to the original `logs/g/` and `logs/g-isolate/` logs.
 
 ### 4.3 Result: R-AMS-2a (runs-200 variants) vs release bytes, same flags (`--no-isolate`)
 
 Full per-row diff of all 552 compared keys: **[`g_cmp.md`](g_cmp.md)** (340 identical, 212 differ, 0 missing).
+Per-value gas deltas (release − R-AMS-2a, `scripts/delta_g.py` → **[`g_delta.md`](g_delta.md)**; values ≥ 1e11 are wei /
+1e18-scaled aPNTs, not gas, and are excluded):
+
+| class | values | down (range) | up (range) | zero |
+|---|---|---|---|---|
+| measured gas rows | 410 | 80 (**−612** `B1.balance_user_writes_1_fresh_slots.actualGasUsed` … −13 `B6.releaseStaleSponsorship.gasRefunded`) | 16: 15 test-frame rows (`testFrameGas_handleOps`, `handleOps_frame_gas`) **+290 … +600** (`B6.I8_settle_failure.testFrameGas_handleOps`), and initCode v **+16,675** | 314 |
+| derived gas rows (difference of two measurements) | 19 | 6 (**−1,123** `B7.balance_user_writes_1.actualGasUsed_minus_frameGas` … −1) | 0 | 13 |
+
+The frame-gas rows (gas the test's call frame spent on `handleOps`) rise while the ops' `actualGasUsed` falls, so the
+derived `actualGasUsed − frameGas` rows fall by more than either (−843 / −1,123 / −1,122 for B7 writes 0 / 1 / 2).
 **No verdict changed** (every `settled`, `chargeCoversNeed`, `success`, `postOpReverted`, `prefundTooLow`, band-failure count
 and `settles_at_MIN` row is identical). Key numbers (`file:line` in `logs/g/` = same line in `rams-2a/logs/scratch/`):
 
@@ -188,10 +209,18 @@ runtime is 100 B vs 89 B in the `registry-size` unit, i.e. 11 more bytes of EIP-
 
 ### 4.4 Same release bytes under `--isolate` (diagnostic for R2-F2)
 
-`logs/g-isolate/` (same fixture and flags, `--isolate`, `--gas-limit 100000000000`; full diff vs §4.3:
+`logs/g-isolate/` (same fixture and flags, `--isolate`, `--gas-limit 100000000000`). The original isolate timeline
+(`logs/g-isolate/timeline.txt`) does not record the three `test_B3_min_{paymasterVerificationGasLimit,
+verificationGasLimit_account,callGasLimit}` runs; they were re-run with the committed `scripts/run_g_isolate.sh` together with
+every other isolate test: `logs/g-isolate-r2/` (timeline `logs/g-isolate-r2/timeline.txt`, full command line in each log;
+e.g. `test_B3_min_paymasterVerificationGasLimit_amsterdam_isolate.log:1` =
+`(cd /tmp/f4g && /tmp/fd/nightly/forge test --offline --isolate --gas-limit 100000000000 --evm-version prague --match-path
+contracts/test/zz_rams2a/Rams2a.t.sol -vv --match-test test_B3_min_paymasterVerificationGasLimit --hardfork amsterdam)`), rows
+identical to `logs/g-isolate/` (882,357 / 695,045 at `:14-15`; 129,390 / 823,722 in `…verificationGasLimit_account…:14-15`;
+4,715 / 118,354 / 232,071 in `…callGasLimit…:14-16`). Full diff vs §4.3:
 [`g_cmp_isolate_vs_noisolate.md`](g_cmp_isolate_vs_noisolate.md)). Each external call of the test becomes its own
-transaction, so the state the setup wrote is committed (cold and not fresh) when `handleOps` runs — the on-chain/B-layer
-situation. Not applicable to B4 (direct `postOp` after a separate validation call; in reality both are in one tx).
+transaction, so the state the setup wrote is committed before `handleOps` runs — the on-chain/B-layer situation (the
+warm/fresh-slot explanation of the difference is not traced, see §0). Not applicable to B4 (direct `postOp` after a separate validation call; in reality both are in one tx).
 
 | measurement | `--no-isolate` (§4.3) | **`--isolate`** |
 |---|---|---|
@@ -230,15 +259,32 @@ statement that the tested balance-mode cases at the current defaults meet the fe
 
 | path | content |
 |---|---|
-| `artifacts/` | the rc.4 forge-1.7.1 artifact JSONs: release list (shipped + `registry-size` variant each), Registry, ERC1967Proxy, SimpleAccount(+Factory) (both variants), TimelockController, MockAirAccount(+Factory); `f4art/` of the G re-run = the shipped files (same sha256) |
+| `artifacts/` | the rc.4 forge-1.7.1 artifact JSONs: release list (shipped + `registry-size` variant each), Registry, ERC1967Proxy, SimpleAccount(+Factory) (both variants), TimelockController, MockAirAccount(+Factory); the G re-run's `f4art/` (not committed) = eight of these files, mapping in §4.2, sha256 in `checksums/f4art.sha256.txt` |
+| `git-diff-rc4-vs-main.txt` | `git diff --name-status fbd74fb1 5ae59926` + the tree / blob hashes (§1) |
+| `g_delta.md` | per-value gas deltas, release bytes vs R-AMS-2a (§4.3) |
 | `identity.json` | consolidated: release list (10) with full identity + tag-record equality, other key contracts, canonical EntryPoint, cross-build equality (40 variants), executed-bytes mapping for G (both runs) and B (runtime + creation) |
 | `identity-rc4-forge171-default.json`, `identity-rc4-nightly-{prague,cancun}.json` | raw per-variant identity of each build (`scripts/identity.mjs`) |
 | `b-onchain/` | B re-deployment: `calibration.{json,log}`, `deploy.{json,log}`, `deploy-receipts.json`, `receipts.log`, `setup.{json,log}`, `onchain-identity.{json,txt}`, `creation-match.{json,txt}`, `versions.txt` |
 | `g-dump-original-fixture/`, `g-dump-artifact-run/` | runtime hex dumped by the two G fixtures + `addresses.txt`; matches in `g-executed-bytecode-*.json` |
 | `logs/g/` | G re-run logs (release bytes, `--no-isolate`), control log, `timeline.txt` |
 | `logs/g-isolate/` | the same under `--isolate`, plus `test_F2_matrix` (used by R2-F2), `timeline.txt` |
+| `logs/g-r2/`, `logs/g-isolate-r2/`, `logs/rerun-check.txt` | reproduction with the committed `run_g.sh` / `run_g_isolate.sh` (command line in every log); R2A rows identical to `logs/g/`, `logs/g-isolate/` |
 | `g_cmp.md`, `g_cmp_isolate_vs_noisolate.md`, `g_B1_derived.txt`, `g_B8_derived.txt` | row-by-row comparisons; bare / fee-inclusive columns (`rams-2a/scratch/derive.py`) |
 | `fixture/` | `artifact-run.diff`, `control-original-fixture.diff`, the fixture files used (`*.txt`) |
 | `builds/` | build logs (gzip) |
 | `checksums/` | tool, artifact-input and fixture sha256 records |
-| `scripts/` | `identity.mjs`, `match_dump.mjs`, `cmp_g.py`, `run_g.sh`, `build_identity.mjs`; B side: `script/b-layer/f4-onchain-run.sh`, `f4-identity-onchain.mjs`, `f4-creation-match.mjs` |
+| `scripts/` | `identity.mjs`, `match_dump.mjs`, `cmp_g.py`, `delta_g.py`, `setup_f4g.sh`, `run_g.sh`, `run_g_isolate.sh`, `rerun_check.sh`, `build_identity.mjs`; B side: `script/b-layer/f4-onchain-run.sh`, `f4-identity-onchain.mjs`, `f4-creation-match.mjs` |
+
+## 7. Changes vs 55cf7db7 (adversarial review)
+
+| # | where | before | now | verified against |
+|---|---|---|---|---|
+| 1 | §0 G row, §4.3 | "gas numbers move by −630…+16,675" | exact per-class ranges: measured 80 down −612 … −13, 16 up (+290 … +600 ×15, +16,675 ×1), 314 zero; derived 6 down −1,123 … −1, 13 zero | `scripts/delta_g.py` → `g_delta.md` over `rams-2a/logs/scratch` vs `logs/g` |
+| 3 | §4.2, §4.4, `scripts/` | isolate command not committed; `run_g.sh` hard-coded `--no-isolate`; isolate timeline lacked the three B3 `min_*` runs; B4 pattern differed from the timeline | `setup_f4g.sh`, `run_g.sh` (ISOLATE flag, command-line header per log, B4 history), `run_g_isolate.sh`; full re-run `logs/g-r2/`, `logs/g-isolate-r2/` with timelines; rows identical | `logs/rerun-check.txt` (27/27 IDENTICAL) |
+| 5 | §1 tag row | "`git diff fbd74fb1 origin/main` touches … only lockfiles" | the exact 353-file breakdown; `contracts/src` `f1d39b5b` and `foundry.toml` `065d0bd7` identical | `git-diff-rc4-vs-main.txt` |
+| 7 | §2.1 | CBOR tail `0xa164736f6c6343000821` | `0xa164736f6c6343000821000a` (map + length `000a`) | last 12 bytes of all 28 runtimes in `artifacts/*/*.json` |
+| 8 | §1, §4.2, §6 | `f4art/` cited as if committed | mapped to the committed `artifacts/` paths; `setup_f4g.sh` recreates and sha256-checks it | `checksums/f4art.sha256.txt` vs `sha256sum artifacts/*/*.json` (8/8 match) |
+
+| 4 | §0, §4.4 | warm / not-fresh storage stated as the cause of the isolate difference | "consistent with, not traced" | — |
+
+No measured value in §2–§4 changed. (Items 2 and 6 of the review concern `../rams-f2/REPORT.md`.)

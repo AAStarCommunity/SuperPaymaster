@@ -1,0 +1,25 @@
+# cmd: (cd /tmp/f4g && /tmp/fd/nightly/forge test --offline --no-isolate --evm-version prague --match-path contracts/test/zz_rams2a/Rams2a.t.sol -vv --match-test test_B4b --hardfork amsterdam)
+# env: FOUNDRY_ISOLATE=false FOUNDRY_OUT=/tmp/f4g-out FOUNDRY_CACHE_PATH=/tmp/f4g-cache FOUNDRY_DISABLE_NIGHTLY_WARNING=1
+# forge: forge Version: 1.8.7-nightly Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827 Build Timestamp: 2026-10-22T06:24:10.676280092Z (1792650250) Build Profile: dist sha256 9f19c41c970c64cfa1c836ef420e7ef071e032f22b617bf37c853a6866d5db85
+# tree: fbd74fb1e2e9d948996e6d6c02c48dc1c1778107 contracts/src f1d39b5bb4081c51e69c9b4a64346dd769193f31 foundry.toml 065d0bd7cd8e4d1de606cf438471c1f66fa5c659; Rams2a.t.sol aa0a26386054bfb290faa16e2dd7238ea83b2fc0d9b6e3d4e013a6fea357f8b2; SuperPaymasterV55Gas.t.sol e7f68b3358b848422c2a56b40658a693e1eae88a3b47d4f820013f0d72105793
+# start: 2026-10-23T06:26:11Z
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B4b_no_oog_band_at_proposed_420k() (gas: 163490610)
+Logs:
+  R2A|B4.balance_first_op.SETTLE_420000.min_settling_call_gas|428627
+  R2A|B4.balance_first_op.SETTLE_420000.min_call_gas_passing_guard|428627
+  R2A|B4.balance_first_op.SETTLE_420000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.balance_first_op.SETTLE_420000.oog_band_failures_step1k|0
+  R2A|B4.credit_first_op.SETTLE_420000.min_settling_call_gas|428627
+  R2A|B4.credit_first_op.SETTLE_420000.min_call_gas_passing_guard|428627
+  R2A|B4.credit_first_op.SETTLE_420000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.credit_first_op.SETTLE_420000.oog_band_failures_step1k|0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 27.76ms (25.88ms CPU time)
+
+Ran 1 test suite in 28.45ms (27.76ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

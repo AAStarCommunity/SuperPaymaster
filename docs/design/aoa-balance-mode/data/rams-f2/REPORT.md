@@ -28,14 +28,15 @@ None of them is an accepted default.**
    first op only, under `--no-isolate`, on `registry-size` bytes, with a SimpleAccount proxy factory; B took the maximum over
    all cases (fresh-SP SP_RENEW 998,874) with a factory that deploys a full 2,097-byte account. Unified per-row values: §1.
 3. **(d) = (c) with v 175,000 and initCode v 4,585,000**: **B6 is now included on Rundler, Alto and altoMulti**
-   (1,171,398 gas, postOp ok). v + pmV = 5,735,000 does not fit Rundler's default `max_verification_gas` 5,000,000 — all four
+   (op actualGasUsed 1,171,398; bundle tx gasUsed 820,279; postOp ok). v + pmV = 5,735,000 does not fit Rundler's default `max_verification_gas` 5,000,000 — all four
    B4 cases are rejected at precheck; with `--max_verification_gas 6000000` B4 behaves as on Osaka (3 stake rejections,
    B4-ok included). Fitting 5M is not possible with +15 % margin (§3).
 4. **PVG on Amsterdam (§4).** For the **first op through a fresh SP** the bundle tx costs more than the op's actualGasUsed
    unless PVG ≥ **52,593–52,629**. Rundler's acceptance floor is **46,152–46,200** (it under-recovers 6,409 gas on that op at
    its floor); **Alto v1.2.5 accepts PVG = 1** and then loses 52,592 gas on that op. For every other measured op (warm SP,
-   second op, credit, SP_RENEW, initCode, 3-op bundle) the op's actualGasUsed exceeds the tx gasUsed by 155k–351k even at
-   PVG 0 (break-even PVG negative).
+   second op, credit, SP_RENEW, initCode, 3-op bundle) the ops' actualGasUsed exceeds the tx gasUsed. Measured at PVG 100,000
+   per op: surplus 254,993–351,143 per single-op bundle (1,119,421 for the 3-op bundle = 373,140 per op). Recomputed for
+   PVG 0 (surplus − 100,000 per op): **154,993–273,139 per op** (= −break-even; break-even PVG negative).
 
 ## 1. Unified table (minimum per field, all other fields generous; same success predicate on both sides)
 
@@ -45,7 +46,9 @@ lower, so "440,000" is the floor, not a need (the true settle need at floor GasP
 limit on chain (any PVG passes `handleOps`); the PVG column is the bundler acceptance floor and the tx-level break-even of §4.
 
 **Sources.** G = `data/rams-f4/logs/g-isolate/test_F2_matrix_amsterdam_isolate.log` (release bytes, `--isolate`, GasParams
-440k/420k/5k/340k; line numbers below) and `test_B3_*_isolate.log`; B = `b-layer/amsterdam/<run>/matrix.json` `needs`
+440k/420k/5k/340k; line numbers below) and `test_B3_*_isolate.log`; reproduced with the committed
+`../rams-f4/scripts/run_g_isolate.sh` in `../rams-f4/logs/g-isolate-r2/` (same file names, the full forge command line in
+five `#` header lines at the top of each log; line numbers there differ from the original logs because of the header and of compile output, e.g. F2 rows `:12-15` → `:14-17`; R2A rows identical, `../rams-f4/logs/rerun-check.txt`); B = `b-layer/amsterdam/<run>/matrix.json` `needs`
 (probe `ams-probe.mjs`, generous baseline v 1.5M / 4M initCode, call 0.5M, pmV 2M, pmP 1.5M, PVG 100k).
 
 | # | account / factory | SP state | op of sender | flags | mode | **v** | **pmV** | **pmP** | **call** | **PVG** (accept floor; break-even) | source |
@@ -90,8 +93,8 @@ v 119,590 / 817,922, call (0 slots) 1,776.
 
 | # | fixture element | G | B | measured effect | evidence |
 |---|---|---|---|---|---|
-| F-1 | transaction boundaries | R-AMS-2a: `--no-isolate` — setup, validation and `handleOps` are one transaction, so slots the setup wrote are warm (100 vs 2,100/2,600) and not fresh (no EIP-8037 state gas for them) | every op its own transaction | pmV 819,940 → 882,357 (+62,417); v 119,590 → 129,390; call 1,776 → 4,715; postOp settle need 365,207 → 398,430; W_postop 177,106 → 211,106 | `../rams-f4/g_cmp_isolate_vs_noisolate.md` |
-| F-2 | contract bytes | R-AMS-2a: `registry-size` (runs 200) variants via `new` in the test | release (runs 500) | −630…−66 gas on most rows; initCode v **+16,675** (proxy 100 B vs 89 B) | `../rams-f4/REPORT.md` §4.3 |
+| F-1 | transaction boundaries | R-AMS-2a: `--no-isolate` — setup, validation and `handleOps` are one transaction | every op its own transaction | pmV 819,940 → 882,357 (+62,417); v 119,590 → 129,390; call 1,776 → 4,715; postOp settle need 365,207 → 398,430; W_postop 177,106 → 211,106. Cause **not traced**: the rise is *consistent with* slots written earlier in the same transaction being warm (100 vs 2,100/2,600) and no longer zero at their first `handleOps` write (so no EIP-8037 zero→non-zero state charge there), but no opcode-level trace comparing an SSTORE under the two modes was produced | `../rams-f4/g_cmp_isolate_vs_noisolate.md`; rows reproduced by `../rams-f4/logs/g-r2/`, `../rams-f4/logs/g-isolate-r2/` |
+| F-2 | contract bytes | R-AMS-2a: `registry-size` (runs 200) variants via `new` in the test | release (runs 500) | of 410 measured gas values: 80 down **−612 … −13**, 314 unchanged, 16 up: 15 test-frame rows **+290 … +600** and initCode v **+16,675** (proxy 100 B vs 89 B); of 19 derived difference rows: 6 down **−1,123 … −1**, 13 unchanged | `../rams-f4/REPORT.md` §4.3, `../rams-f4/g_delta.md` |
 | F-3 | account implementation | SimpleAccount v0.7: ERC1967 proxy `delegatecall` → impl, OZ ECDSA, owner SLOAD | MockAirAccount: direct contract, `ECDSA.recover`, owner SLOAD | v **+5,044** constant in both first-op (129,390 vs 124,346) and second-op (31,470 vs 26,426) rows; call for an `execute` that changes no state: 4,715 (G: `execute(writer, 0, w(_, 0))`) vs 3,696 (B: `execute(0xdEaD, 0, "")`) | rows G1/B1, G7/B7 |
 | F-4 | factory / deployment model | SimpleAccountFactory: CREATE2 of a 100 B proxy + `initialize` | MockAirAccountFactory: CREATE2 of the full 2,097 B account + `initialize` (3 slots) + factory counter | v 823,722 vs 3,885,095: EIP-8037 code deposit 1,530/B → 2,097 B = 3,208,410 vs 100 B = 153,000 (Δ 3,055,410 of the 3,061,373 Δv); B4-ok vs other factories: exactly **97,920** = one fresh SSTORE (the `deployments` counter 0 → 1) | rows G9/B9/B9b |
 | F-5 | credit tier source | `V55Registry` mock (`setCreditLimit`) | real Registry behind ERC1967 proxy (`setCreditTier`), read in validation: access check `reg=2/12` (2 accounts / 12 slots) | credit pmV **+22,039** constant (fresh 695,036 vs 717,075; warm 597,116 vs 619,155). Attribution to the Registry reads is from the access sets, not from a gas trace | rows G2/B2, G5/B5; `b-layer/amsterdam/d/access-check.txt` (B7) |
@@ -129,11 +132,11 @@ rundler`, toolchain 1.92.0, protoc 29.3; Alto `pnpm@8.15.4 install --frozen-lock
 
 | case | need v / pmV | Rundler default (5M cap) | Rundler `--max_verification_gas 6000000` | Alto v1.2.5 | altoMulti | (c) for comparison |
 |---|---|---|---|---|---|---|
-| **B6** account renew | 150,839 / 772,646 | ✅ **included**, 1,171,398, postOp ok | ✅ **included**, 1,171,398 | ✅ **included**, 1,171,398 | ✅ included | Rundler reject (AA26), Alto accepted-not-included |
+| **B6** account renew | 150,839 / 772,646 | ✅ **included**, op actualGasUsed 1,171,398 (bundle tx gasUsed 820,279), postOp ok | ✅ **included**, actualGasUsed 1,171,398 (tx 820,279) | ✅ **included**, actualGasUsed 1,171,398 (tx 820,279) | ✅ included, actualGasUsed 1,171,398 (tx 820,279) | Rundler reject (AA26), Alto accepted-not-included |
 | **B4-unstaked** | 3,983,015 / 784,491 | ❌ `-32000 precheck failed: verificationGasLimit is 5735000 but must be at most 5000000` | ❌ `-32502 entity stake/unstake delay too low` (rule) | ❌ `-32502 unstaked factory accessed factory slot 0x0` (rule) | ❌ same (rule) | same pattern (5,750,000) |
 | **B4-lowStake** (0.5 ETH) | 3,983,015 / 784,491 | ❌ precheck (same) | ❌ `-32502 entity stake/unstake delay too low` | ✅ included 5,015,419 (D1) | ✅ included (D1) | same |
 | **B4-shortDelay** (3600 s) | 3,983,015 / 784,491 | ❌ precheck (same) | ❌ `-32502 entity stake/unstake delay too low` | ✅ included 5,015,419 (Alto default delay) | ✅ included (D1, 86400 configured) | same |
-| **B4-ok** (1 ETH / 86400 s) | 3,885,095 / 784,491 | ❌ precheck (same) | ✅ **included** 4,917,499 (bundle tx 4,568,024 / limit 6,616,036) | ✅ included 4,917,499 | ✅ included | Rundler precheck; Alto included |
+| **B4-ok** (1 ETH / 86400 s) | 3,885,095 / 784,491 | ❌ precheck (same) | ✅ **included**, actualGasUsed 4,917,499 (bundle tx gasUsed 4,568,024 / limit 6,616,036) | ✅ included, actualGasUsed 4,917,499 | ✅ included | Rundler precheck; Alto included |
 
 Per bundler (20 ops each + B10 estimate-only): (d) Rundler 11 included / 3 accepted-not-included (B2b, F1) / 6 rejected
 (B9-below by rule, B4 ×4 precheck, B2-aftermath banned); Alto and altoMulti 16 included / 4 rejected (B3 #2, #3 D2;
@@ -237,4 +240,17 @@ PVG 100k, tx gas 16M, fee 0.1 gwei.
 | `b-layer/amsterdam/d-rundler-mvg6m/` | (d′) Rundler with `--max_verification_gas 6000000` |
 | `b-layer/amsterdam/d-pvg/` | §4: `pvg-{direct,rundler,alto}.{json,log}`, bundler logs, deploy/setup/gasparams/calibration |
 | `data/rams-f4/logs/g-isolate/` | G rows (`test_F2_matrix`, `test_B3_*`) |
+| `data/rams-f4/logs/g-isolate-r2/` | the same rows re-run with the committed `run_g_isolate.sh` (command line in each log, timeline) |
 | `script/b-layer/ams-g1-run.sh` (variant d), `ams-pvg.mjs`, `ams-pvg-run.sh`, `f2-summary.mjs` | scripts added/changed for this item |
+
+## 8. Changes vs 55cf7db7 (adversarial review)
+
+| # | where | before | now | verified against |
+|---|---|---|---|---|
+| 1 | §2 F-2 | "−630…−66 gas on most rows" | measured 80 down −612 … −13, 16 up (15 frame rows +290 … +600, initCode +16,675), 314 zero; derived 6 down −1,123 … −1, 13 zero | `../rams-f4/g_delta.md` (`delta_g.py` over `rams-2a/logs/scratch` vs `rams-f4/logs/g`) |
+| 2 | §0 item 4 | "exceeds the tx gasUsed by 155k–351k even at PVG 0" | at PVG 100k: 254,993–351,143 per single-op bundle (3-op 1,119,421 = 373,140/op); at PVG 0: 154,993–273,139 per op | `b-layer/amsterdam/d-pvg/pvg-direct.log` (surplus = sumActual − gasUsed; PVG-0 value = −breakEvenPVG/op) |
+| 4 | §2 F-1 | cause stated as fact ("slots warm, no EIP-8037 state gas") | "consistent with, not traced" | — (no trace produced) |
+| 6 | §0 item 3, §3 B6/B4-ok rows | "1,171,398" unlabeled | op actualGasUsed 1,171,398, bundle tx gasUsed 820,279 (as the B4-ok row) | `b-layer/amsterdam/d/f2-summary.txt:51,60,76,90` |
+| 3 | §1 sources, §7 | G isolate rows without a committed command | `../rams-f4/logs/g-isolate-r2/` from `run_g_isolate.sh`, identical rows | `../rams-f4/logs/rerun-check.txt` |
+
+No measured value changed. (Items 5, 7, 8 of the review concern `../rams-f4/REPORT.md`, see its §7.)
