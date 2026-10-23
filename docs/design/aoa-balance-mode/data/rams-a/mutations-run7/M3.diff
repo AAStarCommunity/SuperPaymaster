@@ -1,0 +1,11 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -698,7 +698,7 @@
+         sp.executeGasParams();
+         assertTrue(sp.paused(), "RAMS: pause holds through internal timelock");
+         _assertGas(false);
+-        vm.warp(eta);
++        vm.warp(eta - 1);
+         vm.prank(OWNER);
+         (bool activated,) = SP.call(abi.encodeWithSignature("executeGasParams()"));
+         require(activated, "RAMS A5: activation not mature");

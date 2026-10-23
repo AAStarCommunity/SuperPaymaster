@@ -1,0 +1,42 @@
+Route A evidence UTC: 2026-10-23T08:02:06Z
+Commit: fd2b5b5a3171c4efcf3bb785e8cf422a8c9120dc
+Dirty paths: 1
+  dirty:  M contracts/test/rams/RamsARouteRehearsal.t.sol
+forge Version: 1.8.7-nightly
+Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827
+Build Timestamp: 2026-10-22T06:12:29.900488000Z (1792649549)
+Build Profile: dist
+FORK_BLOCK=11974561
+OPERATORS=0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+RPC host: <redacted>
+FOUNDRY_ISOLATE=false
+Command: /Users/jason/Dev/aastar/tools/foundry-rams/nightly-926eb1d/forge test --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --match-test \^test_A7_readbackGate\\\(\\\)\$ --no-isolate --hardfork amsterdam -vv
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 7.89s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS gate: inventory commitment] test_A7_readbackGate() (block: 11974561) (gas: 468468)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 327.90ms (605.12µs CPU time)
+
+Ran 1 test suite in 328.33ms (327.90ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS gate: inventory commitment] test_A7_readbackGate() (block: 11974561) (gas: 468468)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

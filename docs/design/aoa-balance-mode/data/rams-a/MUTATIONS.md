@@ -1,6 +1,6 @@
 # Route A procedure mutations
 
-The current definitions are `mutations-def4/M1.diff` through `M16.diff` and `mutations-def4/targets.tsv` (Review 2). `mutations-run2/` keeps the previous 13 definitions byte-for-byte with its historical logs; run2 and run3 do not validate the Review 2 definitions. **Observed: `mutations-run5/` (commit 3d41bd98) CONTROL 15/15 GREEN, M1–M16 all KILLED by their expected assertion.** `mutations-run4/` is the preceding attempt (M15 WRONG-ASSERTION, mutant defect, fixed).
+The current definitions are `mutations-def4/M1.diff` through `M18.diff` and `mutations-def4/targets.tsv` (Review 3, regenerated at committed HEAD 1ef98867). **Observed: `mutations-run7/` (commit fd2b5b5a) CONTROL 15/15 GREEN, M1–M18 all KILLED by their expected assertion.** Superseded attempts: `mutations-run6/` (M16–M18 PATCH-FAILED: definitions generated before the edits were committed — the generator reads `git show HEAD:`, so **commit the test change first, then generate**), `mutations-run5/` (Review 2, 16 definitions), `mutations-run4/` (M15 WRONG-ASSERTION). `mutations-run2/` keeps the original 13 definitions byte-for-byte with their logs.
 
 After the owner establishes the reviewed rehearsal as HEAD, regenerate into a fresh directory and copy the target contract:
 

@@ -20,7 +20,7 @@ Offline verification is recorded in `review-2-offline.log`: requested build succ
 
 ## Review 3
 
-This is an offline, edit-only response at HEAD `e64568e3`. Historical Review 2 results remain in README “Current results”; revised fork controls and mutations await the owner’s rerun. The owner will supply Cancun and Prague results in `review-3-offline-gates.log`.
+This is an offline, edit-only response at HEAD `e64568e3`. Historical Review 2 results remain in README “Current results”; revised fork controls and mutations were then rerun by the owner: see README “Current results” (fork 15/15, `mutations-run7/` 18/18). The owner will supply Cancun and Prague results in `review-3-offline-gates.log`.
 
 | Finding | Change |
 | --- | --- |
@@ -35,4 +35,4 @@ This is an offline, edit-only response at HEAD `e64568e3`. Historical Review 2 r
 | LOW, mutation baseline and dirty guard | Runner refuses any porcelain entry under contracts/src, contracts/test, or foundry.toml. Generator reads HEAD’s test file; M16–M18 include only revised bodies required by their controls while M1–M15 stay unchanged. |
 | LOW, M17 and M18 | Added unique expected messages to targets.tsv. M17 retains active role and bypasses freeze read-back to reach the post-freeze exact-payload assertion. M18 executes an upgrade-and-pause batch before the distinct gap sponsorship assertion. |
 
-Review 3 offline verification is recorded in `review-3-validation.log`: build passed with warnings, six budget tests passed and all 15 fork tests skipped; four changed shell scripts passed `bash -n`; all 18 patches dry-ran against HEAD with zero fuzz and no offsets; M1–M15 were byte-identical; tooling diagnostics passed. This is separate from the owner’s `review-3-offline-gates.log`; no full-suite Cancun/Prague result is inferred here.
+Review 3 offline verification is recorded in `review-3-validation.log`: build passed with warnings, six budget tests passed and all 15 fork tests skipped; four changed shell scripts passed `bash -n`; all 18 patches (note: dry-run against the uncommitted working tree; against committed HEAD the old M16–M18 failed, see `mutations-run6/`) dry-ran against HEAD with zero fuzz and no offsets; M1–M15 were byte-identical; tooling diagnostics passed. This is separate from the owner’s `review-3-offline-gates.log`; no full-suite Cancun/Prague result is inferred here.
