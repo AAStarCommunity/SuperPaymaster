@@ -940,6 +940,94 @@ contract RamsARouteRehearsalTest is Test {
         assertTrue(sp.REGISTRY().hasRole(SUPER, OWNER), "RAMS: stop does not revoke existing grants");
     }
 
+    // Live ROLE_PAYMASTER_SUPER holders that are not configured SP operators at FORK_BLOCK
+    // (docs/design/aoa-balance-mode/data/rams-a/super-holders-11974561.json). Each holds COMMUNITY, has no factory
+    // token yet, and can therefore deploy one and configureOperator without any permission.
+    function _residualHolders() internal pure returns (address[3] memory r) {
+        r[0] = 0x2e72A258FD9e1C69B2B2bB6ED8bC7E94773f7b00;
+        r[1] = 0x368f8Cb8cCA42174B03156cEa761BaE31cEE5C94;
+        r[2] = 0xF92DC383c74eA30d7791b929d5872daD18679516;
+    }
+
+    function _activateResidual(address h, string memory sym) internal returns (address tok) {
+        assertTrue(sp.REGISTRY().hasRole(SUPER, h) && sp.REGISTRY().hasRole(COMMUNITY, h), "RAMS A6e: residual holder roles");
+        (, bool configured,,,,,,,) = sp.operators(h);
+        assertFalse(configured, "RAMS A6e: residual holder already configured");
+        vm.startPrank(h);
+        tok = RamsFactory(sp.xpntsFactory()).deployxPNTsToken(sym, sym, sym, "", 1 ether, address(0));
+        sp.configureOperator(tok, h);
+        vm.stopPrank();
+        _fundOperator(h);
+        _fundLegacyUser(tok);
+    }
+
+    function _validationData(address operator) internal returns (uint256 vd, uint256 contextLength) {
+        PackedUserOperation memory op = _op(operator, 440_000, false);
+        bytes32 h = ep.getUserOpHash(op); // compute before the prank: an external call in the arguments consumes it
+        uint256 maxCost = RamsBudget.maxCost(op);
+        uint256 snapshot = vm.snapshot();
+        vm.prank(EP);
+        (bytes memory context, uint256 v) = sp.validatePaymasterUserOp(op, h, maxCost);
+        assertTrue(vm.revertTo(snapshot), "RAMS A6e: probe rollback");
+        return (v, context.length);
+    }
+
+    /// Safe route, gap closure: before ownership moves to the timelock, the EOA owner pauses EVERY
+    /// ROLE_PAYMASTER_SUPER holder (configured or not; 5.4.2 setOperatorPaused does not check isConfigured and
+    /// configureOperator does not touch isPaused) and freezes new PAYMASTER_SUPER grants in the Registry.
+    function test_A6e_safeRoute_gapClosedByHolderPauseAndFreeze() public forkOnly {
+        address[3] memory residual = _residualHolders();
+        RamsRegistry reg = RamsRegistry(REGISTRY);
+        // Control: pausing only the configured operators leaves a residual holder free to activate and be sponsored.
+        uint256 control = vm.snapshot();
+        _pauseAll(true);
+        TimelockController tl = _timelock();
+        _transferToTimelock(tl);
+        vm.warp(vm.getBlockTimestamp() + 1 hours);
+        _freshPrice();
+        _activateResidual(residual[0], "rRESc");
+        (uint256 vdOpen, uint256 ctxOpen) = _validationData(residual[0]);
+        require(uint160(vdOpen) == 0 && ctxOpen == 160, "RAMS A6e control: residual holder not sponsorable when gap is open");
+        emit log("RAMS A6e control: residual holder self-activated and was sponsored in the open gap");
+        assertTrue(vm.revertTo(control), "RAMS A6e: control rollback");
+
+        // Closure, all while the EOA still owns SP and the Registry.
+        _pauseAll(true);
+        address spOwner = sp.owner();
+        for (uint256 i; i < residual.length; ++i) {
+            vm.prank(spOwner);
+            sp.setOperatorPaused(residual[i], true);
+            (, bool configured, bool stopped,,,,,,) = sp.operators(residual[i]);
+            require(!configured && stopped, "RAMS A6e: unconfigured holder pre-pause read-back");
+        }
+        IRegistry.RoleConfig memory config = reg.getRoleConfig(SUPER);
+        config.isActive = false;
+        vm.prank(reg.owner());
+        reg.configureRole(SUPER, config);
+        assertFalse(reg.getRoleConfig(SUPER).isActive, "RAMS A6e: role stop read-back");
+        tl = _timelock();
+        _transferToTimelock(tl);
+        uint256 began = vm.getBlockTimestamp();
+        vm.warp(began + 1 hours);
+        _freshPrice();
+        for (uint256 i; i < residual.length; ++i) {
+            _activateResidual(residual[i], i == 0 ? "rRES0" : (i == 1 ? "rRES1" : "rRES2"));
+            _assertOperatorPause(residual[i], true); // configureOperator kept the pre-set pause
+            (uint256 vd, uint256 ctx) = _validationData(residual[i]);
+            require(vd == 1 && ctx == 0, "RAMS A6e: residual holder sponsored after closure");
+        }
+        // No new holder can appear: the freeze rejects registration with the exact payload.
+        vm.prank(NEW_OPERATOR);
+        _mustReject(
+            REGISTRY,
+            abi.encodeCall(reg.registerRole, (SUPER, NEW_OPERATOR, abi.encode(uint256(0)))),
+            abi.encodeWithSignature("RoleNotConfigured(bytes32,bool)", SUPER, false),
+            "RAMS A6e: new PAYMASTER_SUPER grant admitted after freeze"
+        );
+        emit log_named_uint("RAMS A6e: residual holders activated and rejected", residual.length);
+        emit log_named_uint("RAMS A6e: hours into the gap at the check", (vm.getBlockTimestamp() - began) / 1 hours);
+    }
+
     function test_A6d_EOAfirst_thenTimelock() public forkOnly {
         uint256 pausedAt = vm.getBlockTimestamp();
         _pauseAll(true);

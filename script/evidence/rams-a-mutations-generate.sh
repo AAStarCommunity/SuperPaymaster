@@ -91,6 +91,12 @@ s = scoped(s, a6b, '        uint256 gapSnapshot =', '''        vm.prank(SAFE);
         tl.executeBatch(gapTargets, gapValues, gapData, bytes32(0), upgradeSalt);
         uint256 gapSnapshot =''')
 mutants[18] = scoped(s, a6b, '        vm.prank(SAFE);\n        tl.execute(SP, 0, upgrade, bytes32(0), upgradeSalt);', '')
+a6e = 'test_A6e_safeRoute_gapClosedByHolderPauseAndFreeze'
+# M19: leave one residual holder unpaused; skip the whole loop body so no prank is left unconsumed (M15 lesson).
+mutants[19] = scoped(base, a6e, '        for (uint256 i; i < residual.length; ++i) {\n            vm.prank(spOwner);', '        for (uint256 i; i < residual.length; ++i) {\n            if (i == 0) continue; // M19: one residual holder not pre-paused.\n            vm.prank(spOwner);')
+# M20: no Registry freeze (keep the role active, drop its read-back).
+s = scoped(base, a6e, '        config.isActive = false;\n        vm.prank(reg.owner());', '        config.isActive = true; // M20: no freeze.\n        vm.prank(reg.owner());')
+mutants[20] = scoped(s, a6e, '        assertFalse(reg.getRoleConfig(SUPER).isActive, "RAMS A6e: role stop read-back");\n', '')
 for n, mutated in mutants.items():
     diff = ''.join(difflib.unified_diff(base.splitlines(True), mutated.splitlines(True), fromfile='a/' + str(source), tofile='b/' + str(source)))
     (out / f'M{n}.diff').write_text(diff)

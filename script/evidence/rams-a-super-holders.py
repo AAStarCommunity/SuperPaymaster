@@ -13,7 +13,9 @@ Method (read-only):
      Registry-5.8.0 `roleMembers` is pushed only in _firstTimeRegister (which also sets hasRole and emits
      RoleRegistered) and popped only on exit, so equality means no holder is missing.
   3. Positive control: the two known configured operators (OWNER, ANNI) must be among the holders.
-  4. For each holder: SP operators(holder) words 1..2 = isConfigured, isPaused.
+  4. For each holder: SP operators(holder) words 1..2 = isConfigured, isPaused; plus the other two configureOperator
+     preconditions (COMMUNITY role, factory getTokenAddress(holder) != 0). Positive control for those: the known
+     configured operators must show both.
 Usage: RPC_FILE=<file holding the archive URL> FORK_BLOCK=11974561 python3 rams-a-super-holders.py <out.json>
 """
 import json, os, sys, urllib.request
@@ -65,18 +67,31 @@ has_sel = keccak_sig("hasRole(bytes32,address)")[:10]
 cnt_sel = keccak_sig("getRoleUserCount(bytes32)")[:10]
 op_sel = keccak_sig("operators(address)")[:10]
 count = int(call(REG, cnt_sel + SUPER[2:]), 16)
+COMMUNITY = keccak_sig("COMMUNITY")
+factory = "0x" + call(SP, keccak_sig("xpntsFactory()")[:10])[-40:]
+tok_sel = keccak_sig("getTokenAddress(address)")[:10]
+assert int(factory, 16) != 0, "SP xpntsFactory unset"
 holders = []
 for u in users:
     if int(call(REG, has_sel + SUPER[2:] + word(u)), 16) != 1:
         continue
     raw = call(SP, op_sel + word(u))[2:]
     w = [int(raw[i:i + 64], 16) for i in range(0, 192, 64)]
-    holders.append({"holder": u, "isConfigured": bool(w[1]), "isPaused": bool(w[2])})
+    # configureOperator (5.4.2) also needs COMMUNITY and a factory-issued xPNTs token for msg.sender.
+    community = int(call(REG, has_sel + COMMUNITY[2:] + word(u)), 16) == 1
+    token = "0x" + call(factory, tok_sel + word(u))[-40:]
+    holders.append({"holder": u, "isConfigured": bool(w[1]), "isPaused": bool(w[2]), "hasCommunity": community,
+                    "factoryToken": token, "canConfigureNow": (not w[1]) and community and int(token, 16) != 0})
 res = {"registry": REG, "sp": SP, "forkBlock": fork, "registryCreationBlock": created, "roleId": SUPER, "topic0": topic0,
        "roleRegisteredLogs": len(logs), "distinctUsers": len(users), "getRoleUserCount": count,
        "holdersAtFork": len(holders), "complete": len(holders) == count,
        "knownOperatorsPresent": KNOWN <= {h["holder"] for h in holders},
-       "unconfigured": [h["holder"] for h in holders if not h["isConfigured"]], "holders": holders}
+       "xpntsFactory": factory, "unconfigured": [h["holder"] for h in holders if not h["isConfigured"]],
+       "canConfigureNow": [h["holder"] for h in holders if h["canConfigureNow"]], "holders": holders}
 json.dump(res, open(sys.argv[1], "w"), indent=1)
-print(json.dumps({k: res[k] for k in ("roleRegisteredLogs", "distinctUsers", "getRoleUserCount", "holdersAtFork", "complete", "knownOperatorsPresent", "unconfigured")}))
-sys.exit(0 if res["complete"] and res["knownOperatorsPresent"] else 1)
+print(json.dumps({k: res[k] for k in ("roleRegisteredLogs", "distinctUsers", "getRoleUserCount", "holdersAtFork", "complete", "knownOperatorsPresent", "unconfigured", "canConfigureNow")}))
+known_ok = all(h["hasCommunity"] and int(h["factoryToken"], 16) != 0 for h in holders if h["holder"] in KNOWN)
+res["knownOperatorsPreconditionsControl"] = known_ok
+json.dump(res, open(sys.argv[1], "w"), indent=1)
+print("known-operator precondition control:", known_ok)
+sys.exit(0 if res["complete"] and res["knownOperatorsPresent"] and known_ok else 1)
