@@ -1,0 +1,8 @@
+R2-F3 RR positive control UTC: 2026-10-23T07:33:35Z
+Commit: 496dbdf45b9c699b3a493196f47f46fc1de2ba44
+Dirty paths: 0
+Range: [11974600, 11975000)
+{"range": [11974600, 11975000], "blocks": 400, "txs": 44711, "gasLimit_over_2^24": 351, "gasUsed_over_2^24": 88, "max_gasUsed": 88769372}
+anvil Version: 1.8.7-nightly hf=amsterdam: 10/10 match
+anvil Version: 1.8.6 hf=amsterdam: 10/10 match
+anvil Version: 1.7.1 hf=prague: 0/3 match
