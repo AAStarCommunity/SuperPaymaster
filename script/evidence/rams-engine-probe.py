@@ -49,7 +49,7 @@ def rpc(url, method, params):
         e = d["error"]
         if not isinstance(e, dict) or type(e.get("code")) is not int or not isinstance(e.get("message"), str):
             raise Fail(f"{method}: malformed error object")
-        if classify(e) == "evm-failure":
+        if classify(e, method) == "evm-failure":
             return "evm-failure", {"code": e["code"], "message": e["message"][:120]}
         raise Fail(f"{method}: RPC fault code={e['code']} (not a whitelisted EVM gas/execution failure)")
     return "ok", d["result"]

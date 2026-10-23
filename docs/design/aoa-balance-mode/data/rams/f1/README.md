@@ -2,7 +2,7 @@
 
 全部操作只读：不签名，不广播。提交的文件里没有私钥，也没有带凭据的 RPC URL。
 
-## 改了什么（两轮；第 2 轮按 Codex 挑战修正）
+## 改了什么（三轮；第 2、3 轮按 Codex 挑战修正）
 
 `script/evidence/rams-engine-probe.py`、`script/evidence/rams-capture.py`、`script/b-layer/ams-calibrate.mjs` 三个脚本统一按以下规则处理 RPC 响应。分类规则写在 `script/evidence/lib/rpc_strict.py`，JS 端逐条照搬。
 
@@ -31,6 +31,13 @@
 
 白名单来自真实运行中收集到的报错原文（nightly anvil 和两个 reth 端点在低 gas 下的报错）。第 1 轮漏掉了 `ReentrancySentryOOG`、`MemoryOOG` 和 `GasFloorMoreThanGasLimit`，导致真实运行被误判为故障。第 1 轮用的是子串匹配，Codex 用「`-32005` + 消息里含 `execution reverted`」和「消息以 `droog` 结尾」两个构造样例绕过了它；第 2 轮改为精确匹配。
 
+第 3 轮又修了以下几处：
+
+- **只认 ASCII**：Python 与 JS 的规则逐字相同。数字用 `[0-9]`，不用 `\d`，所以阿拉伯数字不再被当成数字。revert 原因只接受可打印 ASCII，emoji、CR、U+2028 都会被拒绝。quantity 最长 64 位十六进制。
+- **只有 `eth_call` / `eth_estimateGas` 可能返回 EVM 失败**：其他方法（如 `web3_clientVersion`、`eth_chainId`）收到 EVM 类错误，一律判为故障。
+- **JS 端保留数字的原始文本**：用 `JSON.parse` 的 source-text access（Node ≥ 21）读取原文。id 和错误码的原文必须是整数，所以 `1.0`、`-32003.00000000000001` 都会被拒绝。估算值用 BigInt 换成精确的十进制字符串记录，不会因超过 2^53 丢失精度。
+- **capture 校验字段类型**：`web3_clientVersion` 必须返回字符串；`eth_config` 必须返回对象，否则只能是 `-32601`（不支持该方法）。
+
 **换了引擎或节点，必须重新核对这份白名单。**
 
 ## DSR 负控（原样纳入）
@@ -53,15 +60,15 @@
   - capture 的错误链、非法哈希、`0X` 前缀、整数块号、null 的 eth_call、布尔类型的估算、乱码 nonce；
   - calibrate 返回 HTTP 429。
 
-  结果 21/21 通过，输出见 `test_rams_gauges.out`。
+  结果 37/37 通过（第 3 轮新增阿拉伯数字、emoji / CR 的 revert 原因、null / EVM 错误的 clientVersion、乱码 eth_config、浮点 id / 错误码、超大估算值），输出见 `test_rams_gauges.out`。
 
-## 真实运行的正对照（块 11974357，第 2 轮量具）
+## 真实运行的正对照（块 11974466，第 3 轮量具）
 
 | 量具 | 结果 | 文件 |
 |---|---|---|
-| `rams-engine-probe.py`，nightly `926eb1d` | exit 0，**14/14** 与两个真实端点一致 | `engine-probe-nightly-926eb1d-11974357.{json,log}` |
-| `rams-engine-probe.py`，v1.8.6（负对照） | exit 1，**6/14**（CREATE 一类偏低，和以前一致） | `engine-probe-v1.8.6-11974357.{json,log}` |
-| `rams-capture.py`，三个真实端点 | exit 0 | `capture-11974357.json` |
+| `rams-engine-probe.py`，nightly `926eb1d` | exit 0，**14/14** 与两个真实端点一致 | `engine-probe-nightly-926eb1d-11974466.{json,log}` |
+| `rams-engine-probe.py`，v1.8.6（负对照） | exit 1，**6/14**（CREATE 一类偏低，和以前一致） | `engine-probe-v1.8.6-11974466.{json,log}` |
+| `rams-capture.py`，三个真实端点 | exit 0 | `capture-11974466.json` |
 | `ams-calibrate.mjs`，全新的 nightly anvil `--hardfork amsterdam` | exit 0，5/5 `CALIBRATION PASS` | `calibration-nightly.{json,log}` |
 
 每条 probe 和 calibrate 的记录现在都带有 `thresholdSides`，即阈值两侧的原始结果。

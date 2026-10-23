@@ -13,7 +13,7 @@
       "expected": 207606,
       "measured": 207606,
       "match": true,
-      "estimateGas": 207606,
+      "estimateGas": "207606",
       "thresholdSides": {
         "minMinus1": {
           "code": -32003,
@@ -32,7 +32,7 @@
       "expected": 599432,
       "measured": 599432,
       "match": true,
-      "estimateGas": 599432,
+      "estimateGas": "599432",
       "thresholdSides": {
         "minMinus1": {
           "code": -32003,
@@ -51,7 +51,7 @@
       "expected": 317700,
       "measured": 317700,
       "match": true,
-      "estimateGas": 317700,
+      "estimateGas": "317700",
       "thresholdSides": {
         "minMinus1": {
           "code": -32003,
@@ -70,7 +70,7 @@
       "expected": 320075,
       "measured": 320075,
       "match": true,
-      "estimateGas": 320075,
+      "estimateGas": "320075",
       "thresholdSides": {
         "minMinus1": {
           "code": -32003,
@@ -90,7 +90,7 @@
       "expected": 204600,
       "measured": 204600,
       "match": true,
-      "estimateGas": 204600,
+      "estimateGas": "204600",
       "thresholdSides": {
         "minMinus1": {
           "code": -32003,

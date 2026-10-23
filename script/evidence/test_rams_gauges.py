@@ -18,6 +18,9 @@ SNEAKY = {
     "embedded-revert": {"code": -32005, "message": "rate limit exceeded while processing execution reverted"},
     "word-oog": {"code": -32003, "message": "rate limit from upstream droog"},
     "fault-code-with-evm-text": {"code": -32603, "message": "EVM error OutOfGas"},
+    "arabic-digits": {"code": -32003, "message": "out of gas: gas required exceeds: \u0661\u0662\u0663"},
+    "emoji-revert": {"code": 3, "message": "execution reverted: " + "\U0001F600" * 101},
+    "cr-revert": {"code": 3, "message": "execution reverted: a\rb"},
 }
 
 
@@ -87,9 +90,17 @@ def capture(case):
             h = {"hash-gg": "0x" + "gg" * 32, "hash-0X": "0X" + "ab" * 32}.get(case, "0x" + "ab" * 32)
             r["result"] = {"hash": h, "number": 1 if case == "number-int" else p[0], "timestamp": "0x1"}
         elif meth == "web3_clientVersion":
-            r["result"] = "fixture/1"
+            if case == "clientversion-null":
+                r["result"] = None
+            elif case == "clientversion-evm-error":
+                r["error"] = OOG
+            else:
+                r["result"] = "fixture/1"
         elif meth == "eth_config":
-            r["error"] = {"code": -32601, "message": "method not found"}
+            if case == "config-garbage":
+                r["result"] = "garbage"
+            else:
+                r["error"] = {"code": -32601, "message": "method not found"}
         elif meth == "eth_getTransactionCount":
             r["result"] = "garbage" if case == "nonce-garbage" else "0x2f63"
         elif meth == "eth_estimateGas":
@@ -136,8 +147,13 @@ globalThis.fetch = async (_u, o) => {
       else r.result = '0x';
     }
   }
+  if (q.method === 'web3_clientVersion' && testCase === 'clientversion-null') r.result = null;
+  if (q.method === 'eth_estimateGas' && testCase === 'big-estimate') r.result = '0x20000000000001';
+  let text = JSON.stringify(r);
+  if (testCase === 'float-id') text = text.replace('"id":' + q.id + ',', '"id":' + q.id + '.0,');
+  if (testCase === 'float-code' && r.error) text = text.replace('"code":-32003', '"code":-32003.00000000000001');
   const status = testCase === 'http-429' ? 429 : 200;
-  return {ok: status === 200, status, json: async () => r};
+  return {ok: status === 200, status, text: async () => text, json: async () => JSON.parse(text)};
 };
 process.argv = [process.execPath, source, 'http://127.0.0.1:1', output];
 await import(pathToFileURL(source).href);
@@ -155,12 +171,15 @@ def calibrate(case):
 
 PLAN = [
     ("probe", probe, {"valid": 0, "embedded-revert": "nonzero", "word-oog": "nonzero",
-                      "fault-code-with-evm-text": "nonzero", "flaky-search": "nonzero"}),
+                      "fault-code-with-evm-text": "nonzero", "flaky-search": "nonzero",
+                      "arabic-digits": "nonzero", "emoji-revert": "nonzero", "cr-revert": "nonzero"}),
     ("capture", capture, {"valid": 0, "chain-0x1": 1, "chain-banana": 1, "hash-gg": 1, "hash-0X": 1,
                           "number-int": 1, "call-null": 1, "estimate-bool": 1, "nonce-garbage": 1,
-                          "embedded-revert": 1, "word-oog": 1}),
+                          "embedded-revert": 1, "word-oog": 1, "arabic-digits": 1, "emoji-revert": 1,
+                          "clientversion-null": 1, "clientversion-evm-error": 1, "config-garbage": 1}),
     ("calibrate", calibrate, {"valid": 0, "http-429": "nonzero", "embedded-revert": "nonzero",
-                              "word-oog": "nonzero", "flaky-search": "nonzero"}),
+                              "word-oog": "nonzero", "flaky-search": "nonzero", "float-id": "nonzero",
+                              "float-code": "nonzero", "clientversion-null": "nonzero", "big-estimate": 0}),
 ]
 
 

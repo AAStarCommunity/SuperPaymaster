@@ -1,6 +1,6 @@
 {
  "note": "read-only; RPC URLs omitted",
- "block": 11974357,
+ "block": 11974466,
  "chainIds": {
   "A": 11155111,
   "B": 11155111,
@@ -667,9 +667,9 @@
   }
  },
  "blockHashes": {
-  "A": "0x0f2303fae3797ae87c332b5ff224ce44dd419b9421a89806ed90a9cd0bb6550f",
-  "B": "0x0f2303fae3797ae87c332b5ff224ce44dd419b9421a89806ed90a9cd0bb6550f",
-  "ENGINE": "0x0f2303fae3797ae87c332b5ff224ce44dd419b9421a89806ed90a9cd0bb6550f"
+  "A": "0xb14504f8891b94a4b3adfb3f4270664f178626b9e825e314e01f553a746d5340",
+  "B": "0xb14504f8891b94a4b3adfb3f4270664f178626b9e825e314e01f553a746d5340",
+  "ENGINE": "0xb14504f8891b94a4b3adfb3f4270664f178626b9e825e314e01f553a746d5340"
  },
  "allMatch": true,
  "sameChainAndBlock": true

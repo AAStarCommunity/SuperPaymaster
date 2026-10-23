@@ -52,7 +52,7 @@ def rpc(url, method, params, allow_method_not_found=False):
         err = {"code": e["code"], "message": re.sub(r"https?://\S+", "<url>", e["message"])[:160]}
         if allow_method_not_found and e["code"] == -32601:
             return {"unsupported": err}
-        if classify(e) == "evm-failure":
+        if classify(e, method) == "evm-failure":
             return {"evmFailure": err}
         FAULTS.append(f"{method}: RPC fault code={e['code']}")
         return {"rpcFault": err}
@@ -81,7 +81,10 @@ def main():
         need(ok_block, f"{k}: block missing, wrong number or malformed")
         e["block"] = {"hash": br["hash"], "timestamp": int(br["timestamp"], 16)} if ok_block else b
         e["clientVersion"] = rpc(u, "web3_clientVersion", [])
+        need(isinstance(e["clientVersion"].get("result"), str), f"{k}: clientVersion malformed")
         e["eth_config"] = rpc(u, "eth_config", [], allow_method_not_found=True)
+        need("unsupported" in e["eth_config"] or isinstance(e["eth_config"].get("result"), dict),
+             f"{k}: eth_config malformed")
         for name, params in (("deployerNonceAtBlock", [DEPLOYER, blk]), ("deployerNoncePendingNow", [DEPLOYER, "pending"])):
             e[name] = rpc(u, "eth_getTransactionCount", params)
             v = e[name].get("result")
