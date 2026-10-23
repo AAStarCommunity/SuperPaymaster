@@ -1,6 +1,24 @@
 # Route A rehearsal evidence
 
-This directory preserves the Sepolia block 11,974,561 fork runs and their mutation logs. Review 2 changes are authored offline and have **not been rerun on a fork**. See [REVIEW-2.md](REVIEW-2.md) for the finding map. No production sources or deployment settings change.
+This directory preserves the Sepolia block 11,974,561 fork runs and their mutation logs. See [REVIEW-2.md](REVIEW-2.md) for the finding map. No production sources or deployment settings change.
+
+## Current results (Review 2, clean tree, 2026-10-23)
+
+| Item | Result | File |
+|---|---|---|
+| Fork rehearsal (nightly 926eb1d, `--hardfork amsterdam`, block 11,974,561) | **15/15 PASS** at a65d8167, `Dirty paths: 0` | `rehearsal-20261023T072628Z-81942.log` |
+| First Review 2 fork attempt | setUp FAIL at the Registry version guard: live is `Registry-5.8.0`, the guard expected 5.4.2. Source re-checked (see Registry section), guard corrected | `rehearsal-20261023T071827Z-7710.log` |
+| Mutations, definitions `mutations-def4/` | **CONTROL 15/15 GREEN; M1–M16 all KILLED by their expected assertion** at 3d41bd98 | `mutations-run5/summary.tsv` |
+| Previous mutation attempt | 15/16; **M15 WRONG-ASSERTION** (`vm.prank: cannot overwrite a prank`): the mutant left an unconsumed prank at i = 0. Fixed in the generator (prank inside the condition); M15 is now killed by the A1 SIG_FAILURE probe, with read-backs off | `mutations-run4/summary.tsv` |
+| Operator inventory rescan | Alchemy and the Tenderly public gateway agree: 4 `OperatorConfigured` logs, 2 operators. Creation−1 code `0x` on both; code at the creation block non-empty on both (positive control) | `operator-inventory-11974561-review2.json` |
+| Offline gates | Cancun and Prague full suites, forge 1.7.1 | see PR |
+
+Measured on the fork (from the 15/15 log):
+- **Registry stop switch (H1b).** The live Registry owner and the `PAYMASTER_SUPER` role config owner are both OWNER EOA `0xb5600060…df0e`. `configureRole(PAYMASTER_SUPER, isActive=false)` blocks `registerRole`, and also `safeMintForRole`, which has the same `isActive` gate. A6c shows that a new `configureOperator` fails after the freeze. Holders who already have the role are **not** revoked.
+- **Safe-route gap (H1a).** A6b: under the Safe-owned timelock, an operator registered during the 48h before the upgrade gets a real sponsorship, and a timelock pause cannot be ready in time. Pre-upgrade hours: 48.
+- **EOA-first ordering (H1c).** A6d: 0 modeled pre-upgrade seconds; 48h / 96h through gas activation. Safe route: 96h / 144h.
+- **Settlement at MIN (M1).** A5c, real `handleOps`: postOp limit 439,999 is rejected at validation (`AA34`); 440,000 and 440,001 both settle. A5b's 438,786 / 174,659 are synthetic guard crossings, not settlement exhaustion. Of the 4,127 gap, the part equal to `ceil(260000·64/63)−260000` is consistent with EIP-150 forwarding, but this was not traced.
+- **Live Safe:** 0 modules, guard slot zero.
 
 The historical clean-tree run at e704f1f5 used Foundry nightly 926eb1d, Amsterdam, `--no-isolate`, and `FOUNDRY_ISOLATE=false`. `rehearsal-20261023T064207Z-94221.log` records 10 passing route tests. `mutations-run3/summary.tsv` records 13 historical kills. Those results do not validate the revised tests or the 16 current definitions in `mutations-def4/`. `mutations-run2/` keeps the previous 13 definitions with their logs; their headers and bytes remain historical evidence. `mutations-run1-INVALID/` remains invalid infrastructure evidence.
 

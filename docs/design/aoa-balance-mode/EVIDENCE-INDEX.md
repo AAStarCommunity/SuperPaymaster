@@ -380,4 +380,4 @@ D7 release 口径：只声明 #438 八写路径、tc1/tc3、warp 后 tc4；tc2 �
 
 `data/rams-a/REVIEW-2.md` maps the findings to edits and assumptions. `data/rams-a/review-2-offline.log` records offline verification. The manifest includes the historical `mutations-run3/` and timestamped rehearsal logs, plus revised `mutations-run2/M1.diff` through `M16.diff` and `targets.tsv`. Historical mutation logs do not validate the revised definitions. No Review 2 fork or RPC scan was run.
 
-Manifest verification: **3083 OK / 0 FAILED** (regenerated with `node script/evidence/build-manifest.mjs`, checked using `shasum -a 256 -c EVIDENCE.sha256`).
+Fork reruns (archive RPC, clean tree): `rehearsal-20261023T072628Z-81942.log` 15/15 PASS; `mutations-run5/` M1–M16 all KILLED by the expected assertion (the `mutations-run4/` attempt had M15 WRONG-ASSERTION, a mutant defect, since fixed); inventory rescan `operator-inventory-11974561-review2.json`. Manifest verification after these runs: **3200 OK / 0 FAILED** (regenerated with `node script/evidence/build-manifest.mjs`, checked using `shasum -a 256 -c EVIDENCE.sha256`). The table near the top of this file is an earlier snapshot.
