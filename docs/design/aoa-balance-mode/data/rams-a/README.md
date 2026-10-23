@@ -6,17 +6,28 @@ This directory preserves the Sepolia block 11,974,561 fork runs and their mutati
 
 | Item | Result | File |
 |---|---|---|
-| Fork rehearsal (nightly 926eb1d, `--hardfork amsterdam`, block 11,974,561) | **15/15 PASS** at 1ef98867, `Dirty paths: 0` | `rehearsal-20261023T075352Z-20644.log` |
-| Mutations, 18 definitions `mutations-def4/` | **CONTROL 15/15 GREEN; M1–M18 all KILLED by their expected assertion** at fd2b5b5a | `mutations-run7/summary.tsv` |
+| Fork rehearsal (nightly 926eb1d, `--hardfork amsterdam`, block 11,974,561) | **16/16 PASS** at e41cf975, `Dirty paths: 0` (adds A6e) | `rehearsal-20261023T083200Z-72049.log` |
+| Mutations, 21 definitions `mutations-def4/` | **CONTROL 16/16 GREEN; M1–M21 all KILLED by their expected assertion** at e41cf975 | `mutations-run9/summary.tsv` |
+| Superseded mutation runs | `mutations-run8/` M19 WRONG-ASSERTION: the generic pause read-back fired first, so the read-back got a unique message, M19 now targets it, and M21 removes it to prove the probe; `mutations-run7/` M1–M18 KILLED (pre-A6e) | `mutations-run8/`, `mutations-run7/` |
+| Live `PAYMASTER_SUPER` holders | 5/5 enumerated (complete vs `getRoleUserCount`); 3 are not configured, but each holds COMMUNITY and could self-activate | `super-holders-11974561.json` |
 | Preceding mutation attempt | M1–M15 KILLED; **M16–M18 PATCH-FAILED**. The generator reads the base from `git show HEAD:`, and the Review 3 definitions were generated before the edits were committed, so they targeted the old test. Regenerated at the committed HEAD (M1–M15 differ only in hunk line numbers) | `mutations-run6/summary.tsv` |
 | Review 2 runs (superseded) | fork 15/15 at a65d8167; mutations M1–M16 KILLED at 3d41bd98 (`mutations-run5/`); M15 WRONG-ASSERTION in `mutations-run4/` (unconsumed prank, fixed); first Review 2 attempt failed at the Registry version guard (live is `Registry-5.8.0`) | `rehearsal-20261023T072628Z-81942.log`, `rehearsal-20261023T071827Z-7710.log` |
 | Operator inventory rescan | endpoints labelled (by the operator, not verified) Alchemy and Tenderly public gateway agree: 4 `OperatorConfigured` logs, 2 operators. Code at creation−1 is `0x` on both; code at the creation block is non-empty on both (positive control) | `operator-inventory-11974561-review2.json` |
 | Offline gates | results in that file | [review-3-offline-gates.log](review-3-offline-gates.log) |
 
-Fork observations (from `rehearsal-20261023T075352Z-20644.log`):
+Fork observations (from `rehearsal-20261023T083200Z-72049.log`):
 - **Registry stop switch (H1b).** The live Registry owner and the `PAYMASTER_SUPER` role config owner are both OWNER EOA `0xb5600060…df0e`. A6c, same user: before the freeze, `registerRole(PAYMASTER_SUPER)` reverts with `RoleNotGranted(ROLE_COMMUNITY, user)`, because the prerequisite role is missing. After `configureRole(isActive=false)` by the live owner, it reverts with exactly `RoleNotConfigured(PAYMASTER_SUPER, false)`. The `isActive` gate runs before the prerequisite check, so it rejects every caller. This is shown by the change of revert. It is **not** shown with a fully qualified operator that succeeds before the freeze (no such fixture). M17 (freeze removed) fails at the post-freeze assertion. `safeMintForRole` is **source-checked (same `isActive` gate), not executed on the fork**. Holders who already have the role are **not** revoked.
-- **Residual holders (H1b).** 3 existing `PAYMASTER_SUPER` holders are not configured SP operators, and the freeze does not stop them (see Registry section). This is an input to the ordering choice.
+- **Residual holders (H1b).** 3 existing `PAYMASTER_SUPER` holders are not configured SP operators. The freeze alone does not stop them (see Registry section). A6e closes the gap by pre-pausing them.
 - **Safe-route gap (H1a).** A6b: under the Safe-owned timelock, an operator registered during the wait before the upgrade gets a real sponsorship. A timelock pause scheduled in the gap is rejected at the upgrade ETA with the exact `TimelockUnexpectedOperationState` payload. Pre-upgrade hours, computed from elapsed block time: 48. M18 (the upgrade batch also pauses the new operator) fails at "new operator sponsored in gap".
+- **Safe-route gap closure (A6e, new).** The gap can be closed, but only by doing two things while the EOA still owns both SP and the Registry, i.e. before ownership moves to the timelock: (1) pause **every** `PAYMASTER_SUPER` holder, configured or not, with `setOperatorPaused`. 5.4.2 does not check `isConfigured`, and `configureOperator` does not touch `isPaused`. (2) Freeze new `PAYMASTER_SUPER` grants in the Registry. A6e checks this on the fork:
+  - **Control.** With only the 2 configured operators paused, a residual holder deploys an xPNTs token and calls `configureOperator`, both without permission, and is sponsored in the gap.
+  - **Closure.** After steps (1) and (2), all 3 residual holders still self-activate, but each stays paused (`pre-set pause lost after configureOperator` never fires) and each validation returns exactly SIG_FAILURE. A new `registerRole(PAYMASTER_SUPER)` is rejected with the exact `RoleNotConfigured(PAYMASTER_SUPER, false)`.
+  - **Mutations.** M19 (one residual holder not pre-paused) fails at the read-back. M21 (the same, without the read-back) fails at "residual holder sponsored after closure". M20 (no freeze) fails at "new PAYMASTER_SUPER grant admitted after freeze".
+  - **Scope.**
+    - The check runs 1h into the gap.
+    - That the pauses persist for the whole 48h follows from the code, not from a timed check: on 5.4.2 only the owner, by then the timelock, can unpause.
+    - The holder set is the one enumerated at block 11,974,561. **The operational runbook must re-enumerate holders immediately before the ownership transfer** (`script/evidence/rams-a-super-holders.py`), because a grant between the scan and the freeze would add a holder.
+    - `safeMintForRole` shares the `isActive` gate in source but was not executed here.
 - **EOA-first ordering (H1c).** A6d: 0 pre-upgrade seconds, a structural consequence of the modeled ordering, not a measurement; 48h / 96h through gas activation. Safe route: 96h / 144h.
 - **Settlement at MIN (M1).** A5c, real `handleOps`, logged: 439,999 is rejected with `AA34 signature error`; 440,000 and 440,001 are executed and settled. A5b's 438,786 / 174,659 are synthetic guard crossings, not settlement exhaustion. Of the 4,127 gap, the part equal to `ceil(260000·64/63)−260000` is consistent with EIP-150 forwarding, but this was not traced.
 - **Inventory commitment (M4).** The A7 gate checks length and commitment separately. M16 keeps the length, swaps one member, and fails at "RAMS gate: inventory commitment".
@@ -34,6 +45,13 @@ The historical clean-tree run at e704f1f5 used Foundry nightly 926eb1d, Amsterda
 Both orderings are documented without selecting one. Operational transaction inclusion and gate work add time. These totals end at gas activation; the tests leave global pause enabled. A subsequent unpause needs an authorized timelock transaction, so these are minimum service downtime figures, not measured times to restored service. An unpause batch can be scheduled in advance, but execution must follow the read-back gate. If scheduling waits for that gate, add another 48h.
 
 In the Safe ordering, the EOA loses its ability to pause operators immediately after ownership transfer. A6b registers a new operator one hour into the modeled 48h wait, proves a valid sponsorship, then proves its timelocked pause is still unavailable at the earliest upgrade time. Re-enumerating additions cannot close this gap: each new pause also needs 48h. The sponsorship-stop guarantee begins at the atomic `upgradeToAndCall(newImpl, setGlobalPaused(true))`.
+
+**Update (A6e): the Safe-ordering gap can be closed, but not with timelock pauses after the transfer.** While the EOA still owns SP and the Registry, it must (1) pause every live `PAYMASTER_SUPER` holder, the 3 unconfigured ones included, and (2) freeze new `PAYMASTER_SUPER` grants. Only then may ownership move. A6e shows the control (the gap is open without step 1) and the closure on the fork. M19, M20 and M21 show that each step is load-bearing. Remaining operational conditions:
+- re-enumerate holders immediately before the transfer;
+- the Registry stays EOA-owned, or its owner can at least keep the freeze in place, until the upgrade executes;
+- after the upgrade, the global pause covers everyone regardless.
+
+With these conditions, the two orderings differ in **downtime** (Safe 96h/144h vs EOA-first 48h/96h) and in **who signs the upgrade** (timelock vs EOA). They no longer differ in whether the gap can be closed.
 
 In the EOA-first ordering, the exposure window is the elapsed time between pause-all and inclusion of the direct EOA upgrade. A6d models these calls at one timestamp, logs zero pre-upgrade seconds, and executes a real Safe-scheduled batch accepting ownership and activating gas parameters after the wait. The EOA queues gas parameters immediately after upgrading while it is still owner. Separate real transactions can have a nonzero inclusion gap.
 

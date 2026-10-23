@@ -1,0 +1,10 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -1298,6 +1298,7 @@
+         g.gasHash = keccak256(abi.encode(SuperPaymasterStorage.GasParams(440_000, 420_000, 5000, 340_000)));
+         g.pendingHash = keccak256(abi.encode(SuperPaymasterStorage.PendingGasParams(0, 0, 0, 0, 0)));
+         g.inventory = vm.envAddress("OPERATORS", ",");
++        g.inventory[0] = g.inventory[0] == OWNER ? ANNI : OWNER; // M16: same length, configured and paused, different commitment.
+         g.operatorPauses = new bool[](operators.length);
+         for (uint256 i; i < operators.length; ++i) {
+             g.operatorPauses[i] = true;
