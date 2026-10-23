@@ -6,6 +6,7 @@
 # Local node only, anvil's public dev keys only.
 # Usage: script/b-layer/ams-pvg-run.sh <workDir> <rundlerDir> <altoDir> <outDir (relative to repo root)>
 set -euo pipefail
+FAILS=()
 W="$1"; RUNDLER_DIR="$2"; ALTO_DIR="$3"; REL="$4"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ANVIL="${ANVIL:-/tmp/fd/nightly/anvil}"; CAST="${CAST:-/tmp/fd/nightly/cast}"
@@ -40,7 +41,10 @@ revert
   --node_http "$RPC" --signer.private_keys 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba \
   --rpc.port 18750 --metrics.port 18751 --rpc.api eth,debug,rundler >"$W/rundler.log" 2>&1 & RP=$!; PIDS+=($RP)
 wait_rpc http://127.0.0.1:18750; sleep 2
-node "$ROOT/script/b-layer/ams-pvg.mjs" "$OUT/setup.json" bundler rundler http://127.0.0.1:18750 "$OUT/pvg-rundler.json" | tee "$OUT/pvg-rundler.log" || true
+# A failing bundler run must not look like a short JSON: record it and fail the script at the end (#525 L1).
+if ! node "$ROOT/script/b-layer/ams-pvg.mjs" "$OUT/setup.json" bundler rundler http://127.0.0.1:18750 "$OUT/pvg-rundler.json" | tee "$OUT/pvg-rundler.log"; then
+  echo "FAILED rundler rc=${PIPESTATUS[0]}" | tee -a "$OUT/pvg-rundler.log"; FAILS+=(rundler)
+fi
 kill "$RP" 2>/dev/null || true; sleep 2
 sed 's/\x1b\[[0-9;]*m//g' "$W/rundler.log" > "$OUT/pvg-rundler-bundler.log"
 revert
@@ -50,7 +54,11 @@ revert
   --utility-private-key 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356 \
   --rpc-url "$RPC" --port 18760 --safe-mode true --enable-debug-endpoints true) >"$W/alto.log" 2>&1 & AP=$!; PIDS+=($AP)
 wait_rpc http://127.0.0.1:18760; sleep 2
-node "$ROOT/script/b-layer/ams-pvg.mjs" "$OUT/setup.json" bundler alto http://127.0.0.1:18760 "$OUT/pvg-alto.json" | tee "$OUT/pvg-alto.log" || true
+# A failing bundler run must not look like a short JSON: record it and fail the script at the end (#525 L1).
+if ! node "$ROOT/script/b-layer/ams-pvg.mjs" "$OUT/setup.json" bundler alto http://127.0.0.1:18760 "$OUT/pvg-alto.json" | tee "$OUT/pvg-alto.log"; then
+  echo "FAILED alto rc=${PIPESTATUS[0]}" | tee -a "$OUT/pvg-alto.log"; FAILS+=(alto)
+fi
 kill "$AP" 2>/dev/null || true; sleep 2
 sed 's/\x1b\[[0-9;]*m//g' "$W/alto.log" > "$OUT/pvg-alto-bundler.log"
 echo "R2-F2 PVG run complete: $OUT"
+if [ "${#FAILS[@]}" -gt 0 ]; then echo "ams-pvg-run: FAILED bundler runs: ${FAILS[*]}" >&2; exit 1; fi
