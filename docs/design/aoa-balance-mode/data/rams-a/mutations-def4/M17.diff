@@ -1,28 +1,10 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -889,24 +889,33 @@
-         IRegistry.RoleConfig memory config = reg.getRoleConfig(SUPER);
-         emit log_named_address("Live Registry owner", reg.owner());
-         emit log_named_address("Live PAYMASTER_SUPER config owner", config.owner);
+@@ -926,10 +926,9 @@
+             emit log_named_bytes("RAMS A6c: pre-freeze registerRole revert", controlData);
+         }
+         assertTrue(vm.revertTo(controlSnapshot), "RAMS A6c: control rollback");
 -        config.isActive = false;
-+        bytes memory registration = abi.encodeCall(reg.registerRole, (SUPER, NEW_OPERATOR, abi.encode(config.minStake)));
-+        uint256 controlSnapshot = vm.snapshot();
-+        vm.prank(NEW_OPERATOR);
-+        (bool controlOk, bytes memory controlData) = REGISTRY.call(registration);
-+        if (controlOk) {
-+            assertTrue(sp.REGISTRY().hasRole(SUPER, NEW_OPERATOR), "RAMS A6c: control grant missing");
-+            emit log("RAMS A6c: pre-freeze registerRole succeeded");
-+        } else {
-+            bytes4 selector;
-+            if (controlData.length >= 4) {
-+                assembly { selector := mload(add(controlData, 32)) }
-+            }
-+            assertTrue(
-+                selector != bytes4(keccak256("RoleNotConfigured(bytes32,bool)")), "RAMS A6c: control role inactive"
-+            );
-+            emit log_named_bytes("RAMS A6c: pre-freeze registerRole revert", controlData);
-+        }
-+        assertTrue(vm.revertTo(controlSnapshot), "RAMS A6c: control rollback");
 +        config.isActive = true; // M17: retain active role.
          vm.prank(reg.owner());
          reg.configureRole(SUPER, config);
@@ -30,19 +12,3 @@
          vm.prank(NEW_OPERATOR);
          _mustReject(
              REGISTRY,
--            abi.encodeCall(reg.registerRole, (SUPER, NEW_OPERATOR, abi.encode(config.minStake))),
-+            registration,
-             abi.encodeWithSignature("RoleNotConfigured(bytes32,bool)", SUPER, false),
--            "RAMS A6c: disabled role granted"
--        );
--        address ownerToken = _token(OWNER);
--        vm.prank(NEW_OPERATOR);
--        _mustReject(
--            SP,
--            abi.encodeWithSignature("configureOperator(address,address)", ownerToken, NEW_OPERATOR),
--            abi.encodeWithSelector(SuperPaymasterStorage.Unauthorized.selector),
--            "RAMS A6c: unregistered operator configured"
-+            "RAMS A6c: post-freeze RoleNotConfigured required"
-         );
-         assertTrue(sp.REGISTRY().hasRole(SUPER, OWNER), "RAMS: stop does not revoke existing grants");
-     }

@@ -1,0 +1,48 @@
+Route A evidence UTC: 2026-10-23T07:55:47Z
+Commit: 1ef9886741825afdfc5a388c71cfdbb2f75aa291
+Dirty paths: 2
+  dirty:  M contracts/test/rams/RamsARouteRehearsal.t.sol
+  dirty: ?? docs/design/aoa-balance-mode/data/rams-a/rehearsal-20261023T075352Z-20644.log
+forge Version: 1.8.7-nightly
+Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827
+Build Timestamp: 2026-10-22T06:12:29.900488000Z (1792649549)
+Build Profile: dist
+FORK_BLOCK=11974561
+OPERATORS=0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+RPC host: <redacted>
+FOUNDRY_ISOLATE=false
+Command: /Users/jason/Dev/aastar/tools/foundry-rams/nightly-926eb1d/forge test --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --match-test \^test_A5_governanceTimeline_EOAowner\\\(\\\)\$ --no-isolate --hardfork amsterdam -vv
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 18.08s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS: exact SIG_FAILURE required: 2620340975123532654952617401813277457301752018079659851776 != 1] test_A5_governanceTimeline_EOAowner() (block: 11974561) (gas: 1851152)
+Logs:
+  Registry source version (must match inspected tag): Registry-5.8.0
+  EVM block gas limit (not transaction cap): 200000000
+  R0 comparison 2^24: 16777216
+  Transaction gas limit, Amsterdam cap switch and reservoir are not introspectable here; R0 is a runner assumption.
+  Pinned fork block: 11974561
+  Archive inventory entries (completeness externally attested): 2
+  Deposit token: 0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+  Live deposit single-tx limit (aPNTs): 5000000000000000000000
+  Deposit chunk (token units): 5000000000000000000000
+
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 437.11ms (4.07ms CPU time)
+
+Ran 1 test suite in 438.94ms (437.11ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[FAIL: RAMS: exact SIG_FAILURE required: 2620340975123532654952617401813277457301752018079659851776 != 1] test_A5_governanceTimeline_EOAowner() (block: 11974561) (gas: 1851152)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger
