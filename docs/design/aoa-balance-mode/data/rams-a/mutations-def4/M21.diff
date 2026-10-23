@@ -1,6 +1,6 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -995,6 +995,7 @@
+@@ -1034,6 +1034,7 @@
          _pauseAll(true);
          address spOwner = sp.owner();
          for (uint256 i; i < residual.length; ++i) {
@@ -8,7 +8,7 @@
              vm.prank(spOwner);
              sp.setOperatorPaused(residual[i], true);
              (, bool configured, bool stopped,,,,,,) = sp.operators(residual[i]);
-@@ -1013,7 +1014,7 @@
+@@ -1047,7 +1048,7 @@
          for (uint256 i; i < residual.length; ++i) {
              _activateResidual(residual[i], i == 0 ? "rRES0" : (i == 1 ? "rRES1" : "rRES2"));
              (, bool nowConfigured, bool stillPaused,,,,,,) = sp.operators(residual[i]);
