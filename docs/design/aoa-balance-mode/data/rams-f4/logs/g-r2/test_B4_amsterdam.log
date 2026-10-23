@@ -1,0 +1,51 @@
+# cmd: (cd /tmp/f4g && /tmp/fd/nightly/forge test --offline --no-isolate --evm-version prague --match-path contracts/test/zz_rams2a/Rams2a.t.sol -vv --match-test test_B4_no_oog --hardfork amsterdam)
+# env: FOUNDRY_ISOLATE=false FOUNDRY_OUT=/tmp/f4g-out FOUNDRY_CACHE_PATH=/tmp/f4g-cache FOUNDRY_DISABLE_NIGHTLY_WARNING=1
+# forge: forge Version: 1.8.7-nightly Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827 Build Timestamp: 2026-10-22T06:24:10.676280092Z (1792650250) Build Profile: dist sha256 9f19c41c970c64cfa1c836ef420e7ef071e032f22b617bf37c853a6866d5db85
+# tree: fbd74fb1e2e9d948996e6d6c02c48dc1c1778107 contracts/src f1d39b5bb4081c51e69c9b4a64346dd769193f31 foundry.toml 065d0bd7cd8e4d1de606cf438471c1f66fa5c659; Rams2a.t.sol aa0a26386054bfb290faa16e2dd7238ea83b2fc0d9b6e3d4e013a6fea357f8b2; SuperPaymasterV55Gas.t.sol e7f68b3358b848422c2a56b40658a693e1eae88a3b47d4f820013f0d72105793
+# start: 2026-10-23T06:26:10Z
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B4_no_oog_band() (gas: 395666801)
+Logs:
+  R2A|B4.balance_first_op.SETTLE_160000.min_settling_call_gas|365207
+  R2A|B4.balance_first_op.SETTLE_160000.min_call_gas_passing_guard|164500
+  R2A|B4.balance_first_op.SETTLE_160000.oog_band_width(gOk-gGuard,0=none)|200707
+  R2A|B4.balance_first_op.SETTLE_160000.oog_band_failures_step1k|201
+  R2A|B4.balance_first_op.derived_min_SETTLE_no_band|360707
+  R2A|B4.balance_first_op.SETTLE_361000.min_settling_call_gas|368691
+  R2A|B4.balance_first_op.SETTLE_361000.min_call_gas_passing_guard|368691
+  R2A|B4.balance_first_op.SETTLE_361000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.balance_first_op.SETTLE_361000.oog_band_failures_step1k|0
+  R2A|B4.balance_first_op.SETTLE_360000.min_settling_call_gas|367675
+  R2A|B4.balance_first_op.SETTLE_360000.min_call_gas_passing_guard|367675
+  R2A|B4.balance_first_op.SETTLE_360000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.balance_first_op.SETTLE_360000.oog_band_failures_step1k|0
+  R2A|B4.balance_first_op.SETTLE_155000.min_settling_call_gas|365207
+  R2A|B4.balance_first_op.SETTLE_155000.min_call_gas_passing_guard|159421
+  R2A|B4.balance_first_op.SETTLE_155000.oog_band_width(gOk-gGuard,0=none)|205786
+  R2A|B4.balance_first_op.SETTLE_155000.oog_band_failures_step1k|206
+  R2A|B4.credit_first_op.SETTLE_160000.min_settling_call_gas|369581
+  R2A|B4.credit_first_op.SETTLE_160000.min_call_gas_passing_guard|164500
+  R2A|B4.credit_first_op.SETTLE_160000.oog_band_width(gOk-gGuard,0=none)|205081
+  R2A|B4.credit_first_op.SETTLE_160000.oog_band_failures_step1k|206
+  R2A|B4.credit_first_op.derived_min_SETTLE_no_band|365081
+  R2A|B4.credit_first_op.SETTLE_366000.min_settling_call_gas|373770
+  R2A|B4.credit_first_op.SETTLE_366000.min_call_gas_passing_guard|373770
+  R2A|B4.credit_first_op.SETTLE_366000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.credit_first_op.SETTLE_366000.oog_band_failures_step1k|0
+  R2A|B4.credit_first_op.SETTLE_365000.min_settling_call_gas|372754
+  R2A|B4.credit_first_op.SETTLE_365000.min_call_gas_passing_guard|372754
+  R2A|B4.credit_first_op.SETTLE_365000.oog_band_width(gOk-gGuard,0=none)|0
+  R2A|B4.credit_first_op.SETTLE_365000.oog_band_failures_step1k|0
+  R2A|B4.credit_first_op.SETTLE_155000.min_settling_call_gas|369581
+  R2A|B4.credit_first_op.SETTLE_155000.min_call_gas_passing_guard|159421
+  R2A|B4.credit_first_op.SETTLE_155000.oog_band_width(gOk-gGuard,0=none)|210160
+  R2A|B4.credit_first_op.SETTLE_155000.oog_band_failures_step1k|211
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 314.92ms (313.20ms CPU time)
+
+Ran 1 test suite in 316.14ms (314.92ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

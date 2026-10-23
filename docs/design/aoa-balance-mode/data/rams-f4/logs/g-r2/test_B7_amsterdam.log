@@ -1,0 +1,32 @@
+# cmd: (cd /tmp/f4g && /tmp/fd/nightly/forge test --offline --no-isolate --evm-version prague --match-path contracts/test/zz_rams2a/Rams2a.t.sol -vv --match-test test_B7 --hardfork amsterdam)
+# env: FOUNDRY_ISOLATE=false FOUNDRY_OUT=/tmp/f4g-out FOUNDRY_CACHE_PATH=/tmp/f4g-cache FOUNDRY_DISABLE_NIGHTLY_WARNING=1
+# forge: forge Version: 1.8.7-nightly Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827 Build Timestamp: 2026-10-22T06:24:10.676280092Z (1792650250) Build Profile: dist sha256 9f19c41c970c64cfa1c836ef420e7ef071e032f22b617bf37c853a6866d5db85
+# tree: fbd74fb1e2e9d948996e6d6c02c48dc1c1778107 contracts/src f1d39b5bb4081c51e69c9b4a64346dd769193f31 foundry.toml 065d0bd7cd8e4d1de606cf438471c1f66fa5c659; Rams2a.t.sol aa0a26386054bfb290faa16e2dd7238ea83b2fc0d9b6e3d4e013a6fea357f8b2; SuperPaymasterV55Gas.t.sol e7f68b3358b848422c2a56b40658a693e1eae88a3b47d4f820013f0d72105793
+# start: 2026-10-23T06:26:14Z
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B7_bundle_accounting() (gas: 160393464)
+Logs:
+  R2A|B7.balance_user_writes_0.actualGasUsed(PVG=0)|1289728
+  R2A|B7.balance_user_writes_0.handleOps_frame_gas|1241015
+  R2A|B7.balance_user_writes_0.actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed)|48713
+  R2A|B7.balance_user_writes_0.success|1
+  R2A|B7.balance_user_writes_0.prefundTooLow|0
+  R2A|B7.balance_user_writes_1.actualGasUsed(PVG=0)|1390891
+  R2A|B7.balance_user_writes_1.handleOps_frame_gas|1353894
+  R2A|B7.balance_user_writes_1.actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed)|36997
+  R2A|B7.balance_user_writes_1.success|1
+  R2A|B7.balance_user_writes_1.prefundTooLow|0
+  R2A|B7.balance_user_writes_2.actualGasUsed(PVG=0)|1490063
+  R2A|B7.balance_user_writes_2.handleOps_frame_gas|1464134
+  R2A|B7.balance_user_writes_2.actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed)|25929
+  R2A|B7.balance_user_writes_2.success|1
+  R2A|B7.balance_user_writes_2.prefundTooLow|0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 12.44ms (9.35ms CPU time)
+
+Ran 1 test suite in 23.19ms (12.44ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

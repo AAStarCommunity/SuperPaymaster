@@ -1,0 +1,30 @@
+# run_g.sh ISOLATE=0 sha256 81db28a0f36e49b4dbf8bfced61f566a1916e838625e6b843c0b596b26a12c77 tree fbd74fb1e2e9d948996e6d6c02c48dc1c1778107 2026-10-23T06:26:02Z
+[2026-10-23T06:26:02Z] start test_B1
+[2026-10-23T06:26:03Z] end test_B1 exit 0
+[2026-10-23T06:26:03Z] start test_B2
+[2026-10-23T06:26:03Z] end test_B2 exit 0
+[2026-10-23T06:26:03Z] start test_B3_TR1409
+[2026-10-23T06:26:04Z] end test_B3_TR1409 exit 0
+[2026-10-23T06:26:04Z] start test_B3_min_postOp
+[2026-10-23T06:26:06Z] end test_B3_min_postOp exit 0
+[2026-10-23T06:26:06Z] start test_B3_min_paymasterVerificationGasLimit
+[2026-10-23T06:26:07Z] end test_B3_min_paymasterVerificationGasLimit exit 0
+[2026-10-23T06:26:07Z] start test_B3_min_verificationGasLimit_account
+[2026-10-23T06:26:08Z] end test_B3_min_verificationGasLimit_account exit 0
+[2026-10-23T06:26:08Z] start test_B3_min_callGasLimit
+[2026-10-23T06:26:10Z] end test_B3_min_callGasLimit exit 0
+[2026-10-23T06:26:10Z] start test_B4
+[2026-10-23T06:26:11Z] end test_B4 exit 0
+[2026-10-23T06:26:11Z] start test_B4b
+[2026-10-23T06:26:12Z] end test_B4b exit 0
+[2026-10-23T06:26:12Z] start test_B5
+[2026-10-23T06:26:13Z] end test_B5 exit 0
+[2026-10-23T06:26:13Z] start test_B6
+[2026-10-23T06:26:14Z] end test_B6 exit 0
+[2026-10-23T06:26:14Z] start test_B7
+[2026-10-23T06:26:15Z] end test_B7 exit 0
+[2026-10-23T06:26:15Z] start test_B8
+[2026-10-23T06:26:16Z] end test_B8 exit 0
+[2026-10-23T06:26:16Z] start test_C_wrap
+[2026-10-23T06:26:17Z] end test_C_wrap exit 0
+DONE

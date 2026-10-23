@@ -1,0 +1,156 @@
+{
+ "broadcast": "broadcast/DeployBLayerAnvil.s.sol/31337/run-latest.json",
+ "identity": "docs/design/aoa-balance-mode/data/rams-f4/identity-rc4-forge171-default.json",
+ "rows": [
+  {
+   "i": 0,
+   "hash": "0x29352550c0cfbd1d4b99224b86f575600ed03938ff8e09f1d46415d7fd58c4ed",
+   "forgeName": "BLayerPriceFeed",
+   "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+   "inputBytes": 166,
+   "inputKeccak": "0xded8b7a5c4b35a201283b18867331e2b97c8b30269fef169bd2021636651dc69",
+   "creationArtifact": null,
+   "constructorArgs": null
+  },
+  {
+   "i": 1,
+   "hash": "0x7910e49ef58102c30d2e21749dcf53ffde0a58308ea315afbfeeb60668b03225",
+   "forgeName": "Registry",
+   "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+   "inputBytes": 23670,
+   "inputKeccak": "0x4a8d5d6caaf74891030344efe069995e597a0e4447a3d34798e9647aea1762c3",
+   "creationArtifact": "Registry.sol/Registry.json",
+   "constructorArgs": "0x"
+  },
+  {
+   "i": 2,
+   "hash": "0x932ca8156b5380cf1851540ff2056eb9f7aa86e9cc8b8896e3b8b26e9ed99598",
+   "forgeName": "ERC1967Proxy.registry-size",
+   "address": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+   "inputBytes": 852,
+   "inputKeccak": "0x2173c288f1f06f27d7ed90a8401ebea4629c97e5928585d4e481646f1931b8be",
+   "creationArtifact": "ERC1967Proxy.sol/ERC1967Proxy.registry-size.json",
+   "constructorArgs": "0x000000000000000000000000e7f1725e7734ce288f8367e1bb143e90bb3f051200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000064c0c53b8b000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb922660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "i": 3,
+   "hash": "0x73f860fe570a28280dbcf1649eb75118f4b9214e36a48e73e8055fab78a05bc9",
+   "forgeName": "xPNTsFactory.registry-size",
+   "address": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+   "inputBytes": 25114,
+   "inputKeccak": "0xd8507d07363776c06e8fda28c037fc6d6d22166b264c1c657be530e02e5f5dca",
+   "creationArtifact": "xPNTsFactory.sol/xPNTsFactory.registry-size.json",
+   "constructorArgs": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+  },
+  {
+   "i": 4,
+   "hash": "0x3868884e24487a3cce7b5ca035ad7a8dc05eac0eb877d5bf7cae0cfeb9a79984",
+   "forgeName": "GTokenAuthorization",
+   "address": "0xdc64a140aa3e981100a9beca4e685f962f0cf6c9",
+   "inputBytes": 8315,
+   "inputKeccak": "0xa96f7892078f9ebf778284b747206de933e2c0db1796dcfd56fc557e51ac6b7d",
+   "creationArtifact": null,
+   "constructorArgs": null
+  },
+  {
+   "i": 5,
+   "hash": "0x8bb99a3ff7eaa1c9215c76eb82e4991755c093a6e9f635443e57c7505663bb11",
+   "forgeName": "GTokenStaking.registry-size",
+   "address": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
+   "inputBytes": 9641,
+   "inputKeccak": "0xf7e4419d46b8c18245c09ca1a8887cdcbaab813662c905447d41f801a5361f3f",
+   "creationArtifact": "GTokenStaking.sol/GTokenStaking.registry-size.json",
+   "constructorArgs": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c9000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb922660000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+  },
+  {
+   "i": 6,
+   "hash": "0xbc64891692b3538ffc9e32aad989068f9aec4f0bd985f31d6c9bde4e6f8c502e",
+   "forgeName": "MySBT.registry-size",
+   "address": "0x0165878a594ca255338adfa4d48449f69242eb8f",
+   "inputBytes": 13442,
+   "inputKeccak": "0xfdf2b9760d1df8e4c6cf66c6b469c16540c73322167edf84804213984e628051",
+   "creationArtifact": "MySBT.sol/MySBT.registry-size.json",
+   "constructorArgs": "0x000000000000000000000000dc64a140aa3e981100a9beca4e685f962f0cf6c90000000000000000000000005fc8d32690cc91d4c39d9d3abcbd16989f8757070000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+  },
+  {
+   "i": 14,
+   "hash": "0x38a667d3de2407c234431d7d58d84dc8c514e598f4b7f3d5f8af78d935cf18cc",
+   "forgeName": "SuperPaymaster",
+   "address": "0x9a676e781a523b5d0c0e43731313a708cb607508",
+   "inputBytes": 34647,
+   "inputKeccak": "0x0532b3ee21f8f7536099a97b3a668c24a97a3392cafde216af0af1d9646f098f",
+   "creationArtifact": "SuperPaymaster.sol/SuperPaymaster.json",
+   "constructorArgs": "0x0000000000000000000000000000000071727de22e5e9d8baf0edac6f37da0320000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e00000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3"
+  },
+  {
+   "i": 15,
+   "hash": "0x51617f294ed9aa1897eca71c3178add4188f6f2ae7a7dd330daa169c421314d9",
+   "forgeName": "ERC1967Proxy.registry-size",
+   "address": "0x0b306bf915c4d645ff596e518faf3f9669b97016",
+   "inputBytes": 884,
+   "inputKeccak": "0xc7a0db72f21c21ce2b16f79d3911c7cc63e737a24012e2dc7a908e31d4226bdc",
+   "creationArtifact": "ERC1967Proxy.sol/ERC1967Proxy.registry-size.json",
+   "constructorArgs": "0x0000000000000000000000009a676e781a523b5d0c0e43731313a708cb60750800000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000084cf756fdf000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb922660000000000000000000000006d544390eb535d61e196c87d6b9c80dcd8628acd000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000000000000000000000000000000000000000106800000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "i": 16,
+   "hash": "0xa5f82c477888d427dbbcca84fcf9264d7a4f5bd4c13889c98efa71238115c4ba",
+   "forgeName": "GlobalTierSource",
+   "address": "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1",
+   "inputBytes": 769,
+   "inputKeccak": "0x1b15c44412097c75d66b50f52cbdfd30e4b3f0c37d5efde041c55211f9633ff6",
+   "creationArtifact": "GlobalTierSource.sol/GlobalTierSource.json",
+   "constructorArgs": "0x0000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e0"
+  },
+  {
+   "i": 17,
+   "hash": "0x751d175f6476095c8f8485c5b3af56bf46ba25fbfef4760726344f0c315ee7ca",
+   "forgeName": "AOAProtocolRegistry",
+   "address": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae",
+   "inputBytes": 2987,
+   "inputKeccak": "0xd827ba7a88ea04642d5dce2b6e3119e22237e874434c1da22dfc2046a5a423e6",
+   "creationArtifact": "AOAProtocolRegistry.sol/AOAProtocolRegistry.json",
+   "constructorArgs": "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+  },
+  {
+   "i": 21,
+   "hash": "0xd78fa8c4dcc60b8f441cabb83bc7fca5371927852950ecc2b4b483570fb281c7",
+   "forgeName": "xPNTsTokenV2Ext",
+   "address": "0x59b670e9fa9d0a427751af201d676719a970857b",
+   "inputBytes": 24175,
+   "inputKeccak": "0x945dcff2d542292fd7f72dc097472ab9a31b65ac41723ada350236286dd19b1d",
+   "creationArtifact": "xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json",
+   "constructorArgs": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+  },
+  {
+   "i": 22,
+   "hash": "0x94acd7de4e03a5f6ccadff0bd2b687fb11e5e4e5b9095c88e3a724b0bd34f1e5",
+   "forgeName": "xPNTsTokenV2",
+   "address": "0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1",
+   "inputBytes": 22236,
+   "inputKeccak": "0xe0a7430fb5d6399dcd8a6e283d67b625bae839610960f3868a01bb819e2327bb",
+   "creationArtifact": "xPNTsTokenV2.sol/xPNTsTokenV2.json",
+   "constructorArgs": "0x0000000000000000000000009a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae00000000000000000000000059b670e9fa9d0a427751af201d676719a970857b"
+  },
+  {
+   "i": 23,
+   "hash": "0xf8247e588db66bed6acb2e1f4af9cb982e96d923ceb219391655b32ff564a0ac",
+   "forgeName": "xPNTsFactoryV2",
+   "address": "0x322813fd9a801c5507c9de605d63cea4f2ce6c44",
+   "inputBytes": 10884,
+   "inputKeccak": "0x4a6d4f0244a897ba48f77e92649d75fe4e991d11135e04db61b49da291c3c08a",
+   "creationArtifact": "xPNTsFactoryV2.sol/xPNTsFactoryV2.json",
+   "constructorArgs": "0x0000000000000000000000000b306bf915c4d645ff596e518faf3f9669b970160000000000000000000000009fe46736679d2d9a65f0992f2272de9f3c7fa6e00000000000000000000000004ed7c70f96b99c776995fb64377f0d4ab3b0e1c1000000000000000000000000959922be3caee4b8cd9a407cc3ac1c251c2007b1"
+  },
+  {
+   "i": 24,
+   "hash": "0xafaf5a0db4ab6dceda805419aba7709c69d4af9bebb3289b454229d628e2c9ee",
+   "forgeName": "SuperPaymasterLens",
+   "address": "0xa85233c63b9ee964add6f2cffe00fd84eb32338f",
+   "inputBytes": 5439,
+   "inputKeccak": "0xb2b98f672229d0bdb0efa903210564c3d5e9b7edb4756b86e9bf7c7d5e0a61d5",
+   "creationArtifact": "SuperPaymasterLens.sol/SuperPaymasterLens.json",
+   "constructorArgs": "0x"
+  }
+ ]
+}

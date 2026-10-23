@@ -1,0 +1,156 @@
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B8_proposed_tuples() (gas: 215107428)
+Logs:
+  R2A|B8.defaults_200k_160k_5k_175k.balance_first_op.bundleReverted|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_first_op.settled|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_first_op.chargeCoversNeed|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_first_op.chargeClampedAtA0|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_first_op.charge_minus_need_aPNTs|-141093040000000000000
+  R2A|B8.defaults_200k_160k_5k_175k.balance_first_op.actualGasUsed|1282664
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_writes_2.bundleReverted|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_writes_2.settled|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_writes_2.chargeCoversNeed|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_writes_2.chargeClampedAtA0|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_writes_2.charge_minus_need_aPNTs|-131222410000000000000
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_writes_2.actualGasUsed|1192931
+  R2A|B8.defaults_200k_160k_5k_175k.credit_first_op.bundleReverted|0
+  R2A|B8.defaults_200k_160k_5k_175k.credit_first_op.settled|0
+  R2A|B8.defaults_200k_160k_5k_175k.credit_first_op.chargeCoversNeed|0
+  R2A|B8.defaults_200k_160k_5k_175k.credit_first_op.chargeClampedAtA0|0
+  R2A|B8.defaults_200k_160k_5k_175k.credit_first_op.charge_minus_need_aPNTs|-105999520000000000000
+  R2A|B8.defaults_200k_160k_5k_175k.credit_first_op.actualGasUsed|963632
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.bundleReverted|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.settled|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.chargeCoversNeed|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.chargeClampedAtA0|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.charge_minus_need_aPNTs|-123047100000000000000
+  R2A|B8.defaults_200k_160k_5k_175k.balance_user_call_reverts.actualGasUsed|1118610
+  R2A|B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).bundleReverted|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).settled|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).chargeCoversNeed|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).chargeClampedAtA0|0
+  R2A|B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).charge_minus_need_aPNTs|-120327570000000000000
+  R2A|B8.defaults_200k_160k_5k_175k.balance_realistic_limits(call 120k,pmVer 900k).actualGasUsed|1093887
+  R2A|B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).bundleReverted|0
+  R2A|B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).settled|0
+  R2A|B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).chargeCoversNeed|0
+  R2A|B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).chargeClampedAtA0|0
+  R2A|B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).charge_minus_need_aPNTs|-97765250000000000000
+  R2A|B8.defaults_200k_160k_5k_175k.credit_realistic_limits(call 120k,pmVer 700k).actualGasUsed|888775
+  R2A|B8.raw_385k_365k_5k_336k.balance_first_op.bundleReverted|0
+  R2A|B8.raw_385k_365k_5k_336k.balance_first_op.settled|1
+  R2A|B8.raw_385k_365k_5k_336k.balance_first_op.chargeCoversNeed|1
+  R2A|B8.raw_385k_365k_5k_336k.balance_first_op.chargeClampedAtA0|0
+  R2A|B8.raw_385k_365k_5k_336k.balance_first_op.charge_minus_need_aPNTs|19796260000000000000
+  R2A|B8.raw_385k_365k_5k_336k.balance_first_op.actualGasUsed|1276219
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_writes_2.bundleReverted|0
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_writes_2.settled|1
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_writes_2.chargeCoversNeed|1
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_writes_2.chargeClampedAtA0|0
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_writes_2.charge_minus_need_aPNTs|43808050000000000000
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_writes_2.actualGasUsed|1166578
+  R2A|B8.raw_385k_365k_5k_336k.credit_first_op.bundleReverted|0
+  R2A|B8.raw_385k_365k_5k_336k.credit_first_op.settled|1
+  R2A|B8.raw_385k_365k_5k_336k.credit_first_op.chargeCoversNeed|1
+  R2A|B8.raw_385k_365k_5k_336k.credit_first_op.chargeClampedAtA0|0
+  R2A|B8.raw_385k_365k_5k_336k.credit_first_op.charge_minus_need_aPNTs|31254300000000000000
+  R2A|B8.raw_385k_365k_5k_336k.credit_first_op.actualGasUsed|853023
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_call_reverts.bundleReverted|0
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_call_reverts.settled|1
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_call_reverts.chargeCoversNeed|1
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_call_reverts.chargeClampedAtA0|0
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_call_reverts.charge_minus_need_aPNTs|32206460000000000000
+  R2A|B8.raw_385k_365k_5k_336k.balance_user_call_reverts.actualGasUsed|1003569
+  R2A|B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).bundleReverted|0
+  R2A|B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).settled|1
+  R2A|B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).chargeCoversNeed|1
+  R2A|B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).chargeClampedAtA0|0
+  R2A|B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).charge_minus_need_aPNTs|42595960000000000000
+  R2A|B8.raw_385k_365k_5k_336k.balance_realistic_limits(call 120k,pmVer 900k).actualGasUsed|979406
+  R2A|B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).bundleReverted|0
+  R2A|B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).settled|1
+  R2A|B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).chargeCoversNeed|1
+  R2A|B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).chargeClampedAtA0|0
+  R2A|B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).charge_minus_need_aPNTs|32487840000000000000
+  R2A|B8.raw_385k_365k_5k_336k.credit_realistic_limits(call 120k,pmVer 700k).actualGasUsed|866186
+  R2A|B8.margin_440k_420k_5k_340k.balance_first_op.bundleReverted|0
+  R2A|B8.margin_440k_420k_5k_340k.balance_first_op.settled|1
+  R2A|B8.margin_440k_420k_5k_340k.balance_first_op.chargeCoversNeed|1
+  R2A|B8.margin_440k_420k_5k_340k.balance_first_op.chargeClampedAtA0|0
+  R2A|B8.margin_440k_420k_5k_340k.balance_first_op.charge_minus_need_aPNTs|20236260000000000000
+  R2A|B8.margin_440k_420k_5k_340k.balance_first_op.actualGasUsed|1281719
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_writes_2.bundleReverted|0
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_writes_2.settled|1
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_writes_2.chargeCoversNeed|1
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_writes_2.chargeClampedAtA0|0
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_writes_2.charge_minus_need_aPNTs|44248050000000000000
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_writes_2.actualGasUsed|1172078
+  R2A|B8.margin_440k_420k_5k_340k.credit_first_op.bundleReverted|0
+  R2A|B8.margin_440k_420k_5k_340k.credit_first_op.settled|1
+  R2A|B8.margin_440k_420k_5k_340k.credit_first_op.chargeCoversNeed|1
+  R2A|B8.margin_440k_420k_5k_340k.credit_first_op.chargeClampedAtA0|0
+  R2A|B8.margin_440k_420k_5k_340k.credit_first_op.charge_minus_need_aPNTs|31694300000000000000
+  R2A|B8.margin_440k_420k_5k_340k.credit_first_op.actualGasUsed|858523
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_call_reverts.bundleReverted|0
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_call_reverts.settled|1
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_call_reverts.chargeCoversNeed|1
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_call_reverts.chargeClampedAtA0|0
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_call_reverts.charge_minus_need_aPNTs|32646460000000000000
+  R2A|B8.margin_440k_420k_5k_340k.balance_user_call_reverts.actualGasUsed|1009069
+  R2A|B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).bundleReverted|0
+  R2A|B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).settled|1
+  R2A|B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).chargeCoversNeed|1
+  R2A|B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).chargeClampedAtA0|0
+  R2A|B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).charge_minus_need_aPNTs|43035960000000000000
+  R2A|B8.margin_440k_420k_5k_340k.balance_realistic_limits(call 120k,pmVer 900k).actualGasUsed|984906
+  R2A|B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).bundleReverted|0
+  R2A|B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).settled|1
+  R2A|B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).chargeCoversNeed|1
+  R2A|B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).chargeClampedAtA0|0
+  R2A|B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).charge_minus_need_aPNTs|32927840000000000000
+  R2A|B8.margin_440k_420k_5k_340k.credit_realistic_limits(call 120k,pmVer 700k).actualGasUsed|871686
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.bundleReverted|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.settled|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.chargeCoversNeed|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.chargeClampedAtA0|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.charge_minus_need_aPNTs|15836260000000000000
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_first_op.actualGasUsed|1281719
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.bundleReverted|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.settled|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.chargeCoversNeed|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.chargeClampedAtA0|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.charge_minus_need_aPNTs|39848050000000000000
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_writes_2.actualGasUsed|1172078
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.bundleReverted|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.settled|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.chargeCoversNeed|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.chargeClampedAtA0|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.charge_minus_need_aPNTs|27294300000000000000
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_first_op.actualGasUsed|858523
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.bundleReverted|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.settled|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.chargeCoversNeed|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.chargeClampedAtA0|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.charge_minus_need_aPNTs|28246460000000000000
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_user_call_reverts.actualGasUsed|1009069
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).bundleReverted|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).settled|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).chargeCoversNeed|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).chargeClampedAtA0|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).charge_minus_need_aPNTs|38635960000000000000
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.balance_realistic_limits(call 120k,pmVer 900k).actualGasUsed|984906
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).bundleReverted|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).settled|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).chargeCoversNeed|1
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).chargeClampedAtA0|0
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).charge_minus_need_aPNTs|28527840000000000000
+  R2A|B8.Cpostop_low_440k_420k_5k_300k.credit_realistic_limits(call 120k,pmVer 700k).actualGasUsed|871686
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 43.54ms (41.15ms CPU time)
+
+Ran 1 test suite in 44.88ms (43.54ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

@@ -1,0 +1,113 @@
+{
+ "dumpDir": "/tmp/f4o/f4dump",
+ "identityPath": "docs/design/aoa-balance-mode/data/rams-f4/identity-rc4-forge171-default.json",
+ "rows": [
+  {
+   "name": "AOAProtocolRegistry",
+   "address": "0xb614cD7FAc9d64b0D84fFcC77c996e797641b01A",
+   "codeBytes": 2705,
+   "codeKeccak": "0x15b8171f9df0db179657470a21148a9d06db8b92ec805b027776da5bf3ae8311",
+   "matches": [
+    "AOAProtocolRegistry.sol/AOAProtocolRegistry.registry-size.json"
+   ]
+  },
+  {
+   "name": "GlobalTierSource",
+   "address": "0x35fD32D12C2d783eccb171BdDba05e94929A7C7d",
+   "codeBytes": 538,
+   "codeKeccak": "0xde28742d3dd6aae194e7fecdf08099e4d9e7d97c89aeacca6a30ab64e6c58651",
+   "matches": [
+    "GlobalTierSource.sol/GlobalTierSource.registry-size.json"
+   ]
+  },
+  {
+   "name": "SimpleAccountFactory",
+   "address": "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f",
+   "codeBytes": 1443,
+   "codeKeccak": "0x94752f76d29cc686eac6b63a2cec2fd3e06788d08ebe53fd6fd2a9e35af44b41",
+   "matches": [
+    "SimpleAccountFactory.sol/SimpleAccountFactory.registry-size.json"
+   ]
+  },
+  {
+   "name": "SimpleAccount_impl",
+   "address": "0x104fBc016F4bb334D775a19E8A6510109AC63E00",
+   "codeBytes": 4675,
+   "codeKeccak": "0x783acbc4090350a8bff76c3703107719f4b9bf463a8568c89e76642e7b2cd714",
+   "matches": [
+    "SimpleAccount.sol/SimpleAccount.registry-size.json"
+   ]
+  },
+  {
+   "name": "SimpleAccount_proxy_user",
+   "address": "0x7219505000dA0C2DF9912cBcBc0Cf41fb572d6D7",
+   "codeBytes": 89,
+   "codeKeccak": "0xf83adf10f05f94fef4ed0a49925b1677b93b1b2ee0af655887d4d4f6d6937604",
+   "matches": [
+    "ERC1967Proxy.sol/ERC1967Proxy.registry-size.json"
+   ]
+  },
+  {
+   "name": "SuperPaymasterAdmin",
+   "address": "0x4873Bc2355ED75C9f9ed9B9B43B984a48d1d3220",
+   "codeBytes": 18891,
+   "codeKeccak": "0x80a0a5d71fb80c59d1c06add4df38c365f321b6a1a5a8be7a66c44bc94b454e5",
+   "matches": [
+    "SuperPaymasterAdmin.sol/SuperPaymasterAdmin.registry-size.json"
+   ]
+  },
+  {
+   "name": "SuperPaymaster_impl",
+   "address": "0xb03d3c31cbBE13A3d0Fed67543a378b626d4496f",
+   "codeBytes": 13334,
+   "codeKeccak": "0x629a1626f4e8c5be47f9a06f5102647c2ec9c1b4d442fb69ce750b808ccb9c42",
+   "matches": [
+    "SuperPaymaster.sol/SuperPaymaster.registry-size.json"
+   ]
+  },
+  {
+   "name": "SuperPaymaster_proxy",
+   "address": "0xe402e517D2dB884C0aAec7843A29e3DbaAA97cA9",
+   "codeBytes": 89,
+   "codeKeccak": "0xf83adf10f05f94fef4ed0a49925b1677b93b1b2ee0af655887d4d4f6d6937604",
+   "matches": [
+    "ERC1967Proxy.sol/ERC1967Proxy.registry-size.json"
+   ]
+  },
+  {
+   "name": "xPNTsFactoryV2",
+   "address": "0x2474Ef806D79eCFDBc258cdF269EA429b72CaFaa",
+   "codeBytes": 8522,
+   "codeKeccak": "0x0d2daae0316ee3d122e9f5be0d18d9ea3afa00f9c1ea81e48c9cf48db78e09dc",
+   "matches": [
+    "xPNTsFactoryV2.sol/xPNTsFactoryV2.registry-size.json"
+   ]
+  },
+  {
+   "name": "xPNTsTokenV2",
+   "address": "0xd49F864d4cC8c786E03f4D8f1990c9c5385F1eaF",
+   "codeBytes": 19587,
+   "codeKeccak": "0x004783833fbe8fa167781d07e091638756f803bd552f8ba0181bde6a45ca3b65",
+   "matches": [
+    "xPNTsTokenV2.sol/xPNTsTokenV2.registry-size.json"
+   ]
+  },
+  {
+   "name": "xPNTsTokenV2Ext",
+   "address": "0xf7a0fd8db9D450FD1389A79dc51d073673837b19",
+   "codeBytes": 21742,
+   "codeKeccak": "0x92d81ae9d08285f7a96f6412810f8523325d161bc0f29483fb78855df3993dc2",
+   "matches": [
+    "xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.registry-size.json"
+   ]
+  },
+  {
+   "name": "xPNTsTokenV2_clone",
+   "address": "0x37042F7b12E8bc6487EEA3c780415044e4032Cc9",
+   "codeBytes": 45,
+   "codeKeccak": "0x6a0e3cdb67c9b7fc4ffd969fcb4cfff341a7f097a08f95e1a19eb5bdae493c51",
+   "eip1167CloneOf": "0xd49f864d4cc8c786e03f4d8f1990c9c5385f1eaf",
+   "matches": []
+  }
+ ]
+}

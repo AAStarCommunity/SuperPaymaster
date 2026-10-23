@@ -1,0 +1,141 @@
+{
+ "engine": [
+  "anvil Version: 1.8.6",
+  "Commit SHA: 6bad0a66de7c83f7b33695044138f0f5fa4c5990"
+ ],
+ "hardfork": "amsterdam",
+ "n": 10,
+ "matches": 10,
+ "rows": [
+  {
+   "tx": "0xb3f99106ccaa184d9488ca0d20927344afa2d00442ef94fc52796bf50bdeffab",
+   "block": 11974600,
+   "index": 84,
+   "chain_gasUsed": 17904329,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 0,
+   "engine_gasUsed": 17904329,
+   "engine_status": "0x1",
+   "local_hash": "0x893b9d1155030b640f62aa6f3f44befe1ebd6e302a9ed8d73a34510e752c41f5",
+   "local_hash_differs": true,
+   "match": true
+  },
+  {
+   "tx": "0x958ab53c1d17cf20269bc435b21b0e06c7553f80527a8c7a2daf345e360c85b2",
+   "block": 11974601,
+   "index": 86,
+   "chain_gasUsed": 33054869,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 1,
+   "engine_gasUsed": 33054869,
+   "engine_status": "0x1",
+   "local_hash": "0xd684bff4b9d0f29fe6f2fce0d9f97566eb4b3735367794bb5915918270f53300",
+   "local_hash_differs": true,
+   "match": true
+  },
+  {
+   "tx": "0x0fd969f86c33e10077ea82a03e068b1f4c7ae6ebafeb8ec7b92234c7ec1c8791",
+   "block": 11974605,
+   "index": 48,
+   "chain_gasUsed": 70412677,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 0,
+   "engine_gasUsed": 70412677,
+   "engine_status": "0x1",
+   "local_hash": "0x82b3b96dde1939203ad770eea100fccd7fe6b48da093393331da84fe9aeef106",
+   "local_hash_differs": true,
+   "match": true
+  },
+  {
+   "tx": "0x20d084238b6e8d21ca0ce0e04490368b356c278f2b4e43fe9895b7cd1f3bdbb6",
+   "block": 11974610,
+   "index": 44,
+   "chain_gasUsed": 26545548,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 0,
+   "engine_gasUsed": 26545548,
+   "engine_status": "0x1",
+   "local_hash": "0xcac6593c26e60fcd51108a037140273729a4665ddea9c4d1acafbd4f691238de",
+   "local_hash_differs": true,
+   "match": true
+  },
+  {
+   "tx": "0x61f71dfc07b27102010eff065bdc5c5130718ca97813abd1e793bc5ef7c4947e",
+   "block": 11974648,
+   "index": 101,
+   "chain_gasUsed": 57749267,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 1,
+   "engine_gasUsed": 57749267,
+   "engine_status": "0x1",
+   "local_hash": "0xad82fe7bafd2b388808099fdb54e25c918a7b2ec103d7cc85cee60fffa85212b",
+   "local_hash_differs": true,
+   "match": true
+  },
+  {
+   "tx": "0x9d4cfb4b1261939cf058ff15bb114add4d744058e3de9756ae1fdaefd8f76e60",
+   "block": 11974655,
+   "index": 11,
+   "chain_gasUsed": 20548069,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 0,
+   "engine_gasUsed": 20548069,
+   "engine_status": "0x1",
+   "local_hash": "0x1ff98a67d68bee3b0d91eb8a31717c6771719fba275a6d5c854a8c3a4d982efc",
+   "local_hash_differs": true,
+   "match": true
+  },
+  {
+   "tx": "0x772280d08831cf981e8483252a729ac485a861bac390a653b90424c99a9a81cd",
+   "block": 11974670,
+   "index": 12,
+   "chain_gasUsed": 32707071,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 0,
+   "engine_gasUsed": 32707071,
+   "engine_status": "0x1",
+   "local_hash": "0xb3e3131ea25da4dc58b9c864a7b73d98624bcc5ae354b4adfa8f0e3a33ebab1a",
+   "local_hash_differs": true,
+   "match": true
+  },
+  {
+   "tx": "0x52fe1ddd994db8c84ddcbae3789a638c220ac71adb71c2a0d9b8dcd0fe004faa",
+   "block": 11974696,
+   "index": 73,
+   "chain_gasUsed": 18820129,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 0,
+   "engine_gasUsed": 18820129,
+   "engine_status": "0x1",
+   "local_hash": "0x423be8589b3d9d5095553a8ea64827bddf902787117b32d12162b2f84aae373a",
+   "local_hash_differs": true,
+   "match": true
+  },
+  {
+   "tx": "0xc43cfb6bab163e75aec1477bfc3792742f58bfee7e7e35dc154fe263f06606c4",
+   "block": 11974704,
+   "index": 70,
+   "chain_gasUsed": 37555527,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 1,
+   "engine_gasUsed": 37555527,
+   "engine_status": "0x1",
+   "local_hash": "0x75d27132bcbf47681d6e47d295c457624a3c4fb7f37e064c62cb0e80eeea5594",
+   "local_hash_differs": true,
+   "match": true
+  },
+  {
+   "tx": "0xf815b4d24e02f2c4505d64d39336178c7d3e7f9f6ef26bf06b17bb24ad51ca3f",
+   "block": 11974715,
+   "index": 1,
+   "chain_gasUsed": 34015748,
+   "chain_status": "0x1",
+   "preceding_replay_errors": 0,
+   "engine_gasUsed": 34015748,
+   "engine_status": "0x1",
+   "local_hash": "0x6d3da2f27ff265c5f71c54c2d77923c5f8a7ca5118ac48e918b5b2b62e42712d",
+   "local_hash_differs": true,
+   "match": true
+  }
+ ]
+}

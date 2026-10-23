@@ -1,0 +1,24 @@
+Compiling 172 files with Solc 0.8.33
+Compiling 102 files with Solc 0.8.33
+Solc 0.8.33 finished in 38.53s
+Solc 0.8.33 finished in 79.40s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B3_min_paymasterVerificationGasLimit() (gas: 101107407)
+Logs:
+  R2A|B3.min_pmVerificationGasLimit.balance_first_op|820305
+  R2A|B3.min_pmVerificationGasLimit.credit_first_op|611954
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 75.44ms (73.46ms CPU time)
+
+Ran 1 test suite in 79.08ms (75.44ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
+
+real	1m21.798s
+user	1m58.105s
+sys	0m1.339s

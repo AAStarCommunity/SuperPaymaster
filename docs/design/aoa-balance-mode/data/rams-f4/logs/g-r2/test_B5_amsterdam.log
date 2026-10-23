@@ -1,0 +1,77 @@
+# cmd: (cd /tmp/f4g && /tmp/fd/nightly/forge test --offline --no-isolate --evm-version prague --match-path contracts/test/zz_rams2a/Rams2a.t.sol -vv --match-test test_B5 --hardfork amsterdam)
+# env: FOUNDRY_ISOLATE=false FOUNDRY_OUT=/tmp/f4g-out FOUNDRY_CACHE_PATH=/tmp/f4g-cache FOUNDRY_DISABLE_NIGHTLY_WARNING=1
+# forge: forge Version: 1.8.7-nightly Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827 Build Timestamp: 2026-10-22T06:24:10.676280092Z (1792650250) Build Profile: dist sha256 9f19c41c970c64cfa1c836ef420e7ef071e032f22b617bf37c853a6866d5db85
+# tree: fbd74fb1e2e9d948996e6d6c02c48dc1c1778107 contracts/src f1d39b5bb4081c51e69c9b4a64346dd769193f31 foundry.toml 065d0bd7cd8e4d1de606cf438471c1f66fa5c659; Rams2a.t.sol aa0a26386054bfb290faa16e2dd7238ea83b2fc0d9b6e3d4e013a6fea357f8b2; SuperPaymasterV55Gas.t.sol e7f68b3358b848422c2a56b40658a693e1eae88a3b47d4f820013f0d72105793
+# start: 2026-10-23T06:26:12Z
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B5_candidate_tuples_at_MIN() (gas: 185259938)
+Logs:
+  R2A|B5.MIN_200000_SETTLE_160000.balance.settled|0
+  R2A|B5.MIN_200000_SETTLE_160000.balance.postOpRevertSelector|0
+  R2A|B5.MIN_200000_SETTLE_160000.balance.chargeCoversNeed|0
+  R2A|B5.MIN_200000_SETTLE_160000.balance.charge|0
+  R2A|B5.MIN_200000_SETTLE_160000.balance.need|141314030000000000000
+  R2A|B5.MIN_200000_SETTLE_160000.credit.settled|0
+  R2A|B5.MIN_200000_SETTLE_160000.credit.postOpRevertSelector|0
+  R2A|B5.MIN_200000_SETTLE_160000.credit.chargeCoversNeed|0
+  R2A|B5.MIN_200000_SETTLE_160000.credit.charge|0
+  R2A|B5.MIN_200000_SETTLE_160000.credit.need|106000510000000000000
+  R2A|B5.MIN_300000_SETTLE_280000.balance.settled|0
+  R2A|B5.MIN_300000_SETTLE_280000.balance.postOpRevertSelector|0
+  R2A|B5.MIN_300000_SETTLE_280000.balance.chargeCoversNeed|0
+  R2A|B5.MIN_300000_SETTLE_280000.balance.charge|0
+  R2A|B5.MIN_300000_SETTLE_280000.balance.need|151938270000000000000
+  R2A|B5.MIN_300000_SETTLE_280000.credit.settled|0
+  R2A|B5.MIN_300000_SETTLE_280000.credit.postOpRevertSelector|0
+  R2A|B5.MIN_300000_SETTLE_280000.credit.chargeCoversNeed|0
+  R2A|B5.MIN_300000_SETTLE_280000.credit.charge|0
+  R2A|B5.MIN_300000_SETTLE_280000.credit.need|116844750000000000000
+  R2A|B5.MIN_350000_SETTLE_330000.balance.settled|0
+  R2A|B5.MIN_350000_SETTLE_330000.balance.postOpRevertSelector|0
+  R2A|B5.MIN_350000_SETTLE_330000.balance.chargeCoversNeed|0
+  R2A|B5.MIN_350000_SETTLE_330000.balance.charge|0
+  R2A|B5.MIN_350000_SETTLE_330000.balance.need|128258240000000000000
+  R2A|B5.MIN_350000_SETTLE_330000.credit.settled|0
+  R2A|B5.MIN_350000_SETTLE_330000.credit.postOpRevertSelector|0
+  R2A|B5.MIN_350000_SETTLE_330000.credit.chargeCoversNeed|0
+  R2A|B5.MIN_350000_SETTLE_330000.credit.charge|0
+  R2A|B5.MIN_350000_SETTLE_330000.credit.need|93164720000000000000
+  R2A|B5.MIN_400000_SETTLE_380000.balance.settled|1
+  R2A|B5.MIN_400000_SETTLE_380000.balance.postOpRevertSelector|0
+  R2A|B5.MIN_400000_SETTLE_380000.balance.chargeCoversNeed|1
+  R2A|B5.MIN_400000_SETTLE_380000.balance.charge|167385350000000000000
+  R2A|B5.MIN_400000_SETTLE_380000.balance.need|140549090000000000000
+  R2A|B5.MIN_400000_SETTLE_380000.credit.settled|1
+  R2A|B5.MIN_400000_SETTLE_380000.credit.postOpRevertSelector|0
+  R2A|B5.MIN_400000_SETTLE_380000.credit.chargeCoversNeed|1
+  R2A|B5.MIN_400000_SETTLE_380000.credit.charge|132291830000000000000
+  R2A|B5.MIN_400000_SETTLE_380000.credit.need|93997530000000000000
+  R2A|B5.MIN_450000_SETTLE_430000.balance.settled|1
+  R2A|B5.MIN_450000_SETTLE_430000.balance.postOpRevertSelector|0
+  R2A|B5.MIN_450000_SETTLE_430000.balance.chargeCoversNeed|1
+  R2A|B5.MIN_450000_SETTLE_430000.balance.charge|173435350000000000000
+  R2A|B5.MIN_450000_SETTLE_430000.balance.need|141099090000000000000
+  R2A|B5.MIN_450000_SETTLE_430000.credit.settled|1
+  R2A|B5.MIN_450000_SETTLE_430000.credit.postOpRevertSelector|0
+  R2A|B5.MIN_450000_SETTLE_430000.credit.chargeCoversNeed|1
+  R2A|B5.MIN_450000_SETTLE_430000.credit.charge|138341830000000000000
+  R2A|B5.MIN_450000_SETTLE_430000.credit.need|94547530000000000000
+  R2A|B5.MIN_500000_SETTLE_480000.balance.settled|1
+  R2A|B5.MIN_500000_SETTLE_480000.balance.postOpRevertSelector|0
+  R2A|B5.MIN_500000_SETTLE_480000.balance.chargeCoversNeed|1
+  R2A|B5.MIN_500000_SETTLE_480000.balance.charge|179485350000000000000
+  R2A|B5.MIN_500000_SETTLE_480000.balance.need|141649090000000000000
+  R2A|B5.MIN_500000_SETTLE_480000.credit.settled|1
+  R2A|B5.MIN_500000_SETTLE_480000.credit.postOpRevertSelector|0
+  R2A|B5.MIN_500000_SETTLE_480000.credit.chargeCoversNeed|1
+  R2A|B5.MIN_500000_SETTLE_480000.credit.charge|144391830000000000000
+  R2A|B5.MIN_500000_SETTLE_480000.credit.need|95097530000000000000
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 31.72ms (29.32ms CPU time)
+
+Ran 1 test suite in 32.77ms (31.72ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

@@ -1,0 +1,31 @@
+[2026-10-23T05:01:54Z] start test_B1
+[2026-10-23T05:01:54Z] end test_B1 exit 0
+[2026-10-23T05:01:54Z] start test_B2
+[2026-10-23T05:01:55Z] end test_B2 exit 0
+[2026-10-23T05:01:55Z] start test_B3_TR1409
+[2026-10-23T05:01:56Z] end test_B3_TR1409 exit 0
+[2026-10-23T05:01:56Z] start test_B3_min_postOp
+[2026-10-23T05:01:57Z] end test_B3_min_postOp exit 0
+[2026-10-23T05:01:57Z] start test_B3_min_paymasterVerificationGasLimit
+[2026-10-23T05:01:58Z] end test_B3_min_paymasterVerificationGasLimit exit 0
+[2026-10-23T05:01:58Z] start test_B3_min_verificationGasLimit_account
+[2026-10-23T05:01:58Z] end test_B3_min_verificationGasLimit_account exit 0
+[2026-10-23T05:01:58Z] start test_B3_min_callGasLimit
+[2026-10-23T05:01:59Z] end test_B3_min_callGasLimit exit 0
+[2026-10-23T05:01:59Z] start test_B4
+[2026-10-23T05:02:00Z] end test_B4 exit 0
+[2026-10-23T05:02:00Z] start test_B4b
+[2026-10-23T05:02:00Z] end test_B4b exit 0
+[2026-10-23T05:02:00Z] start test_B5
+[2026-10-23T05:02:01Z] end test_B5 exit 0
+[2026-10-23T05:02:01Z] start test_B6
+[2026-10-23T05:02:02Z] end test_B6 exit 0
+[2026-10-23T05:02:02Z] start test_B7
+[2026-10-23T05:02:02Z] end test_B7 exit 0
+[2026-10-23T05:02:02Z] start test_B8
+[2026-10-23T05:02:03Z] end test_B8 exit 0
+[2026-10-23T05:02:03Z] start test_C_wrap
+[2026-10-23T05:02:04Z] end test_C_wrap exit 0
+DONE
+[2026-10-23T05:02:30Z] start test_B4 (re-run: the first pattern 'test_B4_no_oog_band$' matched no test)
+[2026-10-23T05:02:32Z] end test_B4 exit 0
