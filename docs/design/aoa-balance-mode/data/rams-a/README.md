@@ -6,8 +6,8 @@ This directory preserves the Sepolia block 11,974,561 fork runs and their mutati
 
 | Item | Result | File |
 |---|---|---|
-| Fork rehearsal (nightly 926eb1d, `--hardfork amsterdam`, block 11,974,561) | **16/16 PASS** at FINAL_COMMIT, `Dirty paths: 0` | `FINAL_LOG` |
-| Mutations, 21 definitions `mutations-def4/` | **CONTROL 16/16 GREEN; M1–M21 all KILLED by their expected assertion** at FINAL_COMMIT | `mutations-run10/summary.tsv` |
+| Fork rehearsal (nightly 926eb1d, `--hardfork amsterdam`, block 11,974,561) | **16/16 PASS** at ec8f2c0c, `Dirty paths: 0` | `rehearsal-20261023T084836Z-51573.log` |
+| Mutations, 21 definitions `mutations-def4/` | **CONTROL 16/16 GREEN; M1–M21 all KILLED by their expected assertion** at ec8f2c0c | `mutations-run10/summary.tsv` |
 | Superseded mutation runs | `mutations-run9/` 21/21 KILLED but M20 was killed by a changed revert, not by a granted role (the prospect lacked COMMUNITY), so A6e now uses a qualified prospect; `mutations-run8/` M19 WRONG-ASSERTION: the generic pause read-back fired first, so the read-back got a unique message, M19 now targets it, and M21 removes it to prove the probe; `mutations-run7/` M1–M18 KILLED (pre-A6e) | `mutations-run8/`, `mutations-run7/` |
 | Live `PAYMASTER_SUPER` holders | 5/5 enumerated (complete vs `getRoleUserCount`); 3 are not configured, but each holds COMMUNITY and could self-activate | `super-holders-11974561.json` |
 | Preceding mutation attempt | M1–M15 KILLED; **M16–M18 PATCH-FAILED**. The generator reads the base from `git show HEAD:`, and the Review 3 definitions were generated before the edits were committed, so they targeted the old test. Regenerated at the committed HEAD (M1–M15 differ only in hunk line numbers) | `mutations-run6/summary.tsv` |
@@ -15,7 +15,7 @@ This directory preserves the Sepolia block 11,974,561 fork runs and their mutati
 | Operator inventory rescan | endpoints labelled (by the operator, not verified) Alchemy and Tenderly public gateway agree: 4 `OperatorConfigured` logs, 2 operators. Code at creation−1 is `0x` on both; code at the creation block is non-empty on both (positive control) | `operator-inventory-11974561-review2.json` |
 | Offline gates | results in that file | [review-3-offline-gates.log](review-3-offline-gates.log) |
 
-Fork observations (from `FINAL_LOG`):
+Fork observations (from `rehearsal-20261023T084836Z-51573.log`):
 - **Registry stop switch (H1b).** The live Registry owner and the `PAYMASTER_SUPER` role config owner are both OWNER EOA `0xb5600060…df0e`. A6c, same user: before the freeze, `registerRole(PAYMASTER_SUPER)` reverts with `RoleNotGranted(ROLE_COMMUNITY, user)`, because the prerequisite role is missing. After `configureRole(isActive=false)` by the live owner, it reverts with exactly `RoleNotConfigured(PAYMASTER_SUPER, false)`. The `isActive` gate runs before the prerequisite check, so it rejects every caller. This is shown by the change of revert. It is **not** shown with a fully qualified operator that succeeds before the freeze (no such fixture). M17 (freeze removed) fails at the post-freeze assertion. `safeMintForRole` is **source-checked (same `isActive` gate), not executed on the fork**. Holders who already have the role are **not** revoked.
 - **Residual holders (H1b).** 3 existing `PAYMASTER_SUPER` holders are not configured SP operators. The freeze alone does not stop them (see Registry section). A6e closes the gap by pre-pausing them.
 - **Safe-route gap (H1a).** A6b: under the Safe-owned timelock, an operator registered during the wait before the upgrade gets a real sponsorship. A timelock pause scheduled in the gap is rejected at the upgrade ETA with the exact `TimelockUnexpectedOperationState` payload. Pre-upgrade hours, computed from elapsed block time: 48. M18 (the upgrade batch also pauses the new operator) fails at "new operator sponsored in gap".

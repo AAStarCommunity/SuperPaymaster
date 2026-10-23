@@ -36,3 +36,16 @@ This is an offline, edit-only response at HEAD `e64568e3`. Historical Review 2 r
 | LOW, M17 and M18 | Added unique expected messages to targets.tsv. M17 retains active role and bypasses freeze read-back to reach the post-freeze exact-payload assertion. M18 executes an upgrade-and-pause batch before the distinct gap sponsorship assertion. |
 
 Review 3 offline verification is recorded in `review-3-validation.log`: build passed with warnings, six budget tests passed and all 15 fork tests skipped; four changed shell scripts passed `bash -n`; all 18 patches (note: dry-run against the uncommitted working tree; against committed HEAD the old M16–M18 failed, see `mutations-run6/`) dry-ran against HEAD with zero fuzz and no offsets; M1–M15 were byte-identical; tooling diagnostics passed. This is separate from the owner’s `review-3-offline-gates.log`; no full-suite Cancun/Prague result is inferred here.
+
+## Review 4 (A6e and holder enumeration; fixes by Claude)
+
+| Finding | Change |
+| --- | --- |
+| H1: M20 not decidable. The prospect lacked COMMUNITY, so without the freeze it still reverted (`RoleNotGranted`), and M20 died only because the revert changed | A6e qualifies the prospect first (COMMUNITY plus funded SUPER stake). The open-gap control shows it obtains SUPER. After the freeze its `registerRole(SUPER)` must not succeed, checked with a distinct message, and must return exactly `RoleNotConfigured`. M20 now fails at "qualified prospect granted PAYMASTER_SUPER after freeze" (`mutations-run10/`). `mutations-run9/` is kept as the superseded run. |
+| M1: runbook order | The test now runs freeze → `getRoleUserCount` = enumerated set → pause all → read back → transfer. The README runbook lists the same 5 steps, with enumeration after the freeze. |
+| M2: freeze persistence | README: the Registry owner and the `PAYMASTER_SUPER` role config owner (both OWNER EOA) can re-enable registration and must be trusted or constrained until the upgrade. |
+| L1: completeness is source-level | README marks deployed-bytecode and upgrade-history identity as assumed. |
+| L2: causal mutation only for residual[0] | Stated in README. |
+| L3: `canConfigureNow` misleading | Renamed `configurableWithoutNewToken`. A JSON `note` and the README say token deployment needs only COMMUNITY. |
+| L4: pause persistence depends on the Safe | README: an unpause scheduled in the gap would mature together with the upgrade. |
+| L5: configured-but-exited operators | Runbook step 3 pauses the union of the holders and the SP `OperatorConfigured` inventory. |

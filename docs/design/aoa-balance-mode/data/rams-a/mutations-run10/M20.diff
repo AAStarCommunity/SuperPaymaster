@@ -1,0 +1,14 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -1026,10 +1026,9 @@
+         // (3) pause every holder, (4) read back, (5) transfer SP ownership.
+         bytes memory prospectData = _qualifyProspect(NEW_OPERATOR);
+         IRegistry.RoleConfig memory config = reg.getRoleConfig(SUPER);
+-        config.isActive = false;
++        config.isActive = true; // M20: no freeze.
+         vm.prank(reg.owner());
+         reg.configureRole(SUPER, config);
+-        assertFalse(reg.getRoleConfig(SUPER).isActive, "RAMS A6e: role stop read-back");
+         assertEq(_superHolderCount(), 5, "RAMS A6e: holder set differs from the enumeration");
+         _pauseAll(true);
+         address spOwner = sp.owner();
