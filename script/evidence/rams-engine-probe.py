@@ -18,47 +18,100 @@ DEPLOYER = "0xb5600060e6de5E11D3636731964218E53caadf0E"   # funded sender used o
 SP = "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9"          # an existing, cold-at-tx-start account
 FRESH = "0x" + "a3" * 20                                   # an account that does not exist on Sepolia
 HI = 30_000_000
+EXPECTED_CHAIN = int(os.environ.get("EXPECTED_CHAIN_ID", "11155111"))  # Sepolia; a fork keeps it
 
 
 class Fail(Exception):
     pass
 
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+from rpc_strict import HEXDATA, QTY, HASH32, classify  # noqa: E402  (shared strict classifier, R2-F1)
+_next_id = 0
+
+
 def rpc(url, method, params):
-    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
+    """Strict JSON-RPC: returns ("ok", result) or ("evm-failure", error); raises Fail otherwise."""
+    global _next_id
+    _next_id += 1
+    rid = _next_id
+    body = json.dumps({"jsonrpc": "2.0", "id": rid, "method": method, "params": params}).encode()
     try:
         req = urllib.request.Request(url, body, {"Content-Type": "application/json", "User-Agent": "rams-probe"})
         with urllib.request.urlopen(req, timeout=120) as r:
             d = json.load(r)
     except Exception as e:
         raise Fail(f"{method}: transport error ({type(e).__name__})") from None
-    if not isinstance(d, dict) or d.get("jsonrpc") != "2.0" or type(d.get("id")) is not int or d["id"] != 1:
+    if (not isinstance(d, dict) or d.get("jsonrpc") != "2.0" or type(d.get("id")) is not int
+            or d["id"] != rid or (("result" in d) == ("error" in d))):
         raise Fail(f"{method}: malformed envelope")
-    return d
+    if "error" in d:
+        e = d["error"]
+        if not isinstance(e, dict) or type(e.get("code")) is not int or not isinstance(e.get("message"), str):
+            raise Fail(f"{method}: malformed error object")
+        if classify(e, method) == "evm-failure":
+            return "evm-failure", {"code": e["code"], "message": e["message"][:120]}
+        raise Fail(f"{method}: RPC fault code={e['code']} (not a whitelisted EVM gas/execution failure)")
+    return "ok", d["result"]
 
 
-def ok_at(url, tx, gas, blk):
-    d = rpc(url, "eth_call", [dict(tx, gas=hex(gas)), blk])
-    return "result" in d
+def result_of(url, method, params, check):
+    kind, v = rpc(url, method, params)
+    if kind != "ok":
+        raise Fail(f"{method}: unexpected EVM failure")
+    if not check(v):
+        raise Fail(f"{method}: malformed result")
+    return v
 
 
-def min_gas(url, tx, blk):
-    # Lower bound 0, not 21,000: EIP-2780 lowers intrinsic costs, so sub-21k thresholds are real.
+def call_outcome(url, tx, gas, blk):
+    """True / False for a well-formed eth_call outcome; raises on any RPC fault or malformed data."""
+    kind, v = rpc(url, "eth_call", [dict(tx, gas=hex(gas)), blk])
+    if kind == "evm-failure":
+        return False, v
+    if not (isinstance(v, str) and HEXDATA.fullmatch(v)):
+        raise Fail("eth_call: malformed result")
+    return True, {"returnBytes": (len(v) - 2) // 2}
+
+
+def _search(url, tx, blk):
     lo, hi = 0, HI
-    if not ok_at(url, tx, hi, blk):
+    if not call_outcome(url, tx, hi, blk)[0]:
         return None
     while lo < hi:
         mid = (lo + hi) // 2
-        if ok_at(url, tx, mid, blk):
+        if call_outcome(url, tx, mid, blk)[0]:
             hi = mid
         else:
             lo = mid + 1
     return lo
 
 
+def min_gas(url, tx, blk):
+    """Minimum gas for which eth_call succeeds; also returns the raw outcomes at min-1 and min.
+    The binary search runs twice independently and both runs must agree, so a transient endpoint
+    fault inside one search cannot move the threshold silently."""
+    # Lower bound 0, not 21,000: EIP-2780 lowers intrinsic costs, so sub-21k thresholds are real.
+    first, second = _search(url, tx, blk), _search(url, tx, blk)
+    if first != second:
+        raise Fail(f"eth_call: threshold not stable across two searches ({first} vs {second})")
+    if first is None:
+        return None, None
+    lo = first
+    below = call_outcome(url, tx, lo - 1, blk) if lo > 0 else (False, {"note": "gas 0"})
+    at = call_outcome(url, tx, lo, blk)
+    if below[0] or not at[0]:
+        raise Fail("eth_call: threshold not reproducible (min-1 succeeded or min failed)")
+    return lo, {"minMinus1": below[1], "min": at[1], "searches": 2}
+
+
 def estimate(url, tx, blk):
-    d = rpc(url, "eth_estimateGas", [tx, blk])
-    return int(d["result"], 16) if "result" in d else None
+    kind, v = rpc(url, "eth_estimateGas", [tx, blk])
+    if kind == "evm-failure":
+        return None
+    if not (isinstance(v, str) and QTY.fullmatch(v)):
+        raise Fail("eth_estimateGas: malformed result")
+    return int(v, 16)
 
 
 def a20(a):
@@ -108,12 +161,19 @@ def main():
 
     out = {"note": "read-only; RPC URLs omitted", "block": int(blk, 16), "chainIds": {}, "probes": {}}
     for k, u in eps.items():
-        out["chainIds"][k] = int(rpc(u, "eth_chainId", [])["result"], 16)
-        out.setdefault("blockHashes", {})[k] = rpc(u, "eth_getBlockByNumber", [blk, False])["result"]["hash"]
+        cid = int(result_of(u, "eth_chainId", [], lambda v: isinstance(v, str) and QTY.fullmatch(v)), 16)
+        if cid != EXPECTED_CHAIN:
+            raise Fail(f"endpoint {k}: chain id {cid} != expected {EXPECTED_CHAIN}")
+        out["chainIds"][k] = cid
+        b = result_of(u, "eth_getBlockByNumber", [blk, False], lambda v: isinstance(v, dict))
+        if not (isinstance(b.get("hash"), str) and HASH32.fullmatch(b["hash"])) or b.get("number") != blk:
+            raise Fail(f"endpoint {k}: missing or wrong block")
+        out.setdefault("blockHashes", {})[k] = b["hash"]
     for name, tx in txs.items():
         row = {}
         for k, u in eps.items():
-            row[k] = {"minGas": min_gas(u, tx, blk), "estimate": estimate(u, tx, blk)}
+            m, sides = min_gas(u, tx, blk)
+            row[k] = {"minGas": m, "thresholdSides": sides, "estimate": estimate(u, tx, blk)}
         # A probe that cannot be measured on any endpoint (None) is a FAILURE, never a match.
         row["measurable"] = all(isinstance(row[k]["minGas"], int) for k in eps)
         row["liveAgree"] = row["measurable"] and row["A"]["minGas"] == row["B"]["minGas"]
