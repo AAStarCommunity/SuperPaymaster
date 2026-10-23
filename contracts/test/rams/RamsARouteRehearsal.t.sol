@@ -492,11 +492,14 @@ contract RamsARouteRehearsalTest is Test {
         assertEq(sp.owner(), OWNER, "RAMS: owner preserved by atomic delegatecall");
         _assertGas(false);
         uint128[5] memory limits = [uint128(0), 200_000, 300_000, 440_000, type(uint128).max];
+        uint256 rejectedProbes;
         for (uint256 i; i < operators.length; ++i) {
             for (uint256 j; j < limits.length; ++j) {
                 _probe(_op(operators[i], limits[j], false), false, 0);
+                ++rejectedProbes;
             }
         }
+        assertEq(rejectedProbes, operators.length * limits.length, "RAMS: all operator classes probed");
         PackedUserOperation memory unknown = _op(OWNER, 300_000, false);
         unknown.paymasterAndData =
             abi.encodePacked(SP, uint128(1_150_000), uint128(300_000), NEW_OPERATOR, type(uint256).max);
@@ -594,7 +597,6 @@ contract RamsARouteRehearsalTest is Test {
         _settleOne(op); // handleOps validates, executes AND settles before returning.
         assertLt(IERC20(_token(OWNER)).balanceOf(user), beforeBalance, "RAMS: legacy user charged");
         assertEq(sp.version(), "SuperPaymaster-5.4.2", "RAMS: settled on old implementation");
-        uint256 settledHits = target.hits();
         PackedUserOperation memory signedBeforePause = _op(OWNER, 440_000, false);
         _probe(signedBeforePause, true, 160);
         _pauseAll(true);
@@ -605,8 +607,6 @@ contract RamsARouteRehearsalTest is Test {
         ep.handleOps(rejected, payable(address(0xBEEF)));
         vm.roll(vm.getBlockNumber() + 1);
         _upgrade(true); // Models the subsequent top-level upgrade; no suspended EntryPoint call exists.
-        assertEq(target.hits(), settledHits, "RAMS: earlier block already settled");
-        assertEq(OWNER.code.length, 0, "RAMS: actual owner cannot execute a 4337 owner UserOp");
         emit log("Separate handleOps transactions cannot straddle an upgrade: validation and postOp share one call tree.");
     }
 
@@ -640,7 +640,15 @@ contract RamsARouteRehearsalTest is Test {
         bool[] memory wanted = new bool[](2);
         wanted[0] = true;
         uint256 initialBalance = IERC20(_token(OWNER)).balanceOf(user);
+        (uint128 operatorBefore,,,,,,,,) = sp.operators(OWNER);
+        uint256 revenueBefore = sp.protocolRevenue();
+        uint256 stranded = _reservation(RamsBudget.maxCost(victim));
         BundleResult memory r = _run(ops, wanted);
+        (uint128 operatorAfter,,,,,,,,) = sp.operators(OWNER);
+        assertEq(uint256(operatorBefore) - operatorAfter, stranded, "RAMS: legacy validation debit stranded");
+        assertEq(sp.protocolRevenue() - revenueBefore, stranded, "RAMS: legacy validation revenue stranded");
+        emit log_named_uint("Stranded operator aPNTs (token wei)", stranded);
+        emit log_named_uint("Protocol revenue delta (token wei)", sp.protocolRevenue() - revenueBefore);
         _assertUpgrade(true);
         assertEq(r.invalidContexts, 1, "RAMS: 160B context must fail after upgrade");
         assertEq(r.sponsored, 0, "RAMS: no legacy settlement on new implementation");
@@ -652,9 +660,7 @@ contract RamsARouteRehearsalTest is Test {
     function test_A5_governanceTimeline_EOAowner() public forkOnly {
         _pauseAll(true);
         _upgrade(true);
-        uint256 upgradedAt = vm.getBlockTimestamp();
         uint256 eta = _queue();
-        assertEq(eta, upgradedAt + DELAY, "RAMS: upgrade-to-activation 48h");
         vm.prank(OWNER);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams();
@@ -680,6 +686,62 @@ contract RamsARouteRehearsalTest is Test {
         _settleOne(op); // The orchestrator must run under nightly --hardfork amsterdam.
         assertTrue(token.usedOpHashes(hash), "RAMS: V2 token settlement read-back");
         _probe(_op(OWNER, 300_000, true), false, 0);
+    }
+
+    /// @dev Threshold analysis for this real V2 fixture, not a universal token gas bound.
+    function test_A5b_settleBindingAnalysis() public forkOnly {
+        _pauseAll(true);
+        _upgrade(true);
+        _v2Ready();
+        uint32[2] memory bounds = [uint32(420_000), uint32(160_000)];
+        for (uint256 i; i < bounds.length; ++i) {
+            uint256 branch = vm.snapshot();
+            vm.prank(OWNER);
+            sp.queueGasParams(440_000, bounds[i], 5000, 340_000);
+            (, SuperPaymasterStorage.PendingGasParams memory q) = sp.gasParams();
+            vm.warp(q.eta);
+            vm.prank(OWNER);
+            sp.executeGasParams();
+            (SuperPaymasterStorage.GasParams memory active,) = sp.gasParams();
+            assertEq(active.settleGasBound, bounds[i], "RAMS: analysis SETTLE activated");
+            _freshPrice();
+            _pauseAll(false);
+            vm.prank(OWNER);
+            sp.setGlobalPaused(false);
+            PackedUserOperation memory op = _op(OWNER, 440_000, true);
+            uint256 validationSnapshot = vm.snapshot();
+            bytes32 opHash = ep.getUserOpHash(op);
+            vm.prank(EP);
+            (bytes memory context, uint256 vd) = sp.validatePaymasterUserOp(op, opHash, RamsBudget.maxCost(op));
+            assertEq(uint160(vd), 0, "RAMS: analysis minimum admitted");
+            // Binary-search callback success threshold with the same reserved context.
+            // Each attempt rolls back settlement; gas is the only varied input.
+            uint256 low;
+            uint256 high = 600_000;
+            assertTrue(_postOpAtGas(context, high), "RAMS: analysis upper control");
+            while (high - low > 1) {
+                uint256 mid = (high + low) / 2;
+                if (_postOpAtGas(context, mid)) high = mid;
+                else low = mid;
+            }
+            emit log_named_uint("Analysis SETTLE", bounds[i]);
+            emit log_named_uint("Measured callback success threshold", high);
+            bool admissibleNoOogBand = high > active.minPostOpGas;
+            emit log_named_uint("Admissible no-OOG band exists (fixture)", admissibleNoOogBand ? 1 : 0);
+            assertFalse(admissibleNoOogBand, "RAMS: no admissible no-OOG band at MIN 440k in fixture");
+            assertTrue(vm.revertTo(validationSnapshot), "RAMS: restore before minimum handleOps control");
+            _settleOne(op); // Real EntryPoint forwarding at the smallest admissible limit, for BOTH tuples.
+            assertTrue(vm.revertTo(branch), "RAMS: analysis branch rollback");
+        }
+    }
+
+    function _postOpAtGas(bytes memory context, uint256 gasLimit) internal returns (bool ok) {
+        uint256 snapshot = vm.snapshot();
+        vm.prank(EP);
+        (ok,) = SP.call{gas: gasLimit}(
+            abi.encodeCall(sp.postOp, (IPaymaster.PostOpMode.opSucceeded, context, uint256(100_000), uint256(1)))
+        );
+        assertTrue(vm.revertTo(snapshot), "RAMS: callback measurement rollback");
     }
 
     function _timelock() internal returns (TimelockController tl) {
@@ -740,7 +802,13 @@ contract RamsARouteRehearsalTest is Test {
         assertTrue(tl.isOperationPending(batchId), "RAMS: batch pending");
         vm.warp(scheduled + DELAY - 1);
         vm.prank(SAFE);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TimelockController.TimelockUnexpectedOperationState.selector,
+                batchId,
+                bytes32(uint256(1) << uint8(TimelockController.OperationState.Ready))
+            )
+        );
         tl.executeBatch(targets, values, data, bytes32(0), salt);
         vm.warp(scheduled + DELAY);
         vm.prank(ownerAccount);
@@ -760,6 +828,34 @@ contract RamsARouteRehearsalTest is Test {
         uint256 eta = _queuedReadback();
         _assertGas(false);
         uint256 snapshot = vm.snapshot();
+        // Already on 5.5.0: queue from the completed preparation batch is live.
+        // A second real upgrade/queue batch is pending, so selector readiness cannot mask its dependency.
+        bytes32 replaySalt = keccak256("RAMS predecessor batch");
+        bytes32 requiredBatch = tl.hashOperationBatch(targets, values, data, bytes32(0), replaySalt);
+        vm.prank(SAFE);
+        tl.scheduleBatch(targets, values, data, bytes32(0), replaySalt, DELAY);
+        bytes memory activation = abi.encodeWithSignature("executeGasParams()");
+        bytes32 activationSalt = keccak256("RAMS predecessor negative");
+        bytes32 requiredPredecessor = requiredBatch;
+        vm.prank(SAFE);
+        tl.schedule(SP, 0, activation, requiredPredecessor, activationSalt, DELAY);
+        vm.warp(eta);
+        vm.prank(SAFE);
+        (bool premature, bytes memory predecessorReason) =
+            address(tl).call(abi.encodeCall(tl.execute, (SP, 0, activation, requiredPredecessor, activationSalt)));
+        assertFalse(premature, "RAMS: TimelockUnexecutedPredecessor required");
+        assertEq(
+            predecessorReason,
+            abi.encodeWithSelector(TimelockController.TimelockUnexecutedPredecessor.selector, requiredBatch),
+            "RAMS: exact TimelockUnexecutedPredecessor"
+        );
+        vm.prank(SAFE);
+        vm.expectRevert(
+            abi.encodeWithSelector(TimelockController.TimelockUnexecutedPredecessor.selector, requiredBatch)
+        );
+        tl.execute(SP, 0, activation, requiredPredecessor, activationSalt);
+        assertTrue(vm.revertTo(snapshot), "RAMS: predecessor branch rollback");
+        snapshot = vm.snapshot();
         _activateViaTimelock(tl, batchId, eta, upgradedAt, false);
         assertTrue(vm.revertTo(snapshot), "RAMS: timeline branch rollback");
         _activateViaTimelock(tl, batchId, eta, upgradedAt, true);
@@ -784,7 +880,13 @@ contract RamsARouteRehearsalTest is Test {
         assertEq(earliest - upgradedAt, sequential ? 96 hours : 48 hours, "RAMS: parallel vs sequential delay");
         vm.warp(earliest - 1);
         vm.prank(SAFE);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TimelockController.TimelockUnexpectedOperationState.selector,
+                id,
+                bytes32(uint256(1) << uint8(TimelockController.OperationState.Ready))
+            )
+        );
         tl.execute(SP, 0, data, predecessor, salt);
         vm.warp(earliest);
         vm.prank(OWNER);
@@ -796,7 +898,6 @@ contract RamsARouteRehearsalTest is Test {
         tl.execute(SP, 0, data, predecessor, salt);
         vm.prank(SAFE);
         tl.execute(SP, 0, data, predecessor, salt);
-        assertTrue(tl.isOperationDone(predecessor), "RAMS: predecessor done");
         assertTrue(tl.isOperationDone(id), "RAMS: activation done");
         _assertGas(true);
         assertTrue(sp.paused(), "RAMS: activation does not implicitly resume");

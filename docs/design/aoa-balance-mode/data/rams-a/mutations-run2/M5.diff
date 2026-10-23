@@ -1,18 +1,18 @@
---- /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/control.sol	2026-10-23 13:00:46
-+++ /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/worktree/contracts/test/rams/RamsARouteRehearsal.t.sol	2026-10-23 13:04:20
-@@ -653,7 +653,10 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -660,7 +660,10 @@
+     function test_A5_governanceTimeline_EOAowner() public forkOnly {
          _pauseAll(true);
          _upgrade(true);
-         uint256 upgradedAt = vm.getBlockTimestamp();
 -        uint256 eta = _queue();
 +        vm.prank(OWNER);
 +        sp.queueGasParams(440_000, 160_000, 5000, 340_000);
 +        (, SuperPaymasterStorage.PendingGasParams memory queued) = sp.gasParams();
 +        uint256 eta = queued.eta;
-         assertEq(eta, upgradedAt + DELAY, "RAMS: upgrade-to-activation 48h");
          vm.prank(OWNER);
          vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
-@@ -667,7 +670,6 @@
+         sp.executeGasParams();
+@@ -673,7 +676,6 @@
          vm.warp(eta);
          vm.prank(OWNER);
          sp.executeGasParams();
@@ -20,7 +20,7 @@
          _freshPrice();
          xPNTsTokenV2 token = _v2Ready();
          _pauseAll(false);
-@@ -678,6 +680,7 @@
+@@ -684,6 +686,7 @@
          _probe(op, true, 384);
          bytes32 hash = ep.getUserOpHash(op);
          _settleOne(op); // The orchestrator must run under nightly --hardfork amsterdam.

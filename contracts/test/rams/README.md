@@ -23,16 +23,15 @@ export OPERATORS='0xb5600060e6de5E11D3636731964218E53caadf0E,0xEcAACb915f7D92e99
 ```
 
 Replace the example operator list; do not include the literal `...`. Extra runner
-arguments are forwarded to Forge. The runner forces `FOUNDRY_ISOLATE=false` and
-`FOUNDRY_OFFLINE=true`, preserves Forge's exit code through `tee`, and writes
-unique UTC/PID logs under `docs/design/aoa-balance-mode/data/rams-a/`. Compiler
-settings remain the repository defaults; the runtime hardfork is the caller's
-responsibility. The log identifies the Forge build, commit, block, inventory and
-arguments, but never deliberately prints the RPC URL. The installed local Forge
-1.7.1 does not recognize `--no-isolate`; the runner deliberately retains the
-requested nightly invocation. On that older binary, offline skip verification
-uses `FOUNDRY_ISOLATE=false forge test --offline --match-path
-contracts/test/rams/RamsARouteRehearsal.t.sol -vvv` without the unsupported flag.
+arguments are forwarded to Forge. The runner forces `FOUNDRY_ISOLATE=false`,
+uses `FOUNDRY_OFFLINE=true` only without RPC, and unsets it for configured forks.
+It preserves Forge's exit code through the redacting pipeline and writes unique
+UTC/PID logs under `docs/design/aoa-balance-mode/data/rams-a/`. Compiler settings
+remain the repository defaults; runtime hardfork defaults to Amsterdam and can
+be supplied explicitly. The shared header records Forge version, commit, exact
+command, block and inventory; the RPC host is printed only as `<redacted>`.
+Local Forge 1.8.6 supports the required `--no-isolate --hardfork amsterdam` flags;
+older Forge 1.7.1 does not support `--no-isolate`.
 
 ## Inventory prerequisite
 
@@ -55,9 +54,10 @@ operator was not omitted. Historical logs are not obtained with `vm.getRawLogs`;
 | `test_A3_atomicUpgradeWithGlobalPause` | One upgrade call dispatches `setGlobalPaused(true)` through the new fallback/admin; implementation, runtime, immutables, version, owner, zero gas slot and unsafe defaults are read back. Old, unknown and migrated V2 operators, malformed input, and gas limits from zero through uint128 max are rejected. |
 | `test_A3_emptyUpgradeData_admitsUnsafeLimit` | Empty upgrade data leaves global pause false and admits a valid V2 op with a 300k postOp limit; admission, not successful unsafe settlement, is the asserted hazard. |
 | `test_A4_legacyContexts` | A real `handleOps` call settles/burns on 5.4.2 before the upgrade; a freshly signed pre-pause op is rejected both directly and by EntryPoint after pause. Advancing the block then upgrading leaves the earlier execution already settled. |
-| `test_A4_hypotheticalSmartAccountOwner_midBundle` | Counterfactual transfer to a SimpleAccount; its first UserOp atomically upgrades/pauses after all bundle validation. Victim's 160-byte old context yields exact `PostOpReverted(InvalidContextLength())`, failed UserOperationEvent, rolled-back execution and no user burn/settlement. |
+| `test_A4_hypotheticalSmartAccountOwner_midBundle` | Counterfactual transfer to a SimpleAccount; its first UserOp atomically upgrades/pauses after all bundle validation. Victim's 160-byte old context yields exact `PostOpReverted(InvalidContextLength())`, failed UserOperationEvent, rolled-back execution and no user burn/settlement; operator validation debit and protocolRevenue increase both remain stranded and are asserted/logged (306 aPNTs in the pinned fixture). |
 | `test_A5_governanceTimeline_EOAowner` | Queue tuple/ETA; exact GasParamsTimelock failures immediately and at ETA−1; activation at ETA; complete gas read-back/pending clear; resume; real V2 `handleOps` settlement at postOp=440k / pmV=1150k; 300k rejected. |
-| `test_A6_governanceTimeline_SafeTimelock` | Closed Safe-only proposer/executor roles, old single-step ownership transfer, delayed atomic upgrade+queue batch, predecessor-dependent activation, non-Safe rejection, and branched 48h overlapping versus 96h sequential waits **after upgrade**. Both include an additional initial 48h before the upgrade. |
+| `test_A5b_settleBindingAnalysis` | Activate SETTLE=420k and 160k via real queue/execute with MIN=440k; binary-search callback success gas, assert no admissible no-OOG band for this V2 fixture, and settle via real `handleOps` at the minimum for both tuples. SETTLE is defense in depth; M5 is killed only by read-back. |
+| `test_A6_governanceTimeline_SafeTimelock` | Closed Safe-only proposer/executor roles, old single-step ownership transfer, delayed atomic upgrade+queue batch, exact pre-ETA reverts, exact unexecuted-predecessor rejection on 5.5.0, non-Safe execution rejection after the role audit, and branched 48h overlapping versus 96h sequential waits **after upgrade**. Both include an additional initial 48h before the upgrade: 96h / 144h total downtime from the first pause. |
 | `test_A7_readbackGate` | New two-step ownership transfer; exact gas/pending values, owner, guardian, implementation/codehash/version, global/operator pauses, configured inventory and timelock state/timestamp. Each gas component, pending slot, owner, guardian, pause, implementation, each operator's configured/pause bits, and timelock state are independently corrupted with `vm.store`; code is corrupted with `vm.etch`. Missing inputs also fail. Every restored state passes again. |
 
 ## Fixture boundaries and limitations
@@ -97,3 +97,14 @@ operator was not omitted. Historical logs are not obtained with `vm.getRawLogs`;
   the compiler from the shared storage base, not copied numeric constants.
 - Fork behavior and Amsterdam settlement must be executed by the orchestrator.
   Compilation and offline skips alone cannot validate these assertions.
+
+The pre-upgrade sponsorship gap remains: newly registered operators can be sponsored
+on 5.4.2 after the listed operators have paused (A2). Re-enumerate and pause additions
+immediately before the upgrade transaction; minimize and monitor this window.
+The stop guarantee starts at the atomic upgrade.
+
+Mutation definitions and rerun instructions are in
+`docs/design/aoa-balance-mode/data/rams-a/MUTATIONS.md`. The current M1–M13 patches
+are regenerated with `bash script/evidence/rams-a-mutations-generate.sh`.
+`targets.tsv` includes the expected first-failure substring; a different failure
+is WRONG-ASSERTION. Historical fork logs do not validate this revised fixture.

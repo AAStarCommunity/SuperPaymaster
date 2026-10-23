@@ -17,22 +17,25 @@ fi
 log_dir="docs/design/aoa-balance-mode/data/rams-a"
 mkdir -p "$log_dir"
 log_file="$log_dir/rehearsal-$(date -u +%Y%m%dT%H%M%SZ)-$$.log"
+source script/evidence/rams-a-header.sh
 export FOUNDRY_ISOLATE=false
-export FOUNDRY_OFFLINE=true
-# pipefail preserves Forge failure; RPC URL and credentials are deliberately never printed.
+if [[ -z "${SEPOLIA_FORK_RPC:-}" ]]; then
+    export FOUNDRY_OFFLINE=true
+else
+    unset FOUNDRY_OFFLINE
+fi
+args=(test --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --no-isolate -vvv)
+has_hardfork=false
+for arg in "$@"; do
+    case "$arg" in --hardfork|--hardfork=*) has_hardfork=true ;; esac
+done
+if [[ "$has_hardfork" = false ]]; then args+=(--hardfork amsterdam); fi
+args+=("$@")
 {
-    printf 'Route A rehearsal UTC: %s\n' "$(date -u +%FT%TZ)"
-    printf 'Commit: %s\n' "$(git rev-parse HEAD)"
-    printf 'FORK_BLOCK=%s\nOPERATORS=%s\nFOUNDRY_ISOLATE=false\n' "${FORK_BLOCK:-unset}" "${OPERATORS:-unset}"
+    rams_header "${args[@]}"
     if [[ -z "${SEPOLIA_FORK_RPC:-}" ]]; then
         printf 'OFFLINE: all fork tests must SKIP. This is not Amsterdam acceptance evidence.\n'
-    else
-        printf 'Fork run: caller must select nightly --hardfork amsterdam and attest archive inventory completeness.\n'
     fi
-    "$forge_bin" --version
-    printf 'Arguments:'
-    printf ' %q' --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --no-isolate -vvv "$@"
-    printf '\n'
-    "$forge_bin" test --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --no-isolate -vvv "$@"
-} 2>&1 | tee "$log_file"
+    "$forge_bin" "${args[@]}"
+} 2>&1 | sed -E 's#https?://[^[:space:]]*#<redacted>#g' | tee "$log_file"
 printf 'Evidence: %s\n' "$log_file"

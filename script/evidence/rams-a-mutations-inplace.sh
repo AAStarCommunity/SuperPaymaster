@@ -1,26 +1,58 @@
 #!/usr/bin/env bash
-# In-place mutation runner for the route-A rehearsal (replaces the temp-worktree runner, whose first run was
-# INVALID: the temp worktree lacked the uncommitted test files and its submodule clone failed).
-# Applies each Mn.diff (from $D) to the tracked file, runs its target test (targets.tsv) on the fork, then restores
-# the file with git. Env: FORGE, RPC (archive fork RPC), FORK_BLOCK, OPERATORS. The fork RPC URL is never logged.
-# Exit status is not a verdict; read summary.tsv (CONTROL must be GREEN, every Mn KILLED).
-set -u
-D="${1:-docs/design/aoa-balance-mode/data/rams-a/mutations-run2}"; OUT="${2:-docs/design/aoa-balance-mode/data/rams-a/mutations-run2}"; F="$FORGE"
-run() { SEPOLIA_FORK_RPC="$RPC" FORK_BLOCK="$FORK_BLOCK" OPERATORS="$OPERATORS" FOUNDRY_ISOLATE=false FOUNDRY_DISABLE_NIGHTLY_WARNING=1 \
-  "$F" test --match-path 'contracts/test/rams/RamsARouteRehearsal.t.sol' --match-test "$1" --no-isolate --hardfork amsterdam -vv 2>&1 | sed -E 's#https?://[^ ]*#<url>#g'; }
+# Local patches only; fork execution requires caller-provided archive RPC and inventory.
+set -euo pipefail
+cd "$(dirname -- "${BASH_SOURCE[0]}")/../.."
+D="${1:-docs/design/aoa-balance-mode/data/rams-a/mutations-run2}"
+OUT="${2:-$D}"
+forge_bin="${FORGE:-forge}"
+export SEPOLIA_FORK_RPC="${SEPOLIA_FORK_RPC:-${RPC:-}}"
+export FOUNDRY_ISOLATE=false
+if [[ -n "$SEPOLIA_FORK_RPC" ]]; then
+    : "${FORK_BLOCK:?Set FORK_BLOCK}" "${OPERATORS:?Supply complete operator inventory}"
+    unset FOUNDRY_OFFLINE
+else
+    export FOUNDRY_OFFLINE=true
+fi
+source script/evidence/rams-a-header.sh
+mkdir -p "$OUT"
+target='contracts/test/rams/RamsARouteRehearsal.t.sol'
+baseline=$(mktemp)
+cp "$target" "$baseline"
+trap 'cp "$baseline" "$target"; rm -f "$baseline"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+run() {
+    local args=(test --match-path "$target" --match-test "$1" --no-isolate --hardfork amsterdam -vv)
+    { rams_header "${args[@]}"; "$forge_bin" "${args[@]}"; } 2>&1 |
+        sed -E 's#https?://[^[:space:]]*#<redacted>#g'
+}
 printf 'ID\tTARGET\tRESULT\tFIRST_FAIL\n' > "$OUT/summary.tsv"
-run 'test_A' > "$OUT/CONTROL.log"; c=$(grep -c '^\[PASS\]' "$OUT/CONTROL.log"); f=$(grep -c '^\[FAIL' "$OUT/CONTROL.log")
-printf 'CONTROL\tall\t%s\t%s pass / %s fail\n' "$([ $f = 0 ] && [ $c -ge 9 ] && echo GREEN || echo BROKEN)" "$c" "$f" >> "$OUT/summary.tsv"
-for n in $(seq 1 10); do
-  m="M$n"; diff="$D/$m.diff"; tgt=$(grep -m1 '^+++ ' "$diff" | sed -E 's#^\+\+\+ [^ ]*/worktree/([^ 	]*).*#\1#')
-  test=$(awk -F'\t' -v m="$m" '$1==m{print $2}' "$D/targets.tsv")
-  [ -n "$test" ] || { printf '%s\t-\tNO-TARGET\t-\n' "$m" >> "$OUT/summary.tsv"; continue; }
-  if ! patch -s "$tgt" < "$diff" > "$OUT/$m.patch.txt" 2>&1; then printf '%s\t%s\tPATCH-FAILED\t-\n' "$m" "$test" >> "$OUT/summary.tsv"; git checkout -q -- "$tgt"; continue; fi
-  [ "$D" = "$OUT" ] || cp "$diff" "$OUT/$m.diff"
-  run "$test" > "$OUT/$m.log"
-  if grep -q "^\[FAIL.*$test" "$OUT/$m.log"; then r=KILLED; elif grep -q "^\[PASS\] $test" "$OUT/$m.log"; then r=SURVIVED; else r=INVALID; fi
-  ff=$(grep -m1 "^\[FAIL" "$OUT/$m.log" | cut -c1-160)
-  printf '%s\t%s\t%s\t%s\n' "$m" "$test" "$r" "${ff:--}" >> "$OUT/summary.tsv"
-  git checkout -q -- "$tgt"
-done
-git diff --quiet -- contracts/test/rams && echo "tree restored" >> "$OUT/summary.tsv"
+run '^test_A' > "$OUT/CONTROL.log" || true
+c=$(awk '/^\[PASS\]/{n++} END{print n+0}' "$OUT/CONTROL.log")
+f=$(awk '/^\[FAIL/{n++} END{print n+0}' "$OUT/CONTROL.log")
+expected_count=$(grep -c 'function test_A' "$baseline")
+control=BROKEN
+if [[ "$f" = 0 && "$c" = "$expected_count" ]]; then control=GREEN; fi
+printf 'CONTROL\tall\t%s\t%s pass / %s fail\n' "$control" "$c" "$f" >> "$OUT/summary.tsv"
+failed=0
+while IFS=$'\t' read -r m test expected; do
+    cp "$baseline" "$target"
+    if ! patch --batch --fuzz=0 -s "$target" < "$D/$m.diff" > "$OUT/$m.patch.txt" 2>&1; then
+        printf '%s\t%s\tPATCH-FAILED\t-\n' "$m" "$test" >> "$OUT/summary.tsv"
+        failed=1; continue
+    fi
+    [[ "$D" = "$OUT" ]] || cp "$D/$m.diff" "$OUT/$m.diff"
+    # forge matches --match-test against the full signature, e.g. test_X(), so anchor with \(\)$
+    run "^${test}\\(\\)\$" > "$OUT/$m.log" || true
+    # Only the FIRST failure of this exact target test determines the verdict.
+    ff=$(awk -v t="$test(" '/^\[FAIL/ && index($0,t){print; exit}' "$OUT/$m.log")
+    if [[ -n "$ff" ]]; then
+        if [[ "$ff" == *"$expected"* ]]; then r=KILLED; else r=WRONG-ASSERTION; fi
+    elif grep -q "^\\[PASS\\] ${test}(" "$OUT/$m.log"; then r=SURVIVED
+    else r=INVALID; fi
+    printf '%s\t%s\t%s\t%s\n' "$m" "$test" "$r" "${ff:--}" >> "$OUT/summary.tsv"
+    [[ "$r" = KILLED ]] || failed=1
+done < "$D/targets.tsv"
+cp "$baseline" "$target"
+cmp -s "$baseline" "$target"
+[[ "$control" = GREEN && "$failed" = 0 ]]

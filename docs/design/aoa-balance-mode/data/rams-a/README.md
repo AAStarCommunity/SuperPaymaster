@@ -1,17 +1,17 @@
 # R-AMS-3 / 方案 A：受保护升级的离线演练（DSR CC-125 b31ada57，报告 AOA_RAMS_522_523 §4）
 
-本演练全部在本地 fork 上运行：fork 源是 Sepolia 块 **11,974,561**，引擎为 foundry nightly `926eb1d`，加 `--hardfork amsterdam`、`--no-isolate`、`FOUNDRY_ISOLATE=false`。**没有签名，没有广播，没有改动 `contracts/src`、`contracts/script`、`foundry.toml`。**
+下列历史证据在本地 fork 上运行（本次 review 修订尚待 fork 重跑）：fork 源是 Sepolia 块 **11,974,561**，引擎为 foundry nightly `926eb1d`，加 `--hardfork amsterdam`、`--no-isolate`、`FOUNDRY_ISOLATE=false`。**没有签名，没有广播，没有改动 `contracts/src`、`contracts/script`、`foundry.toml`。**
 
 测试代码在 `contracts/test/rams/`，说明见那里的 `README.md`。运行脚本：`script/evidence/rams-a-rehearsal.sh`。变异运行器：`script/evidence/rams-a-mutations-inplace.sh`。
 
-## 结果
+## 历史结果（修订版尚未 fork 重跑）
 
 | 项 | 结果 | 文件 |
 |---|---|---|
 | fork 实跑（最终夹具） | **15/15 PASS**：9 个路线测试，外加 6 个预算 / 代币回归测试 | `fork-run2-11974561.log` |
 | 首次 fork 实跑（夹具缺陷） | 2/9 PASS。7 个失败都是 `SingleTxLimitExceeded()`：夹具一笔存入 1e23 aPNTs，超过了线上 xPNTs v1 的 `maxSingleTxLimit`。修复办法是按线上限额分块存入，op 的 maxCost 按 token / 余额 / 信用 / 授权的限额定尺寸，断言没有放宽 | `fork-run1-11974465.log`、`fork-A1-trace-11974465.log` |
 | operator 清单 | 两个独立端点（Alchemy、Tenderly）各自扫描 SP 代理从创建块 11,151,016 到 11,974,561 的全部 `OperatorConfigured`，**结果完全一致**：都是 4 条日志、2 个 operator（OWNER `0xb560…df0e`、ANNI `0xecaa…33c9`）；创建块前一块 `eth_getCode` 为 `0x` | `operator-inventory-11974561.json` |
-| 变异（判别力） | **CONTROL GREEN；M1–M10 全部被指定的那条断言抓住** | `mutations-run2/summary.tsv`、`MUTATIONS.md` |
+| 变异（判别力） | 历史 CONTROL GREEN；M1–M10 历史结果；当前修订和 M11–M13 待 fork 重跑 | `mutations-run2/summary.tsv`、`MUTATIONS.md` |
 
 ## 对照 DSR §4 的五项要求
 
@@ -22,7 +22,7 @@
    - 负对照 A3_empty：升级时不带 data，则全局暂停为 false，postOp limit 为 300k 的 op 会被接受。
 2. **旧 context 与恶意入口**
    - A4：升级前打包的 op 在 5.4.2 上正常结算；暂停前已签名、暂停后才提交的 op，直接调用和经 EntryPoint 都被拒绝。
-   - A4_hypothetical：同一个 bundle 内触发升级，只有 owner 是 4337 智能账户时才可能发生。复现结果为 `PostOpReverted(InvalidContextLength())`，用户执行回滚、不扣费。EOA owner 和 Safe-only timelock 都不是 4337 账户；但被授权的 Safe 交易仍有可能经某个 UserOp 被中继，这条限定已写入说明。
+   - A4_hypothetical：同一个 bundle 内触发升级，只有 owner 是 4337 智能账户时才可能发生。复现结果为 `PostOpReverted(InvalidContextLength())`，用户执行回滚、用户代币不扣费；但旧实现 validation 的 operator 预扣及 protocolRevenue 增记不会随 postOp 回滚（见下文）。EOA owner 和 Safe-only timelock 都不是 4337 账户；但被授权的 Safe 交易仍有可能经某个 UserOp 被中继，这条限定已写入说明。
 3. **治理时间不偷换**
    - A5（EOA owner）：执行 `queueGasParams` 后，立即执行和在 ETA−1 执行都得到 `GasParamsTimelock()`，到 ETA 才生效。随后读回完整 GasParams，恢复赞助；用 postOp=440k、pmV=1.15M 做真实 V2 `handleOps` 结算，300k 被拒。
    - A6（Safe-only timelock）：PROPOSER / EXECUTOR 只有 Safe，非 Safe 调用者被拒。升级与 queue 合成一个批次执行，`executeGasParams` 依赖前一批次。演示了两种时序：升级后重叠为 **48h**，顺序执行为 **96h**；两者在升级前都另有 48h。
@@ -30,7 +30,7 @@
    - A7 读回门检查 gasParams、owner / guardian、implementation 槽与 runtime、全局暂停位、各 operator 暂停位、timelock 操作状态。对每个字段分别做篡改，都被拒绝；缺少输入时同样拒绝。
 5. **新执行器与新包**：不在本次范围内，后续单独交付。
 
-## 变异（每项都改动演练流程，不只是改断言）
+## 历史 M1–M10 变异（当前重跑定义见 MUTATIONS.md）
 
 | ID | 改动 | 被哪条断言抓到 |
 |---|---|---|
@@ -50,3 +50,19 @@
 - operator 清单的完整性，只能保证「两个端点、同一事件签名、覆盖完整区间」三者一致。如果存在其他配置 operator 的路径，这个扫描看不到。5.4.2 的 `configureOperator` 只会发出这一个事件。
 - 本演练运行在 R0 机制下（cap 关闭，交易起始 reservoir 为 0）。状态 gas 的 reservoir 不为 0 的 RR 场景属于 R2-F3，单独处理。
 - 「自家 mempool 已清空」不能代表全网都清空了。本演练证明的是：在合约层面，从升级那一刻起，到 `executeGasParams` 执行、再到解除暂停之前，没有任何赞助能通过验证。
+
+## Review corrections / evidence scope
+
+**M5 is killed only by the read-back gate.** Settlement does not discriminate SETTLE=420000 versus 160000 at MIN=440000; SETTLE is defense in depth there. The previous claim that every mutant was killed at its named settlement assertion is withdrawn. `test_A5b_settleBindingAnalysis` activates each tuple through queue/execute, measures callback success thresholds for the same real V2 fixture, logs whether any admissible limit intersects the no-OOG band, and asserts that none does. This fixed-path measurement is not a universal bound for arbitrary tokens/states. Revised tests and M11–M13 have not been rerun on the fork; existing logs are historical.
+
+**Pre-upgrade gap:** after pausing all listed operators and before the upgrade, a newly registered operator can still be sponsored on 5.4.2 (A2 proves it). The sponsorship-stop guarantee starts at the atomic upgrade, not at the first operator pause. Minimize and monitor this window; **re-enumerate operators immediately before the upgrade transaction**, pause any additions, and continue monitoring registrations until upgrade inclusion.
+
+**Total downtime from the first pause:** for the modeled Safe route, **96h parallel / 144h sequential** (48h external wait before upgrade, then 48h / 96h after upgrade). Transaction/inventory work adds operational time. These totals assume the first pause coincides with scheduling the upgrade batch; any earlier pause adds its elapsed time.
+
+**A4_hypothetical stranded accounting:** 5.4.2 validation debits operator `aPNTsBalance` and immediately increases `protocolRevenue` by the reservation. A reverted postOp does not undo those validation writes. For the pinned fixture the stranded amount is **306 aPNTs = 306000000000000000000 token wei** (maxCost 0.00255 ETH, $2000/ETH, $0.02/aPNTs, 10% fee plus 10% validation buffer). The test asserts and logs operator debit = reservation and protocolRevenue increase = the same reservation, while the user's token balance and target execution remain unchanged. It computes the expected amount from live fixture parameters so a different pinned state must use its logged amount. This is a known consequence of the mid-bundle upgrade path, unreachable with EOA owners or the modeled Safe-only owner/executor path; Safe AA modules, delegation or relaying an authorized Safe transaction via a UserOp must remain excluded operationally.
+
+**Assertion coverage:** A6 now proves the exact `TimelockUnexecutedPredecessor(bytes32)` negative on 5.5.0 with a mature activation but an unexecuted batch; M11 removes that dependency. Early-delay negatives use exact `TimelockUnexpectedOperationState` payloads. A3 counts completed rejection probes across every listed operator/limit; M12 skips ANNI's loop body and fails that coverage assertion. M13 grants a non-Safe executor after the constructor audit and must fail the actual execution negative. The duplicate A4 post-upgrade target-hits/EOA-code checks, duplicate A5 ETA check and tautological A6 predecessor-done check are removed; actual settlement and ownership checks remain.
+
+**Evidence headers and verdicts:** both runners share `rams-a-header.sh` and log Forge version, commit, exact args including hardfork/isolation flags, FORK_BLOCK and OPERATORS, with RPC host only `<redacted>`. They unset FOUNDRY_OFFLINE when RPC is configured. The mutation runner requires the target's first failure to contain column 3 of `targets.tsv`; otherwise it reports WRONG-ASSERTION. See `MUTATIONS.md` for all thirteen mutations and the fresh-output rerun command.
+
+Local review verification: `review-offline-verification.log` records successful `forge build --offline`, six budget tests passing, ten RPC-unset route tests skipping, script/format/patch checks, and isolated runner/header diagnostics. The new timestamped rehearsal log is offline skip evidence only.

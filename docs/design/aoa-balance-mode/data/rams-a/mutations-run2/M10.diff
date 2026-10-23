@@ -1,18 +1,17 @@
---- /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/control.sol	2026-10-23 13:00:46
-+++ /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/worktree/contracts/test/rams/RamsARouteRehearsal.t.sol	2026-10-23 13:04:45
-@@ -597,12 +597,13 @@
-         uint256 settledHits = target.hits();
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -599,12 +599,12 @@
+         assertEq(sp.version(), "SuperPaymaster-5.4.2", "RAMS: settled on old implementation");
          PackedUserOperation memory signedBeforePause = _op(OWNER, 440_000, false);
          _probe(signedBeforePause, true, 160);
 -        _pauseAll(true);
 -        _probe(signedBeforePause, false, 0);
-+
          PackedUserOperation[] memory rejected = new PackedUserOperation[](1);
          rejected[0] = signedBeforePause;
          vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
          ep.handleOps(rejected, payable(address(0xBEEF)));
-+        _probe(signedBeforePause, false, 0);
 +        _pauseAll(true);
++        _probe(signedBeforePause, false, 0);
          vm.roll(vm.getBlockNumber() + 1);
          _upgrade(true); // Models the subsequent top-level upgrade; no suspended EntryPoint call exists.
-         assertEq(target.hits(), settledHits, "RAMS: earlier block already settled");
+         emit log("Separate handleOps transactions cannot straddle an upgrade: validation and postOp share one call tree.");

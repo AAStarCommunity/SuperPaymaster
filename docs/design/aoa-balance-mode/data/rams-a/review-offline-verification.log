@@ -1,0 +1,73 @@
+Route-A review corrections: OFFLINE verification only; no network/fork verdicts.
+Commit: 5b60c80b0b08ff6cad7a4a9bbae7d3d5cf34d63b (working-tree corrections)
+forge Version: 1.8.6
+Commit SHA: 6bad0a66de7c83f7b33695044138f0f5fa4c5990
+Build Timestamp: 2026-10-21T17:44:12.747118000Z (1792604652)
+Build Profile: dist
+
+Command: /Users/jason/.foundry/versions/v1.8.6/forge build --offline
+Exit: 0
+Compiling 218 files with Solc 0.8.33
+Compiling 266 files with Solc 0.8.33
+Solc 0.8.33 finished in 183.92s
+Solc 0.8.33 finished in 231.88s
+Compiler run successful with warnings:
+
+RPC-unset rehearsal wrapper (exit 0):
+Route A evidence UTC: 2026-10-23T06:29:58Z
+Commit: 5b60c80b0b08ff6cad7a4a9bbae7d3d5cf34d63b
+forge Version: 1.8.6
+Commit SHA: 6bad0a66de7c83f7b33695044138f0f5fa4c5990
+Build Timestamp: 2026-10-21T17:44:12.747118000Z (1792604652)
+Build Profile: dist
+FORK_BLOCK=unset
+OPERATORS=unset
+RPC host: <redacted>
+FOUNDRY_ISOLATE=false
+Command: /Users/jason/.foundry/versions/v1.8.6/forge test --match-path contracts/test/rams/RamsARouteRehearsal.t.sol --no-isolate -vvv --hardfork amsterdam
+OFFLINE: all fork tests must SKIP. This is not Amsterdam acceptance evidence.
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 7.52s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 10 tests for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest
+[SKIP] test_A1_oldPausePath_blocksAllOperators() (gas: 0)
+[SKIP] test_A2_newOperatorRisk_window() (gas: 0)
+[SKIP] test_A3_atomicUpgradeWithGlobalPause() (gas: 0)
+[SKIP] test_A3_emptyUpgradeData_admitsUnsafeLimit() (gas: 0)
+[SKIP] test_A4_hypotheticalSmartAccountOwner_midBundle() (gas: 0)
+[SKIP] test_A4_legacyContexts() (gas: 0)
+[SKIP] test_A5_governanceTimeline_EOAowner() (gas: 0)
+[SKIP] test_A5b_settleBindingAnalysis() (gas: 0)
+[SKIP] test_A6_governanceTimeline_SafeTimelock() (gas: 0)
+[SKIP] test_A7_readbackGate() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 10 skipped; finished in 2.02ms (1.32ms CPU time)
+
+Ran 1 test suite in 6.75ms (2.02ms CPU time): 0 tests passed, 0 failed, 10 skipped (10 total tests)
+Evidence: docs/design/aoa-balance-mode/data/rams-a/rehearsal-20261023T062958Z-9782.log
+
+Command: env -u SEPOLIA_FORK_RPC /Users/jason/.foundry/versions/v1.8.6/forge test --offline --match-contract RamsABudgetTest --no-isolate --hardfork amsterdam -vv
+Exit: 0
+No files changed, compilation skipped
+
+Ran 6 tests for contracts/test/rams/RamsABudget.t.sol:RamsABudgetTest
+[PASS] test_AmsterdamPrefundAndReservation() (gas: 9023)
+[PASS] test_DepositChunks_realV1Token_fractionalRate() (gas: 2386718)
+[PASS] test_DepositChunks_realV1Token_highRate() (gas: 2341288)
+[PASS] test_DepositChunks_realV1Token_unitRate() (gas: 2341248)
+[PASS] test_DepositImpossible_failsExplicitly() (gas: 11211)
+[PASS] test_Reservation_roundsUpAtBothStages() (gas: 4413)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 2.31ms (7.97ms CPU time)
+
+Ran 1 test suite in 6.38ms (2.31ms CPU time): 6 tests passed, 0 failed, 0 skipped (6 total tests)
+
+Additional local checks (all passed):
+- bash -n script/evidence/rams-a-*.sh
+- forge fmt --check contracts/test/rams/RamsARouteRehearsal.t.sol
+- Unique-anchor generator produced M1-M13; all 13 patches applied with zero fuzz to throwaway copies.
+- Isolated runner diagnostic fixture (NOT fork execution evidence): first unrelated failure followed by matching failure => WRONG-ASSERTION; first matching failure => KILLED; skips => INVALID; 14 headers present; saved baseline restored.
+- Isolated header diagnostic fixture (NOT fork execution evidence): inherited FOUNDRY_OFFLINE unset with configured dummy RPC; explicit hardfork appears once; dummy URL/credentials redacted; no network calls.
+- git diff --check
+- git diff --exit-code -- contracts/src contracts/script foundry.toml .github
+Fork results for revised A4/A5b/A6 and M1-M13 remain pending the operator rerun.

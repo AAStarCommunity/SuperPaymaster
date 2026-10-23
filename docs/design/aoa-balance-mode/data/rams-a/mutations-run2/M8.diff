@@ -1,6 +1,6 @@
---- /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/control.sol	2026-10-23 13:00:46
-+++ /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/worktree/contracts/test/rams/RamsARouteRehearsal.t.sol	2026-10-23 13:04:36
-@@ -832,7 +832,7 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -933,7 +933,7 @@
          require(actual.code.length != 0 && actual.codehash == g.runtimeHash, "RAMS gate: runtime codehash");
          require(keccak256(bytes(sp.version())) == keccak256("SuperPaymaster-5.5.0"), "RAMS gate: version");
          require(g.owner != address(0) && sp.owner() == g.owner, "RAMS gate: owner");

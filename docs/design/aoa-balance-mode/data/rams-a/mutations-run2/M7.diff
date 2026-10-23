@@ -1,6 +1,6 @@
---- /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/control.sol	2026-10-23 13:00:46
-+++ /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T//rams-a-mutations.tQdezddG/worktree/contracts/test/rams/RamsARouteRehearsal.t.sol	2026-10-23 13:04:32
-@@ -736,6 +736,10 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -798,6 +798,10 @@
          uint256 scheduled = vm.getBlockTimestamp();
          vm.prank(SAFE);
          tl.scheduleBatch(targets, values, data, bytes32(0), salt, DELAY);
@@ -11,12 +11,12 @@
          assertEq(tl.getTimestamp(batchId), scheduled + DELAY, "RAMS: batch ETA");
          assertTrue(tl.isOperationPending(batchId), "RAMS: batch pending");
          vm.warp(scheduled + DELAY - 1);
-@@ -743,6 +747,8 @@
-         vm.expectRevert();
+@@ -811,6 +815,8 @@
+         );
          tl.executeBatch(targets, values, data, bytes32(0), salt);
          vm.warp(scheduled + DELAY);
 +        vm.prank(SAFE);
-+        tl.execute(SP, 0, earlyData, bytes32(0), earlySalt); // M7: before upgrade/queue batch.
++        tl.execute(SP, 0, earlyData, bytes32(0), earlySalt);
          vm.prank(ownerAccount);
          vm.expectRevert(
              abi.encodeWithSignature(
