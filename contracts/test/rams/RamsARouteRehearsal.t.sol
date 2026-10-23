@@ -1012,7 +1012,8 @@ contract RamsARouteRehearsalTest is Test {
         _freshPrice();
         for (uint256 i; i < residual.length; ++i) {
             _activateResidual(residual[i], i == 0 ? "rRES0" : (i == 1 ? "rRES1" : "rRES2"));
-            _assertOperatorPause(residual[i], true); // configureOperator kept the pre-set pause
+            (, bool nowConfigured, bool stillPaused,,,,,,) = sp.operators(residual[i]);
+            require(nowConfigured && stillPaused, "RAMS A6e: pre-set pause lost after configureOperator");
             (uint256 vd, uint256 ctx) = _validationData(residual[i]);
             require(vd == 1 && ctx == 0, "RAMS A6e: residual holder sponsored after closure");
         }

@@ -1,0 +1,10 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -995,6 +995,7 @@
+         _pauseAll(true);
+         address spOwner = sp.owner();
+         for (uint256 i; i < residual.length; ++i) {
++            if (i == 0) continue; // M19: one residual holder not pre-paused.
+             vm.prank(spOwner);
+             sp.setOperatorPaused(residual[i], true);
+             (, bool configured, bool stopped,,,,,,) = sp.operators(residual[i]);

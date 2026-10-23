@@ -1,0 +1,11 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -1234,7 +1234,7 @@
+         require(actual.code.length != 0 && actual.codehash == g.runtimeHash, "RAMS gate: runtime codehash");
+         require(keccak256(bytes(sp.version())) == keccak256("SuperPaymaster-5.5.0"), "RAMS gate: version");
+         require(g.owner != address(0) && sp.owner() == g.owner, "RAMS gate: owner");
+-        require(sp.guardian() == g.guardian, "RAMS gate: guardian");
++        // M8: guardian read-back omitted.
+         require(sp.paused() == g.paused, "RAMS gate: global pause");
+         (SuperPaymasterStorage.GasParams memory p, SuperPaymasterStorage.PendingGasParams memory q) = sp.gasParams();
+         require(g.gasHash != bytes32(0) && keccak256(abi.encode(p)) == g.gasHash, "RAMS gate: gas parameters");

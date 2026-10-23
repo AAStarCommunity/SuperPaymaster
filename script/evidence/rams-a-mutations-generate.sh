@@ -97,6 +97,9 @@ mutants[19] = scoped(base, a6e, '        for (uint256 i; i < residual.length; ++
 # M20: no Registry freeze (keep the role active, drop its read-back).
 s = scoped(base, a6e, '        config.isActive = false;\n        vm.prank(reg.owner());', '        config.isActive = true; // M20: no freeze.\n        vm.prank(reg.owner());')
 mutants[20] = scoped(s, a6e, '        assertFalse(reg.getRoleConfig(SUPER).isActive, "RAMS A6e: role stop read-back");\n', '')
+# M21: M19 plus no post-activation read-back, so only the sponsorship probe can catch the unpaused holder.
+s = mutants[19]
+mutants[21] = scoped(s, a6e, '            require(nowConfigured && stillPaused, "RAMS A6e: pre-set pause lost after configureOperator");\n', '            // M21: post-activation pause read-back removed.\n')
 for n, mutated in mutants.items():
     diff = ''.join(difflib.unified_diff(base.splitlines(True), mutated.splitlines(True), fromfile='a/' + str(source), tofile='b/' + str(source)))
     (out / f'M{n}.diff').write_text(diff)
