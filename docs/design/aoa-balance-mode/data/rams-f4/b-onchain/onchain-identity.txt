@@ -1,0 +1,34 @@
+deploy.aPNTs                 0x6D544390Eb535d61e196c87d6B9c80dCD8628Acd     45B clone→0xd8058efe0198ae9dd7d563e1b4938dcbc86a1f81
+deploy.aoaProtocolRegistry   0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE   2746B AOAProtocolRegistry.sol/AOAProtocolRegistry.json(=)
+deploy.entryPoint            0x0000000071727De22E5E9d8BAf0edAc6f37da032  16035B - canonicalEP=true
+deploy.gToken                0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9   6096B -
+deploy.globalTierSource      0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1    542B GlobalTierSource.sol/GlobalTierSource.json(masked=)
+deploy.operator              0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266      0B -
+deploy.operatorToken         0xF1823bc4243b40423b8C8c3F6174e687a4C690b8     45B clone→0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1
+deploy.priceFeed             0x5FbDB2315678afecb367f032d93F642f64180aa3    142B -
+deploy.registry              0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0     89B ERC1967Proxy.sol/ERC1967Proxy.registry-size.json(=) impl 0xe7f1725e7734ce288f8367e1bb143e90bb3f0512 → Registry.sol/Registry.json
+deploy.sbt                   0x0165878A594ca255338adfa4d48449f69242Eb8F  12093B MySBT.sol/MySBT.registry-size.json(masked=)
+deploy.spImpl                0x9A676e781A523b5d0C0e43731313A708CB607508  13744B SuperPaymaster.sol/SuperPaymaster.json(masked=)
+deploy.staking               0x5FC8d32690cc91D4c39d9d3abcBD16989F875707   9086B GTokenStaking.sol/GTokenStaking.registry-size.json(masked=)
+deploy.superPaymaster        0x0B306BF915C4d645ff596e518fAf3F9669b97016     89B ERC1967Proxy.sol/ERC1967Proxy.registry-size.json(=) impl 0x9a676e781a523b5d0c0e43731313a708cb607508 → SuperPaymaster.sol/SuperPaymaster.json
+deploy.superPaymasterLens    0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f   5413B SuperPaymasterLens.sol/SuperPaymasterLens.json(=)
+deploy.xPNTsFactory          0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9   6815B xPNTsFactory.sol/xPNTsFactory.registry-size.json(masked=)
+deploy.xPNTsFactoryV2        0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44   8537B xPNTsFactoryV2.sol/xPNTsFactoryV2.json(masked=)
+deploy.xPNTsTokenV2Ext       0x59b670e9fA9D0A427751Af201D676719a970857b  22005B xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json(masked=)
+deploy.xPNTsTokenV2Impl      0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1  20008B xPNTsTokenV2.sol/xPNTsTokenV2.json(masked=)
+factories.ok                 0x7969c5eD335650692Bc04293B07F5BF2e7A673C0   3264B BLayerAccounts.sol/MockAirAccountFactory.json(masked=)
+factories.unstaked           0xc351628EB244ec633d5f21fBD6621e1a683B1181   3264B BLayerAccounts.sol/MockAirAccountFactory.json(masked=)
+factories.lowStake           0xFD471836031dc5108809D173A067e8486B9047A3   3264B BLayerAccounts.sol/MockAirAccountFactory.json(masked=)
+factories.shortDelay         0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f   3264B BLayerAccounts.sol/MockAirAccountFactory.json(masked=)
+accounts.b1                  0x5C00b79536bfbF68FD22C5eB63eb664527B6c7e8   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b2                  0x9291B277D28C0A7DE1367A1857aF6eC9E1c91dBF   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b2x                 0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b3a                 0xE73C3242e033239a0425c86399d3a1B793108640   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b3b                 0x038793728F8fae96bf95b632F2a2Dc55b86d544e   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b3c                 0xD238FebC192ce93a60de82D6B8BC0a013A54798b   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b5                  0xcf3624e0c7a51575359B745E514f7aD475E8f389   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b6                  0x66C8954C5F541C292c98457dCFeC51F18b470E54   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b7                  0xF2C21A36e91330D23a9f361cc5313a188e5705B8   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b8                  0xcBCF21E09D83fD75053eede464a56a39CA1A3936   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b9                  0xB3FD5b0eB9D14b2b927c76042723F33c815F1Ad0   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)
+accounts.b10                 0xf9832498095c06246296d2e43CC73f06cc8f0A4c   2097B BLayerAccounts.sol/MockAirAccount.json(masked=)

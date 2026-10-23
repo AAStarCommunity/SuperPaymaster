@@ -1,0 +1,618 @@
+{
+ "mode": "bundler",
+ "kind": "alto",
+ "bundlerUrl": "http://127.0.0.1:18760",
+ "gas": {
+  "verificationGasLimit": "175000",
+  "verificationGasLimitInit": "4585000",
+  "callGasLimit": "60000",
+  "preVerificationGas": "100000",
+  "pmVerificationGasLimit": "1150000",
+  "pmPostOpGasLimit": "440000",
+  "maxFeePerGas": "3000000000",
+  "maxPriorityFeePerGas": "2000000000"
+ },
+ "cases": {
+  "b1_first_op_fresh_SP": {
+   "probes": [
+    {
+     "pvg": 400000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 0,
+     "ok": false,
+     "error": {
+      "message": "user operation gas limits must be larger than 0"
+     }
+    },
+    {
+     "pvg": 200000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 100000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 50000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 25000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 12500,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 6250,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 3125,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 1562,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 781,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 390,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 195,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 97,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 48,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 24,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 12,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 6,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 3,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 1,
+     "ok": true,
+     "error": null
+    }
+   ],
+   "estimate": {
+    "preVerificationGas": "0xd6c6",
+    "verificationGasLimit": "0x280c9",
+    "callGasLimit": "0x3fc3",
+    "paymasterVerificationGasLimit": "0x7968c",
+    "paymasterPostOpGasLimit": "0x80e80"
+   },
+   "minAcceptedPVG": 1,
+   "rejectionAtMinMinus1": {
+    "message": "user operation gas limits must be larger than 0"
+   },
+   "submitAtMin": "ok",
+   "bundle": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+   },
+   "onchain": {
+    "tx": "0xe0129ab716e6fd5a3e215e0970068cea2198b96836afc3e956c868de210e8aa8",
+    "status": "success",
+    "txGasLimit": "1890932",
+    "txGasUsed": "1207218",
+    "effectiveGasPrice": "1000000592",
+    "calldata": {
+     "bytes": 932,
+     "zero": 720,
+     "nonzero": 212
+    },
+    "nOps": 1,
+    "allSuccess": true,
+    "ops": [
+     {
+      "userOpHash": "0x0ec0250fc7a83b63f1774af45efbbdddf0458e02648abbcba09dbe5c9d667be7",
+      "success": true,
+      "actualGasCost": "2309252683538592",
+      "actualGasUsed": "1154626",
+      "preVerificationGas": "1"
+     }
+    ],
+    "sumActualGasUsed": "1154626",
+    "sumPVG": "1",
+    "surplusGas_sumActualGasUsed_minus_txGasUsed": "-52592",
+    "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "52593",
+    "breakEvenPVGperOp": "52593",
+    "gapNoPVGperOp": "52593"
+   }
+  },
+  "b1_second_op_same_sender": {
+   "probes": [
+    {
+     "pvg": 400000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 0,
+     "ok": false,
+     "error": {
+      "message": "user operation gas limits must be larger than 0"
+     }
+    },
+    {
+     "pvg": 200000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 100000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 50000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 25000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 12500,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 6250,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 3125,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 1562,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 781,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 390,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 195,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 97,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 48,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 24,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 12,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 6,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 3,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 1,
+     "ok": true,
+     "error": null
+    }
+   ],
+   "estimate": {
+    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+   },
+   "minAcceptedPVG": 1,
+   "rejectionAtMinMinus1": {
+    "message": "user operation gas limits must be larger than 0"
+   },
+   "submitAtMin": "ok",
+   "bundle": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+   },
+   "onchain": {
+    "tx": "0x3e2cd76e0a18382c8f47db0238e3d3cc092e15bfccde12178705754be902260c",
+    "status": "success",
+    "txGasLimit": "1890932",
+    "txGasUsed": "511802",
+    "effectiveGasPrice": "1000000521",
+    "calldata": {
+     "bytes": 932,
+     "zero": 718,
+     "nonzero": 214
+    },
+    "nOps": 1,
+    "allSuccess": true,
+    "ops": [
+     {
+      "userOpHash": "0x892dc059e2506d4f1296ede5d9b67d5add54bba461eb402f7087f01380db0766",
+      "success": true,
+      "actualGasCost": "1525892397494866",
+      "actualGasUsed": "762946",
+      "preVerificationGas": "1"
+     }
+    ],
+    "sumActualGasUsed": "762946",
+    "sumPVG": "1",
+    "surplusGas_sumActualGasUsed_minus_txGasUsed": "251144",
+    "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-251143",
+    "breakEvenPVGperOp": "-251143",
+    "gapNoPVGperOp": "-251143"
+   }
+  },
+  "b7_credit_first_op": {
+   "probes": [
+    {
+     "pvg": 400000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 0,
+     "ok": false,
+     "error": {
+      "message": "user operation gas limits must be larger than 0"
+     }
+    },
+    {
+     "pvg": 200000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 100000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 50000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 25000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 12500,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 6250,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 3125,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 1562,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 781,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 390,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 195,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 97,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 48,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 24,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 12,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 6,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 3,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 1,
+     "ok": true,
+     "error": null
+    }
+   ],
+   "estimate": {
+    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+   },
+   "minAcceptedPVG": 1,
+   "rejectionAtMinMinus1": {
+    "message": "user operation gas limits must be larger than 0"
+   },
+   "submitAtMin": "ok",
+   "bundle": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+   },
+   "onchain": {
+    "tx": "0x3074b62a7ee421bfe6e905275216357e683e38188301ba97480097ced6cc1d60",
+    "status": "success",
+    "txGasLimit": "1890932",
+    "txGasUsed": "720361",
+    "effectiveGasPrice": "1000000457",
+    "calldata": {
+     "bytes": 932,
+     "zero": 719,
+     "nonzero": 213
+    },
+    "nOps": 1,
+    "allSuccess": true,
+    "ops": [
+     {
+      "userOpHash": "0x6eb75427029a25ce6cf051ab0ce01ca9ea0c10b954240e72d72897677dad036c",
+      "success": true,
+      "actualGasCost": "1750758400048203",
+      "actualGasUsed": "875379",
+      "preVerificationGas": "1"
+     }
+    ],
+    "sumActualGasUsed": "875379",
+    "sumPVG": "1",
+    "surplusGas_sumActualGasUsed_minus_txGasUsed": "155018",
+    "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-155017",
+    "breakEvenPVGperOp": "-155017",
+    "gapNoPVGperOp": "-155017"
+   }
+  },
+  "initCode_b4ok": {
+   "probes": [
+    {
+     "pvg": 400000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 0,
+     "ok": false,
+     "error": {
+      "message": "user operation gas limits must be larger than 0"
+     }
+    },
+    {
+     "pvg": 200000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 100000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 50000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 25000,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 12500,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 6250,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 3125,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 1562,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 781,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 390,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 195,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 97,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 48,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 24,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 12,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 6,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 3,
+     "ok": true,
+     "error": null
+    },
+    {
+     "pvg": 1,
+     "ok": true,
+     "error": null
+    }
+   ],
+   "estimate": {
+    "message": "Hex size (33) exceeds padding size (16).\n\nVersion: viem@2.24.3"
+   },
+   "minAcceptedPVG": 1,
+   "rejectionAtMinMinus1": {
+    "message": "user operation gas limits must be larger than 0"
+   },
+   "submitAtMin": "ok",
+   "bundle": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+   },
+   "onchain": {
+    "tx": "0x82682df123f3c5202816a596c7a95bfa7721f20d2482e400570b36b7d8b0897f",
+    "status": "success",
+    "txGasLimit": "6301661",
+    "txGasUsed": "4568012",
+    "effectiveGasPrice": "1000000402",
+    "calldata": {
+     "bytes": 1092,
+     "zero": 792,
+     "nonzero": 300
+    },
+    "nOps": 1,
+    "allSuccess": true,
+    "ops": [
+     {
+      "userOpHash": "0xe80ee134c895f47fcfed92d47042eb43e4354a85ecbbf4e577c48de244f3bc77",
+      "success": true,
+      "actualGasCost": "9635001936635000",
+      "actualGasUsed": "4817500",
+      "preVerificationGas": "1"
+     }
+    ],
+    "sumActualGasUsed": "4817500",
+    "sumPVG": "1",
+    "surplusGas_sumActualGasUsed_minus_txGasUsed": "249488",
+    "gapNoPVG_txGasUsed_minus_sum_actualGasUsed_minus_PVG": "-249487",
+    "breakEvenPVGperOp": "-249487",
+    "gapNoPVGperOp": "-249487"
+   }
+  }
+ },
+ "bundlingMode": {
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "ok"
+ }
+}

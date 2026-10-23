@@ -1,0 +1,43 @@
+--- /tmp/rc4/contracts/test/v2/SuperPaymasterV55Gas.t.sol	2026-10-23 04:39:28.055037002 +0000
++++ /tmp/f4o/contracts/test/v2/SuperPaymasterV55Gas.t.sol	2026-10-23 05:12:15.764202474 +0000
+@@ -59,6 +59,16 @@
+         assertEq(EP.codehash, EP_CODEHASH, "canonical EntryPoint v0.7 bytecode");
+         accountOwner = vm.addr(OWNER_PK);
+         accountFactory = new SimpleAccountFactory(entryPoint);
++        _f4Dump("SimpleAccountFactory", address(accountFactory));
++        _f4Dump("SimpleAccount_impl", address(accountFactory.accountImplementation()));
++    }
++
++    // R2-F4 control: the ORIGINAL R-AMS-2a fixture (`new`), dump-only instrumentation
++    function _f4Dump(string memory name, address a) internal {
++        string memory p = string.concat("f4dump/", name, ".hex");
++        if (vm.exists(p)) return;
++        vm.writeFile(p, vm.toString(a.code));
++        vm.writeLine("f4dump/addresses.txt", string.concat(name, " ", vm.toString(a)));
+     }
+ 
+     // ------------------------------------------------------------------
+@@ -221,6 +231,14 @@
+         xPNTsTokenV2Ext ext = new xPNTsTokenV2Ext(address(aoa));
+         xPNTsTokenV2 impl = new xPNTsTokenV2(address(aoa), address(ext));
+         xPNTsFactoryV2 factory = new xPNTsFactoryV2(address(sp), address(registry), address(impl), address(tier));
++        _f4Dump("SuperPaymaster_proxy", address(sp));
++        _f4Dump("SuperPaymaster_impl", address(uint160(uint256(vm.load(address(sp), 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc)))));
++        _f4Dump("SuperPaymasterAdmin", SuperPaymaster(payable(address(uint160(uint256(vm.load(address(sp), 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc)))))).EXTENSION());
++        _f4Dump("AOAProtocolRegistry", address(aoa));
++        _f4Dump("GlobalTierSource", address(tier));
++        _f4Dump("xPNTsTokenV2Ext", address(ext));
++        _f4Dump("xPNTsTokenV2", address(impl));
++        _f4Dump("xPNTsFactoryV2", address(factory));
+         sp.setXPNTsFactory(address(factory));
+         vm.warp(vm.getBlockTimestamp() + 2 hours);
+         sp.updatePrice();
+@@ -233,6 +251,8 @@
+ 
+         vm.startPrank(operator);
+         token = xPNTsTokenV2(factory.deployxPNTsToken("Comm", "xC", "Comm", "c.eth", 1 ether, address(0)));
++        _f4Dump("xPNTsTokenV2_clone", address(token));
++        _f4Dump("SimpleAccount_proxy_user", user);
+         IV2Ext(address(token)).mint(user, 10_000 ether);
+         apnts.approve(address(sp), type(uint256).max);
+         sp.configureOperator(address(token), treasury);

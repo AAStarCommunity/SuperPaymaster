@@ -1,0 +1,3492 @@
+{
+ "c": {
+  "counts": {
+   "rundler": {
+    "reject": 7,
+    "included": 10,
+    "undefined": 1,
+    "accepted-not-included": 3
+   },
+   "alto": {
+    "included": 15,
+    "reject": 4,
+    "accepted-not-included": 1,
+    "undefined": 1
+   },
+   "altoMulti": {
+    "included": 15,
+    "reject": 4,
+    "accepted-not-included": 1,
+    "undefined": 1
+   }
+  },
+  "verdicts": [
+   {
+    "bundler": "rundler",
+    "case": "B9-below",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B9-above",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1254625",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156710",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1044108",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#3",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1044116",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B5",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1273204",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 900945,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B6",
+    "verdict": "reject",
+    "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 150839,
+     "c": 3696,
+     "pmV": 772646,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B7",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "975378",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 619155,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B8",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-unstaked",
+    "verdict": "reject",
+    "error": "[-32000] precheck failed: verificationGasLimit is 5750000 but must be at most 5000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-lowStake",
+    "verdict": "reject",
+    "error": "[-32000] precheck failed: verificationGasLimit is 5750000 but must be at most 5000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-shortDelay",
+    "verdict": "reject",
+    "error": "[-32000] precheck failed: verificationGasLimit is 5750000 but must be at most 5000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-ok",
+    "verdict": "reject",
+    "error": "[-32000] precheck failed: verificationGasLimit is 5750000 but must be at most 5000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3885095,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B10",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": null
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2a#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1157019",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2a#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "692445",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#1",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#2",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#3",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2-aftermath",
+    "verdict": "reject",
+    "error": "[-32504] paymaster 0x0b306bf915c4d645ff596e518faf3f9669b97016 throttled or banned",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B9-below",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1254625",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B9-above",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "862945",
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B3#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B3#2",
+    "verdict": "reject",
+    "error": "[-32502] unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B3#3",
+    "verdict": "reject",
+    "error": "[-32502] unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B5",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1273204",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 900945,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B6",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 150839,
+     "c": 3696,
+     "pmV": 772646,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B7",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "975378",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 619155,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B8",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B4-unstaked",
+    "verdict": "reject",
+    "error": "[-32502] unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B4-lowStake",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "5015419",
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B4-shortDelay",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "5015419",
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B4-ok",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "4917499",
+    "needs": {
+     "v": 3885095,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B10",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": null
+   },
+   {
+    "bundler": "alto",
+    "case": "B2a#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2a#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "960865",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2b#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2b#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "960865",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2b#3",
+    "verdict": "reject",
+    "error": "[-32500] AA34 signature error",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2-aftermath",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "862945",
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B9-below",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1254625",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B9-above",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "862945",
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B3#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B3#2",
+    "verdict": "reject",
+    "error": "[-32502] unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B3#3",
+    "verdict": "reject",
+    "error": "[-32502] unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B5",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1273204",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 900945,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B6",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 150839,
+     "c": 3696,
+     "pmV": 772646,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B7",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "975378",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 619155,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B8",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B4-unstaked",
+    "verdict": "reject",
+    "error": "[-32502] unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B4-lowStake",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "5015419",
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B4-shortDelay",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "5015419",
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B4-ok",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "4917499",
+    "needs": {
+     "v": 3885095,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B10",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": null
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2a#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1157019",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2a#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "692445",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2b#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1157019",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2b#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "692445",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2b#3",
+    "verdict": "reject",
+    "error": "[-32500] AA34 signature error",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2-aftermath",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "862945",
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   }
+  ],
+  "bundles": [
+   {
+    "bundler": "rundler",
+    "tx": "0x99e4eeed9c4c8f1cf4839aa5a7186423b86009530441896fba5fef2729f72488",
+    "cases": [
+     "B9-above"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957509",
+    "txGasUsed": "1207254",
+    "sumActualGasUsed": "1254625",
+    "surplus": "47371",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "52629"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x5a68ee9ef9774182cfd2929f66bbc3e81de8886cd213fb1cc98b37683a79fe26",
+    "cases": [
+     "B1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957509",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xf2bc05c6534d97d8e4c7be535b4ef4cfcb32a4f530b2371d01e7c60a9dbc6aaa",
+    "cases": [
+     "B3#1",
+     "B3#2",
+     "B3#3"
+    ],
+    "nOps": 3,
+    "txGasLimit": "5828429",
+    "txGasUsed": "2125513",
+    "sumActualGasUsed": "3244934",
+    "surplus": "1119421",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-273139"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xab58c890c48a09a73e96df14873b76422fbd7cc86089d6ef620b9b7b3ad7e565",
+    "cases": [
+     "B5"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957522",
+    "txGasUsed": "922085",
+    "sumActualGasUsed": "1273204",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xcb5790493ee99d9ccb939bffcf22603924bde4627793b97d75302a19e1a5ee19",
+    "cases": [
+     "B7"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957497",
+    "txGasUsed": "720373",
+    "sumActualGasUsed": "975378",
+    "surplus": "255005",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-155005"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x8368331bd515157b7318297888d87df2c0df883b8fb77a86b27aa77d076398a6",
+    "cases": [
+     "B8"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957497",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x4f1367ae7cc33047da73305f30557e306da94e1b418ae83fd57f22acd405c113",
+    "cases": [
+     "B2a#1",
+     "B2a#2"
+    ],
+    "nOps": 2,
+    "txGasLimit": "3892969",
+    "txGasUsed": "1221142",
+    "sumActualGasUsed": "1849464",
+    "surplus": "628322",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-214160"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x37410fb705d9bd1e5d2589c28e32f7188a2f8dc53a481aa565e8c47b4ffe7685",
+    "cases": [
+     "B9-below"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "1207254",
+    "sumActualGasUsed": "1254625",
+    "surplus": "47371",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "52629"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x67902a21f3a1aa6c43858d3fd27a98176545bcffa99dd7d0eb947847526bd08f",
+    "cases": [
+     "B9-above"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "511826",
+    "sumActualGasUsed": "862945",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x55ec747a740a91ee2dfcbeec36ddb47f7f41a720ded739bf14cdc145c9ee0b3d",
+    "cases": [
+     "B1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x1df720be2072692a012e0824489ffce1b0ea4c3a9967e7511bd6c66bb0c30281",
+    "cases": [
+     "B3#1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xf6e1b75933cee28d305bbf2100f49a41400061499c2701cbf9ffba0ddb767a33",
+    "cases": [
+     "B5"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "922085",
+    "sumActualGasUsed": "1273204",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xa5684f4c1aca9d536a7aa76dbf16b794a215747322174c81e33c4a2d9f8a4ad8",
+    "cases": [
+     "B7"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "720373",
+    "sumActualGasUsed": "975378",
+    "surplus": "255005",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-155005"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x3a337c6286d0ec0a0685112ebd0c7082f1a72720619f279aa2395fce07a38279",
+    "cases": [
+     "B8"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x3145aabb429b2f3fa8ebd1a86b50e59c716ca6f62d0d0ade0541562040091528",
+    "cases": [
+     "B4-lowStake"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6319009",
+    "txGasUsed": "4665956",
+    "sumActualGasUsed": "5015419",
+    "surplus": "349463",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249463"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xebcebb6b88d5811f7fb0ef500756d2d14e6c9cd2df0c174a1fed46e9c278d2e7",
+    "cases": [
+     "B4-shortDelay"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6319009",
+    "txGasUsed": "4665944",
+    "sumActualGasUsed": "5015419",
+    "surplus": "349475",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249475"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xe0ef9b0c7748bf0462afbd33d34f44512f3e6d5cefcbe0152a309f71d1a94b82",
+    "cases": [
+     "B4-ok"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6319009",
+    "txGasUsed": "4568036",
+    "sumActualGasUsed": "4917499",
+    "surplus": "349463",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249463"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xe2c77fe9da24f3906122df8900ca53f6e6d3671aa8b67f000b4334dd5d0d2705",
+    "cases": [
+     "B2a#1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x9fedbf0d022633ec4a6333c61aaf413dcbd30baae729c97ff725e8d12e904115",
+    "cases": [
+     "B2a#2"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "609746",
+    "sumActualGasUsed": "960865",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x5a6a6f2365cc724d1f480cb99cb1a3f2ce10c5494a624c2da5e214697674eb95",
+    "cases": [
+     "B2b#1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "805550",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351155",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251155"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xa38904dd022306ab4c20456621b499ef98feeca1a543239fae8068080e219e75",
+    "cases": [
+     "B2b#2"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "609746",
+    "sumActualGasUsed": "960865",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xf6088bf29b7f201da7f781e607ad595e912f3458d6a04596643a1b3eeabb7ecb",
+    "cases": [
+     "B2-aftermath"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "511826",
+    "sumActualGasUsed": "862945",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x37410fb705d9bd1e5d2589c28e32f7188a2f8dc53a481aa565e8c47b4ffe7685",
+    "cases": [
+     "B9-below"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "1207254",
+    "sumActualGasUsed": "1254625",
+    "surplus": "47371",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "52629"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x67902a21f3a1aa6c43858d3fd27a98176545bcffa99dd7d0eb947847526bd08f",
+    "cases": [
+     "B9-above"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "511826",
+    "sumActualGasUsed": "862945",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x55ec747a740a91ee2dfcbeec36ddb47f7f41a720ded739bf14cdc145c9ee0b3d",
+    "cases": [
+     "B1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x1df720be2072692a012e0824489ffce1b0ea4c3a9967e7511bd6c66bb0c30281",
+    "cases": [
+     "B3#1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xf6e1b75933cee28d305bbf2100f49a41400061499c2701cbf9ffba0ddb767a33",
+    "cases": [
+     "B5"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "922085",
+    "sumActualGasUsed": "1273204",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xa5684f4c1aca9d536a7aa76dbf16b794a215747322174c81e33c4a2d9f8a4ad8",
+    "cases": [
+     "B7"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "720373",
+    "sumActualGasUsed": "975378",
+    "surplus": "255005",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-155005"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x3a337c6286d0ec0a0685112ebd0c7082f1a72720619f279aa2395fce07a38279",
+    "cases": [
+     "B8"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x3145aabb429b2f3fa8ebd1a86b50e59c716ca6f62d0d0ade0541562040091528",
+    "cases": [
+     "B4-lowStake"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6319009",
+    "txGasUsed": "4665956",
+    "sumActualGasUsed": "5015419",
+    "surplus": "349463",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249463"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xebcebb6b88d5811f7fb0ef500756d2d14e6c9cd2df0c174a1fed46e9c278d2e7",
+    "cases": [
+     "B4-shortDelay"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6319009",
+    "txGasUsed": "4665944",
+    "sumActualGasUsed": "5015419",
+    "surplus": "349475",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249475"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xe0ef9b0c7748bf0462afbd33d34f44512f3e6d5cefcbe0152a309f71d1a94b82",
+    "cases": [
+     "B4-ok"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6319009",
+    "txGasUsed": "4568036",
+    "sumActualGasUsed": "4917499",
+    "surplus": "349463",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249463"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xb6c5a53a570ccd6e079dfd0813fa2ca633a08e15129d6c457fecec8bdc5b4cb0",
+    "cases": [
+     "B2a#1",
+     "B2a#2"
+    ],
+    "nOps": 2,
+    "txGasLimit": "3721146",
+    "txGasUsed": "1221142",
+    "sumActualGasUsed": "1849464",
+    "surplus": "628322",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-214160"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xee0617731c790a03dcbf757305c151248be481da33c0e5ed12bb4cef2063efe7",
+    "cases": [
+     "B2b#1",
+     "B2b#2"
+    ],
+    "nOps": 2,
+    "txGasLimit": "3721146",
+    "txGasUsed": "1221130",
+    "sumActualGasUsed": "1849464",
+    "surplus": "628334",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-214166"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x23e1525b5f4f6a095e3ee02ad10cabcbbbaf5191b1afef6ae5fb7d904ce3c119",
+    "cases": [
+     "B2-aftermath"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1864910",
+    "txGasUsed": "511826",
+    "sumActualGasUsed": "862945",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   }
+  ]
+ },
+ "c-rundler-mvg6m": {
+  "counts": {
+   "rundler": {
+    "reject": 6,
+    "included": 11,
+    "undefined": 1,
+    "accepted-not-included": 3
+   }
+  },
+  "verdicts": [
+   {
+    "bundler": "rundler",
+    "case": "B9-below",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B9-above",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1254625",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156710",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1044108",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#3",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1044116",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B5",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1273204",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 900945,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B6",
+    "verdict": "reject",
+    "error": "[-32603] Failed to decode validation output 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 150839,
+     "c": 3696,
+     "pmV": 772646,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B7",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "975378",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 619155,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B8",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-unstaked",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-lowStake",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-shortDelay",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-ok",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "4917499",
+    "needs": {
+     "v": 3885095,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B10",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": null
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2a#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1157019",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2a#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "692445",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#1",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#2",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#3",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2-aftermath",
+    "verdict": "reject",
+    "error": "[-32504] paymaster 0x0b306bf915c4d645ff596e518faf3f9669b97016 throttled or banned",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   }
+  ],
+  "bundles": [
+   {
+    "bundler": "rundler",
+    "tx": "0x99e4eeed9c4c8f1cf4839aa5a7186423b86009530441896fba5fef2729f72488",
+    "cases": [
+     "B9-above"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957509",
+    "txGasUsed": "1207254",
+    "sumActualGasUsed": "1254625",
+    "surplus": "47371",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "52629"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x5a68ee9ef9774182cfd2929f66bbc3e81de8886cd213fb1cc98b37683a79fe26",
+    "cases": [
+     "B1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957509",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xf2bc05c6534d97d8e4c7be535b4ef4cfcb32a4f530b2371d01e7c60a9dbc6aaa",
+    "cases": [
+     "B3#1",
+     "B3#2",
+     "B3#3"
+    ],
+    "nOps": 3,
+    "txGasLimit": "5828429",
+    "txGasUsed": "2125513",
+    "sumActualGasUsed": "3244934",
+    "surplus": "1119421",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-273139"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xab58c890c48a09a73e96df14873b76422fbd7cc86089d6ef620b9b7b3ad7e565",
+    "cases": [
+     "B5"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957522",
+    "txGasUsed": "922085",
+    "sumActualGasUsed": "1273204",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xcb5790493ee99d9ccb939bffcf22603924bde4627793b97d75302a19e1a5ee19",
+    "cases": [
+     "B7"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957497",
+    "txGasUsed": "720373",
+    "sumActualGasUsed": "975378",
+    "surplus": "255005",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-155005"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x8368331bd515157b7318297888d87df2c0df883b8fb77a86b27aa77d076398a6",
+    "cases": [
+     "B8"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1957497",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x2080be3601b41c5eedf449979bfd6839ae4f28034cc62fd054dbee38389bb56b",
+    "cases": [
+     "B4-ok"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6631798",
+    "txGasUsed": "4568036",
+    "sumActualGasUsed": "4917499",
+    "surplus": "349463",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249463"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x4c6567f3e84f1a2e89ea2c562cef05bc9aa0401a36f9aeeee7422b310f78f7ee",
+    "cases": [
+     "B2a#1",
+     "B2a#2"
+    ],
+    "nOps": 2,
+    "txGasLimit": "3892969",
+    "txGasUsed": "1221142",
+    "sumActualGasUsed": "1849464",
+    "surplus": "628322",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-214160"
+   }
+  ]
+ },
+ "d": {
+  "counts": {
+   "rundler": {
+    "reject": 6,
+    "included": 11,
+    "undefined": 1,
+    "accepted-not-included": 3
+   },
+   "alto": {
+    "included": 16,
+    "reject": 4,
+    "undefined": 1
+   },
+   "altoMulti": {
+    "included": 16,
+    "reject": 4,
+    "undefined": 1
+   }
+  },
+  "verdicts": [
+   {
+    "bundler": "rundler",
+    "case": "B9-below",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B9-above",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1254625",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156710",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1044108",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#3",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1044116",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B5",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1273204",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 900945,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B6",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1171398",
+    "needs": {
+     "v": 150839,
+     "c": 3696,
+     "pmV": 772646,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B7",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "975378",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 619155,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B8",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-unstaked",
+    "verdict": "reject",
+    "error": "[-32000] precheck failed: verificationGasLimit is 5735000 but must be at most 5000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-lowStake",
+    "verdict": "reject",
+    "error": "[-32000] precheck failed: verificationGasLimit is 5735000 but must be at most 5000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-shortDelay",
+    "verdict": "reject",
+    "error": "[-32000] precheck failed: verificationGasLimit is 5735000 but must be at most 5000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-ok",
+    "verdict": "reject",
+    "error": "[-32000] precheck failed: verificationGasLimit is 5735000 but must be at most 5000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3885095,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B10",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": null
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2a#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1157019",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2a#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "692445",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#1",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#2",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#3",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2-aftermath",
+    "verdict": "reject",
+    "error": "[-32504] paymaster 0x0b306bf915c4d645ff596e518faf3f9669b97016 throttled or banned",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B9-below",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1254625",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B9-above",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "862945",
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B3#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B3#2",
+    "verdict": "reject",
+    "error": "[-32502] unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B3#3",
+    "verdict": "reject",
+    "error": "[-32502] unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B5",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1273204",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 900945,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B6",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1171398",
+    "needs": {
+     "v": 150839,
+     "c": 3696,
+     "pmV": 772646,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B7",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "975378",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 619155,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B8",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B4-unstaked",
+    "verdict": "reject",
+    "error": "[-32502] unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B4-lowStake",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "5015419",
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B4-shortDelay",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "5015419",
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B4-ok",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "4917499",
+    "needs": {
+     "v": 3885095,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B10",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": null
+   },
+   {
+    "bundler": "alto",
+    "case": "B2a#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2a#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "960865",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2b#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2b#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "960865",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2b#3",
+    "verdict": "reject",
+    "error": "[-32500] AA34 signature error",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "alto",
+    "case": "B2-aftermath",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "862945",
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B9-below",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1254625",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B9-above",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "862945",
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B3#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B3#2",
+    "verdict": "reject",
+    "error": "[-32502] unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B3#3",
+    "verdict": "reject",
+    "error": "[-32502] unstaked account accessed 0x84e46cfcffd6e7c94e0b5a031bf18f89c0cf5263 slot 0x0000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B5",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1273204",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 900945,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B6",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1171398",
+    "needs": {
+     "v": 150839,
+     "c": 3696,
+     "pmV": 772646,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B7",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "975378",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 619155,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B8",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B4-unstaked",
+    "verdict": "reject",
+    "error": "[-32502] unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B4-lowStake",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "5015419",
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B4-shortDelay",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "5015419",
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B4-ok",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "4917499",
+    "needs": {
+     "v": 3885095,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B10",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": null
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2a#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1157019",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2a#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "692445",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2b#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1157019",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2b#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "692445",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2b#3",
+    "verdict": "reject",
+    "error": "[-32500] AA34 signature error",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "altoMulti",
+    "case": "B2-aftermath",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "862945",
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   }
+  ],
+  "bundles": [
+   {
+    "bundler": "rundler",
+    "tx": "0x9c74c8d0d3739c969f2449c41e3af535f4229d5541cbc97a7fd1ce8d7228f2d0",
+    "cases": [
+     "B9-above"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983747",
+    "txGasUsed": "1207242",
+    "sumActualGasUsed": "1254625",
+    "surplus": "47383",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "52617"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x7acedc279b8bda48430a284e400eea626cda25ad8e639e8e60c2276639fabffd",
+    "cases": [
+     "B1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983759",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xe0c0323a702365641e146a14d1c2091b3bba5914a655a7e4cbd6b2489dc5295c",
+    "cases": [
+     "B3#1",
+     "B3#2",
+     "B3#3"
+    ],
+    "nOps": 3,
+    "txGasLimit": "5907179",
+    "txGasUsed": "2125513",
+    "sumActualGasUsed": "3244934",
+    "surplus": "1119421",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-273139"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xd9b1c5737d57aa1e64b67b4c184a16315c46335c2aa7eb79f3f26df24fe944fb",
+    "cases": [
+     "B5"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983772",
+    "txGasUsed": "922085",
+    "sumActualGasUsed": "1273204",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x347e9923d3a825220de1762a62e3b7351e4fde566cbe7733ef750f90bd46785b",
+    "cases": [
+     "B6"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983772",
+    "txGasUsed": "820279",
+    "sumActualGasUsed": "1171398",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x486ae9bd3c95611303a70dbcdbb57e0599df66d40a62a3286081fb0a3ee7b5f9",
+    "cases": [
+     "B7"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983759",
+    "txGasUsed": "720385",
+    "sumActualGasUsed": "975378",
+    "surplus": "254993",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-154993"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x52770657da73a49a836a3658f1696ea83a35a54816f606ed2545480e94d4eb96",
+    "cases": [
+     "B8"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983747",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xa7768e7be91fba5e101a41c6d99250771f280094aff951d65a6dc7c56408df54",
+    "cases": [
+     "B2a#1",
+     "B2a#2"
+    ],
+    "nOps": 2,
+    "txGasLimit": "3945482",
+    "txGasUsed": "1221154",
+    "sumActualGasUsed": "1849464",
+    "surplus": "628310",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-214154"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xf860c41aadcd56300b0a3fa53f1511131a5808868619e6870a032973bba7274a",
+    "cases": [
+     "B9-below"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "1207242",
+    "sumActualGasUsed": "1254625",
+    "surplus": "47383",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "52617"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x1f77c3d05b5b17dc9f7086e005823154e3274aa4cdc003bdc89ec17c7398c2b9",
+    "cases": [
+     "B9-above"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "511826",
+    "sumActualGasUsed": "862945",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x248106146ac7bffcb4a9cac2546cefe38d13cfe81fecc65b4bc76846e8a156c6",
+    "cases": [
+     "B1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x1891283d5fa700bfd47c662119ff82be98b37d3ded38cc9c91c1faca72dea8c5",
+    "cases": [
+     "B3#1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xcb1f29f6461d5d43f280cf3548e1ebb929bd8ff635c5572822b9f27ba865cfb2",
+    "cases": [
+     "B5"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "922085",
+    "sumActualGasUsed": "1273204",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xe69b535b0eaabb63f317dd06af4fd1c08676ed9a30576dc9d73eaa5bc81581c4",
+    "cases": [
+     "B6"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "820279",
+    "sumActualGasUsed": "1171398",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xa33642c7c08e1cceaf18555e11a6215bb61469688c19292c36d2486741b43c17",
+    "cases": [
+     "B7"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "720385",
+    "sumActualGasUsed": "975378",
+    "surplus": "254993",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-154993"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x8d33ada8d96746df5dd98ec68baac4f3acaa6832ba8bab0ab47c3c3062e4936c",
+    "cases": [
+     "B8"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x3bba7a0cf4d7c9e8e7ec583b1540231388b6c4063c909376ac2eab1ff7f291cc",
+    "cases": [
+     "B4-lowStake"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6301661",
+    "txGasUsed": "4665944",
+    "sumActualGasUsed": "5015419",
+    "surplus": "349475",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249475"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xab2634d0381ea8055395f6875c3a77fea1cd93e4c96eaf761ba4c07e8c835fb1",
+    "cases": [
+     "B4-shortDelay"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6301661",
+    "txGasUsed": "4665932",
+    "sumActualGasUsed": "5015419",
+    "surplus": "349487",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249487"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x6b9ed78487f6bc7b3ee2b1403f1cdd742b6273a782e6f73b6d5a3a1d0f2fad13",
+    "cases": [
+     "B4-ok"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6301661",
+    "txGasUsed": "4568024",
+    "sumActualGasUsed": "4917499",
+    "surplus": "349475",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249475"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x8e2014ff117387019d269bf4166fc8045d4db6d6bf697c2ff08fb98616b0c2b5",
+    "cases": [
+     "B2a#1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xb221361271c90292d87e6e0e2b16e26e629272870908070482d0a7cd749b77e4",
+    "cases": [
+     "B2a#2"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "609746",
+    "sumActualGasUsed": "960865",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0x36805b90ba635a6b340e7a2fbfec865c2c3eaf6dcf7bfe8c38a17959c6732ede",
+    "cases": [
+     "B2b#1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xc6d8f8ef6f413572660971f85c0e3870103423d7d8517c77c58133402fde7268",
+    "cases": [
+     "B2b#2"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "609746",
+    "sumActualGasUsed": "960865",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "alto",
+    "tx": "0xd16b331b0ed401ec28c36cdb6bdd6548f12fab01f3d81ec053a1a9a0fa5706fb",
+    "cases": [
+     "B2-aftermath"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "511826",
+    "sumActualGasUsed": "862945",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xf860c41aadcd56300b0a3fa53f1511131a5808868619e6870a032973bba7274a",
+    "cases": [
+     "B9-below"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "1207242",
+    "sumActualGasUsed": "1254625",
+    "surplus": "47383",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "52617"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x1f77c3d05b5b17dc9f7086e005823154e3274aa4cdc003bdc89ec17c7398c2b9",
+    "cases": [
+     "B9-above"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "511826",
+    "sumActualGasUsed": "862945",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x248106146ac7bffcb4a9cac2546cefe38d13cfe81fecc65b4bc76846e8a156c6",
+    "cases": [
+     "B1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x1891283d5fa700bfd47c662119ff82be98b37d3ded38cc9c91c1faca72dea8c5",
+    "cases": [
+     "B3#1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xcb1f29f6461d5d43f280cf3548e1ebb929bd8ff635c5572822b9f27ba865cfb2",
+    "cases": [
+     "B5"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "922085",
+    "sumActualGasUsed": "1273204",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xe69b535b0eaabb63f317dd06af4fd1c08676ed9a30576dc9d73eaa5bc81581c4",
+    "cases": [
+     "B6"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "820279",
+    "sumActualGasUsed": "1171398",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xa33642c7c08e1cceaf18555e11a6215bb61469688c19292c36d2486741b43c17",
+    "cases": [
+     "B7"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "720385",
+    "sumActualGasUsed": "975378",
+    "surplus": "254993",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-154993"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x8d33ada8d96746df5dd98ec68baac4f3acaa6832ba8bab0ab47c3c3062e4936c",
+    "cases": [
+     "B8"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x3bba7a0cf4d7c9e8e7ec583b1540231388b6c4063c909376ac2eab1ff7f291cc",
+    "cases": [
+     "B4-lowStake"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6301661",
+    "txGasUsed": "4665944",
+    "sumActualGasUsed": "5015419",
+    "surplus": "349475",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249475"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xab2634d0381ea8055395f6875c3a77fea1cd93e4c96eaf761ba4c07e8c835fb1",
+    "cases": [
+     "B4-shortDelay"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6301661",
+    "txGasUsed": "4665932",
+    "sumActualGasUsed": "5015419",
+    "surplus": "349487",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249487"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x6b9ed78487f6bc7b3ee2b1403f1cdd742b6273a782e6f73b6d5a3a1d0f2fad13",
+    "cases": [
+     "B4-ok"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6301661",
+    "txGasUsed": "4568024",
+    "sumActualGasUsed": "4917499",
+    "surplus": "349475",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249475"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x48da296eb2192aeee3306ef5ddc6323db1e741e06b2f2ba10290d48f7e07c264",
+    "cases": [
+     "B2a#1",
+     "B2a#2"
+    ],
+    "nOps": 2,
+    "txGasLimit": "3768853",
+    "txGasUsed": "1221154",
+    "sumActualGasUsed": "1849464",
+    "surplus": "628310",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-214154"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0xc2deb37a14deda165227b4d52169cbcd9c86073fd19523cdfd122e1a9b982620",
+    "cases": [
+     "B2b#1",
+     "B2b#2"
+    ],
+    "nOps": 2,
+    "txGasLimit": "3768853",
+    "txGasUsed": "1221142",
+    "sumActualGasUsed": "1849464",
+    "surplus": "628322",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-214160"
+   },
+   {
+    "bundler": "altoMulti",
+    "tx": "0x7ba8c63aca0be679937df550e61f1437f44d05cd43e6d1519e395eee0e25661b",
+    "cases": [
+     "B2-aftermath"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1890932",
+    "txGasUsed": "511826",
+    "sumActualGasUsed": "862945",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   }
+  ]
+ },
+ "d-rundler-mvg6m": {
+  "counts": {
+   "rundler": {
+    "reject": 5,
+    "included": 12,
+    "undefined": 1,
+    "accepted-not-included": 3
+   }
+  },
+  "verdicts": [
+   {
+    "bundler": "rundler",
+    "case": "B9-below",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B9-above",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1254625",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 882366,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156710",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1044108",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B3#3",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1044116",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B5",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1273204",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 900945,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B6",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1171398",
+    "needs": {
+     "v": 150839,
+     "c": 3696,
+     "pmV": 772646,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B7",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "975378",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 619155,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B8",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1156705",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-unstaked",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-lowStake",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-shortDelay",
+    "verdict": "reject",
+    "error": "[-32502] entity stake/unstake delay too low",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 3983015,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B4-ok",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "4917499",
+    "needs": {
+     "v": 3885095,
+     "c": 3696,
+     "pmV": 784491,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B10",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": null
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2a#1",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "1157019",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2a#2",
+    "verdict": "included",
+    "error": null,
+    "actualGasUsed": "692445",
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#1",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#2",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2b#3",
+    "verdict": "accepted-not-included",
+    "error": null,
+    "actualGasUsed": null,
+    "needs": {
+     "v": 124346,
+     "c": 3696,
+     "pmV": 784446,
+     "pmP": 440000
+    }
+   },
+   {
+    "bundler": "rundler",
+    "case": "B2-aftermath",
+    "verdict": "reject",
+    "error": "[-32504] paymaster 0x0b306bf915c4d645ff596e518faf3f9669b97016 throttled or banned",
+    "actualGasUsed": null,
+    "needs": {
+     "v": 26426,
+     "c": 3696,
+     "pmV": 588606,
+     "pmP": 440000
+    }
+   }
+  ],
+  "bundles": [
+   {
+    "bundler": "rundler",
+    "tx": "0x9c74c8d0d3739c969f2449c41e3af535f4229d5541cbc97a7fd1ce8d7228f2d0",
+    "cases": [
+     "B9-above"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983747",
+    "txGasUsed": "1207242",
+    "sumActualGasUsed": "1254625",
+    "surplus": "47383",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "52617"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x7acedc279b8bda48430a284e400eea626cda25ad8e639e8e60c2276639fabffd",
+    "cases": [
+     "B1"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983759",
+    "txGasUsed": "805574",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351131",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251131"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xe0c0323a702365641e146a14d1c2091b3bba5914a655a7e4cbd6b2489dc5295c",
+    "cases": [
+     "B3#1",
+     "B3#2",
+     "B3#3"
+    ],
+    "nOps": 3,
+    "txGasLimit": "5907179",
+    "txGasUsed": "2125513",
+    "sumActualGasUsed": "3244934",
+    "surplus": "1119421",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-273139"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0xd9b1c5737d57aa1e64b67b4c184a16315c46335c2aa7eb79f3f26df24fe944fb",
+    "cases": [
+     "B5"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983772",
+    "txGasUsed": "922085",
+    "sumActualGasUsed": "1273204",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x347e9923d3a825220de1762a62e3b7351e4fde566cbe7733ef750f90bd46785b",
+    "cases": [
+     "B6"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983772",
+    "txGasUsed": "820279",
+    "sumActualGasUsed": "1171398",
+    "surplus": "351119",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251119"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x486ae9bd3c95611303a70dbcdbb57e0599df66d40a62a3286081fb0a3ee7b5f9",
+    "cases": [
+     "B7"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983759",
+    "txGasUsed": "720385",
+    "sumActualGasUsed": "975378",
+    "surplus": "254993",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-154993"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x52770657da73a49a836a3658f1696ea83a35a54816f606ed2545480e94d4eb96",
+    "cases": [
+     "B8"
+    ],
+    "nOps": 1,
+    "txGasLimit": "1983747",
+    "txGasUsed": "805562",
+    "sumActualGasUsed": "1156705",
+    "surplus": "351143",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-251143"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x1e1cc615c534353f4c2fad295458b291b86485ffddcbf741cf160a62e8d19da9",
+    "cases": [
+     "B4-ok"
+    ],
+    "nOps": 1,
+    "txGasLimit": "6616036",
+    "txGasUsed": "4568024",
+    "sumActualGasUsed": "4917499",
+    "surplus": "349475",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-249475"
+   },
+   {
+    "bundler": "rundler",
+    "tx": "0x3a3ec235f01df3db58a591153b4ab78534c300d1605f927816878ca3b0754912",
+    "cases": [
+     "B2a#1",
+     "B2a#2"
+    ],
+    "nOps": 2,
+    "txGasLimit": "3945482",
+    "txGasUsed": "1221154",
+    "sumActualGasUsed": "1849464",
+    "surplus": "628310",
+    "pvgPerOp": "100000",
+    "breakEvenPVGperOp": "-214154"
+   }
+  ]
+ }
+}

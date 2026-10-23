@@ -1,0 +1,153 @@
+--- /tmp/rc4/contracts/test/v2/SuperPaymasterV55Gas.t.sol	2026-10-23 04:39:28.055037002 +0000
++++ /tmp/f4g/contracts/test/v2/SuperPaymasterV55Gas.t.sol	2026-10-23 04:44:21.689394917 +0000
+@@ -58,7 +58,19 @@
+         vm.etch(SENDER_CREATOR, vm.parseBytes(vm.readFile("contracts/test/fixtures/sendercreator-v0.7.runtime.hex")));
+         assertEq(EP.codehash, EP_CODEHASH, "canonical EntryPoint v0.7 bytecode");
+         accountOwner = vm.addr(OWNER_PK);
+-        accountFactory = new SimpleAccountFactory(entryPoint);
++        // R2-F4: deployed from the rc.4 profile.default artifact bytes (not recompiled by this test)
++        accountFactory = SimpleAccountFactory(deployCode(string.concat(F4_ART, "SimpleAccountFactory.json"), abi.encode(entryPoint)));
++        _f4Dump("SimpleAccountFactory", address(accountFactory));
++        _f4Dump("SimpleAccount_impl", address(accountFactory.accountImplementation()));
++    }
++
++    // R2-F4: rc.4 artifact JSONs copied from the forge 1.7.1 profile.default build of v5.5.0-rc.4
++    string constant F4_ART = "f4art/";
++    function _f4Dump(string memory name, address a) internal {
++        string memory p = string.concat("f4dump/", name, ".hex");
++        if (vm.exists(p)) return;
++        vm.writeFile(p, vm.toString(a.code));
++        vm.writeLine("f4dump/addresses.txt", string.concat(name, " ", vm.toString(a)));
+     }
+ 
+     // ------------------------------------------------------------------
+@@ -210,17 +222,29 @@
+         registry.setRole(keccak256("PAYMASTER_SUPER"), operator, true);
+         registry.setRole(keccak256("COMMUNITY"), operator, true);
+         V55APNTs apnts = new V55APNTs();
+-        sp = UUPSDeployHelper.deploySuperPaymasterProxy(
+-            entryPoint, IRegistry(address(registry)), address(new V55PriceFeed()), owner, address(apnts), treasury, 3600
+-        );
+-        AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
+-        GlobalTierSource tier = new GlobalTierSource(address(registry));
++        {
++            address spImpl = deployCode(string.concat(F4_ART, "SuperPaymaster.json"),
++                abi.encode(entryPoint, IRegistry(address(registry)), address(new V55PriceFeed())));
++            bytes memory initData = abi.encodeCall(SuperPaymaster.initialize, (owner, address(apnts), treasury, 3600));
++            sp = SuperPaymaster(payable(deployCode(string.concat(F4_ART, "ERC1967Proxy.json"), abi.encode(spImpl, initData))));
++            _f4Dump("SuperPaymaster_impl", spImpl);
++            _f4Dump("SuperPaymaster_proxy", address(sp));
++            _f4Dump("SuperPaymasterAdmin", SuperPaymaster(payable(spImpl)).EXTENSION());
++        }
++        AOAProtocolRegistry aoa = AOAProtocolRegistry(deployCode(string.concat(F4_ART, "AOAProtocolRegistry.json"), abi.encode(owner)));
++        GlobalTierSource tier = GlobalTierSource(deployCode(string.concat(F4_ART, "GlobalTierSource.json"), abi.encode(address(registry))));
+         aoa.bootstrapApprove(aoa.KIND_SP(), aoa.spKey(address(sp)));
+         aoa.bootstrapApprove(aoa.KIND_TIER_SOURCE(), address(tier).codehash);
+         aoa.seal();
+-        xPNTsTokenV2Ext ext = new xPNTsTokenV2Ext(address(aoa));
+-        xPNTsTokenV2 impl = new xPNTsTokenV2(address(aoa), address(ext));
+-        xPNTsFactoryV2 factory = new xPNTsFactoryV2(address(sp), address(registry), address(impl), address(tier));
++        xPNTsTokenV2Ext ext = xPNTsTokenV2Ext(deployCode(string.concat(F4_ART, "xPNTsTokenV2Ext.json"), abi.encode(address(aoa))));
++        xPNTsTokenV2 impl = xPNTsTokenV2(deployCode(string.concat(F4_ART, "xPNTsTokenV2.json"), abi.encode(address(aoa), address(ext))));
++        xPNTsFactoryV2 factory = xPNTsFactoryV2(deployCode(string.concat(F4_ART, "xPNTsFactoryV2.json"),
++            abi.encode(address(sp), address(registry), address(impl), address(tier))));
++        _f4Dump("AOAProtocolRegistry", address(aoa));
++        _f4Dump("GlobalTierSource", address(tier));
++        _f4Dump("xPNTsTokenV2Ext", address(ext));
++        _f4Dump("xPNTsTokenV2", address(impl));
++        _f4Dump("xPNTsFactoryV2", address(factory));
+         sp.setXPNTsFactory(address(factory));
+         vm.warp(vm.getBlockTimestamp() + 2 hours);
+         sp.updatePrice();
+@@ -233,6 +257,8 @@
+ 
+         vm.startPrank(operator);
+         token = xPNTsTokenV2(factory.deployxPNTsToken("Comm", "xC", "Comm", "c.eth", 1 ether, address(0)));
++        _f4Dump("xPNTsTokenV2_clone", address(token));
++        _f4Dump("SimpleAccount_proxy_user", user);
+         IV2Ext(address(token)).mint(user, 10_000 ether);
+         apnts.approve(address(sp), type(uint256).max);
+         sp.configureOperator(address(token), treasury);
+--- ../rams-2a/scratch/Rams2a.t.sol.txt	2026-10-23 04:36:28.769715362 +0000
++++ /tmp/f4g/contracts/test/zz_rams2a/Rams2a.t.sol	2026-10-23 05:24:46.318273068 +0000
+@@ -532,6 +532,80 @@
+         }
+     }
+ 
++    /// R2-F4 addition (not in the R-AMS-2a scratch): the no-OOG band at the proposed SETTLE 420k.
++    function test_B4b_no_oog_band_at_proposed_420k() public {
++        _setUpAll();
++        _bandFor(BAL, "balance_first_op", 420_000);
++        _bandFor(CRED, "credit_first_op", 420_000);
++    }
++
++    // -------------------------------------------------------------------------------
++    // R2-F2 addition (not in the R-AMS-2a scratch): per-scenario minimum limits on the axes of the B-layer
++    // matrix (fresh vs warm SP, first vs subsequent op of a sender, SP_RENEW, balance vs credit, initCode),
++    // GasParams = the (c)/(d) tuple 440k/420k/5k/340k, success predicate = the B-layer probe's (handleOps
++    // does not revert, UserOperationEvent.success, no PostOpRevertReason, no prefund-too-low). Run with --isolate.
++    // -------------------------------------------------------------------------------
++    function _mkF(address u, uint256 nonce, Lim memory l, uint8 flags, bytes memory initCode) internal view returns (PackedUserOperation memory op) {
++        op = _mk(u, nonce, "", l);
++        op.paymasterAndData = abi.encodePacked(address(sp), l.pmVer, l.postOp, operator, type(uint256).max, address(token), flags);
++        if (initCode.length > 0) op.initCode = initCode;
++        _sign(op);
++    }
++
++    /// which: 0 = verificationGasLimit, 1 = callGasLimit, 2 = paymasterVerificationGasLimit, 3 = paymasterPostOpGasLimit
++    function _okF(address u, uint256 nonce, uint8 flags, bytes memory initCode, uint8 which, uint128 g) internal returns (bool) {
++        uint256 snap = vm.snapshot();
++        Lim memory l = _lim();
++        if (initCode.length > 0) l.ver = 5_000_000;
++        if (which == 0) l.ver = g; else if (which == 1) l.callG = g; else if (which == 2) l.pmVer = g; else l.postOp = g;
++        Out memory o = _exec(_mkF(u, nonce, l, flags, initCode));
++        vm.revertTo(snap);
++        return !o.bundleReverted && o.success && !o.postOpRev && !o.prefundLow;
++    }
++
++    function _minsF(string memory name, address u, uint256 nonce, uint8 flags, bytes memory initCode) internal {
++        string[4] memory f = ["v", "call", "pmV", "pmP"];
++        uint128[4] memory los = [uint128(1_000), 1_000, 10_000, 440_000];
++        for (uint8 w; w < 4; w++) {
++            uint128 lo = los[w]; uint128 hi = initCode.length > 0 && w == 0 ? 20_000_000 : 5_000_000;
++            if (!_okF(u, nonce, flags, initCode, w, hi)) { _log(string.concat("F2.", name, ".", f[w], ".fails_at_hi"), hi); continue; }
++            if (_okF(u, nonce, flags, initCode, w, lo)) { _log(string.concat("F2.", name, ".min_", f[w], "(=lower bound)"), lo); continue; }
++            while (hi - lo > 1) { uint128 mid = (lo + hi) / 2; if (_okF(u, nonce, flags, initCode, w, mid)) hi = mid; else lo = mid; }
++            _log(string.concat("F2.", name, ".min_", f[w]), hi);
++        }
++    }
++
++    function test_F2_matrix() public {
++        _setUpAll();
++        _setGP(440_000, 420_000, 5_000, 340_000);
++        // fresh SP: no op has been executed through this SP yet
++        _minsF("freshSP.balance.first_op_of_sender", _balanceUser(901), 0, 0, "");
++        _minsF("freshSP.credit.first_op_of_sender", _creditUser(902), 0, 0, "");
++        _minsF("freshSP.balance.SP_RENEW.first_op_of_sender", _balanceUser(903), 0, 1, "");
++        // warm SP: one op of another sender executed (and committed) first
++        address w0 = _balanceUser(910);
++        Out memory o0 = _exec(_mkF(w0, 0, _lim(), 0, ""));
++        _log("F2.warmup_op.success", o0.success ? 1 : 0);
++        _minsF("warmSP.balance.first_op_of_sender", _balanceUser(911), 0, 0, "");
++        _minsF("warmSP.credit.first_op_of_sender", _creditUser(912), 0, 0, "");
++        _minsF("warmSP.balance.SP_RENEW.first_op_of_sender", _balanceUser(913), 0, 1, "");
++        _minsF("warmSP.balance.second_op_of_sender", w0, 1, 0, "");
++        // the G operator has minTxInterval = 60 (cold lastTimestamp path): the same sender's next op is
++        // rate-limited inside 60 s, so measure it again 61 s later
++        vm.warp(vm.getBlockTimestamp() + 61);
++        sp.updatePrice();
++        _minsF("warmSP.balance.second_op_of_sender_after_61s", w0, 1, 0, "");
++        // counterfactual SimpleAccount deployed through initCode (SimpleAccountFactory.createAccount), warm SP
++        uint256 salt = 914;
++        address cf = accountFactory.getAddress(accountOwner, salt);
++        vm.prank(address(registry));
++        sp.updateSBTStatus(cf, true);
++        vm.prank(operator);
++        IV2Ext(address(token)).mint(cf, 10_000 ether);
++        bytes memory initCode = abi.encodePacked(address(accountFactory), abi.encodeCall(SimpleAccountFactory.createAccount, (accountOwner, salt)));
++        _minsF("warmSP.balance.initCode_first_op", cf, 0, 0, initCode);
++    }
++
+     // -------------------------------------------------------------------------------
+     // B5 — candidate tuple end-to-end at the floor of the new MIN (postOpGasLimit == MIN)
+     // -------------------------------------------------------------------------------

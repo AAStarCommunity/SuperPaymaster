@@ -1,0 +1,4 @@
+rundler b1_first_op_fresh_SP: estimatePVG 100000 minAccepted 46184 included true gasUsed 1207218 actual 1200809 breakEvenPVG 52593 gapNoPVG 52593
+rundler b1_second_op_same_sender: estimatePVG 100000 minAccepted 46200 included true gasUsed 511802 actual 809145 breakEvenPVG -251143 gapNoPVG -251143
+rundler b7_credit_first_op: estimatePVG 100000 minAccepted 46187 included true gasUsed 720361 actual 921565 breakEvenPVG -155017 gapNoPVG -155017
+initCode_b4ok not accepted even at PVG 400000 {"pvg":400000,"ok":false,"error":{"code":-32000,"message":"precheck failed: verificationGasLimit is 5735000 but must be at most 5000000"}}

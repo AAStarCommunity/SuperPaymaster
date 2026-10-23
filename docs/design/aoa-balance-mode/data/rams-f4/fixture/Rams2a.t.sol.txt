@@ -1,0 +1,847 @@
+// SPDX-License-Identifier: MIT
+// SCRATCH — NOT COMMITTED AS SOURCE (copied to docs/.../rams-2a/scratch/Rams2a.t.sol.txt).
+// R-AMS-2a G-layer re-measurement under foundry nightly 926eb1d (calibrated against live Sepolia).
+// Every result line is `R2A|<key>|<value>` so parse_r2a.py can tabulate Prague vs Amsterdam.
+pragma solidity 0.8.33;
+
+import { SuperPaymasterV55GasTest } from "../v2/SuperPaymasterV55Gas.t.sol";
+import { IV2Ext } from "../helpers/V55TestFixtures.sol";
+import { GasBurner } from "../helpers/V55GasProbes.sol";
+import "forge-std/Test.sol";
+import "forge-std/console.sol";
+import "forge-std/Vm.sol";
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import "@account-abstraction-v7/interfaces/IPaymaster.sol";
+import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import "@account-abstraction-v7/samples/SimpleAccount.sol";
+import "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
+
+using SuperPaymasterAdminCalls for SuperPaymaster;
+
+/// @dev Writes `n` fresh (zero -> non-zero) slots: one EIP-8037 SSTORE-set each.
+contract R2aWriter {
+    mapping(uint256 => uint256) public s;
+    function w(uint256 from, uint256 n) external { for (uint256 i; i < n; i++) s[from + i] = 1; }
+    function clear(uint256 from, uint256 n) external { for (uint256 i; i < n; i++) s[from + i] = 0; }
+}
+
+/// @dev Calls a target with an explicit gas limit and reports the gasleft() movement around it.
+contract R2aCaller {
+    function callWith(address t, uint256 g, bytes calldata d) external returns (bool ok, int256 delta) {
+        uint256 g0 = gasleft();
+        (ok, ) = t.call{gas: g}(d);
+        delta = int256(g0) - int256(gasleft());
+    }
+}
+
+// =====================================================================================
+// Part A — gasleft() semantics probes (no SuperPaymaster)
+// =====================================================================================
+contract R2aGasleftProbe is Test {
+    function _log(string memory k, int256 v) internal pure { console.log(string.concat("R2A|", k, "|", vm.toString(v))); }
+
+    /// A1: the caller's gasleft() movement across (i) a child 0->x SSTORE, (ii) a child x->0 restore of
+    ///     that same slot in the same transaction. Under EIP-8037 the restore refills state gas, which
+    ///     revm credits back to `remaining` of the frames that spilled it: gasleft() can RISE across a call.
+    function test_A1_gasleft_across_set_then_restore() public {
+        R2aWriter wr = new R2aWriter();
+        uint256 g0 = gasleft();
+        wr.w(1000, 1);
+        uint256 g1 = gasleft();
+        wr.clear(1000, 1);
+        uint256 g2 = gasleft();
+        _log("A1.set_one_fresh_slot.caller_gas_consumed", int256(g0) - int256(g1));
+        _log("A1.restore_same_slot.caller_gas_consumed(neg=gasleft_rose)", int256(g1) - int256(g2));
+    }
+
+    /// A2: the restore in a frame that did NOT spill (its own spill counter is 0): the refill lands in
+    ///     that frame's reservoir and only reaches `remaining` of an ancestor that spilled.
+    function test_A2_restore_from_non_spilling_intermediate() public {
+        R2aWriter wr = new R2aWriter();
+        R2aCaller c = new R2aCaller();
+        wr.w(2000, 3);
+        (bool ok, int256 d) = c.callWith(address(wr), 500_000, abi.encodeCall(R2aWriter.clear, (2000, 3)));
+        require(ok, "clear");
+        _log("A2.intermediate_frame_delta_restoring_3_slots(neg=gasleft_rose)", d);
+    }
+
+    /// A3: a child given an explicit gas limit tries one fresh SSTORE. With no reservoir (forge default,
+    ///     tx gas cap disabled) the state gas must fit the child's own limit; with a reservoir
+    ///     (--enable-tx-gas-limit, tx gas limit 2^30 > 2^24) the state gas comes from the reservoir.
+    function test_A3_state_gas_vs_call_gas_limit() public {
+        R2aWriter wr = new R2aWriter();
+        R2aCaller c = new R2aCaller();
+        uint32[6] memory gs = [uint32(25_000), 30_000, 50_000, 100_000, 125_000, 150_000];
+        for (uint256 i; i < gs.length; i++) {
+            (bool ok, int256 d) = c.callWith(address(wr), gs[i], abi.encodeCall(R2aWriter.w, (3000 + i * 10, 1)));
+            _log(string.concat("A3.one_fresh_sstore_with_call_gas_", vm.toString(uint256(gs[i])), ".ok"), ok ? int256(1) : int256(0));
+            _log(string.concat("A3.one_fresh_sstore_with_call_gas_", vm.toString(uint256(gs[i])), ".caller_delta"), d);
+        }
+    }
+}
+
+// =====================================================================================
+// Part B — SuperPaymaster through the canonical EntryPoint v0.7 bytecode
+// =====================================================================================
+contract R2aEP is SuperPaymasterV55GasTest {
+    bytes32 constant POSTOP_REVERT_TOPIC = keccak256("PostOpRevertReason(bytes32,address,uint256,bytes)");
+    bytes32 constant PREFUND_LOW_TOPIC = keccak256("UserOperationPrefundTooLow(bytes32,address,uint256)");
+    bytes32 constant USER_REVERT_TOPIC = keccak256("UserOperationRevertReason(bytes32,address,uint256,bytes)");
+
+    uint8 constant BAL = 1;
+    uint8 constant CRED = 2;
+
+    R2aWriter writer;
+    GasBurner burner;
+    address balUser;
+
+    struct Lim { uint128 ver; uint128 callG; uint128 pmVer; uint128 postOp; uint256 pvg; }
+    struct Out {
+        bool bundleReverted; bool success; bool postOpRev; bool prefundLow; bool userRevert;
+        bytes4 postOpSel; uint256 postOpReasonLen;
+        uint256 cost; uint256 used; uint256 charge; uint256 need; uint256 a0;
+        uint256 depDelta; uint256 frameGas; uint256 userBurn; uint256 debtDelta;
+    }
+
+    function _k(string memory a, string memory b) internal pure returns (string memory) { return string.concat(a, ".", b); }
+    function _log(string memory k, uint256 v) internal pure { console.log(string.concat("R2A|", k, "|", vm.toString(v))); }
+    function _logi(string memory k, int256 v) internal pure { console.log(string.concat("R2A|", k, "|", vm.toString(v))); }
+
+    function _setUpAll() internal {
+        balUser = _deploySP(); // operator minTxInterval 60 => cold lastTimestamp write on the first op
+        writer = new R2aWriter();
+        burner = new GasBurner();
+        vm.prank(operator);
+        IV2Ext(address(token)).queueCreditPolicy(2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
+        IV2Ext(address(token)).executeCreditPolicy();
+        sp.updatePrice();
+    }
+
+    function _setGP(uint32 minPost, uint32 settle, uint32 cWrap, uint32 cPostop) internal {
+        vm.prank(owner);
+        sp.queueGasParams(minPost, settle, cWrap, cPostop);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        vm.prank(owner);
+        sp.executeGasParams();
+        sp.updatePrice();
+    }
+
+    function _creditUser(uint256 salt) internal returns (address u) {
+        u = _account(salt);
+        vm.prank(address(registry));
+        sp.updateSBTStatus(u, true);
+        registry.setCreditLimit(u, 50_000 ether);
+        vm.prank(u);
+        IV2Ext(address(token)).requestCredit(50_000 ether);
+    }
+
+    function _balanceUser(uint256 salt) internal returns (address u) {
+        u = _account(salt);
+        vm.prank(address(registry));
+        sp.updateSBTStatus(u, true);
+        vm.prank(operator);
+        IV2Ext(address(token)).mint(u, 10_000 ether);
+    }
+
+    function _mk(address u, uint256 nonce, bytes memory callData, Lim memory l) internal view returns (PackedUserOperation memory op) {
+        op.sender = u;
+        op.nonce = nonce;
+        op.callData = callData;
+        op.accountGasLimits = bytes32(abi.encodePacked(l.ver, l.callG));
+        op.preVerificationGas = l.pvg;
+        op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
+        op.paymasterAndData = abi.encodePacked(address(sp), l.pmVer, l.postOp, operator, type(uint256).max, address(token), uint8(0));
+        _sign(op);
+    }
+
+    function _a0(PackedUserOperation memory op) internal returns (uint256 a0) {
+        uint256 snap = vm.snapshot();
+        bytes32 h = entryPoint.getUserOpHash(op);
+        vm.prank(EP);
+        try sp.validatePaymasterUserOp(op, h, _prefund(op)) returns (bytes memory ctx, uint256) {
+            if (ctx.length >= 352) a0 = abi.decode(ctx, (SuperPaymaster.OpCtx)).a0;
+        } catch {}
+        vm.revertTo(snap);
+    }
+
+    function _prefund(PackedUserOperation memory op) internal pure returns (uint256) {
+        uint256 ver = uint128(uint256(op.accountGasLimits) >> 128);
+        uint256 cg = uint128(uint256(op.accountGasLimits));
+        bytes memory p = op.paymasterAndData;
+        uint256 pmv; uint256 pmp;
+        assembly { pmv := shr(128, mload(add(p, 52))) pmp := shr(128, mload(add(p, 68))) }
+        return (ver + cg + pmv + pmp + op.preVerificationGas) * 1 gwei;
+    }
+
+    function _exec(PackedUserOperation memory op) internal returns (Out memory o) {
+        address u = op.sender;
+        o.a0 = _a0(op);
+        uint256 rev0 = sp.protocolRevenue();
+        uint256 dep0 = entryPoint.balanceOf(address(sp));
+        uint256 bal0 = token.balanceOf(u);
+        uint256 debt0 = token.debts(u);
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = op;
+        vm.recordLogs();
+        uint256 g0 = gasleft();
+        try entryPoint.handleOps(ops, payable(beneficiary)) {} catch { o.bundleReverted = true; }
+        o.frameGas = g0 - gasleft();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].emitter != EP || logs[i].topics.length == 0) continue;
+            bytes32 t = logs[i].topics[0];
+            if (t == USEROP_EVENT) {
+                (, bool s, uint256 c, uint256 g) = abi.decode(logs[i].data, (uint256, bool, uint256, uint256));
+                o.success = s; o.cost = c; o.used = g;
+            } else if (t == POSTOP_REVERT_TOPIC) {
+                o.postOpRev = true;
+                (, bytes memory r) = abi.decode(logs[i].data, (uint256, bytes));
+                // EntryPoint wraps the paymaster's revert data: PostOpReverted(bytes inner). Unwrap it.
+                if (r.length >= 68 && bytes4(r) == bytes4(keccak256("PostOpReverted(bytes)"))) {
+                    bytes memory tail = new bytes(r.length - 4);
+                    for (uint256 j; j < tail.length; j++) tail[j] = r[j + 4];
+                    r = abi.decode(tail, (bytes));
+                }
+                o.postOpReasonLen = r.length; // inner paymaster revert data; 0 = out of gas / empty revert
+                if (r.length >= 4) o.postOpSel = bytes4(r);
+            } else if (t == PREFUND_LOW_TOPIC) {
+                o.prefundLow = true;
+            } else if (t == USER_REVERT_TOPIC) {
+                o.userRevert = true;
+            }
+        }
+        if (o.bundleReverted) return o;
+        o.charge = sp.protocolRevenue() - rev0;
+        o.depDelta = dep0 - entryPoint.balanceOf(address(sp));
+        o.need = _fullCostCharge(o.cost);
+        uint256 bal1 = token.balanceOf(u);
+        o.userBurn = bal0 > bal1 ? bal0 - bal1 : 0;
+        o.debtDelta = token.debts(u) - debt0;
+    }
+
+    function _report(string memory name, Out memory o) internal pure {
+        _log(_k(name, "bundleReverted"), o.bundleReverted ? 1 : 0);
+        _log(_k(name, "success"), o.success ? 1 : 0);
+        _log(_k(name, "userRevertEvent"), o.userRevert ? 1 : 0);
+        _log(_k(name, "postOpReverted"), o.postOpRev ? 1 : 0);
+        _log(_k(name, "postOpRevertSelector"), uint256(uint32(o.postOpSel)));
+        _log(_k(name, "postOpRevertReasonLen"), o.postOpReasonLen);
+        _log(_k(name, "prefundTooLow"), o.prefundLow ? 1 : 0);
+        _log(_k(name, "actualGasUsed"), o.used);
+        _log(_k(name, "actualGasCost_wei"), o.cost);
+        _log(_k(name, "spEpDepositDelta_wei"), o.depDelta);
+        _log(_k(name, "charge_aPNTs"), o.charge);
+        _log(_k(name, "need_aPNTs(full cost at snapshot)"), o.need);
+        _log(_k(name, "chargeCoversNeed(I9/G2)"), o.charge >= o.need ? 1 : 0);
+        _log(_k(name, "a0(clamp)"), o.a0);
+        _log(_k(name, "chargeClampedAtA0"), (o.a0 != 0 && o.charge == o.a0) ? 1 : 0);
+        _logi(_k(name, "charge_minus_need_aPNTs"), int256(o.charge) - int256(o.need));
+        _log(_k(name, "userBurn_xPNTs"), o.userBurn);
+        _log(_k(name, "userDebtDelta_xPNTs"), o.debtDelta);
+        _log(_k(name, "testFrameGas_handleOps"), o.frameGas);
+    }
+
+    function _lim() internal pure returns (Lim memory) {
+        return Lim({ ver: 1_000_000, callG: 1_000_000, pmVer: 3_000_000, postOp: 1_000_000, pvg: 50_000 });
+    }
+
+    // -------------------------------------------------------------------------------
+    // B1 — end-to-end cases with ample limits (I8 / I9 / G2 conservation per op)
+    // -------------------------------------------------------------------------------
+    function test_B1_cases_ample_limits() public {
+        _setUpAll();
+        Lim memory l = _lim();
+        bytes memory noop = "";
+        bytes memory burnCall = abi.encodeCall(SimpleAccount.execute, (address(burner), 0, abi.encodeCall(GasBurner.burn, ())));
+        uint256 snap;
+
+        // balance mode, first op of a user (cold lastTimestamp, cold token slots)
+        snap = vm.snapshot();
+        address u = _balanceUser(11);
+        Out memory o = _exec(_mk(u, 0, noop, l));
+        _report("B1.balance_first_op", o);
+        // second op of the same user in a later tx-equivalent (warm-ish storage, lastTimestamp non-zero)
+        vm.warp(vm.getBlockTimestamp() + 61);
+        o = _exec(_mk(u, 1, noop, l));
+        _report("B1.balance_second_op", o);
+        vm.revertTo(snap);
+
+        // credit mode, first op (first debt)
+        snap = vm.snapshot();
+        u = _creditUser(21);
+        o = _exec(_mk(u, 0, noop, l));
+        _report("B1.credit_first_op", o);
+        vm.revertTo(snap);
+
+        // user call reverts (opReverted): execution burns its callGas
+        snap = vm.snapshot();
+        u = _balanceUser(31);
+        Lim memory lr = _lim(); lr.callG = 50_000;
+        o = _exec(_mk(u, 0, burnCall, lr));
+        _report("B1.balance_user_call_reverts", o);
+        vm.revertTo(snap);
+
+        // user call writes k fresh slots (each an EIP-8037 SSTORE-set inside innerHandleOp)
+        for (uint256 k = 1; k <= 3; k++) {
+            snap = vm.snapshot();
+            u = _balanceUser(40 + k);
+            bytes memory wcall = abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (k * 1000, k))));
+            o = _exec(_mk(u, 0, wcall, l));
+            _report(string.concat("B1.balance_user_writes_", vm.toString(k), "_fresh_slots"), o);
+            uint256 kept = writer.s(k * 1000);
+            _log(string.concat("B1.balance_user_writes_", vm.toString(k), "_fresh_slots.executionKept"), kept);
+            _log(string.concat("B1.balance_user_writes_", vm.toString(k), "_fresh_slots.lockedAfter"), token.lockedOf(u));
+            vm.revertTo(snap);
+        }
+        for (uint256 k = 1; k <= 3; k++) {
+            snap = vm.snapshot();
+            u = _creditUser(50 + k);
+            bytes memory wcall = abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (k * 1000, k))));
+            o = _exec(_mk(u, 0, wcall, l));
+            _report(string.concat("B1.credit_user_writes_", vm.toString(k), "_fresh_slots"), o);
+            _log(string.concat("B1.credit_user_writes_", vm.toString(k), "_fresh_slots.executionKept"), writer.s(k * 1000));
+            vm.revertTo(snap);
+        }
+    }
+
+    // -------------------------------------------------------------------------------
+    // B2 — postOp segment that EntryPoint charges (W_postop at EntryPoint level):
+    //      F(real postOp) - F(postOp mocked to return immediately) = consumed - 10% penalty
+    //      change, so consumed = delta * 10 / 9 while unused execution gas stays positive.
+    // -------------------------------------------------------------------------------
+    function _postOpSegment(string memory name, address u, bytes memory callData, Lim memory l) internal {
+        uint256 snap = vm.snapshot();
+        Out memory real = _exec(_mk(u, 0, callData, l));
+        vm.revertTo(snap);
+        snap = vm.snapshot();
+        vm.mockCall(address(sp), abi.encodeWithSelector(IPaymaster.postOp.selector), "");
+        Out memory mocked = _exec(_mk(u, 0, callData, l));
+        vm.clearMockedCalls();
+        vm.revertTo(snap);
+        _log(_k(name, "F_real"), real.used);
+        _log(_k(name, "F_postOpMocked"), mocked.used);
+        _logi(_k(name, "W_postop_EP(=(F_real-F_mocked)*10/9)"), (int256(real.used) - int256(mocked.used)) * 10 / 9);
+        _log(_k(name, "real.success"), real.success ? 1 : 0);
+        _log(_k(name, "real.postOpReverted"), real.postOpRev ? 1 : 0);
+        _log(_k(name, "real.prefundTooLow"), real.prefundLow ? 1 : 0);
+    }
+
+    function test_B2_postop_segment_at_entrypoint() public {
+        _setUpAll();
+        Lim memory l = _lim(); l.callG = 0; // penalty applies in both runs (postOp limit 1M mostly unused)
+        _postOpSegment("B2.balance_first_op", _balanceUser(61), "", l);
+        _postOpSegment("B2.credit_first_op", _creditUser(62), "", l);
+        Lim memory lw = _lim(); lw.callG = 1_000_000; lw.postOp = 2_000_000;
+        address u = _balanceUser(63);
+        _postOpSegment("B2.balance_first_op_user_writes_1", u,
+            abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (7000, 1)))), lw);
+    }
+
+    // -------------------------------------------------------------------------------
+    // B3 — smallest limits through EntryPoint (binary search; success predicate per limit)
+    // -------------------------------------------------------------------------------
+    function _okPmVer(address u, bytes memory cd, uint128 g) internal returns (bool) {
+        uint256 snap = vm.snapshot();
+        Lim memory l = _lim(); l.pmVer = g;
+        Out memory o = _exec(_mk(u, 0, cd, l));
+        vm.revertTo(snap);
+        return !o.bundleReverted;
+    }
+
+    function _okVer(address u, bytes memory cd, uint128 g, bytes memory initCode) internal returns (bool) {
+        uint256 snap = vm.snapshot();
+        Lim memory l = _lim(); l.ver = g;
+        PackedUserOperation memory op = _mk(u, 0, cd, l);
+        if (initCode.length > 0) { op.initCode = initCode; _sign(op); }
+        Out memory o = _exec(op);
+        vm.revertTo(snap);
+        return !o.bundleReverted;
+    }
+
+    function _okCall(address u, bytes memory cd, uint128 g) internal returns (bool) {
+        uint256 snap = vm.snapshot();
+        Lim memory l = _lim(); l.callG = g;
+        Out memory o = _exec(_mk(u, 0, cd, l));
+        vm.revertTo(snap);
+        return !o.bundleReverted && o.success && !o.postOpRev;
+    }
+
+    function _okPostOp(address u, bytes memory cd, uint128 g) internal returns (bool settled, bytes4 sel, uint256 len) {
+        uint256 snap = vm.snapshot();
+        Lim memory l = _lim(); l.postOp = g;
+        Out memory o = _exec(_mk(u, 0, cd, l));
+        vm.revertTo(snap);
+        settled = !o.bundleReverted && !o.postOpRev && !o.prefundLow;
+        sel = o.postOpSel; len = o.postOpReasonLen;
+    }
+
+    function test_B3_min_paymasterVerificationGasLimit() public {
+        _setUpAll();
+        address ub = _balanceUser(71);
+        address uc = _creditUser(72);
+        for (uint256 m; m < 2; m++) {
+            address u = m == 0 ? ub : uc;
+            uint128 lo = 10_000; uint128 hi = 5_000_000;
+            require(_okPmVer(u, "", hi), "hi must pass");
+            while (hi - lo > 1) { uint128 mid = (lo + hi) / 2; if (_okPmVer(u, "", mid)) hi = mid; else lo = mid; }
+            _log(m == 0 ? "B3.min_pmVerificationGasLimit.balance_first_op" : "B3.min_pmVerificationGasLimit.credit_first_op", hi);
+        }
+    }
+
+    function test_B3_min_verificationGasLimit_account() public {
+        _setUpAll();
+        address u = _balanceUser(81);
+        uint128 lo = 1_000; uint128 hi = 5_000_000;
+        while (hi - lo > 1) { uint128 mid = (lo + hi) / 2; if (_okVer(u, "", mid, "")) hi = mid; else lo = mid; }
+        _log("B3.min_verificationGasLimit.deployed_SimpleAccount", hi);
+        // counterfactual account deployed through initCode (SimpleAccountFactory.createAccount)
+        uint256 salt = 82;
+        address cf = accountFactory.getAddress(accountOwner, salt);
+        vm.prank(address(registry));
+        sp.updateSBTStatus(cf, true);
+        vm.prank(operator);
+        IV2Ext(address(token)).mint(cf, 10_000 ether);
+        bytes memory initCode = abi.encodePacked(address(accountFactory), abi.encodeCall(SimpleAccountFactory.createAccount, (accountOwner, salt)));
+        lo = 1_000; hi = 20_000_000;
+        require(_okVer(cf, "", hi, initCode), "initCode hi must pass");
+        while (hi - lo > 1) { uint128 mid = (lo + hi) / 2; if (_okVer(cf, "", mid, initCode)) hi = mid; else lo = mid; }
+        _log("B3.min_verificationGasLimit.initCode_deploy_SimpleAccount", hi);
+    }
+
+    function test_B3_min_callGasLimit() public {
+        _setUpAll();
+        address u = _balanceUser(91);
+        for (uint256 k; k <= 2; k++) {
+            bytes memory cd = abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (90_000 + k * 100, k))));
+            uint128 lo = 1_000; uint128 hi = 3_000_000;
+            while (hi - lo > 1) { uint128 mid = (lo + hi) / 2; if (_okCall(u, cd, mid)) hi = mid; else lo = mid; }
+            _log(string.concat("B3.min_callGasLimit.execute_writing_", vm.toString(k), "_fresh_slots"), hi);
+        }
+    }
+
+    /// T-R14-09 through EntryPoint: smallest paymasterPostOpGasLimit that SETTLES, with the gas
+    /// parameters at their floor (MIN 175k / SETTLE 155k) so validation admits low limits.
+    function test_B3_min_postOpGasLimit_through_entrypoint() public {
+        _setUpAll();
+        _setGP(175_000, 155_000, 5_000, 175_000);
+        address ub = _balanceUser(101);
+        address uc = _creditUser(102);
+        address uw = _balanceUser(103);
+        bytes memory wcall = abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (8000, 1))));
+        for (uint256 m; m < 3; m++) {
+            address u = m == 0 ? ub : (m == 1 ? uc : uw);
+            bytes memory cd = m == 2 ? wcall : bytes("");
+            string memory name = m == 0 ? "balance_first_op" : (m == 1 ? "credit_first_op" : "balance_first_op_user_writes_1");
+            uint128 lo = 175_000; uint128 hi = 3_000_000;
+            (bool ok, , ) = _okPostOp(u, cd, hi);
+            require(ok, "hi must settle");
+            (ok, , ) = _okPostOp(u, cd, lo);
+            if (ok) { _log(string.concat("B3.min_postOpGasLimit_EP.", name), lo); continue; }
+            while (hi - lo > 1) { uint128 mid = (lo + hi) / 2; (ok, , ) = _okPostOp(u, cd, mid); if (ok) hi = mid; else lo = mid; }
+            _log(string.concat("B3.min_postOpGasLimit_EP.", name), hi);
+            (, bytes4 sel, uint256 len) = _okPostOp(u, cd, hi - 1);
+            _log(string.concat("B3.min_postOpGasLimit_EP.", name, ".failure_at_min-1.selector"), uint256(uint32(sel)));
+            _log(string.concat("B3.min_postOpGasLimit_EP.", name, ".failure_at_min-1.reasonLen"), len);
+            // scan for an OOG band above the guard (non-PostOpGasTooLow failures below the minimum)
+            uint256 oog;
+            for (uint128 g = 175_000; g < hi; g += 2_000) {
+                (bool s, bytes4 sl, ) = _okPostOp(u, cd, g);
+                if (!s && sl != SuperPaymasterStorage.PostOpGasTooLow.selector) oog++;
+            }
+            _log(string.concat("B3.postOpGasLimit_EP.", name, ".non_guard_failures_in_[175k,min)_step2k"), oog);
+        }
+    }
+
+    /// The same op at the CURRENT defaults (MIN 200k / SETTLE 160k): does it settle at exactly MIN?
+    function test_B3_TR1409_at_current_defaults_through_entrypoint() public {
+        _setUpAll();
+        address ub = _balanceUser(111);
+        address uc = _creditUser(112);
+        (bool okB, bytes4 sB, uint256 lB) = _okPostOp(ub, "", 200_000);
+        (bool okC, bytes4 sC, uint256 lC) = _okPostOp(uc, "", 200_000);
+        _log("B3.TR1409_defaults.balance.settles_at_MIN_200k", okB ? 1 : 0);
+        _log("B3.TR1409_defaults.balance.selector", uint256(uint32(sB)));
+        _log("B3.TR1409_defaults.balance.reasonLen", lB);
+        _log("B3.TR1409_defaults.credit.settles_at_MIN_200k", okC ? 1 : 0);
+        _log("B3.TR1409_defaults.credit.selector", uint256(uint32(sC)));
+        _log("B3.TR1409_defaults.credit.reasonLen", lC);
+    }
+
+    // -------------------------------------------------------------------------------
+    // B4 — no-OOG band (direct postOp call from the EntryPoint address, as EntryPoint calls it)
+    // -------------------------------------------------------------------------------
+    function _ctx(uint8 mode, uint256 salt, uint128 postOpGas) internal returns (bytes memory ctx, bytes32 h) {
+        address u = mode == CRED ? _creditUser(salt) : _balanceUser(salt);
+        Lim memory l = _lim(); l.postOp = postOpGas;
+        PackedUserOperation memory op = _mk(u, 0, "", l);
+        h = entryPoint.getUserOpHash(op);
+        vm.prank(EP);
+        uint256 vd;
+        (ctx, vd) = sp.validatePaymasterUserOp(op, h, 1e16);
+        require(vd & 1 == 0, "validation failed");
+        require(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode == mode, "mode");
+    }
+
+    /// 0 = settled, 1 = PostOpGasTooLow (guard), 2 = any other failure (OOG band)
+    function _directPostOp(bytes memory ctx, uint256 g) internal returns (uint8) {
+        bytes memory cd = abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei));
+        uint256 snap = vm.snapshot();
+        vm.prank(EP);
+        (bool s, bytes memory ret) = address(sp).call{gas: g}(cd);
+        vm.revertTo(snap);
+        if (s) return 0;
+        if (keccak256(ret) == keccak256(abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector))) return 1;
+        return 2;
+    }
+
+    function _bandFor(uint8 mode, string memory name, uint32 settle) internal returns (uint256 gOk, uint256 gGuard, uint256 bandFails) {
+        uint256 snap = vm.snapshot();
+        _setGP(settle + 20_000, settle, 5_000, 175_000);
+        (bytes memory ctx, ) = _ctx(mode, 120 + mode + settle / 1000, settle + 20_000);
+        // smallest settling call gas
+        uint256 lo = 50_000; uint256 hi = 3_000_000;
+        while (hi - lo > 1) { uint256 mid = (lo + hi) / 2; if (_directPostOp(ctx, mid) == 0) hi = mid; else lo = mid; }
+        gOk = hi;
+        // smallest call gas that passes the entry guard
+        lo = 50_000; hi = 3_000_000;
+        while (hi - lo > 1) { uint256 mid = (lo + hi) / 2; if (_directPostOp(ctx, mid) != 1) hi = mid; else lo = mid; }
+        gGuard = hi;
+        for (uint256 g = gGuard; g < gOk; g += 1_000) if (_directPostOp(ctx, g) == 2) bandFails++;
+        string memory p = string.concat("B4.", name, ".SETTLE_", vm.toString(uint256(settle)));
+        _log(_k(p, "min_settling_call_gas"), gOk);
+        _log(_k(p, "min_call_gas_passing_guard"), gGuard);
+        _log(_k(p, "oog_band_width(gOk-gGuard,0=none)"), gOk > gGuard ? gOk - gGuard : 0);
+        _log(_k(p, "oog_band_failures_step1k"), bandFails);
+        vm.revertTo(snap);
+    }
+
+    function test_B4_no_oog_band() public {
+        _setUpAll();
+        for (uint8 m = BAL; m <= CRED; m++) {
+            string memory name = m == BAL ? "balance_first_op" : "credit_first_op";
+            (uint256 gOk, uint256 gGuard, ) = _bandFor(m, name, 160_000);
+            // smallest SETTLE without a band: guard threshold moves 1:1 with SETTLE
+            uint256 sMin = gOk > gGuard ? 160_000 + (gOk - gGuard) : 160_000;
+            _log(string.concat("B4.", name, ".derived_min_SETTLE_no_band"), sMin);
+            uint32 sRound = uint32(((sMin + 999) / 1000) * 1000);
+            _bandFor(m, name, sRound);                 // must show no band
+            if (sRound >= 156_000) _bandFor(m, name, sRound - 1_000); // control: band reappears (if above floor)
+            _bandFor(m, name, 155_000);                // the hard floor
+        }
+    }
+
+    /// R2-F4 addition (not in the R-AMS-2a scratch): the no-OOG band at the proposed SETTLE 420k.
+    function test_B4b_no_oog_band_at_proposed_420k() public {
+        _setUpAll();
+        _bandFor(BAL, "balance_first_op", 420_000);
+        _bandFor(CRED, "credit_first_op", 420_000);
+    }
+
+    // -------------------------------------------------------------------------------
+    // R2-F2 addition (not in the R-AMS-2a scratch): per-scenario minimum limits on the axes of the B-layer
+    // matrix (fresh vs warm SP, first vs subsequent op of a sender, SP_RENEW, balance vs credit, initCode),
+    // GasParams = the (c)/(d) tuple 440k/420k/5k/340k, success predicate = the B-layer probe's (handleOps
+    // does not revert, UserOperationEvent.success, no PostOpRevertReason, no prefund-too-low). Run with --isolate.
+    // -------------------------------------------------------------------------------
+    function _mkF(address u, uint256 nonce, Lim memory l, uint8 flags, bytes memory initCode) internal view returns (PackedUserOperation memory op) {
+        op = _mk(u, nonce, "", l);
+        op.paymasterAndData = abi.encodePacked(address(sp), l.pmVer, l.postOp, operator, type(uint256).max, address(token), flags);
+        if (initCode.length > 0) op.initCode = initCode;
+        _sign(op);
+    }
+
+    /// which: 0 = verificationGasLimit, 1 = callGasLimit, 2 = paymasterVerificationGasLimit, 3 = paymasterPostOpGasLimit
+    function _okF(address u, uint256 nonce, uint8 flags, bytes memory initCode, uint8 which, uint128 g) internal returns (bool) {
+        uint256 snap = vm.snapshot();
+        Lim memory l = _lim();
+        if (initCode.length > 0) l.ver = 5_000_000;
+        if (which == 0) l.ver = g; else if (which == 1) l.callG = g; else if (which == 2) l.pmVer = g; else l.postOp = g;
+        Out memory o = _exec(_mkF(u, nonce, l, flags, initCode));
+        vm.revertTo(snap);
+        return !o.bundleReverted && o.success && !o.postOpRev && !o.prefundLow;
+    }
+
+    function _minsF(string memory name, address u, uint256 nonce, uint8 flags, bytes memory initCode) internal {
+        string[4] memory f = ["v", "call", "pmV", "pmP"];
+        uint128[4] memory los = [uint128(1_000), 1_000, 10_000, 440_000];
+        for (uint8 w; w < 4; w++) {
+            uint128 lo = los[w]; uint128 hi = initCode.length > 0 && w == 0 ? 20_000_000 : 5_000_000;
+            if (!_okF(u, nonce, flags, initCode, w, hi)) { _log(string.concat("F2.", name, ".", f[w], ".fails_at_hi"), hi); continue; }
+            if (_okF(u, nonce, flags, initCode, w, lo)) { _log(string.concat("F2.", name, ".min_", f[w], "(=lower bound)"), lo); continue; }
+            while (hi - lo > 1) { uint128 mid = (lo + hi) / 2; if (_okF(u, nonce, flags, initCode, w, mid)) hi = mid; else lo = mid; }
+            _log(string.concat("F2.", name, ".min_", f[w]), hi);
+        }
+    }
+
+    function test_F2_matrix() public {
+        _setUpAll();
+        _setGP(440_000, 420_000, 5_000, 340_000);
+        // fresh SP: no op has been executed through this SP yet
+        _minsF("freshSP.balance.first_op_of_sender", _balanceUser(901), 0, 0, "");
+        _minsF("freshSP.credit.first_op_of_sender", _creditUser(902), 0, 0, "");
+        _minsF("freshSP.balance.SP_RENEW.first_op_of_sender", _balanceUser(903), 0, 1, "");
+        // warm SP: one op of another sender executed (and committed) first
+        address w0 = _balanceUser(910);
+        Out memory o0 = _exec(_mkF(w0, 0, _lim(), 0, ""));
+        _log("F2.warmup_op.success", o0.success ? 1 : 0);
+        _minsF("warmSP.balance.first_op_of_sender", _balanceUser(911), 0, 0, "");
+        _minsF("warmSP.credit.first_op_of_sender", _creditUser(912), 0, 0, "");
+        _minsF("warmSP.balance.SP_RENEW.first_op_of_sender", _balanceUser(913), 0, 1, "");
+        _minsF("warmSP.balance.second_op_of_sender", w0, 1, 0, "");
+        // the G operator has minTxInterval = 60 (cold lastTimestamp path): the same sender's next op is
+        // rate-limited inside 60 s, so measure it again 61 s later
+        vm.warp(vm.getBlockTimestamp() + 61);
+        sp.updatePrice();
+        _minsF("warmSP.balance.second_op_of_sender_after_61s", w0, 1, 0, "");
+        // counterfactual SimpleAccount deployed through initCode (SimpleAccountFactory.createAccount), warm SP
+        uint256 salt = 914;
+        address cf = accountFactory.getAddress(accountOwner, salt);
+        vm.prank(address(registry));
+        sp.updateSBTStatus(cf, true);
+        vm.prank(operator);
+        IV2Ext(address(token)).mint(cf, 10_000 ether);
+        bytes memory initCode = abi.encodePacked(address(accountFactory), abi.encodeCall(SimpleAccountFactory.createAccount, (accountOwner, salt)));
+        _minsF("warmSP.balance.initCode_first_op", cf, 0, 0, initCode);
+    }
+
+    // -------------------------------------------------------------------------------
+    // B5 — candidate tuple end-to-end at the floor of the new MIN (postOpGasLimit == MIN)
+    // -------------------------------------------------------------------------------
+    function test_B5_candidate_tuples_at_MIN() public {
+        _setUpAll();
+        uint32[2][6] memory t = [
+            [uint32(200_000), uint32(160_000)], [uint32(300_000), 280_000], [uint32(350_000), 330_000],
+            [uint32(400_000), 380_000], [uint32(450_000), 430_000], [uint32(500_000), 480_000]
+        ];
+        for (uint256 i; i < t.length; i++) {
+            uint256 snap = vm.snapshot();
+            if (t[i][0] != 200_000) _setGP(t[i][0], t[i][1], 5_000, t[i][0]);
+            for (uint8 m = BAL; m <= CRED; m++) {
+                address u = m == CRED ? _creditUser(200 + i * 2 + m) : _balanceUser(200 + i * 2 + m);
+                Lim memory l = _lim(); l.postOp = t[i][0];
+                Out memory o = _exec(_mk(u, 0, "", l));
+                string memory p = string.concat("B5.MIN_", vm.toString(uint256(t[i][0])), "_SETTLE_", vm.toString(uint256(t[i][1])), m == BAL ? ".balance" : ".credit");
+                _log(_k(p, "settled"), (!o.bundleReverted && !o.postOpRev && !o.prefundLow) ? 1 : 0);
+                _log(_k(p, "postOpRevertSelector"), uint256(uint32(o.postOpSel)));
+                _log(_k(p, "chargeCoversNeed"), o.charge >= o.need ? 1 : 0);
+                _log(_k(p, "charge"), o.charge);
+                _log(_k(p, "need"), o.need);
+            }
+            vm.revertTo(snap);
+        }
+    }
+
+    // -------------------------------------------------------------------------------
+    // B8 — proposed GOV-5 tuples end-to-end (postOpGasLimit == MIN; C_POSTOP from W_postop x 1.15)
+    // -------------------------------------------------------------------------------
+    function _b8(string memory tag, uint32 minPost, uint32 settle, uint32 cWrap, uint32 cPostop) internal {
+        uint256 snap = vm.snapshot();
+        _setGP(minPost, settle, cWrap, cPostop);
+        bytes memory burnCall = abi.encodeCall(SimpleAccount.execute, (address(burner), 0, abi.encodeCall(GasBurner.burn, ())));
+        for (uint256 c; c < 6; c++) {
+            address u = (c == 2 || c == 5) ? _creditUser(500 + c) : _balanceUser(500 + c);
+            Lim memory l = _lim(); l.postOp = minPost;
+            bytes memory cd = "";
+            string memory name = "balance_first_op";
+            if (c == 1) { name = "balance_user_writes_2"; cd = abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (20_000, 2)))); }
+            if (c == 2) name = "credit_first_op";
+            if (c == 3) { name = "balance_user_call_reverts"; l.callG = 50_000; cd = burnCall; }
+            if (c == 4) { name = "balance_realistic_limits(call 120k,pmVer 900k)"; l.callG = 120_000; l.pmVer = 900_000; l.ver = 150_000;
+                          cd = abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (21_000, 1)))); }
+            if (c == 5) { name = "credit_realistic_limits(call 120k,pmVer 700k)"; l.callG = 120_000; l.pmVer = 700_000; l.ver = 150_000;
+                          cd = abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (22_000, 1)))); }
+            Out memory o = _exec(_mk(u, 0, cd, l));
+            string memory p = string.concat("B8.", tag, ".", name);
+            _log(_k(p, "bundleReverted"), o.bundleReverted ? 1 : 0);
+            _log(_k(p, "settled"), (!o.bundleReverted && !o.postOpRev && !o.prefundLow) ? 1 : 0);
+            _log(_k(p, "chargeCoversNeed"), o.charge >= o.need ? 1 : 0);
+            _log(_k(p, "chargeClampedAtA0"), (o.a0 != 0 && o.charge == o.a0) ? 1 : 0);
+            _logi(_k(p, "charge_minus_need_aPNTs"), int256(o.charge) - int256(o.need));
+            _log(_k(p, "actualGasUsed"), o.used);
+        }
+        vm.revertTo(snap);
+    }
+
+    function test_B8_proposed_tuples() public {
+        _setUpAll();
+        _b8("defaults_200k_160k_5k_175k", 200_000, 160_000, 5_000, 175_000);
+        _b8("raw_385k_365k_5k_336k", 385_000, 365_000, 5_000, 336_000);
+        _b8("margin_440k_420k_5k_340k", 440_000, 420_000, 5_000, 340_000);
+        _b8("Cpostop_low_440k_420k_5k_300k", 440_000, 420_000, 5_000, 300_000);
+    }
+
+    // -------------------------------------------------------------------------------
+    // B6 — I10 stale releases (new transaction each: isolation) — gas of each release
+    // -------------------------------------------------------------------------------
+    /// forge-config: default.isolate = true
+    function test_B6_I8_rollback_and_stale_release_gas() public {
+        _setUpAll();
+        address u = _balanceUser(301);
+        bytes memory wcall = abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (9000, 1))));
+        Lim memory l = _lim();
+        PackedUserOperation memory op = _mk(u, 0, wcall, l);
+        bytes32 h = entryPoint.getUserOpHash(op);
+        uint256 bal0 = token.balanceOf(u);
+        vm.mockCallRevert(address(token), abi.encodeWithSelector(bytes4(keccak256("settleLocked(address,bytes32,uint256)"))), "settle boom");
+        Out memory o = _exec(op);
+        vm.clearMockedCalls();
+        _report("B6.I8_settle_failure", o);
+        _log("B6.I8_settle_failure.executionKept(must be 0)", writer.s(9000));
+        _log("B6.I8_settle_failure.userBalanceUnchanged", token.balanceOf(u) == bal0 ? 1 : 0);
+        _log("B6.I8_settle_failure.lockedAfter", token.lockedOf(u));
+        token.releaseStaleLock(u, h);
+        Vm.Gas memory g1 = vm.lastCallGas();
+        _log("B6.releaseStaleLock.gasTotalUsed", g1.gasTotalUsed);
+        _logi("B6.releaseStaleLock.gasRefunded", g1.gasRefunded);
+        sp.releaseStaleSponsorship(h);
+        Vm.Gas memory g2 = vm.lastCallGas();
+        _log("B6.releaseStaleSponsorship.gasTotalUsed", g2.gasTotalUsed);
+        _logi("B6.releaseStaleSponsorship.gasRefunded", g2.gasRefunded);
+        _log("B6.lockedAfterRelease", token.lockedOf(u));
+        (address f, uint256 a0) = sp.inflightOf(h);
+        _log("B6.inflightClearedAfterRelease", (f == address(0) && a0 == 0) ? 1 : 0);
+    }
+
+    /// forge-config: default.isolate = true
+    function test_B6_credit_stale_release_gas() public {
+        _setUpAll();
+        address u = _creditUser(302);
+        Lim memory l = _lim();
+        PackedUserOperation memory op = _mk(u, 0, "", l);
+        bytes32 h = entryPoint.getUserOpHash(op);
+        vm.mockCallRevert(address(token), abi.encodeWithSelector(bytes4(keccak256("settleCredit(address,bytes32,uint256)"))), "settle boom");
+        Out memory o = _exec(op);
+        vm.clearMockedCalls();
+        _report("B6.I8_credit_settle_failure", o);
+        token.releaseStaleCredit(u, h);
+        Vm.Gas memory g1 = vm.lastCallGas();
+        _log("B6.releaseStaleCredit.gasTotalUsed", g1.gasTotalUsed);
+        sp.releaseStaleSponsorship(h);
+        Vm.Gas memory g2 = vm.lastCallGas();
+        _log("B6.releaseStaleSponsorship(credit).gasTotalUsed", g2.gasTotalUsed);
+    }
+
+    // -------------------------------------------------------------------------------
+    // B7 — bundle-level accounting: per-op actualGasUsed vs gas the handleOps frame really consumed
+    //      (PVG = 0, so Σ actualGasUsed should be <= frame gas + small EntryPoint overhead)
+    // -------------------------------------------------------------------------------
+    function test_B7_bundle_accounting() public {
+        _setUpAll();
+        vm.deal(beneficiary, 1); // existing beneficiary: no EIP-8037 new-account charge in _compensate
+        for (uint256 k; k <= 2; k++) {
+            uint256 snap = vm.snapshot();
+            address u = _balanceUser(400 + k);
+            Lim memory l = _lim(); l.pvg = 0;
+            bytes memory cd = k == 0 ? bytes("") : abi.encodeCall(SimpleAccount.execute, (address(writer), 0, abi.encodeCall(R2aWriter.w, (10_000 + k * 100, k))));
+            Out memory o = _exec(_mk(u, 0, cd, l));
+            string memory p = string.concat("B7.balance_user_writes_", vm.toString(k));
+            _log(_k(p, "actualGasUsed(PVG=0)"), o.used);
+            _log(_k(p, "handleOps_frame_gas"), o.frameGas);
+            _logi(_k(p, "actualGasUsed_minus_frameGas(+ = op billed more than the frame consumed)"), int256(o.used) - int256(o.frameGas));
+            _log(_k(p, "success"), o.success ? 1 : 0);
+            _log(_k(p, "prefundTooLow"), o.prefundLow ? 1 : 0);
+            vm.revertTo(snap);
+        }
+    }
+}
+
+// =====================================================================================
+// Part C — C_WRAP with the probe's storage pre-set (no zero->non-zero write in the probe)
+// =====================================================================================
+contract R2aWrap is SuperPaymasterV55GasTest {
+    function _warm() internal {
+        vm.store(address(probe), bytes32(uint256(0)), bytes32(uint256(1)));     // lastPassedGas
+        vm.store(address(probe), bytes32(uint256(1)), bytes32(uint256(1000)));  // calls
+    }
+
+    function test_C_wrap_prewarmed_probe() public {
+        _deployProbe();
+        _warm();
+        GasBurner b = new GasBurner();
+        bytes memory burnCall = abi.encodeCall(SimpleAccount.execute, (address(b), 0, abi.encodeCall(GasBurner.burn, ())));
+        console.log(string.concat("R2A|C.wrap.succeeded_200k|", vm.toString(_probeSingle(0, "", 200_000))));
+        console.log(string.concat("R2A|C.wrap.succeeded_1M|", vm.toString(_probeSingle(0, "", 1_000_000))));
+        console.log(string.concat("R2A|C.wrap.reverted_200k|", vm.toString(_probeSingle(50_000, burnCall, 200_000))));
+        console.log(string.concat("R2A|C.wrap.probe_calls(expect 1003)|", vm.toString(probe.calls())));
+        uint256 n = 4;
+        address a = _account(777);
+        PackedUserOperation[] memory ops = new PackedUserOperation[](n);
+        for (uint256 i; i < n; i++) ops[i] = _probeOp(a, i, 0, "", 200_000);
+        for (uint256 i; i < n; i++) {
+            uint256 snap = vm.snapshot();
+            PackedUserOperation[] memory prefix = new PackedUserOperation[](i + 1);
+            for (uint256 j; j <= i; j++) prefix[j] = ops[j];
+            (uint256[] memory f, ) = _run(prefix);
+            console.log(string.concat("R2A|C.wrap.bundle_pos_", vm.toString(i), "|", vm.toString(_wrapUpper(ops[i], f[i], probe.lastPassedGas()))));
+            vm.revertTo(snap);
+        }
+    }
+}
+
+// Part A4 — how large is the state-gas reservoir of a forge test transaction (with --enable-tx-gas-limit)?
+contract R2aReservoirSize is Test {
+    mapping(uint256 => uint256) s;
+    function test_A4_reservoir_size() public {
+        uint256 cheap;
+        uint256 firstSpill;
+        for (uint256 i = 1; i <= 20000; i++) {
+            uint256 g0 = gasleft();
+            s[i] = 1;
+            uint256 d = g0 - gasleft();
+            if (d < 50_000) cheap++;
+            else { firstSpill = i; break; }
+        }
+        console.log(string.concat("R2A|A4.fresh_sstores_paid_from_reservoir|", vm.toString(cheap)));
+        console.log(string.concat("R2A|A4.reservoir_lower_bound_gas(=count*97920)|", vm.toString(cheap * 97920)));
+        console.log(string.concat("R2A|A4.first_spilling_sstore_index|", vm.toString(firstSpill)));
+        console.log(string.concat("R2A|A4.gasleft_at_end|", vm.toString(gasleft())));
+    }
+}
+
+// Part A5 — does a cheatcode call reset the reservoir in forge (tooling artefact check)?
+contract R2aReservoirCheatcode is Test {
+    mapping(uint256 => uint256) s;
+    function _one(uint256 i) internal returns (uint256 d) { uint256 g0 = gasleft(); s[i] = 1; d = g0 - gasleft(); }
+    function test_A5_reservoir_vs_cheatcode() public {
+        uint256 d1 = _one(1);
+        uint256 d2 = _one(2);
+        vm.getBlockTimestamp(); // one cheatcode call
+        uint256 d3 = _one(3);
+        uint256 d4 = _one(4);
+        console.log(string.concat("R2A|A5.sstore_gas_before_cheatcode|", vm.toString(d1), ",", vm.toString(d2)));
+        console.log(string.concat("R2A|A5.sstore_gas_after_one_cheatcode_call|", vm.toString(d3), ",", vm.toString(d4)));
+    }
+}
+
+// Part A6 — reservoir semantics without any cheatcode call before the measurement
+contract R2aChild6 {
+    mapping(uint256 => uint256) s;
+    function w(uint256 i) external { s[i] = 1; }
+    function c(uint256 i) external { s[i] = 0; }
+}
+contract R2aProbe6 {
+    int256[] public r;
+    R2aChild6 public ch = new R2aChild6();
+    mapping(uint256 => uint256) s;
+    function n() external view returns (uint256) { return r.length; }
+    function run(uint256 base) external {
+        uint256 g0 = gasleft(); s[base] = 1; uint256 g1 = gasleft();
+        int256 own = int256(g0) - int256(g1);
+        g0 = gasleft(); ch.w(base); g1 = gasleft(); ch.c(base); uint256 g2 = gasleft();
+        int256 set_ = int256(g0) - int256(g1);
+        int256 rest = int256(g1) - int256(g2);
+        (bool ok30, ) = address(ch).call{gas: 30_000}(abi.encodeCall(R2aChild6.w, (base + 1)));
+        (bool ok100, ) = address(ch).call{gas: 100_000}(abi.encodeCall(R2aChild6.w, (base + 2)));
+        r.push(own); r.push(set_); r.push(rest); r.push(ok30 ? int256(1) : int256(0)); r.push(ok100 ? int256(1) : int256(0));
+    }
+}
+contract R2aReservoirNoCheat is Test {
+    function test_A6_reservoir_no_cheatcode() public {
+        R2aProbe6 p = new R2aProbe6();
+        p.run(5000);
+        string[5] memory k = ["own fresh SSTORE gasleft delta", "child 0->x caller delta", "child x->0 restore caller delta (neg=gasleft rose)", "child fresh SSTORE {gas:30000} ok", "child fresh SSTORE {gas:100000} ok"];
+        for (uint256 i; i < 5; i++) console.log(string.concat("R2A|A6.", k[i], "|", vm.toString(p.r(i))));
+    }
+}

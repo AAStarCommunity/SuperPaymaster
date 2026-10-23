@@ -1,0 +1,6 @@
+OK   create 0x00                          expected 207606 measured 207606 (estimateGas 207606)
+OK   create 0x6101006000f3                expected 599432 measured 599432 (estimateGas 599432)
+OK   create 0x600160005500                expected 317700 measured 317700 (estimateGas 317700)
+OK   create 0x6001600055600260005500      expected 320075 measured 320075 (estimateGas 320075)
+OK   1 wei to fresh 0xa3a3..a3            expected 204600 measured 204600 (estimateGas 204600)
+CALIBRATION PASS

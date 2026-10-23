@@ -1,0 +1,35 @@
+# cmd: (cd /tmp/f4g && /tmp/fd/nightly/forge test --offline --no-isolate --evm-version prague --match-path contracts/test/zz_rams2a/Rams2a.t.sol -vv --match-test test_B2 --hardfork amsterdam)
+# env: FOUNDRY_ISOLATE=false FOUNDRY_OUT=/tmp/f4g-out FOUNDRY_CACHE_PATH=/tmp/f4g-cache FOUNDRY_DISABLE_NIGHTLY_WARNING=1
+# forge: forge Version: 1.8.7-nightly Commit SHA: 926eb1d087523f1de437e3c0c49ea6d26407e827 Build Timestamp: 2026-10-22T06:24:10.676280092Z (1792650250) Build Profile: dist sha256 9f19c41c970c64cfa1c836ef420e7ef071e032f22b617bf37c853a6866d5db85
+# tree: fbd74fb1e2e9d948996e6d6c02c48dc1c1778107 contracts/src f1d39b5bb4081c51e69c9b4a64346dd769193f31 foundry.toml 065d0bd7cd8e4d1de606cf438471c1f66fa5c659; Rams2a.t.sol aa0a26386054bfb290faa16e2dd7238ea83b2fc0d9b6e3d4e013a6fea357f8b2; SuperPaymasterV55Gas.t.sol e7f68b3358b848422c2a56b40658a693e1eae88a3b47d4f820013f0d72105793
+# start: 2026-10-23T06:26:03Z
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/zz_rams2a/Rams2a.t.sol:R2aEP
+[PASS] test_B2_postop_segment_at_entrypoint() (gas: 166593957)
+Logs:
+  R2A|B2.balance_first_op.F_real|1239728
+  R2A|B2.balance_first_op.F_postOpMocked|1080332
+  R2A|B2.balance_first_op.W_postop_EP(=(F_real-F_mocked)*10/9)|177106
+  R2A|B2.balance_first_op.real.success|1
+  R2A|B2.balance_first_op.real.postOpReverted|0
+  R2A|B2.balance_first_op.real.prefundTooLow|0
+  R2A|B2.credit_first_op.F_real|1126508
+  R2A|B2.credit_first_op.F_postOpMocked|875220
+  R2A|B2.credit_first_op.W_postop_EP(=(F_real-F_mocked)*10/9)|279208
+  R2A|B2.credit_first_op.real.success|1
+  R2A|B2.credit_first_op.real.postOpReverted|0
+  R2A|B2.credit_first_op.real.prefundTooLow|0
+  R2A|B2.balance_first_op_user_writes_1.F_real|1540891
+  R2A|B2.balance_first_op_user_writes_1.F_postOpMocked|1381495
+  R2A|B2.balance_first_op_user_writes_1.W_postop_EP(=(F_real-F_mocked)*10/9)|177106
+  R2A|B2.balance_first_op_user_writes_1.real.success|1
+  R2A|B2.balance_first_op_user_writes_1.real.postOpReverted|0
+  R2A|B2.balance_first_op_user_writes_1.real.prefundTooLow|0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 13.71ms (11.86ms CPU time)
+
+Ran 1 test suite in 14.53ms (13.71ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

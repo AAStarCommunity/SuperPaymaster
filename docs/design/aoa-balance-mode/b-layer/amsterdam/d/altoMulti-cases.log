@@ -1,0 +1,119 @@
+  probe 0xfb96796e: submitted→ok | est[pmSupplied] v=164041 c=16323 pmV=497292 pmP=528000 pvg=54982 → FailedOp(0,AA34 signature error) | est[pmOmitted] v=164041 c=16323 pmV=497292 pmP=137851 pvg=54982 → FailedOp(0,AA34 signature error) | needs v=124346 c=3696 pmV=882366 pmP=440000
+alto B9-below: FAIL — included
+  probe 0x53ec9922: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=26426 c=3696 pmV=588606 pmP=440000
+alto B9-above: PASS — included
+  probe 0x82590ad6: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+alto B1: PASS — included; burn=309764030781064860000 lockedOf=0 opΔ=-309764030781064860000 revΔ=309764030781064860000
+  probe 0x32aa7951: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0x15e660d7: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0xbdf1c482: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+alto B3: FAIL — included,reject,reject in 1 tx; LockSettled users=1
+  probe 0x3c55ed66: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=900945 pmP=440000
+alto B5: PASS — included; renewedEvent={"user":"0x778Aa6Fe345D06Ad86ABaFe7E5DD1A3f8aeBEDF1","spender":"0x0B306BF915C4d645ff596e518fAf3F9669b97016","bySP":"true"}
+  probe 0xd101c4e2: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=150839 c=3696 pmV=772646 pmP=440000
+alto B6: PASS — included; renewedEvent={"user":"0x94BAa886707af8d009dF9186b1237c2dee0B3bBD","spender":"0x0B306BF915C4d645ff596e518fAf3F9669b97016","bySP":"false"}
+  probe 0xbdf1675c: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=619155 pmP=440000
+alto B7: PASS — included; debts 0→273399977592491750000; reserved=0
+  probe 0xea29fa84: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+alto B8: PASS — included
+  probe 0x6d054f85: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=3983015 c=3696 pmV=784491 pmP=440000
+alto B4-unstaked: PASS — reject [-32502] unstaked factory accessed factory slot 0x0000000000000000000000000000000000000000000000000000000000000000
+  probe 0x3b15a455: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=3983015 c=3696 pmV=784491 pmP=440000
+alto B4-lowStake: FAIL — included
+  probe 0xf15b96ca: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=3983015 c=3696 pmV=784491 pmP=440000
+alto B4-shortDelay: PASS — included
+  probe 0xf68cf21d: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=3885095 c=3696 pmV=784491 pmP=440000
+alto B4-ok: PASS — included
+alto B10: FAIL — suppliedPostOpMin: ERR [undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | omittedPmGas: ERR [undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | omittedPostOpOnly: ERR [undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3
+  probe 0xfea93933: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0x6641682c: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+alto B2a: PASS — included=2 in 1 tx; lockedOf=0
+  probe 0x46a17938: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0x48289f23: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+  probe 0x4176d9cf: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=124346 c=3696 pmV=784446 pmP=440000
+alto B2b: PASS — handleOps(all)={"name":"FailedOp","args":["2","AA34 signature error"]}; verdicts=included | included | reject[-32500] AA34 signature error
+  probe 0x21da91ae: submitted→ok | est[pmSupplied] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | est[pmOmitted] ERR[undefined] Hex size (33) exceeds padding size (16).
+
+Version: viem@2.24.3 | needs v=26426 c=3696 pmV=588606 pmP=440000
+alto B2-aftermath: included
+alto all pass: false

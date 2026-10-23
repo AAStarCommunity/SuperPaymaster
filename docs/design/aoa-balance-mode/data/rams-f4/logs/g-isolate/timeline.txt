@@ -1,0 +1,22 @@
+[2026-10-23T05:22:32Z] start test_B3_min_postOp
+[2026-10-23T05:22:33Z] end test_B3_min_postOp exit 0
+[2026-10-23T05:22:33Z] start test_B3_TR1409
+[2026-10-23T05:22:34Z] end test_B3_TR1409 exit 0
+[2026-10-23T05:22:34Z] start test_B1
+[2026-10-23T05:22:34Z] end test_B1 exit 0
+[2026-10-23T05:22:34Z] start test_B2
+[2026-10-23T05:22:35Z] end test_B2 exit 0
+[2026-10-23T05:22:35Z] start test_B5
+[2026-10-23T05:22:36Z] end test_B5 exit 0
+[2026-10-23T05:22:36Z] start test_B6
+[2026-10-23T05:22:36Z] end test_B6 exit 0
+[2026-10-23T05:22:36Z] start test_B7
+[2026-10-23T05:22:37Z] end test_B7 exit 0
+[2026-10-23T05:22:37Z] start test_B8
+[2026-10-23T05:22:38Z] end test_B8 exit 0
+[2026-10-23T05:22:38Z] start test_C_wrap
+[2026-10-23T05:22:38Z] end test_C_wrap exit 0
+[2026-10-23T05:24:00Z] start test_F2_matrix
+[2026-10-23T05:24:20Z] end test_F2_matrix exit 0
+[2026-10-23T05:24:46Z] start test_F2_matrix (re-run with the 61 s second-op row added)
+[2026-10-23T05:25:05Z] end test_F2_matrix exit 0
