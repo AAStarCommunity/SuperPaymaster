@@ -1,6 +1,6 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -493,7 +493,7 @@
+@@ -495,7 +495,7 @@
          for (uint256 i; i < operators.length; ++i) {
              _assertOperatorPause(operators[i], true);
          }

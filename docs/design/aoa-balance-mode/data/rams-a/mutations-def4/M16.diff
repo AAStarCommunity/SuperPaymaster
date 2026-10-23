@@ -1,6 +1,6 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -1181,6 +1181,8 @@
+@@ -1183,6 +1183,8 @@
          g.gasHash = keccak256(abi.encode(SuperPaymasterStorage.GasParams(440_000, 420_000, 5000, 340_000)));
          g.pendingHash = keccak256(abi.encode(SuperPaymasterStorage.PendingGasParams(0, 0, 0, 0, 0)));
          g.inventory = vm.envAddress("OPERATORS", ",");

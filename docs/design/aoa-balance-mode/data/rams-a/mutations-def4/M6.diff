@@ -1,6 +1,6 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -805,7 +805,10 @@
+@@ -807,7 +807,10 @@
      function _timelock() internal returns (TimelockController tl) {
          address[] memory safeOnly = new address[](1);
          safeOnly[0] = SAFE;

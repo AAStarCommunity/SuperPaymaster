@@ -1,6 +1,6 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -686,7 +686,10 @@
+@@ -688,7 +688,10 @@
      function test_A5_governanceTimeline_EOAowner() public forkOnly {
          _pauseAll(true);
          _upgrade(true);
@@ -12,7 +12,7 @@
          vm.prank(OWNER);
          vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
          sp.executeGasParams();
-@@ -700,7 +703,6 @@
+@@ -702,7 +705,6 @@
          vm.prank(OWNER);
          (bool activated,) = SP.call(abi.encodeWithSignature("executeGasParams()"));
          require(activated, "RAMS A5: activation not mature");
@@ -20,7 +20,7 @@
          _freshPrice();
          xPNTsTokenV2 token = _v2Ready();
          _pauseAll(false);
-@@ -711,6 +713,7 @@
+@@ -713,6 +715,7 @@
          _probe(op, true, 384);
          bytes32 hash = ep.getUserOpHash(op);
          _settleOne(op); // The orchestrator must run under nightly --hardfork amsterdam.

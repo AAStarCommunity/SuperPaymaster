@@ -1,6 +1,6 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -696,14 +696,17 @@
+@@ -698,14 +698,17 @@
          sp.executeGasParams();
          assertTrue(sp.paused(), "RAMS: pause holds through internal timelock");
          _assertGas(false);
@@ -21,7 +21,7 @@
          vm.prank(OWNER);
          sp.setGlobalPaused(false);
          assertFalse(sp.paused(), "RAMS: resumed only after gas read-back");
-@@ -712,7 +715,6 @@
+@@ -714,7 +717,6 @@
          bytes32 hash = ep.getUserOpHash(op);
          _settleOne(op); // The orchestrator must run under nightly --hardfork amsterdam.
          assertTrue(token.usedOpHashes(hash), "RAMS: V2 token settlement read-back");

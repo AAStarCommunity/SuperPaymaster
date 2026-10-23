@@ -1,6 +1,6 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -621,8 +621,6 @@
+@@ -623,8 +623,6 @@
          assertEq(sp.version(), "SuperPaymaster-5.4.2", "RAMS: settled on old implementation");
          PackedUserOperation memory signedBeforePause = _op(OWNER, 440_000, false);
          _probe(signedBeforePause, true, 160);
@@ -9,7 +9,7 @@
          PackedUserOperation[] memory rejected = new PackedUserOperation[](1);
          rejected[0] = signedBeforePause;
          _mustReject(
-@@ -631,6 +629,8 @@
+@@ -633,6 +631,8 @@
              abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"),
              "RAMS A4: pre-signed operation escaped pause"
          );

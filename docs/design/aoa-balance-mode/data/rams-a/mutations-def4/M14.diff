@@ -1,6 +1,6 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -334,7 +334,7 @@
+@@ -336,7 +336,7 @@
      function _upgrade(bool atomicPause) internal {
          vm.prank(sp.owner());
          sp.upgradeToAndCall(newImpl, atomicPause ? abi.encodeWithSignature("setGlobalPaused(bool)", true) : bytes(""));
@@ -9,7 +9,7 @@
      }
  
      function _assertUpgrade(bool stopped) internal view {
-@@ -786,7 +786,7 @@
+@@ -788,7 +788,7 @@
  
      function test_A3b_probeOnly_globalPause() public forkOnly {
          _pauseAll(true);

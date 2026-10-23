@@ -1,6 +1,6 @@
 --- a/contracts/test/rams/RamsARouteRehearsal.t.sol
 +++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
-@@ -275,7 +275,7 @@
+@@ -277,7 +277,7 @@
          address authority = sp.owner();
          for (uint256 i; i < operators.length; ++i) {
              vm.prank(authority);

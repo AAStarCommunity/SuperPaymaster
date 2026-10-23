@@ -1,0 +1,31 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -696,14 +696,17 @@
+         sp.executeGasParams();
+         assertTrue(sp.paused(), "RAMS: pause holds through internal timelock");
+         _assertGas(false);
++        _freshPrice();
++        xPNTsTokenV2 token = _v2Ready();
++        _pauseAll(false);
++        vm.prank(OWNER);
++        sp.setGlobalPaused(false);
++        _probe(_op(OWNER, 300_000, true), false, 0);
+         vm.warp(eta);
+         vm.prank(OWNER);
+         (bool activated,) = SP.call(abi.encodeWithSignature("executeGasParams()"));
+         require(activated, "RAMS A5: activation not mature");
+         _assertGas(true);
+-        _freshPrice();
+-        xPNTsTokenV2 token = _v2Ready();
+-        _pauseAll(false);
+         vm.prank(OWNER);
+         sp.setGlobalPaused(false);
+         assertFalse(sp.paused(), "RAMS: resumed only after gas read-back");
+@@ -712,7 +715,6 @@
+         bytes32 hash = ep.getUserOpHash(op);
+         _settleOne(op); // The orchestrator must run under nightly --hardfork amsterdam.
+         assertTrue(token.usedOpHashes(hash), "RAMS: V2 token settlement read-back");
+-        _probe(_op(OWNER, 300_000, true), false, 0);
+     }
+ 
+     /// @dev Threshold analysis for this real V2 fixture, not a universal token gas bound.

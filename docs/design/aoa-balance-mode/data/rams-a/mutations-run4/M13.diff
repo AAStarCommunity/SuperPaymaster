@@ -1,0 +1,11 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -989,6 +989,8 @@
+             "RAMS A6: upgrade batch executed before delay"
+         );
+         vm.warp(scheduled + DELAY);
++        vm.prank(address(tl));
++        tl.grantRole(keccak256("EXECUTOR_ROLE"), ownerAccount); // M13: bypass the earlier role audit.
+         vm.prank(ownerAccount);
+         _mustReject(
+             address(tl),

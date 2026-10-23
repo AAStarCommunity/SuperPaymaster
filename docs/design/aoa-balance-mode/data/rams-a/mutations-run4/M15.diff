@@ -1,0 +1,13 @@
+--- a/contracts/test/rams/RamsARouteRehearsal.t.sol
++++ b/contracts/test/rams/RamsARouteRehearsal.t.sol
+@@ -275,8 +275,8 @@
+         address authority = sp.owner();
+         for (uint256 i; i < operators.length; ++i) {
+             vm.prank(authority);
+-            sp.setOperatorPaused(operators[i], stopped);
+-            _assertOperatorPause(operators[i], stopped);
++            if (i != 0) sp.setOperatorPaused(operators[i], stopped);
++            // M15: omit pause read-back; retained A1 probe must reject.
+         }
+     }
+ 

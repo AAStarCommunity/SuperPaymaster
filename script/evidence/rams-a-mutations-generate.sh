@@ -52,8 +52,9 @@ mutants[12] = scoped(base, 'test_A3_atomicUpgradeWithGlobalPause', '            
 mutants[13] = scoped(base, a6, '        vm.prank(ownerAccount);', '        vm.prank(address(tl));\n        tl.grantRole(keccak256("EXECUTOR_ROLE"), ownerAccount); // M13: bypass the earlier role audit.\n        vm.prank(ownerAccount);')
 s = scoped(base, 'test_A3b_probeOnly_globalPause', '_upgrade(true);', '_upgrade(false);')
 mutants[14] = replace(s, '        _assertUpgrade(atomicPause);', '        // M14: omit upgrade read-backs so only the probe discriminates.')
-s = replace(base, 'sp.setOperatorPaused(operators[i], stopped);', 'if (i != 0) sp.setOperatorPaused(operators[i], stopped);')
-mutants[15] = replace(s, '            _assertOperatorPause(operators[i], stopped);', '            // M15: omit pause read-back; retained A1 probe must reject.')
+# M15: the prank must sit inside the condition, or an unconsumed prank at i == 0 breaks the next iteration
+# (first version did exactly that: WRONG-ASSERTION in mutations-run4).
+mutants[15] = replace(base, '            vm.prank(authority);\n            sp.setOperatorPaused(operators[i], stopped);\n            _assertOperatorPause(operators[i], stopped);\n', '            // M15: skip operator 0 and omit the pause read-back; the retained A1 probe must reject.\n            if (i != 0) {\n                vm.prank(authority);\n                sp.setOperatorPaused(operators[i], stopped);\n            }\n')
 mutants[16] = scoped(base, 'test_A7_readbackGate', '        g.operatorPauses = new bool[](operators.length);', '        g.inventory = new address[](1);\n        g.inventory[0] = OWNER;\n        g.operatorPauses = new bool[](operators.length);')
 for n, mutated in mutants.items():
     diff = ''.join(difflib.unified_diff(base.splitlines(True), mutated.splitlines(True), fromfile='a/' + str(source), tofile='b/' + str(source)))
