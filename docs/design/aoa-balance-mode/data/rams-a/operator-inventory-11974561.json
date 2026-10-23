@@ -1,0 +1,41 @@
+{
+ "note": "read-only; URLs omitted",
+ "sp": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+ "topic": "0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1",
+ "event": "OperatorConfigured(address,address,address)",
+ "fromBlock": 11151016,
+ "toBlock": 11974561,
+ "endpoints": {
+  "A": {
+   "count": 4,
+   "ids": [
+    "11151052:0xdd5c85c31c58d176f165e0ecaf4a5835bd2ca60cdf5c511c50129f884165b67f:791",
+    "11151077:0x83175323efe92b50768b8cb9933e17cfdef2af95a53c8db6f058122518f403d7:872",
+    "11228315:0x6a5830af0fe8475c4c199e776e6d3d8619e711990f1d85eb6edc84d98be4d15e:1236",
+    "11228316:0x1a19560adcbb81cb1856b60a5639d4854cc7e175025d16a43275225a193dbfa3:679"
+   ],
+   "operators": [
+    "0xb5600060e6de5e11d3636731964218e53caadf0e",
+    "0xecaacb915f7d92e9916f449f7ad42bd0408733c9"
+   ]
+  },
+  "C": {
+   "count": 4,
+   "ids": [
+    "11151052:0xdd5c85c31c58d176f165e0ecaf4a5835bd2ca60cdf5c511c50129f884165b67f:791",
+    "11151077:0x83175323efe92b50768b8cb9933e17cfdef2af95a53c8db6f058122518f403d7:872",
+    "11228315:0x6a5830af0fe8475c4c199e776e6d3d8619e711990f1d85eb6edc84d98be4d15e:1236",
+    "11228316:0x1a19560adcbb81cb1856b60a5639d4854cc7e175025d16a43275225a193dbfa3:679"
+   ],
+   "operators": [
+    "0xb5600060e6de5e11d3636731964218e53caadf0e",
+    "0xecaacb915f7d92e9916f449f7ad42bd0408733c9"
+   ]
+  }
+ },
+ "codeAtFromMinus1": {
+  "A": "0x",
+  "C": "0x"
+ },
+ "agree": true
+}
