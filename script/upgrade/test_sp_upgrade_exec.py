@@ -835,6 +835,22 @@ class ExecutorTests(unittest.TestCase):
         step['rrWitness']['engineCommit'] = '926eb1d087523f1de437e3c0c49ea6d26407e827'
         self.fails('rr_witness_engine',ex.validate_gas,step)
 
+    def test_safe_exec_events_match_live_indexed_shape(self):
+        success = a.keccak('ExecutionSuccess(bytes32,uint256)')
+        failure = a.keccak('ExecutionFailure(bytes32,uint256)')
+        h = '0x' + '65' * 32
+        live = dict(address=ex.SAFE, topics=[success, h], data='0x' + '00' * 32)
+        ex.safe_exec_events([live], h)
+        cases = [
+            ([dict(address=ex.SAFE, topics=[success], data='0x' + h[2:] + '00' * 32)], 'safe_success_event'),  # 1.3.0 shape
+            ([dict(live, topics=[success, '0x' + '66' * 32])], 'safe_success_event'),                     # other tx
+            ([dict(live, address='0x' + '12' * 20)], 'safe_success_event'),                                # other emitter
+            ([live, dict(address=ex.SAFE, topics=[failure, h], data='0x' + '00' * 32)], 'safe_no_failure_event'),
+        ]
+        for logs, gate in cases:
+            with self.subTest(gate=gate):
+                self.fails(gate, ex.safe_exec_events, logs, h)
+
     def test_rr_create_above_100m_fails(self):
         step = self.rr_step()
         step['tx']['gas'] = hex(100000001)

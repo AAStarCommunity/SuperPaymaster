@@ -564,6 +564,16 @@ def trace_number(value, name):
     return value
 
 
+def safe_exec_events(logs, safe_hash):
+    """The live Safe emits ExecutionSuccess(bytes32 indexed txHash, uint256 payment): topics [signature, txHash]
+    (observed on the A3a S5b receipt). Require exactly that for this tx's hash, and no ExecutionFailure."""
+    success = a.keccak('ExecutionSuccess(bytes32,uint256)')
+    failure = a.keccak('ExecutionFailure(bytes32,uint256)')
+    safe_logs = [l for l in logs if l['address'].lower() == SAFE]
+    a.need('safe_success_event', any([x.lower() for x in l['topics']] == [success, safe_hash.lower()] for l in safe_logs), True)
+    a.need('safe_no_failure_event', any(l['topics'] and l['topics'][0].lower() == failure for l in safe_logs), False)
+
+
 def reservoir_witness(rpc, tx, r):
     a.need('rr_trace_create_only', tx['to'], None)
     a.need('rr_trace_receipt', r['status'], '0x1')
@@ -1051,9 +1061,10 @@ def run_upgrade(rpc, plan, out, remote=None, calibrate=False):
             if sid.endswith('_approve'):
                 a.need('post_approved_hash', a.word(rpc, SAFE, 'approvedHashes(address,bytes32)', a.APPROVER, step['safeHash']), 1)
             else:
-                success = a.keccak('ExecutionSuccess(bytes32,uint256)')
-                a.need('safe_success_event', any(l['address'].lower() == SAFE and l['topics'] == [success]
-                        and l['data'][2:66].lower() == step['safeHash'][2:] for l in r['logs']), True)
+                # The live Safe emits ExecutionSuccess(bytes32 indexed txHash, uint256 payment): topics are
+                # [signature, txHash] (observed on the A3a S5b receipt). Require exactly that, for this tx's hash,
+                # and no ExecutionFailure.
+                safe_exec_events(r['logs'], step['safeHash'])
         record = dict(phase='upgrade', step=sid, receipt=r, gasUsed=a.qty(r['gasUsed']),
                       measurements={key: step[key] for key in sorted(MEASURED_KEYS)}, **evidence)
         records.append(record)
