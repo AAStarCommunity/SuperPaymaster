@@ -109,7 +109,9 @@ class RPC:
         q = dict(jsonrpc='2.0', id=rid, method=method, params=params)
         try:
             # timeout=45 bounds each socket operation only; a server that trickles bytes can hold a request open
-            # indefinitely (observed 2026-10-24: one archive request hung > 8 min). Enforce a total deadline too.
+            # indefinitely (observed 2026-10-24: one archive request hung > 8 min). The deadline is checked after
+            # every recv (read1, not read: read(n) loops internally until n bytes), so a request ends within
+            # RPC_TOTAL_DEADLINE_SECONDS + one socket timeout (45 s) of its start.
             deadline = time.monotonic() + RPC_TOTAL_DEADLINE_SECONDS
             with urllib.request.urlopen(urllib.request.Request(
                     self.url, json.dumps(q).encode(), {'Content-Type': 'application/json'}), timeout=45) as r:
@@ -117,7 +119,7 @@ class RPC:
                 while True:
                     if time.monotonic() > deadline:
                         raise TimeoutError('total RPC deadline exceeded')
-                    chunk = r.read(65536)
+                    chunk = r.read1(65536)
                     if not chunk:
                         break
                     chunks.append(chunk)

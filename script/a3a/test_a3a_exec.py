@@ -1169,6 +1169,32 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(results, [hex(ex.CHAIN)]*64)
         self.assertEqual(sorted(observed), list(range(1, 65)))
 
+    def test_rpc_total_deadline_against_trickling_server(self):
+        # A real socket server that answers headers, then trickles one byte every 20 ms forever: every recv
+        # succeeds well inside the 45 s socket timeout, so only the per-recv total-deadline check can end it.
+        import http.server, threading, time as _time
+        stop = threading.Event()
+        class Trickle(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a): pass
+            def do_POST(self):
+                self.rfile.read(int(self.headers['Content-Length']))
+                self.send_response(200); self.send_header('Content-Type', 'application/json'); self.end_headers()
+                try:
+                    while not stop.is_set():
+                        self.wfile.write(b' '); self.wfile.flush(); _time.sleep(.02)
+                except OSError:
+                    pass
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Trickle)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            started = _time.monotonic()
+            with patch.object(ex, 'RPC_TOTAL_DEADLINE_SECONDS', .3), self.assertRaises(ex.Gate) as caught:
+                ex.RPC(f'http://127.0.0.1:{server.server_address[1]}')('eth_chainId', [])
+            self.assertEqual(caught.exception.record['gate'], 'rpc_transport')
+            self.assertLess(_time.monotonic() - started, 5)
+        finally:
+            stop.set(); server.shutdown(); server.server_close()
+
     def test_timelock_runtime_bytes_and_immutable_values(self):
         plan = {'timelockRuntimeIdentity': {'artifactRuntime': '0x6000', 'ranges': []}}
         self.assertTrue(ex.verify_runtime(None, plan, '0x6000', 'TimelockController')['unmaskedBytesEqual'])
