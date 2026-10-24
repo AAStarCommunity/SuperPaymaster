@@ -470,7 +470,9 @@ def authenticate_engine(local, relay_url, pin_block):
     info = local('anvil_nodeInfo', [])
     if not isinstance(info, dict) or not isinstance(info.get('forkConfig'), dict) or not isinstance(info.get('environment'), dict):
         raise Gate('local_engine_info', 'malformed anvil_nodeInfo', 'hardFork, transactionOrder, environment, forkConfig')
-    need('local_engine_fork_url', info['forkConfig'].get('forkUrl'), relay_url)
+    url = info['forkConfig'].get('forkUrl')
+    # anvil normalizes the URL with a trailing slash; everything else must match exactly.
+    need('local_engine_fork_url', url[:-1] if isinstance(url, str) and url.endswith('/') else url, relay_url)
     need('local_engine_fork_block', info['forkConfig'].get('forkBlockNumber'), int(pin_block, 16))
     need('local_engine_hardfork', info.get('hardFork'), 'Amsterdam')
     need('local_engine_order', info.get('transactionOrder'), 'fifo')
