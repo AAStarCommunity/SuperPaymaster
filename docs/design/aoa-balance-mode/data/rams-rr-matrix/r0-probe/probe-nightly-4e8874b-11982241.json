@@ -1,0 +1,676 @@
+{
+ "note": "read-only; RPC URLs omitted",
+ "block": 11982241,
+ "chainIds": {
+  "A": 11155111,
+  "B": 11155111,
+  "ENGINE": 11155111
+ },
+ "probes": {
+  "S1-cancel": {
+   "A": {
+    "minGas": 48641,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": 3,
+      "message": "execution reverted"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 48938
+   },
+   "B": {
+    "minGas": 48641,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": 3,
+      "message": "execution reverted"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 48938
+   },
+   "ENGINE": {
+    "minGas": 48641,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": 3,
+      "message": "execution reverted"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 48641
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "S2-deploy-timelock": {
+   "A": {
+    "minGas": 9233390,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 9233389"
+     },
+     "min": {
+      "returnBytes": 5458
+     },
+     "searches": 2
+    },
+    "estimate": 9307838
+   },
+   "B": {
+    "minGas": 9233390,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 9233389"
+     },
+     "min": {
+      "returnBytes": 5458
+     },
+     "searches": 2
+    },
+    "estimate": 9307838
+   },
+   "ENGINE": {
+    "minGas": 9233390,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error OutOfGas"
+     },
+     "min": {
+      "returnBytes": 5458
+     },
+     "searches": 2
+    },
+    "estimate": 9233390
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "S3-deploy-apnts-capped": {
+   "A": {
+    "minGas": 9183549,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 9183548"
+     },
+     "min": {
+      "returnBytes": 5346
+     },
+     "searches": 2
+    },
+    "estimate": 9257602
+   },
+   "B": {
+    "minGas": 9183549,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 9183548"
+     },
+     "min": {
+      "returnBytes": 5346
+     },
+     "searches": 2
+    },
+    "estimate": 9257602
+   },
+   "ENGINE": {
+    "minGas": 9183549,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error OutOfGas"
+     },
+     "min": {
+      "returnBytes": 5346
+     },
+     "searches": 2
+    },
+    "estimate": 9183549
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "create-empty": {
+   "A": {
+    "minGas": 207606,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 207605"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 210421
+   },
+   "B": {
+    "minGas": 207606,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 207605"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 210421
+   },
+   "ENGINE": {
+    "minGas": 207606,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error OutOfGas"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 207606
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "create-deposit-256": {
+   "A": {
+    "minGas": 599432,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 599431"
+     },
+     "min": {
+      "returnBytes": 256
+     },
+     "searches": 2
+    },
+    "estimate": 605357
+   },
+   "B": {
+    "minGas": 599432,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 599431"
+     },
+     "min": {
+      "returnBytes": 256
+     },
+     "searches": 2
+    },
+    "estimate": 605357
+   },
+   "ENGINE": {
+    "minGas": 599432,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error OutOfGas"
+     },
+     "min": {
+      "returnBytes": 256
+     },
+     "searches": 2
+    },
+    "estimate": 599432
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "create-sstore-new-slot": {
+   "A": {
+    "minGas": 317700,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 317699"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 321389
+   },
+   "B": {
+    "minGas": 317700,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 317699"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 321389
+   },
+   "ENGINE": {
+    "minGas": 317700,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error OutOfGas"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 317700
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "create-sstore-new-then-warm": {
+   "A": {
+    "minGas": 320075,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 320074"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 321564
+   },
+   "B": {
+    "minGas": 320075,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 320074"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 321564
+   },
+   "ENGINE": {
+    "minGas": 320075,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error ReentrancySentryOOG"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 320075
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "create-cold-balance": {
+   "A": {
+    "minGas": 210979,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 210978"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 213821
+   },
+   "B": {
+    "minGas": 210979,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 210978"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 213821
+   },
+   "ENGINE": {
+    "minGas": 210979,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error OutOfGas"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 210979
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "create-cold-call": {
+   "A": {
+    "minGas": 211273,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 211272"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 219263
+   },
+   "B": {
+    "minGas": 211273,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 211272"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 219263
+   },
+   "ENGINE": {
+    "minGas": 211273,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error OutOfGas"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 216378
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "transfer-1wei-to-fresh": {
+   "A": {
+    "minGas": 204600,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 204599"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 207391
+   },
+   "B": {
+    "minGas": 204600,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 204599"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 207391
+   },
+   "ENGINE": {
+    "minGas": 204600,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error OutOfGas"
+     },
+     "min": {
+      "returnBytes": 0
+     },
+     "searches": 2
+    },
+    "estimate": 204600
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "call-sp-owner": {
+   "A": {
+    "minGas": 23555,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": 3,
+      "message": "execution reverted"
+     },
+     "min": {
+      "returnBytes": 32
+     },
+     "searches": 2
+    },
+    "estimate": 23873
+   },
+   "B": {
+    "minGas": 23555,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": 3,
+      "message": "execution reverted"
+     },
+     "min": {
+      "returnBytes": 32
+     },
+     "searches": 2
+    },
+    "estimate": 23873
+   },
+   "ENGINE": {
+    "minGas": 23555,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": 3,
+      "message": "execution reverted"
+     },
+     "min": {
+      "returnBytes": 32
+     },
+     "searches": 2
+    },
+    "estimate": 23555
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "call-sp-version": {
+   "A": {
+    "minGas": 21114,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 21113"
+     },
+     "min": {
+      "returnBytes": 96
+     },
+     "searches": 2
+    },
+    "estimate": 21280
+   },
+   "B": {
+    "minGas": 21114,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas required exceeds: 21113"
+     },
+     "min": {
+      "returnBytes": 96
+     },
+     "searches": 2
+    },
+    "estimate": 21280
+   },
+   "ENGINE": {
+    "minGas": 21114,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error OutOfGas"
+     },
+     "min": {
+      "returnBytes": 96
+     },
+     "searches": 2
+    },
+    "estimate": 21114
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "call-safe-getOwners": {
+   "A": {
+    "minGas": 32840,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": 3,
+      "message": "execution reverted"
+     },
+     "min": {
+      "returnBytes": 160
+     },
+     "searches": 2
+    },
+    "estimate": 33063
+   },
+   "B": {
+    "minGas": 32840,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": 3,
+      "message": "execution reverted"
+     },
+     "min": {
+      "returnBytes": 160
+     },
+     "searches": 2
+    },
+    "estimate": 33063
+   },
+   "ENGINE": {
+    "minGas": 32840,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": 3,
+      "message": "execution reverted"
+     },
+     "min": {
+      "returnBytes": 160
+     },
+     "searches": 2
+    },
+    "estimate": 32840
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  },
+  "call-entrypoint-balanceOf-sp": {
+   "A": {
+    "minGas": 18004,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas exhausted during memory expansion: 18003"
+     },
+     "min": {
+      "returnBytes": 32
+     },
+     "searches": 2
+    },
+    "estimate": 18166
+   },
+   "B": {
+    "minGas": 18004,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "out of gas: gas exhausted during memory expansion: 18003"
+     },
+     "min": {
+      "returnBytes": 32
+     },
+     "searches": 2
+    },
+    "estimate": 18166
+   },
+   "ENGINE": {
+    "minGas": 18004,
+    "thresholdSides": {
+     "minMinus1": {
+      "code": -32003,
+      "message": "EVM error MemoryOOG"
+     },
+     "min": {
+      "returnBytes": 32
+     },
+     "searches": 2
+    },
+    "estimate": 18004
+   },
+   "measurable": true,
+   "liveAgree": true,
+   "engineMatchesLive": true
+  }
+ },
+ "blockHashes": {
+  "A": "0x79e1ed03291b633a9bd461532711f434fe27182da1793510e7185cbad996bdb5",
+  "B": "0x79e1ed03291b633a9bd461532711f434fe27182da1793510e7185cbad996bdb5",
+  "ENGINE": "0x79e1ed03291b633a9bd461532711f434fe27182da1793510e7185cbad996bdb5"
+ },
+ "allMatch": true,
+ "sameChainAndBlock": true
+}
