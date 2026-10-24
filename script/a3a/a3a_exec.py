@@ -105,17 +105,20 @@ class RPC:
             try:
                 with urllib.request.urlopen(urllib.request.Request(
                         self.url, json.dumps(q).encode(), {'Content-Type': 'application/json'}), timeout=45) as r:
-                    box['body'] = r.read()
+                    box['body'] = json.loads(r.read())  # decoding counts against the deadline too
             except Exception as e:
                 box['error'] = e
+        started = time.monotonic()
         worker = threading.Thread(target=work, daemon=True)
         worker.start()
         worker.join(RPC_TOTAL_DEADLINE_SECONDS)
-        if worker.is_alive():
+        # The elapsed check matters too: a C call holding the GIL (json.loads of a huge body) keeps join() from
+        # waking on time, so a result can arrive after the deadline. Such a result is refused, not used.
+        if worker.is_alive() or time.monotonic() - started > RPC_TOTAL_DEADLINE_SECONDS:
             raise TimeoutError('total RPC deadline exceeded')
         if 'error' in box:
             raise box['error']
-        return json.loads(box['body'])
+        return box['body']
 
     def __call__(self, method, params, error_ok=False):
         if not self.local and not (method.startswith('eth_get') or method in

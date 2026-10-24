@@ -1206,6 +1206,15 @@ class ExecutorTests(unittest.TestCase):
             finally:
                 stop.set(); server.shutdown(); server.server_close()
 
+    def test_rpc_deadline_refuses_a_result_decoded_after_it(self):
+        # The body arrives at once but decoding it outlasts the deadline (json.loads holds the GIL, so join()
+        # cannot wake early): the late result must be refused as a timeout, not returned.
+        body = ('{"jsonrpc":"2.0","id":1,"result":[' + ','.join(['1']*3000000) + ']}').encode()
+        with patch.object(ex.urllib.request, 'urlopen', lambda request, timeout=None: io.BytesIO(body)), \
+                patch.object(ex, 'RPC_TOTAL_DEADLINE_SECONDS', .01), self.assertRaises(ex.Gate) as caught:
+            ex.RPC('https://never-contacted.invalid')('eth_chainId', [])
+        self.assertEqual(caught.exception.record['observed'], 'TimeoutError')
+
     def test_timelock_runtime_bytes_and_immutable_values(self):
         plan = {'timelockRuntimeIdentity': {'artifactRuntime': '0x6000', 'ranges': []}}
         self.assertTrue(ex.verify_runtime(None, plan, '0x6000', 'TimelockController')['unmaskedBytesEqual'])
