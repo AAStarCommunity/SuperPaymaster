@@ -776,6 +776,8 @@ class RelayFilter:
 
 
 TEARDOWN_MARK = '--- teardown: engine terminating ---'
+ANVIL_FORK_TIMEOUT_MS = 120000
+ABANDON_MAX_SECONDS = ANVIL_FORK_TIMEOUT_MS / 1000 / 2
 
 
 def request_key(q):
@@ -797,13 +799,21 @@ def relay_evidence(out, live=False):
         lines = lines[:lines.index(TEARDOWN_MARK)]
     else:
         need('relay_teardown_marker', False, True)
-    # Allowed: the engine's eth_gasPrice probe; an abandoned request whose identical twin was already delivered;
-    # an abandoned request that is redelivered later in the window. Anything else fails.
-    redelivered = {x.split('key=', 1)[1] for x in lines if x.startswith('redelivered key=')}
+    # What this gate protects against: anvil receiving an ERROR for a fork read and silently treating the data as
+    # absent (e.g. an empty account). That is 'failed handler ... upstreamServed=False' (the relay returned 502):
+    # always fatal. An 'abandoned' line means the upstream answered and anvil hung up on its own - it never received
+    # an error, so it cannot substitute defaults. Observed: eth_getBalance / eth_getCode abandoned 0.2 s after the
+    # upstream answered, never re-requested (anvil cancels prefetches of finished eth_estimateGas probes). The one
+    # risky variant is anvil giving up on its own timeout (120 s), so an abandon is accepted only well below it.
     def allowed(x):
-        if x == 'refused eth_gasPrice' or x.startswith('redelivered key=') or x.startswith('abandoned-duplicate '):
+        if x == 'refused eth_gasPrice' or x.startswith('redelivered key='):
             return True
-        return x.startswith('abandoned ') and x.rsplit('key=', 1)[-1] in redelivered
+        if x.startswith(('abandoned ', 'abandoned-duplicate ')):
+            parts = dict(p.split('=', 1) for p in x.split() if '=' in p)
+            elapsed = float(parts.get('elapsed', '999s').rstrip('s'))
+            return (x.split()[1] in ('BrokenPipeError', 'ConnectionResetError') and parts.get('upstreamServed') == 'True'
+                    and elapsed < ABANDON_MAX_SECONDS)
+        return False
     need('relay_evidence', all(allowed(x) for x in lines), True)
 
 
@@ -926,7 +936,7 @@ def fork(remote, pin, out):
                                  '--chain-id', str(CHAIN), '--no-fork-node-info', '--no-bal', '--steps-tracing', '--no-storage-caching', '--silent',
                                  # Wait longer than the relay's 45 s upstream timeout, so an upstream timeout comes back to
                                  # anvil as a JSON-RPC error instead of anvil hanging up first (BrokenPipe in the relay).
-                                 '--timeout', '120000', '--retries', '0'],
+                                 '--timeout', str(ANVIL_FORK_TIMEOUT_MS), '--retries', '0'],
                                 stdout=subprocess.DEVNULL, stderr=engine_err)
         local = RPC('http://127.0.0.1:'+str(port), local=True)
         for _ in range(100):

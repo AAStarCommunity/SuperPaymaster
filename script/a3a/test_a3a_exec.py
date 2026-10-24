@@ -755,9 +755,14 @@ class ExecutorTests(unittest.TestCase):
             # Abandoned first, redelivered later in the window: passes.
             (out/'relay.log').write_text(ab % 'bb' + 'redelivered key=bb\n' + mark)
             ex.relay_evidence(out)
-            # Abandoned and never redelivered (or redelivered under another key): fails.
-            for text in (ab % 'cc', ab % 'cc' + 'redelivered key=dd\n',
-                         'failed handler URLError methods=eth_getCode upstreamServed=False elapsed=45.0s\n'):
+            # Abandoned after the upstream answered, well below anvil's timeout, never re-requested: harmless.
+            (out/'relay.log').write_text(ab % 'cc' + mark)
+            ex.relay_evidence(out)
+            # Fatal: upstream failure (anvil got a 502); abandon near anvil's own timeout; abandon before upstream answered.
+            for text in ('failed handler URLError methods=eth_getCode upstreamServed=False elapsed=45.0s\n',
+                         'abandoned BrokenPipeError methods=eth_getCode upstreamServed=True elapsed=61.0s key=ee\n',
+                         'abandoned BrokenPipeError methods=eth_getCode upstreamServed=False elapsed=0.1s key=ff\n',
+                         'abandoned ValueError methods=eth_getCode upstreamServed=True elapsed=0.1s key=gg\n'):
                 (out/'relay.log').write_text(text + mark)
                 with self.assertRaises(ex.Gate) as caught:
                     ex.relay_evidence(out)
