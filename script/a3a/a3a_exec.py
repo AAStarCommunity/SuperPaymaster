@@ -2,7 +2,10 @@
 """Unsigned A3a planning and isolated Amsterdam rehearsal. No signing implementation."""
 import argparse
 import contextlib
+import copy
+from dataclasses import dataclass
 import hashlib
+from functools import lru_cache
 import http.server
 import json
 from pathlib import Path
@@ -35,6 +38,9 @@ APPROVER = '0x8c3499252232105a1615767c459db9bbbf1273d6'
 REFUSAL = "not authorized: requires a reviewed plan hash and the author's separate go"
 EIP712_IMMUTABLES = frozenset(('_cachedDomainSeparator', '_cachedChainId', '_cachedThis',
                              '_hashedName', '_hashedVersion', '_name', '_version'))
+STEP_IDS = ('S1', 'S2', 'S3', 'S4', 'S5a', 'S5b', 'S6a', 'S6b', 'S7')
+CONTROL_IDS = ('S4_before_S3', 'wrong_safe_nonce', 'early_execute', 'non_owner_queue')
+SENDERS = {'deployer': DEPLOYER, 'approver': APPROVER, 'executor': EXECUTOR}
 EMPTY_KECCAK = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
 
 
@@ -93,6 +99,7 @@ class RPC:
         return d['result']
 
 
+@lru_cache(maxsize=4096)
 def cast(*args):
     r = subprocess.run([str(ENGINE / 'cast'), *map(str, args)], capture_output=True, text=True)
     if r.returncode:
@@ -310,6 +317,7 @@ def preflight(rpc, block):
     current = config['current']
     need('fork_activation', current.get('activationTime'), ACTIVATION)
     need('fork_id', current.get('forkId'), FORK_ID)
+    need('fork_next', config.get('next', 'missing'), None)
     b = block_data(rpc, block)
     need('pinned_block', b['number'], block)
     if qty(b['timestamp']) < ACTIVATION:
@@ -339,14 +347,26 @@ def preflight(rpc, block):
                  for i in (1, 2)]
     for a in predicted:
         need('create_address_empty', typed(rpc('eth_getCode', [a, block]), HEXDATA), '0x')
-    balance = qty(rpc('eth_getBalance', [DEPLOYER, block]))
+    senders = {}
+    for label, who in SENDERS.items():
+        at_pin = nonce(rpc, who, block)
+        need(label+'_nonce_pending', nonce(rpc, who, 'pending'), at_pin)
+        senders[label] = dict(address=who, nonce=at_pin, balance=qty(rpc('eth_getBalance', [who, block])))
+    balance = senders['deployer']['balance']
     return dict(block=block, blockHash=b['hash'], timestamp=qty(b['timestamp']),
                 deployerNonce=n, safeNonce=safe_n, owners=owners, sp=sp,
-                timelock=predicted[0], capped=predicted[1], balance=balance)
+                timelock=predicted[0], capped=predicted[1], balance=balance, senders=senders)
 
 
 def build_plan(state):
-    tl, token = state['timelock'], state['capped']
+    for label, who in SENDERS.items():
+        need('plan_sender_'+label, state['senders'][label]['address'], who)
+    n = state['senders']['deployer']['nonce']
+    need('plan_deployer_nonce', state['deployerNonce'], n)
+    tl, token = [json.loads(cast('compute-address', DEPLOYER, '--nonce', n+i, '--json'))['data'].lower()
+                 for i in (1, 2)]
+    need('plan_predicted_timelock', state['timelock'], tl)
+    need('plan_predicted_capped', state['capped'], token)
     a, t = artifact('APNTsCapped'), artifact('TimelockController')
     init_t = t['bytecode']['object'] + cast('abi-encode', 'c(uint256,address[],address[],address)',
                                           172800, '['+SAFE+']', '['+SAFE+']', ZERO)[2:]
@@ -377,54 +397,102 @@ def build_plan(state):
                   calldata('execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)',
                            tl, 0, inner[i], 0, 0, 0, 0, ZERO, ZERO, sigs))]
     rows += [('S7', DEPLOYER, SP, calldata('setAPNTsToken(address)', token))]
-    return dict(schema=1, chainId=CHAIN, pin=state, operationId=op, salt=salt, safeTxHashes=hashes,
+    counters = {v['address']: v['nonce'] for v in state['senders'].values()}
+    steps = []
+    for sid, sender, to, data in rows:
+        steps.append(dict(id=sid, tx=dict(to=to, data=data, value='0x0', nonce=hex(counters[sender]),
+                     **{'from': sender}, chainId=hex(CHAIN), maxFeePerGas=hex(MAX_FEE),
+                     maxPriorityFeePerGas=hex(PRIORITY))))
+        counters[sender] += 1
+    return dict(schema=2, chainId=CHAIN, pin=state, operationId=op, salt=salt, safeTxHashes=hashes,
                 runtimeIdentity=a['runtimeIdentity'], constructorArgs=constructor_args,
                 # No external admin; OZ retains the timelock's self-admin role.
                 roles={'DEFAULT_ADMIN': [tl], 'PROPOSER': [SAFE], 'EXECUTOR': [SAFE], 'CANCELLER': [SAFE]},
-                margin=[MARGIN_NUM, MARGIN_DEN], steps=[dict(id=i, tx=dict(
-                    to=to, data=data, value='0x0', **{'from': sender}, chainId=hex(CHAIN),
-                    maxFeePerGas=hex(MAX_FEE), maxPriorityFeePerGas=hex(PRIORITY)))
-                    for i, sender, to, data in rows])
+                margin=[MARGIN_NUM, MARGIN_DEN], safeInnerData=inner, steps=steps)
+
+
+class RelayFilter:
+    def __init__(self, remote, pin, log):
+        self.remote, self.pin, self.log = remote, pin, log
+
+    def one(self, q):
+        if not isinstance(q, dict):
+            self.log.write('refused malformed\n')
+            return dict(jsonrpc='2.0', id=None, error=dict(code=-32600, message='invalid request'))
+        m = q.get('method')
+        extras = {'eth_blockNumber': self.pin['block'], 'net_version': str(CHAIN),
+                  'web3_clientVersion': 'a3a-relay'}
+        if (m not in extras and not (isinstance(m, str) and m.startswith('eth_get')) and
+                m not in ('eth_chainId', 'eth_call', 'eth_estimateGas')):
+            # Log only recognized method names; arbitrary request strings can contain secrets.
+            name = m if isinstance(m, str) and m.replace('_', '').isalnum() else 'malformed'
+            self.log.write('refused '+name+'\n')
+            return dict(jsonrpc='2.0', id=q.get('id'), error=dict(code=-32601, message='relay: method refused'))
+        try:
+            result = extras[m] if m in extras else self.remote(m, q.get('params', []))
+            return dict(jsonrpc='2.0', id=q.get('id'), result=result)
+        except Exception:
+            self.log.write('failed '+str(m)+'\n')
+            return dict(jsonrpc='2.0', id=q.get('id'), error=dict(code=-32000, message='relay: upstream failed'))
+
+    def dispatch(self, q):
+        return [self.one(x) for x in q] if isinstance(q, list) else self.one(q)
+
+
+def relay_evidence(out):
+    lines = (out/'relay.log').read_text().splitlines()
+    need('relay_evidence', all(x == 'refused eth_gasPrice' for x in lines), True)
+
+
+def git_state(out):
+    # Exclude exactly the task output; all other tracked and untracked changes fail.
+    resolved = out.resolve()
+    excludes = []
+    if resolved.is_relative_to(ROOT):
+        relative = resolved.relative_to(ROOT).as_posix()
+        need('output_repo_root', relative == '.', False)
+        excludes = [':(exclude,literal)'+relative]
+    r = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all', '--', '.', *excludes],
+                       cwd=ROOT, capture_output=True, text=True)
+    need('git_status', r.returncode, 0)
+    need('git_clean', r.stdout, '')
+    return dict(dirtyCount=0, excludedOutput=str(resolved) if excludes else None,
+                gitPolicy='exclude exactly output path; require all other status empty')
+
+
+def authenticate_engine(local):
+    version = local('web3_clientVersion', [])
+    need('local_engine_commit', isinstance(version, str) and COMMIT in version, True)
+    need('local_chain', qty(local('eth_chainId', [])), CHAIN)
+    config = local('eth_config', [])
+    if not isinstance(config, dict) or not isinstance(config.get('current'), dict):
+        raise Gate('local_fork_config', 'missing current', 'Amsterdam')
+    need('local_fork_activation', config['current'].get('activationTime'), ACTIVATION)
+    need('local_fork_id', config['current'].get('forkId'), FORK_ID)
+    need('local_fork_next', config.get('next', 'missing'), None)
 
 
 @contextlib.contextmanager
 def fork(remote, pin, out):
-    """Credential-free argv: a loopback read-only relay keeps archive URL in memory only."""
+    """Archive credentials stay in memory; authenticate the reused local port."""
     class Relay(http.server.BaseHTTPRequestHandler):
         def log_message(self, *_):
             pass
 
         def do_POST(self):
-            # The fork engine may batch requests and needs a few read-only non-eth_get methods.
-            # Anything else is refused and recorded by method name only (never the URL or params).
-            def one(q):
-                m = q.get('method')
-                if m not in RELAY_EXTRA and not (isinstance(m, str) and m.startswith('eth_get')) and \
-                        m not in ('eth_chainId', 'eth_call', 'eth_estimateGas'):
-                    relay_log.write('refused ' + str(m) + '\n')
-                    return dict(jsonrpc='2.0', id=q.get('id'), error=dict(code=-32601, message='relay: method refused'))
-                try:
-                    if m in RELAY_EXTRA:
-                        return dict(jsonrpc='2.0', id=q.get('id'), result=RELAY_EXTRA[m](q))
-                    return dict(jsonrpc='2.0', id=q.get('id'), result=remote(m, q.get('params', [])))
-                except Gate as g:
-                    relay_log.write('failed ' + str(m) + ' ' + g.gate + '\n')
-                    return dict(jsonrpc='2.0', id=q.get('id'), error=dict(code=-32000, message='relay: upstream ' + g.gate))
             try:
                 q = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-                res = [one(x) for x in q] if isinstance(q, list) else one(q)
-                body = json.dumps(res).encode()
+                body = json.dumps(filter_rpc.dispatch(q)).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(body)
-            except Exception as e:
-                relay_log.write('relay error ' + type(e).__name__ + '\n')
-                self.send_error(502, 'archive relay refused or failed')
+            except Exception:
+                relay_log.write('failed handler\n')
+                self.send_error(502, 'archive relay failed')
+    clean = git_state(out)
     relay_log = open(out/'relay.log', 'w', buffering=1)
-    # Pinned answers for the engine's non-eth_get probes; the fork block is fixed, so these never hit the archive.
-    RELAY_EXTRA = {'eth_blockNumber': lambda q: pin['block'], 'net_version': lambda q: str(CHAIN),
-                   'web3_clientVersion': lambda q: 'a3a-relay'}
+    filter_rpc = RelayFilter(remote, pin, relay_log)
     version = subprocess.run([str(ENGINE/'anvil'), '--version'], capture_output=True, text=True).stdout
     need('engine_commit', COMMIT in version, True)
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Relay)
@@ -433,10 +501,8 @@ def fork(remote, pin, out):
     with socket.socket() as s:
         s.bind(('127.0.0.1', 0))
         port = s.getsockname()[1]
-    dirty = subprocess.run(['git', 'status', '--porcelain'], cwd=ROOT, capture_output=True, text=True)
-    need('git_status', dirty.returncode, 0)
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    header = dict(engine=version.strip(), engineCommit=COMMIT, repoCommit=head, dirtyCount=len(dirty.stdout.splitlines()),
+    header = dict(engine=version.strip(), engineCommit=COMMIT, repoCommit=head, **clean,
                   pinnedBlock=pin['block'], rpc='REDACTED')
     (out/'simulate.log').write_text(json.dumps(header)+'\n')
     proc = None
@@ -460,6 +526,7 @@ def fork(remote, pin, out):
                 time.sleep(.1)
         else:
             raise Gate('engine_start', 'timeout', 'listening local anvil')
+        authenticate_engine(local)
         need('fork_block_hash', block_data(local, pin['block'])['hash'], pin['blockHash'])
         for who in (DEPLOYER, EXECUTOR, APPROVER):
             local('anvil_impersonateAccount', [who])
@@ -470,18 +537,20 @@ def fork(remote, pin, out):
             proc.wait(timeout=10)
         server.shutdown()
         server.server_close()
+        engine_err.close()
+        relay_log.close()
 
 
 def tx_rpc(tx):
     return {k: v for k, v in tx.items() if v is not None}
 
 
-def receipt(rpc, tx):
+def receipt(rpc, tx, status='0x1'):
     h = typed(rpc('eth_sendTransaction', [tx_rpc(tx)]), HASH32)
     for _ in range(100):
         r = rpc('eth_getTransactionReceipt', [h])
         if r is not None:
-            need('receipt_status', r.get('status'), '0x1')
+            need('receipt_status', r.get('status'), status)
             qty(r['gasUsed'])
             return r
         time.sleep(.05)
@@ -491,10 +560,20 @@ def receipt(rpc, tx):
 def negative(rpc, tx, expected, name):
     sender = tx['from']
     before = [nonce(rpc, sender), word(rpc, SAFE, 'nonce()')]
-    result = rpc('eth_call', [tx_rpc(tx), 'latest'], error_ok=True)
-    need('negative_'+name+'_reason', result, {'revert': expected})
-    need('negative_'+name+'_nonces', [nonce(rpc, sender), word(rpc, SAFE, 'nonce()')], before)
-    return dict(control=name, revert=expected, nonces=before)
+    snap = rpc('evm_snapshot', [])
+    try:
+        bad = dict(tx, nonce=hex(before[0]), gas=tx.get('gas', hex(30_000_000)))
+        r = receipt(rpc, bad, status='0x0')
+        trace = rpc('debug_traceTransaction', [r['transactionHash'], {'tracer': 'callTracer'}])
+        need('negative_'+name+'_reason', trace.get('output'), expected)
+        # A mined reverted EOA transaction necessarily consumes one nonce. The Safe nonce must not move.
+        need('negative_'+name+'_mined_nonces', [nonce(rpc, sender), word(rpc, SAFE, 'nonce()')],
+             [before[0]+1, before[1]])
+    finally:
+        need('negative_'+name+'_restore', rpc('evm_revert', [snap]), True)
+    need('negative_'+name+'_restored_nonces', [nonce(rpc, sender), word(rpc, SAFE, 'nonce()')], before)
+    return dict(control=name, kind='reverted_transaction', revert=expected, receipt=r,
+                beforeNonces=before, minedNonces=[before[0]+1, before[1]], restoredNonces=before)
 
 
 def error_string(s):
@@ -505,8 +584,10 @@ def roles_readback(rpc, plan, start):
     tl = plan['pin']['timelock']
     need('role_history_start', rpc('eth_getCode', [tl, hex(int(start, 16)-1)]), '0x')
     granted, revoked = keccak('RoleGranted(bytes32,address,address)'), keccak('RoleRevoked(bytes32,address,address)')
-    logs = rpc('eth_getLogs', [dict(address=tl, fromBlock=start, toBlock='latest', topics=[[granted, revoked]])])
+    admin_changed = keccak('RoleAdminChanged(bytes32,bytes32,bytes32)')
+    logs = rpc('eth_getLogs', [dict(address=tl, fromBlock=start, toBlock='latest', topics=[[granted, revoked, admin_changed]])])
     members = {ZERO32: set(), **{keccak(x+'_ROLE'): set() for x in ('PROPOSER', 'EXECUTOR', 'CANCELLER')}}
+    admins = {role: ZERO32 for role in members}
     if not isinstance(logs, list) or not logs:
         raise Gate('role_logs', 'empty/malformed', 'complete role event history')
     for log in sorted(logs, key=lambda x: (qty(x['blockNumber']), qty(x['transactionIndex']), qty(x['logIndex']))):
@@ -514,27 +595,34 @@ def roles_readback(rpc, plan, start):
         need('role_log_removed', log.get('removed', False), False)
         topics = log['topics']
         need('role_topics', len(topics), 4)
-        need('role_event_topic', topics[0] in (granted, revoked), True)
+        need('role_event_topic', topics[0] in (granted, revoked, admin_changed), True)
         role, account = typed(topics[1], HASH32), '0x'+typed(topics[2], HASH32)[-40:].lower()
         if role not in members:
             raise Gate('role_unknown', role, list(members))
+        if topics[0] == admin_changed:
+            need('role_previous_admin', topics[2], admins[role])
+            admins[role] = typed(topics[3], HASH32)
+            continue
         if topics[0] == granted:
             members[role].add(account)
         else:
             members[role].discard(account)
     observed = {'DEFAULT_ADMIN': sorted(members[ZERO32])}
     observed.update({x: sorted(members[keccak(x+'_ROLE')]) for x in ('PROPOSER', 'EXECUTOR', 'CANCELLER')})
+    need('timelock_role_admins', admins, {role: ZERO32 for role in members})
+    for role in members:
+        need('timelock_live_role_admin', word(rpc, tl, 'getRoleAdmin(bytes32)', role), int(admins[role], 16))
     need('timelock_role_sets', observed, plan['roles'])
     return observed
 
 
-def readback(rpc, plan, step, r, context):
+def readback(rpc, plan, step, r, context, predecessor=False):
     pin, sid = plan['pin'], step['id']
     tl, token = pin['timelock'], pin['capped']
     ts = qty(block_data(rpc, r['blockNumber'])['timestamp'])
     got = dict(timestamp=ts)
     need(sid+'_apnts_unchanged', address(rpc, SP, 'APNTS_TOKEN()'), pin['sp']['APNTS_TOKEN'])
-    if sid in ('S2', 'S3'):
+    if sid in ('S2', 'S3') and not predecessor:
         need(sid+'_created_address', r.get('contractAddress', '').lower(), tl if sid == 'S2' else token)
     if sid != 'S7':
         need(sid+'_sp_pending_cleared', address(rpc, SP, 'pendingAPNTsToken()'), ZERO)
@@ -542,7 +630,7 @@ def readback(rpc, plan, step, r, context):
     if sid == 'S1':
         need('S1_pending', address(rpc, SP, 'pendingAPNTsToken()'), ZERO)
         need('S1_eta', word(rpc, SP, 'pendingAPNTsTokenEta()'), 0)
-    if sid == 'S2':
+    if sid == 'S2' and not predecessor:
         context['tlBlock'] = r['blockNumber']
     if 'tlBlock' in context:
         need(sid+'_min_delay', word(rpc, tl, 'getMinDelay()'), 172800)
@@ -557,7 +645,7 @@ def readback(rpc, plan, step, r, context):
         need(sid+'_owner', address(rpc, token, 'owner()'), owned)
         pending = tl if sid in ('S4', 'S5a', 'S5b', 'S6a') else ZERO
         need(sid+'_pending_owner', address(rpc, token, 'pendingOwner()'), pending)
-    if sid in ('S5b', 'S6b'):
+    if sid in ('S5b', 'S6b') and not predecessor:
         expected_hash = plan['safeTxHashes'][0 if sid == 'S5b' else 1]
         success = keccak('ExecutionSuccess(bytes32,uint256)')
         need(sid+'_safe_execution_success', any(
@@ -567,14 +655,14 @@ def readback(rpc, plan, step, r, context):
     if sid in ('S5a', 'S6a'):
         i = 0 if sid == 'S5a' else 1
         need(sid+'_approved_hash', word(rpc, SAFE, 'approvedHashes(address,bytes32)', APPROVER, plan['safeTxHashes'][i]), 1)
-    if sid == 'S5b':
+    if sid == 'S5b' and not predecessor:
         context['eta'] = ts + 172800
         if 'plannedETA' not in step:
             step['plannedETA'] = context['eta']
         need('S5b_planned_eta', context['eta'], step['plannedETA'])
     if sid in ('S5b', 'S6a', 'S6b', 'S7'):
         done = sid in ('S6b', 'S7')
-        need(sid+'_operation_state', word(rpc, tl, 'getOperationState(bytes32)', plan['operationId']), 3 if done else 1)
+        need(sid+'_operation_state', word(rpc, tl, 'getOperationState(bytes32)', plan['operationId']), 3 if done else (2 if predecessor and qty(block_data(rpc, 'latest')['timestamp']) >= context['eta'] else 1))
         need(sid+'_operation_eta', word(rpc, tl, 'getTimestamp(bytes32)', plan['operationId']), 1 if done else context['eta'])
         got['operationETA'] = context['eta']
     if sid == 'S7':
@@ -603,52 +691,122 @@ def trace_overrides(rpc, r, overrides):
     return overrides
 
 
-class StepOrder:
-    """Only a successful full read-back releases the next executable transaction."""
-    IDS = ('S1', 'S2', 'S3', 'S4', 'S5a', 'S5b', 'S6a', 'S6b', 'S7')
+@dataclass(frozen=True)
+class ExecutionStep:
+    plan: dict
+    id: str
 
-    def __init__(self):
-        self.completed = []
 
-    def prepare(self, step):
-        sid = step['id']
-        index = self.IDS.index(sid)
-        need('step_predecessor_' + sid, self.completed, list(self.IDS[:index]))
-        return dict(step['tx'])
+def validate_plan(plan, frozen=False):
+    need('plan_step_ids', [s['id'] for s in plan['steps']], list(STEP_IDS))
+    rebuilt = build_plan(plan['pin'])
+    for key in ('schema', 'chainId', 'runtimeIdentity', 'constructorArgs', 'roles', 'safeTxHashes',
+                'safeInnerData', 'operationId', 'salt', 'margin'):
+        need('plan_identity_'+key, plan[key], rebuilt[key])
+    for step, expected in zip(plan['steps'], rebuilt['steps']):
+        if frozen:
+            for key in ('estimateGas', 'localEstimateGas', 'forkGasUsed', 'executionTimestamp'):
+                value = step.get(key)
+                need('plan_frozen_'+step['id']+'_'+key, type(value) is int and value > 0, True)
+            typed(step['tx'].get('gas'), QTY, 'plan_frozen_'+step['id']+'_gas')
+            if step['id'] == 'S5b':
+                need('plan_frozen_eta', step.get('plannedETA'), step['executionTimestamp']+172800)
+        for key in ('to', 'data', 'from', 'value', 'nonce', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas'):
+            need('plan_step_'+step['id']+'_'+key, step['tx'].get(key), expected['tx'][key])
+        if 'gas' in step['tx']:
+            limit = (max(step['estimateGas'], step['localEstimateGas'], step['forkGasUsed'])*MARGIN_NUM+MARGIN_DEN-1)//MARGIN_DEN
+            need('plan_gas_'+step['id'], qty(step['tx']['gas']), limit)
 
-    def passed(self, sid):
-        self.prepare({'id': sid, 'tx': {}})
-        self.completed.append(sid)
+
+def safe_hash_check(remote, plan):
+    for i, data in enumerate(plan['safeInnerData']):
+        actual = call(remote, SAFE,
+                      'getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)',
+                      plan['pin']['timelock'], 0, data, 0, 0, 0, 0, ZERO, ZERO,
+                      plan['pin']['safeNonce']+i, block=plan['pin']['block'])
+        need('safe_hash_'+str(i+5), actual.lower(), plan['safeTxHashes'][i])
+
+
+def pre_send(step, remote):
+    """The sole transaction preparation boundary, including for any future signer.
+
+    Every predicate is re-read from chain; no completed-step process state is trusted.
+    """
+    plan, sid = step.plan, step.id
+    index = STEP_IDS.index(sid)
+    tx = copy.deepcopy(plan['steps'][index]['tx'])
+    need('pre_send_chain', qty(remote('eth_chainId', [])), CHAIN)
+    dependencies = [SAFE, SP] + ([tx['to']] if tx['to'] else [])
+    if index >= 2:
+        dependencies.append(plan['pin']['timelock'])
+    if index >= 3:
+        dependencies.append(plan['pin']['capped'])
+    for target in set(dependencies):
+        if typed(remote('eth_getCode', [target, 'latest']), HEXDATA) == '0x':
+            raise Gate('pre_send_code_'+sid, target, 'deployed contract code')
+    latest = nonce(remote, tx['from'], 'latest')
+    need('pre_send_pending_'+sid, nonce(remote, tx['from'], 'pending'), latest)
+    need('pre_send_nonce_'+sid, latest, qty(tx['nonce']))
+    safe_expected = plan['pin']['safeNonce'] + int(index > 5) + int(index > 7)
+    need('pre_send_safe_nonce_'+sid, word(remote, SAFE, 'nonce()'), safe_expected)
+    if index:
+        prior = plan['steps'][index-1]
+        context = {}
+        if index >= 2:
+            context['tlBlock'] = hex(int(plan['pin']['block'], 16)+1)
+        if index >= 6:
+            context['eta'] = plan['steps'][5]['plannedETA']
+        readback(remote, plan, prior, {'blockNumber': 'latest'}, context, predecessor=True)
+    else:
+        for key in ('owner', 'APNTS_TOKEN', 'pendingAPNTsToken'):
+            need('pre_send_initial_'+key, address(remote, SP, key+'()'), plan['pin']['sp'][key])
+        need('pre_send_initial_eta', word(remote, SP, 'pendingAPNTsTokenEta()'), plan['pin']['sp']['pendingAPNTsTokenEta'])
+    # A real send must re-estimate at current state, even for a previously reviewed frozen plan.
+    probe = {k: v for k, v in tx_rpc(tx).items() if k != 'gas'}
+    fresh = qty(remote('eth_estimateGas', [probe, 'latest']))
+    if 'gas' in tx:
+        need('pre_send_gas_'+sid, fresh <= qty(tx['gas']), True)
+    return tx
+
+
+def signing_transaction(plan, sid, remote):
+    """Future signer input must come through this boundary; no signing is implemented."""
+    validate_plan(plan, frozen=True)
+    return pre_send(ExecutionStep(plan, sid), remote)
+
+
+def completion(records, controls):
+    need('completed_steps', [r['step'] for r in records], list(STEP_IDS))
+    need('completed_controls', [c['control'] for c in controls], list(CONTROL_IDS))
 
 
 def rehearse(remote, plan, out, calibrate=False):
     records, controls, context, overrides = [], [], {}, {}
     pin = plan['pin']
-    order = StepOrder()
+    validate_plan(plan, frozen=not calibrate)
+    frozen_plan = copy.deepcopy(plan) if not calibrate else None
     with fork(remote, pin, out) as local:
         expected_safe = pin['safeNonce']
         for step in plan['steps']:
             sid = step['id']
-            tx = order.prepare(step)
+            tx = copy.deepcopy(step['tx'])
             if sid == 'S6b':
                 controls.append(negative(local, tx, error_string('GS013'), 'early_execute'))
                 local('evm_setNextBlockTimestamp', [context['eta']])
                 local('evm_mine', [])
-            if calibrate:
-                tx['nonce'] = hex(nonce(local, tx['from']))
             need(sid+'_sender_nonce', nonce(local, tx['from']), qty(tx['nonce']))
             need(sid+'_safe_nonce', word(local, SAFE, 'nonce()'), expected_safe)
             if sid == 'S3':
                 before = [nonce(local, DEPLOYER), word(local, SAFE, 'nonce()')]
                 try:
-                    order.prepare(next(s for s in plan['steps'] if s['id'] == 'S4'))
+                    pre_send(ExecutionStep(plan, 'S4'), local)
                 except Gate as e:
-                    need('negative_order_reason', e.record['gate'], 'step_predecessor_S4')
+                    need('negative_order_reason', e.record['gate'], 'pre_send_code_S4')
                 else:
-                    raise Gate('negative_order_reason', 'accepted', 'step_predecessor_S4')
+                    raise Gate('negative_order_reason', 'accepted', 'pre_send_code_S4')
                 need('negative_order_nonces', [nonce(local, DEPLOYER), word(local, SAFE, 'nonce()')], before)
                 controls.append(dict(control='S4_before_S3', kind='executor_refusal',
-                                     gate='step_predecessor_S4', nonces=before))
+                                     gate='pre_send_code_S4', nonces=before))
             if sid == 'S4':
                 require_deployed(local, pin['capped'])
             if sid == 'S5b':
@@ -664,6 +822,7 @@ def rehearse(remote, plan, out, calibrate=False):
                 bad.pop('nonce', None)
                 reason = calldata('OwnableUnauthorizedAccount(address)', EXECUTOR)
                 controls.append(negative(local, bad, reason, 'non_owner_queue'))
+            tx = pre_send(ExecutionStep(plan, sid), local)
             execution_ts = max(qty(block_data(local, 'latest')['timestamp'])+1,
                                context.get('eta', 0) if sid in ('S6b', 'S7') else 0)
             if calibrate:
@@ -679,6 +838,7 @@ def rehearse(remote, plan, out, calibrate=False):
                 local_est = qty(local('eth_estimateGas', [tx_rpc(tx), 'latest']))
                 tx['gas'] = hex((max(est, local_est)*MARGIN_NUM+MARGIN_DEN-1)//MARGIN_DEN)
                 step['estimateGas'] = est
+                step['localEstimateGas'] = local_est
                 step['estimateContext'] = dict(block=pin['block'], stateOverrides=json.loads(json.dumps(overrides)),
                                                blockOverrides={'time': hex(timestamp)})
                 # Pilot execution supplies gasUsed, then roll back and rerun at the final exact limit.
@@ -687,7 +847,7 @@ def rehearse(remote, plan, out, calibrate=False):
                 used = qty(pilot['gasUsed'])
                 need('pilot_restore', local('evm_revert', [snap]), True)
                 local('evm_setNextBlockTimestamp', [execution_ts])
-                tx['gas'] = hex((max(est, used)*MARGIN_NUM+MARGIN_DEN-1)//MARGIN_DEN)
+                tx['gas'] = hex((max(est, local_est, used)*MARGIN_NUM+MARGIN_DEN-1)//MARGIN_DEN)
                 step['forkGasUsed'] = used
             step['tx'] = tx
             r = receipt(local, tx)
@@ -699,13 +859,28 @@ def rehearse(remote, plan, out, calibrate=False):
             need(sid+'_mined_timestamp', qty(block_data(local, r['blockNumber'])['timestamp']),
                  step['executionTimestamp'])
             observed = readback(local, plan, step, r, context)
-            order.passed(sid)
+            need(sid+'_gas_limit', qty(r['gasUsed']) <= qty(tx['gas']), True)
+            mined = local('eth_getTransactionByHash', [r['transactionHash']])
+            for key in ('from', 'to', 'nonce', 'value', 'chainId'):
+                need(sid+'_mined_'+key, mined.get(key), tx.get(key))
+            need(sid+'_mined_data', mined.get('input'), tx['data'])
+            need(sid+'_mined_gas', mined.get('gas'), tx['gas'])
             records.append(dict(step=sid, gasUsed=qty(r['gasUsed']), receipt=r, readback=observed))
             with (out/'simulate.log').open('a') as log:
                 log.write(json.dumps(records[-1])+'\n')
             write_json(out/'simulate.json', dict(status='IN_PROGRESS', steps=records, negativeControls=controls))
             if calibrate:
                 trace_overrides(local, r, overrides)
+    completion(records, controls)
+    relay_evidence(out)
+    validate_plan(plan, frozen=True)
+    if calibrate:
+        budget(plan)
+    else:
+        need('frozen_plan_unchanged', plan, frozen_plan)
+        checked = copy.deepcopy(plan)
+        budget(checked)
+        need('frozen_budgets', checked['budgetsWei'], plan['budgetsWei'])
     result = dict(status='PASS', pinnedBlock=pin['block'], steps=records, negativeControls=controls)
     write_json(out/'simulate.json', result)
     return result
@@ -721,10 +896,16 @@ def write_json(path, data):
 
 
 def budget(plan):
-    total = sum(qty(s['tx']['gas'])*qty(s['tx']['maxFeePerGas']) for s in plan['steps'] if s['tx']['from'] == DEPLOYER)
-    if plan['pin']['balance'] < total:
-        raise Gate('deployer_budget', plan['pin']['balance'], {'minimumWei': total})
-    plan['budgetWei'] = total
+    budgets = {}
+    for label, who in SENDERS.items():
+        total = sum(qty(s['tx']['gas'])*qty(s['tx']['maxFeePerGas'])
+                    for s in plan['steps'] if s['tx']['from'] == who)
+        balance = plan['pin']['senders'][label]['balance']
+        if balance < total:
+            raise Gate(label+'_budget', balance, {'minimumWei': total})
+        budgets[label] = total
+    plan['budgetsWei'] = budgets
+    plan['budgetWei'] = budgets['deployer']
 
 
 def plan_command(remote, block, out):
@@ -734,6 +915,7 @@ def plan_command(remote, block, out):
     if state['balance'] < 21_000*5*MAX_FEE:
         raise Gate('deployer_budget', state['balance'], {'minimumWei': 21_000*5*MAX_FEE})
     plan = build_plan(state)
+    safe_hash_check(remote, plan)
     rehearse(remote, plan, out, calibrate=True)
     budget(plan)
     # Recheck archive identity and live pending nonce after the rehearsal.
@@ -751,6 +933,17 @@ def load_plan(path):
     return json.loads(raw)
 
 
+def failure_record(out, record):
+    if out is None:
+        return
+    try:
+        out.mkdir(parents=True, exist_ok=True)
+        write_json(out/'FAILURE.json', record)
+    except OSError:
+        # If --out itself is unwritable, retain machine-readable failure evidence on stderr.
+        print(json.dumps(record), file=sys.stderr)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -766,9 +959,9 @@ def main(argv=None):
         p = sub.add_parser(name)
         p.add_argument('--out', type=Path, default=None)  # refusal is recorded on disk only when asked
     args = parser.parse_args(argv)
-    if args.out is not None:
-        args.out.mkdir(parents=True, exist_ok=True)
     try:
+        if args.out is not None:
+            args.out.mkdir(parents=True, exist_ok=True)
         if args.command in ('sign', 'send'):
             raise Gate('sign_disabled' if args.command == 'sign' else 'send_disabled', REFUSAL, 'separate authorization and implemented reviewed signer')
         plan = load_plan(args.plan) if args.command == 'simulate' else None
@@ -776,18 +969,28 @@ def main(argv=None):
         if plan is None:
             plan_command(remote, args.block, args.out)
         else:
+            validate_plan(plan, frozen=True)
+            safe_hash_check(remote, plan)
             need('simulation_pin', preflight(remote, plan['pin']['block']), plan['pin'])
+            frozen = copy.deepcopy(plan)
             rehearse(remote, plan, args.out)
+            need('frozen_plan_unchanged', plan, frozen)
+        if args.out is not None:
+            (args.out/'FAILURE.json').unlink(missing_ok=True)
         return 0
     except Gate as e:
         if args.out is not None:
-            write_json(args.out/'FAILURE.json', e.record)
+            failure_record(args.out, e.record)
         print(REFUSAL if args.command in ('sign', 'send') else 'STOP: '+e.record['gate'], file=sys.stderr)
         return 3 if args.command in ('sign', 'send') else 1
     except Exception as e:
         if args.out is not None:
-            write_json(args.out/'FAILURE.json', dict(status='FAILURE', gate='executor_error', observed=type(e).__name__, expected='successful gated execution; RPC redacted'))
+            failure_record(args.out, dict(status='FAILURE', gate='executor_error', observed=type(e).__name__, expected='successful gated execution; RPC redacted'))
         print('STOP: executor_error ('+type(e).__name__+')', file=sys.stderr)
+        return 1
+    except BaseException as e:
+        failure_record(args.out, dict(status='FAILURE', gate='interrupted', observed=type(e).__name__, expected='uninterrupted execution'))
+        print('STOP: interrupted', file=sys.stderr)
         return 1
 
 

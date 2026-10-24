@@ -44,26 +44,45 @@ python3 script/a3a/a3a_exec.py simulate \
 Choose a current pinned block for an actual review; the number above illustrates
 syntax. Decimal and `0x` block numbers are accepted. Use a fresh output directory
 per attempt. RPC credentials stay in memory: anvil receives a loopback relay URL,
-and the relay permits only read RPCs. Engine stdout/stderr are discarded to avoid
-accidental credential disclosure. No key, mnemonic or wallet is loaded.
+and the relay permits only read RPCs. Engine stdout is discarded; `engine.stderr`
+is captured and contains only the loopback relay URL, never the archive URL.
+No key, mnemonic or wallet is loaded. The relay handles batches request by request;
+`eth_blockNumber`, `net_version`, and `web3_clientVersion` have pinned local
+answers. Writes including `eth_sendRawTransaction`, `eth_sendTransaction`, and
+`anvil_*` are refused before reaching the archive. Before PASS, `relay.log` must
+be empty or contain only `refused eth_gasPrice` lines. Any failed request or other
+refusal fails the evidence gate.
+
+The git-state gate runs `git status --porcelain --untracked-files=all` and requires
+empty output **after excluding exactly the resolved --out path** when it is
+inside this worktree. No other tracked or untracked change is allowed. Using the
+repository root as --out is refused. An output directory outside the worktree
+needs no exclusion. The log header records `gitPolicy`, `excludedOutput`,
+`repoCommit`, and `dirtyCount: 0`; the count refers to that filtered status, not an
+unrestricted count. `plan.json` is written **after** calibration and final
+preflight. Previously the output directory containing `relay.log` itself caused
+a dirty entry; the plan file was not present yet.
 
 ## Subcommands and gates
 
 `plan` makes only read calls to the archive RPC. It verifies chain 11155111 and
 requires `eth_config.current.activationTime == 1791294816` and
-`forkId == 0x6c1d9423`, matching the captures under
+`forkId == 0x6c1d9423` and `next == null`, matching the captures under
 `docs/design/aoa-balance-mode/data/rams/`. Missing `eth_config` is a hard failure.
 It verifies the pinned block's hash and post-activation timestamp, reads the
-deployer's block and pending nonces, and requires them to agree. It checks the
+deployer's, approver's and executor's block and pending nonces, and requires each pair to agree. It checks the
 Safe's nonce, exact three owners and threshold 2; SP owner, current token,
 pending token and ETA; the on-chain SP queue delay; empty code at both predicted
-CREATE addresses; and the deployer's balance against the fee-cap budget.
+CREATE addresses; and each of the three senders' balances against its own fee-cap budget.
 The expected governance and SP pre-state comes from the sealed v4 snapshot;
 changed pre-state requires a separately reviewed workflow change.
 
 CREATE addresses are derived from the current deployer nonce, and Safe EIP-712
 hashes from the current Safe nonce. Timelock operation ID and salt are derived
-from the encoded operation. S1–S4 and S7 use sequential deployer nonces;
+from the encoded operation. Safe.getTransactionHash is called on-chain at the
+pin for both S5 and S6 and must equal the independently computed EIP-712 hash.
+All three senders' planned nonces are derived from their pinned nonces and
+incremented only for that sender's steps. S1–S4 and S7 use sequential deployer nonces;
 S5a/S6a are `approveHash` calls by the approver, and S5b/S6b are
 `execTransaction` calls by the executor using sorted approved-hash signatures.
 Those bytes are not ECDSA signatures and give no authority by themselves.
@@ -82,27 +101,50 @@ be estimated without pretending it was mature at the archive pin.
 
 A local estimate sizes a pilot, then the pilot's receipt supplies fork gasUsed.
 The pilot is rolled back. The final unsigned limit is exactly
-`ceil(max(archive estimate, fork gasUsed) * 13 / 10)`; the margin is the
+`ceil(max(archive estimate, local engine estimate, fork gasUsed) * 13 / 10)`; the margin is the
 `MARGIN_NUM/MARGIN_DEN` constant, default 1.3. Every step is then replayed at that
-exact limit, with its read-back required to pass. `plan.json` records both gas
+exact limit, with its read-back required to pass. The local estimate is retained
+as `localEstimateGas`; `estimateGas` and `forkGasUsed` retain the other inputs.
+GasUsed is **not** a lower bound on the viable gas limit: v4 S1 needed 48,641 gas
+to run despite using 38,582. Estimates are valid for the pin and simulated state;
+`pre_send` must re-estimate against current state before any real send and reject
+if the fresh estimate exceeds the frozen limit. `plan.json` records all three gas
 numbers, sender, destination (null for CREATE), calldata, value, nonce, chain ID,
-gas limit, fee caps and execution timestamps. The budget sums deployer gas
-limits times maxFeePerGas; Safe owners pay their own transactions. It is a
+gas limit, fee caps and execution timestamps. `budgetsWei` separately sums each
+sender's gas limits times maxFeePerGas and checks that sender's pinned balance;
+Safe owners pay their own transactions. It is a
 fee-cap budget, not a forecast of actual cost. A final preflight rechecks the pin
 and pending nonce before writing `plan.json` and `plan.json.sha256`.
 
 `simulate` first validates the SHA-256 over the exact saved bytes, then repeats
-preflight and starts a fresh fork at the same hash. It impersonates accounts,
+preflight and starts a fresh fork at the same hash. The sidecar is only a
+corruption check: `build_plan(pin)` is independently rebuilt from the artifacts,
+and every step's to/data/from/value/nonce (plus chain/fees and all derived identity
+fields) must agree. All nine step IDs, measured gas metadata and timestamps are
+required. Edited data or nonces are rejected even when the sidecar is recomputed.
+After anvil starts on the selected port, the RPC endpoint must report a
+`web3_clientVersion` containing the full engine COMMIT, chain 11155111 and the
+Amsterdam activation/forkId with `next == null`. These checks authenticate the
+reused port against the expected engine and fork tier before impersonation.
+It impersonates accounts,
 uses exactly the saved limits, and checks sender and Safe nonces before and
 after every step. Only a full successful predecessor read-back releases the
-next executable transaction. No calibration pilot is run by this subcommand.
+next executable transaction. `simulate --plan <frozen plan.json>` is an
+independent rerun: it does not call `plan_command`, perform calibration pilots,
+replace limits, or rewrite the plan. The source plan remains unchanged. The
+mined transaction identity and gas limit must match the frozen plan and each
+receipt's gasUsed must be at most that limit. Before PASS, all nine step IDs must
+have completed in order and all four named controls must be present in order.
+The measured gas formula, relay evidence, budgets and frozen-plan identity are
+checked before writing PASS.
 Read-backs include:
 
 - S1: pending token and ETA cleared, current SP token unchanged.
 - S2 onward: minDelay 172800 and exact role sets reconstructed from all
-  RoleGranted/RoleRevoked logs since creation, with empty code immediately before
+  RoleGranted/RoleRevoked/RoleAdminChanged logs since creation, with empty code immediately before
   deployment. PROPOSER, EXECUTOR and CANCELLER each contain exactly the Safe.
-  DEFAULT_ADMIN contains exactly the timelock itself.
+  DEFAULT_ADMIN contains exactly the timelock itself. Role-admin history must
+  resolve to DEFAULT_ADMIN for every role and agree with getRoleAdmin getters.
 - S3 onward: runtime bytes outside all immutable reference ranges equal the
   build artifact exactly, and every immutable range has its exact expected value
   (see below); cap 10,000,000e18,
@@ -119,11 +161,16 @@ Read-backs include:
 
 `simulate.json` stores receipts, gasUsed, read-backs and controls. Partial progress
 is saved after each completed step. `simulate.log` begins with engine version,
-commit, working-tree dirty count, pinned block and `rpc: REDACTED`, then records
+engine and repository commits, the git exclusion policy and zero filtered dirty
+count, pinned block and `rpc: REDACTED`, then records
 per-step results. A nonzero exit and `FAILURE.json` identify the gate, observed
 value and expected value. Provider fault messages are not printed or persisted;
 malformed envelopes, typed results and unclassified RPC faults fail closed using
 the shared `script/evidence/lib/rpc_strict.py` patterns and error classifier.
+Output creation is inside exception handling. KeyboardInterrupt and other
+BaseException interruptions record the `interrupted` gate and exit nonzero.
+If --out itself cannot be created, failure evidence falls back to stderr.
+A successful CLI run removes a stale FAILURE.json in its output directory.
 
 ## Runtime identity with EIP712 immutables
 
@@ -163,8 +210,14 @@ ShortString cases and the unmasked-byte comparison.
 
 ## Negative controls and corrected requirements
 
-The chain controls use `eth_call`, compare the **complete revert bytes** rather
-than a message substring, and verify both sender and Safe nonces are unchanged:
+Each chain control takes a local snapshot, **sends an actual impersonated
+transaction with an explicit gas limit**, requires a status-0 receipt, and compares
+the callTracer's complete top-level revert bytes against the expected error.
+A mined reverted EOA transaction necessarily consumes one sender nonce: the
+control asserts exactly that increment and that the Safe nonce does not move.
+It then restores the snapshot and verifies both sender and Safe nonces equal
+their original values. Evidence includes the failed receipt, exact reason and
+before/mined/restored nonces. No nonce claim is based merely on eth_call:
 
 - S6b before maturity, after the real S6a approval: Safe `GS013`.
 - S5b with the wrong Safe nonce: Safe `GS025`. A local snapshot temporarily
@@ -177,9 +230,12 @@ Two original requirements were corrected by the author:
    grants the timelock self-admin. The accepted exact DEFAULT_ADMIN_ROLE set is
    `{timelock}`; an additional or missing member fails.
 2. S4 before S3 is an **executor refusal**, not a chain revert. Calling an address
-   with no code can succeed at the EVM level. `StepOrder.prepare()` refuses to
-   prepare an executable step unless all predecessor read-backs have passed.
-   The rehearsal records `kind: executor_refusal`, gate `step_predecessor_S4`,
+   with no code can succeed at the EVM level. `pre_send(ExecutionStep(plan, id), remote)`
+   refuses to return a transaction unless every target/dependency has code,
+   latest and pending sender nonces agree with the plan, and the predecessor's
+   full **current on-chain** read-back passes. It does not trust an in-memory
+   completed-step list. The rehearsal invokes this boundary for every step.
+   The rehearsal records `kind: executor_refusal`, gate `pre_send_code_S4`,
    and unchanged nonces. Offline tests exercise this gate without sending a call.
 
 On failure stop and inspect the record. Do not carry later steps forward from
@@ -209,6 +265,12 @@ impersonation apply only to the disposable local fork. There is no bypass flag.
 not authorized: requires a reviewed plan hash and the author's separate go
 ```
 
+`signing_transaction(plan, id, remote)` is the sole future signer input API:
+it validates a frozen canonical plan and obtains its transaction only through
+`pre_send`. A future signer must use that returned transaction, with no alternate
+raw-step path. The simulation uses the same pre_send boundary. This API prepares
+bytes only; it signs and broadcasts nothing.
+
 Future design only: signing must require the reviewed plan hash and separate
 author go, verify the exact saved bytes and fresh nonces, load a key from a
 keystore path or fd/environment **file** (never key material in argv), and sign
@@ -219,8 +281,8 @@ A SHA-256 sidecar detects changed bytes; it is not a review attestation.
 ## Offline verification
 
 ```sh
-python3 -m py_compile script/a3a/a3a_exec.py script/a3a/test_a3a_exec.py
-python3 script/a3a/test_a3a_exec.py
+/Users/jason/.pyenv/versions/3.11.9/bin/python3 -m py_compile script/a3a/a3a_exec.py script/a3a/test_a3a_exec.py
+/Users/jason/.pyenv/versions/3.11.9/bin/python3 script/a3a/test_a3a_exec.py
 ```
 
 Tests mock urllib in the same style as `script/evidence/test_rams_gauges.py`.
@@ -231,7 +293,13 @@ IDs, wrong cachedThis, unmasked byte changes, repeated offsets, ShortString
 boundaries/fallback, a bad Keccak provider and a positive immutable-aware runtime.
 The positive plan control performs
 real local encoding, hash derivation, serialization and budget checks with
-mocked chain reads, artifacts and the calibration boundary. It cross-checks all
+mocked archive reads and artifacts plus a deterministic offline local chain.
+The real rehearsal, gas calculation, pre_send read-backs, sender/Safe nonce path,
+reverted negative sends, completion and evidence gates stay in use. The positive
+control scans plan.json for URL leaks and exercises an independent frozen rerun.
+Other controls cover local engine authentication, relay batch filtering/pinned
+extras, sender budgets, changed data with recomputed sidecars, role grants and
+revocations/admin changes, interruptions and stale failure removal. It cross-checks all
 non-deployment calldata and derived identity hashes against v4, without reusing
 v4 gas. It does not prove archive capabilities or replace the live fork run.
 No shell script is added or modified, so shell syntax checking is inapplicable.
