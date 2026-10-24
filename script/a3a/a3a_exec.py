@@ -846,8 +846,9 @@ def fork(remote, pin, out):
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(body)
-            except Exception:
-                relay_log.write('failed handler\n')
+            except Exception as e:
+                # Type name only: messages may embed the archive URL.
+                relay_log.write('failed handler ' + type(e).__name__ + '\n')
                 self.send_error(502, 'archive relay failed')
     clean = git_state(out)
     relay_log = open(out/'relay.log', 'w', buffering=1)
