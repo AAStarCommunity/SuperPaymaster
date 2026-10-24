@@ -131,10 +131,49 @@ Require active gas tuple `(440000,420000,5000,340000)`, an empty pending queue, 
 
 Unpause, Registry reactivation, guardian changes, and service restoration require a separate later package.
 
+## Measured gas and CREATE reservoir policy
+
+The first operator bootstrap passed A3a on 4e8874b, then failed the upgrade deploy's `pre_send_gas`: its estimate exceeded the old fixed 15,000,000 limit. That limit and the fixed limits for every other upgrade step are removed. Schema 2 starts with a transaction skeleton and freezes gas fields only after fork calibration. Old schema-1 upgrade plans must be regenerated.
+
+For every step, record `estimateGas` from the archive RPC, `localEstimateGas` from the authenticated local engine, and `forkGasUsed` from a successful mined pilot. Archive estimation uses the original pin, cumulative state overrides from A3a and all completed upgrade transactions, and the planned execution timestamp. Thus the archive estimate observes the same prospective state as the local estimate. Snapshot trials do not enter that cumulative state.
+
+The ordinary limit is `ceil(max(estimateGas, localEstimateGas, forkGasUsed) * 13 / 10)`. Every CREATE also records `minedGasMinimum`, and includes it in the same maximum. Other steps record a null minimum. Limits and sender budgets are recomputed from those measurements. No per-step fixed limit is a fallback.
+
+### Mined minimum, not call success
+
+The operator's RR matrix at branch `cc125/rr-matrix`, commit `00b9ee2968425cbad0efc09bd77e9ca9a777b38a`, contains `docs/design/aoa-balance-mode/data/rams-rr-matrix/REPORT.md` and `frame-calibration/nightly-4e8874b.json`. Those local git objects were read for this fix. The report states that `eth_call` and `eth_estimateGas` do not apply the EIP-8037 regular-gas cap. A successful call or estimate therefore cannot establish that an above-cap deploy succeeds when mined.
+
+For every CREATE, execute snapshot trials on the authenticated fork. Each trial sends the exact planned transaction at gas g and the same timestamp, waits for its mined receipt, verifies the mined transaction identity, checks status, and reverts the snapshot. Nonces and Safe nonce must match their pre-trial values after restoration. Binary-search the success boundary to a one-gas interval. Start with a successful upper trial at 60,000,000; if that transaction fails, stop rather than claiming that a larger limit will help. The lower search bound respects intrinsic gas and the calldata floor to avoid treating an invalid RPC submission as a mined failure.
+
+Record the minimum and the trial ledger of gas limits, transaction hashes, statuses, and gas used. The SP constructor also CREATEs the Admin extension, so this search applies even when estimates suggest a sub-cap deployment. A deterministic success boundary is assumed only for the fresh, fixed candidate creation code; a failed high trial never establishes a minimum.
+
+At the proposed margin limit, mine another pilot and capture gas used. Recompute the margin if gas used raises the maximum. Require a stable limit within four pilots; otherwise fail. Revert every pilot before the actual package transaction. The final receipt must match the recorded gas used and timestamp.
+
+### Narrow above-cap exception
+
+A3a retains its default `GAS_CAP = 2^24`. The upgrade executor permits a final limit above that cap only when all these checks pass:
+
+1. The transaction has no destination and is a top-level CREATE.
+2. The measured mined minimum is strictly greater than `floor(2^24 * 10 / 13)`. This defines the requested `2^24 - margin` threshold using the same 30% headroom: `margin = 2^24 - floor(2^24 * 10 / 13)`.
+3. A successful deploy's `debug_traceTransaction` first struct-log step has a nonzero `stateGasReservoir`. Record `rrRequired: true` and `rrWitness`, including engine commit, transaction hash, submitted limit, step index 0, PC, depth, regular gas, and reservoir. The witness must come from the top-level frame, match the planned limit and pinned engine, and fit within the excess over the regular cap.
+4. The submitted limit is at most 60,000,000, including the full 13/10 margin. Do not clamp a larger measured limit to the ceiling.
+
+Every other final transaction stays at or below 2^24, with `rrRequired: false` and a null witness. Exploratory high-gas CREATE trials are local snapshots only; they cannot become accepted package steps without the complete measured policy and witness. The shared A3a receipt/quantity helpers have explicit optional caps for those callers, while every existing A3a caller retains the original default. The 4e8874b pin and the operating-window teardown marker are unchanged.
+
+This exception uses EIP-8037 as intended: the reservoir pays protocol state gas while regular execution gas remains capped. Real Sepolia transactions above 2^24 exist. The calibration file includes mined limits 27,071,391 and 49,977,564 with nonzero first-frame reservoirs, matched by 4e8874b. These are evidence of the protocol behavior, not measurements of this implementation's deployment need.
+
+RR's ERC-4337 bundler-reimbursement concern applies to `handleOps`. A plain EOA-paid implementation CREATE has no `handleOps`, paymaster settlement, or bundler reimbursement. It still pays normal protocol transaction fees, including state gas. This policy does not authorize RR for Safe governance calls, operator pauses, or service restoration.
+
+### Independent replay and pre-send checks
+
+`pre_send` validates the measured limit, flag, CREATE restriction, witness, ceiling, and `planned gas >= recorded mined minimum` before checking the fresh estimate. A low estimate cannot override a higher mined requirement. Independent simulation binary-searches CREATE again before its actual send and requires the minimum and both estimates to equal the frozen measurements. It then checks final receipt gas used and the first-step witness against the frozen plan. A changed minimum fails even when the current estimate is below the planned limit.
+
+Live `plan` remains read-only against both archive endpoints, but now starts an isolated fork to measure every proposed upgrade step. The bootstrap continuation receives A3a's cumulative archive overrides while staying on the same fork and relay. Plans and hashes are written only after all measurements, controls, budgets, and the final gate pass. No measurement, broadcast, or signing was performed against a public RPC while authoring this fix.
+
 ## Executor architecture
 
 The new module must import helpers from `script/a3a/a3a_exec.py`, including `RPC`, `Gate`, `need`, `exact_keys`, `plan_json`, calldata/read helpers, archive rebuilding, `fork`, engine authentication, receipts, FAILURE recording, and negative controls where their interfaces apply. A3a's APNTs-specific plan and runtime assumptions require SP-specific validation around those helpers, not copied helper bodies.
 
-`plan` reads pinned state and produces an unsigned record. Independent `simulate --plan` validates exact field sets and re-derives all transactions. Rebuild the selected committed candidate in a fresh git archive, including recorded submodules, without network. Bind artifacts and execution inputs to the reviewed plan hash. Use nightly `926eb1d087523f1de437e3c0c49ea6d26407e827`, `--hardfork amsterdam --order fifo`, the loopback read-only relay, and A3a's `anvil_nodeInfo` and PID/port authentication. `pre_send` re-reads chain state for every step. `sign` and `send` refuse with rc=3. Every failed gate emits FAILURE.
+`plan` reads pinned state and produces an unsigned record. Independent `simulate --plan` validates exact field sets and re-derives all transactions. Rebuild the selected committed candidate in a fresh git archive, including recorded submodules, without network. Bind artifacts and execution inputs to the reviewed plan hash. Use nightly `4e8874b2bdc840929585ca73e170993c50a4a531`, `--hardfork amsterdam --order fifo`, the loopback read-only relay, and A3a's `anvil_nodeInfo` and PID/port authentication. `pre_send` re-reads chain state for every step. `sign` and `send` refuse with rc=3. Every failed gate emits FAILURE.
 
 Offline tests cover plan mutations, pinned scans, governance preconditions, Safe state, controls, and orchestration. CI runs them alongside the A3a suite using the same Python and Foundry pins. Offline test counts are reported in the executor README. Fork controls and successful archive simulation remain for the operator to run; no live result is asserted.

@@ -48,6 +48,18 @@ def pin():
         guardianBefore=a.ZERO)
 
 
+def measured_plan(state=None, digest=None):
+    p = ex.build_plan(state or pin(), digest)
+    for i, step in enumerate(p['steps']):
+        step.update(executionTimestamp=p['pin']['stateTimestamp']+i+1, estimateGas=100000,
+                    localEstimateGas=110000, forkGasUsed=90000,
+                    minedGasMinimum=80000 if step['tx']['to'] is None else None,
+                    rrRequired=False, rrWitness=None)
+        step['tx']['gas'] = hex(ex.margin_limit(100000,110000,90000))
+    ex.budget(p)
+    return p
+
+
 def event(topic, who, block=10, index=0, target=ex.REG, extra=None):
     return dict(address=target, topics=[topic, *([] if extra is None else extra), '0x'+who[2:].zfill(64)],
         data='0x', blockNumber=hex(block), blockHash='0x'+'cd'*32, transactionHash='0x'+format(index+1, '064x'),
@@ -78,6 +90,52 @@ class InventoryRPC:
         raise AssertionError((method, params))
 
 
+class GasFork:
+    """Mined status has an independent threshold; estimates deliberately understate it."""
+    local = True
+    def __init__(self, minimum=20000000, used=18000000, estimate=50000):
+        self.minimum, self.used, self.estimate = minimum, used, estimate
+        self.state = {'nonce':13000,'safeNonce':17,'timestamp':1000,'tx':None,'receipt':None}
+        self.snapshots, self.requests, self.next_snapshot = {}, [], 0
+        self.reservoir = True
+        self.fail_trace = False
+
+    def __call__(self, method, params):
+        self.requests.append((method,copy.deepcopy(params)))
+        if method == 'evm_snapshot':
+            self.next_snapshot += 1
+            self.snapshots[self.next_snapshot] = copy.deepcopy(self.state)
+            return self.next_snapshot
+        if method == 'evm_revert':
+            self.state = self.snapshots.pop(params[0])
+            return True
+        if method == 'evm_setNextBlockTimestamp':
+            self.state['timestamp'] = params[0]
+            return True
+        if method == 'eth_getTransactionCount': return hex(self.state['nonce'])
+        if method == 'eth_call': return '0x'+format(self.state['safeNonce'],'064x')
+        if method == 'eth_estimateGas': return hex(self.estimate)
+        if method == 'eth_sendTransaction':
+            tx = copy.deepcopy(params[0])
+            assert int(tx['nonce'],16) == self.state['nonce']
+            self.state['nonce'] += 1
+            gas = int(tx['gas'],16)
+            h = '0x'+hashlib.sha256(json.dumps(tx,sort_keys=True).encode()).hexdigest()
+            self.state['tx'] = dict(tx, to=tx.get('to'), input=tx['data'], type='0x2')
+            self.state['receipt'] = dict(transactionHash=h, gasUsed=hex(self.used if gas >= self.minimum else gas),
+                status='0x1' if gas >= self.minimum else '0x0', blockNumber='0x101',
+                contractAddress=HOLDER if tx.get('to') is None else None)
+            return h
+        if method == 'eth_getTransactionByHash': return self.state['tx']
+        if method == 'eth_getTransactionReceipt': return self.state['receipt']
+        if method == 'debug_traceTransaction':
+            if self.fail_trace: raise RuntimeError('trace unavailable')
+            gas = int(self.state['tx']['gas'],16)
+            return {'structLogs':[dict(pc=0,depth=1,gas=a.GAS_CAP-100000,
+                stateGasReservoir=gas-a.GAS_CAP if self.reservoir else 0)]}
+        raise AssertionError((method,params))
+
+
 class ExecutorTests(unittest.TestCase):
     def setUp(self):
         self.b = patch.object(ex, 'build', return_value=copy.deepcopy(ART))
@@ -85,7 +143,7 @@ class ExecutorTests(unittest.TestCase):
         self.addCleanup(self.b.stop)
 
     def plan(self):
-        return ex.build_plan(pin())
+        return measured_plan()
 
     def fails(self, gate, fn, *args):
         with self.assertRaises(a.Gate) as caught:
@@ -405,7 +463,8 @@ class ExecutorTests(unittest.TestCase):
                 order.append('a3a_rehearsal')
                 after(local)
             stack.enter_context(patch.object(a, 'rehearse', side_effect=rehearse))
-            def run(rpc, plan, out):
+            def run(rpc, plan, out, **kwargs):
+                self.assertTrue(kwargs["calibrate"])
                 self.assertIs(rpc, local)
                 order.append('upgrade')
                 return {'status': 'PASS'}
@@ -415,11 +474,24 @@ class ExecutorTests(unittest.TestCase):
             self.assertEqual(order, ['a3a_rehearsal', 'collect_post_a3a', 'upgrade'])
             self.assertEqual(json.loads((Path(d)/'combined-simulate.json').read_text())['phases'], ['a3a', 'upgrade'])
 
-    def test_plan_is_read_only_and_requires_independent_pin(self):
+    def test_plan_calibrates_on_fork_and_keeps_remote_read_only(self):
         p = pin()
-        with tempfile.TemporaryDirectory() as d, patch.object(a, 'git_state', return_value={}), patch.object(ex, 'collect', side_effect=[p, p, p]) as collect:
+        with tempfile.TemporaryDirectory() as d, contextlib.ExitStack() as stack:
+            out = Path(d)
+            (out/'engine.stderr').write_text('')
+            stack.enter_context(patch.object(a, 'git_state', return_value={}))
+            collect = stack.enter_context(patch.object(ex, 'collect', side_effect=[p,p,p]))
+            stack.enter_context(patch.object(a, 'relay_evidence'))
+            local = SimpleNamespace(local=True)
+            stack.enter_context(patch.object(a, 'fork', return_value=contextlib.nullcontext(local)))
             remote, secondary = Mock(), Mock()
-            result = ex.plan_command(remote, secondary, BLOCK, Path(d))
+            def calibrate(rpc, plan, output, **kwargs):
+                self.assertIs(rpc, local)
+                self.assertIs(kwargs['remote'], remote)
+                self.assertTrue(kwargs['calibrate'])
+                plan.update(measured_plan(p))
+            stack.enter_context(patch.object(ex, 'run_upgrade', side_effect=calibrate))
+            result = ex.plan_command(remote, secondary, BLOCK, out)
             self.assertEqual(result, self.plan())
             self.assertEqual(collect.call_args_list[0].args, (remote, BLOCK))
             self.assertEqual(collect.call_args_list[1].args, (secondary, BLOCK))
@@ -482,7 +554,7 @@ class ExecutorTests(unittest.TestCase):
             if sig == 'approvedHashes(address,bytes32)': return changes.get('approved', 1)
             raise AssertionError(sig)
         stack.enter_context(patch.object(a, 'word', side_effect=word))
-        stack.enter_context(patch.object(a, 'call', return_value=changes.get('safe_hash', step.get('safeHash', a.ZERO32))))
+        stack.enter_context(patch.object(a, 'call', side_effect=lambda rpc, target, sig, *args: p['pin']['roleConfig'] if sig == 'getRoleConfig(bytes32)' else changes.get('safe_hash', step.get('safeHash', a.ZERO32))))
         def rpc(method, params):
             if method == 'eth_chainId': return hex(a.CHAIN)
             if method == 'eth_getStorageAt': return '0x'+p['pin']['implementation'][2:].zfill(64)
@@ -520,6 +592,13 @@ class ExecutorTests(unittest.TestCase):
         stack, rpc, plan, step = self.pre_send_context(changes={'gas': a.GAS_CAP})
         with stack:
             self.fails('pre_send_gas', ex.pre_send, step, rpc, plan)
+
+    def test_pre_send_low_estimate_cannot_hide_higher_mined_minimum(self):
+        stack, rpc, plan, step = self.pre_send_context('deploy', {'gas': 100000})
+        step['minedGasMinimum'] = 20000000
+        step['rrRequired'] = True
+        with stack:
+            self.fails('pre_send_mined_minimum', ex.pre_send, step, rpc, plan)
 
     def test_pre_send_rejects_insufficient_balance(self):
         stack, rpc, plan, step = self.pre_send_context(changes={'balance': 1})
@@ -695,6 +774,238 @@ class ExecutorTests(unittest.TestCase):
         ex.timelock_creation(rpc,3)
         tx['input'] = init+'00'
         self.fails('a3a_timelock_creation_input', ex.timelock_creation,rpc,3)
+
+
+    def rr_step(self, minimum=20000000, estimate=100000, used=18000000):
+        step = self.plan()['steps'][0]
+        limit = ex.margin_limit(minimum,estimate,used)
+        step.update(estimateGas=estimate,localEstimateGas=estimate,forkGasUsed=used,
+                    minedGasMinimum=minimum,rrRequired=True,
+                    rrWitness=dict(engineCommit=a.COMMIT,transactionHash=HASH,gasLimit=limit,
+                    stepIndex=0,pc=0,depth=1,gas=a.GAS_CAP-100000,stateGasReservoir=limit-a.GAS_CAP))
+        step['tx']['gas'] = hex(limit)
+        return step
+
+    def test_rr_create_with_mined_minimum_and_first_step_witness_is_allowed(self):
+        step = self.rr_step()
+        ex.validate_gas(step)
+        self.assertGreater(int(step['tx']['gas'],16),a.GAS_CAP)
+
+    def test_non_create_above_regular_cap_fails(self):
+        step = self.rr_step()
+        step['tx']['to'] = ex.SP
+        step['minedGasMinimum'] = None
+        self.fails('rr_create_only',ex.validate_gas,step)
+
+    def test_rr_create_requires_actual_mined_need(self):
+        step = self.rr_step(minimum=10000000,estimate=20000000)
+        self.fails('rr_mined_need',ex.validate_gas,step)
+
+    def test_rr_threshold_is_strict_and_uses_the_13_over_10_headroom(self):
+        self.assertEqual(ex.RR_THRESHOLD,a.GAS_CAP*10//13)
+        step = self.rr_step(minimum=ex.RR_THRESHOLD,estimate=20000000)
+        self.fails('rr_mined_need',ex.validate_gas,step)
+
+    def test_rr_create_without_witness_fails(self):
+        step = self.rr_step()
+        step['rrWitness'] = None
+        self.fails('rr_witness_keys',ex.validate_gas,step)
+
+    def test_rr_create_zero_reservoir_fails(self):
+        step = self.rr_step()
+        step['rrWitness']['stateGasReservoir'] = 0
+        self.fails('rr_witness_stateGasReservoir',ex.validate_gas,step)
+
+    def test_rr_create_witness_from_later_step_fails(self):
+        step = self.rr_step()
+        step['rrWitness']['stepIndex'] = 1
+        self.fails('rr_first_step',ex.validate_gas,step)
+
+    def test_rr_create_witness_from_old_engine_fails(self):
+        step = self.rr_step()
+        step['rrWitness']['engineCommit'] = '926eb1d087523f1de437e3c0c49ea6d26407e827'
+        self.fails('rr_witness_engine',ex.validate_gas,step)
+
+    def test_rr_create_above_60m_fails(self):
+        step = self.rr_step()
+        step['tx']['gas'] = hex(60000001)
+        self.fails('create_gas_ceiling',ex.validate_gas,step)
+
+    def test_rr_create_exactly_60m_is_allowed_with_matching_measurements(self):
+        step = self.rr_step(minimum=46153846,estimate=100000,used=30000000)
+        self.assertEqual(step['tx']['gas'],hex(60000000))
+        ex.validate_gas(step)
+
+    def test_a3a_default_cap_still_rejects_rr_create(self):
+        tx = self.rr_step()['tx']
+        self.fails('gas_cap',a.tx_rpc,tx)
+
+    def test_mined_search_ignores_low_estimate_and_finds_exact_success_boundary(self):
+        rpc = GasFork()
+        tx = ex.build_plan(pin())['steps'][0]['tx']
+        original = copy.deepcopy(rpc.state)
+        minimum,trials = ex.mined_minimum(rpc,tx,2000)
+        self.assertEqual(minimum,20000000)
+        self.assertEqual(rpc.state,original)
+        statuses = {r['gasLimit']:r['status'] for r in trials}
+        self.assertEqual(statuses[minimum],'0x1')
+        self.assertEqual(statuses[minimum-1],'0x0')
+        self.assertLessEqual(len(trials),28)
+        self.assertFalse(any(method == 'eth_estimateGas' for method,params in rpc.requests))
+
+    def test_mined_search_all_trials_roll_back_nonces_and_pending_timestamp(self):
+        rpc = GasFork(minimum=16000000,used=15000000)
+        before = copy.deepcopy(rpc.state)
+        minimum,_ = ex.mined_minimum(rpc,ex.build_plan(pin())['steps'][0]['tx'],2000)
+        self.assertEqual(minimum,16000000)
+        self.assertEqual(rpc.state,before)
+        self.assertEqual(rpc.snapshots,{})
+
+    def test_mined_search_no_success_at_ceiling_fails_closed(self):
+        rpc = GasFork(minimum=60000001)
+        before = copy.deepcopy(rpc.state)
+        self.fails('mined_search_high_success',ex.mined_minimum,rpc,ex.build_plan(pin())['steps'][0]['tx'],2000)
+        self.assertEqual(rpc.state,before)
+
+    def test_mined_search_is_only_for_create(self):
+        self.fails('mined_search_create_only',ex.mined_minimum,GasFork(),self.plan()['steps'][1]['tx'],2000)
+
+    def test_probe_refuses_remote(self):
+        self.fails('probe_local',ex.probe,SimpleNamespace(local=False),self.plan()['steps'][0]['tx'],20000000,2000)
+
+    def test_probe_restores_state_when_rr_trace_is_unavailable(self):
+        rpc = GasFork()
+        rpc.fail_trace = True
+        before = copy.deepcopy(rpc.state)
+        with self.assertRaises(RuntimeError):
+            ex.probe(rpc,self.plan()['steps'][0]['tx'],26000000,2000,witness=True)
+        self.assertEqual(rpc.state,before)
+
+    def test_probe_rejects_zero_reservoir_on_pinned_engine(self):
+        rpc = GasFork()
+        rpc.reservoir = False
+        self.fails('rr_nonzero_reservoir',ex.probe,rpc,self.plan()['steps'][0]['tx'],26000000,2000,True)
+        self.assertEqual(rpc.state['nonce'],13000)
+
+    def test_calibrate_create_records_all_measurements_and_uses_mined_minimum(self):
+        p = ex.build_plan(pin())
+        step = p['steps'][0]
+        rpc = GasFork(20000000,18000000,90000)
+        remote = Mock(return_value=hex(100000))
+        overrides = {ex.SP:{'nonce':'0x2','stateDiff':{a.ZERO32:HASH}}}
+        evidence = ex.measure_step(remote,rpc,p,step,overrides,2000,True)
+        self.assertEqual(step['estimateGas'],100000)
+        self.assertEqual(step['localEstimateGas'],90000)
+        self.assertEqual(step['forkGasUsed'],18000000)
+        self.assertEqual(step['minedGasMinimum'],20000000)
+        self.assertEqual(step['tx']['gas'],hex(26000000))
+        self.assertTrue(step['rrRequired'])
+        self.assertGreater(step['rrWitness']['stateGasReservoir'],0)
+        self.assertEqual(evidence['estimateContext']['stateOverrides'],overrides)
+        sent = remote.call_args.args[1]
+        self.assertNotIn('gas',sent[0])
+        self.assertEqual(sent[1:],[p['pin']['block'],overrides,{'time':hex(2000)}])
+        self.assertEqual(rpc.state['nonce'],13000)
+
+    def test_calibrate_regular_step_measures_receipt_gas_used_with_13_over_10(self):
+        p = ex.build_plan(pin())
+        step = p['steps'][1]
+        step['tx']['nonce'] = hex(13000)
+        rpc = GasFork(100000,130000,110000)
+        ex.measure_step(Mock(return_value=hex(120000)),rpc,p,step,{},2000,True)
+        self.assertEqual(step['tx']['gas'],hex(169000))
+        self.assertEqual([step[k] for k in ('estimateGas','localEstimateGas','forkGasUsed')],[120000,110000,130000])
+        self.assertIsNone(step['minedGasMinimum'])
+        self.assertFalse(step['rrRequired'])
+        self.assertIsNone(step['rrWitness'])
+
+    def test_frozen_replay_rechecks_mined_minimum_even_if_estimate_is_low(self):
+        p = ex.build_plan(pin())
+        step = p['steps'][0]
+        rpc = GasFork(20000000,18000000,90000)
+        remote = Mock(return_value=hex(100000))
+        ex.measure_step(remote,rpc,p,step,{},2000,True)
+        rpc.minimum = 28000000
+        self.assertLess(int(step['tx']['gas'],16),rpc.minimum)
+        self.fails('replay_minedGasMinimum',ex.measure_step,remote,rpc,p,step,{},2000,False)
+        self.assertEqual(rpc.state['nonce'],13000)
+
+    def test_frozen_replay_rechecks_both_estimates(self):
+        p = ex.build_plan(pin())
+        step = p['steps'][0]
+        rpc = GasFork(20000000,18000000,90000)
+        remote = Mock(return_value=hex(100000))
+        ex.measure_step(remote,rpc,p,step,{},2000,True)
+        remote.return_value = hex(100001)
+        self.fails('replay_estimateGas',ex.measure_step,remote,rpc,p,step,{},2000,False)
+        remote.return_value = hex(100000)
+        rpc.estimate = 90001
+        self.fails('replay_localEstimateGas',ex.measure_step,remote,rpc,p,step,{},2000,False)
+
+    def test_unmeasured_plan_has_no_invented_gas_limits(self):
+        p = ex.build_plan(pin())
+        self.assertNotIn('budgetsWei',p)
+        for step in p['steps']:
+            self.assertNotIn('gas',step['tx'])
+        ex.validate_plan(p,frozen=False)
+        with self.assertRaises(a.Gate): ex.validate_plan(p,frozen=True)
+
+    def test_frozen_plan_gas_fields_are_exact_and_recomputed(self):
+        p = self.plan()
+        p['steps'][1]['tx']['gas'] = hex(143001)
+        self.fails('measured_gas_limit',ex.validate_plan,p)
+
+    def test_measurement_booleans_are_not_gas_numbers(self):
+        p = self.plan()
+        p['steps'][1]['forkGasUsed'] = True
+        self.fails('measurement_forkGasUsed',ex.validate_plan,p)
+
+
+    def test_frozen_measurement_replay_does_not_rewrite_plan(self):
+        p = ex.build_plan(pin())
+        rpc = GasFork(20000000,18000000,90000)
+        remote = Mock(return_value=hex(100000))
+        ex.measure_step(remote,rpc,p,p['steps'][0],{},2000,True)
+        before = copy.deepcopy(p)
+        ex.measure_step(remote,rpc,p,p['steps'][0],{},2000,False)
+        self.assertEqual(p,before)
+
+    def test_rr_budget_uses_measured_limit_instead_of_old_15m(self):
+        p = self.plan()
+        p['steps'][0] = self.rr_step()
+        ex.budget(p)
+        expected = sum(int(s['tx']['gas'],16)*a.MAX_FEE for s in p['steps'] if s['tx']['from'] == ex.DEPLOYER)
+        self.assertEqual(p['budgetsWei']['deployer'],expected)
+        p['pin']['senders']['deployer']['balance'] = expected-1
+        self.fails('budget_deployer',ex.budget,p)
+
+    def test_probe_non_create_above_cap_never_sends(self):
+        rpc = GasFork()
+        self.fails('gas_cap',ex.probe,rpc,self.plan()['steps'][1]['tx'],a.GAS_CAP+1,2000)
+        self.assertEqual(rpc.requests,[])
+
+    def test_rr_witness_requires_first_struct_log(self):
+        rpc = Mock(return_value={'structLogs':[]})
+        self.fails('rr_struct_logs',ex.reservoir_witness,rpc,self.rr_step()['tx'],{'status':'0x1','transactionHash':HASH})
+
+    def test_upgrade_replay_stops_before_persisting_create_if_minimum_has_increased(self):
+        p = self.plan()
+        p['steps'][0] = self.rr_step()
+        p['steps'][0]['executionTimestamp'] = 1001
+        ex.budget(p)
+        rpc = GasFork(28000000,18000000,100000)
+        rpc.engine_process = object()
+        remote = Mock(return_value=hex(100000))
+        with tempfile.TemporaryDirectory() as d, contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(ex,'mint_control',return_value={'control':'safeMint_positive','calldata':'0x1234'}))
+            stack.enter_context(patch.object(ex,'pre_send',side_effect=lambda step,*args,**kwargs:step['tx']))
+            stack.enter_context(patch.object(a,'process_alive'))
+            stack.enter_context(patch.object(a,'block_data',return_value={'number':BLOCK,'timestamp':hex(1000)}))
+            traces = stack.enter_context(patch.object(a,'trace_overrides'))
+            self.fails('replay_minedGasMinimum',ex.run_upgrade,rpc,p,Path(d),remote,False)
+            self.assertEqual(rpc.state['nonce'],13000)
+            self.assertFalse((Path(d)/'upgrade-simulate.json').exists())
+            traces.assert_not_called()
 
 
 def mutation_test(change):

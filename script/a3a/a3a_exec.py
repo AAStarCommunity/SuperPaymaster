@@ -924,9 +924,9 @@ def fork(remote, pin, out):
 TX_KEYS = frozenset(('to', 'data', 'value', 'nonce', 'from', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas', 'gas'))
 
 
-def tx_rpc(tx):
+def tx_rpc(tx, gas_cap=GAS_CAP):
     need('tx_rpc_keys', sorted(set(tx)-TX_KEYS), [])
-    tx_quantities(tx)
+    tx_quantities(tx, gas_cap=gas_cap)
     return {k: v for k, v in tx.items() if k in TX_KEYS and v is not None}
 
 
@@ -943,13 +943,15 @@ def mined_identity(mined, tx, label):
         need(label+'_mined_gas', mined.get('gas'), tx['gas'])
 
 
-def receipt(rpc, tx, status='0x1'):
-    h = typed(rpc('eth_sendTransaction', [tx_rpc(tx)]), HASH32)
+def receipt(rpc, tx, status='0x1', gas_cap=GAS_CAP):
+    h = typed(rpc('eth_sendTransaction', [tx_rpc(tx, gas_cap=gas_cap)]), HASH32)
     # Heavy txs under --steps-tracing can be mined well after eth_sendTransaction returns: allow 60 s.
     for _ in range(1200):
         r = rpc('eth_getTransactionReceipt', [h])
         if r is not None:
-            need('receipt_status', r.get('status'), status)
+            need('receipt_status_valid', r.get('status') in ('0x0', '0x1'), True)
+            if status is not None:
+                need('receipt_status', r.get('status'), status)
             qty(r['gasUsed'])
             return r
         time.sleep(.05)
@@ -1145,11 +1147,11 @@ def validate_pin(pin):
     need('pin_timestamp', pin['timestamp'] >= ACTIVATION, True)
 
 
-def tx_quantities(tx):
+def tx_quantities(tx, gas_cap=GAS_CAP):
     for field in ('value', 'nonce', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas', 'gas'):
         if field in tx: qty(tx[field])
     if 'gas' in tx:
-        need('gas_cap', qty(tx['gas']) <= GAS_CAP, True)
+        need('gas_cap', qty(tx['gas']) <= gas_cap, True)
 
 
 def validate_plan(plan, frozen=False):
@@ -1397,6 +1399,7 @@ def rehearse(remote, plan, out, calibrate=False, after=None):
             need('frozen_budgets', checked['budgetsWei'], plan['budgetsWei'])
             relay_evidence(out, live=True)
             need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
+            local.archive_overrides = copy.deepcopy(overrides)
             after(local)
     completion(records, controls)
     relay_evidence(out)

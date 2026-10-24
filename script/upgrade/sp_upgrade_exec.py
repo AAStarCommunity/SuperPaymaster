@@ -27,6 +27,13 @@ CONFIG_TYPE = '(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,
 ROLES = {'DEFAULT_ADMIN': [TL], 'PROPOSER': [SAFE], 'EXECUTOR': [SAFE], 'CANCELLER': [SAFE]}
 SP_IMMUTABLES = ('entryPoint', 'REGISTRY', 'ETH_USD_PRICE_FEED', '__self', 'EXTENSION')
 ART_NAMES = ('SuperPaymaster', 'SuperPaymasterAdmin', 'TimelockController', 'APNTsCapped')
+MAX_CREATE_GAS = 60_000_000
+# Headroom implied by the same 13/10 margin, rather than an arbitrary gas allowance.
+RR_THRESHOLD = a.GAS_CAP*a.MARGIN_DEN//a.MARGIN_NUM
+MEASURED_KEYS = {'executionTimestamp', 'estimateGas', 'localEstimateGas', 'forkGasUsed',
+                 'minedGasMinimum', 'rrRequired', 'rrWitness'}
+GAS_POLICY = dict(margin=[a.MARGIN_NUM, a.MARGIN_DEN], regularGasCap=a.GAS_CAP,
+                  rrThreshold=RR_THRESHOLD, maxCreateGas=MAX_CREATE_GAS)
 RECIPIENT = '0x0000000000000000000000000000000000a6e125'
 CONTROL_IDS = ['safeMint_positive', 'safeMint_negative', 'failed_pause_readback',
                'early_upgrade', 'non_safe_execute', 'cancel_reschedule', 'early_activation']
@@ -392,42 +399,215 @@ def build_plan(pin, a3a_digest=None):
     counters = {v['address']: v['nonce'] for v in pin['senders'].values()}
     steps = []
     safe_n = pin['safeNonce']
-    def add(sid, who, to, data, gas, **extra):
+    def add(sid, who, to, data, **extra):
         tx = dict(to=to, data=data, value='0x0', nonce=hex(counters[who]), **{'from': who},
-                  chainId=hex(a.CHAIN), maxFeePerGas=hex(a.MAX_FEE), maxPriorityFeePerGas=hex(a.PRIORITY), gas=hex(gas))
+                  chainId=hex(a.CHAIN), maxFeePerGas=hex(a.MAX_FEE), maxPriorityFeePerGas=hex(a.PRIORITY))
         steps.append(dict(id=sid, tx=tx, safeNonce=safe_n, **extra))
         counters[who] += 1
-    add('deploy', DEPLOYER, None, init, 15000000)
-    add('freeze', DEPLOYER, REG, freeze_calldata(pin['roleConfig']), 1000000)
+    add('deploy', DEPLOYER, None, init)
+    add('freeze', DEPLOYER, REG, freeze_calldata(pin['roleConfig']))
     for i, who in enumerate(pin['pauseList']):
-        add('pause_'+str(i), DEPLOYER, SP, a.calldata('setOperatorPaused(address,bool)', who, 'true'), 300000, operator=who)
-    add('transfer', DEPLOYER, SP, a.calldata('transferOwnership(address)', TL), 300000)
+        add('pause_'+str(i), DEPLOYER, SP, a.calldata('setOperatorPaused(address,bool)', who, 'true'), operator=who)
+    add('transfer', DEPLOYER, SP, a.calldata('transferOwnership(address)', TL))
     for opname, op in (('upgrade', first), ('activation', second)):
         for verb in ('schedule', 'execute'):
             inner = op_call(op, verb)
             h = safe_hash(inner, safe_n)
             sid = opname+'_'+verb
-            add(sid+'_approve', a.APPROVER, SAFE, a.calldata('approveHash(bytes32)', h), 200000,
+            add(sid+'_approve', a.APPROVER, SAFE, a.calldata('approveHash(bytes32)', h),
                 safeHash=h, inner=inner, operation=opname)
-            add(sid+'_exec', a.EXECUTOR, SAFE, safe_payload(inner), 2000000,
+            add(sid+'_exec', a.EXECUTOR, SAFE, safe_payload(inner),
                 safeHash=h, inner=inner, operation=opname)
             safe_n += 1
-    budgets = {label: sum(a.qty(s['tx']['gas'])*a.MAX_FEE for s in steps if s['tx']['from'] == who)
+    return dict(schema=2, route='Safe-A6e', a3aPlanSha256=a3a_digest, pin=pin, rebuild=artifacts,
+                implementation=new_impl, extension=extension, operations={'upgrade': first, 'activation': second},
+                steps=steps, gasPolicy=copy.deepcopy(GAS_POLICY), gasParams=list(GAS), controls=list(CONTROL_IDS))
+
+
+def budget(plan):
+    budgets = {label: sum(a.qty(s['tx']['gas'])*a.qty(s['tx']['maxFeePerGas'])
+                         for s in plan['steps'] if s['tx']['from'] == who)
                for label, who in a.SENDERS.items()}
     for label, required in budgets.items():
-        a.need('budget_'+label, pin['senders'][label]['balance'] >= required, True)
-    return dict(schema=1, route='Safe-A6e', a3aPlanSha256=a3a_digest, pin=pin, rebuild=artifacts,
-                implementation=new_impl, extension=extension, operations={'upgrade': first, 'activation': second},
-                steps=steps, budgetsWei=budgets, gasParams=list(GAS), controls=list(CONTROL_IDS))
+        a.need('budget_'+label, plan['pin']['senders'][label]['balance'] >= required, True)
+    plan['budgetsWei'] = budgets
 
 
-def validate_plan(plan):
-    a.exact_keys('plan_keys', plan, ('schema', 'route', 'a3aPlanSha256', 'pin', 'rebuild', 'implementation',
-                                   'extension', 'operations', 'steps', 'budgetsWei', 'gasParams', 'controls'))
-    validate_pin(plan['pin'])
+def margin_limit(*values):
+    return (max(values)*a.MARGIN_NUM+a.MARGIN_DEN-1)//a.MARGIN_DEN
+
+
+def validate_gas(step):
+    tx = step['tx']
+    # Check the mined requirement before consulting estimates. The latter ignore the RR cap.
+    minimum = step['minedGasMinimum']
+    if tx['to'] is None:
+        a.need('create_mined_minimum', type(minimum) is int and minimum > 0, True)
+        a.need('pre_send_mined_minimum', a.qty(tx['gas']) >= minimum, True)
+    else:
+        a.need('non_create_mined_minimum', minimum, None)
+    for key in ('estimateGas', 'localEstimateGas', 'forkGasUsed', 'executionTimestamp'):
+        a.need('measurement_'+key, type(step[key]) is int and step[key] > 0, True)
+    limit = a.qty(tx['gas'])
+    a.need('create_gas_ceiling', limit <= MAX_CREATE_GAS, True)
+    rr = limit > a.GAS_CAP
+    a.need('rr_required_flag', step['rrRequired'], rr)
+    if rr:
+        a.need('rr_create_only', tx['to'], None)
+        a.need('rr_mined_need', minimum > RR_THRESHOLD, True)
+        witness = step['rrWitness']
+        a.exact_keys('rr_witness_keys', witness, ('engineCommit', 'transactionHash', 'gasLimit',
+                                               'stepIndex', 'pc', 'depth', 'gas', 'stateGasReservoir'))
+        a.need('rr_witness_engine', witness['engineCommit'], a.COMMIT)
+        a.typed(witness['transactionHash'], a.HASH32)
+        a.need('rr_witness_gas_limit', witness['gasLimit'], limit)
+        a.need('rr_first_step', witness['stepIndex'], 0)
+        a.need('rr_first_depth', witness['depth'], 1)
+        a.need('rr_first_pc', witness['pc'], 0)
+        for key in ('gas', 'stateGasReservoir'):
+            a.need('rr_witness_'+key, type(witness[key]) is int and witness[key] > 0, True)
+        a.need('rr_regular_cap', witness['gas'] <= a.GAS_CAP, True)
+        a.need('rr_reservoir_bound', witness['stateGasReservoir'] <= limit-a.GAS_CAP, True)
+    else:
+        a.need('non_rr_witness', step['rrWitness'], None)
+    a.tx_quantities(tx, gas_cap=MAX_CREATE_GAS if rr else a.GAS_CAP)
+    a.need('measured_gas_limit', limit, margin_limit(step['estimateGas'], step['localEstimateGas'],
+                                                   step['forkGasUsed'], minimum or 0))
+
+
+def validate_plan(plan, frozen=True):
     expected = build_plan(plan['pin'], plan['a3aPlanSha256'])
-    a.need('plan_derived_identity', plan, expected)
+    a.exact_keys('plan_keys', plan, set(expected) | ({'budgetsWei'} if frozen else set()))
+    validate_pin(plan['pin'])
+    for key in set(expected)-{'steps'}:
+        a.need('plan_derived_'+key, plan[key], expected[key])
+    a.need('plan_step_count', len(plan['steps']), len(expected['steps']))
+    for step, derived in zip(plan['steps'], expected['steps']):
+        a.exact_keys('step_keys', step, set(derived) | (MEASURED_KEYS if frozen else set()))
+        a.exact_keys('tx_keys', step['tx'], set(derived['tx']) | ({'gas'} if frozen else set()))
+        for key in set(derived)-{'tx'}:
+            a.need('plan_step_'+key, step[key], derived[key])
+        for key, value in derived['tx'].items():
+            a.need('plan_tx_'+key, step['tx'][key], value)
+        if frozen:
+            validate_gas(step)
+    if frozen:
+        checked = copy.deepcopy(plan)
+        budget(checked)
+        a.need('plan_budgets', plan['budgetsWei'], checked['budgetsWei'])
     return plan
+
+
+def receipt(rpc, tx, status='0x1'):
+    # The optional cap in the shared helper never changes A3a's default. All raw high-gas
+    # probes here are fork-only CREATEs; final transactions pass validate_gas first.
+    cap = MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP
+    a.need('upgrade_receipt_local', getattr(rpc, 'local', False), True)
+    return a.receipt(rpc, tx, status=status, gas_cap=cap)
+
+
+def probe(rpc, tx, gas, timestamp, witness=False):
+    a.need('probe_local', getattr(rpc, 'local', False), True)
+    trial = dict(tx, gas=hex(gas))
+    a.tx_quantities(trial, gas_cap=MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP)
+    snap = rpc('evm_snapshot', [])
+    before = (a.nonce(rpc, tx['from']), a.word(rpc, SAFE, 'nonce()'))
+    try:
+        rpc('evm_setNextBlockTimestamp', [timestamp])
+        r = receipt(rpc, trial, status=None)
+        a.mined_identity(rpc('eth_getTransactionByHash', [r['transactionHash']]), trial, 'gas_probe')
+        rr = reservoir_witness(rpc, trial, r) if witness and r['status'] == '0x1' else None
+    finally:
+        a.need('gas_probe_restore', rpc('evm_revert', [snap]), True)
+    a.need('gas_probe_nonce_restore', (a.nonce(rpc, tx['from']), a.word(rpc, SAFE, 'nonce()')), before)
+    return r, rr
+
+
+def admission_gas(tx):
+    # Type-2, no access/authorization list. Stay above intrinsic AND EIP-7623 calldata
+    # floor so the search probes mined failures rather than invalid RPC submissions.
+    data = bytes.fromhex(a.typed(tx['data'], a.HEXDATA)[2:])
+    tokens = sum(1 if b == 0 else 4 for b in data)
+    intrinsic = 21000+4*tokens
+    if tx['to'] is None:
+        intrinsic += 32000+2*((len(data)+31)//32)
+    return max(intrinsic, 21000+10*tokens)
+
+
+def mined_minimum(rpc, tx, timestamp):
+    a.need('mined_search_create_only', tx['to'], None)
+    low, high = admission_gas(tx)-1, MAX_CREATE_GAS
+    trials = []
+    def succeeds(gas):
+        r, _ = probe(rpc, tx, gas, timestamp)
+        trials.append(dict(gasLimit=gas, status=r['status'], gasUsed=a.qty(r['gasUsed']), transactionHash=r['transactionHash']))
+        return r['status'] == '0x1'
+    a.need('mined_search_high_success', succeeds(high), True)
+    while high-low > 1:
+        middle = (low+high)//2
+        if succeeds(middle):
+            high = middle
+        else:
+            low = middle
+    return high, trials
+
+
+def trace_number(value, name):
+    if isinstance(value, str):
+        return a.qty(value)
+    a.need('trace_integer_'+name, type(value) is int and value >= 0, True)
+    return value
+
+
+def reservoir_witness(rpc, tx, r):
+    a.need('rr_trace_create_only', tx['to'], None)
+    a.need('rr_trace_receipt', r['status'], '0x1')
+    trace = rpc('debug_traceTransaction', [r['transactionHash'],
+                dict(disableMemory=True, disableStack=True, disableStorage=True, limit=1)])
+    a.need('rr_struct_logs', isinstance(trace, dict) and isinstance(trace.get('structLogs'), list)
+           and len(trace['structLogs']) > 0, True)
+    first = trace['structLogs'][0]
+    witness = dict(engineCommit=a.COMMIT, transactionHash=r['transactionHash'], gasLimit=a.qty(tx['gas']), stepIndex=0)
+    for key in ('pc', 'depth', 'gas', 'stateGasReservoir'):
+        witness[key] = trace_number(first.get(key), key)
+    a.need('rr_nonzero_reservoir', witness['stateGasReservoir'] > 0, True)
+    return witness
+
+
+def measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate):
+    tx = step['tx']
+    estimate_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
+    context = dict(block=plan['pin']['block'], stateOverrides=copy.deepcopy(overrides), blockOverrides={'time': hex(timestamp)})
+    est = a.qty(remote('eth_estimateGas', [estimate_tx, context['block'], overrides, context['blockOverrides']]))
+    local_est = a.qty(rpc('eth_estimateGas', [estimate_tx, 'latest']))
+    minimum, trials = mined_minimum(rpc, tx, timestamp) if tx['to'] is None else (None, [])
+    observed = dict(executionTimestamp=timestamp, estimateGas=est, localEstimateGas=local_est, minedGasMinimum=minimum)
+    if not calibrate:
+        for key, value in observed.items():
+            a.need('replay_'+key, value, step[key])
+        validate_gas(step)
+        return dict(estimateContext=context, minedGasSearch=trials)
+    limit = margin_limit(est, local_est, minimum or 0)
+    # Gas-used accounting can depend on the submitted limit. Require a stable measured
+    # limit, and fail on a cycle/non-convergence instead of freezing inconsistent evidence.
+    for _ in range(4):
+        a.need('measured_gas_ceiling', limit <= MAX_CREATE_GAS, True)
+        if limit > a.GAS_CAP:
+            a.need('rr_create_only', tx['to'], None)
+            a.need('rr_mined_need', minimum > RR_THRESHOLD, True)
+        trial, witness = probe(rpc, tx, limit, timestamp, witness=limit > a.GAS_CAP)
+        a.need('pilot_success', trial['status'], '0x1')
+        used = a.qty(trial['gasUsed'])
+        final_limit = margin_limit(est, local_est, used, minimum or 0)
+        if final_limit == limit:
+            break
+        limit = final_limit
+    else:
+        raise a.Gate('gas_measurement_convergence', limit, 'stable margin from estimates, gasUsed, and mined minimum')
+    step.update(observed, forkGasUsed=used, rrRequired=limit > a.GAS_CAP, rrWitness=witness)
+    step['tx']['gas'] = hex(limit)
+    validate_gas(step)
+    return dict(estimateContext=context, minedGasSearch=trials)
 
 
 def validate_pin(pin):
@@ -553,7 +733,7 @@ def upgrade_readback(rpc, plan, activated=False):
     return w
 
 
-def pre_send(step, rpc, plan):
+def pre_send(step, rpc, plan, check_gas=True):
     pin, sid, tx = plan['pin'], step['id'], copy.deepcopy(step['tx'])
     a.need('pre_send_chain', a.qty(rpc('eth_chainId', [])), a.CHAIN)
     a.need('pre_send_safe_state', safe_state(rpc, 'latest'), pin['safe'])
@@ -597,9 +777,11 @@ def pre_send(step, rpc, plan):
     if sid.endswith('execute_exec'):
         op = plan['operations'][step['operation']]
         operation_state(rpc, op, 2)
-    probe = {k: v for k, v in a.tx_rpc(tx).items() if k != 'gas'}
-    a.need('pre_send_gas', a.qty(rpc('eth_estimateGas', [probe, 'latest'])) <= a.qty(tx['gas']), True)
-    a.need('pre_send_balance', a.qty(rpc('eth_getBalance', [tx['from'], 'latest'])) >= a.qty(tx['gas'])*a.qty(tx['maxFeePerGas']), True)
+    if check_gas:
+        validate_gas(step)
+        estimate_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if step['rrRequired'] else a.GAS_CAP).items() if k != 'gas'}
+        a.need('pre_send_gas', a.qty(rpc('eth_estimateGas', [estimate_tx, 'latest'])) <= a.qty(tx['gas']), True)
+        a.need('pre_send_balance', a.qty(rpc('eth_getBalance', [tx['from'], 'latest'])) >= a.qty(tx['gas'])*a.qty(tx['maxFeePerGas']), True)
     return tx
 
 
@@ -769,12 +951,15 @@ def cancel_control(rpc, plan):
     return result
 
 
-def run_upgrade(rpc, plan, out):
+def run_upgrade(rpc, plan, out, remote=None, calibrate=False):
     a.need('upgrade_local_only', getattr(rpc, 'local', False), True)
-    validate_plan(plan)
+    validate_plan(plan, frozen=not calibrate)
+    frozen_plan = copy.deepcopy(plan) if not calibrate else None
+    a.need('archive_estimator_present', remote is not None, True)
+    overrides = copy.deepcopy(getattr(rpc, 'archive_overrides', {}))
     records, controls = [], []
     plan_digest = hashlib.sha256((json.dumps(plan, indent=2, sort_keys=True)+'\n').encode()).hexdigest()
-    log(out, dict(phase='upgrade', status='START', a3aPlanSha256=plan['a3aPlanSha256'], upgradePlanSha256=plan_digest))
+    log(out, dict(phase='upgrade', status='START', a3aPlanSha256=plan['a3aPlanSha256'], upgradePlanSha256=plan_digest if not calibrate else None, calibrate=calibrate))
     controls.append(mint_control(rpc, plan, True))
     for step in plan['steps']:
         a.process_alive(rpc.engine_process)
@@ -795,8 +980,17 @@ def run_upgrade(rpc, plan, out):
                 inner=(TL, step['inner'], a.calldata('TimelockUnexpectedOperationState(bytes32,bytes32)',
                        op['id'], '0x'+format(1 << 2, '064x')))))
             wait_until(rpc, a.word(rpc, TL, 'getTimestamp(bytes32)', op['id']))
+        pre_send(step, rpc, plan, check_gas=not calibrate)
+        execution_ts = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
+        evidence = measure_step(remote, rpc, plan, step, overrides, execution_ts, calibrate)
+        # Re-read state after all snapshot trials; no trial is a completed package step.
         tx = pre_send(step, rpc, plan)
-        r = a.receipt(rpc, tx)
+        rpc('evm_setNextBlockTimestamp', [execution_ts])
+        r = receipt(rpc, tx)
+        a.need('fork_gas_used', a.qty(r['gasUsed']), step['forkGasUsed'])
+        a.need('mined_execution_timestamp', a.qty(a.block_data(rpc, r['blockNumber'])['timestamp']), execution_ts)
+        if step['rrRequired']:
+            a.need('rr_replayed_witness', reservoir_witness(rpc, tx, r), step['rrWitness'])
         a.mined_identity(rpc('eth_getTransactionByHash', [r['transactionHash']]), tx, sid)
         a.need('post_sender_nonce', a.nonce(rpc, tx['from']), a.qty(tx['nonce'])+1)
         a.need('post_safe_nonce', a.word(rpc, SAFE, 'nonce()'), step['safeNonce']+int(sid.endswith('_exec')))
@@ -845,15 +1039,23 @@ def run_upgrade(rpc, plan, out):
                 success = a.keccak('ExecutionSuccess(bytes32,uint256)')
                 a.need('safe_success_event', any(l['address'].lower() == SAFE and l['topics'] == [success]
                         and l['data'][2:66].lower() == step['safeHash'][2:] for l in r['logs']), True)
-        record = dict(phase='upgrade', step=sid, receipt=r, gasUsed=a.qty(r['gasUsed']))
+        record = dict(phase='upgrade', step=sid, receipt=r, gasUsed=a.qty(r['gasUsed']),
+                      measurements={key: step[key] for key in sorted(MEASURED_KEYS)}, **evidence)
         records.append(record)
         log(out, record)
+        a.trace_overrides(rpc, r, overrides)
     a.need('completed_upgrade_steps', [r['step'] for r in records], [s['id'] for s in plan['steps']])
     a.need('completed_upgrade_controls', sorted(c['control'] for c in controls), sorted(CONTROL_IDS))
     mint_records = {c['control']: c for c in controls if c['control'].startswith('safeMint_')}
     a.need('safe_mint_identical_call', mint_records['safeMint_positive']['calldata'],
            mint_records['safeMint_negative']['calldata'])
     gate = final_gate(rpc, plan)
+    if calibrate:
+        budget(plan)
+    validate_plan(plan, frozen=True)
+    if not calibrate:
+        a.need('frozen_upgrade_unchanged', plan, frozen_plan)
+    plan_digest = hashlib.sha256((json.dumps(plan, indent=2, sort_keys=True)+'\n').encode()).hexdigest()
     result = dict(status='PASS', phase='upgrade', upgradePlanSha256=plan_digest,
                   steps=records, negativeControls=controls, preRestore=gate)
     a.write_json(out/'upgrade-simulate.json', result)
@@ -873,7 +1075,11 @@ def plan_command(remote, secondary, block, out):
     pin = collect(remote, block)
     a.need('independent_pin', collect(secondary, block), pin)
     plan = build_plan(pin)
-    validate_plan(plan)
+    validate_plan(plan, frozen=False)
+    with a.fork(remote, pin, out) as local:
+        run_upgrade(local, plan, out, remote=remote, calibrate=True)
+    a.relay_evidence(out)
+    a.need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
     a.need('pin_recheck', collect(remote, block), pin)
     save_plan(out, plan)
     return plan
@@ -896,10 +1102,17 @@ def simulate_command(remote, a3a_path, out, frozen=None):
         pin = collect(local, 'latest', source)
         plan = build_plan(pin, digest)
         if frozen is not None:
-            a.need('independent_rederived_plan', plan, frozen)
-        else:
+            expected = copy.deepcopy(frozen)
+            expected.pop('budgetsWei')
+            for step in expected['steps']:
+                for key in MEASURED_KEYS:
+                    step.pop(key)
+                step['tx'].pop('gas')
+            a.need('independent_rederived_plan', plan, expected)
+            plan = copy.deepcopy(frozen)
+        result.update(run_upgrade(local, plan, out, remote=remote, calibrate=frozen is None))
+        if frozen is None:
             save_plan(out, plan)
-        result.update(run_upgrade(local, plan, out))
     a.rehearse(remote, ap, out, after=continuation)
     a.relay_evidence(out)
     a.write_json(out/'combined-simulate.json', dict(status='PASS', a3aPlanSha256=digest,

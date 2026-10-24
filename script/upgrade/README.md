@@ -27,7 +27,7 @@ A3A_ENGINE_DIR=/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b \
   --out /private/tmp/a6e-bootstrap
 ```
 
-The executor first imports and calls `a3a_exec.rehearse` on the frozen A3a plan. Its opt-in continuation keeps the same engine and relay alive after all A3a steps and controls pass. It then observes that fork's resulting state, builds the upgrade plan, and executes the upgrade phase. A3a S7 must finish while the EOA owns SP, before this package transfers SP ownership.
+The executor first imports and calls `a3a_exec.rehearse` on the frozen A3a plan. Its opt-in continuation keeps the same engine and relay alive after all A3a steps and controls pass. It then observes that fork's resulting state, builds the transaction skeleton, calibrates every gas limit, and executes the upgrade phase. The continuation carries A3a's cumulative state overrides into archive estimation. A3a S7 must finish while the EOA owns SP, before this package transfers SP ownership.
 
 Independently verify the generated upgrade plan with a second engine run:
 
@@ -61,7 +61,7 @@ A3A_ENGINE_DIR=/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b \
 
 Replace the example block with the chosen post-A3a block. Historical RAMS block 11974561 predates execution and must fail the A3a prerequisite.
 
-`plan` starts no engine and sends no transactions. Both archive views must agree on the complete pinned observation. Each sender's current pending nonce must equal its pinned nonce. The plan assigns separate deployer, approver, executor, and Safe nonce sequences and reserves the maximum fee budget for every proposed transaction.
+`plan` sends no transactions to either archive endpoint. Both archive views must agree on the complete pinned observation. It then starts an authenticated local fork to calibrate every upgrade step and run the controls before freezing the unsigned plan. Each sender's current pending nonce must equal its pinned nonce. The plan assigns separate deployer, approver, executor, and Safe nonce sequences and reserves the maximum fee budget for every proposed transaction.
 
 The A3a gate requires:
 
@@ -102,14 +102,26 @@ Successful governance traces must begin with the planned EOA transaction to the 
 
 Outputs include `plan.json` and its hash when generated, A3a `simulate.json`, phase-labelled `simulate.log`, `upgrade-simulate.json`, and `combined-simulate.json`. Require both phases PASS and a pre-restore PASS. `FAILURE.json` and rc=1 identify any failed gate. A partial plan or a phase's PASS is insufficient when the combined run fails. Do not blindly retry: inspect actual ownership, nonces, pause bits, and operation state, then regenerate the remaining unsigned plan. Recovery by the timelock retains all governance waits.
 
+## Gas calibration and RR deployment
+
+Regenerate old schema-1 upgrade plans. Schema 2 contains no fixed gas limits. For every step it records `estimateGas`, `localEstimateGas`, and `forkGasUsed`, then uses `ceil(max(those values, minedGasMinimum if present) * 13 / 10)`. Archive estimates include the cumulative fork state overrides and the exact execution timestamp. Sender budgets are calculated after calibration.
+
+CREATE additionally gets a binary search of the minimum gas limit that succeeds as a **mined** transaction. Each trial snapshots state, sends the exact transaction, verifies its receipt and transaction identity, and reverts. The search and pilots never advance package nonces or preserve deployed code. Trial limits, hashes, statuses, and gas used appear in each step's `minedGasSearch` evidence in `simulate.log`.
+
+Only CREATE may exceed 2^24. Its mined minimum must exceed `floor(2^24 * 10 / 13)`, and its first-step trace must prove a nonzero state-gas reservoir. That step records `rrRequired: true` and a bound `rrWitness`. The margin-adjusted limit must remain at most 60,000,000. Every other step retains the 2^24 cap. An estimate cannot authorize the exception.
+
+The minimum search first requires success at the 60M ceiling. An admission error, failed high trial, unavailable trace, zero reservoir, insufficient funds, or margin above the ceiling stops the package. These failures are not converted into a larger guess. Snapshot pilots require stable gas-used accounting before the limit is frozen. `pre_send` requires the planned gas to cover the recorded minimum; frozen simulation searches again and checks that minimum independently, even when estimates remain low.
+
+The reservoir legitimately pays state gas for a plain EOA-funded deployment. Its `handleOps` bundler-reimbursement concern does not apply to a plain CREATE. See the [design's gas policy](../../docs/release/sp-upgrade-a6e/DESIGN.md#measured-gas-and-create-reservoir-policy) for the RR-matrix provenance and the exact gates. The 4e8874b engine pin and A3a teardown marker are preserved.
+
 ## Offline verification
 
 These tests mock RPC and execution; only ABI encoding and keccak use local `cast`. They open no archive connection or listener. Python 3.11.9 with `-B` was used.
 
 | A3A_ENGINE_DIR | Upgrade suite | A3a regression suite |
 |---|---:|---:|
-| `$HOME/.foundry/bin` | 104 passed | 69 passed |
-| `/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b` | 104 passed | 69 passed |
+| `$HOME/.foundry/bin` | 135 passed | 70 passed |
+| `/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b` | 135 passed | 70 passed |
 
 Run the suites with:
 
