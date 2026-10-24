@@ -837,7 +837,10 @@ def fork(remote, pin, out):
                                  '--accounts', '0', '--host', '127.0.0.1', '--port', str(port),
                                  '--fork-url', 'http://127.0.0.1:'+str(server.server_port),
                                  '--fork-block-number', str(int(pin['block'], 16)),
-                                 '--chain-id', str(CHAIN), '--no-fork-node-info', '--no-bal', '--steps-tracing', '--no-storage-caching', '--silent'],
+                                 '--chain-id', str(CHAIN), '--no-fork-node-info', '--no-bal', '--steps-tracing', '--no-storage-caching', '--silent',
+                                 # Wait longer than the relay's 45 s upstream timeout, so an upstream timeout comes back to
+                                 # anvil as a JSON-RPC error instead of anvil hanging up first (BrokenPipe in the relay).
+                                 '--timeout', '120000', '--retries', '0'],
                                 stdout=subprocess.DEVNULL, stderr=engine_err)
         local = RPC('http://127.0.0.1:'+str(port), local=True)
         for _ in range(100):
