@@ -1,0 +1,6 @@
+ENGINE(nightly) loopN 300000 gas 16777216 call: OK | estimate: 7815003
+ENGINE(nightly) loopN 300000 gas 30000000 call: OK | estimate: 7815003
+ENGINE(nightly) loopN 700000 gas 16777216 call: ERR EVM error OutOfGas | estimate: 18215003
+ENGINE(nightly) loopN 700000 gas 30000000 call: OK | estimate: 18215003
+ENGINE(nightly) loopN 900000 gas 16777216 call: ERR EVM error OutOfGas | estimate: 23415003
+ENGINE(nightly) loopN 900000 gas 30000000 call: OK | estimate: 23415003
