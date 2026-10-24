@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 import os
 # nightly 926eb1d does NOT keep the EIP-8037 reservoir (frame gas uncapped, stateGasReservoir always 0);
 # foundry #17719 (in nightly 4e8874b) fixes it. Override with RR_ANVIL.
-ENGINE = Path(os.environ.get('RR_ANVIL', '/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/anvil'))
+ENGINE = Path(os.environ.get('RR_ANVIL', Path.home() / 'Dev/aastar/tools/foundry-rams/nightly-4e8874b/anvil'))
 OUT = ROOT / 'docs/design/aoa-balance-mode/data/rams-rr-matrix'
 URL = 'http://127.0.0.1:18951'
 CAP = 2**24

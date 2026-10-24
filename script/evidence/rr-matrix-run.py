@@ -17,7 +17,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 ENGINE_COMMIT = '4e8874b2bdc840929585ca73e170993c50a4a531'
-DEFAULT_ENGINE = '/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/anvil'
+DEFAULT_ENGINE = str(Path.home() / 'Dev/aastar/tools/foundry-rams/nightly-4e8874b/anvil')
 
 
 def git(*args):
