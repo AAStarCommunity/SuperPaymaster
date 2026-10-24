@@ -69,6 +69,9 @@ def deployed_runtime(plan):
         code[entry['start']:entry['start']+32] = values[entry['name']]
     return '0x'+code.hex()
 
+RELAY_URL = 'http://127.0.0.1:65000'
+
+
 class FakeChain:
     """Deterministic offline EVM boundary; the real executor orchestration stays in use."""
     def __init__(self, pin):
@@ -104,6 +107,9 @@ class FakeChain:
         s = self.state
         if method == 'eth_chainId': return hex(ex.CHAIN)
         if method == 'web3_clientVersion': return 'anvil/'+ex.COMMIT
+        if method == 'anvil_nodeInfo':
+            return dict(hardFork='Amsterdam', transactionOrder='fifo', environment=dict(chainId=ex.CHAIN),
+                        forkConfig=dict(forkUrl=RELAY_URL, forkBlockNumber=int(self.pin['block'], 16)))
         if method == 'eth_config':
             return dict(current=dict(activationTime=ex.ACTIVATION, forkId=ex.FORK_ID), next=None)
         if method == 'web3_sha3': return mock_hash_rpc(method, params)
@@ -201,7 +207,7 @@ def fake_fork(remote, pin, out):
     (out/'relay.log').write_text('')
     (out/'simulate.log').write_text('offline engine boundary\n')
     chain = FakeChain(pin)
-    ex.authenticate_engine(chain)
+    ex.authenticate_engine(chain, RELAY_URL, pin['block'])
     yield chain
 
 
@@ -681,17 +687,31 @@ class ExecutorTests(unittest.TestCase):
 
     def test_local_engine_authentication(self):
         chain, _ = self.chain_and_plan()
-        ex.authenticate_engine(chain)
-        cases = [('web3_clientVersion', 'anvil/fake', 'local_engine_commit'),
-                 ('eth_config', dict(current=dict(activationTime=ex.ACTIVATION, forkId='0x0'), next=None), 'local_fork_id'),
-                 ('eth_config', dict(current=dict(activationTime=0, forkId=ex.FORK_ID), next=None), 'local_fork_activation'),
-                 ('eth_config', dict(current=dict(activationTime=ex.ACTIVATION, forkId=ex.FORK_ID), next={}), 'local_fork_next')]
-        for method, value, gate in cases:
+        block = chain.pin['block']
+        ex.authenticate_engine(chain, RELAY_URL, block)
+        good = chain('anvil_nodeInfo', [])
+        def variant(**kw):
+            info = copy.deepcopy(good)
+            for k, v in kw.items():
+                if k in ('forkUrl', 'forkBlockNumber'):
+                    info['forkConfig'][k] = v
+                elif k == 'chainId':
+                    info['environment'][k] = v
+                else:
+                    info[k] = v
+            return info
+        cases = [(variant(forkUrl='http://127.0.0.1:1'), 'local_engine_fork_url'),
+                 (variant(forkBlockNumber=1), 'local_engine_fork_block'),
+                 (variant(hardFork='Prague'), 'local_engine_hardfork'),
+                 (variant(transactionOrder='fees'), 'local_engine_order'),
+                 (variant(chainId=31337), 'local_chain'),
+                 ('garbage', 'local_engine_info')]
+        for value, gate in cases:
             with self.subTest(gate=gate):
-                def wrong(m, p):
-                    return value if m == method else chain(m, p)
+                def wrong(m, p, value=value):
+                    return value if m == 'anvil_nodeInfo' else chain(m, p)
                 with self.assertRaises(ex.Gate) as caught:
-                    ex.authenticate_engine(wrong)
+                    ex.authenticate_engine(wrong, RELAY_URL, block)
                 self.assertEqual(caught.exception.record['gate'], gate)
 
     def test_git_clean_gate_excludes_only_output(self):

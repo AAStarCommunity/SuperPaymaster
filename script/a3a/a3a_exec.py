@@ -463,16 +463,19 @@ def git_state(out):
                 gitPolicy='exclude exactly output path; require all other status empty')
 
 
-def authenticate_engine(local):
-    version = local('web3_clientVersion', [])
-    need('local_engine_commit', isinstance(version, str) and COMMIT in version, True)
-    need('local_chain', qty(local('eth_chainId', [])), CHAIN)
-    config = local('eth_config', [])
-    if not isinstance(config, dict) or not isinstance(config.get('current'), dict):
-        raise Gate('local_fork_config', 'missing current', 'Amsterdam')
-    need('local_fork_activation', config['current'].get('activationTime'), ACTIVATION)
-    need('local_fork_id', config['current'].get('forkId'), FORK_ID)
-    need('local_fork_next', config.get('next', 'missing'), None)
+def authenticate_engine(local, relay_url, pin_block):
+    """Prove the reused local port is OUR engine. web3_clientVersion carries no commit ("anvil/v1.8.7") and the
+    local eth_config reports the engine's own chain config, not Sepolia's, so neither can authenticate it.
+    anvil_nodeInfo can: the fork URL is our loopback relay on a random port, which another process would not have."""
+    info = local('anvil_nodeInfo', [])
+    if not isinstance(info, dict) or not isinstance(info.get('forkConfig'), dict) or not isinstance(info.get('environment'), dict):
+        raise Gate('local_engine_info', 'malformed anvil_nodeInfo', 'hardFork, transactionOrder, environment, forkConfig')
+    need('local_engine_fork_url', info['forkConfig'].get('forkUrl'), relay_url)
+    need('local_engine_fork_block', info['forkConfig'].get('forkBlockNumber'), int(pin_block, 16))
+    need('local_engine_hardfork', info.get('hardFork'), 'Amsterdam')
+    need('local_engine_order', info.get('transactionOrder'), 'fifo')
+    need('local_chain', info['environment'].get('chainId'), CHAIN)
+    need('local_chain_rpc', qty(local('eth_chainId', [])), CHAIN)
 
 
 @contextlib.contextmanager
@@ -529,7 +532,7 @@ def fork(remote, pin, out):
                 time.sleep(.1)
         else:
             raise Gate('engine_start', 'timeout', 'listening local anvil')
-        authenticate_engine(local)
+        authenticate_engine(local, 'http://127.0.0.1:'+str(server.server_port), pin['block'])
         need('fork_block_hash', block_data(local, pin['block'])['hash'], pin['blockHash'])
         for who in (DEPLOYER, EXECUTOR, APPROVER):
             local('anvil_impersonateAccount', [who])
