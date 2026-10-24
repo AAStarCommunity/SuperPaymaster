@@ -18,7 +18,15 @@ for k in ('R0', 'RR30M', 'RRdelta'):
     tops = [o for r in rs for o in r['perOp'] if o.get('target')]
     g2 = [o['g2NoSubsidy'] for o in tops if o.get('g2NoSubsidy') is not None]
     cmb = [int(o['chargeMinusBareCost']) for o in tops if o.get('chargeMinusBareCost') is not None]
+    ok = [r for r in rs if r['txStatus'] == '0x1']  # MIN-1 rows revert by design before reservation
+    gok = [int(r['receiptGasUsed']) - opsum(r, 'actualGasUsed') for r in ok]
+    g_steps = [o['gasleftAtFirstGuardGAS'] for r in rs for o in r['perOp'] if o.get('target') and isinstance(o.get('gasleftAtFirstGuardGAS'), dict)]
+    guard = [s['gasleftReturned'] for s in g_steps]
+    guard_res = [s['stateGasReservoir'] for s in g_steps]
     res['perRegime'][k] = {'rows': len(rs), 'txGasUsedMinusSumOpActualGasUsed': {'min': min(gap), 'median': int(st.median(gap)), 'max': max(gap)},
+                           'successRows': len(ok), 'successOnlyGap': {'min': min(gok), 'median': int(st.median(gok)), 'max': max(gok),
+                                                                      'positive': sum(1 for x in gok if x > 0)},
+                           'gasleftAtGuard': {'min': min(guard), 'max': max(guard), 'n': len(guard), 'reservoirAtGuardMax': max(guard_res)} if guard else None,
                            'G2true': sum(1 for g in g2 if g is True), 'G2n': len(g2),
                            'chargeMinusBareCostNegative': sum(1 for x in cmb if x < 0), 'chargeMinusBareCostN': len(cmb)}
 for k in ('RR30M', 'RRdelta'):

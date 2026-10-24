@@ -1,20 +1,19 @@
 # CC-125 / R2-F3 direction (i)
 
-**Witness = DETERMINED. Phase 2 scripts are ready for operator execution; no Phase 2
-measurement result is claimed here.** The earlier sandbox TCP-bind failure is superseded
-by the owner's committed runs at c7b1d02f; it is not an unresolved witness question.
+**Witness = DETERMINED. Phase 2 has been run: 1080 mined handleOps, results in [`phase2/REPORT.md`](phase2/REPORT.md)
+and `phase2/analysis.json`.** (The DSR-to-cell table below is the design map; measured values are in phase2.)
 
 ## Engine correction and positive control
 
 | Evidence | Finding |
 |---|---|
-| frame-calibration/nightly-926eb1d.json | 10/10 receipt-only matches, **0/10 strict frame matches**; regular gas uncapped above 2^24, stateGasReservoir always zero |
-| frame-calibration/nightly-4e8874b.json | **10/10 strict frame matches** against chain debug_traceTransaction; correct regular/reservoir split (foundry #17719) |
+| frame-calibration/nightly-926eb1d.json | 10/10 receipt-only matches, **0/10 strict matches** (status, gasUsed, **first-step** frame gas and first-step stateGasReservoir); regular gas uncapped above 2^24, stateGasReservoir always zero |
+| frame-calibration/nightly-4e8874b.json | **10/10 strict matches** against chain debug_traceTransaction on status, gasUsed, first-step frame gas and first-step reservoir (later frames are not compared; per-step reservoir behaviour rests on `witness-*`); correct regular/reservoir split (foundry #17719) |
 | r0-probe/probe-nightly-4e8874b-11982241.json | **14/14 R0**; both engines pass R0, which cannot discriminate the split |
 | witness-results.json / witness-traces.jsonl.gz | 4e8874b mined controls expose per-step stateGasReservoir; fresh200 R0 fails at slot 153, RR succeeds with gasUsed **22,020,200** |
 | Same witness, fresh500-RR | OOG with gasUsed **16,777,216**; state gas is returned to the reservoir on failure |
 
-Under RR, regular gas starts at 2^24−intrinsic and reservoir at gasLimit−2^24.
+Under RR, regular gas starts at 2^24 − intrinsic and the reservoir at `evm_gas − gas_left` (EIP-8037). That equals gasLimit − 2^24 in the witness and in 6/10 chain txs; in 4/10 (CREATE txs) the first-step reservoir is 183,600 lower, consistent with intrinsic state gas being charged from the reservoir before the first opcode — not traced further.
 Fresh SSTORE costs 110,020, including 97,920 state gas drawn from the reservoir first.
 The per-step field, not a high limit or receipt-only agreement, is the witness.
 `eth_call` does not apply the regular cap on reth or this engine; never infer RR behavior
@@ -31,12 +30,12 @@ There are 864 definitions, 360 applicable cells, 504 exclusions, 1080 measured t
 
 | DSR item | Cell mapping / fields | Status |
 |---|---|---|
-| balance / credit | balance-* / credit-*; target b1 / b7; distinct BALANCE companions | Scripted; unrun |
+| balance / credit | balance-* / credit-*; target b1 / b7; distinct BALANCE companions | Run: see phase2 |
 | legacy / V2 context | legacy160-* excluded with reason; V2-* uses emitted 384 B | 160 B not reachable: rc.4 accepts only 352/384 B; 352 B not emitted here |
 | cold / warm SP | *-cold-* / *-warm-*; warm access list covers proxy+implementation | cold target validation at 3/3 impossible, excluded; every postOp naturally warm |
-| first / subsequent sender op | *-first-* / *-subsequent-*; priming tx before paired snapshot | Scripted; unrun |
-| 1/1, 1/3, 3/3 | *-1of1-* / *-1of3-* / *-3of3-* | Scripted; unrun |
-| success / execution revert | *-success-* / *-execution-revert-* | Scripted; unrun |
+| first / subsequent sender op | *-first-* / *-subsequent-*; priming tx before paired snapshot | Run: see phase2 |
+| 1/1, 1/3, 3/3 | *-1of1-* / *-1of3-* / *-3of3-* | Run: see phase2 |
+| success / execution revert | *-success-* / *-execution-revert-* | Run: see phase2 |
 | postOp exhaustion | *-postOp-exhaustion-* | Labelled token settlement-subcall OOG fixture, SP bytes unchanged; not natural-token exhaustion evidence |
 | refund | *-refund-* | Eight preseeded slots cleared; checks refund counter increases inside execution fixture |
 | refill | *-refill-* | Fresh writes then REVERT; records reservoir restoration on failed-frame unwind under EIP-8037, distinct from gas refund |

@@ -8,7 +8,7 @@ and reports stateGasReservoir = 0. Receipt-only agreement hid that defect.
 
 Committed evidence supplied by the owner at c7b1d02f:
 
-- `frame-calibration/nightly-4e8874b.json`: strict frame-level 10/10 against the chain
+- `frame-calibration/nightly-4e8874b.json`: 10/10 against the chain on status, gasUsed, first-step frame gas and first-step reservoir
   node, including first-frame gas and reservoir; 926eb1d: 0/10 strict, 10/10 receipt-only
   (`frame-calibration/nightly-926eb1d.json`). No replay is needed for Phase 2.
 - `r0-probe/probe-nightly-4e8874b-11982241.json`: 14/14 R0 probes. Both engines pass

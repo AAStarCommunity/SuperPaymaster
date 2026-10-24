@@ -10,6 +10,19 @@
     "median": -341815,
     "max": 470961
    },
+   "successRows": 240,
+   "successOnlyGap": {
+    "min": -1632236,
+    "median": -909554,
+    "max": 158620,
+    "positive": 38
+   },
+   "gasleftAtGuard": {
+    "min": 421177,
+    "max": 421178,
+    "n": 240,
+    "reservoirAtGuardMax": 0
+   },
    "G2true": 200,
    "G2n": 200,
    "chargeMinusBareCostNegative": 40,
@@ -22,6 +35,19 @@
     "median": 321355,
     "max": 3480684
    },
+   "successRows": 240,
+   "successOnlyGap": {
+    "min": -161657,
+    "median": 740560,
+    "max": 3480684,
+    "positive": 212
+   },
+   "gasleftAtGuard": {
+    "min": 421177,
+    "max": 421178,
+    "n": 240,
+    "reservoirAtGuardMax": 12831104
+   },
    "G2true": 200,
    "G2n": 200,
    "chargeMinusBareCostNegative": 40,
@@ -33,6 +59,19 @@
     "min": -1532236,
     "median": -241815,
     "max": 470961
+   },
+   "successRows": 240,
+   "successOnlyGap": {
+    "min": -1532236,
+    "median": -907474,
+    "max": 160700,
+    "positive": 38
+   },
+   "gasleftAtGuard": {
+    "min": 421177,
+    "max": 421178,
+    "n": 240,
+    "reservoirAtGuardMax": 0
    },
    "G2true": 200,
    "G2n": 200,

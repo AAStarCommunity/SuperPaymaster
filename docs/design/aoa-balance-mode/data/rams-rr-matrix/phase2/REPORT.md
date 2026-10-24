@@ -70,7 +70,7 @@ Run: engine nightly **4e8874b** (keeps the EIP-8037 reservoir; frame-level 10/10
 
 **SP safety under RR — no change found**
 - **I9 holds in all 1080 rows** (no validation-reserved sponsorship left unsettled).
-- **postOp guard `gasleft() < snapSettle`: 0 pass/fail changes in 720 R0↔RR comparisons** (pass 480, not-reached 240 in both regimes; not-reached = MIN−1 rows rejected at validation).
+- **postOp guard `gasleft() < snapSettle`: 0 pass/fail changes in 720 R0↔RR comparisons** (pass 480, not-reached 240 in both regimes; not-reached = MIN−1 rows rejected at validation). Reproducible from committed data: `gasleftReturned` at the guard's GAS opcode is **421,177–421,178 in every regime** (≥ SETTLE 420,000), while `stateGasReservoir` at that step reaches 12,831,104 under RR30M — the guard does not see the reservoir (`analysis.json` → `gasleftAtGuard`).
   **Coverage limit:** no admitted op ever *trips* the guard in either regime — by design MIN (440k) > SETTLE (420k) — so the guard-*fail* path is not exercised; the matrix shows RR does not turn pass into fail, not how a failing guard behaves under RR.
 - **G2 (no subsidy) 200/200 in every regime.** `charge − bareCost < 0` in 40/240 target ops in every regime — all 40 are `postOp-exhaustion` with the labelled adversarial token fixture (`token-settlement-gas-burner`, SP bytes unchanged), identical across regimes.
 - **Outcome changes: 40, all `state-demand` cells in RR30M** — state-heavy ops that only fit with a reservoir (expected).
@@ -79,8 +79,11 @@ Run: engine nightly **4e8874b** (keeps the EIP-8037 reservoir; frame-level 10/10
 - EntryPoint v0.7 measures each op with `gasleft()` deltas, and `gasleft()` excludes the reservoir. Per-op `actualGasUsed` vs R0 (same cell, both successful, excluding `state-demand`):
   - RR30M: **median 0.492× (min 0.416×)**, delta median −1,762,560 gas;
   - RRdelta (reservoir 100,000): delta ≥ −100,000 (= the reservoir), median 0.986×.
-- Hence `tx gasUsed − Σ op actualGasUsed`: R0 median −341,815 (PVG over-covers), **RR30M median +321,355, max +3,480,684** — gas the bundler pays but EntryPoint does not reimburse; the user / SP pay correspondingly less. SP's own books stay consistent because SP charges on EntryPoint's `actualGasCost`.
-- Consequence: a bundle above 2^24 is a loss for the bundler. This is outside SP, but it must be a stated requirement for SDK/bundler configuration (handleOps gas ≤ 2^24), not an assumption.
+- Hence `tx gasUsed − Σ op actualGasUsed` (positive = gas the bundler pays but EntryPoint does not reimburse; the user / SP pay correspondingly less; SP's own books stay consistent because SP charges on EntryPoint's `actualGasCost`). Two bases:
+  - **successful txs only (240/regime; the right basis):** R0 median −909,554 (38/240 positive), **RR30M median +740,560 (212/240 positive), max +3,480,684**, RRdelta −907,474 (38/240 positive);
+  - all 360 rows (incl. the 120 MIN−1 txs that revert by design before reservation): R0 −341,815, RR30M +321,355, RRdelta −241,815.
+  *Correction:* the PR description and the CC-125 note first quoted only the all-rows +321,355, which understates the RR effect on successful bundles by about half (pointed out in the #535 review).
+- Consequence: a bundle above 2^24 is usually a loss for the bundler. "handleOps gas ≤ 2^24" is a **necessary, not sufficient** condition — 38/240 successful R0 bundles are also under-reimbursed (PVG too low for those cells). This is outside SP, but it must be a stated SDK/bundler requirement, not an assumption.
 
 **Not covered:** legacy 160 B context (not reachable with rc.4 bytes) and cold validation at op 3/3 (definitions record the reasons); real public-bundler behaviour above 2^24.
 
