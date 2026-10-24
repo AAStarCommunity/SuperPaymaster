@@ -99,6 +99,24 @@ class RPC:
         self.url, self.local, self.serial = url, local, 0
         self.serial_lock = threading.Lock()
 
+    def _post_with_deadline(self, q):
+        box = {}
+        def work():
+            try:
+                with urllib.request.urlopen(urllib.request.Request(
+                        self.url, json.dumps(q).encode(), {'Content-Type': 'application/json'}), timeout=45) as r:
+                    box['body'] = r.read()
+            except Exception as e:
+                box['error'] = e
+        worker = threading.Thread(target=work, daemon=True)
+        worker.start()
+        worker.join(RPC_TOTAL_DEADLINE_SECONDS)
+        if worker.is_alive():
+            raise TimeoutError('total RPC deadline exceeded')
+        if 'error' in box:
+            raise box['error']
+        return json.loads(box['body'])
+
     def __call__(self, method, params, error_ok=False):
         if not self.local and not (method.startswith('eth_get') or method in
                                   ('eth_chainId', 'eth_config', 'eth_call', 'eth_estimateGas', 'web3_sha3')):
@@ -108,22 +126,13 @@ class RPC:
             rid = self.serial
         q = dict(jsonrpc='2.0', id=rid, method=method, params=params)
         try:
-            # timeout=45 bounds each socket operation only; a server that trickles bytes can hold a request open
-            # indefinitely (observed 2026-10-24: one archive request hung > 8 min). The deadline is checked after
-            # every recv (read1, not read: read(n) loops internally until n bytes), so a request ends within
-            # RPC_TOTAL_DEADLINE_SECONDS + one socket timeout (45 s) of its start.
-            deadline = time.monotonic() + RPC_TOTAL_DEADLINE_SECONDS
-            with urllib.request.urlopen(urllib.request.Request(
-                    self.url, json.dumps(q).encode(), {'Content-Type': 'application/json'}), timeout=45) as r:
-                chunks = []
-                while True:
-                    if time.monotonic() > deadline:
-                        raise TimeoutError('total RPC deadline exceeded')
-                    chunk = r.read1(65536)
-                    if not chunk:
-                        break
-                    chunks.append(chunk)
-                d = json.loads(b''.join(chunks))
+            # timeout=45 bounds each socket operation only; a server that trickles bytes (in headers, chunk framing
+            # or body) can hold a request open indefinitely (observed 2026-10-24: one archive request hung > 8 min),
+            # and DNS has no timeout at all. So the whole request (resolve, connect, headers, body) runs in a daemon
+            # thread and the caller stops waiting after RPC_TOTAL_DEADLINE_SECONDS wall-clock. An abandoned thread
+            # may linger until its socket closes; nothing reads its result (the only caller that retries on Gate is
+            # the local engine-start probe, whose attempts end at once on connection refused).
+            d = self._post_with_deadline(q)
         except Exception as e:
             raise Gate('rpc_transport', type(e).__name__, 'valid response (URL redacted)') from None
         if (not isinstance(d, dict) or d.get('jsonrpc') != '2.0' or
