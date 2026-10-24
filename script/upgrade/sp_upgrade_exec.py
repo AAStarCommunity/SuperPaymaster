@@ -591,7 +591,9 @@ def measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate):
     # Gas-used accounting can depend on the submitted limit. Require a stable measured
     # limit, and fail on a cycle/non-convergence instead of freezing inconsistent evidence.
     for _ in range(4):
-        a.need('measured_gas_ceiling', limit <= MAX_CREATE_GAS, True)
+        if limit > MAX_CREATE_GAS:
+            raise a.Gate('measured_gas_ceiling', dict(step=step.get('id'), limit=limit, estimateGas=est, localEstimateGas=local_est,
+                                                      minedGasMinimum=minimum), '<= %d' % MAX_CREATE_GAS)
         if limit > a.GAS_CAP:
             a.need('rr_create_only', tx['to'], None)
             a.need('rr_mined_need', minimum > RR_THRESHOLD, True)
