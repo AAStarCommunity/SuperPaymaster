@@ -1,23 +1,27 @@
 # A3a under Amsterdam — reviewed-executor plan and independent fork simulation (R-AMS-3) — NOT EXECUTED
 
-Executor: `script/a3a/a3a_exec.py` at repo commit `757de2a6` (clean tree, `dirtyCount: 0` in both log headers;
+Executor: `script/a3a/a3a_exec.py` at repo commit `5be39abf` (clean tree, `dirtyCount: 0` in both log headers;
 outputs were written outside the repository and copied here afterwards).
 Engine: foundry nightly 926eb1d anvil, `--hardfork amsterdam --order fifo`, authenticated through `anvil_nodeInfo`
 (fork URL = the executor's loopback read-only relay, fork block, current block, `Amsterdam`, `fifo`, chainId 11155111), plus the
 listening pid on the port = the spawned anvil and `proc.poll()` before every step. Build artifacts (APNTsCapped, TimelockController)
-are tied to the commit by their metadata source hashes vs `git show HEAD:`; `engine.stderr` must be empty.
+are bound to the commit by a **fresh rebuild from `git archive HEAD`** (with submodules; forge 1.7.1 `build --offline`, profile default)
+that must match `out/` byte for byte (bytecode, deployedBytecode, immutableReferences; hashes recorded in `plan.json` → `rebuild`),
+plus metadata source keccak vs `git show HEAD:`. The profile sets `bytecode_hash = "none"` (read from `git show HEAD:foundry.toml`),
+so the CBOR tail carries only `solc 0.8.33` and there is no metadata hash to compare — the exact rebuild is the binding.
+`engine.stderr` must be empty.
 **Nothing was signed or broadcast.** `sign`/`send` refuse with rc=3; a future signer must receive the reviewed plan sha256 out-of-band and go through `pre_send`,
 which derives the S6 ETA from S5b's on-chain `CallScheduled` (not from the plan).
 
 | dir | command | result |
 |---|---|---|
-| `plan-11980919/` | `plan --block 11980919` — read-only preconditions at the pin, unsigned S1–S7, plus a calibration simulation | PASS |
-| `simulate-11980919/` | `simulate --plan plan-11980919/plan.json` — independent rerun of the frozen plan (no re-planning; plan rebuilt from the pin and compared field by field; all 9 steps + 4 negatives required) | PASS |
+| `plan-11981108/` | `plan --block 11981108` — read-only preconditions at the pin, unsigned S1–S7, plus a calibration simulation | PASS |
+| `simulate-11981108/` | `simulate --plan plan-11981108/plan.json` — independent rerun of the frozen plan (no re-planning; plan rebuilt from the pin and compared field by field; all 9 steps + 4 negatives required) | PASS |
 
-`plan.json` sha256 `632c3627fc999644554c405f37c8bd959217368e6eabd402afe2ae50cea5f6b0`. `relay.log` in both runs holds only
+`plan.json` sha256 `e797e9bddb4f78883ba9ea646c0fac4e08a46ed017f114c289d87869d751b71f`. `relay.log` in both runs holds only
 `refused eth_gasPrice` (the only line the relay-evidence gate tolerates).
 
-## Preconditions at the pin (block 11,980,919)
+## Preconditions at the pin (block 11,981,108)
 
 | sender | address | nonce (block == pending) | balance | budget at fee caps |
 |---|---|---:|---:|---:|
