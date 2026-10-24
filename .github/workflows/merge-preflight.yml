@@ -10,10 +10,19 @@
 # Both legs are observable at push time: the approval-vs-head comparison is why
 # it re-reads the head on every push rather than trusting an earlier reading.
 # NOT a required check, deliberately. Its three legs are each enforced by GitHub
-# itself — required contexts for the checks, dismiss_stale_reviews for
-# approval==head, reviewDecision for CHANGES_REQUESTED — and two of them this job
-# cannot even verify from a GITHUB_TOKEN. Listing it as required would have made
-# a green tick claim the approval legs were checked here. They are not.
+# itself — required contexts for the checks, require_last_push_approval (plus
+# dismiss_stale_reviews) for approval==head, reviewDecision for CHANGES_REQUESTED —
+# and two of them this job cannot even verify from a GITHUB_TOKEN. Listing it as
+# required would have made a green tick claim the approval legs were checked here.
+# They are not. (Required, its --ci mode would also block on any failing
+# NON-required check, e.g. auto-merge / label-major.)
+#
+# Correction (2026-10-24): dismiss_stale_reviews alone does NOT enforce
+# approval==head. GitHub keeps an approval across a push that leaves the PR diff
+# unchanged (a rebase) and re-points the review's commit_id at the new head.
+# #490/#491/#467 were approved on one sha, `@dependabot rebase`d (identical
+# patch-id), and auto-merged on another while this report was red. Since then
+# main has require_last_push_approval=true, so any push needs a fresh approval.
 #
 # It runs to REPORT, and to make the script exercised rather than merely present
 # (which was its original gap). The refusal lives in branch protection and in the
