@@ -31,8 +31,10 @@ import re
 ADDRESS_RX = re.compile(r"0x[0-9a-fA-F]{40}", re.ASCII)
 
 # Engine root is configurable (A3A_ENGINE_DIR); the binary is still verified against COMMIT before use.
-ENGINE = Path(os.environ.get('A3A_ENGINE_DIR', '/Users/jason/Dev/aastar/tools/foundry-rams/nightly-926eb1d'))
-COMMIT = '926eb1d087523f1de437e3c0c49ea6d26407e827'
+# Pinned to nightly 4e8874b: it keeps the EIP-8037 state-gas reservoir (foundry #17719). 926eb1d does not (uncapped frame
+# gas, stateGasReservoir 0) and matched real RR txs on receipt gasUsed only — 0/10 at frame level vs 10/10 here.
+ENGINE = Path(os.environ.get('A3A_ENGINE_DIR', '/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b'))
+COMMIT = '4e8874b2bdc840929585ca73e170993c50a4a531'
 PACKET = ROOT / 'docs/release/a3a-precheck-v4/a3a-precheck.json'
 CHAIN = 11155111
 ACTIVATION = 1791294816
@@ -97,6 +99,30 @@ class RPC:
         self.url, self.local, self.serial = url, local, 0
         self.serial_lock = threading.Lock()
 
+    def _post_with_deadline(self, q):
+        box = {}
+        def work():
+            try:
+                with urllib.request.urlopen(urllib.request.Request(
+                        self.url, json.dumps(q).encode(), {'Content-Type': 'application/json'}), timeout=45) as r:
+                    box['body'] = json.loads(r.read())  # decoding counts against the deadline too
+            except Exception as e:
+                box['error'] = e
+        started = time.monotonic()
+        worker = threading.Thread(target=work, daemon=True)
+        worker.start()
+        worker.join(RPC_TOTAL_DEADLINE_SECONDS)
+        # The elapsed check matters too: a C call holding the GIL (json.loads of a huge body) keeps join() from
+        # waking on time, so a result can arrive after the deadline; it is refused here. Not a strict latency bound:
+        # the caller still waits out such a decode (its cost grows with the body already received), and work after
+        # this check (envelope checks, freeing the decoded body) is not timed. The deadline exists to end hangs on
+        # the network side; no correctness property depends on its exact timing.
+        if worker.is_alive() or time.monotonic() - started > RPC_TOTAL_DEADLINE_SECONDS:
+            raise TimeoutError('total RPC deadline exceeded')
+        if 'error' in box:
+            raise box['error']
+        return box['body']
+
     def __call__(self, method, params, error_ok=False):
         if not self.local and not (method.startswith('eth_get') or method in
                                   ('eth_chainId', 'eth_config', 'eth_call', 'eth_estimateGas', 'web3_sha3')):
@@ -106,9 +132,13 @@ class RPC:
             rid = self.serial
         q = dict(jsonrpc='2.0', id=rid, method=method, params=params)
         try:
-            with urllib.request.urlopen(urllib.request.Request(
-                    self.url, json.dumps(q).encode(), {'Content-Type': 'application/json'}), timeout=45) as r:
-                d = json.load(r)
+            # timeout=45 bounds each socket operation only; a server that trickles bytes (in headers, chunk framing
+            # or body) can hold a request open indefinitely (observed 2026-10-24: one archive request hung > 8 min),
+            # and DNS has no timeout at all. So the whole request (resolve, connect, headers, body) runs in a daemon
+            # thread and the caller stops waiting after RPC_TOTAL_DEADLINE_SECONDS wall-clock. An abandoned thread
+            # may linger until its socket closes; nothing reads its result (the only caller that retries on Gate is
+            # the local engine-start probe, whose attempts end at once on connection refused).
+            d = self._post_with_deadline(q)
         except Exception as e:
             raise Gate('rpc_transport', type(e).__name__, 'valid response (URL redacted)') from None
         if (not isinstance(d, dict) or d.get('jsonrpc') != '2.0' or
@@ -179,7 +209,7 @@ def ast_nodes(value):
             yield from ast_nodes(child)
 
 
-def immutable_identity(a, build_info=None, contract_name='APNTsCapped'):
+def immutable_identity(a, build_info=None, contract_name='APNTsCapped', allowed_names=None):
     """Resolve IDs only within compilation units containing this exact runtime/artifact.
 
     IDs are compilation-local. Never combine AST IDs from unrelated builds.
@@ -190,7 +220,8 @@ def immutable_identity(a, build_info=None, contract_name='APNTsCapped'):
     refs = deployed.get('immutableReferences', {})
     if not isinstance(refs, dict):
         raise Gate('immutable_references', 'malformed', 'reference id -> ranges')
-    allowed = EIP712_IMMUTABLES if contract_name == 'APNTsCapped' else frozenset(('_minDelay',))
+    allowed = allowed_names if allowed_names is not None else (
+        EIP712_IMMUTABLES if contract_name == 'APNTsCapped' else frozenset(('_minDelay',)))
     if not refs and contract_name == 'TimelockController':
         return dict(artifactRuntime=runtime, ranges=[])
     candidates = []
@@ -281,12 +312,15 @@ def immutable_values(rpc, plan):
     return values, dict(_name=name_case, _version=version_case)
 
 
-def verify_runtime(rpc, plan, code, contract_name='APNTsCapped'):
-    identity = plan['runtimeIdentity' if contract_name == 'APNTsCapped' else 'timelockRuntimeIdentity']
+def verify_runtime(rpc, plan, code, contract_name='APNTsCapped', identity=None, values=None):
+    identity = identity if identity is not None else plan[
+        'runtimeIdentity' if contract_name == 'APNTsCapped' else 'timelockRuntimeIdentity']
     expected = bytearray.fromhex(typed(identity['artifactRuntime'], HEXDATA)[2:])
     actual = bytearray.fromhex(typed(code, HEXDATA)[2:])
     need('runtime_length', len(actual), len(expected))
-    if contract_name == 'APNTsCapped':
+    if values is not None:
+        cases = {}
+    elif contract_name == 'APNTsCapped':
         values, cases = immutable_values(rpc, plan)
     else:
         values, cases = {'_minDelay': (172800).to_bytes(32, 'big')}, {}
@@ -543,7 +577,7 @@ def raw_artifact(root, name):
 
 
 @lru_cache(maxsize=1)
-def compile_commit(commit, forge_version):
+def compile_commit(commit, forge_version, contract_names=CONTRACT_NAMES, identity_names=()):
     # Cache only independently rebuilt outputs, never the mutable ignored out/ files.
     # Every verification below re-compares current artifacts to these committed bytes.
     with tempfile.TemporaryDirectory(prefix='a3a-head-rebuild-') as directory:
@@ -555,14 +589,19 @@ def compile_commit(commit, forge_version):
         env = {k: os.environ[k] for k in allowed_env if k in os.environ}
         env['FOUNDRY_PROFILE'] = 'default'
         try:
-            r = subprocess.run([str(REBUILD_FORGE), 'build', '--offline'], cwd=tree, env=env,
+            flags = ['--ast', '--build-info'] if identity_names else []
+            r = subprocess.run([str(REBUILD_FORGE), 'build', '--offline', *flags], cwd=tree, env=env,
                                capture_output=True)
         except OSError as error:
             raise Gate('rebuild_forge_unavailable', type(error).__name__, 'local forge 1.7.1') from None
         if r.returncode:
             raise Gate('rebuild_offline_build', r.returncode,
                        'forge 1.7.1 build --offline with locally installed compiler and archived dependencies')
-        return {name: raw_artifact(tree, name) for name in CONTRACT_NAMES}, config
+        artifacts = {name: raw_artifact(tree, name) for name in contract_names}
+        for name, allowed in identity_names:
+            artifacts[name]['runtimeIdentity'] = immutable_identity(
+                artifacts[name], tree/'out/build-info', name, frozenset(allowed))
+        return artifacts, config
 
 
 def rebuild_artifacts(artifacts):
@@ -764,9 +803,47 @@ class RelayFilter:
         return [self.one(x) for x in q] if isinstance(q, list) else self.one(q)
 
 
-def relay_evidence(out):
+RPC_TOTAL_DEADLINE_SECONDS = 60
+TEARDOWN_MARK = '--- teardown: engine terminating ---'
+ANVIL_FORK_TIMEOUT_MS = 120000
+ABANDON_MAX_SECONDS = ANVIL_FORK_TIMEOUT_MS / 1000 / 2
+
+
+def request_key(q):
+    """Content hash of a JSON-RPC request or batch without its ids (no URL, no secrets)."""
+    strip = (lambda x: {k: v for k, v in x.items() if k != 'id'}) 
+    body = [strip(x) for x in q] if isinstance(q, list) else strip(q)
+    return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(',', ':')).encode()).hexdigest()[:16]
+
+
+def relay_evidence(out, live=False):
+    # Only the operating window counts. Killing anvil interrupts its in-flight prefetches, and the relay then
+    # logs e.g. 'failed handler BrokenPipeError'. Those lines stay in the log, after the teardown marker, but do
+    # not fail the run. Any failure BEFORE the marker still fails it, and a missing marker fails it as well.
+    # live=True: checked while the engine still runs (bootstrap continuation); every line counts, no marker yet.
     lines = (out/'relay.log').read_text().splitlines()
-    need('relay_evidence', all(x == 'refused eth_gasPrice' for x in lines), True)
+    if live:
+        need('relay_teardown_marker_premature', TEARDOWN_MARK in lines, False)
+    elif TEARDOWN_MARK in lines:
+        lines = lines[:lines.index(TEARDOWN_MARK)]
+    else:
+        need('relay_teardown_marker', False, True)
+    # What this gate protects against: anvil receiving an ERROR for a fork read and silently treating the data as
+    # absent (e.g. an empty account). That is 'failed handler ... upstreamServed=False' (the relay returned 502):
+    # always fatal. An 'abandoned' line means the upstream answered and anvil hung up on its own - it never received
+    # an error, so it cannot substitute defaults. Observed: eth_getBalance / eth_getCode abandoned 0.2 s after the
+    # upstream answered, never re-requested (anvil cancels prefetches of finished eth_estimateGas probes). The one
+    # risky variant is anvil giving up on its own timeout (120 s), so an abandon is accepted only well below it.
+    def allowed(x):
+        if x == 'refused eth_gasPrice' or x.startswith('redelivered key='):
+            return True
+        if x.startswith(('abandoned ', 'abandoned-duplicate ')):
+            parts = dict(p.split('=', 1) for p in x.split() if '=' in p)
+            elapsed = float(parts.get('elapsed', '999s').rstrip('s'))
+            return (x.split()[1] in ('BrokenPipeError', 'ConnectionResetError') and parts.get('upstreamServed') == 'True'
+                    and elapsed < ABANDON_MAX_SECONDS)
+        return False
+    need('relay_evidence', all(allowed(x) for x in lines), True)
 
 
 def git_state(out):
@@ -828,17 +905,41 @@ def fork(remote, pin, out):
             pass
 
         def do_POST(self):
+            started, methods, served, key = time.monotonic(), '?', False, None
             try:
                 q = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                methods = ','.join(sorted({str(x.get('method')) for x in q})) if isinstance(q, list) else str(q.get('method'))
+                key = request_key(q)
                 body = json.dumps(filter_rpc.dispatch(q)).encode()
+                served = True  # upstream answered (errors come back as JSON-RPC errors, not exceptions)
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(body)
-            except Exception:
-                relay_log.write('failed handler\n')
-                self.send_error(502, 'archive relay failed')
+                with key_lock:
+                    delivered.add(key)
+                    if key in pending_abandoned:
+                        pending_abandoned.discard(key)
+                        relay_log.write('redelivered key=' + key + '\n')
+            except Exception as e:
+                # Type name, method names, elapsed time and a request hash only: messages may embed the archive URL.
+                detail = (type(e).__name__ + ' methods=' + methods + ' upstreamServed=' + str(served) +
+                          ' elapsed=%.1fs' % (time.monotonic() - started))
+                if served and isinstance(e, (BrokenPipeError, ConnectionResetError)) and key is not None:
+                    # anvil hung up after the upstream answered. Harmless only if the identical request
+                    # (same method and params) reaches anvil successfully; relay_evidence enforces that.
+                    with key_lock:
+                        if key in delivered:
+                            relay_log.write('abandoned-duplicate ' + detail + ' key=' + key + '\n')
+                        else:
+                            pending_abandoned.add(key)
+                            relay_log.write('abandoned ' + detail + ' key=' + key + '\n')
+                else:
+                    relay_log.write('failed handler ' + detail + '\n')
+                if not served:
+                    self.send_error(502, 'archive relay failed')
     clean = git_state(out)
+    delivered, pending_abandoned, key_lock = set(), set(), threading.Lock()
     relay_log = open(out/'relay.log', 'w', buffering=1)
     filter_rpc = RelayFilter(remote, pin, relay_log)
     version = subprocess.run([str(ENGINE/'anvil'), '--version'], capture_output=True, text=True).stdout
@@ -864,7 +965,7 @@ def fork(remote, pin, out):
                                  '--chain-id', str(CHAIN), '--no-fork-node-info', '--no-bal', '--steps-tracing', '--no-storage-caching', '--silent',
                                  # Wait longer than the relay's 45 s upstream timeout, so an upstream timeout comes back to
                                  # anvil as a JSON-RPC error instead of anvil hanging up first (BrokenPipe in the relay).
-                                 '--timeout', '120000', '--retries', '0'],
+                                 '--timeout', str(ANVIL_FORK_TIMEOUT_MS), '--retries', '0'],
                                 stdout=subprocess.DEVNULL, stderr=engine_err)
         local = RPC('http://127.0.0.1:'+str(port), local=True)
         for _ in range(100):
@@ -885,6 +986,8 @@ def fork(remote, pin, out):
             local('anvil_impersonateAccount', [who])
         yield local
     finally:
+        if not relay_log.closed:
+            relay_log.write(TEARDOWN_MARK + '\n')
         if proc is not None:
             proc.terminate()
             proc.wait(timeout=10)
@@ -897,9 +1000,9 @@ def fork(remote, pin, out):
 TX_KEYS = frozenset(('to', 'data', 'value', 'nonce', 'from', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas', 'gas'))
 
 
-def tx_rpc(tx):
+def tx_rpc(tx, gas_cap=GAS_CAP):
     need('tx_rpc_keys', sorted(set(tx)-TX_KEYS), [])
-    tx_quantities(tx)
+    tx_quantities(tx, gas_cap=gas_cap)
     return {k: v for k, v in tx.items() if k in TX_KEYS and v is not None}
 
 
@@ -916,12 +1019,15 @@ def mined_identity(mined, tx, label):
         need(label+'_mined_gas', mined.get('gas'), tx['gas'])
 
 
-def receipt(rpc, tx, status='0x1'):
-    h = typed(rpc('eth_sendTransaction', [tx_rpc(tx)]), HASH32)
-    for _ in range(100):
+def receipt(rpc, tx, status='0x1', gas_cap=GAS_CAP):
+    h = typed(rpc('eth_sendTransaction', [tx_rpc(tx, gas_cap=gas_cap)]), HASH32)
+    # Heavy txs under --steps-tracing can be mined well after eth_sendTransaction returns: allow 60 s.
+    for _ in range(1200):
         r = rpc('eth_getTransactionReceipt', [h])
         if r is not None:
-            need('receipt_status', r.get('status'), status)
+            need('receipt_status_valid', r.get('status') in ('0x0', '0x1'), True)
+            if status is not None:
+                need('receipt_status', r.get('status'), status)
             qty(r['gasUsed'])
             return r
         time.sleep(.05)
@@ -1117,11 +1223,11 @@ def validate_pin(pin):
     need('pin_timestamp', pin['timestamp'] >= ACTIVATION, True)
 
 
-def tx_quantities(tx):
+def tx_quantities(tx, gas_cap=GAS_CAP):
     for field in ('value', 'nonce', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas', 'gas'):
         if field in tx: qty(tx[field])
     if 'gas' in tx:
-        need('gas_cap', qty(tx['gas']) <= GAS_CAP, True)
+        need('gas_cap', qty(tx['gas']) <= gas_cap, True)
 
 
 def validate_plan(plan, frozen=False):
@@ -1263,12 +1369,15 @@ def completion(records, controls):
     need('completed_controls', [c['control'] for c in controls], list(CONTROL_IDS))
 
 
-def rehearse(remote, plan, out, calibrate=False):
+def rehearse(remote, plan, out, calibrate=False, after=None):
     records, controls, context, overrides = [], [], {}, {}
     pin = plan['pin']
     validate_plan(plan, frozen=not calibrate)
     frozen_plan = copy.deepcopy(plan) if not calibrate else None
     with fork(remote, pin, out) as local:
+        if after is not None:
+            with (out/'simulate.log').open('a') as log:
+                log.write(json.dumps(dict(phase='a3a', status='START'))+'\n')
         expected_safe = pin['safeNonce']
         for step in plan['steps']:
             process_alive(local.engine_process)
@@ -1355,6 +1464,19 @@ def rehearse(remote, plan, out, calibrate=False):
                 log.write(json.dumps(records[-1])+'\n')
             write_json(out/'simulate.json', dict(status='IN_PROGRESS', steps=records, negativeControls=controls))
             trace_overrides(local, r, overrides)
+        # Keep the authenticated engine and read-only relay alive for a dependent package.
+        # Existing callers retain the original standalone rehearsal behavior.
+        completion(records, controls)
+        if after is not None:
+            validate_plan(plan, frozen=True)
+            need('frozen_plan_unchanged', plan, frozen_plan)
+            checked = copy.deepcopy(plan)
+            budget(checked)
+            need('frozen_budgets', checked['budgetsWei'], plan['budgetsWei'])
+            relay_evidence(out, live=True)
+            need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
+            local.archive_overrides = copy.deepcopy(overrides)
+            after(local)
     completion(records, controls)
     relay_evidence(out)
     need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
