@@ -10,10 +10,10 @@ passing offline tests is not an execution authorization.
 ## Use
 
 Python 3, standard library only. Offline ABI encoding and Ethereum Keccak use
-`cast` from `/Users/jason/Dev/aastar/tools/foundry-rams/nightly-926eb1d/`.
+`cast` from `/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/`.
 Forks use that directory's `anvil`, explicitly with `--hardfork amsterdam
 --order fifo`. The full engine commit must be
-`926eb1d087523f1de437e3c0c49ea6d26407e827`. Anvil 1.7.1 is not accepted.
+`4e8874b2bdc840929585ca73e170993c50a4a531`. Anvil 1.7.1 is not accepted.
 
 Prepare the local default build artifacts before running. The executor reads
 `out/APNTsCapped.sol/APNTsCapped.default.json` and
@@ -436,9 +436,12 @@ or modified, so shell syntax checking is inapplicable.
 
 ## Engine location and CI
 
-- `A3A_ENGINE_DIR` overrides the engine directory (default: the author's pinned nightly 926eb1d path). The fork
+- `A3A_ENGINE_DIR` overrides the engine directory (default: the author's pinned nightly 4e8874b path). The fork
   engine is still verified against the pinned commit, and authenticated through `anvil_nodeInfo`, before use.
 - CREATE addresses are derived in Python (RLP + keccak) instead of parsing `cast compute-address --json`, whose output
   shape differs between foundry 1.7.1 and the nightly. Test vectors cover RLP boundaries and the two v4 targets.
 - `.github/workflows/a3a-executor.yml` runs the offline tests on every PR touching `script/a3a/` or `script/evidence/lib/`,
   with foundry 1.7.1 (the same pin as `test.yml`). It is not a required check.
+
+
+**Engine pin changed 2026-10-24: nightly 926eb1d → 4e8874b.** 926eb1d does not implement the EIP-8037 reservoir split (frame gas uncapped above 2^24, `stateGasReservoir` always 0); it matched real RR txs only on receipt gasUsed (frame-level 0/10). 4e8874b (foundry #17719) matches 10/10 at frame level and 14/14 on the R-AMS R0 probe. Evidence: `docs/design/aoa-balance-mode/data/rams-rr-matrix/frame-calibration/` (PR cc125/rr-matrix). All A3a steps are ≤ 2^24 (R0), so earlier A3a numbers are unaffected, but a fresh plan must be produced under the new pin.

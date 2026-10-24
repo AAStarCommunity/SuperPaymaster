@@ -31,8 +31,10 @@ import re
 ADDRESS_RX = re.compile(r"0x[0-9a-fA-F]{40}", re.ASCII)
 
 # Engine root is configurable (A3A_ENGINE_DIR); the binary is still verified against COMMIT before use.
-ENGINE = Path(os.environ.get('A3A_ENGINE_DIR', '/Users/jason/Dev/aastar/tools/foundry-rams/nightly-926eb1d'))
-COMMIT = '926eb1d087523f1de437e3c0c49ea6d26407e827'
+# Pinned to nightly 4e8874b: it keeps the EIP-8037 state-gas reservoir (foundry #17719). 926eb1d does not (uncapped frame
+# gas, stateGasReservoir 0) and matched real RR txs on receipt gasUsed only — 0/10 at frame level vs 10/10 here.
+ENGINE = Path(os.environ.get('A3A_ENGINE_DIR', '/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b'))
+COMMIT = '4e8874b2bdc840929585ca73e170993c50a4a531'
 PACKET = ROOT / 'docs/release/a3a-precheck-v4/a3a-precheck.json'
 CHAIN = 11155111
 ACTIVATION = 1791294816
@@ -179,7 +181,7 @@ def ast_nodes(value):
             yield from ast_nodes(child)
 
 
-def immutable_identity(a, build_info=None, contract_name='APNTsCapped'):
+def immutable_identity(a, build_info=None, contract_name='APNTsCapped', allowed_names=None):
     """Resolve IDs only within compilation units containing this exact runtime/artifact.
 
     IDs are compilation-local. Never combine AST IDs from unrelated builds.
@@ -190,7 +192,8 @@ def immutable_identity(a, build_info=None, contract_name='APNTsCapped'):
     refs = deployed.get('immutableReferences', {})
     if not isinstance(refs, dict):
         raise Gate('immutable_references', 'malformed', 'reference id -> ranges')
-    allowed = EIP712_IMMUTABLES if contract_name == 'APNTsCapped' else frozenset(('_minDelay',))
+    allowed = allowed_names if allowed_names is not None else (
+        EIP712_IMMUTABLES if contract_name == 'APNTsCapped' else frozenset(('_minDelay',)))
     if not refs and contract_name == 'TimelockController':
         return dict(artifactRuntime=runtime, ranges=[])
     candidates = []
@@ -281,12 +284,15 @@ def immutable_values(rpc, plan):
     return values, dict(_name=name_case, _version=version_case)
 
 
-def verify_runtime(rpc, plan, code, contract_name='APNTsCapped'):
-    identity = plan['runtimeIdentity' if contract_name == 'APNTsCapped' else 'timelockRuntimeIdentity']
+def verify_runtime(rpc, plan, code, contract_name='APNTsCapped', identity=None, values=None):
+    identity = identity if identity is not None else plan[
+        'runtimeIdentity' if contract_name == 'APNTsCapped' else 'timelockRuntimeIdentity']
     expected = bytearray.fromhex(typed(identity['artifactRuntime'], HEXDATA)[2:])
     actual = bytearray.fromhex(typed(code, HEXDATA)[2:])
     need('runtime_length', len(actual), len(expected))
-    if contract_name == 'APNTsCapped':
+    if values is not None:
+        cases = {}
+    elif contract_name == 'APNTsCapped':
         values, cases = immutable_values(rpc, plan)
     else:
         values, cases = {'_minDelay': (172800).to_bytes(32, 'big')}, {}
@@ -543,7 +549,7 @@ def raw_artifact(root, name):
 
 
 @lru_cache(maxsize=1)
-def compile_commit(commit, forge_version):
+def compile_commit(commit, forge_version, contract_names=CONTRACT_NAMES, identity_names=()):
     # Cache only independently rebuilt outputs, never the mutable ignored out/ files.
     # Every verification below re-compares current artifacts to these committed bytes.
     with tempfile.TemporaryDirectory(prefix='a3a-head-rebuild-') as directory:
@@ -555,14 +561,19 @@ def compile_commit(commit, forge_version):
         env = {k: os.environ[k] for k in allowed_env if k in os.environ}
         env['FOUNDRY_PROFILE'] = 'default'
         try:
-            r = subprocess.run([str(REBUILD_FORGE), 'build', '--offline'], cwd=tree, env=env,
+            flags = ['--ast', '--build-info'] if identity_names else []
+            r = subprocess.run([str(REBUILD_FORGE), 'build', '--offline', *flags], cwd=tree, env=env,
                                capture_output=True)
         except OSError as error:
             raise Gate('rebuild_forge_unavailable', type(error).__name__, 'local forge 1.7.1') from None
         if r.returncode:
             raise Gate('rebuild_offline_build', r.returncode,
                        'forge 1.7.1 build --offline with locally installed compiler and archived dependencies')
-        return {name: raw_artifact(tree, name) for name in CONTRACT_NAMES}, config
+        artifacts = {name: raw_artifact(tree, name) for name in contract_names}
+        for name, allowed in identity_names:
+            artifacts[name]['runtimeIdentity'] = immutable_identity(
+                artifacts[name], tree/'out/build-info', name, frozenset(allowed))
+        return artifacts, config
 
 
 def rebuild_artifacts(artifacts):
@@ -1263,12 +1274,15 @@ def completion(records, controls):
     need('completed_controls', [c['control'] for c in controls], list(CONTROL_IDS))
 
 
-def rehearse(remote, plan, out, calibrate=False):
+def rehearse(remote, plan, out, calibrate=False, after=None):
     records, controls, context, overrides = [], [], {}, {}
     pin = plan['pin']
     validate_plan(plan, frozen=not calibrate)
     frozen_plan = copy.deepcopy(plan) if not calibrate else None
     with fork(remote, pin, out) as local:
+        if after is not None:
+            with (out/'simulate.log').open('a') as log:
+                log.write(json.dumps(dict(phase='a3a', status='START'))+'\n')
         expected_safe = pin['safeNonce']
         for step in plan['steps']:
             process_alive(local.engine_process)
@@ -1355,6 +1369,18 @@ def rehearse(remote, plan, out, calibrate=False):
                 log.write(json.dumps(records[-1])+'\n')
             write_json(out/'simulate.json', dict(status='IN_PROGRESS', steps=records, negativeControls=controls))
             trace_overrides(local, r, overrides)
+        # Keep the authenticated engine and read-only relay alive for a dependent package.
+        # Existing callers retain the original standalone rehearsal behavior.
+        completion(records, controls)
+        if after is not None:
+            validate_plan(plan, frozen=True)
+            need('frozen_plan_unchanged', plan, frozen_plan)
+            checked = copy.deepcopy(plan)
+            budget(checked)
+            need('frozen_budgets', checked['budgetsWei'], plan['budgetsWei'])
+            relay_evidence(out)
+            need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
+            after(local)
     completion(records, controls)
     relay_evidence(out)
     need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
