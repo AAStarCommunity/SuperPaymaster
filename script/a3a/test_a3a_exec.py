@@ -744,6 +744,33 @@ class ExecutorTests(unittest.TestCase):
                     ex.relay_evidence(out)
                 self.assertEqual(caught.exception.record['gate'], 'relay_evidence')
 
+    def test_relay_abandoned_requests(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            mark = ex.TEARDOWN_MARK + '\n'
+            ab = 'abandoned BrokenPipeError methods=eth_getBalance upstreamServed=True elapsed=0.2s key=%s\n'
+            # The identical request was already delivered: harmless duplicate.
+            (out/'relay.log').write_text('abandoned-duplicate BrokenPipeError methods=eth_getBalance upstreamServed=True elapsed=0.2s key=aa\n' + mark)
+            ex.relay_evidence(out)
+            # Abandoned first, redelivered later in the window: passes.
+            (out/'relay.log').write_text(ab % 'bb' + 'redelivered key=bb\n' + mark)
+            ex.relay_evidence(out)
+            # Abandoned and never redelivered (or redelivered under another key): fails.
+            for text in (ab % 'cc', ab % 'cc' + 'redelivered key=dd\n',
+                         'failed handler URLError methods=eth_getCode upstreamServed=False elapsed=45.0s\n'):
+                (out/'relay.log').write_text(text + mark)
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.relay_evidence(out)
+                self.assertEqual(caught.exception.record['gate'], 'relay_evidence')
+
+    def test_request_key_ignores_id_only(self):
+        a = {'jsonrpc': '2.0', 'id': 1, 'method': 'eth_getBalance', 'params': ['0x' + '11' * 20, '0x1']}
+        b = dict(a, id=99)
+        c = dict(a, params=['0x' + '22' * 20, '0x1'])
+        self.assertEqual(ex.request_key(a), ex.request_key(b))
+        self.assertNotEqual(ex.request_key(a), ex.request_key(c))
+        self.assertEqual(ex.request_key([a, c]), ex.request_key([b, dict(c, id=7)]))
+
     def test_relay_teardown_window(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)

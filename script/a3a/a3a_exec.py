@@ -778,6 +778,13 @@ class RelayFilter:
 TEARDOWN_MARK = '--- teardown: engine terminating ---'
 
 
+def request_key(q):
+    """Content hash of a JSON-RPC request or batch without its ids (no URL, no secrets)."""
+    strip = (lambda x: {k: v for k, v in x.items() if k != 'id'}) 
+    body = [strip(x) for x in q] if isinstance(q, list) else strip(q)
+    return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(',', ':')).encode()).hexdigest()[:16]
+
+
 def relay_evidence(out, live=False):
     # Only the operating window counts. Killing anvil interrupts its in-flight prefetches, and the relay then
     # logs e.g. 'failed handler BrokenPipeError'. Those lines stay in the log, after the teardown marker, but do
@@ -790,7 +797,14 @@ def relay_evidence(out, live=False):
         lines = lines[:lines.index(TEARDOWN_MARK)]
     else:
         need('relay_teardown_marker', False, True)
-    need('relay_evidence', all(x == 'refused eth_gasPrice' for x in lines), True)
+    # Allowed: the engine's eth_gasPrice probe; an abandoned request whose identical twin was already delivered;
+    # an abandoned request that is redelivered later in the window. Anything else fails.
+    redelivered = {x.split('key=', 1)[1] for x in lines if x.startswith('redelivered key=')}
+    def allowed(x):
+        if x == 'refused eth_gasPrice' or x.startswith('redelivered key=') or x.startswith('abandoned-duplicate '):
+            return True
+        return x.startswith('abandoned ') and x.rsplit('key=', 1)[-1] in redelivered
+    need('relay_evidence', all(allowed(x) for x in lines), True)
 
 
 def git_state(out):
@@ -852,23 +866,41 @@ def fork(remote, pin, out):
             pass
 
         def do_POST(self):
-            started, methods, served = time.monotonic(), '?', False
+            started, methods, served, key = time.monotonic(), '?', False, None
             try:
                 q = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
                 methods = ','.join(sorted({str(x.get('method')) for x in q})) if isinstance(q, list) else str(q.get('method'))
+                key = request_key(q)
                 body = json.dumps(filter_rpc.dispatch(q)).encode()
                 served = True  # upstream answered (errors come back as JSON-RPC errors, not exceptions)
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(body)
+                with key_lock:
+                    delivered.add(key)
+                    if key in pending_abandoned:
+                        pending_abandoned.discard(key)
+                        relay_log.write('redelivered key=' + key + '\n')
             except Exception as e:
-                # Type name, method names and elapsed time only: messages may embed the archive URL.
-                relay_log.write('failed handler ' + type(e).__name__ + ' methods=' + methods +
-                                ' upstreamServed=' + str(served) + ' elapsed=%.1fs' % (time.monotonic() - started) + '\n')
+                # Type name, method names, elapsed time and a request hash only: messages may embed the archive URL.
+                detail = (type(e).__name__ + ' methods=' + methods + ' upstreamServed=' + str(served) +
+                          ' elapsed=%.1fs' % (time.monotonic() - started))
+                if served and isinstance(e, (BrokenPipeError, ConnectionResetError)) and key is not None:
+                    # anvil hung up after the upstream answered. Harmless only if the identical request
+                    # (same method and params) reaches anvil successfully; relay_evidence enforces that.
+                    with key_lock:
+                        if key in delivered:
+                            relay_log.write('abandoned-duplicate ' + detail + ' key=' + key + '\n')
+                        else:
+                            pending_abandoned.add(key)
+                            relay_log.write('abandoned ' + detail + ' key=' + key + '\n')
+                else:
+                    relay_log.write('failed handler ' + detail + '\n')
                 if not served:
                     self.send_error(502, 'archive relay failed')
     clean = git_state(out)
+    delivered, pending_abandoned, key_lock = set(), set(), threading.Lock()
     relay_log = open(out/'relay.log', 'w', buffering=1)
     filter_rpc = RelayFilter(remote, pin, relay_log)
     version = subprocess.run([str(ENGINE/'anvil'), '--version'], capture_output=True, text=True).stdout
