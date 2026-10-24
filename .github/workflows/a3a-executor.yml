@@ -1,0 +1,34 @@
+name: a3a-executor
+# Offline tests of script/a3a/a3a_exec.py (68+ cases, mocked RPC; no network, no keys).
+# The tests use `cast` only for ABI encoding / keccak, which is identical across foundry versions;
+# the executor itself still pins and verifies the Amsterdam engine commit at fork start.
+on:
+  pull_request:
+    paths:
+      - 'script/a3a/**'
+      - 'script/evidence/lib/**'
+      - '.github/workflows/a3a-executor.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'script/a3a/**'
+      - 'script/evidence/lib/**'
+      - '.github/workflows/a3a-executor.yml'
+permissions:
+  contents: read
+jobs:
+  a3a-executor-tests:
+    name: a3a-executor-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Foundry (same pin as test.yml)
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: Offline executor tests
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/a3a/test_a3a_exec.py
