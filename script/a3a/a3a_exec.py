@@ -113,7 +113,10 @@ class RPC:
         worker.start()
         worker.join(RPC_TOTAL_DEADLINE_SECONDS)
         # The elapsed check matters too: a C call holding the GIL (json.loads of a huge body) keeps join() from
-        # waking on time, so a result can arrive after the deadline. Such a result is refused, not used.
+        # waking on time, so a result can arrive after the deadline; it is refused here. Not a strict latency bound:
+        # the caller still waits out such a decode (its cost grows with the body already received), and work after
+        # this check (envelope checks, freeing the decoded body) is not timed. The deadline exists to end hangs on
+        # the network side; no correctness property depends on its exact timing.
         if worker.is_alive() or time.monotonic() - started > RPC_TOTAL_DEADLINE_SECONDS:
             raise TimeoutError('total RPC deadline exceeded')
         if 'error' in box:
