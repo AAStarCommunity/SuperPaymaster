@@ -108,7 +108,7 @@ Regenerate old schema-1 upgrade plans. Schema 2 contains no fixed gas limits. Fo
 
 CREATE additionally gets a binary search of the minimum gas limit that succeeds as a **mined** transaction. Each trial snapshots state, sends the exact transaction, verifies its receipt and transaction identity, and reverts. The search and pilots never advance package nonces or preserve deployed code. Trial limits, hashes, statuses, and gas used appear in each step's `minedGasSearch` evidence in `simulate.log`.
 
-Only CREATE may exceed 2^24. Its mined minimum must exceed `floor(2^24 * 10 / 13)`, and its first-step trace must prove a nonzero state-gas reservoir. That step records `rrRequired: true` and a bound `rrWitness`. The margin-adjusted limit must remain at most 60,000,000. Every other step retains the 2^24 cap. An estimate cannot authorize the exception.
+Only CREATE may exceed 2^24. Its mined minimum must exceed `floor(2^24 * 10 / 13)`, and its first-step trace must prove a nonzero state-gas reservoir. That step records `rrRequired: true` and a bound `rrWitness`. The margin-adjusted limit must remain at most 100,000,000 and at most the block gas limit. Every other step retains the 2^24 cap. An estimate cannot authorize the exception.
 
 The minimum search first requires success at the 100M ceiling. An admission error, failed high trial, unavailable trace, zero reservoir, insufficient funds, or margin above the ceiling stops the package. These failures are not converted into a larger guess. Snapshot pilots require stable gas-used accounting before the limit is frozen. `pre_send` requires the planned gas to cover the recorded minimum; frozen simulation searches again and checks that minimum independently, even when estimates remain low.
 
