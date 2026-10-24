@@ -764,9 +764,10 @@ def main(argv=None):
             p.add_argument('--plan', type=Path, required=True)
     for name in ('sign', 'send'):
         p = sub.add_parser(name)
-        p.add_argument('--out', type=Path, default=Path('a3a-refusal'))
+        p.add_argument('--out', type=Path, default=None)  # refusal is recorded on disk only when asked
     args = parser.parse_args(argv)
-    args.out.mkdir(parents=True, exist_ok=True)
+    if args.out is not None:
+        args.out.mkdir(parents=True, exist_ok=True)
     try:
         if args.command in ('sign', 'send'):
             raise Gate('sign_disabled' if args.command == 'sign' else 'send_disabled', REFUSAL, 'separate authorization and implemented reviewed signer')
@@ -779,11 +780,13 @@ def main(argv=None):
             rehearse(remote, plan, args.out)
         return 0
     except Gate as e:
-        write_json(args.out/'FAILURE.json', e.record)
+        if args.out is not None:
+            write_json(args.out/'FAILURE.json', e.record)
         print(REFUSAL if args.command in ('sign', 'send') else 'STOP: '+e.record['gate'], file=sys.stderr)
         return 3 if args.command in ('sign', 'send') else 1
     except Exception as e:
-        write_json(args.out/'FAILURE.json', dict(status='FAILURE', gate='executor_error', observed=type(e).__name__, expected='successful gated execution; RPC redacted'))
+        if args.out is not None:
+            write_json(args.out/'FAILURE.json', dict(status='FAILURE', gate='executor_error', observed=type(e).__name__, expected='successful gated execution; RPC redacted'))
         print('STOP: executor_error ('+type(e).__name__+')', file=sys.stderr)
         return 1
 
