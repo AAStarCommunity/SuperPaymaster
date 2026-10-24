@@ -10,7 +10,7 @@ passing offline tests is not an execution authorization.
 ## Use
 
 Python 3, standard library only. Offline ABI encoding and Ethereum Keccak use
-`cast` from `/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/`.
+`cast` from `$HOME/Dev/aastar/tools/foundry-rams/nightly-4e8874b/`.
 Forks use that directory's `anvil`, explicitly with `--hardfork amsterdam
 --order fifo`. The full engine commit must be
 `4e8874b2bdc840929585ca73e170993c50a4a531`. Anvil 1.7.1 is not accepted.
@@ -398,7 +398,7 @@ A SHA-256 sidecar detects changed bytes; it is not a review attestation.
 ## Offline verification
 
 ```sh
-/Users/jason/.pyenv/versions/3.11.9/bin/python3 -B script/a3a/test_a3a_exec.py
+python3 -B script/a3a/test_a3a_exec.py
 ```
 
 Tests mock urllib in the same style as `script/evidence/test_rams_gauges.py`.

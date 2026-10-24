@@ -32,7 +32,7 @@ Full matrix, **1080 measured handleOps transactions plus 180 history priming tra
 python3.11 script/evidence/rr-matrix-run.py --out docs/design/aoa-balance-mode/data/rams-rr-matrix/phase2
 ```
 
-The default engine is `/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/anvil`;
+The default engine is `$HOME/Dev/aastar/tools/foundry-rams/nightly-4e8874b/anvil`;
 forge defaults to its sibling. Override with `RR_ANVIL`/`RR_FORGE` or `--anvil`/`--forge`.
 Both binary commits are checked. Options: `--port` (default 18952), `--delta` (default
 100000), `--filter` (cell-ID substring). Output must be a new directory inside this repo.
