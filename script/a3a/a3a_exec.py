@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Unsigned A3a planning and isolated Amsterdam rehearsal. No signing implementation."""
+import sys
+# The git-clean gate would otherwise fail on the __pycache__ this very import creates.
+sys.dont_write_bytecode = True
 import argparse
 import contextlib
 import copy
