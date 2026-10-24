@@ -67,7 +67,9 @@ async function run() {
         const hash = await request("eth_sendTransaction", [tx]);
         const rc = await receipt(hash);
         const mined = await request("eth_getTransactionByHash", [hash]);
-        assert.equal(BigInt(mined.gas), BigInt(limit)); assert.equal(mined.input, tx.data);
+        assert.equal(BigInt(mined.gas), BigInt(limit));
+        // Hex is case-insensitive: tx.data embeds checksummed addresses, the node returns lowercase.
+        assert.equal(mined.input.toLowerCase(), tx.data.toLowerCase(), "mined input differs from sent calldata");
         assert.equal(Number(BigInt(rc.transactionIndex)), 0, "isolated automine transaction reordered");
         return { tx: mined, receipt: rc };
     };
