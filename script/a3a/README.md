@@ -433,3 +433,12 @@ The module keeps `sys.dont_write_bytecode = True` at its top. Python 3.11 syntax
 is required; compilation can be checked with py_compile output directed to a
 temporary directory to avoid repository bytecode files. No shell script is added
 or modified, so shell syntax checking is inapplicable.
+
+## Engine location and CI
+
+- `A3A_ENGINE_DIR` overrides the engine directory (default: the author's pinned nightly 926eb1d path). The fork
+  engine is still verified against the pinned commit, and authenticated through `anvil_nodeInfo`, before use.
+- CREATE addresses are derived in Python (RLP + keccak) instead of parsing `cast compute-address --json`, whose output
+  shape differs between foundry 1.7.1 and the nightly. Test vectors cover RLP boundaries and the two v4 targets.
+- `.github/workflows/a3a-executor.yml` runs the offline tests on every PR touching `script/a3a/` or `script/evidence/lib/`,
+  with foundry 1.7.1 (the same pin as `test.yml`). It is not a required check.

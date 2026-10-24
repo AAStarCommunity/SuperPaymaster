@@ -1077,6 +1077,20 @@ class ExecutorTests(unittest.TestCase):
             self.assertEqual(caught.exception.record['gate'], 'engine_stderr')
             self.assertNotEqual(json.loads((Path(d)/'simulate.json').read_text())['status'], 'PASS')
 
+    def test_create_address_vectors(self):
+        # Reference values from `cast compute-address` (same on 1.7.1 and nightly 926eb1d), including the RLP
+        # single-byte / short-string boundaries and the two v4-packet CREATE targets (nonce 12132 / 12133).
+        vectors = {0: '0x851571543ad6d749cc765fabc99cd8f1b193e920', 1: '0xa1a0e154d96c2c0413cdcefa4e32d68d3f0af377',
+                   127: '0xa181de9140d91d7e16f4102db162a435cc0790e2', 128: '0x4accffab0765bd21c5da628dfc0a75741c386237',
+                   255: '0x1509bdc5ec966d564d45eadc549b838d5e35b443', 256: '0xcf6011ac55cd7e4de6e3212783aed38147f252e8',
+                   12132: '0xccdf8e0d29fb2c3061910d79484a2b653757c34b', 12133: '0x9eb17fac022557f64924aa2f9e018db3a330e1e7'}
+        for nonce, want in vectors.items():
+            with self.subTest(nonce=nonce):
+                self.assertEqual(ex.create_address(ex.DEPLOYER, nonce), want)
+        for bad in (-1, True, 1.0):
+            with self.assertRaises(ex.Gate):
+                ex.create_address(ex.DEPLOYER, bad)
+
     def test_rpc_ids_are_thread_safe(self):
         observed = []
         def urlopen(request, timeout=None):

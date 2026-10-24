@@ -20,7 +20,14 @@ Usage: RPC_FILE=<file holding the archive URL> FORK_BLOCK=11974561 python3 rams-
 """
 import json, os, sys, urllib.request
 
-url = open(os.environ["RPC_FILE"]).read().strip()
+if not os.environ.get("RPC_FILE"):
+    print("RPC_FILE is not set: point it at a file holding the archive RPC URL (the URL is never printed)", file=sys.stderr); sys.exit(2)
+try:
+    url = open(os.environ["RPC_FILE"]).read().strip()
+except OSError as e:
+    print(f"cannot read RPC_FILE ({type(e).__name__}); the URL is never printed", file=sys.stderr); sys.exit(2)
+if not url:
+    print("RPC_FILE is empty", file=sys.stderr); sys.exit(2)
 fork = int(os.environ.get("FORK_BLOCK", "11974561"))
 REG = "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71"
 SP = "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9"

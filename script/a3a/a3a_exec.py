@@ -27,8 +27,11 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'script/evidence/lib'))
 from rpc_strict import HEXDATA, QTY, HASH32, classify
+import re
+ADDRESS_RX = re.compile(r"0x[0-9a-fA-F]{40}", re.ASCII)
 
-ENGINE = Path('/Users/jason/Dev/aastar/tools/foundry-rams/nightly-926eb1d')
+# Engine root is configurable (A3A_ENGINE_DIR); the binary is still verified against COMMIT before use.
+ENGINE = Path(os.environ.get('A3A_ENGINE_DIR', '/Users/jason/Dev/aastar/tools/foundry-rams/nightly-926eb1d'))
 COMMIT = '926eb1d087523f1de437e3c0c49ea6d26407e827'
 PACKET = ROOT / 'docs/release/a3a-precheck-v4/a3a-precheck.json'
 CHAIN = 11155111
@@ -135,6 +138,27 @@ def cast(*args):
 
 def keccak(data):
     return typed(cast('keccak', data), HASH32)
+
+
+def _rlp_bytes(b):
+    if len(b) == 1 and b[0] < 0x80:
+        return b
+    if len(b) <= 55:
+        return bytes([0x80 + len(b)]) + b
+    n = len(b).to_bytes((len(b).bit_length() + 7) // 8, 'big')
+    return bytes([0xb7 + len(n)]) + n + b
+
+
+def create_address(sender, nonce):
+    """CREATE address = keccak256(rlp([sender, nonce]))[12:], derived here rather than parsed from
+    `cast compute-address --json`, whose output shape differs between foundry 1.7.1 and the nightly."""
+    if type(nonce) is not int or nonce < 0:
+        raise Gate('create_nonce', nonce, 'non-negative int')
+    s = bytes.fromhex(typed(sender, ADDRESS_RX, 'create_sender')[2:])
+    body = _rlp_bytes(s) + _rlp_bytes(nonce.to_bytes((nonce.bit_length() + 7) // 8, 'big') if nonce else b'')
+    if len(body) > 55:
+        raise Gate('create_rlp', len(body), 'short list')
+    return '0x' + keccak('0x' + (bytes([0xc0 + len(body)]) + body).hex())[-40:]
 
 
 def rpc_keccak(rpc, data):
@@ -632,7 +656,7 @@ def preflight(rpc, block):
     for name in ('pendingAPNTsTokenEta', 'APNTS_TOKEN_TIMELOCK'):
         sp[name] = word(rpc, SP, name + '()', block=block)
         need('sp_' + name, sp[name], int(snapshot['sp'][name]))
-    predicted = [json.loads(cast('compute-address', DEPLOYER, '--nonce', n+i, '--json'))['data'].lower()
+    predicted = [create_address(DEPLOYER, n+i)
                  for i in (1, 2)]
     for a in predicted:
         need('create_address_empty', typed(rpc('eth_getCode', [a, block]), HEXDATA), '0x')
@@ -658,7 +682,7 @@ def build_plan(state):
         need('plan_sender_'+label, state['senders'][label]['address'], who)
     n = state['senders']['deployer']['nonce']
     need('plan_deployer_nonce', state['deployerNonce'], n)
-    tl, token = [json.loads(cast('compute-address', DEPLOYER, '--nonce', n+i, '--json'))['data'].lower()
+    tl, token = [create_address(DEPLOYER, n+i)
                  for i in (1, 2)]
     need('plan_predicted_timelock', state['timelock'], tl)
     need('plan_predicted_capped', state['capped'], token)
