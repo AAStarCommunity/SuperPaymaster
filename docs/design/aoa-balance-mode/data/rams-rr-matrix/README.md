@@ -53,3 +53,7 @@ Root `.gitignore` ignores `*.log`; `data/.gitignore` currently exempts evidence 
 `.gz` files. Logs must be force-added later as requested when archiving the evidence.
 This task does not stage or commit files. Do not rerun the witness into this committed
 directory unless replacing its existing control evidence is intended.
+
+**R0 probe provenance:** `r0-probe/probe-nightly-4e8874b-11982241.*` and `probe-nightly-926eb1d-11982241.*` are byte-identical
+(identical results; the probe output does not record the engine). That they came from the two engines rests on the run
+command, not on file content; a future probe run should write the engine version into its output.

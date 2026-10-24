@@ -66,7 +66,7 @@ Guard or outcome changes: 40; all comparisons are in comparisons.json.
 
 ## Analysis (Claude, from `analysis.json` = `script/evidence/rr-matrix-analyze.py phase2 analysis.json`, and `comparisons.json`)
 
-Run: engine nightly **4e8874b** (keeps the EIP-8037 reservoir; frame-level 10/10 vs chain, `../frame-calibration/`), repo `1ef7bede`, `dirtyCount 0`, 360 cells × {R0 = 2^24, RR30M, RRdelta = 2^24 + 100,000} = **1080 mined handleOps**, 0 errors.
+Run: engine nightly **4e8874b** (keeps the EIP-8037 reservoir; 10/10 vs chain on status, gasUsed, first-step frame gas and first-step reservoir, `../frame-calibration/`), repo `1ef7bede`, `dirtyCount 0`, 360 cells × {R0 = 2^24, RR30M, RRdelta = 2^24 + 100,000} = **1080 mined handleOps**, 0 errors.
 
 **SP safety under RR — no change found**
 - **I9 holds in all 1080 rows** (no validation-reserved sponsorship left unsettled).
@@ -83,7 +83,7 @@ Run: engine nightly **4e8874b** (keeps the EIP-8037 reservoir; frame-level 10/10
   - **successful txs only (240/regime; the right basis):** R0 median −909,554 (38/240 positive), **RR30M median +740,560 (212/240 positive), max +3,480,684**, RRdelta −907,474 (38/240 positive);
   - all 360 rows (incl. the 120 MIN−1 txs that revert by design before reservation): R0 −341,815, RR30M +321,355, RRdelta −241,815.
   *Correction:* the PR description and the CC-125 note first quoted only the all-rows +321,355, which understates the RR effect on successful bundles by about half (pointed out in the #535 review).
-- Consequence: a bundle above 2^24 is usually a loss for the bundler. "handleOps gas ≤ 2^24" is a **necessary, not sufficient** condition — 38/240 successful R0 bundles are also under-reimbursed (PVG too low for those cells). This is outside SP, but it must be a stated SDK/bundler requirement, not an assumption.
+- Consequence: what drives the gap is how much state gas the reservoir pays, not the 2^24 line itself. RRdelta (gasLimit 16,877,216 > 2^24, reservoir only 100,000) has the **same 38/240 under-reimbursed cells as R0 and 0 outcome flips**, so "≤ 2^24" is **neither necessary nor sufficient**: R0 also under-reimburses 38/240 successful bundles (PVG too low for those cells). Capping handleOps gas at 2^24 remains the conservative SDK/bundler recommendation because it removes the reservoir effect entirely; it is outside SP and must be stated as a requirement, not assumed. *Correction:* an earlier revision of this file called the cap "necessary" (from the #535 review round 1; corrected in round 2).
 
 **Not covered:** legacy 160 B context (not reachable with rc.4 bytes) and cold validation at op 3/3 (definitions record the reasons); real public-bundler behaviour above 2^24.
 

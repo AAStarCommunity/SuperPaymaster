@@ -8,14 +8,15 @@ and reports stateGasReservoir = 0. Receipt-only agreement hid that defect.
 
 Committed evidence supplied by the owner at c7b1d02f:
 
-- `frame-calibration/nightly-4e8874b.json`: 10/10 against the chain on status, gasUsed, first-step frame gas and first-step reservoir
-  node, including first-frame gas and reservoir; 926eb1d: 0/10 strict, 10/10 receipt-only
+- `frame-calibration/nightly-4e8874b.json`: 10/10 against the chain node on status, gasUsed, first-step frame gas and
+  first-step reservoir (later frames are not compared); 926eb1d: 0/10 strict, 10/10 receipt-only
   (`frame-calibration/nightly-926eb1d.json`). No replay is needed for Phase 2.
 - `r0-probe/probe-nightly-4e8874b-11982241.json`: 14/14 R0 probes. Both engines pass
   these R0 probes; R0 cannot distinguish the reservoir split.
 - `witness-results.json`, `witness-traces.jsonl.gz`, `witness-run.log`: real local
   mined controls. `structLogs[].stateGasReservoir` is the consumption witness.
-  RR starts with regular frame gas 2^24 minus intrinsic and reservoir gasLimit−2^24.
+  RR starts with regular frame gas 2^24 minus intrinsic and reservoir `evm_gas − gas_left` (EIP-8037); that is gasLimit − 2^24
+  except where intrinsic state gas is charged first (183,600 lower in 4/10 chain CREATE txs; see REPORT.md).
   Fresh SSTORE costs 110,020, including 97,920 state gas drawn from the reservoir first.
   fresh200 fails under R0 at slot 153 and succeeds under RR, gasUsed 22,020,200.
   fresh500 fails under RR with receipt gasUsed 16,777,216: reverted state gas returns
