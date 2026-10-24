@@ -9,25 +9,27 @@
 #
 # Both legs are observable at push time: the approval-vs-head comparison is why
 # it re-reads the head on every push rather than trusting an earlier reading.
-# NOT a required check, deliberately. Its three legs are each enforced by GitHub
-# itself — required contexts for the checks, require_last_push_approval (plus
-# dismiss_stale_reviews) for approval==head, reviewDecision for CHANGES_REQUESTED —
-# and two of them this job cannot even verify from a GITHUB_TOKEN. Listing it as
-# required would have made a green tick claim the approval legs were checked here.
-# They are not. (Required, its --ci mode would also block on any failing
-# NON-required check, e.g. auto-merge / label-major.)
+# REQUIRED check since 2026-10-24 (it used to be deliberately NOT required).
 #
-# Correction (2026-10-24): dismiss_stale_reviews alone does NOT enforce
-# approval==head. GitHub keeps an approval across a push that leaves the PR diff
-# unchanged (a rebase) and re-points the review's commit_id at the new head.
-# #490/#491/#467 were approved on one sha, `@dependabot rebase`d (identical
-# patch-id), and auto-merged on another while this report was red. Since then
-# main has require_last_push_approval=true, so any push needs a fresh approval.
+# The old reason was that GitHub itself enforces each leg: required contexts for the
+# checks, dismiss_stale_reviews for approval==head, reviewDecision for CHANGES_REQUESTED.
+# The approval==head leg is false. GitHub keeps an approval across any push that leaves
+# the PR diff unchanged and re-points the review's commit_id at the new head:
+#   - #490/#491/#467 were approved on one sha, `@dependabot rebase`d (identical patch-id),
+#     and auto-merged on another sha while this report was red.
+#   - require_last_push_approval does not close that gap either. Measured on #531: after an
+#     "Update branch" that left the diff unchanged, the PR was APPROVED / UNSTABLE /
+#     MERGEABLE, and only this report was failing. A same-diff push does not count as a
+#     new "reviewable push".
+# This job is the only thing that compares the approval body's "Head reviewed" sha
+# with the head. Made required, #531 went BLOCKED with nothing else changed (positive
+# control).
 #
-# It runs to REPORT, and to make the script exercised rather than merely present
-# (which was its original gap). The refusal lives in branch protection and in the
-# strict pre-merge run of the same script.
-# =============================================================================
+# Costs, accepted:
+#   - its --ci mode also fails on any failing NON-required check, e.g. auto-merge or
+#     label-major;
+#   - a green tick here does not mean every leg was verified with a GITHUB_TOKEN. It
+#     means "the approval names this head, and no check is failing".
 name: merge-preflight-report
 
 on:
