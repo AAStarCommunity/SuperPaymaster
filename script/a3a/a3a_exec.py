@@ -775,8 +775,21 @@ class RelayFilter:
         return [self.one(x) for x in q] if isinstance(q, list) else self.one(q)
 
 
-def relay_evidence(out):
+TEARDOWN_MARK = '--- teardown: engine terminating ---'
+
+
+def relay_evidence(out, live=False):
+    # Only the operating window counts. Killing anvil interrupts its in-flight prefetches, and the relay then
+    # logs e.g. 'failed handler BrokenPipeError'. Those lines stay in the log, after the teardown marker, but do
+    # not fail the run. Any failure BEFORE the marker still fails it, and a missing marker fails it as well.
+    # live=True: checked while the engine still runs (bootstrap continuation); every line counts, no marker yet.
     lines = (out/'relay.log').read_text().splitlines()
+    if live:
+        need('relay_teardown_marker_premature', TEARDOWN_MARK in lines, False)
+    elif TEARDOWN_MARK in lines:
+        lines = lines[:lines.index(TEARDOWN_MARK)]
+    else:
+        need('relay_teardown_marker', False, True)
     need('relay_evidence', all(x == 'refused eth_gasPrice' for x in lines), True)
 
 
@@ -897,6 +910,8 @@ def fork(remote, pin, out):
             local('anvil_impersonateAccount', [who])
         yield local
     finally:
+        if not relay_log.closed:
+            relay_log.write(TEARDOWN_MARK + '\n')
         if proc is not None:
             proc.terminate()
             proc.wait(timeout=10)
@@ -930,7 +945,8 @@ def mined_identity(mined, tx, label):
 
 def receipt(rpc, tx, status='0x1'):
     h = typed(rpc('eth_sendTransaction', [tx_rpc(tx)]), HASH32)
-    for _ in range(100):
+    # Heavy txs under --steps-tracing can be mined well after eth_sendTransaction returns: allow 60 s.
+    for _ in range(1200):
         r = rpc('eth_getTransactionReceipt', [h])
         if r is not None:
             need('receipt_status', r.get('status'), status)
@@ -1379,7 +1395,7 @@ def rehearse(remote, plan, out, calibrate=False, after=None):
             checked = copy.deepcopy(plan)
             budget(checked)
             need('frozen_budgets', checked['budgetsWei'], plan['budgetsWei'])
-            relay_evidence(out)
+            relay_evidence(out, live=True)
             need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
             after(local)
     completion(records, controls)

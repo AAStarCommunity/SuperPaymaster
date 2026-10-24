@@ -245,7 +245,11 @@ def fake_fork(remote, pin, out):
     (out/'engine.stderr').write_text('')
     chain = FakeChain(pin)
     ex.authenticate_engine(chain, RELAY_URL, pin['block'])
-    yield chain
+    try:
+        yield chain
+    finally:
+        with open(out/'relay.log', 'a') as f:
+            f.write(ex.TEARDOWN_MARK + '\n')
 
 
 class ExecutorTests(unittest.TestCase):
@@ -729,14 +733,39 @@ class ExecutorTests(unittest.TestCase):
     def test_relay_evidence_whitelist(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
+            mark = ex.TEARDOWN_MARK + '\n'
             for text in ('', 'refused eth_gasPrice\n'):
-                (out/'relay.log').write_text(text)
+                (out/'relay.log').write_text(text + mark)
                 ex.relay_evidence(out)
-            for text in ('failed eth_getCode\n', 'refused eth_sendTransaction\n', 'relay error\n'):
-                (out/'relay.log').write_text(text)
+            for text in ('failed eth_getCode\n', 'refused eth_sendTransaction\n', 'relay error\n',
+                         'failed handler BrokenPipeError\n'):
+                (out/'relay.log').write_text(text + mark)
                 with self.assertRaises(ex.Gate) as caught:
                     ex.relay_evidence(out)
                 self.assertEqual(caught.exception.record['gate'], 'relay_evidence')
+
+    def test_relay_teardown_window(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            mark = ex.TEARDOWN_MARK + '\n'
+            # Interrupted prefetches after the engine is killed do not count...
+            (out/'relay.log').write_text('refused eth_gasPrice\n' + mark + 'failed handler BrokenPipeError\n')
+            ex.relay_evidence(out)
+            # ...but the same line before the marker fails, and a log without the marker fails.
+            (out/'relay.log').write_text('failed handler BrokenPipeError\n' + mark)
+            with self.assertRaises(ex.Gate) as caught:
+                ex.relay_evidence(out)
+            self.assertEqual(caught.exception.record['gate'], 'relay_evidence')
+            (out/'relay.log').write_text('refused eth_gasPrice\n')
+            with self.assertRaises(ex.Gate) as caught:
+                ex.relay_evidence(out)
+            self.assertEqual(caught.exception.record['gate'], 'relay_teardown_marker')
+            # Mid-run (live) check: everything counts, and a marker must not exist yet.
+            (out/'relay.log').write_text('refused eth_gasPrice\n')
+            ex.relay_evidence(out, live=True)
+            (out/'relay.log').write_text('failed handler BrokenPipeError\n')
+            with self.assertRaises(ex.Gate):
+                ex.relay_evidence(out, live=True)
 
     def test_local_engine_authentication(self):
         chain, _ = self.chain_and_plan()
@@ -1070,7 +1099,11 @@ class ExecutorTests(unittest.TestCase):
             (out/'simulate.log').write_text('')
             (out/'relay.log').write_text('')
             (out/'engine.stderr').write_text('unexpected engine warning\n')
-            yield chain
+            try:
+                yield chain
+            finally:
+                with open(out/'relay.log', 'a') as f:
+                    f.write(ex.TEARDOWN_MARK + '\n')
         with tempfile.TemporaryDirectory() as d, patch.object(ex, 'artifact', self.artifact), patch.object(ex, 'fork', noisy):
             with self.assertRaises(ex.Gate) as caught:
                 ex.rehearse(lambda *_: hex(100000), plan, Path(d), calibrate=True)
