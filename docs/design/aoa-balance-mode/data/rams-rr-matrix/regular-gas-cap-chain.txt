@@ -1,0 +1,6 @@
+SEPOLIA(reth) loopN 300000 gas 16777216 call: OK | estimate: 7878194
+SEPOLIA(reth) loopN 300000 gas 30000000 call: OK | estimate: 7878194
+SEPOLIA(reth) loopN 700000 gas 16777216 call: ERR out of gas: gas required exceeds: 16777216 | estimate: ERR out of gas: gas required exceeds: 199804118
+SEPOLIA(reth) loopN 700000 gas 30000000 call: OK | estimate: ERR out of gas: gas required exceeds: 199804118
+SEPOLIA(reth) loopN 900000 gas 16777216 call: ERR out of gas: gas required exceeds: 16777216 | estimate: ERR out of gas: gas required exceeds: 199804118
+SEPOLIA(reth) loopN 900000 gas 30000000 call: OK | estimate: ERR out of gas: gas required exceeds: 199804118
