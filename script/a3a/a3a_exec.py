@@ -565,7 +565,8 @@ def authenticate_engine(local, relay_url, pin_block):
     need('local_engine_order', info.get('transactionOrder'), 'fifo')
     need('local_chain', info['environment'].get('chainId'), CHAIN)
     need('local_chain_rpc', qty(local('eth_chainId', [])), CHAIN)
-    need('local_engine_current_block', info.get('currentBlockNumber'), int(pin_block, 16))
+    # anvil returns a hex quantity here ("0xb6d072"), unlike forkBlockNumber (an integer).
+    need('local_engine_current_block', qty(info.get('currentBlockNumber')), int(pin_block, 16))
 
 
 def process_alive(proc):

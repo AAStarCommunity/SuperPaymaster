@@ -111,7 +111,8 @@ class FakeChain:
         if method == 'eth_chainId': return hex(ex.CHAIN)
         if method == 'web3_clientVersion': return 'anvil/'+ex.COMMIT
         if method == 'anvil_nodeInfo':
-            return dict(currentBlockNumber=s['head'], hardFork='Amsterdam', transactionOrder='fifo', environment=dict(chainId=ex.CHAIN),
+            return dict(currentBlockNumber=hex(s['head']),  # real anvil shape: hex quantity
+                         hardFork='Amsterdam', transactionOrder='fifo', environment=dict(chainId=ex.CHAIN),
                         forkConfig=dict(forkUrl=RELAY_URL, forkBlockNumber=int(self.pin['block'], 16)))
         if method == 'eth_config':
             return dict(current=dict(activationTime=ex.ACTIVATION, forkId=ex.FORK_ID), next=None)
@@ -987,7 +988,7 @@ class ExecutorTests(unittest.TestCase):
         info['forkConfig']['forkUrl'] += '/'
         def rpc(method, params): return info if method == 'anvil_nodeInfo' else chain(method, params)
         ex.authenticate_engine(rpc, RELAY_URL, chain.pin['block'])
-        info['currentBlockNumber'] += 1
+        info['currentBlockNumber'] = hex(int(info['currentBlockNumber'], 16) + 1)
         with self.assertRaises(ex.Gate) as caught:
             ex.authenticate_engine(rpc, RELAY_URL, chain.pin['block'])
         self.assertEqual(caught.exception.record['gate'], 'local_engine_current_block')
