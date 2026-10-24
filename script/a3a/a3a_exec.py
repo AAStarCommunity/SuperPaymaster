@@ -108,9 +108,20 @@ class RPC:
             rid = self.serial
         q = dict(jsonrpc='2.0', id=rid, method=method, params=params)
         try:
+            # timeout=45 bounds each socket operation only; a server that trickles bytes can hold a request open
+            # indefinitely (observed 2026-10-24: one archive request hung > 8 min). Enforce a total deadline too.
+            deadline = time.monotonic() + RPC_TOTAL_DEADLINE_SECONDS
             with urllib.request.urlopen(urllib.request.Request(
                     self.url, json.dumps(q).encode(), {'Content-Type': 'application/json'}), timeout=45) as r:
-                d = json.load(r)
+                chunks = []
+                while True:
+                    if time.monotonic() > deadline:
+                        raise TimeoutError('total RPC deadline exceeded')
+                    chunk = r.read(65536)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                d = json.loads(b''.join(chunks))
         except Exception as e:
             raise Gate('rpc_transport', type(e).__name__, 'valid response (URL redacted)') from None
         if (not isinstance(d, dict) or d.get('jsonrpc') != '2.0' or
@@ -775,6 +786,7 @@ class RelayFilter:
         return [self.one(x) for x in q] if isinstance(q, list) else self.one(q)
 
 
+RPC_TOTAL_DEADLINE_SECONDS = 60
 TEARDOWN_MARK = '--- teardown: engine terminating ---'
 ANVIL_FORK_TIMEOUT_MS = 120000
 ABANDON_MAX_SECONDS = ANVIL_FORK_TIMEOUT_MS / 1000 / 2
