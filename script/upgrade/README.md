@@ -19,8 +19,8 @@ A3a's clean-tree policy applies to this executor. The owner must finish reviewin
 A3a has not executed live. A live `plan` must therefore fail its deployment prerequisite today. Use the bootstrap simulation to exercise the full sequence without fabricating a live deployment:
 
 ```sh
-A3A_ENGINE_DIR=/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b \
-  /Users/jason/.pyenv/versions/3.11.9/bin/python3 -B \
+A3A_ENGINE_DIR=$HOME/Dev/aastar/tools/foundry-rams/nightly-4e8874b \
+  python3 -B \
   script/upgrade/sp_upgrade_exec.py simulate \
   --rpc-file /private/tmp/sepolia-archive-url \
   --a3a-plan /path/to/frozen-a3a/plan.json \
@@ -32,8 +32,8 @@ The executor first imports and calls `a3a_exec.rehearse` on the frozen A3a plan.
 Independently verify the generated upgrade plan with a second engine run:
 
 ```sh
-A3A_ENGINE_DIR=/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b \
-  /Users/jason/.pyenv/versions/3.11.9/bin/python3 -B \
+A3A_ENGINE_DIR=$HOME/Dev/aastar/tools/foundry-rams/nightly-4e8874b \
+  python3 -B \
   script/upgrade/sp_upgrade_exec.py simulate \
   --rpc-file /private/tmp/sepolia-archive-url \
   --a3a-plan /path/to/frozen-a3a/plan.json \
@@ -50,8 +50,8 @@ The bootstrap plan records both the original fork pin and the post-A3a state blo
 Choose the pin explicitly. Use two independent archive RPC files:
 
 ```sh
-A3A_ENGINE_DIR=/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b \
-  /Users/jason/.pyenv/versions/3.11.9/bin/python3 -B \
+A3A_ENGINE_DIR=$HOME/Dev/aastar/tools/foundry-rams/nightly-4e8874b \
+  python3 -B \
   script/upgrade/sp_upgrade_exec.py plan \
   --rpc-file /private/tmp/sepolia-archive-a \
   --rpc-file-secondary /private/tmp/sepolia-archive-b \
@@ -121,15 +121,15 @@ These tests mock RPC and execution; only ABI encoding and keccak use local `cast
 | A3A_ENGINE_DIR | Upgrade suite | A3a regression suite |
 |---|---:|---:|
 | `$HOME/.foundry/bin` | 135 passed | 70 passed |
-| `/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b` | 135 passed | 70 passed |
+| `$HOME/Dev/aastar/tools/foundry-rams/nightly-4e8874b` | 135 passed | 70 passed |
 
 Run the suites with:
 
 ```sh
 A3A_ENGINE_DIR="$HOME/.foundry/bin" \
-  /Users/jason/.pyenv/versions/3.11.9/bin/python3 -B script/upgrade/test_sp_upgrade_exec.py
+  python3 -B script/upgrade/test_sp_upgrade_exec.py
 A3A_ENGINE_DIR="$HOME/.foundry/bin" \
-  /Users/jason/.pyenv/versions/3.11.9/bin/python3 -B script/a3a/test_a3a_exec.py
+  python3 -B script/a3a/test_a3a_exec.py
 ```
 
 Repeat with the nightly directory. `.github/workflows/a3a-executor.yml` includes the upgrade suite under the existing Python 3.11 and Foundry 1.7.1 pins and triggers on upgrade executor changes. No archive-backed plan, simulation, or fresh Solidity build was run during this edit-only delivery.

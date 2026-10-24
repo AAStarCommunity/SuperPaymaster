@@ -33,7 +33,7 @@ ADDRESS_RX = re.compile(r"0x[0-9a-fA-F]{40}", re.ASCII)
 # Engine root is configurable (A3A_ENGINE_DIR); the binary is still verified against COMMIT before use.
 # Pinned to nightly 4e8874b: it keeps the EIP-8037 state-gas reservoir (foundry #17719). 926eb1d does not (uncapped frame
 # gas, stateGasReservoir 0) and matched real RR txs on receipt gasUsed only — 0/10 at frame level vs 10/10 here.
-ENGINE = Path(os.environ.get('A3A_ENGINE_DIR', '/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b'))
+ENGINE = Path(os.environ.get('A3A_ENGINE_DIR', Path.home() / 'Dev/aastar/tools/foundry-rams/nightly-4e8874b'))
 COMMIT = '4e8874b2bdc840929585ca73e170993c50a4a531'
 PACKET = ROOT / 'docs/release/a3a-precheck-v4/a3a-precheck.json'
 CHAIN = 11155111

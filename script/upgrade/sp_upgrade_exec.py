@@ -1165,11 +1165,12 @@ def main(argv=None):
         p.add_argument('--reviewed-plan-sha256')
     args = parser.parse_args(argv)
     try:
+        if args.out is not None:
+            if args.out.exists():
+                a.need('output_empty', args.out.is_dir() and not any(args.out.iterdir()), True)
+            args.out.mkdir(parents=True, exist_ok=True)
         if args.command in ('sign', 'send'):
             raise a.Gate(args.command+'_disabled', a.REFUSAL, 'unsigned package only')
-        if args.out.exists():
-            a.need('output_empty', args.out.is_dir() and not any(args.out.iterdir()), True)
-        args.out.mkdir(parents=True, exist_ok=True)
         remote = a.RPC(args.rpc_file.read_text().strip())
         if args.command == 'plan':
             plan_command(remote, a.RPC(args.rpc_file_secondary.read_text().strip()), args.block, args.out)

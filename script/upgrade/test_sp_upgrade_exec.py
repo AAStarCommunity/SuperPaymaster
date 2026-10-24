@@ -175,6 +175,14 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(p['operations']['upgrade']['data'][0], a.calldata('upgradeToAndCall(address,bytes)',
                 p['implementation'], a.calldata('setGlobalPaused(bool)', 'true')))
 
+    def test_plan_rejects_tampered_tx_to_and_data(self):
+        for key, value in (('to', OTHER), ('data', '0x12345678')):
+            with self.subTest(key=key):
+                p = self.plan()
+                step = next(s for s in p['steps'] if s['id'] == 'upgrade_schedule_exec')
+                step['tx'][key] = value
+                self.fails('plan_tx_'+key, ex.validate_plan, p)
+
     def test_extension_is_internal_create_one(self):
         p = self.plan()
         self.assertEqual(p['extension'], a.create_address(p['implementation'], 1))
@@ -311,6 +319,17 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(step['safeHash'], ex.safe_hash(step['inner'], step['safeNonce']))
         self.assertNotEqual(step['safeHash'], ex.safe_hash(step['inner'], step['safeNonce']+1))
 
+    def test_safe_hash_independent_eip712_vector(self):
+        p = json.loads((ex.ROOT/'docs/release/sp-upgrade-a6e/evidence-11983550/boot/plan.json').read_text())
+        step = next(s for s in p['steps'] if s['id'] == 'upgrade_schedule_exec')
+        # Independent vector: the Safe contract itself (0x51edf11f..e114, chain 11155111, nonce 3) emitted this hash as
+        # the indexed topic of ApproveHash and ExecutionSuccess for this step on the evidence fork
+        # (evidence-11983550/boot/upgrade-simulate.json), so it does not come from safe_hash.
+        expected = '0x4c9b0cc33bd2371240fa617eb47b175e92c572541c9fc59347987f99a6f78287'
+        self.assertEqual(step['safeNonce'], 3)
+        self.assertEqual(ex.safe_hash(step['inner'], step['safeNonce']), expected)
+        self.assertNotEqual(ex.safe_hash(step['inner'], step['safeNonce']+1), expected)
+
     def test_plan_contains_no_unpause_or_registration_reactivation(self):
         p = self.plan()
         for step in p['steps']:
@@ -433,6 +452,16 @@ class ExecutorTests(unittest.TestCase):
             self.assertEqual(rc, 1)
             self.assertEqual(list(out.iterdir()), [out/'keep'])
             self.assertEqual((out/'keep').read_text(), 'original')
+
+    def test_sign_send_nonempty_output_writes_nothing(self):
+        for command in ('sign', 'send'):
+            with self.subTest(command=command), tempfile.TemporaryDirectory() as d, contextlib.redirect_stderr(io.StringIO()) as stderr:
+                out = Path(d)
+                (out/'keep').write_text('original')
+                self.assertEqual(ex.main([command, '--out', str(out)]), 3)
+                self.assertEqual(json.loads(stderr.getvalue())['gate'], 'output_empty')
+                self.assertEqual(list(out.iterdir()), [out/'keep'])
+                self.assertEqual((out/'keep').read_text(), 'original')
 
     def test_frozen_plan_digest_and_duplicate_keys(self):
         with tempfile.TemporaryDirectory() as d:
