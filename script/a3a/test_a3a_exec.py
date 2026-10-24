@@ -738,7 +738,7 @@ class ExecutorTests(unittest.TestCase):
                 (out/'relay.log').write_text(text + mark)
                 ex.relay_evidence(out)
             for text in ('failed eth_getCode\n', 'refused eth_sendTransaction\n', 'relay error\n',
-                         'failed handler BrokenPipeError\n'):
+                         'failed handler BrokenPipeError methods=eth_getStorageAt upstreamServed=True elapsed=3.2s\n'):
                 (out/'relay.log').write_text(text + mark)
                 with self.assertRaises(ex.Gate) as caught:
                     ex.relay_evidence(out)
@@ -749,10 +749,10 @@ class ExecutorTests(unittest.TestCase):
             out = Path(d)
             mark = ex.TEARDOWN_MARK + '\n'
             # Interrupted prefetches after the engine is killed do not count...
-            (out/'relay.log').write_text('refused eth_gasPrice\n' + mark + 'failed handler BrokenPipeError\n')
+            (out/'relay.log').write_text('refused eth_gasPrice\n' + mark + 'failed handler BrokenPipeError methods=eth_getStorageAt upstreamServed=True elapsed=3.2s\n')
             ex.relay_evidence(out)
             # ...but the same line before the marker fails, and a log without the marker fails.
-            (out/'relay.log').write_text('failed handler BrokenPipeError\n' + mark)
+            (out/'relay.log').write_text('failed handler BrokenPipeError methods=eth_getStorageAt upstreamServed=True elapsed=3.2s\n' + mark)
             with self.assertRaises(ex.Gate) as caught:
                 ex.relay_evidence(out)
             self.assertEqual(caught.exception.record['gate'], 'relay_evidence')
@@ -763,7 +763,7 @@ class ExecutorTests(unittest.TestCase):
             # Mid-run (live) check: everything counts, and a marker must not exist yet.
             (out/'relay.log').write_text('refused eth_gasPrice\n')
             ex.relay_evidence(out, live=True)
-            (out/'relay.log').write_text('failed handler BrokenPipeError\n')
+            (out/'relay.log').write_text('failed handler BrokenPipeError methods=eth_getStorageAt upstreamServed=True elapsed=3.2s\n')
             with self.assertRaises(ex.Gate):
                 ex.relay_evidence(out, live=True)
 

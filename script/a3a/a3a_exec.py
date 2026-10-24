@@ -852,17 +852,22 @@ def fork(remote, pin, out):
             pass
 
         def do_POST(self):
+            started, methods, served = time.monotonic(), '?', False
             try:
                 q = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                methods = ','.join(sorted({str(x.get('method')) for x in q})) if isinstance(q, list) else str(q.get('method'))
                 body = json.dumps(filter_rpc.dispatch(q)).encode()
+                served = True  # upstream answered (errors come back as JSON-RPC errors, not exceptions)
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as e:
-                # Type name only: messages may embed the archive URL.
-                relay_log.write('failed handler ' + type(e).__name__ + '\n')
-                self.send_error(502, 'archive relay failed')
+                # Type name, method names and elapsed time only: messages may embed the archive URL.
+                relay_log.write('failed handler ' + type(e).__name__ + ' methods=' + methods +
+                                ' upstreamServed=' + str(served) + ' elapsed=%.1fs' % (time.monotonic() - started) + '\n')
+                if not served:
+                    self.send_error(502, 'archive relay failed')
     clean = git_state(out)
     relay_log = open(out/'relay.log', 'w', buffering=1)
     filter_rpc = RelayFilter(remote, pin, relay_log)
