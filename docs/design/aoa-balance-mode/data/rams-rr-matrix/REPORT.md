@@ -1,55 +1,75 @@
-# CC-125 / R2-F3 direction (i) — incomplete, environment blocked
+# CC-125 / R2-F3 direction (i)
 
-The requested engine is present: anvil 1.8.7-nightly,
-926eb1d087523f1de437e3c0c49ea6d26407e827. The repository is on cc125/rr-matrix,
-HEAD 2536c1e1fb1131499fec43ceecaa0ac2f1d50505.
+**Witness = DETERMINED. Phase 2 scripts are ready for operator execution; no Phase 2
+measurement result is claimed here.** The earlier sandbox TCP-bind failure is superseded
+by the owner's committed runs at c7b1d02f; it is not an unresolved witness question.
 
-The local, unforked Amsterdam control run failed during node startup:
-`Error: Operation not permitted (os error 1)`. A separate Python standard-library
-`socket.bind(('127.0.0.1', 18951))` check returned
-`PermissionError: [Errno 1] Operation not permitted`. This session's sandbox does
-not permit the local listener needed for these measurements. No permission escalation
-is available in this session. No archive RPC is required by the Phase 1 script.
+## Engine correction and positive control
 
-**Reservoir consumption observability is UNDETERMINED.** There is no mined receipt,
-trace, positive-control result, or negative-control result. The higher-gas-limit
-assumption is not substituted for a witness. Phase 2 has not started.
+| Evidence | Finding |
+|---|---|
+| frame-calibration/nightly-926eb1d.json | 10/10 receipt-only matches, **0/10 strict frame matches**; regular gas uncapped above 2^24, stateGasReservoir always zero |
+| frame-calibration/nightly-4e8874b.json | **10/10 strict frame matches** against chain debug_traceTransaction; correct regular/reservoir split (foundry #17719) |
+| r0-probe/probe-nightly-4e8874b-11982241.json | **14/14 R0**; both engines pass R0, which cannot discriminate the split |
+| witness-results.json / witness-traces.jsonl.gz | 4e8874b mined controls expose per-step stateGasReservoir; fresh200 R0 fails at slot 153, RR succeeds with gasUsed **22,020,200** |
+| Same witness, fresh500-RR | OOG with gasUsed **16,777,216**; state gas is returned to the reservoir on failure |
 
-## DSR request coverage
+Under RR, regular gas starts at 2^24−intrinsic and reservoir at gasLimit−2^24.
+Fresh SSTORE costs 110,020, including 97,920 state gas drawn from the reservoir first.
+The per-step field, not a high limit or receipt-only agreement, is the witness.
+`eth_call` does not apply the regular cap on reth or this engine; never infer RR behavior
+from eth_call or eth_estimateGas. New Phase 2 runs require nightly
+4e8874b2bdc840929585ca73e170993c50a4a531, unforked Amsterdam, steps tracing and FIFO order.
 
-| Requested item | Cell / artifact | Result |
+## DSR-to-cell map
+
+Definitions: `script/b-layer/rr-matrix-lib.mjs::cells()`. Each applicable ID maps to three
+records in `<run>/cells.jsonl` and `<run>/traces/<ID>-<regime>.jsonl.gz`. IDs have the form
+`<mode>-<context>-<warmth>-<history>-<position>-<scenario>-<postGas>`.
+There are 864 definitions, 360 applicable cells, 504 exclusions, 1080 measured transactions;
+180 subsequent-history cells also retain a separately traced priming transaction.
+
+| DSR item | Cell mapping / fields | Status |
 |---|---|---|
-| Witness design before matrix | DESIGN.md | Written; validation pending |
-| Explicit receipt/struct logger/callTracer reservoir fields | Planned control capture | Not observable in this session because node cannot start; engine support unknown |
-| Positive control | fresh1000-RR: 1000 distinct fresh SSTOREs, limit 30000000 | Script prepared; not mined |
-| Negative control, same initial state and payload | fresh1000-R0: limit 16777216 | Script prepared; not mined |
-| No-state control | stop-R0 / stop-RR | Script prepared; not mined |
-| Real handleOps pairs, balance / credit | All matrix cells | Gated; not run |
-| Legacy 160 B / V2 context | All matrix cells | Reachability not established |
-| Cold/warm; first/subsequent sender; bundle positions 1/1, 1/3, 3/3 | All matrix cells | Not run |
-| Success / execution revert / postOp exhaustion / refund / reservoir refill | All matrix cells | Not run; EIP-8037 refill point not established |
-| Queue/execute GasParams 440k/420k/5k/340k; postOp MIN−1/MIN/MIN+1 | All matrix cells | Not run |
-| Receipt gasUsed, per-op actualGasCost/actualGasUsed, charge, bare cost | All matrix cells | No values; not measured |
-| I9, sponsorship reserved but never settled | All matrix cells | Not evaluated |
-| I10 | 03-final-spec.md §4, I10; corrections R10-M1/R10-M1b | Defined; not evaluated |
-| Charge − bareCost / charge − feeTarget and price/fee snapshot | All matrix cells | Not evaluated; no G2/fee-target computation claimed |
-| Run provenance and failure | witness-run.log, anvil.log, witness-failure.json | Captured |
-| Compressed trace evidence | witness-traces.jsonl.gz | Absent intentionally: no transaction mined |
-| Evidence integrity | SHA256SUMS | Generated, excludes itself |
+| balance / credit | balance-* / credit-*; target b1 / b7; distinct BALANCE companions | Scripted; unrun |
+| legacy / V2 context | legacy160-* excluded with reason; V2-* uses emitted 384 B | 160 B not reachable: rc.4 accepts only 352/384 B; 352 B not emitted here |
+| cold / warm SP | *-cold-* / *-warm-*; warm access list covers proxy+implementation | cold target validation at 3/3 impossible, excluded; every postOp naturally warm |
+| first / subsequent sender op | *-first-* / *-subsequent-*; priming tx before paired snapshot | Scripted; unrun |
+| 1/1, 1/3, 3/3 | *-1of1-* / *-1of3-* / *-3of3-* | Scripted; unrun |
+| success / execution revert | *-success-* / *-execution-revert-* | Scripted; unrun |
+| postOp exhaustion | *-postOp-exhaustion-* | Labelled token settlement-subcall OOG fixture, SP bytes unchanged; not natural-token exhaustion evidence |
+| refund | *-refund-* | Eight preseeded slots cleared; checks refund counter increases inside execution fixture |
+| refill | *-refill-* | Fresh writes then REVERT; records reservoir restoration on failed-frame unwind under EIP-8037, distinct from gas refund |
+| reservoir pressure differential | *-state-demand-* | Extra 24-slot workload; outcome changes recorded, not predeclared |
+| MIN−1 / MIN / MIN+1 | ID suffix 439999 / 440000 / 440001 | Queue/execute tuple 440k/420k/5k/340k; MIN−1 expected AA34 before reservation/postOp |
+| real R0 / RR | R0=2^24; RR30M=30M; RRdelta=2^24+Δ (default 100000) | Identical signed bundles and baseline snapshots; mined receipts only |
+| reservoir trajectory / postOp gasleft | trace.handleOpsEntry, frames, transitions, terminal/end; perOp validationEntry/postOpEntry/postOpImplementationEntry/gasleftAtFirstGuardGAS | Raw struct logs + callTracer preserved; exact final reservoir null for failed top-level exits whose rollback is not exposed after the terminal opcode |
+| guard question | comparisons.json: guardChanged, guardPassFailChanged, outcomeChanged | Separate guard pass/fail from execution/transaction outcome changes; context threshold verified 420k |
+| per-op costs and token charge | perOp actualGasCost/actualGasUsed/spCharge/tokenCharge/tokenUnits/balanceBurn/debtAdded | Missing events on rejected transactions yield null costs |
+| G2 / bare / fee target | priceSnapshot; perOp contextSnapshot, bareCost, feeTarget, chargeMinusBareCost, chargeMinusFeeTarget, netOfFeeChargeWei/g2NoSubsidy | Validation-time prices/fee verified against context; ceil conversions follow G2 / rams-2a §4.3 |
+| I9 | perOp.I9, row.I9; reservationAfter / reservationAfterRelease | No retained execution/sponsorship without settlement; charge matches token burn/debt; stale reservations released and counted separately |
+| I10 | row.I10 plus before/after/released/accounting/cleanup hashes | Defined in 03-final-spec.md §4, R10-M1/R10-M1b; check after stale release |
+| provenance/integrity | header.json, runtime.json, stage logs, SHA256SUMS | Generated per fresh run; source hashes, engine/repo commits, dirty path count and exact command |
 
-I10 requires checking state after stale release, not merely seeing a failed operation:
-execution side effects and token deduction zero, operator a0 returned, protocolRevenue
-unchanged, EP gas borne by SP ETH deposit. Validation nonce/state and totalSpent may remain.
+I10: after a postOp failure and stale release, execution effects and token charge must be
+zero, the operator's a0 must be restored, protocolRevenue unchanged for that op, and SP's
+ETH deposit bears actualGasCost. Accounting is net of successful companions. Validation
+nonce/state and totalSpent may remain. A transient reserved-but-unsettled operation before
+stale release is reported explicitly; it is not called a successful settlement.
 
-## Required next step / open questions
+## Validation and remaining work
 
-Run the prepared witness capture where loopback TCP listeners are permitted. Inspect the
-result before deciding whether the engine offers a consumption witness. If no witness
-can be established from that capture or a justified differential, stop for the owner's
-decision as requested. If one is established, build the SP matrix with per-cell witnesses.
-The script currently captures candidate evidence; it does not automate a witness verdict
-or implement the conditional SP matrix.
+Offline node syntax checks, Python compilation and dry self-test are recorded in
+`offline-checks.log`. The self-test covers definition counts/applicability, gas regimes,
+MIN−1 classification, rounding, trace frame mapping and adversarial-token dispatch.
+It requires neither npm dependencies nor artifacts nor anvil. It does not establish
+that deployment or the matrix executes successfully; those checks require the owner's run.
 
-No commits, staging, public network calls, real-chain transactions, or edits to
-contracts/src, contracts/script, or foundry.toml were performed. Prior 10/10 Sepolia replay
-evidence was neither rerun nor treated as reservoir-consumption evidence for these cells.
+Run the README smoke command first, then the full command. Inspect generated REPORT.md,
+summary.json, comparisons.json and any failure.json. Review actual reservoir draw/refill,
+unknown guard outcomes, signed per-op deltas and any fee-target/G2 deficit before making
+RR claims. The deliberate legacy and cold-3/3 applicability limits remain part of the
+result, as does the distinction between natural-token paths and injected settlement OOG.
+
+No public RPC, archive replay, source-contract/config edits, staging or commits were used
+for this script-writing task. The existing witness/calibration evidence was read, not rerun.
