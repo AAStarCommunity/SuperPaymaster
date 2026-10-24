@@ -1,0 +1,62 @@
+{
+ "rows": 1080,
+ "cells": 360,
+ "I9AllTrue": true,
+ "perRegime": {
+  "R0": {
+   "rows": 360,
+   "txGasUsedMinusSumOpActualGasUsed": {
+    "min": -1632236,
+    "median": -341815,
+    "max": 470961
+   },
+   "G2true": 200,
+   "G2n": 200,
+   "chargeMinusBareCostNegative": 40,
+   "chargeMinusBareCostN": 240
+  },
+  "RR30M": {
+   "rows": 360,
+   "txGasUsedMinusSumOpActualGasUsed": {
+    "min": -161657,
+    "median": 321355,
+    "max": 3480684
+   },
+   "G2true": 200,
+   "G2n": 200,
+   "chargeMinusBareCostNegative": 40,
+   "chargeMinusBareCostN": 240
+  },
+  "RRdelta": {
+   "rows": 360,
+   "txGasUsedMinusSumOpActualGasUsed": {
+    "min": -1532236,
+    "median": -241815,
+    "max": 470961
+   },
+   "G2true": 200,
+   "G2n": 200,
+   "chargeMinusBareCostNegative": 40,
+   "chargeMinusBareCostN": 240
+  }
+ },
+ "epUndercountVsR0": {
+  "RR30M": {
+   "cells": 200,
+   "deltaMin": -2242368,
+   "deltaMedian": -1762560,
+   "deltaMax": -304929,
+   "ratioMin": 0.4158,
+   "ratioMedian": 0.4916
+  },
+  "RRdelta": {
+   "cells": 200,
+   "deltaMin": -100000,
+   "deltaMedian": -51040,
+   "deltaMax": -2080,
+   "ratioMin": 0.9012,
+   "ratioMedian": 0.9856
+  }
+ },
+ "guardPassFailChanges": 0
+}
