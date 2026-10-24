@@ -99,6 +99,7 @@ class GasFork:
         self.snapshots, self.requests, self.next_snapshot = {}, [], 0
         self.reservoir = True
         self.fail_trace = False
+        self.block_gas_limit = 200_000_000
 
     def __call__(self, method, params):
         self.requests.append((method,copy.deepcopy(params)))
@@ -126,6 +127,9 @@ class GasFork:
                 status='0x1' if gas >= self.minimum else '0x0', blockNumber='0x101',
                 contractAddress=HOLDER if tx.get('to') is None else None)
             return h
+        if method == 'eth_getBlockByNumber':
+            return dict(hash='0x'+'ab'*32, number='0x101', timestamp=hex(self.state.get('timestamp', 2000)),
+                        gasLimit=hex(self.block_gas_limit))
         if method == 'eth_getTransactionByHash': return self.state['tx']
         if method == 'eth_getTransactionReceipt': return self.state['receipt']
         if method == 'debug_traceTransaction':
@@ -537,7 +541,7 @@ class ExecutorTests(unittest.TestCase):
         stack.enter_context(patch.object(ex, 'operation_state'))
         stack.enter_context(patch.object(ex, 'upgrade_readback', return_value=[*ex.GAS, *ex.GAS, 1]))
         stack.enter_context(patch.object(ex, 'code', return_value=p['pin']['implementationCode']))
-        stack.enter_context(patch.object(a, 'block_data', return_value={'number': BLOCK, 'timestamp': '0x1000'}))
+        stack.enter_context(patch.object(a, 'block_data', return_value={'number': BLOCK, 'timestamp': '0x1000', 'gasLimit': hex(changes.get('block_gas_limit', 200_000_000))}))
         stack.enter_context(patch.object(a, 'nonce', side_effect=lambda rpc, who, block='latest': changes.get('pending_nonce' if block == 'pending' else 'nonce', int(step['tx']['nonce'], 16))))
         def address(rpc, target, sig):
             if sig == 'pendingAPNTsToken()':
@@ -567,6 +571,11 @@ class ExecutorTests(unittest.TestCase):
         stack, rpc, plan, step = self.pre_send_context()
         with stack:
             self.assertEqual(ex.pre_send(step, rpc, plan), step['tx'])
+
+    def test_pre_send_rejects_gas_above_block_gas_limit(self):
+        stack, rpc, plan, step = self.pre_send_context(changes={'block_gas_limit': 1000})
+        with stack:
+            self.fails('pre_send_block_gas_limit', ex.pre_send, step, rpc, plan)
 
     def test_pre_send_rejects_pending_nonce_drift(self):
         stack, rpc, plan, step = self.pre_send_context(changes={'pending_nonce': 999})
@@ -826,14 +835,15 @@ class ExecutorTests(unittest.TestCase):
         step['rrWitness']['engineCommit'] = '926eb1d087523f1de437e3c0c49ea6d26407e827'
         self.fails('rr_witness_engine',ex.validate_gas,step)
 
-    def test_rr_create_above_60m_fails(self):
+    def test_rr_create_above_100m_fails(self):
         step = self.rr_step()
-        step['tx']['gas'] = hex(60000001)
+        step['tx']['gas'] = hex(100000001)
         self.fails('create_gas_ceiling',ex.validate_gas,step)
 
-    def test_rr_create_exactly_60m_is_allowed_with_matching_measurements(self):
-        step = self.rr_step(minimum=46153846,estimate=100000,used=30000000)
-        self.assertEqual(step['tx']['gas'],hex(60000000))
+    def test_rr_create_just_under_100m_is_allowed_with_matching_measurements(self):
+        # ceil(76,923,076 x 1.3) = 99,999,999; no integer minimum lands exactly on 100M with the 13/10 margin.
+        step = self.rr_step(minimum=76923076,estimate=100000,used=30000000)
+        self.assertEqual(step['tx']['gas'],hex(99999999))
         ex.validate_gas(step)
 
     def test_a3a_default_cap_still_rejects_rr_create(self):
@@ -862,7 +872,7 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(rpc.snapshots,{})
 
     def test_mined_search_no_success_at_ceiling_fails_closed(self):
-        rpc = GasFork(minimum=60000001)
+        rpc = GasFork(minimum=100000001)
         before = copy.deepcopy(rpc.state)
         self.fails('mined_search_high_success',ex.mined_minimum,rpc,ex.build_plan(pin())['steps'][0]['tx'],2000)
         self.assertEqual(rpc.state,before)
@@ -886,6 +896,14 @@ class ExecutorTests(unittest.TestCase):
         rpc.reservoir = False
         self.fails('rr_nonzero_reservoir',ex.probe,rpc,self.plan()['steps'][0]['tx'],26000000,2000,True)
         self.assertEqual(rpc.state['nonce'],13000)
+
+    def test_rr_create_above_block_gas_limit_fails(self):
+        p = ex.build_plan(pin())
+        step = p['steps'][0]
+        rpc = GasFork(20000000,18000000,90000)
+        rpc.block_gas_limit = 25_000_000  # below the 1.3x margin of the 20M mined minimum (26M)
+        remote = Mock(return_value=hex(100000))
+        self.fails('block_gas_limit', ex.measure_step, remote, rpc, p, step, {}, 2000, True)
 
     def test_calibrate_create_records_all_measurements_and_uses_mined_minimum(self):
         p = ex.build_plan(pin())

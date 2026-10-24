@@ -156,7 +156,8 @@ A3a retains its default `GAS_CAP = 2^24`. The upgrade executor permits a final l
 1. The transaction has no destination and is a top-level CREATE.
 2. The measured mined minimum is strictly greater than `floor(2^24 * 10 / 13)`. This defines the requested `2^24 - margin` threshold using the same 30% headroom: `margin = 2^24 - floor(2^24 * 10 / 13)`.
 3. A successful deploy's `debug_traceTransaction` first struct-log step has a nonzero `stateGasReservoir`. Record `rrRequired: true` and `rrWitness`, including engine commit, transaction hash, submitted limit, step index 0, PC, depth, regular gas, and reservoir. The witness must come from the top-level frame, match the planned limit and pinned engine, and fit within the excess over the regular cap.
-4. The submitted limit is at most 60,000,000, including the full 13/10 margin. Do not clamp a larger measured limit to the ceiling.
+4. The submitted limit is at most 100,000,000 and at most the block gas limit (checked on the fork at measurement time and again in `pre_send`), including the full 13/10 margin. Do not clamp a larger measured limit to the ceiling.
+   The first ceiling, 60,000,000, had no basis and stopped the 2026-10-24 bootstrap: the SP implementation deploy needs 52,399,391 gas as a mined tx (estimate 52,811,426), i.e. 68,119,208 with the margin. Sepolia's block gas limit is about 200M, and txs above 100M are included (111,158,515 in the rams-rr scan).
 
 Every other final transaction stays at or below 2^24, with `rrRequired: false` and a null witness. Exploratory high-gas CREATE trials are local snapshots only; they cannot become accepted package steps without the complete measured policy and witness. The shared A3a receipt/quantity helpers have explicit optional caps for those callers, while every existing A3a caller retains the original default. The 4e8874b pin and the operating-window teardown marker are unchanged.
 

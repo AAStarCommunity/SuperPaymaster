@@ -27,7 +27,12 @@ CONFIG_TYPE = '(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,
 ROLES = {'DEFAULT_ADMIN': [TL], 'PROPOSER': [SAFE], 'EXECUTOR': [SAFE], 'CANCELLER': [SAFE]}
 SP_IMMUTABLES = ('entryPoint', 'REGISTRY', 'ETH_USD_PRICE_FEED', '__self', 'EXTENSION')
 ART_NAMES = ('SuperPaymaster', 'SuperPaymasterAdmin', 'TimelockController', 'APNTsCapped')
-MAX_CREATE_GAS = 60_000_000
+# Ceiling for an RR CREATE step. Measured 2026-10-24: the SP implementation deploy (its constructor also CREATEs the
+# Admin extension) needs 52,399,391 gas as a mined tx (Amsterdam code-deposit state gas), i.e. 68.1M with the 1.3
+# margin. The first 60M value had no basis and stopped the bootstrap. 100M stays well below Sepolia's ~200M block gas
+# limit, and txs above 100M are included on Sepolia (111,158,515 seen in the rams-rr scan). The block limit itself is
+# checked separately, at the pin and again in pre_send.
+MAX_CREATE_GAS = 100_000_000
 # Headroom implied by the same 13/10 margin, rather than an arbitrary gas allowance.
 RR_THRESHOLD = a.GAS_CAP*a.MARGIN_DEN//a.MARGIN_NUM
 MEASURED_KEYS = {'executionTimestamp', 'estimateGas', 'localEstimateGas', 'forkGasUsed',
@@ -591,6 +596,13 @@ def measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate):
     # Gas-used accounting can depend on the submitted limit. Require a stable measured
     # limit, and fail on a cycle/non-convergence instead of freezing inconsistent evidence.
     for _ in range(4):
+        if limit > a.GAS_CAP:
+            # The fork inherits the pinned block's gas limit (anvil_nodeInfo environment.gasLimit); a tx above it
+            # can never be included.
+            block_gas_limit = a.qty(a.block_data(rpc, 'latest')['gasLimit'])
+            if limit > block_gas_limit:
+                raise a.Gate('block_gas_limit', dict(step=step.get('id'), limit=limit, blockGasLimit=block_gas_limit),
+                             'limit <= block gas limit')
         if limit > MAX_CREATE_GAS:
             raise a.Gate('measured_gas_ceiling', dict(step=step.get('id'), limit=limit, estimateGas=est, localEstimateGas=local_est,
                                                       minedGasMinimum=minimum), '<= %d' % MAX_CREATE_GAS)
@@ -783,6 +795,7 @@ def pre_send(step, rpc, plan, check_gas=True):
         validate_gas(step)
         estimate_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if step['rrRequired'] else a.GAS_CAP).items() if k != 'gas'}
         a.need('pre_send_gas', a.qty(rpc('eth_estimateGas', [estimate_tx, 'latest'])) <= a.qty(tx['gas']), True)
+        a.need('pre_send_block_gas_limit', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
         a.need('pre_send_balance', a.qty(rpc('eth_getBalance', [tx['from'], 'latest'])) >= a.qty(tx['gas'])*a.qty(tx['maxFeePerGas']), True)
     return tx
 
