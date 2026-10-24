@@ -1,0 +1,1257 @@
+{
+  "header": {
+    "engine": "anvil Version: 1.8.7-nightly\nCommit SHA: 4e8874b2bdc840929585ca73e170993c50a4a531\nBuild Timestamp: 2026-10-23T06:12:21.643861000Z (1792735941)\nBuild Profile: dist",
+    "repoCommit": "2536c1e1fb1131499fec43ceecaa0ac2f1d50505",
+    "dirtyCount": 16,
+    "command": "python3.11 script/evidence/rr-matrix-witness.py",
+    "scriptSha256": "d0de7fc96cc65830995ace1d7aa9c02b2250c91693a5f4b1bdee752123134071",
+    "anvilCommand": "/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/anvil --host 127.0.0.1 --port 18951 --hardfork amsterdam --gas-limit 100000000 --steps-tracing --silent"
+  },
+  "rows": [
+    {
+      "cell": "stop-R0",
+      "txGasLimit": 16777216,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x1",
+        "cumulativeGasUsed": "0x3a98",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x70742f9de37e822072d50b84ebdda84467cdb671bf37e9f0f659804f45c9f80e",
+        "transactionIndex": "0x0",
+        "blockHash": "0x1ef65b203f5d812ef84a650925e3d6cfb488c3354be361e46b8a9a0cc44c662d",
+        "blockNumber": "0x1",
+        "gasUsed": "0x3a98",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x3a98",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "STOP",
+          "gas": 16762216,
+          "gasCost": 0,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 0,
+          "op": "STOP",
+          "gas": 16762216,
+          "gasCost": 0,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 0,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "sstoreGasCosts": [],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x3a98",
+      "callError": null
+    },
+    {
+      "cell": "stop-RR",
+      "txGasLimit": 30000000,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x1",
+        "cumulativeGasUsed": "0x3a98",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x6fb7c26895e281830f91f6eec1a2083afa6241dd9900eb5f2ca37a81f24d3c37",
+        "transactionIndex": "0x0",
+        "blockHash": "0x4cca6b246610b51f0e4b978b7c3d4da5a4441c49bf0b92d63e7d861be4ccbfb4",
+        "blockNumber": "0x1",
+        "gasUsed": "0x3a98",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x3a98",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "STOP",
+          "gas": 16762216,
+          "gasCost": 0,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 0,
+          "op": "STOP",
+          "gas": 16762216,
+          "gasCost": 0,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 0,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "sstoreGasCosts": [],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x3a98",
+      "callError": null
+    },
+    {
+      "cell": "fresh50-R0",
+      "txGasLimit": 16777216,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x1",
+        "cumulativeGasUsed": "0x542c0c",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x70742f9de37e822072d50b84ebdda84467cdb671bf37e9f0f659804f45c9f80e",
+        "transactionIndex": "0x0",
+        "blockHash": "0xae985577b4b789a7a88eb060b025253ad8d147287f112b8cd2537e4019baf007",
+        "blockNumber": "0x1",
+        "gasUsed": "0x542c0c",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x542c0c",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "PUSH1",
+          "gas": 16762216,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 2,
+          "op": "PUSH2",
+          "gas": 16762213,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 5,
+          "op": "SSTORE",
+          "gas": 16762210,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 6,
+          "op": "PUSH1",
+          "gas": 16652190,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 294,
+          "op": "PUSH1",
+          "gas": 11370942,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 296,
+          "op": "PUSH2",
+          "gas": 11370939,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 299,
+          "op": "SSTORE",
+          "gas": 11370936,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 300,
+          "op": "STOP",
+          "gas": 11260916,
+          "gasCost": 0,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 50,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000000000000000000000000000001"
+      ],
+      "sstoreGasCosts": [
+        110020
+      ],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x542c0c",
+      "callError": null
+    },
+    {
+      "cell": "fresh50-RR",
+      "txGasLimit": 30000000,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x1",
+        "cumulativeGasUsed": "0x542c0c",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x6fb7c26895e281830f91f6eec1a2083afa6241dd9900eb5f2ca37a81f24d3c37",
+        "transactionIndex": "0x0",
+        "blockHash": "0xf6d3189dab69788672a599a9154357c08cea5039d64b04a017189311fd1d6aff",
+        "blockNumber": "0x1",
+        "gasUsed": "0x542c0c",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x542c0c",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "PUSH1",
+          "gas": 16762216,
+          "gasCost": 3,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 2,
+          "op": "PUSH2",
+          "gas": 16762213,
+          "gasCost": 3,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 5,
+          "op": "SSTORE",
+          "gas": 16762210,
+          "gasCost": 12100,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 6,
+          "op": "PUSH1",
+          "gas": 16750110,
+          "gasCost": 3,
+          "stateGasReservoir": 13124864,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 294,
+          "op": "PUSH1",
+          "gas": 16169022,
+          "gasCost": 3,
+          "stateGasReservoir": 8424704,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 296,
+          "op": "PUSH2",
+          "gas": 16169019,
+          "gasCost": 3,
+          "stateGasReservoir": 8424704,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 299,
+          "op": "SSTORE",
+          "gas": 16169016,
+          "gasCost": 12100,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 8424704,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 300,
+          "op": "STOP",
+          "gas": 16156916,
+          "gasCost": 0,
+          "stateGasReservoir": 8326784,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 50,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000000000000000000000000000001"
+      ],
+      "sstoreGasCosts": [
+        12100
+      ],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x542c0c",
+      "callError": null
+    },
+    {
+      "cell": "fresh200-R0",
+      "txGasLimit": 16777216,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x0",
+        "cumulativeGasUsed": "0x1000000",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x70742f9de37e822072d50b84ebdda84467cdb671bf37e9f0f659804f45c9f80e",
+        "transactionIndex": "0x0",
+        "blockHash": "0xf1f4a5f9ee50909bc8513fd8a8fdc9f466047b589db191f55bd1fb784109a5c9",
+        "blockNumber": "0x1",
+        "gasUsed": "0x1000000",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x1000000",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "error": "out of gas",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "PUSH1",
+          "gas": 16762216,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 2,
+          "op": "PUSH2",
+          "gas": 16762213,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 5,
+          "op": "SSTORE",
+          "gas": 16762210,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 6,
+          "op": "PUSH1",
+          "gas": 16652190,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 911,
+          "op": "SSTORE",
+          "gas": 148284,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 912,
+          "op": "PUSH1",
+          "gas": 38264,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 914,
+          "op": "PUSH2",
+          "gas": 38261,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 917,
+          "op": "SSTORE",
+          "gas": 38258,
+          "gasCost": 38258,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "error": "Some(OutOfGas)",
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 153,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "sstoreGasCosts": [
+        38258,
+        110020
+      ],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x1000000",
+      "callError": "out of gas"
+    },
+    {
+      "cell": "fresh200-RR",
+      "txGasLimit": 30000000,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x1",
+        "cumulativeGasUsed": "0x1500068",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x6fb7c26895e281830f91f6eec1a2083afa6241dd9900eb5f2ca37a81f24d3c37",
+        "transactionIndex": "0x0",
+        "blockHash": "0x33118052a70f366b42e457791a04be491ea6f77562416bfaea0c4c724413ee44",
+        "blockNumber": "0x1",
+        "gasUsed": "0x1500068",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x1500068",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "PUSH1",
+          "gas": 16762216,
+          "gasCost": 3,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 2,
+          "op": "PUSH2",
+          "gas": 16762213,
+          "gasCost": 3,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 5,
+          "op": "SSTORE",
+          "gas": 16762210,
+          "gasCost": 12100,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 6,
+          "op": "PUSH1",
+          "gas": 16750110,
+          "gasCost": 3,
+          "stateGasReservoir": 13124864,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 1194,
+          "op": "PUSH1",
+          "gas": 8089826,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 1196,
+          "op": "PUSH2",
+          "gas": 8089823,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 1199,
+          "op": "SSTORE",
+          "gas": 8089820,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 1200,
+          "op": "STOP",
+          "gas": 7979800,
+          "gasCost": 0,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 200,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000000000000000000000000000001"
+      ],
+      "sstoreGasCosts": [
+        12100,
+        106436,
+        110020
+      ],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x1500068",
+      "callError": null
+    },
+    {
+      "cell": "fresh500-R0",
+      "txGasLimit": 16777216,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x0",
+        "cumulativeGasUsed": "0x1000000",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x70742f9de37e822072d50b84ebdda84467cdb671bf37e9f0f659804f45c9f80e",
+        "transactionIndex": "0x0",
+        "blockHash": "0x3c244e1793707be4fe7b97322727a73fb2a38b4cf62485adf8dfdd0dc9b5d031",
+        "blockNumber": "0x1",
+        "gasUsed": "0x1000000",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x1000000",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "error": "out of gas",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "PUSH1",
+          "gas": 16762216,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 2,
+          "op": "PUSH2",
+          "gas": 16762213,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 5,
+          "op": "SSTORE",
+          "gas": 16762210,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 6,
+          "op": "PUSH1",
+          "gas": 16652190,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 911,
+          "op": "SSTORE",
+          "gas": 148284,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 912,
+          "op": "PUSH1",
+          "gas": 38264,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 914,
+          "op": "PUSH2",
+          "gas": 38261,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 917,
+          "op": "SSTORE",
+          "gas": 38258,
+          "gasCost": 38258,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "error": "Some(OutOfGas)",
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 153,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "sstoreGasCosts": [
+        38258,
+        110020
+      ],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x1000000",
+      "callError": "out of gas"
+    },
+    {
+      "cell": "fresh500-RR",
+      "txGasLimit": 30000000,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x0",
+        "cumulativeGasUsed": "0x1000000",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x6fb7c26895e281830f91f6eec1a2083afa6241dd9900eb5f2ca37a81f24d3c37",
+        "transactionIndex": "0x0",
+        "blockHash": "0xede1781b82bd393ce32a94b21fb74fa465e389ec9c9f3936aab174acf12fa77b",
+        "blockNumber": "0x1",
+        "gasUsed": "0x1000000",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x1000000",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "error": "out of gas",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "PUSH1",
+          "gas": 16762216,
+          "gasCost": 3,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 2,
+          "op": "PUSH2",
+          "gas": 16762213,
+          "gasCost": 3,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 5,
+          "op": "SSTORE",
+          "gas": 16762210,
+          "gasCost": 12100,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 6,
+          "op": "PUSH1",
+          "gas": 16750110,
+          "gasCost": 3,
+          "stateGasReservoir": 13124864,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 1631,
+          "op": "SSTORE",
+          "gas": 167948,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 1632,
+          "op": "PUSH1",
+          "gas": 57928,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 1634,
+          "op": "PUSH2",
+          "gas": 57925,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 1637,
+          "op": "SSTORE",
+          "gas": 57922,
+          "gasCost": 57922,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "error": "Some(OutOfGas)",
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 273,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "sstoreGasCosts": [
+        12100,
+        57922,
+        106436,
+        110020
+      ],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x1000000",
+      "callError": "out of gas"
+    },
+    {
+      "cell": "fresh1000-R0",
+      "txGasLimit": 16777216,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x0",
+        "cumulativeGasUsed": "0x1000000",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x70742f9de37e822072d50b84ebdda84467cdb671bf37e9f0f659804f45c9f80e",
+        "transactionIndex": "0x0",
+        "blockHash": "0xbe2ac27ea53f1f02c66e77a12408da35ea61c75bda891c85d8c698a0364bbb85",
+        "blockNumber": "0x1",
+        "gasUsed": "0x1000000",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x1000000",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "error": "out of gas",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "PUSH1",
+          "gas": 16762216,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 2,
+          "op": "PUSH2",
+          "gas": 16762213,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 5,
+          "op": "SSTORE",
+          "gas": 16762210,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 6,
+          "op": "PUSH1",
+          "gas": 16652190,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 911,
+          "op": "SSTORE",
+          "gas": 148284,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 912,
+          "op": "PUSH1",
+          "gas": 38264,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 914,
+          "op": "PUSH2",
+          "gas": 38261,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 917,
+          "op": "SSTORE",
+          "gas": 38258,
+          "gasCost": 38258,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "error": "Some(OutOfGas)",
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 153,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "sstoreGasCosts": [
+        38258,
+        110020
+      ],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x1000000",
+      "callError": "out of gas"
+    },
+    {
+      "cell": "fresh1000-RR",
+      "txGasLimit": 30000000,
+      "receipt": {
+        "type": "0x0",
+        "status": "0x0",
+        "cumulativeGasUsed": "0x1000000",
+        "logs": [],
+        "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "transactionHash": "0x6fb7c26895e281830f91f6eec1a2083afa6241dd9900eb5f2ca37a81f24d3c37",
+        "transactionIndex": "0x0",
+        "blockHash": "0x3c9115539691c9cd5c9ed10322f08fb022cf9e09c0a6268cae5afedc2646ce10",
+        "blockNumber": "0x1",
+        "gasUsed": "0x1000000",
+        "effectiveGasPrice": "0x77359400",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "contractAddress": null,
+        "blockTimestamp": 1792825384
+      },
+      "traceKeys": [
+        "failed",
+        "gas",
+        "returnValue",
+        "structLogs"
+      ],
+      "stepKeys": [
+        "pc",
+        "op",
+        "gas",
+        "gasCost",
+        "stateGasReservoir",
+        "depth",
+        "refund"
+      ],
+      "callTracer": {
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "gas": "0xffc568",
+        "gasUsed": "0x1000000",
+        "to": "0x00000000000000000000000000000000000cc125",
+        "input": "0x",
+        "error": "out of gas",
+        "value": "0x0",
+        "type": "CALL"
+      },
+      "firstSteps": [
+        {
+          "pc": 0,
+          "op": "PUSH1",
+          "gas": 16762216,
+          "gasCost": 3,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 2,
+          "op": "PUSH2",
+          "gas": 16762213,
+          "gasCost": 3,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 5,
+          "op": "SSTORE",
+          "gas": 16762210,
+          "gasCost": 12100,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 13222784,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 6,
+          "op": "PUSH1",
+          "gas": 16750110,
+          "gasCost": 3,
+          "stateGasReservoir": 13124864,
+          "depth": 1,
+          "refund": 0
+        }
+      ],
+      "lastSteps": [
+        {
+          "pc": 1631,
+          "op": "SSTORE",
+          "gas": 167948,
+          "gasCost": 110020,
+          "stateGasCost": 97920,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 1632,
+          "op": "PUSH1",
+          "gas": 57928,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 1634,
+          "op": "PUSH2",
+          "gas": 57925,
+          "gasCost": 3,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "refund": 0
+        },
+        {
+          "pc": 1637,
+          "op": "SSTORE",
+          "gas": 57922,
+          "gasCost": 57922,
+          "stateGasReservoir": 0,
+          "depth": 1,
+          "error": "Some(OutOfGas)",
+          "refund": 0
+        }
+      ],
+      "sstoreCount": 273,
+      "boundarySlots": [
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "sstoreGasCosts": [
+        12100,
+        57922,
+        106436,
+        110020
+      ],
+      "callFrameGas": "0xffc568",
+      "callFrameGasUsed": "0x1000000",
+      "callError": "out of gas"
+    }
+  ]
+}
