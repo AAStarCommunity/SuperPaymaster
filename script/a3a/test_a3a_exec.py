@@ -128,7 +128,12 @@ class FakeChain:
             if target == self.pin['capped']: return deployed_runtime(self.plan)
             if target == self.pin['timelock']: return self.plan['timelockRuntimeIdentity']['artifactRuntime']
             return '0x6000'
-        if method == 'eth_getBlockByNumber': return self.block() if params[0] == 'latest' else s['blocks'][params[0]]
+        if method == 'eth_getBlockByNumber':
+            block = copy.deepcopy(self.block() if params[0] == 'latest' else s['blocks'][params[0]])
+            if params[1]:
+                block['transactions'] = [dict(s['txs'][h], hash=h) for h, r in s['receipts'].items()
+                                         if r['blockNumber'] == block['number']]
+            return block
         if method == 'eth_getLogs':
             topics = params[0].get('topics', [])
             def matches(log):
@@ -207,7 +212,13 @@ class FakeChain:
         if method == 'eth_getTransactionReceipt': return s['receipts'][params[0]]
         if method == 'eth_getTransactionByHash': return s['txs'][params[0]]
         if method == 'debug_traceTransaction':
-            return {'pre': {}, 'post': {}} if params[1]['tracer'] == 'prestateTracer' else {'output': s['receipts'][params[0]]['revertOutput']}
+            if params[1]['tracer'] == 'prestateTracer': return {'pre': {}, 'post': {}}
+            trace = {'output': s['receipts'][params[0]]['revertOutput']}
+            if trace['output'] == ex.error_string('GS013'):
+                trace['calls'] = [dict(to=self.pin['timelock'], input=self.plan['safeInnerData'][1],
+                    error='execution reverted', output=ex.calldata('TimelockUnexpectedOperationState(bytes32,bytes32)',
+                    self.plan['operationId'], abi_word(4)))]
+            return trace
         if method == 'eth_call':
             target, data = params[0]['to'], params[0]['data']
             if data.startswith(ex.calldata('getRoleAdmin(bytes32)', ex.ZERO32)[:10]): return abi_word(0)
@@ -238,6 +249,16 @@ def fake_fork(remote, pin, out):
 
 
 class ExecutorTests(unittest.TestCase):
+    def setUp(self):
+        # The archive/compiler boundary has its own offline adversarial tests below;
+        # the orchestration tests never invoke a real build or access the network.
+        self.real_rebuild = ex.rebuild_artifacts
+        patcher = patch.object(ex, 'rebuild_artifacts', return_value={
+            'commit': 'a'*40, 'tempTreeCommit': 'a'*40, 'forgeVersion': 'forge Version: 1.7.1',
+            'profile': 'default', 'contracts': {}})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     @classmethod
     def setUpClass(cls):
         cls.selectors = {ex.calldata(sig): sig for sig in (
@@ -1113,8 +1134,245 @@ class ExecutorTests(unittest.TestCase):
         def different(*args): yield changed
         with tempfile.TemporaryDirectory() as d, patch.object(ex, 'artifact', self.artifact), patch.object(ex, 'fork', different):
             with self.assertRaises(ex.Gate) as caught:
-                ex.rehearse(None, plan, Path(d))
+                ex.rehearse(lambda *_: hex(100000), plan, Path(d))
         self.assertEqual(caught.exception.record['gate'], 'S1_gas_crosscheck')
+
+    def test_duplicate_keys_rejected_by_both_plan_readers(self):
+        for raw in (b'{"steps":[],"steps":[]}', b'{"tx":{"value":"0x0","value":"0x1"}}'):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as d:
+                path = Path(d)/'plan.json'; path.write_bytes(raw)
+                digest = hashlib.sha256(raw).hexdigest()
+                path.with_name('plan.json.sha256').write_text(digest)
+                with self.assertRaises(ex.Gate) as caught: ex.load_plan(path)
+                self.assertEqual(caught.exception.record['gate'], 'duplicate_json_key')
+                with self.assertRaises(ex.Gate) as caught: ex.signing_transaction(path, digest, 'S1', None)
+                self.assertEqual(caught.exception.record['gate'], 'duplicate_json_key')
+
+    def test_all_pin_integers_reject_bool_float_and_negative(self):
+        plan = self.measured_plan()
+        paths = [('timestamp',), ('deployerNonce',), ('safeNonce',), ('balance',),
+                 ('sp', 'pendingAPNTsTokenEta'), ('sp', 'APNTS_TOKEN_TIMELOCK')]
+        paths += [('senders', sender, field) for sender in ex.SENDERS for field in ('nonce', 'balance')]
+        for path in paths:
+            for value in (True, 1.0, -1, '1'):
+                changed = copy.deepcopy(plan['pin']); target = changed
+                for part in path[:-1]: target = target[part]
+                target[path[-1]] = value
+                with self.subTest(path=path, value=value), self.assertRaises(ex.Gate):
+                    ex.validate_pin(changed)
+
+    def test_pin_and_tx_quantities_are_canonical(self):
+        pin = self.measured_plan()['pin']
+        for block in ('0xAb', '0x00', '0x01', '0X1', True, 1):
+            changed = dict(pin, block=block)
+            with self.subTest(block=block), self.assertRaises(ex.Gate): ex.validate_pin(changed)
+        for field in ('value', 'nonce', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas', 'gas'):
+            for value in ('0xAb', '0x00', '0x01', '0X1', True, 1):
+                with self.subTest(field=field, value=value), self.assertRaises(ex.Gate):
+                    ex.tx_rpc({field: value})
+        self.assertEqual(ex.qty('0x0'), 0)
+        self.assertEqual(ex.qty('0xab'), 171)
+
+    def test_explicit_per_step_gas_cap(self):
+        self.assertEqual(ex.tx_rpc({'gas': hex(2**24)}), {'gas': hex(2**24)})
+        with self.assertRaises(ex.Gate) as caught: ex.tx_rpc({'gas': hex(2**24+1)})
+        self.assertEqual(caught.exception.record['gate'], 'gas_cap')
+        plan = self.measured_plan()
+        plan['steps'][0]['localEstimateGas'] = 2**24
+        plan['steps'][0]['tx']['gas'] = hex((2**24*13+9)//10)
+        ex.budget(plan)
+        with patch.object(ex, 'artifact', self.artifact), self.assertRaises(ex.Gate) as caught:
+            ex.validate_plan(plan, frozen=True)
+        self.assertEqual(caught.exception.record['gate'], 'gas_cap')
+
+    def test_frozen_replay_rechecks_both_gas_estimates(self):
+        for which in ('archive', 'local'):
+            plan = self.measured_plan()
+            with patch.object(ex, 'artifact', self.artifact): chain = FakeChain(plan['pin'])
+            def local(method, params, error_ok=False):
+                if which == 'local' and method == 'eth_estimateGas': return hex(200001)
+                return chain(method, params, error_ok=error_ok)
+            local.engine_process = chain.engine_process
+            @contextlib.contextmanager
+            def isolated(*args): yield local
+            remote = lambda *_: hex(100001 if which == 'archive' else 100000)
+            with self.subTest(which=which), tempfile.TemporaryDirectory() as d, patch.object(ex, 'artifact', self.artifact), patch.object(ex, 'fork', isolated):
+                with self.assertRaises(ex.Gate) as caught: ex.rehearse(remote, plan, Path(d))
+                self.assertEqual(caught.exception.record['gate'], 'S1_'+which+'_estimate')
+                self.assertEqual(chain.sent, [])
+
+    def early_negative_fixture(self):
+        chain, plan = self.chain_and_plan()
+        for step in plan['steps']: step['tx']['gas'] = hex(260000)
+        self.send_prefix(chain, plan, ('S1', 'S2', 'S3', 'S4', 'S5a', 'S5b', 'S6a'))
+        inner = (plan['pin']['timelock'], plan['safeInnerData'][1],
+                 ex.calldata('TimelockUnexpectedOperationState(bytes32,bytes32)', plan['operationId'], abi_word(4)))
+        return chain, plan, inner
+
+    def test_early_execute_requires_exact_inner_timelock_revert(self):
+        chain, plan, inner = self.early_negative_fixture()
+        result = ex.negative(chain, plan['steps'][7]['tx'], ex.error_string('GS013'), 'early_execute', inner=inner)
+        self.assertEqual(result['innerRevert']['output'], inner[2])
+        before = copy.deepcopy(chain.state)
+        for alteration in ('missing', 'wrong_reason', 'no_error', 'unavailable'):
+            def rpc(method, params, error_ok=False):
+                value = chain(method, params, error_ok=error_ok)
+                if method == 'debug_traceTransaction':
+                    if alteration == 'unavailable': return None
+                    value = copy.deepcopy(value)
+                    if alteration == 'missing': value['calls'] = []
+                    if alteration == 'wrong_reason': value['calls'][0]['output'] = '0x'
+                    if alteration == 'no_error': value['calls'][0].pop('error')
+                return value
+            with self.subTest(alteration=alteration), self.assertRaises(ex.Gate):
+                ex.negative(rpc, plan['steps'][7]['tx'], ex.error_string('GS013'), 'early_execute', inner=inner)
+            self.assertEqual(chain.state, before)
+
+    def test_schedule_logs_query_uses_exact_receipt_block(self):
+        chain, plan, _ = self.early_negative_fixture()
+        calls = []
+        def rpc(method, params):
+            if method == 'eth_getLogs': calls.append(params[0])
+            return chain(method, params)
+        self.assertEqual(ex.scheduled_eta(rpc, plan), chain.state['eta'])
+        self.assertEqual(len(calls), 1)
+        receipt = next(r for r in chain.state['receipts'].values() if any(
+            l['topics'][0] == ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)') for l in r['logs']))
+        self.assertEqual(calls[0]['fromBlock'], receipt['blockNumber'])
+        self.assertEqual(calls[0]['toBlock'], receipt['blockNumber'])
+
+    @staticmethod
+    def metadata_artifact(mode='none', raw='{}'):
+        solc = b'\x64solc\x43\x00\x08\x21'
+        if mode == 'none': tail = b'\xa1'+solc
+        else: tail = b'\xa2\x64ipfs\x58\x22'+ex.metadata_ipfs_hash(raw.encode())+solc
+        code = '0x60'+tail.hex()+len(tail).to_bytes(2, 'big').hex()
+        return {'rawMetadata': raw, 'bytecode': {'object': '0x60006000f3'},
+                'deployedBytecode': {'object': code, 'immutableReferences': {}}}
+
+    def test_metadata_no_hash_requires_explicit_head_policy_and_exact_tail(self):
+        art = self.metadata_artifact()
+        config = {'profile': {'default': {'bytecode_hash': 'none'}}}
+        self.assertEqual(ex.metadata_identity(art, config)['mode'], 'none')
+        for changed_config in ({}, {'profile': {'default': {'bytecode_hash': 'ipfs'}}}):
+            with self.assertRaises(ex.Gate): ex.metadata_identity(art, changed_config)
+        extra = self.metadata_artifact('ipfs')
+        with self.assertRaises(ex.Gate) as caught: ex.metadata_identity(extra, config)
+        self.assertEqual(caught.exception.record['gate'], 'metadata_no_hash_keys')
+        bad = copy.deepcopy(art)
+        bad['deployedBytecode']['object'] = bad['deployedBytecode']['object'].replace('000821', '000820')
+        with self.assertRaises(ex.Gate) as caught: ex.metadata_identity(bad, config)
+        self.assertEqual(caught.exception.record['gate'], 'metadata_solc')
+
+    def test_metadata_hash_must_match_raw_metadata_when_enabled(self):
+        art = self.metadata_artifact('ipfs', '{"metadata":"fixture"}')
+        config = {'profile': {'default': {'bytecode_hash': 'ipfs'}}}
+        self.assertEqual(ex.metadata_identity(art, config)['mode'], 'ipfs')
+        art['rawMetadata'] += ' '
+        with self.assertRaises(ex.Gate) as caught: ex.metadata_identity(art, config)
+        self.assertEqual(caught.exception.record['gate'], 'metadata_ipfs_hash')
+
+    def test_rebuild_compares_all_bytecode_and_reference_fields(self):
+        originals = {name: self.metadata_artifact() for name in ex.CONTRACT_NAMES}
+        config = {'profile': {'default': {'bytecode_hash': 'none'}}}
+        commit = 'b'*40
+        def run(args, **kwargs):
+            return SimpleNamespace(returncode=0, stdout=commit+'\n' if args[0] == 'git' else 'forge Version: 1.7.1\n')
+        with patch.object(ex.subprocess, 'run', side_effect=run), patch.object(ex, 'compile_commit', return_value=(originals, config)), patch.object(ex, 'committed_bytes', return_value=b'[profile.default]\nbytecode_hash="none"\n'):
+            proof = self.real_rebuild(copy.deepcopy(originals))
+            self.assertEqual(proof['tempTreeCommit'], commit)
+            self.assertEqual(proof['forgeVersion'], 'forge Version: 1.7.1')
+            for name in ex.CONTRACT_NAMES:
+                for field in ('bytecode', 'deployedBytecode'):
+                    changed = copy.deepcopy(originals)
+                    changed[name][field]['object'] += '00'
+                    with self.subTest(name=name, field=field), self.assertRaises(ex.Gate) as caught:
+                        self.real_rebuild(changed)
+                    self.assertEqual(caught.exception.record['gate'], 'rebuild_'+name+'_'+field)
+                changed = copy.deepcopy(originals)
+                changed[name]['deployedBytecode']['immutableReferences'] = {'1': [{'start': 1, 'length': 32}]}
+                with self.assertRaises(ex.Gate) as caught: self.real_rebuild(changed)
+                self.assertEqual(caught.exception.record['gate'], 'rebuild_'+name+'_immutableReferences')
+            with patch.object(ex, 'committed_bytes', return_value=b'[profile.default]\nbytecode_hash="ipfs"\n'):
+                with self.assertRaises(ex.Gate) as caught: self.real_rebuild(originals)
+                self.assertEqual(caught.exception.record['gate'], 'rebuild_config')
+
+    def test_compile_uses_offline_forge_default_profile_and_cleans_temp(self):
+        locations = []
+        def archive(repo, commit, tree):
+            locations.append(tree); tree.mkdir(parents=True)
+            (tree/'foundry.toml').write_text('[profile.default]\nbytecode_hash="none"\n')
+        def run(args, **kwargs):
+            self.assertEqual(args, [str(ex.REBUILD_FORGE), 'build', '--offline'])
+            self.assertEqual(kwargs['env']['FOUNDRY_PROFILE'], 'default')
+            self.assertNotIn('PRIVATE_KEY', kwargs['env'])
+            self.assertNotIn('FOUNDRY_OPTIMIZER_RUNS', kwargs['env'])
+            return SimpleNamespace(returncode=0)
+        ex.compile_commit.cache_clear()
+        try:
+            with patch.object(ex, 'archive_commit', side_effect=archive), patch.object(ex.subprocess, 'run', side_effect=run), patch.object(ex, 'raw_artifact', return_value=self.metadata_artifact()), patch.dict(ex.os.environ, {'PRIVATE_KEY': 'must-not-be-copied', 'FOUNDRY_OPTIMIZER_RUNS': '1'}):
+                artifacts, config = ex.compile_commit('a'*40, 'forge Version: 1.7.1')
+            self.assertEqual(set(artifacts), set(ex.CONTRACT_NAMES))
+            self.assertEqual(config['profile']['default']['bytecode_hash'], 'none')
+            self.assertFalse(locations[0].exists())
+            ex.compile_commit.cache_clear()
+            with patch.object(ex, 'archive_commit', side_effect=archive), patch.object(ex.subprocess, 'run', return_value=SimpleNamespace(returncode=1)):
+                with self.assertRaises(ex.Gate) as caught: ex.compile_commit('a'*40, 'forge Version: 1.7.1')
+            self.assertEqual(caught.exception.record['gate'], 'rebuild_offline_build')
+        finally: ex.compile_commit.cache_clear()
+
+    def test_archive_includes_pinned_submodule_and_fails_without_local_objects(self):
+        import tarfile
+        def tar_bytes(filename):
+            stream = io.BytesIO()
+            with tarfile.open(fileobj=stream, mode='w') as archive:
+                info = tarfile.TarInfo(filename); info.size = 1
+                archive.addfile(info, io.BytesIO(b'x'))
+            return stream.getvalue()
+        with tempfile.TemporaryDirectory() as d:
+            root, tree = Path(d)/'repo', Path(d)/'tree'
+            (root/'vendor').mkdir(parents=True)
+            commands = []
+            def run(args, **kwargs):
+                commands.append(args)
+                if args[:2] == ['git', 'archive']:
+                    kwargs['stdout'].write(tar_bytes('root.txt' if args[-1] == 'HEAD' else 'child.txt'))
+                    return SimpleNamespace(returncode=0)
+                if args[:2] == ['git', 'ls-tree']:
+                    body = b'160000 commit '+b'c'*40+b'\tvendor\0' if args[-1] == 'HEAD' else b''
+                    return SimpleNamespace(returncode=0, stdout=body)
+                if args[:2] == ['git', 'rev-parse']:
+                    return SimpleNamespace(returncode=0, stdout=str((root/'vendor').resolve())+'\n')
+                raise AssertionError(args)
+            with patch.object(ex.subprocess, 'run', side_effect=run): ex.archive_commit(root, 'HEAD', tree)
+            self.assertTrue((tree/'root.txt').is_file())
+            self.assertTrue((tree/'vendor/child.txt').is_file())
+            self.assertIn(['git', 'archive', '--format=tar', 'c'*40], commands)
+            def unavailable(args, **kwargs):
+                if args[:2] == ['git', 'rev-parse']:
+                    return SimpleNamespace(returncode=0, stdout=str(root if args[-1] == '--show-toplevel' else root/'.git/modules/missing')+'\n')
+                return run(args, **kwargs)
+            with patch.object(ex.subprocess, 'run', side_effect=unavailable):
+                with self.assertRaises(ex.Gate) as caught: ex.archive_commit(root, 'HEAD', Path(d)/'unavailable')
+            self.assertEqual(caught.exception.record['gate'], 'rebuild_submodule_unavailable')
+            with patch.object(ex.subprocess, 'run', return_value=SimpleNamespace(returncode=1)):
+                with self.assertRaises(ex.Gate) as caught: ex.archive_commit(root, 'missing', Path(d)/'missing')
+            self.assertEqual(caught.exception.record['gate'], 'rebuild_archive_unavailable')
+
+    def test_ipfs_hash_against_local_solc_0833_fixture(self):
+        # Produced offline by solc 0.8.33 --standard-json, with bytecodeHash=ipfs.
+        raw = '{"compiler":{"version":"0.8.33+commit.64118f21"},"language":"Solidity","output":{"abi":[],"devdoc":{"kind":"dev","methods":{},"version":1},"userdoc":{"kind":"user","methods":{},"version":1}},"settings":{"compilationTarget":{"M.sol":"M"},"evmVersion":"osaka","libraries":{},"metadata":{"bytecodeHash":"ipfs"},"optimizer":{"enabled":false,"runs":200},"remappings":[]},"sources":{"M.sol":{"keccak256":"0x4aca627d5b2516cfd8f06ee4ac9cfc1717b39f8f0224580c97218c77964e91e6","license":"MIT","urls":["bzz-raw://26e78cca05948211a4d461586c485876ec2d07405a7e795ea969f9628cae46dc","dweb:/ipfs/QmdVexbdM3n83tavFHjs6ADkqcBKUcZGDWGSnJLD7axX6d"]}},"version":1}'
+        code = '0x60806040525f5ffdfea26469706673582212209d3673dbc408ad40801133549f64e2dc83a27f054695d6db3e6324818e8a81e464736f6c63430008210033'
+        result = ex.metadata_identity({'rawMetadata': raw, 'deployedBytecode': {'object': code}},
+                                      {'profile': {'default': {'bytecode_hash': 'ipfs'}}})
+        self.assertEqual(result['mode'], 'ipfs')
+
+    def test_rebuild_rejects_any_forge_version_other_than_171(self):
+        def run(args, **kwargs):
+            return SimpleNamespace(returncode=0, stdout='a'*40+'\n' if args[0] == 'git' else 'forge Version: 1.8.7-nightly\n')
+        with patch.object(ex.subprocess, 'run', side_effect=run), patch.object(ex, 'compile_commit', side_effect=AssertionError('version gate first')):
+            with self.assertRaises(ex.Gate) as caught: self.real_rebuild({})
+        self.assertEqual(caught.exception.record['gate'], 'rebuild_forge_version')
 
 
 if __name__ == '__main__':

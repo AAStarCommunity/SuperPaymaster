@@ -11,6 +11,10 @@ import hashlib
 from functools import lru_cache
 import http.server
 import json
+import os
+import tarfile
+import tempfile
+import tomllib
 from pathlib import Path
 import socket
 import shutil
@@ -31,6 +35,9 @@ CHAIN = 11155111
 ACTIVATION = 1791294816
 FORK_ID = '0x6c1d9423'
 MARGIN_NUM, MARGIN_DEN = 13, 10
+GAS_CAP = 2**24
+REBUILD_FORGE = Path.home()/'.foundry/bin/forge'
+CONTRACT_NAMES = ('APNTsCapped', 'TimelockController')
 MAX_FEE, PRIORITY = 20_000_000_000, 100_000_000
 ZERO = '0x' + '00' * 20
 ZERO32 = '0x' + '00' * 32
@@ -77,7 +84,9 @@ def typed(value, rx, gate='rpc_result'):
 
 
 def qty(value):
-    return int(typed(value, QTY), 16)
+    number = int(typed(value, QTY), 16)
+    need('canonical_quantity', value, hex(number))
+    return number
 
 
 class RPC:
@@ -368,6 +377,207 @@ def artifact_sources(metadata):
     return hashes
 
 
+def reject_duplicate_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise Gate('duplicate_json_key', key, 'unique object keys')
+        result[key] = value
+    return result
+
+
+def plan_json(raw):
+    return json.loads(raw, object_pairs_hook=reject_duplicate_pairs)
+
+
+def cbor_tail(code):
+    raw = bytes.fromhex(typed(code, HEXDATA)[2:])
+    if len(raw) < 3:
+        raise Gate('metadata_cbor', 'short runtime', 'length-delimited CBOR trailer')
+    size = int.from_bytes(raw[-2:], 'big')
+    if not 0 < size <= len(raw)-2:
+        raise Gate('metadata_cbor', 'invalid trailer length', 'CBOR inside runtime')
+    data = raw[-size-2:-2]
+    def decode(pos, depth=0):
+        if depth > 4 or pos >= len(data):
+            raise Gate('metadata_cbor', 'truncated/deep CBOR', 'definite map/text/bytes/integer')
+        tag = data[pos]; pos += 1
+        major, length = tag >> 5, tag & 31
+        if length >= 24:
+            if length not in (24, 25, 26, 27):
+                raise Gate('metadata_cbor', 'indefinite CBOR', 'definite length')
+            width = 1 << (length-24)
+            if pos+width > len(data):
+                raise Gate('metadata_cbor', 'truncated length', 'complete CBOR')
+            length = int.from_bytes(data[pos:pos+width], 'big'); pos += width
+        if major == 0:
+            return length, pos
+        if major in (2, 3):
+            if pos+length > len(data):
+                raise Gate('metadata_cbor', 'truncated value', 'complete CBOR')
+            value = data[pos:pos+length]
+            return (value.decode('utf-8') if major == 3 else value), pos+length
+        if major == 5:
+            values = {}
+            for _ in range(length):
+                key, pos = decode(pos, depth+1)
+                if not isinstance(key, str) or key in values:
+                    raise Gate('metadata_cbor', 'duplicate/nontext key', 'unique text keys')
+                values[key], pos = decode(pos, depth+1)
+            return values, pos
+        raise Gate('metadata_cbor', major, 'map/text/bytes/unsigned integer')
+    decoded, end = decode(0)
+    need('metadata_cbor_consumed', end, len(data))
+    if not isinstance(decoded, dict):
+        raise Gate('metadata_cbor', 'not a map', 'metadata map')
+    return decoded
+
+
+def protobuf_varint(n):
+    out = bytearray()
+    while n >= 128:
+        out.append((n & 127) | 128); n >>= 7
+    out.append(n)
+    return bytes(out)
+
+
+def metadata_ipfs_hash(raw):
+    # Solidity's default IPFS identifier is SHA-256 of the UnixFS file DAG node,
+    # not plain SHA-256 of the JSON bytes. Metadata normally fits in one chunk.
+    if len(raw) > 262144:
+        raise Gate('metadata_ipfs_size', len(raw), 'single UnixFS chunk <= 262144 bytes')
+    unixfs = b'\x08\x02'+b'\x12'+protobuf_varint(len(raw))+raw+b'\x18'+protobuf_varint(len(raw))
+    node = b'\x0a'+protobuf_varint(len(unixfs))+unixfs
+    return b'\x12\x20'+hashlib.sha256(node).digest()
+
+
+def metadata_identity(art, config):
+    profile = config.get('profile', {}).get('default', {})
+    mode = profile.get('bytecode_hash', 'ipfs')
+    tail = cbor_tail(art['deployedBytecode']['object'])
+    need('metadata_solc', tail.get('solc'), bytes((0, 8, 33)))
+    raw = art.get('rawMetadata')
+    if not isinstance(raw, str):
+        raise Gate('metadata_raw', 'missing/nontext', 'exact rawMetadata JSON bytes')
+    if mode == 'none':
+        exact_keys('metadata_no_hash_keys', tail, ('solc',))
+    elif mode == 'ipfs':
+        exact_keys('metadata_hash_keys', tail, ('solc', 'ipfs'))
+        need('metadata_ipfs_hash', tail['ipfs'].hex(), metadata_ipfs_hash(raw.encode()).hex())
+    else:
+        raise Gate('metadata_hash_scheme', mode, 'verified IPFS hash or explicit HEAD profile.default none')
+    return dict(mode=mode, compiler='0.8.33', rawMetadataSha256=hashlib.sha256(raw.encode()).hexdigest())
+
+
+def archive_commit(repo, commit, destination):
+    """Materialize HEAD and recursively pinned submodules using only local git objects."""
+    destination.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryFile() as stream:
+        r = subprocess.run(['git', 'archive', '--format=tar', commit], cwd=repo,
+                           stdout=stream, stderr=subprocess.PIPE)
+        if r.returncode:
+            raise Gate('rebuild_archive_unavailable', {'commit': commit, 'exit': r.returncode},
+                       'commit and all dependencies available in local object stores; no fetch allowed')
+        stream.seek(0)
+        try:
+            with tarfile.open(fileobj=stream) as archive:
+                archive.extractall(destination, filter='data')
+        except (tarfile.TarError, OSError) as error:
+            raise Gate('rebuild_archive_extract', type(error).__name__, 'safe HEAD archive') from None
+    tree = subprocess.run(['git', 'ls-tree', '-r', '-z', commit], cwd=repo, capture_output=True)
+    need('rebuild_tree', tree.returncode, 0)
+    for entry in tree.stdout.split(b'\0'):
+        if not entry: continue
+        header, path = entry.split(b'\t', 1)
+        mode, kind, sha = header.split()
+        if mode != b'160000': continue
+        path = path.decode(); target = (destination/path).resolve()
+        if not target.is_relative_to(destination.resolve()):
+            raise Gate('rebuild_submodule_path', path, 'path inside archive')
+        child = repo/path
+        top = subprocess.run(['git', 'rev-parse', '--show-toplevel'], cwd=child if child.exists() else repo,
+                             capture_output=True, text=True)
+        if top.returncode or Path(top.stdout.strip()).resolve() != child.resolve():
+            # A locally retained bare submodule object store is sufficient too.
+            module = subprocess.run(['git', 'rev-parse', '--git-path', 'modules/'+path], cwd=repo,
+                                    capture_output=True, text=True)
+            store = Path(module.stdout.strip())
+            if not store.is_absolute(): store = repo/store
+            if module.returncode or not store.is_dir():
+                raise Gate('rebuild_submodule_unavailable', path, 'local initialized submodule or object store; no network fallback')
+            child = store
+        archive_commit(child, sha.decode(), target)
+
+
+def raw_artifact(root, name):
+    base = root/'out'/(name+'.sol')
+    path = base/(name+'.default.json')
+    if not path.exists(): path = base/(name+'.json')
+    if not path.is_file():
+        raise Gate('rebuild_artifact_missing', name, 'fresh default-profile artifact')
+    return json.loads(path.read_text())
+
+
+@lru_cache(maxsize=1)
+def compile_commit(commit, forge_version):
+    # Cache only independently rebuilt outputs, never the mutable ignored out/ files.
+    # Every verification below re-compares current artifacts to these committed bytes.
+    with tempfile.TemporaryDirectory(prefix='a3a-head-rebuild-') as directory:
+        tree = Path(directory)/'tree'
+        archive_commit(ROOT, commit, tree)
+        config = tomllib.loads((tree/'foundry.toml').read_text())
+        # Compiler execution needs no wallet/RPC credentials or user build overrides.
+        allowed_env = ('HOME', 'PATH', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SVM_HOME')
+        env = {k: os.environ[k] for k in allowed_env if k in os.environ}
+        env['FOUNDRY_PROFILE'] = 'default'
+        try:
+            r = subprocess.run([str(REBUILD_FORGE), 'build', '--offline'], cwd=tree, env=env,
+                               capture_output=True)
+        except OSError as error:
+            raise Gate('rebuild_forge_unavailable', type(error).__name__, 'local forge 1.7.1') from None
+        if r.returncode:
+            raise Gate('rebuild_offline_build', r.returncode,
+                       'forge 1.7.1 build --offline with locally installed compiler and archived dependencies')
+        return {name: raw_artifact(tree, name) for name in CONTRACT_NAMES}, config
+
+
+def rebuild_artifacts(artifacts):
+    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
+    need('rebuild_head', head.returncode, 0)
+    commit = head.stdout.strip()
+    try:
+        version = subprocess.run([str(REBUILD_FORGE), '--version'], capture_output=True, text=True)
+    except OSError as error:
+        raise Gate('rebuild_forge_unavailable', type(error).__name__, 'local forge 1.7.1') from None
+    need('rebuild_forge_status', version.returncode, 0)
+    need('rebuild_forge_version', version.stdout.splitlines()[0], 'forge Version: 1.7.1')
+    rebuilt, config = compile_commit(commit, version.stdout)
+    # The no-hash exception must be authorized by the committed profile, not a
+    # working-tree foundry.toml or an artifact's self-reported settings.
+    committed_config = tomllib.loads(committed_bytes(ROOT, 'foundry.toml', commit).decode())
+    need('rebuild_config', config, committed_config)
+    evidence = {}
+    for name in CONTRACT_NAMES:
+        current, fresh = artifacts[name], rebuilt[name]
+        fields = {}
+        for field in ('bytecode', 'deployedBytecode'):
+            left = bytes.fromhex(typed(current[field]['object'], HEXDATA)[2:])
+            right = bytes.fromhex(typed(fresh[field]['object'], HEXDATA)[2:])
+            need('rebuild_'+name+'_'+field, left == right, True)
+            fields[field+'Sha256'] = hashlib.sha256(right).hexdigest()
+        need('rebuild_'+name+'_immutableReferences', current['deployedBytecode'].get('immutableReferences', {}),
+             fresh['deployedBytecode'].get('immutableReferences', {}))
+        need('rebuild_'+name+'_creationReferences', current['bytecode'].get('immutableReferences', {}),
+             fresh['bytecode'].get('immutableReferences', {}))
+        refs = json.dumps(fresh['deployedBytecode'].get('immutableReferences', {}), sort_keys=True, separators=(',', ':'))
+        fields['immutableReferencesSha256'] = hashlib.sha256(refs.encode()).hexdigest()
+        fields['metadata'] = metadata_identity(current, committed_config)
+        metadata_identity(fresh, committed_config)
+        evidence[name] = fields
+    return dict(commit=commit, tempTreeCommit=commit, forgeVersion=version.stdout.strip(),
+                profile='default', contracts=evidence)
+
+
 def artifact(name):
     base = ROOT / 'out' / (name + '.sol')
     path = base / (name + '.default.json')
@@ -453,6 +663,7 @@ def build_plan(state):
     need('plan_predicted_timelock', state['timelock'], tl)
     need('plan_predicted_capped', state['capped'], token)
     a, t = artifact('APNTsCapped'), artifact('TimelockController')
+    rebuild = rebuild_artifacts({'APNTsCapped': a, 'TimelockController': t})
     init_t = t['bytecode']['object'] + cast('abi-encode', 'c(uint256,address[],address[],address)',
                                           172800, '['+SAFE+']', '['+SAFE+']', ZERO)[2:]
     constructor_args = ['AAStar PNTs', 'aPNTs', 10_000_000*10**18, DEPLOYER, SAFE, SAFE]
@@ -492,7 +703,7 @@ def build_plan(state):
         if sid == 'S5b':
             steps[-1]['plannedETA'] = times[sid]+172800
         counters[sender] += 1
-    return dict(schema=3, chainId=CHAIN, pin=state, operationId=op, salt=salt, safeTxHashes=hashes,
+    return dict(schema=4, rebuild=rebuild, chainId=CHAIN, pin=state, operationId=op, salt=salt, safeTxHashes=hashes,
                 runtimeIdentity=a['runtimeIdentity'], timelockRuntimeIdentity=t['runtimeIdentity'],
                 artifactSources={name: art['sourceHashes'] for name, art in
                                  (('APNTsCapped', a), ('TimelockController', t))}, constructorArgs=constructor_args,
@@ -661,6 +872,7 @@ TX_KEYS = frozenset(('to', 'data', 'value', 'nonce', 'from', 'chainId', 'maxFeeP
 
 def tx_rpc(tx):
     need('tx_rpc_keys', sorted(set(tx)-TX_KEYS), [])
+    tx_quantities(tx)
     return {k: v for k, v in tx.items() if k in TX_KEYS and v is not None}
 
 
@@ -689,23 +901,43 @@ def receipt(rpc, tx, status='0x1'):
     raise Gate('receipt_timeout', h, 'mined receipt')
 
 
-def negative(rpc, tx, expected, name):
+def trace_nodes(trace):
+    yield trace
+    for child in trace.get('calls', []):
+        if not isinstance(child, dict):
+            raise Gate('negative_trace', 'malformed child', 'complete callTracer nodes')
+        yield from trace_nodes(child)
+
+
+def negative(rpc, tx, expected, name, inner=None):
     sender = tx['from']
     before = [nonce(rpc, sender), word(rpc, SAFE, 'nonce()')]
     snap = rpc('evm_snapshot', [])
     try:
-        bad = dict(tx, nonce=hex(before[0]), gas=tx.get('gas', hex(30_000_000)))
+        bad = dict(tx, nonce=hex(before[0]), gas=tx.get('gas', hex(GAS_CAP)))
         r = receipt(rpc, bad, status='0x0')
         trace = rpc('debug_traceTransaction', [r['transactionHash'], {'tracer': 'callTracer'}])
+        if not isinstance(trace, dict):
+            raise Gate('negative_trace', 'unavailable/malformed callTracer', 'complete transaction call trace')
         need('negative_'+name+'_reason', trace.get('output'), expected)
+        if inner is not None:
+            target, data, output = inner
+            matches = [node for node in trace_nodes(trace) if node.get('to', '').lower() == target
+                       and node.get('input') == data]
+            need('negative_'+name+'_inner_count', len(matches), 1)
+            need('negative_'+name+'_inner_revert', bool(matches[0].get('error')), True)
+            need('negative_'+name+'_inner_reason', matches[0].get('output'), output)
         # A mined reverted EOA transaction necessarily consumes one nonce. The Safe nonce must not move.
         need('negative_'+name+'_mined_nonces', [nonce(rpc, sender), word(rpc, SAFE, 'nonce()')],
              [before[0]+1, before[1]])
     finally:
         need('negative_'+name+'_restore', rpc('evm_revert', [snap]), True)
     need('negative_'+name+'_restored_nonces', [nonce(rpc, sender), word(rpc, SAFE, 'nonce()')], before)
-    return dict(control=name, kind='reverted_transaction', revert=expected, receipt=r,
-                beforeNonces=before, minedNonces=[before[0]+1, before[1]], restoredNonces=before)
+    result = dict(control=name, kind='reverted_transaction', revert=expected, receipt=r,
+                  beforeNonces=before, minedNonces=[before[0]+1, before[1]], restoredNonces=before)
+    if inner is not None:
+        result['innerRevert'] = dict(to=inner[0], input=inner[1], output=inner[2])
+    return result
 
 
 def error_string(s):
@@ -834,18 +1066,35 @@ def exact_keys(gate, value, keys):
     need(gate, sorted(value), sorted(keys))
 
 
+def pin_integer(value, name):
+    need('pin_integer_'+name, type(value) is int and 0 <= value < 2**256, True)
+
+
 def validate_pin(pin):
     exact_keys('pin_keys', pin, ('block', 'blockHash', 'timestamp', 'deployerNonce', 'safeNonce',
                                'owners', 'sp', 'timelock', 'capped', 'balance', 'senders'))
+    for name in ('timestamp', 'deployerNonce', 'safeNonce', 'balance'):
+        pin_integer(pin[name], name)
     exact_keys('pin_senders', pin['senders'], SENDERS)
     for label in SENDERS:
         exact_keys('pin_sender_'+label, pin['senders'][label], ('address', 'nonce', 'balance'))
+        for key in ('nonce', 'balance'):
+            pin_integer(pin['senders'][label][key], label+'_'+key)
     exact_keys('pin_sp', pin['sp'], ('owner', 'APNTS_TOKEN', 'pendingAPNTsToken',
                                    'pendingAPNTsTokenEta', 'APNTS_TOKEN_TIMELOCK'))
+    for name in ('pendingAPNTsTokenEta', 'APNTS_TOKEN_TIMELOCK'):
+        pin_integer(pin['sp'][name], name)
     need('pin_balance', pin['balance'], pin['senders']['deployer']['balance'])
     qty(pin['block'])
     typed(pin['blockHash'], HASH32)
-    need('pin_timestamp', type(pin['timestamp']) is int and pin['timestamp'] >= ACTIVATION, True)
+    need('pin_timestamp', pin['timestamp'] >= ACTIVATION, True)
+
+
+def tx_quantities(tx):
+    for field in ('value', 'nonce', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas', 'gas'):
+        if field in tx: qty(tx[field])
+    if 'gas' in tx:
+        need('gas_cap', qty(tx['gas']) <= GAS_CAP, True)
 
 
 def validate_plan(plan, frozen=False):
@@ -860,6 +1109,7 @@ def validate_plan(plan, frozen=False):
         measured = {'estimateGas', 'localEstimateGas', 'forkGasUsed'} if frozen else set()
         exact_keys('plan_step_keys_'+sid, step, set(expected) | measured)
         exact_keys('plan_tx_keys_'+sid, step['tx'], set(expected['tx']) | ({'gas'} if frozen else set()))
+        tx_quantities(step['tx'])
         for key in set(expected)-{'tx'}:
             need('plan_derived_'+sid+'_'+key, step[key], expected[key])
         for key, value in expected['tx'].items():
@@ -876,11 +1126,28 @@ def validate_plan(plan, frozen=False):
         need('plan_budget', plan['budgetWei'], checked['budgetWei'])
 
 
+def find_step_receipt(remote, plan, step_index):
+    # Locate by sender+planned nonce in mined blocks; never trust a plan-supplied tx hash.
+    expected = plan['steps'][step_index]['tx']
+    head = qty(block_data(remote, 'latest')['number'])
+    for number in range(int(plan['pin']['block'], 16)+1, head+1):
+        block = remote('eth_getBlockByNumber', [hex(number), True])
+        for tx in block['transactions']:
+            if tx.get('from', '').lower() == expected['from'] and tx.get('nonce') == expected['nonce']:
+                mined_identity(tx, expected, 'schedule')
+                r = remote('eth_getTransactionReceipt', [typed(tx['hash'], HASH32)])
+                need('schedule_receipt_status', r['status'], '0x1')
+                need('schedule_receipt_block', r['blockNumber'], hex(number))
+                return r
+    raise Gate('schedule_receipt_missing', 'no matching mined S5b', 'planned sender, nonce and full identity')
+
+
 def scheduled_eta(remote, plan, done=False):
     tl, op = plan['pin']['timelock'], plan['operationId']
     topic = keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)')
-    logs = remote('eth_getLogs', [dict(address=tl, fromBlock=hex(int(plan['pin']['block'], 16)+1),
-                  toBlock='latest', topics=[topic, op, ZERO32])])
+    r = find_step_receipt(remote, plan, 5)
+    logs = remote('eth_getLogs', [dict(address=tl, fromBlock=r['blockNumber'],
+                  toBlock=r['blockNumber'], topics=[topic, op, ZERO32])])
     need('schedule_log_count', len(logs), 1)
     log = logs[0]
     need('schedule_log_removed', log.get('removed', False), False)
@@ -891,8 +1158,7 @@ def scheduled_eta(remote, plan, done=False):
     data = cast('abi-encode', 'c(address,uint256,bytes,bytes32,uint256)',
                 plan['pin']['capped'], 0, calldata('acceptOwnership()'), ZERO32, delay)
     need('schedule_log_data', typed(log['data'], HEXDATA).lower(), data.lower())
-    r = remote('eth_getTransactionReceipt', [typed(log['transactionHash'], HASH32)])
-    need('schedule_receipt_status', r['status'], '0x1')
+    need('schedule_log_tx', log['transactionHash'], r['transactionHash'])
     need('schedule_receipt_block', r['blockNumber'], log['blockNumber'])
     need('schedule_receipt_log', any(x.get('address', '').lower() == tl and x.get('topics') == log['topics']
                                    and x.get('data') == log['data'] for x in r['logs']), True)
@@ -958,7 +1224,7 @@ def signing_transaction(plan_path, reviewed_sha256, sid, remote):
     """Future signer entry: the reviewed digest must come out-of-band, never from a sidecar."""
     raw = Path(plan_path).read_bytes()
     need('reviewed_plan_hash', hashlib.sha256(raw).hexdigest(), reviewed_sha256)
-    plan = json.loads(raw)
+    plan = plan_json(raw)
     validate_plan(plan, frozen=True)
     if sid in ('S5a', 'S5b', 'S6a', 'S6b'):
         safe_hash_check(remote, plan)
@@ -982,7 +1248,10 @@ def rehearse(remote, plan, out, calibrate=False):
             sid = step['id']
             tx = copy.deepcopy(step['tx'])
             if sid == 'S6b':
-                controls.append(negative(local, tx, error_string('GS013'), 'early_execute'))
+                inner_reason = calldata('TimelockUnexpectedOperationState(bytes32,bytes32)', plan['operationId'],
+                                        '0x'+format(1 << 2, '064x'))
+                controls.append(negative(local, tx, error_string('GS013'), 'early_execute',
+                    inner=(pin['timelock'], plan['safeInnerData'][1], inner_reason)))
                 local('evm_setNextBlockTimestamp', [context['eta']])
                 local('evm_mine', [])
             need(sid+'_sender_nonce', nonce(local, tx['from']), qty(tx['nonce']))
@@ -1018,18 +1287,17 @@ def rehearse(remote, plan, out, calibrate=False):
                                context.get('eta', 0) if sid in ('S6b', 'S7') else 0)
             need(sid+'_execution_timestamp', execution_ts, step['executionTimestamp'])
             local('evm_setNextBlockTimestamp', [execution_ts])
+            estimate_tx = {k: v for k, v in tx_rpc(tx).items() if k != 'gas'}
+            estimate_context = dict(block=pin['block'], stateOverrides=json.loads(json.dumps(overrides)),
+                                    blockOverrides={'time': hex(execution_ts)})
+            params = [estimate_tx, pin['block'], overrides, {'time': hex(execution_ts)}]
+            est = qty(remote('eth_estimateGas', params))
+            local_est = qty(local('eth_estimateGas', [estimate_tx, 'latest']))
             if calibrate:
-                timestamp = execution_ts
-                # Estimate at the archive pin with this rehearsal's explicit state and time.
-                params = [tx_rpc(tx), pin['block'], overrides, {'time': hex(timestamp)}]
-                # Providers lacking state/block override support fail, never fall back to latest.
-                est = qty(remote('eth_estimateGas', params))
-                local_est = qty(local('eth_estimateGas', [tx_rpc(tx), 'latest']))
                 tx['gas'] = hex((max(est, local_est)*MARGIN_NUM+MARGIN_DEN-1)//MARGIN_DEN)
+                tx_quantities(tx)
                 step['estimateGas'] = est
                 step['localEstimateGas'] = local_est
-                estimate_context = dict(block=pin['block'], stateOverrides=json.loads(json.dumps(overrides)),
-                                        blockOverrides={'time': hex(timestamp)})
                 # Pilot execution supplies gasUsed, then roll back and rerun at the final exact limit.
                 snap = local('evm_snapshot', [])
                 pilot = receipt(local, tx)
@@ -1038,6 +1306,10 @@ def rehearse(remote, plan, out, calibrate=False):
                 local('evm_setNextBlockTimestamp', [execution_ts])
                 tx['gas'] = hex((max(est, local_est, used)*MARGIN_NUM+MARGIN_DEN-1)//MARGIN_DEN)
                 step['forkGasUsed'] = used
+            else:
+                need(sid+'_archive_estimate', est, step['estimateGas'])
+                need(sid+'_local_estimate', local_est, step['localEstimateGas'])
+            tx_quantities(tx)
             step['tx'] = tx
             r = receipt(local, tx)
             need(sid+'_post_sender_nonce', nonce(local, tx['from']), qty(tx['nonce'])+1)
@@ -1051,13 +1323,11 @@ def rehearse(remote, plan, out, calibrate=False):
             mined = local('eth_getTransactionByHash', [r['transactionHash']])
             mined_identity(mined, tx, sid)
             records.append(dict(step=sid, gasUsed=qty(r['gasUsed']), receipt=r, readback=observed))
-            if calibrate:
-                records[-1]['estimateContext'] = estimate_context
+            records[-1]['estimateContext'] = estimate_context
             with (out/'simulate.log').open('a') as log:
                 log.write(json.dumps(records[-1])+'\n')
             write_json(out/'simulate.json', dict(status='IN_PROGRESS', steps=records, negativeControls=controls))
-            if calibrate:
-                trace_overrides(local, r, overrides)
+            trace_overrides(local, r, overrides)
     completion(records, controls)
     relay_evidence(out)
     need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
@@ -1118,7 +1388,7 @@ def load_plan(path):
     raw = path.read_bytes()
     expected = path.with_name(path.name+'.sha256').read_text().split()[0]
     need('plan_hash', hashlib.sha256(raw).hexdigest(), expected)
-    return json.loads(raw)
+    return plan_json(raw)
 
 
 def failure_record(out, record):

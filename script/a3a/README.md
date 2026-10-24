@@ -28,8 +28,9 @@ matching APNTsCapped deployed bytecode and immutable references. Generate full
 build-info with the nightly forge's `--build-info --ast` options when preparing
 artifacts. Source-index-only build-info is insufficient and fails the
 `immutable_build_info` gate. AST IDs belong to a compilation unit: outputs from
-other builds are never combined to guess names. The executor never invokes a
-compiler or downloads dependencies.
+other builds are never combined to guess names. The executor does invoke the
+pinned local compiler toolchain for a fresh **offline HEAD archive rebuild**;
+it never downloads dependencies or uses out/ as its own source of trust.
 
 Ignored build output is covered separately from git status. For **both** artifacts,
 every metadata `sources[*].keccak256` must equal Keccak of the source bytes
@@ -40,6 +41,45 @@ the submodule's current HEAD. Missing/uncommitted files, ambiguous or escaping
 remappings, and any metadata/worktree hash mismatch fail. The local nightly
 cast Keccak implementation is checked against the known empty-input vector.
 The resolved paths and committed hashes are saved as `artifactSources`.
+
+## Bytecode binding to HEAD
+
+Before building a plan, the executor materializes `git archive HEAD` in a fresh
+temporary directory. Every gitlink is recursively archived at its **recorded
+commit** using the initialized local submodule or locally retained module object
+store. Working-tree dependency files are not copied. Missing local commits,
+unsafe archive entries or unavailable submodules fail clear rebuild gates; there
+is no fetch, clone, submodule download or network fallback.
+
+The archive is built by `~/.foundry/bin/forge`, which must report exactly version
+1.7.1, using `build --offline` and `FOUNDRY_PROFILE=default`. Only basic compiler
+environment variables are inherited; wallet/RPC credentials and build-setting
+overrides are not passed. The committed profile, compiler and all dependency
+objects must be available offline. A build failure is `rebuild_offline_build`.
+Temporary trees and outputs are removed after compilation or failure.
+
+For APNTsCapped and TimelockController, creation bytecode, deployed bytecode and
+immutableReferences are compared exactly against the freshly rebuilt artifacts.
+Every mismatch fails. The plan's `rebuild` record includes forge version,
+`tempTreeCommit`, profile, bytecode digests, immutable-reference digest and CBOR
+metadata result. Canonical validation rebuilds this record independently, so a
+frozen simulation or future signer cannot substitute self-attesting artifacts.
+Within one invocation only the trusted rebuilt outputs are cached; current out/
+files are re-compared on every canonical validation.
+
+The CBOR trailer has two explicitly checked branches:
+
+- **No-hash profile:** `[profile.default].bytecode_hash` must explicitly be
+  `"none"` in foundry.toml read from **HEAD**, not the working tree. Each runtime
+  trailer must decode to exactly `{solc: <0.8.33 bytes>}`. This exception is
+  accepted only after exact fresh-rebuild equality for all required bytecode and
+  reference fields. It does not claim that a missing metadata hash proves identity.
+- **Hash enabled:** the embedded metadata hash must match the exact rawMetadata
+  bytes. IPFS mode checks Solidity's SHA-256 UnixFS multihash (including its file
+  envelope), not a plain SHA-256 of the JSON. The implementation supports one
+  metadata chunk up to 262144 bytes; unsupported schemes, oversized metadata,
+  missing hashes and incorrect hashes fail closed. The compiler marker must
+  still be 0.8.33. Tests cover both branches and a fixture produced by local solc.
 
 Put just the archive URL in a private file. Pass its **path**, never the URL:
 
@@ -124,7 +164,8 @@ as `localEstimateGas`; `estimateGas` and `forkGasUsed` retain the other inputs.
 GasUsed is **not** a lower bound on the viable gas limit: v4 S1 needed 48,641 gas
 to run despite using 38,582. Estimates are valid for the pin and simulated state;
 `pre_send` must re-estimate against current state before any real send and reject
-if the fresh estimate exceeds the frozen limit. `plan.json` records all three gas
+if the fresh estimate exceeds the frozen limit. Every planned or sent local
+transaction has an explicit `gas <= 2**24` gate. `plan.json` records all three gas
 numbers, sender, destination (null for CREATE), calldata, value, nonce, chain ID,
 gas limit, fee caps and execution timestamps. Execution timestamps are a
 canonical **rehearsal schedule** recomputed from the pin: sequential one-second
@@ -150,7 +191,11 @@ gasUsed are observations, not derived identity fields; the formula consumes them
 and the separate reviewed digest binds the complete file. Unknown annotations
 and unsupported derived fields are rejected. Plans from older schema revisions
 must be regenerated. All nine step IDs are required; edited fields are rejected
-even when the adjacent sidecar is recomputed.
+even when the adjacent sidecar is recomputed. Both plan readers reject duplicate
+JSON keys using object_pairs_hook, including nested duplicates. Pin timestamps,
+nonces, balances and delay fields must have `type(x) is int`; bools/floats are
+rejected. Hex quantities in the pin and transaction fields must be lowercase and
+canonical (`hex(int(x, 16)) == x`), with no leading zeros.
 
 The binary's `--version` must contain the pinned full COMMIT. After startup,
 `anvil_nodeInfo` must report Amsterdam, FIFO, chain 11155111, the requested fork
@@ -168,7 +213,11 @@ uses exactly the saved limits, and checks sender and Safe nonces before and
 after every step. Only a full successful predecessor read-back releases the
 next executable transaction. `simulate --plan <frozen plan.json>` is an
 independent rerun: it does not call `plan_command`, perform calibration pilots,
-replace limits, or rewrite the plan. The source plan remains unchanged. The
+replace limits, or rewrite the plan. It does re-run both **read-only** estimates
+at each pre-step state: the local fork estimate must equal localEstimateGas and
+the archive estimate at the pin, with independently reconstructed cumulative
+state/time overrides, must equal estimateGas. State diffs and override evidence
+are collected on independent replay too. The source plan remains unchanged. The
 mined transaction identity and gas limit must match the frozen plan and each
 receipt's gasUsed must be at most that limit and equal the recorded pilot gasUsed. The mined transaction must be
 type 0x2 with no authorizations or nonempty access list; input and any data alias,
@@ -198,7 +247,9 @@ Read-backs include:
   value. For pre_send(S6a/S6b), the actual ETA is derived from the S5b receipt's
   CallScheduled log and its block timestamp plus the timelock's on-chain
   minDelay; it must equal getTimestamp(opId). The receipt must succeed and its
-  transaction identity must match S5b. This allows S5b to land at a different
+  transaction identity must match S5b. The receipt is located by its planned
+  sender/nonce and full transaction identity; the schedule eth_getLogs query is
+  then bounded to `fromBlock == toBlock == S5b receipt.blockNumber`. This allows S5b to land at a different
   real-chain timestamp. Once Done, getTimestamp must be the OZ Done sentinel 1.
 - S6b: execute after a warp of at least 48 hours, Safe ExecutionSuccess,
   owner equal timelock, pending owner zero and operation Done.
@@ -274,7 +325,12 @@ It then restores the snapshot and verifies both sender and Safe nonces equal
 their original values. Evidence includes the failed receipt, exact reason and
 before/mined/restored nonces. No nonce claim is based merely on eth_call:
 
-- S6b before maturity, after the real S6a approval: Safe `GS013`.
+- S6b before maturity, after the real S6a approval: Safe `GS013`, plus exactly
+  one inner call to the timelock with the planned execute calldata. Its callTracer
+  node must have an error and the exact
+  `TimelockUnexpectedOperationState(opId, Ready bitmap)` revert bytes, where
+  Ready is `1 << 2`. Missing/unavailable traces, absent inner calls or unrelated
+  inner reasons fail. The verified inner revert is recorded in the control evidence.
 - S5b with the wrong Safe nonce: Safe `GS025`. A local snapshot temporarily
   changes Safe 1.4.1's nonce slot, checks it through the getter, then restores it.
 - S7 by a non-owner: `OwnableUnauthorizedAccount(executor)`.
@@ -364,7 +420,13 @@ include the combined reviewer tamper case and each injected field separately,
 exact schema/budget/timestamp validation, mined transaction aliases, out-of-band
 hash authority, changed real schedule times, listener PID/child lifetime and
 initial head checks, committed/remapped source provenance, empty engine stderr,
-concurrent RPC IDs, and timelock runtime/immutable values. It cross-checks all
+concurrent RPC IDs, and timelock runtime/immutable values. Round-3 controls exercise offline archive
+and submodule handling, exact bytecode/reference comparisons, HEAD-authorized
+no-hash CBOR and enabled-hash verification, duplicate keys, pin integer/canonical
+quantity types, the gas cap and both estimate rechecks, exact inner early-execute
+reverts, and receipt-block-bounded schedule logs. The compiler/archive boundary
+is mocked in the orchestration tests and exercised independently by its own
+failure controls; the full rebuild can also be run locally without an archive RPC. It cross-checks all
 non-deployment calldata and derived identity hashes against v4, without reusing
 v4 gas. It does not prove archive capabilities or replace the live fork run.
 The module keeps `sys.dont_write_bytecode = True` at its top. Python 3.11 syntax
