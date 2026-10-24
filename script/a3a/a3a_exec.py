@@ -13,6 +13,7 @@ import http.server
 import json
 from pathlib import Path
 import socket
+import shutil
 import subprocess
 import sys
 import threading
@@ -53,8 +54,19 @@ class Gate(Exception):
         super().__init__(name)
 
 
+def same_value(observed, expected):
+    # JSON booleans/floats must not alias canonical integer fields (True == 1 in Python).
+    if type(observed) is not type(expected):
+        return False
+    if isinstance(expected, dict):
+        return observed.keys() == expected.keys() and all(same_value(observed[k], v) for k, v in expected.items())
+    if isinstance(expected, (list, tuple)):
+        return len(observed) == len(expected) and all(same_value(a, b) for a, b in zip(observed, expected))
+    return observed == expected
+
+
 def need(name, observed, expected):
-    if observed != expected:
+    if not same_value(observed, expected):
         raise Gate(name, observed, expected)
 
 
@@ -71,13 +83,15 @@ def qty(value):
 class RPC:
     def __init__(self, url, local=False):
         self.url, self.local, self.serial = url, local, 0
+        self.serial_lock = threading.Lock()
 
     def __call__(self, method, params, error_ok=False):
         if not self.local and not (method.startswith('eth_get') or method in
                                   ('eth_chainId', 'eth_config', 'eth_call', 'eth_estimateGas', 'web3_sha3')):
             raise Gate('remote_read_only', method, 'read-only RPC')
-        self.serial += 1
-        rid = self.serial
+        with self.serial_lock:
+            self.serial += 1
+            rid = self.serial
         q = dict(jsonrpc='2.0', id=rid, method=method, params=params)
         try:
             with urllib.request.urlopen(urllib.request.Request(
@@ -132,7 +146,7 @@ def ast_nodes(value):
             yield from ast_nodes(child)
 
 
-def immutable_identity(a, build_info=None):
+def immutable_identity(a, build_info=None, contract_name='APNTsCapped'):
     """Resolve IDs only within compilation units containing this exact runtime/artifact.
 
     IDs are compilation-local. Never combine AST IDs from unrelated builds.
@@ -143,6 +157,9 @@ def immutable_identity(a, build_info=None):
     refs = deployed.get('immutableReferences', {})
     if not isinstance(refs, dict):
         raise Gate('immutable_references', 'malformed', 'reference id -> ranges')
+    allowed = EIP712_IMMUTABLES if contract_name == 'APNTsCapped' else frozenset(('_minDelay',))
+    if not refs and contract_name == 'TimelockController':
+        return dict(artifactRuntime=runtime, ranges=[])
     candidates = []
     for path in sorted((build_info or ROOT/'out/build-info').glob('*.json')):
         info = json.loads(path.read_text())
@@ -152,7 +169,7 @@ def immutable_identity(a, build_info=None):
             == runtime[2:] and
             contract.get('evm', {}).get('deployedBytecode', {}).get('immutableReferences', {}) == refs
             for contracts in output.get('contracts', {}).values()
-            for name, contract in contracts.items() if name == 'APNTsCapped')
+            for name, contract in contracts.items() if name == contract_name)
         if not matching:
             continue
         names = {}
@@ -175,9 +192,12 @@ def immutable_identity(a, build_info=None):
         need('immutable_build_ambiguous', names, resolved[0])
     names = resolved[0]
     for key, name in names.items():
-        if name not in EIP712_IMMUTABLES:
-            raise Gate('immutable_unknown_id', {'id': key, 'name': name}, sorted(EIP712_IMMUTABLES))
-    need('immutable_named_set', sorted(names.values()), sorted(EIP712_IMMUTABLES))
+        if name not in allowed:
+            raise Gate('immutable_unknown_id', {'id': key, 'name': name}, sorted(allowed))
+    if contract_name == 'APNTsCapped':
+        need('immutable_named_set', sorted(names.values()), sorted(EIP712_IMMUTABLES))
+    else:
+        need('immutable_named_unique', len(set(names.values())), len(names))
     ranges, occupied = [], set()
     size = len(bytes.fromhex(runtime[2:]))
     for key, entries in refs.items():
@@ -228,12 +248,15 @@ def immutable_values(rpc, plan):
     return values, dict(_name=name_case, _version=version_case)
 
 
-def verify_runtime(rpc, plan, code):
-    identity = plan['runtimeIdentity']
+def verify_runtime(rpc, plan, code, contract_name='APNTsCapped'):
+    identity = plan['runtimeIdentity' if contract_name == 'APNTsCapped' else 'timelockRuntimeIdentity']
     expected = bytearray.fromhex(typed(identity['artifactRuntime'], HEXDATA)[2:])
     actual = bytearray.fromhex(typed(code, HEXDATA)[2:])
     need('runtime_length', len(actual), len(expected))
-    values, cases = immutable_values(rpc, plan)
+    if contract_name == 'APNTsCapped':
+        values, cases = immutable_values(rpc, plan)
+    else:
+        values, cases = {'_minDelay': (172800).to_bytes(32, 'big')}, {}
     seen, occupied, observed = {}, set(), {}
     for entry in identity['ranges']:
         key, name, start, length = entry['id'], entry['name'], entry['start'], entry['length']
@@ -251,7 +274,8 @@ def verify_runtime(rpc, plan, code):
         need('immutable_value_'+name, '0x'+value.hex(), '0x'+values[name].hex())
         observed.setdefault(name, []).append(dict(id=key, start=start, value='0x'+value.hex()))
         actual[start:start+length] = expected[start:start+length] = bytes(length)
-    need('immutable_runtime_set', sorted(seen.values()), sorted(EIP712_IMMUTABLES))
+    if contract_name == 'APNTsCapped':
+        need('immutable_runtime_set', sorted(seen.values()), sorted(EIP712_IMMUTABLES))
     need('runtime_unmasked_bytes', actual == expected, True)
     return dict(immutables=observed, shortStringCases=cases, unmaskedBytesEqual=True)
 
@@ -290,6 +314,60 @@ def block_data(rpc, block):
     return b
 
 
+def committed_bytes(repo, path, ref='HEAD'):
+    """Read bytes from the root commit, following pinned gitlinks (never a child HEAD)."""
+    result = subprocess.run(['git', 'show', ref+':'+path], cwd=repo, capture_output=True)
+    if result.returncode == 0:
+        return result.stdout
+    parts = Path(path).parts
+    for i in range(1, len(parts)):
+        prefix = Path(*parts[:i]).as_posix()
+        tree = subprocess.run(['git', 'ls-tree', '-z', ref, '--', prefix], cwd=repo, capture_output=True)
+        if tree.returncode == 0 and tree.stdout:
+            entry = tree.stdout.split(b'\0')[0].split(b'\t')[0].split()
+            if len(entry) == 3 and entry[0] == b'160000':
+                return committed_bytes(repo/prefix, Path(*parts[i:]).as_posix(), entry[2].decode('ascii'))
+    raise Gate('artifact_source_uncommitted', path, 'file bytes reachable from HEAD (including pinned gitlinks)')
+
+
+def source_path(source, remappings):
+    if not isinstance(source, str) or Path(source).is_absolute():
+        raise Gate('artifact_source_unresolved', 'invalid source path', 'repository-relative source')
+    choices = [source]
+    mappings = []
+    for mapping in remappings:
+        left, sep, right = mapping.partition('=')
+        if not sep:
+            raise Gate('artifact_remapping', mapping, 'prefix=repository path')
+        prefix = left.rsplit(':', 1)[-1]
+        if source.startswith(prefix):
+            mappings.append((len(prefix), right+source[len(prefix):]))
+    if mappings:
+        longest = max(n for n, _ in mappings)
+        choices = sorted(set(value for n, value in mappings if n == longest))
+        need('artifact_remapping_ambiguous', len(choices), 1)
+    resolved = (ROOT/choices[0]).resolve()
+    if not resolved.is_relative_to(ROOT) or not resolved.is_file():
+        raise Gate('artifact_source_unresolved', source, 'existing source inside repository')
+    return resolved.relative_to(ROOT).as_posix()
+
+
+def artifact_sources(metadata):
+    need('artifact_keccak_vector', keccak('0x'), EMPTY_KECCAK)
+    sources = metadata.get('sources')
+    if not isinstance(sources, dict) or not sources:
+        raise Gate('artifact_sources', 'missing sources', 'complete metadata source hashes')
+    hashes = {}
+    for source, info in sources.items():
+        path = source_path(source, metadata['settings'].get('remappings', []))
+        committed = committed_bytes(ROOT, path)
+        expected = keccak('0x'+committed.hex())
+        need('artifact_source_metadata', typed(info.get('keccak256'), HASH32).lower(), expected)
+        need('artifact_source_worktree', keccak('0x'+(ROOT/path).read_bytes().hex()), expected)
+        hashes[source] = dict(path=path, keccak256=expected)
+    return hashes
+
+
 def artifact(name):
     base = ROOT / 'out' / (name + '.sol')
     path = base / (name + '.default.json')
@@ -305,10 +383,8 @@ def artifact(name):
     need('artifact_optimizer', metadata['settings']['optimizer']['runs'], 500)
     for field in ('bytecode', 'deployedBytecode'):
         typed(a[field]['object'], HEXDATA, 'artifact_bytecode')
-    if name == 'APNTsCapped':
-        a['runtimeIdentity'] = immutable_identity(a)
-    else:
-        need('artifact_immutables', a['deployedBytecode'].get('immutableReferences', {}), {})
+    a['sourceHashes'] = artifact_sources(metadata)
+    a['runtimeIdentity'] = immutable_identity(a, contract_name=name)
     return a
 
 
@@ -361,6 +437,12 @@ def preflight(rpc, block):
                 timelock=predicted[0], capped=predicted[1], balance=balance, senders=senders)
 
 
+def execution_timestamps(pin):
+    # Six sequential blocks through S5b; S6b follows a maturity mine, then S7.
+    offsets = (1, 2, 3, 4, 5, 6, 7, 172807, 172808)
+    return {sid: pin['timestamp']+offset for sid, offset in zip(STEP_IDS, offsets)}
+
+
 def build_plan(state):
     for label, who in SENDERS.items():
         need('plan_sender_'+label, state['senders'][label]['address'], who)
@@ -402,13 +484,18 @@ def build_plan(state):
     rows += [('S7', DEPLOYER, SP, calldata('setAPNTsToken(address)', token))]
     counters = {v['address']: v['nonce'] for v in state['senders'].values()}
     steps = []
+    times = execution_timestamps(state)
     for sid, sender, to, data in rows:
-        steps.append(dict(id=sid, tx=dict(to=to, data=data, value='0x0', nonce=hex(counters[sender]),
+        steps.append(dict(id=sid, executionTimestamp=times[sid], tx=dict(to=to, data=data, value='0x0', nonce=hex(counters[sender]),
                      **{'from': sender}, chainId=hex(CHAIN), maxFeePerGas=hex(MAX_FEE),
                      maxPriorityFeePerGas=hex(PRIORITY))))
+        if sid == 'S5b':
+            steps[-1]['plannedETA'] = times[sid]+172800
         counters[sender] += 1
-    return dict(schema=2, chainId=CHAIN, pin=state, operationId=op, salt=salt, safeTxHashes=hashes,
-                runtimeIdentity=a['runtimeIdentity'], constructorArgs=constructor_args,
+    return dict(schema=3, chainId=CHAIN, pin=state, operationId=op, salt=salt, safeTxHashes=hashes,
+                runtimeIdentity=a['runtimeIdentity'], timelockRuntimeIdentity=t['runtimeIdentity'],
+                artifactSources={name: art['sourceHashes'] for name, art in
+                                 (('APNTsCapped', a), ('TimelockController', t))}, constructorArgs=constructor_args,
                 # No external admin; OZ retains the timelock's self-admin role.
                 roles={'DEFAULT_ADMIN': [tl], 'PROPOSER': [SAFE], 'EXECUTOR': [SAFE], 'CANCELLER': [SAFE]},
                 margin=[MARGIN_NUM, MARGIN_DEN], safeInnerData=inner, steps=steps)
@@ -478,6 +565,23 @@ def authenticate_engine(local, relay_url, pin_block):
     need('local_engine_order', info.get('transactionOrder'), 'fifo')
     need('local_chain', info['environment'].get('chainId'), CHAIN)
     need('local_chain_rpc', qty(local('eth_chainId', [])), CHAIN)
+    need('local_engine_current_block', info.get('currentBlockNumber'), int(pin_block, 16))
+
+
+def process_alive(proc):
+    need('engine_process_alive', proc.poll(), None)
+
+
+def process_owns_port(proc, port):
+    process_alive(proc)
+    lsof = shutil.which('lsof')
+    if lsof is None:
+        raise Gate('engine_lsof', 'unavailable', 'lsof required for listener PID verification')
+    result = subprocess.run([lsof, '-nP', '-iTCP:'+str(port), '-sTCP:LISTEN', '-t'],
+                            capture_output=True, text=True, timeout=10)
+    need('engine_lsof_status', result.returncode, 0)
+    need('engine_listener_pid', sorted(set(result.stdout.split())), [str(proc.pid)])
+    process_alive(proc)
 
 
 @contextlib.contextmanager
@@ -535,6 +639,8 @@ def fork(remote, pin, out):
         else:
             raise Gate('engine_start', 'timeout', 'listening local anvil')
         authenticate_engine(local, 'http://127.0.0.1:'+str(server.server_port), pin['block'])
+        process_owns_port(proc, port)
+        local.engine_process = proc
         need('fork_block_hash', block_data(local, pin['block'])['hash'], pin['blockHash'])
         for who in (DEPLOYER, EXECUTOR, APPROVER):
             local('anvil_impersonateAccount', [who])
@@ -549,8 +655,25 @@ def fork(remote, pin, out):
         relay_log.close()
 
 
+TX_KEYS = frozenset(('to', 'data', 'value', 'nonce', 'from', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas', 'gas'))
+
+
 def tx_rpc(tx):
-    return {k: v for k, v in tx.items() if v is not None}
+    need('tx_rpc_keys', sorted(set(tx)-TX_KEYS), [])
+    return {k: v for k, v in tx.items() if k in TX_KEYS and v is not None}
+
+
+def mined_identity(mined, tx, label):
+    for key in ('from', 'to', 'nonce', 'value', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas'):
+        need(label+'_mined_'+key, mined.get(key), tx.get(key))
+    need(label+'_mined_type', mined.get('type'), '0x2')
+    need(label+'_mined_authorizations', mined.get('authorizationList') in (None, []), True)
+    need(label+'_mined_access_list', mined.get('accessList', []), [])
+    need(label+'_mined_input', mined.get('input'), tx['data'])
+    if 'data' in mined:
+        need(label+'_mined_data_alias', mined['data'], tx['data'])
+    if 'gas' in tx:
+        need(label+'_mined_gas', mined.get('gas'), tx['gas'])
 
 
 def receipt(rpc, tx, status='0x1'):
@@ -641,6 +764,7 @@ def readback(rpc, plan, step, r, context, predecessor=False):
     if sid == 'S2' and not predecessor:
         context['tlBlock'] = r['blockNumber']
     if 'tlBlock' in context:
+        got['timelockRuntimeIdentity'] = verify_runtime(rpc, plan, rpc('eth_getCode', [tl, 'latest']), 'TimelockController')
         need(sid+'_min_delay', word(rpc, tl, 'getMinDelay()'), 172800)
         got['roles'] = roles_readback(rpc, plan, context['tlBlock'])
     if sid not in ('S1', 'S2'):
@@ -664,10 +788,8 @@ def readback(rpc, plan, step, r, context, predecessor=False):
         i = 0 if sid == 'S5a' else 1
         need(sid+'_approved_hash', word(rpc, SAFE, 'approvedHashes(address,bytes32)', APPROVER, plan['safeTxHashes'][i]), 1)
     if sid == 'S5b' and not predecessor:
-        context['eta'] = ts + 172800
-        if 'plannedETA' not in step:
-            step['plannedETA'] = context['eta']
-        need('S5b_planned_eta', context['eta'], step['plannedETA'])
+        context['eta'] = ts + word(rpc, tl, 'getMinDelay()')
+        got['informationalPlannedETA'] = step['plannedETA']
     if sid in ('S5b', 'S6a', 'S6b', 'S7'):
         done = sid in ('S6b', 'S7')
         need(sid+'_operation_state', word(rpc, tl, 'getOperationState(bytes32)', plan['operationId']), 3 if done else (2 if predecessor and qty(block_data(rpc, 'latest')['timestamp']) >= context['eta'] else 1))
@@ -705,25 +827,79 @@ class ExecutionStep:
     id: str
 
 
+def exact_keys(gate, value, keys):
+    if not isinstance(value, dict):
+        raise Gate(gate, 'not an object', sorted(keys))
+    need(gate, sorted(value), sorted(keys))
+
+
+def validate_pin(pin):
+    exact_keys('pin_keys', pin, ('block', 'blockHash', 'timestamp', 'deployerNonce', 'safeNonce',
+                               'owners', 'sp', 'timelock', 'capped', 'balance', 'senders'))
+    exact_keys('pin_senders', pin['senders'], SENDERS)
+    for label in SENDERS:
+        exact_keys('pin_sender_'+label, pin['senders'][label], ('address', 'nonce', 'balance'))
+    exact_keys('pin_sp', pin['sp'], ('owner', 'APNTS_TOKEN', 'pendingAPNTsToken',
+                                   'pendingAPNTsTokenEta', 'APNTS_TOKEN_TIMELOCK'))
+    need('pin_balance', pin['balance'], pin['senders']['deployer']['balance'])
+    qty(pin['block'])
+    typed(pin['blockHash'], HASH32)
+    need('pin_timestamp', type(pin['timestamp']) is int and pin['timestamp'] >= ACTIVATION, True)
+
+
 def validate_plan(plan, frozen=False):
+    validate_pin(plan['pin'])
     need('plan_step_ids', [s['id'] for s in plan['steps']], list(STEP_IDS))
     rebuilt = build_plan(plan['pin'])
-    for key in ('schema', 'chainId', 'runtimeIdentity', 'constructorArgs', 'roles', 'safeTxHashes',
-                'safeInnerData', 'operationId', 'salt', 'margin'):
+    exact_keys('plan_keys', plan, set(rebuilt) | ({'budgetsWei', 'budgetWei'} if frozen else set()))
+    for key in set(rebuilt)-{'steps'}:
         need('plan_identity_'+key, plan[key], rebuilt[key])
     for step, expected in zip(plan['steps'], rebuilt['steps']):
+        sid = step['id']
+        measured = {'estimateGas', 'localEstimateGas', 'forkGasUsed'} if frozen else set()
+        exact_keys('plan_step_keys_'+sid, step, set(expected) | measured)
+        exact_keys('plan_tx_keys_'+sid, step['tx'], set(expected['tx']) | ({'gas'} if frozen else set()))
+        for key in set(expected)-{'tx'}:
+            need('plan_derived_'+sid+'_'+key, step[key], expected[key])
+        for key, value in expected['tx'].items():
+            need('plan_step_'+sid+'_'+key, step['tx'][key], value)
         if frozen:
-            for key in ('estimateGas', 'localEstimateGas', 'forkGasUsed', 'executionTimestamp'):
-                value = step.get(key)
-                need('plan_frozen_'+step['id']+'_'+key, type(value) is int and value > 0, True)
-            typed(step['tx'].get('gas'), QTY, 'plan_frozen_'+step['id']+'_gas')
-            if step['id'] == 'S5b':
-                need('plan_frozen_eta', step.get('plannedETA'), step['executionTimestamp']+172800)
-        for key in ('to', 'data', 'from', 'value', 'nonce', 'chainId', 'maxFeePerGas', 'maxPriorityFeePerGas'):
-            need('plan_step_'+step['id']+'_'+key, step['tx'].get(key), expected['tx'][key])
-        if 'gas' in step['tx']:
-            limit = (max(step['estimateGas'], step['localEstimateGas'], step['forkGasUsed'])*MARGIN_NUM+MARGIN_DEN-1)//MARGIN_DEN
-            need('plan_gas_'+step['id'], qty(step['tx']['gas']), limit)
+            for key in measured:
+                need('plan_measurement_'+sid+'_'+key, type(step[key]) is int and step[key] > 0, True)
+            limit = (max(step[key] for key in measured)*MARGIN_NUM+MARGIN_DEN-1)//MARGIN_DEN
+            need('plan_gas_'+sid, qty(step['tx']['gas']), limit)
+    if frozen:
+        checked = copy.deepcopy(plan)
+        budget(checked)
+        need('plan_budgets', plan['budgetsWei'], checked['budgetsWei'])
+        need('plan_budget', plan['budgetWei'], checked['budgetWei'])
+
+
+def scheduled_eta(remote, plan, done=False):
+    tl, op = plan['pin']['timelock'], plan['operationId']
+    topic = keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)')
+    logs = remote('eth_getLogs', [dict(address=tl, fromBlock=hex(int(plan['pin']['block'], 16)+1),
+                  toBlock='latest', topics=[topic, op, ZERO32])])
+    need('schedule_log_count', len(logs), 1)
+    log = logs[0]
+    need('schedule_log_removed', log.get('removed', False), False)
+    need('schedule_log_topics', log['topics'], [topic, op, ZERO32])
+    need('schedule_log_address', log['address'].lower(), tl)
+    delay = word(remote, tl, 'getMinDelay()')
+    need('schedule_delay', delay, 172800)
+    data = cast('abi-encode', 'c(address,uint256,bytes,bytes32,uint256)',
+                plan['pin']['capped'], 0, calldata('acceptOwnership()'), ZERO32, delay)
+    need('schedule_log_data', typed(log['data'], HEXDATA).lower(), data.lower())
+    r = remote('eth_getTransactionReceipt', [typed(log['transactionHash'], HASH32)])
+    need('schedule_receipt_status', r['status'], '0x1')
+    need('schedule_receipt_block', r['blockNumber'], log['blockNumber'])
+    need('schedule_receipt_log', any(x.get('address', '').lower() == tl and x.get('topics') == log['topics']
+                                   and x.get('data') == log['data'] for x in r['logs']), True)
+    mined = remote('eth_getTransactionByHash', [r['transactionHash']])
+    mined_identity(mined, plan['steps'][5]['tx'], 'schedule')
+    eta = qty(block_data(remote, r['blockNumber'])['timestamp'])+delay
+    need('schedule_chain_eta', word(remote, tl, 'getTimestamp(bytes32)', op), 1 if done else eta)
+    return eta
 
 
 def safe_hash_check(remote, plan):
@@ -763,7 +939,7 @@ def pre_send(step, remote):
         if index >= 2:
             context['tlBlock'] = hex(int(plan['pin']['block'], 16)+1)
         if index >= 6:
-            context['eta'] = plan['steps'][5]['plannedETA']
+            context['eta'] = scheduled_eta(remote, plan, done=index == 8)
         readback(remote, plan, prior, {'blockNumber': 'latest'}, context, predecessor=True)
     else:
         for key in ('owner', 'APNTS_TOKEN', 'pendingAPNTsToken'):
@@ -777,9 +953,14 @@ def pre_send(step, remote):
     return tx
 
 
-def signing_transaction(plan, sid, remote):
-    """Future signer input must come through this boundary; no signing is implemented."""
+def signing_transaction(plan_path, reviewed_sha256, sid, remote):
+    """Future signer entry: the reviewed digest must come out-of-band, never from a sidecar."""
+    raw = Path(plan_path).read_bytes()
+    need('reviewed_plan_hash', hashlib.sha256(raw).hexdigest(), reviewed_sha256)
+    plan = json.loads(raw)
     validate_plan(plan, frozen=True)
+    if sid in ('S5a', 'S5b', 'S6a', 'S6b'):
+        safe_hash_check(remote, plan)
     return pre_send(ExecutionStep(plan, sid), remote)
 
 
@@ -796,6 +977,7 @@ def rehearse(remote, plan, out, calibrate=False):
     with fork(remote, pin, out) as local:
         expected_safe = pin['safeNonce']
         for step in plan['steps']:
+            process_alive(local.engine_process)
             sid = step['id']
             tx = copy.deepcopy(step['tx'])
             if sid == 'S6b':
@@ -833,8 +1015,6 @@ def rehearse(remote, plan, out, calibrate=False):
             tx = pre_send(ExecutionStep(plan, sid), local)
             execution_ts = max(qty(block_data(local, 'latest')['timestamp'])+1,
                                context.get('eta', 0) if sid in ('S6b', 'S7') else 0)
-            if calibrate:
-                step['executionTimestamp'] = execution_ts
             need(sid+'_execution_timestamp', execution_ts, step['executionTimestamp'])
             local('evm_setNextBlockTimestamp', [execution_ts])
             if calibrate:
@@ -847,8 +1027,8 @@ def rehearse(remote, plan, out, calibrate=False):
                 tx['gas'] = hex((max(est, local_est)*MARGIN_NUM+MARGIN_DEN-1)//MARGIN_DEN)
                 step['estimateGas'] = est
                 step['localEstimateGas'] = local_est
-                step['estimateContext'] = dict(block=pin['block'], stateOverrides=json.loads(json.dumps(overrides)),
-                                               blockOverrides={'time': hex(timestamp)})
+                estimate_context = dict(block=pin['block'], stateOverrides=json.loads(json.dumps(overrides)),
+                                        blockOverrides={'time': hex(timestamp)})
                 # Pilot execution supplies gasUsed, then roll back and rerun at the final exact limit.
                 snap = local('evm_snapshot', [])
                 pilot = receipt(local, tx)
@@ -862,18 +1042,16 @@ def rehearse(remote, plan, out, calibrate=False):
             need(sid+'_post_sender_nonce', nonce(local, tx['from']), qty(tx['nonce'])+1)
             expected_safe += int(sid in ('S5b', 'S6b'))
             need(sid+'_post_safe_nonce', word(local, SAFE, 'nonce()'), expected_safe)
-            if calibrate:
-                need(sid+'_gas_crosscheck', qty(r['gasUsed']), step['forkGasUsed'])
+            need(sid+'_gas_crosscheck', qty(r['gasUsed']), step['forkGasUsed'])
             need(sid+'_mined_timestamp', qty(block_data(local, r['blockNumber'])['timestamp']),
                  step['executionTimestamp'])
             observed = readback(local, plan, step, r, context)
             need(sid+'_gas_limit', qty(r['gasUsed']) <= qty(tx['gas']), True)
             mined = local('eth_getTransactionByHash', [r['transactionHash']])
-            for key in ('from', 'to', 'nonce', 'value', 'chainId'):
-                need(sid+'_mined_'+key, mined.get(key), tx.get(key))
-            need(sid+'_mined_data', mined.get('input'), tx['data'])
-            need(sid+'_mined_gas', mined.get('gas'), tx['gas'])
+            mined_identity(mined, tx, sid)
             records.append(dict(step=sid, gasUsed=qty(r['gasUsed']), receipt=r, readback=observed))
+            if calibrate:
+                records[-1]['estimateContext'] = estimate_context
             with (out/'simulate.log').open('a') as log:
                 log.write(json.dumps(records[-1])+'\n')
             write_json(out/'simulate.json', dict(status='IN_PROGRESS', steps=records, negativeControls=controls))
@@ -881,10 +1059,11 @@ def rehearse(remote, plan, out, calibrate=False):
                 trace_overrides(local, r, overrides)
     completion(records, controls)
     relay_evidence(out)
-    validate_plan(plan, frozen=True)
+    need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
     if calibrate:
         budget(plan)
-    else:
+    validate_plan(plan, frozen=True)
+    if not calibrate:
         need('frozen_plan_unchanged', plan, frozen_plan)
         checked = copy.deepcopy(plan)
         budget(checked)
@@ -965,10 +1144,13 @@ def main(argv=None):
             p.add_argument('--plan', type=Path, required=True)
     for name in ('sign', 'send'):
         p = sub.add_parser(name)
+        p.add_argument('--reviewed-plan-sha256')
         p.add_argument('--out', type=Path, default=None)  # refusal is recorded on disk only when asked
     args = parser.parse_args(argv)
     try:
         if args.out is not None:
+            if args.out.exists():
+                need('output_empty', args.out.is_dir() and not any(args.out.iterdir()), True)
             args.out.mkdir(parents=True, exist_ok=True)
         if args.command in ('sign', 'send'):
             raise Gate('sign_disabled' if args.command == 'sign' else 'send_disabled', REFUSAL, 'separate authorization and implemented reviewed signer')
@@ -988,7 +1170,10 @@ def main(argv=None):
         return 0
     except Gate as e:
         if args.out is not None:
-            failure_record(args.out, e.record)
+            if e.record['gate'] == 'output_empty':
+                print(json.dumps(e.record), file=sys.stderr)
+            else:
+                failure_record(args.out, e.record)
         print(REFUSAL if args.command in ('sign', 'send') else 'STOP: '+e.record['gate'], file=sys.stderr)
         return 3 if args.command in ('sign', 'send') else 1
     except Exception as e:

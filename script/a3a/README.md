@@ -20,7 +20,8 @@ Prepare the local default build artifacts before running. The executor reads
 `out/TimelockController.sol/TimelockController.default.json`, falling back to
 `<Contract>.json` only when `.default.json` is absent. Metadata must specify
 Cancun and 500 optimizer runs. APNTsCapped must have exactly the seven named
-EIP712 immutables described below; the timelock must have none. Full compiler
+EIP712 immutables described below. Both contract runtimes are checked; any
+timelock immutables must also have computable exact values. Full compiler
 build-info under `out/build-info/*.json` must include `output.sources[*].ast`
 (including the inherited OZ sources) and `output.contracts` containing the
 matching APNTsCapped deployed bytecode and immutable references. Generate full
@@ -29,6 +30,16 @@ artifacts. Source-index-only build-info is insufficient and fails the
 `immutable_build_info` gate. AST IDs belong to a compilation unit: outputs from
 other builds are never combined to guess names. The executor never invokes a
 compiler or downloads dependencies.
+
+Ignored build output is covered separately from git status. For **both** artifacts,
+every metadata `sources[*].keccak256` must equal Keccak of the source bytes
+committed at HEAD, and the current file bytes must have that same hash. Source
+names resolve through metadata remappings to files inside this repository.
+Pinned gitlinks are followed using the commit recorded by the parent HEAD, never
+the submodule's current HEAD. Missing/uncommitted files, ambiguous or escaping
+remappings, and any metadata/worktree hash mismatch fail. The local nightly
+cast Keccak implementation is checked against the known empty-input vector.
+The resolved paths and committed hashes are saved as `artifactSources`.
 
 Put just the archive URL in a private file. Pass its **path**, never the URL:
 
@@ -42,10 +53,13 @@ python3 script/a3a/a3a_exec.py simulate \
 ```
 
 Choose a current pinned block for an actual review; the number above illustrates
-syntax. Decimal and `0x` block numbers are accepted. Use a fresh output directory
-per attempt. RPC credentials stay in memory: anvil receives a loopback relay URL,
+syntax. Decimal and `0x` block numbers are accepted. `--out` must not exist or
+must be an empty directory. Nonempty output is refused before RPC access and
+existing evidence is preserved; the failure record is printed to stderr because
+the requested directory cannot be reused. Use a new directory per attempt. RPC credentials stay in memory: anvil receives a loopback relay URL,
 and the relay permits only read RPCs. Engine stdout is discarded; `engine.stderr`
-is captured and contains only the loopback relay URL, never the archive URL.
+is captured and must be **empty at the end**, or the run fails. The engine sees
+only the loopback relay URL, never the archive URL.
 No key, mnemonic or wallet is loaded. The relay handles batches request by request;
 `eth_blockNumber`, `net_version`, and `web3_clientVersion` have pinned local
 answers. Writes including `eth_sendRawTransaction`, `eth_sendTransaction`, and
@@ -95,8 +109,10 @@ reconstructed from local `debug_traceTransaction` using `prestateTracer` with
 `diffMode`; cleared storage slots are explicitly zeroed. The provider must
 support the four-parameter estimate request (transaction, block, state overrides,
 block overrides), and anvil must support that tracer. Unsupported capabilities
-fail closed, with no fallback to `latest`. `estimateContext` preserves those
-inputs for review. Timestamp overrides permit the mature timelock operation to
+fail closed, with no fallback to `latest`. Per-step `estimateContext` in
+`simulate.json` and `simulate.log` preserves those inputs for review. It is not
+accepted as a plan field: arbitrary override dictionaries cannot become signing
+inputs. Timestamp overrides permit the mature timelock operation to
 be estimated without pretending it was mature at the archive pin.
 
 A local estimate sizes a pilot, then the pilot's receipt supplies fork gasUsed.
@@ -110,7 +126,10 @@ to run despite using 38,582. Estimates are valid for the pin and simulated state
 `pre_send` must re-estimate against current state before any real send and reject
 if the fresh estimate exceeds the frozen limit. `plan.json` records all three gas
 numbers, sender, destination (null for CREATE), calldata, value, nonce, chain ID,
-gas limit, fee caps and execution timestamps. `budgetsWei` separately sums each
+gas limit, fee caps and execution timestamps. Execution timestamps are a
+canonical **rehearsal schedule** recomputed from the pin: sequential one-second
+steps through S6a, then a maturity mine before S6b, then S7. These timestamps do
+not constrain when a future real transaction may land. `budgetsWei` separately sums each
 sender's gas limits times maxFeePerGas and checks that sender's pinned balance;
 Safe owners pay their own transactions. It is a
 fee-cap budget, not a forecast of actual cost. A final preflight rechecks the pin
@@ -120,12 +139,30 @@ and pending nonce before writing `plan.json` and `plan.json.sha256`.
 preflight and starts a fresh fork at the same hash. The sidecar is only a
 corruption check: `build_plan(pin)` is independently rebuilt from the artifacts,
 and every step's to/data/from/value/nonce (plus chain/fees and all derived identity
-fields) must agree. All nine step IDs, measured gas metadata and timestamps are
-required. Edited data or nonces are rejected even when the sidecar is recomputed.
-After anvil starts on the selected port, the RPC endpoint must report a
-`web3_clientVersion` containing the full engine COMMIT, chain 11155111 and the
-Amsterdam activation/forkId with `next == null`. These checks authenticate the
-reused port against the expected engine and fork tier before impersonation.
+fields) must agree. Exact JSON value types and key sets are enforced at the top level, within the
+pin, for every step, and for every transaction. A frozen transaction has exactly
+the rebuilt transaction's keys plus `gas`; `type`, `authorizationList`,
+`accessList`, and `input` are rejected even if empty. `tx_rpc` independently
+rejects unknown fields and serializes only its whitelist. Rehearsal timestamps,
+S5b's informational `plannedETA`, gas limits, both budget fields, source hashes,
+and runtime identity recipes are recomputed. Archive/local estimates and pilot
+gasUsed are observations, not derived identity fields; the formula consumes them,
+and the separate reviewed digest binds the complete file. Unknown annotations
+and unsupported derived fields are rejected. Plans from older schema revisions
+must be regenerated. All nine step IDs are required; edited fields are rejected
+even when the adjacent sidecar is recomputed.
+
+The binary's `--version` must contain the pinned full COMMIT. After startup,
+`anvil_nodeInfo` must report Amsterdam, FIFO, chain 11155111, the requested fork
+block, and this process's loopback relay URL (one normalized trailing slash is
+accepted). Its `currentBlockNumber` must equal `forkBlockNumber` before step 1.
+Local web3_clientVersion omits the commit and local eth_config describes the
+engine's own chain configuration, so those are not used to authenticate Sepolia.
+After the nodeInfo check, the child must still be alive, and
+`lsof -nP -iTCP:<port> -sTCP:LISTEN -t` must report **only proc.pid**. Missing lsof
+or a foreign/multiple listener fails. The child is checked again before every
+step. These checks close the released-port authentication gap before any
+impersonated transaction.
 It impersonates accounts,
 uses exactly the saved limits, and checks sender and Safe nonces before and
 after every step. Only a full successful predecessor read-back releases the
@@ -133,17 +170,22 @@ next executable transaction. `simulate --plan <frozen plan.json>` is an
 independent rerun: it does not call `plan_command`, perform calibration pilots,
 replace limits, or rewrite the plan. The source plan remains unchanged. The
 mined transaction identity and gas limit must match the frozen plan and each
-receipt's gasUsed must be at most that limit. Before PASS, all nine step IDs must
+receipt's gasUsed must be at most that limit and equal the recorded pilot gasUsed. The mined transaction must be
+type 0x2 with no authorizations or nonempty access list; input and any data alias,
+value, sender, destination, nonce, chain ID, fee caps and gas must match. Before PASS, all nine step IDs must
 have completed in order and all four named controls must be present in order.
-The measured gas formula, relay evidence, budgets and frozen-plan identity are
-checked before writing PASS.
+The measured gas formula, relay evidence, empty engine stderr, budgets and
+frozen-plan identity are checked before writing PASS. RPC request IDs are
+allocated under a lock so concurrent relay requests cannot share an ID.
 Read-backs include:
 
 - S1: pending token and ETA cleared, current SP token unchanged.
 - S2 onward: minDelay 172800 and exact role sets reconstructed from all
   RoleGranted/RoleRevoked/RoleAdminChanged logs since creation, with empty code immediately before
   deployment. PROPOSER, EXECUTOR and CANCELLER each contain exactly the Safe.
-  DEFAULT_ADMIN contains exactly the timelock itself. Role-admin history must
+  The deployed timelock runtime must match `timelockRuntimeIdentity`, including
+  exact values at every masked immutable offset. DEFAULT_ADMIN contains exactly
+  the timelock itself. Role-admin history must
   resolve to DEFAULT_ADMIN for every role and agree with getRoleAdmin getters.
 - S3 onward: runtime bytes outside all immutable reference ranges equal the
   build artifact exactly, and every immutable range has its exact expected value
@@ -152,7 +194,12 @@ Read-backs include:
   match the current step. S4 must leave pendingOwner equal to the timelock.
 - S5a/S6a: the appropriate Safe approved hash is recorded.
 - S5b: Safe ExecutionSuccess, operation Waiting, ETA exactly schedule block
-  timestamp + 172800, also saved as `plannedETA` and checked on replay.
+  timestamp + minDelay. `plannedETA` is a recomputed informational rehearsal
+  value. For pre_send(S6a/S6b), the actual ETA is derived from the S5b receipt's
+  CallScheduled log and its block timestamp plus the timelock's on-chain
+  minDelay; it must equal getTimestamp(opId). The receipt must succeed and its
+  transaction identity must match S5b. This allows S5b to land at a different
+  real-chain timestamp. Once Done, getTimestamp must be the OZ Done sentinel 1.
 - S6b: execute after a warp of at least 48 hours, Safe ExecutionSuccess,
   owner equal timelock, pending owner zero and operation Done.
 - S7: pending token equal APNTsCapped, current token unchanged, and pending ETA
@@ -170,7 +217,8 @@ the shared `script/evidence/lib/rpc_strict.py` patterns and error classifier.
 Output creation is inside exception handling. KeyboardInterrupt and other
 BaseException interruptions record the `interrupted` gate and exit nonzero.
 If --out itself cannot be created, failure evidence falls back to stderr.
-A successful CLI run removes a stale FAILURE.json in its output directory.
+A successful CLI run removes any FAILURE.json created during that attempt.
+Prior output directories, including stale failure records, cannot be reused.
 
 ## Runtime identity with EIP712 immutables
 
@@ -207,6 +255,13 @@ ID must equal the same computed value. Unknown IDs, ambiguous build mappings,
 missing or extra named variables, malformed ranges and uncomputable values fail
 closed. Read-back evidence records every checked value and offset, the
 ShortString cases and the unmasked-byte comparison.
+
+TimelockController uses the same mask-and-value-check routine from S2 onward.
+The current committed artifact has no immutables, so every runtime byte must
+match. If immutable references appear, IDs must resolve through matching
+TimelockController build-info and every offset must have a computed value. The
+supported `_minDelay` value comes from the 172800 constructor argument; any other
+uncomputable variable fails closed. Repeated offsets are checked individually.
 
 ## Negative controls and corrected requirements
 
@@ -265,9 +320,15 @@ impersonation apply only to the disposable local fork. There is no bypass flag.
 not authorized: requires a reviewed plan hash and the author's separate go
 ```
 
-`signing_transaction(plan, id, remote)` is the sole future signer input API:
-it validates a frozen canonical plan and obtains its transaction only through
-`pre_send`. A future signer must use that returned transaction, with no alternate
+`signing_transaction(plan_path, reviewed_sha256, id, remote)` is the sole future
+signer input API. It reads the file once and compares the hash of those exact
+bytes to the **out-of-band reviewed digest**, before parsing or performing RPC.
+A sidecar is never the source of review authority. The future CLI must pass
+`--reviewed-plan-sha256 <digest>` from the review decision; that option is exposed
+on the disabled sign/send commands, which still always refuse. Replacing a file
+and recomputing its sidecar does not replace this digest. The API validates the
+frozen canonical plan, runs Safe.getTransactionHash cross-checks for all S5/S6
+steps, and obtains the transaction only through `pre_send`. A future signer must use that returned transaction, with no alternate
 raw-step path. The simulation uses the same pre_send boundary. This API prepares
 bytes only; it signs and broadcasts nothing.
 
@@ -281,8 +342,7 @@ A SHA-256 sidecar detects changed bytes; it is not a review attestation.
 ## Offline verification
 
 ```sh
-/Users/jason/.pyenv/versions/3.11.9/bin/python3 -m py_compile script/a3a/a3a_exec.py script/a3a/test_a3a_exec.py
-/Users/jason/.pyenv/versions/3.11.9/bin/python3 script/a3a/test_a3a_exec.py
+/Users/jason/.pyenv/versions/3.11.9/bin/python3 -B script/a3a/test_a3a_exec.py
 ```
 
 Tests mock urllib in the same style as `script/evidence/test_rams_gauges.py`.
@@ -299,7 +359,15 @@ reverted negative sends, completion and evidence gates stay in use. The positive
 control scans plan.json for URL leaks and exercises an independent frozen rerun.
 Other controls cover local engine authentication, relay batch filtering/pinned
 extras, sender budgets, changed data with recomputed sidecars, role grants and
-revocations/admin changes, interruptions and stale failure removal. It cross-checks all
+revocations/admin changes, interruptions, and output freshness. Round-2 controls
+include the combined reviewer tamper case and each injected field separately,
+exact schema/budget/timestamp validation, mined transaction aliases, out-of-band
+hash authority, changed real schedule times, listener PID/child lifetime and
+initial head checks, committed/remapped source provenance, empty engine stderr,
+concurrent RPC IDs, and timelock runtime/immutable values. It cross-checks all
 non-deployment calldata and derived identity hashes against v4, without reusing
 v4 gas. It does not prove archive capabilities or replace the live fork run.
-No shell script is added or modified, so shell syntax checking is inapplicable.
+The module keeps `sys.dont_write_bytecode = True` at its top. Python 3.11 syntax
+is required; compilation can be checked with py_compile output directed to a
+temporary directory to avoid repository bytecode files. No shell script is added
+or modified, so shell syntax checking is inapplicable.

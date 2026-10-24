@@ -9,7 +9,9 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
+from types import SimpleNamespace
+from concurrent.futures import ThreadPoolExecutor
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -83,6 +85,7 @@ class FakeChain:
                           pending=pin['sp']['pendingAPNTsToken'], pendingEta=pin['sp']['pendingAPNTsTokenEta'],
                           tokenOwner=ex.DEPLOYER, pendingOwner=ex.ZERO, approved=set(), eta=0, done=False,
                           receipts={}, txs={}, blocks={}, logs=[], deployBlocks={})
+        self.engine_process = SimpleNamespace(pid=12345, poll=lambda: None)
         self.snapshots = {}
         self.sent = []
         self.count = 0
@@ -108,7 +111,7 @@ class FakeChain:
         if method == 'eth_chainId': return hex(ex.CHAIN)
         if method == 'web3_clientVersion': return 'anvil/'+ex.COMMIT
         if method == 'anvil_nodeInfo':
-            return dict(hardFork='Amsterdam', transactionOrder='fifo', environment=dict(chainId=ex.CHAIN),
+            return dict(currentBlockNumber=s['head'], hardFork='Amsterdam', transactionOrder='fifo', environment=dict(chainId=ex.CHAIN),
                         forkConfig=dict(forkUrl=RELAY_URL, forkBlockNumber=int(self.pin['block'], 16)))
         if method == 'eth_config':
             return dict(current=dict(activationTime=ex.ACTIVATION, forkId=ex.FORK_ID), next=None)
@@ -121,9 +124,21 @@ class FakeChain:
             if target in (self.pin['timelock'], self.pin['capped']) and block != 'latest' and int(block, 16) < s['deployBlocks'].get(target, 10**20):
                 return '0x'
             if target not in s['deployed']: return '0x'
-            return deployed_runtime(self.plan) if target == self.pin['capped'] else '0x6000'
+            if target == self.pin['capped']: return deployed_runtime(self.plan)
+            if target == self.pin['timelock']: return self.plan['timelockRuntimeIdentity']['artifactRuntime']
+            return '0x6000'
         if method == 'eth_getBlockByNumber': return self.block() if params[0] == 'latest' else s['blocks'][params[0]]
-        if method == 'eth_getLogs': return copy.deepcopy(s['logs'])
+        if method == 'eth_getLogs':
+            topics = params[0].get('topics', [])
+            def matches(log):
+                for i, wanted in enumerate(topics):
+                    if i >= len(log['topics']): return False
+                    if wanted is None: continue
+                    if isinstance(wanted, list):
+                        if log['topics'][i] not in wanted: return False
+                    elif log['topics'][i] != wanted: return False
+                return True
+            return [copy.deepcopy(log) for log in s['logs'] if matches(log)]
         if method == 'evm_snapshot':
             key = str(len(self.snapshots)+1)
             self.snapshots[key] = copy.deepcopy(s)
@@ -173,7 +188,16 @@ class FakeChain:
                 if sid == 'S7': s['pending'], s['pendingEta'] = self.pin['capped'], s['time']+self.pin['sp']['APNTS_TOKEN_TIMELOCK']
             self.count += 1
             h = abi_word(self.count)
-            s['txs'][h] = dict(tx, input=tx['data'])
+            s['txs'][h] = dict(tx, input=tx['data'], type='0x2', accessList=[])
+            if sid == 'S5b' and reason is None:
+                scheduled = dict(address=self.pin['timelock'], blockNumber=hex(s['head']),
+                    transactionHash=h, transactionIndex='0x0', logIndex='0x0',
+                    topics=[ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)'),
+                            self.plan['operationId'], ex.ZERO32],
+                    data=ex.cast('abi-encode', 'c(address,uint256,bytes,bytes32,uint256)',
+                                 self.pin['capped'], 0, ex.calldata('acceptOwnership()'), ex.ZERO32, 172800))
+                s['logs'].append(scheduled)
+                logs.append(scheduled)
             s['receipts'][h] = dict(transactionHash=h, blockNumber=hex(s['head']), gasUsed=hex(110000),
                 status='0x0' if reason else '0x1', logs=logs,
                 contractAddress=self.pin['timelock'] if sid == 'S2' else self.pin['capped'] if sid == 'S3' else None,
@@ -206,6 +230,7 @@ class FakeChain:
 def fake_fork(remote, pin, out):
     (out/'relay.log').write_text('')
     (out/'simulate.log').write_text('offline engine boundary\n')
+    (out/'engine.stderr').write_text('')
     chain = FakeChain(pin)
     ex.authenticate_engine(chain, RELAY_URL, pin['block'])
     yield chain
@@ -285,6 +310,9 @@ class ExecutorTests(unittest.TestCase):
         if name == 'APNTsCapped':
             a, _ = immutable_fixture()
             a['runtimeIdentity'] = fixture_identity()
+        else:
+            a['runtimeIdentity'] = {'artifactRuntime': a['deployedBytecode']['object'], 'ranges': []}
+        a['sourceHashes'] = {'fixture.sol': {'path': 'fixture.sol', 'keccak256': ex.EMPTY_KECCAK}}
         return a
 
     def run_plan(self, case='valid'):
@@ -577,12 +605,16 @@ class ExecutorTests(unittest.TestCase):
 
     def test_signing_input_always_uses_pre_send(self):
         chain, plan = self.chain_and_plan()
-        with patch.object(ex, 'validate_plan') as validate, patch.object(ex, 'pre_send', side_effect=ex.Gate('sentinel', 0, 1)) as gate:
-            with self.assertRaises(ex.Gate) as caught:
-                ex.signing_transaction(plan, 'S4', chain)
-        self.assertEqual(caught.exception.record['gate'], 'sentinel')
-        gate.assert_called_once()
-        validate.assert_called_once_with(plan, frozen=True)
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d)/'plan.json'
+            ex.write_json(path, plan)
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            with patch.object(ex, 'validate_plan') as validate, patch.object(ex, 'pre_send', side_effect=ex.Gate('sentinel', 0, 1)) as gate:
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.signing_transaction(path, digest, 'S4', chain)
+            self.assertEqual(caught.exception.record['gate'], 'sentinel')
+            gate.assert_called_once()
+            validate.assert_called_once_with(plan, frozen=True)
 
     def test_negative_is_mined_and_snapshot_restores_sender_nonce(self):
         chain, plan = self.chain_and_plan()
@@ -627,7 +659,7 @@ class ExecutorTests(unittest.TestCase):
                 ex.validate_plan(plan)
             self.assertEqual(caught.exception.record['gate'], 'plan_step_ids')
 
-    def test_frozen_simulation_is_independent_and_clears_stale_failure(self):
+    def test_frozen_simulation_is_independent(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             rpc_file, out, sim = root/'rpc', root/'plan-out', root/'sim-out'
@@ -637,7 +669,6 @@ class ExecutorTests(unittest.TestCase):
                 self.assertEqual(ex.main(['plan', '--rpc-file', str(rpc_file), '--block', BLOCK, '--out', str(out)]), 0)
                 frozen_bytes = (out/'plan.json').read_bytes()
                 sim.mkdir()
-                (sim/'FAILURE.json').write_text('{}')
                 with patch.object(ex, 'plan_command', side_effect=AssertionError('no re-planning')):
                     self.assertEqual(ex.main(['simulate', '--rpc-file', str(rpc_file), '--plan', str(out/'plan.json'), '--out', str(sim)]), 0)
                 self.assertEqual((out/'plan.json').read_bytes(), frozen_bytes)
@@ -651,8 +682,8 @@ class ExecutorTests(unittest.TestCase):
                 ex.write_json(out/'plan.json', edited)
                 (out/'plan.json.sha256').write_text(hashlib.sha256((out/'plan.json').read_bytes()).hexdigest())
                 with contextlib.redirect_stderr(io.StringIO()):
-                    self.assertEqual(ex.main(['simulate', '--rpc-file', str(rpc_file), '--plan', str(out/'plan.json'), '--out', str(sim)]), 1)
-                self.assertEqual(json.loads((sim/'FAILURE.json').read_text())['gate'], 'plan_step_S4_nonce')
+                    self.assertEqual(ex.main(['simulate', '--rpc-file', str(rpc_file), '--plan', str(out/'plan.json'), '--out', str(root/'edited-out')]), 1)
+                self.assertEqual(json.loads((root/'edited-out'/'FAILURE.json').read_text())['gate'], 'plan_step_S4_nonce')
 
     def test_relay_batch_refusals_and_pinned_extras(self):
         log = io.StringIO()
@@ -743,7 +774,7 @@ class ExecutorTests(unittest.TestCase):
             with contextlib.redirect_stderr(stderr):
                 code = ex.main(['plan', '--rpc-file', '/unused', '--block', BLOCK, '--out', str(out)])
             self.assertEqual(code, 1)
-            self.assertIn('executor_error', stderr.getvalue())
+            self.assertIn('output_empty', stderr.getvalue())
 
     def test_each_sender_has_its_own_budget(self):
         _, plan = self.chain_and_plan()
@@ -774,6 +805,315 @@ class ExecutorTests(unittest.TestCase):
             ex.roles_readback(chain, plan, hex(int(BLOCK, 16)+1))
         self.assertEqual(caught.exception.record['gate'], 'timelock_role_admins')
 
+
+    def measured_plan(self):
+        _, plan = self.chain_and_plan()
+        for step in plan['steps']:
+            step.update(estimateGas=100000, localEstimateGas=200000, forkGasUsed=110000)
+            step['tx']['gas'] = hex(260000)
+        ex.budget(plan)
+        return plan
+
+    def assert_injected_tx_fails(self, key, value):
+        plan = self.measured_plan()
+        plan['steps'][0]['tx'][key] = value
+        with patch.object(ex, 'artifact', self.artifact), self.assertRaises(ex.Gate) as caught:
+            ex.validate_plan(plan, frozen=True)
+        self.assertEqual(caught.exception.record['gate'], 'plan_tx_keys_S1')
+        with self.assertRaises(ex.Gate) as caught:
+            ex.tx_rpc(plan['steps'][0]['tx'])
+        self.assertEqual(caught.exception.record['gate'], 'tx_rpc_keys')
+
+    def test_injected_type_rejected(self):
+        self.assert_injected_tx_fails('type', '0x4')
+
+    def test_injected_authorization_list_rejected(self):
+        self.assert_injected_tx_fails('authorizationList', [{'address': ex.DEPLOYER}])
+
+    def test_injected_access_list_rejected(self):
+        self.assert_injected_tx_fails('accessList', [])
+
+    def test_injected_input_rejected(self):
+        self.assert_injected_tx_fails('input', '0x00')
+
+    def test_reviewer_combined_tamper_rejected(self):
+        plan = self.measured_plan()
+        plan['steps'][0]['tx'].update(type='0x4', authorizationList=[], accessList=[], input='0x00')
+        plan['budgetsWei'] = 1
+        plan['steps'][0]['executionTimestamp'] = 5
+        with patch.object(ex, 'artifact', self.artifact), self.assertRaises(ex.Gate):
+            ex.validate_plan(plan, frozen=True)
+
+    def test_exact_plan_and_step_key_sets(self):
+        plan = self.measured_plan()
+        with patch.object(ex, 'artifact', self.artifact):
+            ex.validate_plan(plan, frozen=True)
+            for location, gate in (('top', 'plan_keys'), ('step', 'plan_step_keys_S1'), ('pin', 'pin_keys')):
+                changed = copy.deepcopy(plan)
+                target = changed if location == 'top' else changed['steps'][0] if location == 'step' else changed['pin']
+                target['unexpected'] = 1
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.validate_plan(changed, frozen=True)
+                self.assertEqual(caught.exception.record['gate'], gate)
+            changed = copy.deepcopy(plan)
+            changed['steps'][0]['estimateContext'] = {'block': 'latest'}
+            with self.assertRaises(ex.Gate) as caught:
+                ex.validate_plan(changed, frozen=True)
+            self.assertEqual(caught.exception.record['gate'], 'plan_step_keys_S1')
+            changed = copy.deepcopy(plan)
+            del changed['steps'][0]['tx']['value']
+            with self.assertRaises(ex.Gate) as caught:
+                ex.validate_plan(changed, frozen=True)
+            self.assertEqual(caught.exception.record['gate'], 'plan_tx_keys_S1')
+
+    def test_every_execution_timestamp_is_recomputed(self):
+        plan = self.measured_plan()
+        with patch.object(ex, 'artifact', self.artifact):
+            for i, sid in enumerate(ex.STEP_IDS):
+                changed = copy.deepcopy(plan)
+                changed['steps'][i]['executionTimestamp'] += 1
+                with self.subTest(sid=sid), self.assertRaises(ex.Gate) as caught:
+                    ex.validate_plan(changed, frozen=True)
+                self.assertEqual(caught.exception.record['gate'], 'plan_derived_'+sid+'_executionTimestamp')
+            changed = copy.deepcopy(plan)
+            changed['steps'][5]['plannedETA'] += 1
+            with self.assertRaises(ex.Gate) as caught:
+                ex.validate_plan(changed, frozen=True)
+            self.assertEqual(caught.exception.record['gate'], 'plan_derived_S5b_plannedETA')
+
+    def test_both_budget_fields_recomputed(self):
+        plan = self.measured_plan()
+        with patch.object(ex, 'artifact', self.artifact):
+            for key, gate in (('budgetsWei', 'plan_budgets'), ('budgetWei', 'plan_budget')):
+                changed = copy.deepcopy(plan)
+                changed[key] = 1
+                with self.subTest(key=key), self.assertRaises(ex.Gate) as caught:
+                    ex.validate_plan(changed, frozen=True)
+                self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_mined_extended_fields_and_aliases_checked(self):
+        tx = self.measured_plan()['steps'][0]['tx']
+        mined = dict(tx, type='0x2', authorizationList=[], accessList=[], input=tx['data'])
+        ex.mined_identity(mined, tx, 'S1')
+        cases = [('type', '0x4', 'type'), ('authorizationList', [{}], 'authorizations'),
+                 ('accessList', [{}], 'access_list'), ('input', '0xab', 'input'),
+                 ('data', '0xab', 'data_alias'), ('value', '0x1', 'value')]
+        for key, value, gate in cases:
+            with self.subTest(key=key):
+                changed = dict(mined, **{key: value})
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.mined_identity(changed, tx, 'S1')
+                self.assertEqual(caught.exception.record['gate'], 'S1_mined_'+gate)
+
+    def test_pre_send_eta_comes_from_actual_schedule_receipt(self):
+        chain, plan = self.chain_and_plan()
+        for step in plan['steps']: step['tx']['gas'] = hex(260000)
+        self.send_prefix(chain, plan, ('S1', 'S2', 'S3', 'S4', 'S5a'))
+        chain.state['next'] = chain.state['time']+3600
+        self.send_prefix(chain, plan, ('S5b',))
+        self.assertNotEqual(chain.state['eta'], plan['steps'][5]['plannedETA'])
+        self.assertEqual(ex.pre_send(ex.ExecutionStep(plan, 'S6a'), chain), plan['steps'][6]['tx'])
+        self.send_prefix(chain, plan, ('S6a',))
+        chain('evm_setNextBlockTimestamp', [chain.state['eta']])
+        chain('evm_mine', [])
+        self.assertEqual(ex.pre_send(ex.ExecutionStep(plan, 'S6b'), chain), plan['steps'][7]['tx'])
+        chain.state['eta'] += 1
+        with self.assertRaises(ex.Gate) as caught:
+            ex.pre_send(ex.ExecutionStep(plan, 'S6b'), chain)
+        self.assertEqual(caught.exception.record['gate'], 'schedule_chain_eta')
+
+    def test_signing_requires_out_of_band_file_hash(self):
+        plan = self.measured_plan()
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d)/'plan.json'
+            ex.write_json(path, plan)
+            reviewed = hashlib.sha256(path.read_bytes()).hexdigest()
+            # Replacing the plan and its sidecar must never replace the review digest.
+            path.write_text(path.read_text()+' ')
+            path.with_name('plan.json.sha256').write_text(hashlib.sha256(path.read_bytes()).hexdigest())
+            with patch.object(ex, 'validate_plan', side_effect=AssertionError('hash first')):
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.signing_transaction(path, reviewed, 'S1', None)
+            self.assertEqual(caught.exception.record['gate'], 'reviewed_plan_hash')
+
+    def test_future_signer_checks_safe_hashes_for_s5_and_s6(self):
+        plan = self.measured_plan()
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d)/'plan.json'; ex.write_json(path, plan)
+            reviewed = hashlib.sha256(path.read_bytes()).hexdigest()
+            remote = Mock()
+            with patch.object(ex, 'artifact', self.artifact):
+                for sid in ('S5a', 'S5b', 'S6a', 'S6b'):
+                    with self.subTest(sid=sid), patch.object(ex, 'safe_hash_check') as safe, patch.object(ex, 'pre_send', return_value={}) as pre:
+                        ex.signing_transaction(path, reviewed, sid, remote)
+                        safe.assert_called_once_with(remote, plan)
+                        pre.assert_called_once()
+                with patch.object(ex, 'safe_hash_check', side_effect=ex.Gate('safe_hash_5', 0, 1)), patch.object(ex, 'pre_send') as pre:
+                    with self.assertRaises(ex.Gate):
+                        ex.signing_transaction(path, reviewed, 'S5b', remote)
+                    pre.assert_not_called()
+
+    def test_engine_port_requires_own_pid_and_live_child(self):
+        proc = SimpleNamespace(pid=12345, poll=Mock(return_value=None))
+        with patch.object(ex.shutil, 'which', return_value='/usr/sbin/lsof'), patch.object(ex.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='12345\n')) as run:
+            ex.process_owns_port(proc, 65000)
+            self.assertEqual(run.call_args.args[0], ['/usr/sbin/lsof', '-nP', '-iTCP:65000', '-sTCP:LISTEN', '-t'])
+        with patch.object(ex.shutil, 'which', return_value=None):
+            with self.assertRaises(ex.Gate) as caught: ex.process_owns_port(proc, 65000)
+            self.assertEqual(caught.exception.record['gate'], 'engine_lsof')
+        for stdout in ('999\n', '12345\n999\n', ''):
+            with patch.object(ex.shutil, 'which', return_value='/usr/sbin/lsof'), patch.object(ex.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout=stdout)):
+                with self.assertRaises(ex.Gate) as caught: ex.process_owns_port(proc, 65000)
+                self.assertEqual(caught.exception.record['gate'], 'engine_listener_pid')
+        proc.poll = Mock(return_value=1)
+        with self.assertRaises(ex.Gate) as caught: ex.process_owns_port(proc, 65000)
+        self.assertEqual(caught.exception.record['gate'], 'engine_process_alive')
+
+    def test_engine_dies_between_steps(self):
+        chain, plan = self.chain_and_plan()
+        chain.engine_process.poll = Mock(side_effect=[None, 9])
+        @contextlib.contextmanager
+        def stopped(*args): yield chain
+        with tempfile.TemporaryDirectory() as d, patch.object(ex, 'artifact', self.artifact), patch.object(ex, 'fork', stopped):
+            (Path(d)/'simulate.log').write_text('')
+            with self.assertRaises(ex.Gate) as caught:
+                ex.rehearse(lambda *_: hex(100000), plan, Path(d), calibrate=True)
+        self.assertEqual(caught.exception.record['gate'], 'engine_process_alive')
+        self.assertEqual([sid for sid, _, _ in chain.sent], ['S1', 'S1'])  # pilot and exact replay only
+
+    def test_node_info_current_head_and_trailing_slash(self):
+        chain, _ = self.chain_and_plan()
+        info = chain('anvil_nodeInfo', [])
+        info['forkConfig']['forkUrl'] += '/'
+        def rpc(method, params): return info if method == 'anvil_nodeInfo' else chain(method, params)
+        ex.authenticate_engine(rpc, RELAY_URL, chain.pin['block'])
+        info['currentBlockNumber'] += 1
+        with self.assertRaises(ex.Gate) as caught:
+            ex.authenticate_engine(rpc, RELAY_URL, chain.pin['block'])
+        self.assertEqual(caught.exception.record['gate'], 'local_engine_current_block')
+
+    def test_artifact_source_hashes_include_remapped_committed_bytes(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d).resolve(); (root/'vendor').mkdir(); source = root/'vendor/Source.sol'
+            committed = b'pragma solidity 0.8.33;\n'; source.write_bytes(committed)
+            metadata = {'sources': {'@pkg/Source.sol': {'keccak256': ex.keccak('0x'+committed.hex())}},
+                        'settings': {'remappings': ['@pkg/=vendor/']}}
+            with patch.object(ex, 'ROOT', root), patch.object(ex, 'committed_bytes', return_value=committed) as read:
+                result = ex.artifact_sources(metadata)
+                self.assertEqual(result['@pkg/Source.sol']['path'], 'vendor/Source.sol')
+                read.assert_called_once_with(root, 'vendor/Source.sol')
+                source.write_bytes(committed+b'// uncommitted\n')
+                with self.assertRaises(ex.Gate) as caught: ex.artifact_sources(metadata)
+                self.assertEqual(caught.exception.record['gate'], 'artifact_source_worktree')
+                source.write_bytes(committed)
+                metadata['sources']['@pkg/Source.sol']['keccak256'] = ex.ZERO32
+                with self.assertRaises(ex.Gate) as caught: ex.artifact_sources(metadata)
+                self.assertEqual(caught.exception.record['gate'], 'artifact_source_metadata')
+                source.unlink()
+                with self.assertRaises(ex.Gate) as caught: ex.artifact_sources(metadata)
+                self.assertEqual(caught.exception.record['gate'], 'artifact_source_unresolved')
+
+    def test_committed_sources_follow_pinned_gitlinks(self):
+        root = Path('/offline-repo'); commit = 'ab'*20
+        calls = []
+        def run(args, **kwargs):
+            calls.append((args, kwargs['cwd']))
+            if args == ['git', 'show', 'HEAD:vendor/Source.sol']:
+                return SimpleNamespace(returncode=1, stdout=b'')
+            if args == ['git', 'ls-tree', '-z', 'HEAD', '--', 'vendor']:
+                return SimpleNamespace(returncode=0, stdout=('160000 commit '+commit+'\tvendor\0').encode())
+            if args == ['git', 'show', commit+':Source.sol']:
+                return SimpleNamespace(returncode=0, stdout=b'committed')
+            raise AssertionError(args)
+        with patch.object(ex.subprocess, 'run', side_effect=run):
+            self.assertEqual(ex.committed_bytes(root, 'vendor/Source.sol'), b'committed')
+        self.assertEqual(calls[-1][1], root/'vendor')
+        with patch.object(ex.subprocess, 'run', return_value=SimpleNamespace(returncode=1, stdout=b'')):
+            with self.assertRaises(ex.Gate) as caught: ex.committed_bytes(root, 'missing.sol')
+        self.assertEqual(caught.exception.record['gate'], 'artifact_source_uncommitted')
+
+    def test_nonempty_output_rejected_without_overwriting_prior_evidence(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)/'out'; out.mkdir()
+            prior = out/'FAILURE.json'; prior.write_text('prior evidence')
+            with patch.object(ex, 'RPC', side_effect=AssertionError('output gate first')), contextlib.redirect_stderr(io.StringIO()) as stderr:
+                self.assertEqual(ex.main(['plan', '--rpc-file', '/unused', '--block', BLOCK, '--out', str(out)]), 1)
+            self.assertIn('output_empty', stderr.getvalue())
+            self.assertEqual(prior.read_text(), 'prior evidence')
+
+    def test_engine_stderr_prevents_pass(self):
+        chain, plan = self.chain_and_plan()
+        @contextlib.contextmanager
+        def noisy(remote, pin, out):
+            (out/'simulate.log').write_text('')
+            (out/'relay.log').write_text('')
+            (out/'engine.stderr').write_text('unexpected engine warning\n')
+            yield chain
+        with tempfile.TemporaryDirectory() as d, patch.object(ex, 'artifact', self.artifact), patch.object(ex, 'fork', noisy):
+            with self.assertRaises(ex.Gate) as caught:
+                ex.rehearse(lambda *_: hex(100000), plan, Path(d), calibrate=True)
+            self.assertEqual(caught.exception.record['gate'], 'engine_stderr')
+            self.assertNotEqual(json.loads((Path(d)/'simulate.json').read_text())['status'], 'PASS')
+
+    def test_rpc_ids_are_thread_safe(self):
+        observed = []
+        def urlopen(request, timeout=None):
+            q = json.loads(request.data)
+            observed.append(q['id'])
+            ex.time.sleep(.001)
+            return io.BytesIO(json.dumps(dict(jsonrpc='2.0', id=q['id'], result=hex(ex.CHAIN))).encode())
+        rpc = ex.RPC('https://never-contacted.invalid')
+        with patch.object(ex.urllib.request, 'urlopen', urlopen), ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(lambda _: rpc('eth_chainId', []), range(64)))
+        self.assertEqual(results, [hex(ex.CHAIN)]*64)
+        self.assertEqual(sorted(observed), list(range(1, 65)))
+
+    def test_timelock_runtime_bytes_and_immutable_values(self):
+        plan = {'timelockRuntimeIdentity': {'artifactRuntime': '0x6000', 'ranges': []}}
+        self.assertTrue(ex.verify_runtime(None, plan, '0x6000', 'TimelockController')['unmaskedBytesEqual'])
+        with self.assertRaises(ex.Gate) as caught: ex.verify_runtime(None, plan, '0x6001', 'TimelockController')
+        self.assertEqual(caught.exception.record['gate'], 'runtime_unmasked_bytes')
+        plan['timelockRuntimeIdentity'] = {'artifactRuntime': '0x60'+'00'*64+'00', 'ranges': [
+            {'id': '1', 'name': '_minDelay', 'start': 1, 'length': 32},
+            {'id': '1', 'name': '_minDelay', 'start': 33, 'length': 32}]}
+        code = '0x60'+format(172800, '064x')*2+'00'
+        result = ex.verify_runtime(None, plan, code, 'TimelockController')
+        self.assertEqual(len(result['immutables']['_minDelay']), 2)
+        with self.assertRaises(ex.Gate) as caught:
+            ex.verify_runtime(None, plan, '0x60'+format(172800, '064x')+format(1, '064x')+'00', 'TimelockController')
+        self.assertEqual(caught.exception.record['gate'], 'immutable_value__minDelay')
+        plan['timelockRuntimeIdentity']['ranges'][0]['name'] = 'cannotCompute'
+        with self.assertRaises(ex.Gate) as caught: ex.verify_runtime(None, plan, code, 'TimelockController')
+        self.assertEqual(caught.exception.record['gate'], 'immutable_expected_unknown')
+
+
+    def test_numeric_aliases_do_not_bypass_exact_plan_values(self):
+        plan = self.measured_plan()
+        with patch.object(ex, 'artifact', self.artifact):
+            for field in ('schema', 'budgetWei', 'margin', 'budgetsWei'):
+                changed = copy.deepcopy(plan)
+                if field == 'margin': changed[field] = [float(x) for x in changed[field]]
+                elif field == 'budgetsWei': changed[field] = {k: float(v) for k, v in changed[field].items()}
+                else: changed[field] = float(changed[field])
+                with self.subTest(field=field), self.assertRaises(ex.Gate):
+                    ex.validate_plan(changed, frozen=True)
+
+    def test_frozen_replay_rechecks_recorded_gas_used(self):
+        plan = self.measured_plan()
+        with patch.object(ex, 'artifact', self.artifact):
+            chain = FakeChain(plan['pin'])
+        def changed(method, params, error_ok=False):
+            value = chain(method, params, error_ok=error_ok)
+            if method == 'eth_getTransactionReceipt':
+                value = dict(value, gasUsed=hex(110001))
+            return value
+        changed.engine_process = chain.engine_process
+        @contextlib.contextmanager
+        def different(*args): yield changed
+        with tempfile.TemporaryDirectory() as d, patch.object(ex, 'artifact', self.artifact), patch.object(ex, 'fork', different):
+            with self.assertRaises(ex.Gate) as caught:
+                ex.rehearse(None, plan, Path(d))
+        self.assertEqual(caught.exception.record['gate'], 'S1_gas_crosscheck')
 
 
 if __name__ == '__main__':
