@@ -1,0 +1,11 @@
+== build(stable 1.7.1) 11:31:33
+build_rc=0
+== a3a plan block=11995523 11:35:48
+a3a_plan_rc=0
+== a3a simulate 11:41:08
+a3a_sim_rc=0
+== upgrade bootstrap 11:47:03
+boot_rc=0
+== upgrade independent 12:10:12
+indep_rc=0
+== done 12:30:59
