@@ -711,6 +711,49 @@ class ExecutorTests(unittest.TestCase):
                     self.assertEqual(ex.main(['simulate', '--rpc-file', str(rpc_file), '--plan', str(out/'plan.json'), '--out', str(root/'edited-out')]), 1)
                 self.assertEqual(json.loads((root/'edited-out'/'FAILURE.json').read_text())['gate'], 'plan_step_S4_nonce')
 
+    def test_simulation_pin_refuses_live_drift(self):
+        # A frozen plan is replayed only while a fresh preflight at its pin still equals plan['pin'].
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            rpc_file, out = root/'rpc', root/'plan-out'
+            rpc_file.write_text('https://secret.invalid/NEVER_PRINT_THIS')
+            with patch.object(ex, 'artifact', self.artifact), patch.object(ex, 'fork', fake_fork):
+                with patch.object(ex.urllib.request, 'urlopen', self.mock_urlopen('valid')):
+                    self.assertEqual(ex.main(['plan', '--rpc-file', str(rpc_file), '--block', BLOCK, '--out', str(out)]), 0)
+                with patch.object(ex.urllib.request, 'urlopen', self.mock_urlopen('balance')), \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(ex.main(['simulate', '--rpc-file', str(rpc_file), '--plan', str(out/'plan.json'), '--out', str(root/'drift')]), 1)
+            self.assertEqual(json.loads((root/'drift'/'FAILURE.json').read_text())['gate'], 'simulation_pin')
+            self.assertFalse((root/'drift'/'simulate.json').exists())
+
+    def test_pin_recheck_refuses_drift_during_rehearsal(self):
+        original, calls = ex.preflight, []
+        def drifting(rpc, block):
+            state = original(rpc, block)
+            calls.append(block)
+            if len(calls) == 2:
+                state = dict(state, balance=state['balance']-1)
+            return state
+        with patch.object(ex, 'preflight', side_effect=drifting):
+            self.assertEqual(self.run_plan(), (1, 'pin_recheck'))
+        self.assertEqual(len(calls), 2)
+
+    def test_pre_send_chain_and_safe_nonce(self):
+        chain, plan = self.chain_and_plan()
+        step = ex.ExecutionStep(plan, 'S1')
+        self.assertEqual(ex.pre_send(step, chain), plan['steps'][0]['tx'])
+        def wrong_chain(method, params):
+            return '0x1' if method == 'eth_chainId' else chain(method, params)
+        def safe_advanced(method, params):
+            if method == 'eth_call' and params[0]['to'].lower() == ex.SAFE.lower() and params[0]['data'] == ex.calldata('nonce()'):
+                return abi_word(plan['pin']['safeNonce']+1)
+            return chain(method, params)
+        for remote, gate in ((wrong_chain, 'pre_send_chain'), (safe_advanced, 'pre_send_safe_nonce_S1')):
+            with self.subTest(gate=gate):
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.pre_send(step, remote)
+                self.assertEqual(caught.exception.record['gate'], gate)
+
     def test_relay_batch_refusals_and_pinned_extras(self):
         log = io.StringIO()
         calls = []
