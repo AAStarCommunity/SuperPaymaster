@@ -83,8 +83,10 @@ def owners(result):
     if len(raw) < 64 or int.from_bytes(raw[:32], "big") != 32:
         raise RpcFailure("getOwners: non-canonical offset")
     n = int.from_bytes(raw[32:64], "big")
-    if len(raw) != 64 + 32 * n or any(raw[i:i + 12] != bytes(12) for i in range(64, len(raw), 32)):
-        raise RpcFailure("getOwners: non-canonical length or padding")
+    if len(raw) != 64 + 32 * n:
+        raise RpcFailure("getOwners: non-canonical length")
+    if any(raw[i:i + 12] != bytes(12) for i in range(64, len(raw), 32)):
+        raise RpcFailure("getOwners: non-canonical padding")
     return sorted("0x" + raw[i + 12:i + 32].hex() for i in range(64, len(raw), 32))
 
 

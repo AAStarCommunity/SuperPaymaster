@@ -25,7 +25,9 @@ execution authorisation.
   `openzeppelin-contracts-v5.0.2` feeds A3a and `account-abstraction-v7` feeds SP. But forge reads only their `.sol`
   files, and no `.sol` file under `singleton-paymaster/` changed
   (`git diff --name-only fbd74fb1 66df75ee -- '*.sol'` lists only `contracts/test/rams/` and `docs/`).
-- Everything else is scripts, workflows, tests, docs, `README.md`, `CHANGELOG.md` and `.gitignore`.
+- Everything else is scripts (`script/`, `scripts/`), workflows, tests, docs, `README.md`, `CHANGELOG.md`,
+  `.gitignore`, and npm metadata outside the Solidity tree: `package.json` and `pnpm-lock.yaml` under
+  `packages/x402-facilitator-node/` and under `script/gasless-tests/`. None of them is a forge input.
 
 This is a source-level comparison, not a rebuild.
 - The A3a executor recompiles `66df75ee` from its git archive and compares runtime bytes with local `out/`
@@ -95,7 +97,7 @@ block. Every one exits 1, and only the intended checks turn false:
 **New script, offline (`script/evidence/test_a3a_newpin_senders_reread.py`, 9/9).** Fake endpoints serve the
 recorded values. The positive control reproduces 22/22. The negative controls are:
 - threshold 3 on both endpoints;
-- a non-canonical `getOwners` encoding (offset 192, expected owners left at the naive positions);
+- non-canonical `getOwners` encodings, one per rule (offset, length, padding), each with its own refusal message;
 - the same endpoint given twice;
 - endpoint B diverging by 1 wei;
 - a sender nonce moved since the pin;
@@ -144,8 +146,10 @@ subtest.
   Resuming earlier forces another rebuild.
 - **Signers.** How the approver and executor transactions, and the Safe owner approvals, are signed. The executor
   has no signing path.
-- **Service stop and resume.** A3a itself does not pause SP. The pause, readback and resume steps belong to the
-  later live upgrade packet, whose `boot/` rehearsal includes them, and recovery of service is a separate packet.
+- **Service stop and resume.** A3a itself does not pause SP. The pause and pre-restore readback belong to the later
+  live upgrade packet. Its `boot/` rehearsal covers them and ends with the service still `PAUSED`
+  (`script/upgrade/sp_upgrade_exec.py:823`, `service='PAUSED'`). Resuming service is not rehearsed here. It is a
+  separate packet.
 
 ## Reproduce
 

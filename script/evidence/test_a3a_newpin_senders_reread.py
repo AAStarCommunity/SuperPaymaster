@@ -81,13 +81,22 @@ class RereadControls(unittest.TestCase):
         self.assertEqual(self.run_script(a, b)[:2], (1, ["safeThreshold2"]))
 
     def test_noncanonical_owner_encoding_is_refused(self):
-        a, b = self.recorded()
-        # Expected owners at the naive positions, real array elsewhere: must not decode.
-        good = owners_abi(b.r["safeOwners"])[2:]
-        b.owners_raw = "0x" + format(192, "064x") + good[64:] + owners_abi(["0x" + "11" * 20] * 3)[2 + 64:]
-        code, false, err = self.run_script(a, b)
-        self.assertEqual((code, false), (1, None))
-        self.assertIn("getOwners: non-canonical", err)
+        good = owners_abi(RECORDED["reads"]["B"]["safeOwners"])[2:]
+        cases = {
+            # Expected owners stay at the naive positions; only the offset is wrong (length stays exact).
+            "offset": "0x" + format(64, "064x") + good[64:],
+            # Canonical offset/count/owners plus a trailing word.
+            "length": "0x" + good + "00" * 32,
+            # Canonical shape, but the first owner word has a non-zero high byte.
+            "padding": "0x" + good[:128] + "ff" + good[130:],
+        }
+        for kind, raw in cases.items():
+            with self.subTest(kind=kind):
+                a, b = self.recorded()
+                b.owners_raw = raw
+                code, false, err = self.run_script(a, b)
+                self.assertEqual((code, false), (1, None))
+                self.assertIn(f"getOwners: non-canonical {kind}", err)
 
     def test_same_endpoint_twice_is_refused(self):
         a, _ = self.recorded()
