@@ -60,9 +60,9 @@ All A3a steps are ≤ 2^24 (R0), so none of them uses the reservoir.
 - The SP implementation is compiled from the executor's pinned candidate `fbd74fb1` (#513 merge; `CANDIDATE` in
   `script/upgrade/sp_upgrade_exec.py:21`), not from `66df75ee`. The upgrade plans record that commit as
   `rebuild.commit`. Between the two commits, `contracts/src` and `foundry.toml` are byte-identical
-  (`git diff --quiet fbd74fb1 66df75ee -- contracts/src foundry.toml`). The only other differences are
-  `contracts/test/rams/*` and npm lockfiles under `singleton-paymaster/lib/`, so the implementation bytecode is the
-  same.
+  (`git diff --quiet fbd74fb1 66df75ee -- contracts/src foundry.toml`), so the implementation bytecode is the same.
+  The two commits do differ elsewhere: docs, scripts, workflows, contract tests and dependency lockfiles. None of
+  those are inputs to the implementation's compilation.
 - Upgrade budget: deployer 1.3891 ETH. Total deployer need, A3a plus upgrade: **1.8831 ETH, against 12.1619 ETH**.
 - Per the DSR boundary, `boot/` continues after a **simulated** A3a. Once A3a has really executed, the upgrade plan
   must be regenerated from the live state, then reviewed and authorised again.
