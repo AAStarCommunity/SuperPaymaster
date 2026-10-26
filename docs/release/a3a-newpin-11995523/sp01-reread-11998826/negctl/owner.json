@@ -1,6 +1,6 @@
 {
  "note": "read-only; RPC URLs omitted",
- "plan": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/sp01/neg-owner.json",
+ "plan": "<scratch copy of ../a3a-plan/plan.json with one field mutated: owner>",
  "block": 11998826,
  "budgetsWei": {
   "approver": 7141920000000000,
@@ -98,6 +98,7 @@
   "pinnedReadsIdentical": true,
   "pinBlockHashMatchesPlan": true,
   "safeOwnersMatchPlan": false,
+  "safeThreshold2": true,
   "safeNonceAtBlockMatchesPlan": true,
   "safeNonceLatestNowMatchesPlanBothEndpoints": true,
   "approver_pinNonceBalanceMatchPlan": true,

@@ -98,6 +98,7 @@
   "pinnedReadsIdentical": true,
   "pinBlockHashMatchesPlan": true,
   "safeOwnersMatchPlan": true,
+  "safeThreshold2": true,
   "safeNonceAtBlockMatchesPlan": true,
   "safeNonceLatestNowMatchesPlanBothEndpoints": true,
   "approver_pinNonceBalanceMatchPlan": true,

@@ -8,7 +8,7 @@ Usage:
 Complements script/evidence/a3a-v4-reread.py (deployer nonce, Safe nonce, SP owner, predicted addresses,
 old-aPNTs exposure). This one covers what that script does not: for each plan sender (deployer, approver,
 executor) the nonce and balance at the plan pin and at BLOCK, the `latest` and `pending` nonce now, and the
-balance at BLOCK against the plan budget; plus the Safe owners and threshold at BLOCK against the plan.
+balance at BLOCK against the plan budget; plus the Safe owners at BLOCK against the plan and its threshold against 2 (the executor preflight value).
 Methods used: eth_chainId, eth_getBlockByNumber, eth_getTransactionCount, eth_getBalance, eth_call.
 Nothing is signed or sent. Exits 1 if the endpoints disagree on a pinned value or any check is false.
 RPC URLs never reach stdout or stderr.
@@ -18,6 +18,7 @@ import json, os, re, sys, urllib.request
 SAFE = "0x51edf11fdb0a4f66220efb8efa54eca77232e114"
 SEL = {"nonce()": "0xaffed0e0", "getOwners()": "0xa0e67e2b", "getThreshold()": "0xe75235b8"}
 SEPOLIA_CHAIN_ID = 11155111
+SAFE_THRESHOLD = 2  # the plan does not record it; same constant as preflight's safe_threshold gate
 
 
 class RpcFailure(Exception):
@@ -70,16 +71,30 @@ def read(url, plan, blk):
     out["safeNonceAtBlock"] = qty("eth_call", call("nonce()", hex(blk)))
     out["safeNonceLatestNow(unpinned)"] = qty("eth_call", call("nonce()", "latest"))
     out["safeThreshold"] = qty("eth_call", call("getThreshold()", hex(blk)))
-    raw = call("getOwners()", hex(blk))[2:]
-    n = int(raw[64:128], 16)
-    out["safeOwners"] = sorted("0x" + raw[128 + 64 * i + 24:128 + 64 * (i + 1)].lower() for i in range(n))
+    out["safeOwners"] = owners(call("getOwners()", hex(blk)))
     return out
+
+
+def owners(result):
+    """Decode address[] only in its canonical form (offset 32, exact length, zero padding), as preflight does."""
+    if not isinstance(result, str) or not HEX.fullmatch(result) or len(result) % 2:
+        raise RpcFailure("getOwners: malformed hex result")
+    raw = bytes.fromhex(result[2:])
+    if len(raw) < 64 or int.from_bytes(raw[:32], "big") != 32:
+        raise RpcFailure("getOwners: non-canonical offset")
+    n = int.from_bytes(raw[32:64], "big")
+    if len(raw) != 64 + 32 * n or any(raw[i:i + 12] != bytes(12) for i in range(64, len(raw), 32)):
+        raise RpcFailure("getOwners: non-canonical length or padding")
+    return sorted("0x" + raw[i + 12:i + 32].hex() for i in range(64, len(raw), 32))
 
 
 def main():
     plan_path = sys.argv[1]
     plan = json.load(open(plan_path))
     blk = int(os.environ["BLOCK"])
+    if os.environ["RPC_A"].strip().rstrip("/") == os.environ["RPC_B"].strip().rstrip("/"):
+        print("config: RPC_A and RPC_B must be different endpoints", file=sys.stderr)
+        sys.exit(1)
     try:
         A = read(os.environ["RPC_A"], plan, blk)
         B = read(os.environ["RPC_B"], plan, blk)
@@ -100,6 +115,7 @@ def main():
         "pinnedReadsIdentical": pinned(A) == pinned(B),
         "pinBlockHashMatchesPlan": A["pinBlockHash"] == pin["blockHash"],
         "safeOwnersMatchPlan": A["safeOwners"] == sorted(o.lower() for o in pin["owners"]),
+        "safeThreshold2": A["safeThreshold"] == SAFE_THRESHOLD,
         "safeNonceAtBlockMatchesPlan": A["safeNonceAtBlock"] == pin["safeNonce"],
         "safeNonceLatestNowMatchesPlanBothEndpoints": A["safeNonceLatestNow(unpinned)"] == B["safeNonceLatestNow(unpinned)"] == pin["safeNonce"],
     }

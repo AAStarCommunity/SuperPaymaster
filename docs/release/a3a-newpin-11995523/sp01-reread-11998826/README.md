@@ -19,14 +19,20 @@ execution authorisation.
 **Between `fbd74fb1` and `66df75ee`** (`git diff --name-only fbd74fb1 66df75ee`):
 - `contracts/src`, `foundry.toml`, `contracts/lib` and the pinned gitlinks are identical.
 - The only `.sol` changes are under `contracts/test/rams/` and under `docs/`.
-- `singleton-paymaster/` differs only in seven `yarn.lock` / `package-lock.json` / `package.json` files under
-  `lib/account-abstraction-v6|v7|v8` and `lib/openzeppelin-contracts-v5.1.0`. No `.sol` file changed, and none of
-  those directories feed the A3a or the SP compilation.
+- `singleton-paymaster/` differs only in seven npm/yarn metadata files: `yarn.lock` under
+  `lib/account-abstraction-v6|v7|v8`, `package-lock.json` under `lib/openzeppelin-contracts-v4.8.3|v5.0.2|v5.1.0`,
+  and `lib/openzeppelin-contracts-v5.1.0/package.json`. Two of those directories do feed compilation:
+  `openzeppelin-contracts-v5.0.2` feeds A3a and `account-abstraction-v7` feeds SP. But forge reads only their `.sol`
+  files, and no `.sol` file under `singleton-paymaster/` changed
+  (`git diff --name-only fbd74fb1 66df75ee -- '*.sol'` lists only `contracts/test/rams/` and `docs/`).
 - Everything else is scripts, workflows, tests, docs, `README.md`, `CHANGELOG.md` and `.gitignore`.
 
-This is a source-level comparison. It does not replace the executor's own rebuild: each run recompiles from the
-named commit and compares runtime bytes with local `out/`. In the upgrade, the implementation bytes come from the
-`fbd74fb1` build itself, so they do not depend on this equivalence.
+This is a source-level comparison, not a rebuild.
+- The A3a executor recompiles `66df75ee` from its git archive and compares runtime bytes with local `out/`
+  (`rebuild_*` gates).
+- The upgrade executor's `build()` compiles `CANDIDATE` (`fbd74fb1`) and uses those artifacts directly, with no
+  comparison against local `out/`. The implementation bytes therefore come from the `fbd74fb1` build itself and do
+  not depend on this equivalence.
 
 **Between `66df75ee` and `30e26c41`** (the current `origin/main`), the only changed paths are this packet's
 files under `docs/release/a3a-newpin-11995523/`, from #539 and #540. No code, script or build input changed.
@@ -41,7 +47,7 @@ Endpoint A is Alchemy (archive) and endpoint B is the Tenderly public gateway. U
 
 | file | script | exit | result |
 |---|---|---:|---|
-| `senders-11998826.json` | `script/evidence/a3a-newpin-senders-reread.py ../a3a-plan/plan.json` (new) | 0 | 21/21 checks true |
+| `senders-11998826.json` | `script/evidence/a3a-newpin-senders-reread.py ../a3a-plan/plan.json` (new) | 0 | 22/22 checks true (refuses RPC_A == RPC_B; owners decoded only in canonical ABI form; threshold must be 2) |
 | `reread-11998826.json` | `script/evidence/a3a-v4-reread.py ../../a3a-precheck-v4/cap-budget-evidence.json` | 0 | 17/17 checks true |
 | `cap-budget-11998826.json` | `scripts/a3a-v2-cap-budget-read.py` | 0 | 6/6 checks true |
 
@@ -69,14 +75,14 @@ Endpoint A is Alchemy (archive) and endpoint B is the Tenderly public gateway. U
 - **Funding.** The +10 ETH funding of the deployer happened before the pin. Same nonce 12131, balance
   2.161907553052084158 → 12.161907553052084158 ETH. It is not a packet step. Its transaction hash is not recorded
   here. Nonce 12131 is unchanged, so it was an inbound transfer.
-- **Drift STOP.** Any of the 21 + 17 checks turning false means STOP and a rebuild at a new pin. Before every
+- **Drift STOP.** Any of the 22 + 17 checks turning false means STOP and a rebuild at a new pin. Before every
   live step, the executor's own guard `pre_send` (`script/a3a/a3a_exec.py:1323-1336`) re-reads chain id, code,
   latest = pending = planned nonce and the Safe nonce. This re-read is evidence. It does not replace that guard.
 
 ## 3. Negative controls
 
-**New script, `negctl/`.** Each control mutates one plan field, or one endpoint read, against the live block.
-Every one exits 1, and only the intended checks turn false:
+**New script, live (`negctl/`).** Each control mutates one plan field in a scratch copy and re-reads the live
+block. Every one exits 1, and only the intended checks turn false:
 
 | control | false checks |
 |---|---|
@@ -85,7 +91,20 @@ Every one exits 1, and only the intended checks turn false:
 | `owner` (one owner replaced) | `safeOwnersMatchPlan` |
 | `budget` (approver 2 ETH) | `approver_balanceAtBlockCoversBudget` |
 | `pinHash` (zeroed) | `pinBlockHashMatchesPlan` |
-| `Bdiverge` (endpoint B balance +1 wei, in-process) | `pinnedReadsIdentical` |
+
+**New script, offline (`script/evidence/test_a3a_newpin_senders_reread.py`, 9/9).** Fake endpoints serve the
+recorded values. The positive control reproduces 22/22. The negative controls are:
+- threshold 3 on both endpoints;
+- a non-canonical `getOwners` encoding (offset 192, expected owners left at the naive positions);
+- the same endpoint given twice;
+- endpoint B diverging by 1 wei;
+- a sender nonce moved since the pin;
+- pending ahead of latest;
+- the Safe nonce advanced;
+- a balance below budget.
+
+Each control asserts the exact set of false checks, or the exact refusal message. The first three were found
+by Codex review before push. Mutating each fix away turns its test red.
 
 **Executor gates: where each chain, pin, nonce and budget error is refused** (`script/a3a/test_a3a_exec.py`,
 77/77 pass):
@@ -138,6 +157,7 @@ RPC_A=<archive rpc> RPC_B=https://sepolia.gateway.tenderly.co BLOCK=11998826 \
 RPC_A=<archive rpc> RPC_B=https://sepolia.gateway.tenderly.co BLOCK=11998826 python3 -B scripts/a3a-v2-cap-budget-read.py
 (cd script/a3a && python3 -B -m unittest test_a3a_exec)          # 77 tests OK
 (cd script/upgrade && python3 -B -m unittest test_sp_upgrade_exec)  # 141 tests OK
+(cd script/evidence && python3 -B -m unittest test_a3a_newpin_senders_reread)  # 9 tests OK
 ```
 
 `SHA256SUMS` covers every file here except itself and this README.
