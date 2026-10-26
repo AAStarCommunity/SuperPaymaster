@@ -3,7 +3,7 @@
 Unsigned package for the Safe A6e route. (Context, not backed by files here: CC-125
 deliverable 1, DSR ruling d6d67a51 on Seeder.)
 Nothing here was signed or broadcast; every transaction below ran on a local anvil fork
-(engine foundry nightly `4e8874b2bdc840929585ca73e170993c50a4a531`, EIP-8037 reservoir-correct)
+(engine foundry nightly `4e8874b2bdc840929585ca73e170993c50a4a531`, implements the EIP-8037 reservoir; calibrated 10/10 against real RR txs on the first step only)
 pinned to block `0xb6dabe` / hash `0x77ab0a0b…cec01b8af4`.
 
 | dir | what |
@@ -14,7 +14,7 @@ pinned to block `0xb6dabe` / hash `0x77ab0a0b…cec01b8af4`.
 
 Both runs: repo commit `af802726`, dirty 0, status PASS, phases `a3a` → `upgrade`.
 The independent run matches the bootstrap on what the package depends on: identical gasUsed
-on all 16 upgrade steps, the same 7 negative controls with the same outcomes, identical
+on all 16 upgrade steps, the same 7 controls (1 positive, 6 negative) with the same outcomes, identical
 pre-restore readback. Block timestamps, block hashes and timestamp-bearing log data differ
 between the runs (each run mines its own fork blocks). `relay.log` in every
 run contains only `refused eth_gasPrice` and the teardown marker (no abandoned/failed
@@ -36,7 +36,7 @@ upstream request). `engine.stderr` empty.
 Full measurements (including the mined-gas search — 27 entries: one 100M probe, then 26 bisection steps — and the reservoir witness for
 the deploy) are in `boot/upgrade-simulate.json`.
 
-## Negative controls (all behaved as expected)
+## Controls: 1 positive, 6 negative (all behaved as expected)
 
 `safeMint_positive`, `safeMint_negative` (RoleNotConfigured after freeze),
 `failed_pause_readback`, `cancel_reschedule`, `non_safe_execute`, `early_upgrade`,
@@ -62,6 +62,18 @@ A3a + upgrade budget of 1.8830836 ETH leaves **0.2788 ETH** of headroom, which i
 the combined budget from that figure, because it would count A3a twice.)
 Context, not backed by files here: the deployer EOA is shared with other automation. Recompute
 nonce-dependent values at execution time and pause that automation first.
+
+## Acceptance boundary (DSR, 2026-10-25, fixed tree 78c8d144)
+
+Accepted as an **unsigned rehearsal package plus offline executor**. It is not an execution packet:
+- These runs used repo `af802726`. The executor's RPC deadline was rewritten afterwards (daemon-thread wall clock,
+  #536/#537). Offline tests passing on the final code are not a same-tree fork re-run. A new-pin packet must be
+  rehearsed again with the final code.
+- `boot/` is a plan that continues on the fork after a *simulated* A3a. It is not a live upgrade packet: after A3a
+  really executes, the upgrade plan must be regenerated from the live state and reviewed and authorised again.
+- 0.2788 ETH is what remains of the *historical* pin balance after the maximum combined budget. It is not the
+  current wallet balance. Funding must happen before the new pin is taken.
+- No fresh build/EVM/RPC re-run was done at acceptance time.
 
 ## Not covered / preconditions
 
