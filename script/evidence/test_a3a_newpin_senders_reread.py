@@ -118,9 +118,17 @@ class RereadControls(unittest.TestCase):
                          (1, ["approver_latestEqPendingEqPlanBothEndpoints", "approver_nonceUnchangedSincePin"]))
 
     def test_pending_ahead_of_latest(self):
+        for side in ("A", "B"):
+            with self.subTest(endpoint=side):
+                a, b = self.recorded()
+                (a if side == "A" else b).r["senders"]["deployer"]["noncePendingNow(unpinned)"] += 1
+                self.assertEqual(self.run_script(a, b)[:2], (1, ["deployer_latestEqPendingEqPlanBothEndpoints"]))
+
+    def test_owner_replaced_on_both_endpoints(self):
         a, b = self.recorded()
-        b.r["senders"]["deployer"]["noncePendingNow(unpinned)"] += 1
-        self.assertEqual(self.run_script(a, b)[:2], (1, ["deployer_latestEqPendingEqPlanBothEndpoints"]))
+        for e in (a, b):
+            e.owners_raw = owners_abi(e.r["safeOwners"][:2] + ["0x" + "11" * 20])
+        self.assertEqual(self.run_script(a, b)[:2], (1, ["safeOwnersMatchPlan"]))
 
     def test_safe_nonce_advanced(self):
         a, b = self.recorded()
