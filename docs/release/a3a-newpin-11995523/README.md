@@ -91,8 +91,8 @@ python3 -B script/upgrade/sp_upgrade_exec.py simulate --rpc-file <archive-rpc-fi
 3. Nonce exclusivity holds. At the moment of sending, the senders must still be at deployer 12131, approver 7 and
    executor 29, and the Safe at nonce 1. Before each step, `pre_send` (`script/a3a/a3a_exec.py:1332-1336`)
    requires that the sender's latest nonce equals its pending nonce, that it equals the step's planned nonce, and
-   that the Safe nonce equals the planned value. Otherwise it stops. This is the executor's guard. It is not
-   exercised by this unsigned bundle, because `send` is disabled. Automation that shares the deployer must be
+   that the Safe nonce equals the planned value. Otherwise it stops. This is the executor's guard. The rehearsals
+   ran it before every step on the local fork (`a3a_exec.py:1422`); live sending remains disabled. Automation that shares the deployer must be
    paused first.
 4. Any other state drift means a rebuild at a new pin.
 
