@@ -138,6 +138,7 @@ class SenderTests(unittest.TestCase):
                              'blockHash': '0x' + '12' * 32, 'contractAddress': None, 'logs': [], 'providerExtra': SECRET}
             mined = {k: tx[k] for k in ('nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value', 'from', 'to')}
             mined['input'] = tx['data']
+            mined['blockHash'], mined['blockNumber'] = chain.receipt['blockHash'], chain.receipt['blockNumber']
             if receipt_edit:
                 receipt_edit(chain.receipt)
             if mined_edit:
@@ -540,7 +541,7 @@ class SenderTests(unittest.TestCase):
             chain.receipt = {'status': '0x1', 'gasUsed': hex(135104), 'blockNumber': hex(12000000), 'transactionHash': h,
                              'blockHash': '0x' + '12' * 32, 'contractAddress': None, 'logs': []}
             chain.mined = dict({k: TX[k] for k in ('nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value', 'from', 'to')},
-                               input=TX['data'])
+                               input=TX['data'], blockHash='0x' + '12' * 32, blockNumber=hex(12000000))
             raise ex.Gate('send_broadcast_transport', 'TimeoutError', 'JSON-RPC response')
         with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', lost):
             result = sd.run(self.args, chain, SECRET, confirm=self.confirm())
@@ -804,6 +805,55 @@ class SenderTests(unittest.TestCase):
                     self.run_send(Chain(), url=url, receipt_edit=lambda r: r.__setitem__('logs', logs))
                 self.assertEqual(cause(c.exception), 'send_provider_leak')
         self.assertEqual(sd.scrub('0x' + key, 'https://x.invalid/' + key.upper()), '<redacted 22 chars>')
+    # --- review #548 ---
+
+    def test_failure_json_keeps_outcome_and_cause(self):
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        out = self.d / 'kept'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        def lost(url, raw):
+            self.sent.append(raw)
+            raise ex.Gate('send_broadcast_transport', 'TimeoutError', 'JSON-RPC response')
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', lost), mock.patch.object(ex, 'RPC', lambda url: Chain()), \
+                mock.patch.object(sd, 'tty_confirm', lambda prompt: 'SEND S5a ' + SHA[:12]), \
+                mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'), \
+                mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            self.assertEqual(sd.main(argv), 1)
+        obs = json.loads((out / 'FAILURE.json').read_text())['observed']
+        self.assertEqual(obs, {'hash': keccak(self.sent[0]), 'broadcast': 'unknown',
+                               'provider': {'gate': 'send_broadcast_transport', 'observed': 'TimeoutError'},
+                               'cause': 'send_receipt_timeout', 'causeObserved': obs['causeObserved']})
+        self.assertTrue(obs['causeObserved'] == keccak(self.sent[0]))
+
+    def test_scrub_identifiers_and_integers(self):
+        url = 'https://eth-sepolia.example.invalid/v2/deadbeefdeadbeefdeadbeefdeadbeef'
+        key_int = int('deadbeefdeadbeefdeadbeefdeadbeef', 16)
+        self.assertEqual(sd.scrub({'cause': 'send_receipt_timeout', 'n': 7, 'e': 'TimeoutError'}, url),
+                         {'cause': 'send_receipt_timeout', 'n': 7, 'e': 'TimeoutError'})
+        self.assertEqual(sd.scrub(key_int, url), '<redacted int>')
+        self.assertEqual(sd.scrub('deadbeefdeadbeefdeadbeefdeadbeef', url), '<redacted 32 chars>')
+        self.assertEqual(sd.scrub('has space', url), '<redacted 9 chars>')
+
+    def test_mined_transaction_must_be_in_the_receipt_block(self):
+        for k, v in (('blockHash', '0x' + '98' * 32), ('blockNumber', hex(12000001)), ('blockNumber', None)):
+            with self.subTest(field=k, value=v):
+                self.clear_out()
+                gate = self.gate_name(lambda: self.run_send(Chain(), mined_edit=lambda m: m.__setitem__(k, v)))
+                self.assertIn(gate, ('send_mined_' + k, 'send_provider_' + k))
+
+    def test_receipt_is_kept_when_the_mined_check_fails(self):
+        with mock.patch.object(sd, 'check_mined', side_effect=ex.Gate('rpc_transport', 'TimeoutError', 'x')):
+            with self.assertRaises(ex.Gate):
+                self.run_send(Chain())
+        self.assertTrue((self.args.out / 'receipt.json').exists())
+
+    def test_report_after_fd_closed_keeps_exit_zero(self):
+        code = ('import os, sys; sys.path.insert(0, %r); import a3a_send as sd; os.close(1); '
+                'sd.report("SENT", sys.stdout); sys.exit(0)' % str(HERE))
+        p = subprocess.run([sys.executable, '-B', '-c', code], capture_output=True, timeout=30)
+        self.assertEqual(p.returncode, 0, p.stderr.decode()[-400:])
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.
@@ -858,6 +908,9 @@ class SenderS7Integration(unittest.TestCase):
             value = chain(method, params, error_ok=error_ok)
             if method == 'eth_getTransactionReceipt' and isinstance(value, dict):
                 value = dict(value, blockHash='0x' + '34' * 32)
+            if method == 'eth_getTransactionByHash' and isinstance(value, dict):
+                rc = chain('eth_getTransactionReceipt', params)
+                value = dict(value, blockHash='0x' + '34' * 32, blockNumber=rc['blockNumber'])
             return value
         with mock.patch.object(sd, 'signed', fake_signed), mock.patch.object(sd, 'broadcast', fake_broadcast), \
                 mock.patch.object(sd, 'LOCK_PATH', self.lock), mock.patch.object(ex, 'readback', readback), \

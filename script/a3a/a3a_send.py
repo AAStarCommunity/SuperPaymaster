@@ -204,7 +204,7 @@ def clean_receipt(r, tokens=frozenset()):
     return out
 
 
-def check_mined(remote, h, tx):
+def check_mined(remote, h, tx, r):
     m = remote('eth_getTransactionByHash', [h])
     if not isinstance(m, dict):
         raise ex.Gate('send_provider_tx', 'malformed', 'transaction object')
@@ -217,6 +217,9 @@ def check_mined(remote, h, tx):
     ex.need('send_mined_from', m['from'].lower(), tx['from'].lower())
     ex.need('send_mined_to', m['to'], tx.get('to') and tx['to'].lower())
     ex.need('send_mined_input', m['input'].lower(), tx['data'].lower())
+    # Still in the block the receipt names: a reorg (or a pending answer) after the receipt is not success.
+    ex.need('send_mined_blockHash', field(m.get('blockHash'), ex.HASH32, 'blockHash'), r['blockHash'])
+    ex.need('send_mined_blockNumber', field(m.get('blockNumber'), ex.QTY, 'blockNumber'), r['blockNumber'].lower())
 
 
 def signed(tx, account):
@@ -278,8 +281,8 @@ def run(args, remote, url, confirm=None):
         note(args.out/'broadcast.json', lambda p: ex.write_json(p, dict(step=args.step, hash=h, outcome=outcome, provider=provider)))
         note(args.out/'signed.raw', lambda p: p.write_text(raw+'\n'))  # public once broadcast; never on disk before
         r = wait_receipt(remote, h, tx, url_tokens(url))
-        check_mined(remote, h, tx)
-        note(args.out/'receipt.json', lambda p: ex.write_json(p, r))
+        note(args.out/'receipt.json', lambda p: ex.write_json(p, r))  # kept even if a later read fails
+        check_mined(remote, h, tx, r)
         if outcome == 'accepted_hash_mismatch':
             # Mined as signed, but the provider reported another hash: a provider fault the operator must see.
             raise ex.Gate('send_returned_hash', 'mismatch', h)
@@ -323,10 +326,11 @@ def url_tokens(url):
 def scrub(value, url):
     """FAILURE.json `observed`/`expected`: gate records from a3a_exec can carry raw provider results in either.
 
-    Kept: integers, booleans, None, and short 0x-hex strings (hashes, addresses, quantities, words); dict keys only
-    when short identifiers. Anything else, and any string or key containing a path/query token of the RPC URL,
-    becomes a placeholder. Expected values from code (e.g. 'deployed contract code') are lost too: the gate name
-    still says what failed, and the precise inputs are in the reviewed plan.
+    Kept: booleans, None, short 0x-hex strings (hashes, addresses, quantities, words), integers, and short
+    identifiers (gate names, outcomes, exception types: what send_after_broadcast records as broadcast / provider /
+    cause), all only if they contain no path/query token of the RPC URL; an integer is checked in decimal and in
+    hex. Anything else becomes a placeholder. Free-text expected values from code (e.g. 'deployed contract code')
+    are lost: the gate name still says what failed, and the precise inputs are in the reviewed plan.
     """
     tokens = url_tokens(url)
     def leaks(s):
@@ -335,14 +339,19 @@ def scrub(value, url):
         s = str(k)
         return s if re.fullmatch(r'[A-Za-z0-9_]{1,32}', s) and not leaks(s) else '<key %d>' % i
     def clean(v):
-        if v is None or isinstance(v, (bool, int)):
+        if v is None or isinstance(v, bool):
             return v
+        if isinstance(v, int):
+            return v if not leaks(str(v)) and not leaks(format(v, 'x')) else '<redacted int>'
+
         if isinstance(v, (list, tuple)):
             return [clean(x) for x in v]
         if isinstance(v, dict):
             return {key(k, i): clean(x) for i, (k, x) in enumerate(v.items())}
         s = str(v)
         if len(s) <= SAFE_TEXT_MAX and re.fullmatch(r'0x[0-9a-fA-F]*', s) and not leaks(s):
+            return s
+        if re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}', s) and not leaks(s):
             return s
         return '<redacted %d chars>' % len(s)
     return clean(value)
@@ -399,9 +408,11 @@ def report(text, stream):
         print(text, file=stream, flush=True)
     except Exception:
         try:
+            fd = stream.fileno()
             null = os.open(os.devnull, os.O_WRONLY)
-            os.dup2(null, stream.fileno())
-            os.close(null)
+            if null != fd:  # if fd itself was closed, os.open may return it: then it already is /dev/null
+                os.dup2(null, fd)
+                os.close(null)
         except Exception:
             pass
 
