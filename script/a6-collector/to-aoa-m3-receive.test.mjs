@@ -166,6 +166,8 @@ test('an accepted /2 run that is not protocolConformant stays rehearsal', { skip
     .split('\n').filter(Boolean).map((l) => JSON.parse(l));
   assert.equal(rows[0].schema, 'a6-gauge/2');
   assert.equal(rows[0].protocolConformant, false);
+  // The isolation holds only while validate.mjs accepts this run (exit 0).
+  assert.doesNotThrow(() => execFileSync('node', [join(HERE, 'validate.mjs'), join(HERE, '../../docs/design/aoa-balance-mode/data/a6-gauge-credit/credit-off.jsonl')], { stdio: 'ignore' }));
   assert.equal(exportRows(rows, {}).runType, 'rehearsal');
 });
 

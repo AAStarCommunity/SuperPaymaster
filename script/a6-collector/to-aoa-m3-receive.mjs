@@ -95,9 +95,9 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
     const reportPath = join(scratch, 'report.json');
     // Validate the exact bytes being exported, not jsonlPath again: the file could change between the reads.
     const runCopy = join(scratch, 'run.jsonl');
-    writeFileSync(runCopy, raw);
     let report;
     try {
+      writeFileSync(runCopy, raw);
       try {
         execFileSync('node', [join(HERE, 'validate.mjs'), runCopy, '--json', reportPath], { stdio: 'ignore' });
       } catch (e) {
