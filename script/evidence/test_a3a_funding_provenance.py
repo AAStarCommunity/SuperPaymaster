@@ -99,6 +99,8 @@ class FundingControls(unittest.TestCase):
                                  ["onlyLogIsEip7708EthTransfer", "sentByPlanExecutor"]),
             "executor sent again before pin": (lambda r: r["funder"].__setitem__("nonceAtPin", r["funder"]["nonceAtPin"] + 1),
                                                ["executorLastTxBeforePin"]),
+            "tx nonce is not the executor's last": (lambda r: r["tx"].__setitem__("nonce", r["tx"]["nonce"] - 1),
+                                                    ["executorLastTxBeforePin"]),
             "delegated": (lambda r: r["deployer"].__setitem__("codeAtPin", "0xef0100" + "33" * 20), ["deployerHasNoCodeAtPin"]),
         }
         for name, (edit, want) in cases.items():
@@ -116,6 +118,15 @@ class FundingControls(unittest.TestCase):
             path.write_text(json.dumps(plan))
             code, false, _ = self.run_script(plan_path=path, pin=RECORDED["reads"]["A"]["receipt"]["blockNumber"])
         self.assertEqual((code, false), (1, ["minedBeforePin"]))
+
+    def test_plan_executor_nonce_must_match_chain(self):
+        plan = json.loads(PLAN.read_text())
+        plan["pin"]["senders"]["executor"]["nonce"] += 1
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "plan.json"
+            path.write_text(json.dumps(plan))
+            code, false, _ = self.run_script(plan_path=path)
+        self.assertEqual((code, false), (1, ["executorLastTxBeforePin"]))
 
     def test_endpoint_divergence(self):
         a, b = Endpoint(RECORDED["reads"]["A"]), Endpoint(RECORDED["reads"]["B"])

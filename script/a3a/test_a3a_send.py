@@ -7,7 +7,7 @@ production signer environment (a3a_send.signer_env) is used unmodified while the
 secrets that must not reach it. The plan gate (signing_transaction), the RPC and the broadcast are fakes, except
 in the S7 integration test, which runs the real gate and readback against test_a3a_exec.FakeChain.
 """
-import copy, fcntl, hashlib, json, os, shutil, stat, subprocess, sys, tempfile, unittest
+import copy, fcntl, hashlib, io, json, os, shutil, stat, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 
@@ -43,6 +43,16 @@ if '--account' in argv:
     argv[i:i + 2] = ['--private-key', cfg['key']]
 os.execv(cfg['cast'], [cfg['cast']] + argv)
 '''
+
+
+def cause(e):
+    """Gate name, or for send_after_broadcast its cause, after checking the wrapper names the hash."""
+    rec = e.record
+    if rec['gate'] != 'send_after_broadcast':
+        return rec['gate']
+    assert ex.HASH32.fullmatch(rec['observed']['hash']), rec
+    assert rec['observed']['broadcast'] in ('accepted', 'accepted_hash_mismatch', 'unknown'), rec
+    return rec['observed']['cause']
 
 
 def keccak(data):
@@ -128,6 +138,7 @@ class SenderTests(unittest.TestCase):
                              'blockHash': '0x' + '12' * 32, 'contractAddress': None, 'logs': [], 'providerExtra': SECRET}
             mined = {k: tx[k] for k in ('nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value', 'from', 'to')}
             mined['input'] = tx['data']
+            mined['blockHash'], mined['blockNumber'] = chain.receipt['blockHash'], chain.receipt['blockNumber']
             if receipt_edit:
                 receipt_edit(chain.receipt)
             if mined_edit:
@@ -145,14 +156,15 @@ class SenderTests(unittest.TestCase):
             return self.phrase() if typed is None else typed
         return c
 
-    def run_send(self, chain, txs=(TX, TX), confirm=None, tx=TX, **bk):
+    def run_send(self, chain, txs=(TX, TX), confirm=None, tx=TX, url=SECRET, **bk):
         with self.gate(txs), self.broadcast(chain, tx, **bk):
-            return sd.run(self.args, chain, SECRET, confirm=confirm or self.confirm())
+            return sd.run(self.args, chain, url, confirm=confirm or self.confirm())
 
     def gate_name(self, fn):
+        """The failing gate; for a failure after broadcast, the wrapped cause (the wrapper itself is checked too)."""
         with self.assertRaises(ex.Gate) as c:
             fn()
-        return c.exception.record['gate']
+        return cause(c.exception)
 
     def calls(self):
         return [json.loads(l) for l in self.log.read_text().splitlines()] if self.log.exists() else []
@@ -316,7 +328,7 @@ class SenderTests(unittest.TestCase):
         old = os.umask(0o022)
         try:
             with self.gate([TX, TX]), self.broadcast(chain, TX), mock.patch.object(ex, 'RPC', lambda url: chain), \
-                    mock.patch('builtins.input', lambda prompt: 'SEND S5a ' + SHA[:12]), mock.patch('sys.stdout'):
+                    mock.patch.object(sd, 'tty_confirm', lambda prompt: 'SEND S5a ' + SHA[:12]), mock.patch('sys.stdout'):
                 self.assertEqual(sd.main(argv), 0)
         finally:
             os.umask(old)
@@ -333,7 +345,7 @@ class SenderTests(unittest.TestCase):
                 self.clear_out()
                 with self.assertRaises(ex.Gate) as c:
                     self.run_send(Chain(), receipt_edit=lambda r, k=k, v=v: r.__setitem__(k, v))
-                self.assertEqual(c.exception.record['gate'], gate)
+                self.assertEqual(cause(c.exception), gate)
                 self.assertNotIn('NEVER_PRINT_THIS', json.dumps(c.exception.record))
         for k, gate in (('from', 'send_provider_from'), ('to', 'send_provider_to'), ('input', 'send_provider_input'),
                         ('nonce', 'send_provider_nonce')):
@@ -341,14 +353,18 @@ class SenderTests(unittest.TestCase):
                 self.clear_out()
                 with self.assertRaises(ex.Gate) as c:
                     self.run_send(Chain(), mined_edit=lambda m, k=k: m.__setitem__(k, SECRET))
-                self.assertEqual(c.exception.record['gate'], gate)
+                self.assertEqual(cause(c.exception), gate)
                 self.assertNotIn('NEVER_PRINT_THIS', json.dumps(c.exception.record))
         self.clear_out()
         self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), receipt_edit=lambda r: r.__setitem__('transactionHash', '0x' + '98' * 32))),
                          'send_receipt_hash')
 
     def test_post_broadcast_checks(self):
-        self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), returned='0x' + '99' * 32)), 'send_returned_hash')
+        chain = Chain()
+        self.assertEqual(self.gate_name(lambda: self.run_send(chain, returned='0x' + '99' * 32)), 'send_returned_hash')
+        # The provider reported another hash, but the signed transaction is still monitored and its receipt kept.
+        self.assertIn('eth_getTransactionReceipt', [m for m, _ in chain.calls])
+        self.assertTrue((self.args.out / 'receipt.json').exists())
         self.clear_out()
         self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), status='0x0')), 'send_receipt_status')
         self.clear_out()
@@ -405,7 +421,7 @@ class SenderTests(unittest.TestCase):
                 self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', lambda url, raw: (self.sent.append(raw), keccak(raw))[1]):
             with self.assertRaises(ex.Gate) as c:
                 sd.run(self.args, Chain(), SECRET, confirm=self.confirm())
-        self.assertEqual(c.exception.record['gate'], 'send_receipt_timeout')
+        self.assertEqual(cause(c.exception), 'send_receipt_timeout')
         self.assertEqual(len(self.sent), 1)
 
     def test_broadcast_records_nothing_the_provider_wrote(self):
@@ -425,7 +441,7 @@ class SenderTests(unittest.TestCase):
                 with mock.patch.object(sd.urllib.request, 'urlopen', **side):
                     with self.assertRaises(ex.Gate) as c:
                         sd.broadcast(SECRET, '0x02')
-                self.assertEqual(c.exception.record['gate'], gate)
+                self.assertEqual(cause(c.exception), gate)
                 self.assertNotIn('NEVER_PRINT_THIS', json.dumps(c.exception.record))
 
     def test_failure_record_carries_no_provider_text(self):
@@ -455,7 +471,7 @@ class SenderTests(unittest.TestCase):
         hex_key_url = 'https://eth-sepolia.example.invalid/v2/0a1b2c3d4e5f6a7b8c9d'
         self.assertEqual(sd.scrub('0x0a1b2c3d4e5f6a7b8c9d', hex_key_url), '<redacted 22 chars>')
         # Short hex (hashes, addresses, quantities) survives, so records stay useful.
-        self.assertEqual(sd.scrub({'h': '0x' + 'cd' * 32, 'n': 7}, SECRET), {'h': '0x' + 'cd' * 32, 'n': 7})
+        self.assertEqual(sd.scrub({'hash': '0x' + 'cd' * 32, 'code': 7}, SECRET), {'hash': '0x' + 'cd' * 32, 'code': 7})
 
     def test_failure_is_written_while_the_lock_is_held(self):
         rpc = self.d / 'rpc'
@@ -490,6 +506,465 @@ class SenderTests(unittest.TestCase):
         self.assertEqual((out / 'FAILURE.json').read_bytes(), before)
         self.assertEqual(self.calls(), [])
 
+    # --- review #546 follow-ups ---
+
+    def test_after_broadcast_failures_name_the_hash(self):
+        with self.assertRaises(ex.Gate) as c:
+            self.run_send(Chain(), status='0x0')
+        rec = c.exception.record
+        self.assertEqual(rec['gate'], 'send_after_broadcast')
+        self.assertEqual(rec['observed']['hash'], keccak(self.sent[0]))
+        self.assertEqual(json.loads((self.args.out / 'broadcast.json').read_text()),
+                         {'step': 'S5a', 'hash': keccak(self.sent[0]), 'outcome': 'accepted', 'provider': None})
+
+    def test_local_error_after_broadcast_still_monitors_and_records(self):
+        real = Path.write_text
+        def write_text(path, data, *a, **kw):
+            if path.name == 'signed.raw':
+                raise OSError('disk full')
+            return real(path, data, *a, **kw)
+        with mock.patch.object(Path, 'write_text', write_text):
+            result = self.run_send(Chain())
+        self.assertEqual(result['status'], 'SENT')  # signed.raw is evidence only; monitoring went on
+        self.assertTrue((self.args.out / 'receipt.json').exists())
+        self.clear_out()
+        with mock.patch.object(sd, 'check_mined', side_effect=KeyError('x')):
+            with self.assertRaises(ex.Gate) as c:
+                self.run_send(Chain())
+        self.assertEqual((c.exception.record['gate'], cause(c.exception)), ('send_after_broadcast', 'local_error'))
+
+    def test_broadcast_transport_failure_is_outcome_unknown_and_monitored(self):
+        chain = Chain()
+        def lost(url, raw):
+            self.sent.append(raw)
+            h = keccak(raw)  # the provider took it, but the reply never arrived
+            chain.receipt = {'status': '0x1', 'gasUsed': hex(135104), 'blockNumber': hex(12000000), 'transactionHash': h,
+                             'blockHash': '0x' + '12' * 32, 'contractAddress': None, 'logs': []}
+            chain.mined = dict({k: TX[k] for k in ('nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value', 'from', 'to')},
+                               input=TX['data'], blockHash='0x' + '12' * 32, blockNumber=hex(12000000))
+            raise ex.Gate('send_broadcast_transport', 'TimeoutError', 'JSON-RPC response')
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', lost):
+            result = sd.run(self.args, chain, SECRET, confirm=self.confirm())
+        self.assertEqual((result['status'], result['broadcast']), ('SENT', 'unknown'))
+        self.assertEqual(json.loads((self.args.out / 'broadcast.json').read_text())['outcome'], 'unknown')
+        # Never mined: the failure says "unknown", with the hash to reconcile, not "not sent".
+        self.clear_out()
+        def lost_forever(url, raw):
+            self.sent.append(raw)
+            raise ex.Gate('send_broadcast_transport', 'TimeoutError', 'JSON-RPC response')
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', lost_forever), \
+                mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'):
+            with self.assertRaises(ex.Gate) as c:
+                sd.run(self.args, Chain(), SECRET, confirm=self.confirm())
+        obs = c.exception.record['observed']
+        self.assertEqual((obs['broadcast'], obs['cause'], obs['hash']), ('unknown', 'send_receipt_timeout', keccak(self.sent[0])))
+        # An error reply ("already known", ...) or a malformed reply does not prove the transaction was not taken:
+        # it is outcome unknown too, monitored by hash, with the provider's code kept as the reason.
+        for gate, observed in (('send_broadcast_rejected', -32000), ('send_broadcast_result', 'malformed')):
+            with self.subTest(provider=gate):
+                self.clear_out()
+                chain = Chain()
+                def refused(url, raw, gate=gate, observed=observed):
+                    self.sent.append(raw)
+                    raise ex.Gate(gate, observed, 'transaction hash')
+                with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', refused), \
+                        mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'):
+                    with self.assertRaises(ex.Gate) as c:
+                        sd.run(self.args, chain, SECRET, confirm=self.confirm())
+                obs = c.exception.record['observed']
+                self.assertEqual((obs['broadcast'], obs['provider'], obs['hash']),
+                                 ('unknown', {'gate': gate, 'observed': observed}, keccak(self.sent[0])))
+                self.assertIn('eth_getTransactionReceipt', [m for m, _ in chain.calls])
+
+    def test_broadcast_has_a_total_deadline(self):
+        import threading, time as _t
+        release = threading.Event()
+        def hang(*a, **kw):
+            release.wait(5)
+            raise OSError('late')
+        try:
+            with mock.patch.object(ex, 'RPC_TOTAL_DEADLINE_SECONDS', 0.2), \
+                    mock.patch.object(sd.urllib.request, 'urlopen', side_effect=hang):
+                t0 = _t.monotonic()
+                with self.assertRaises(ex.Gate) as c:
+                    sd.broadcast(SECRET, '0x02')
+                elapsed = _t.monotonic() - t0
+        finally:
+            release.set()
+        self.assertEqual(c.exception.record['gate'], 'send_broadcast_transport')
+        self.assertLess(elapsed, 2)
+
+    def test_receipt_polling_tolerates_transient_rpc_failures(self):
+        class Flaky(Chain):
+            def __init__(self, fails):
+                super().__init__()
+                self.fails = fails
+            def __call__(self, method, params):
+                if method == 'eth_getTransactionReceipt' and self.fails:
+                    self.fails -= 1
+                    raise ex.Gate('rpc_transport', 'TimeoutError', 'valid response (URL redacted)')
+                return super().__call__(method, params)
+        with mock.patch.object(sd.time, 'sleep'):
+            self.assertEqual(self.run_send(Flaky(sd.RECEIPT_TRANSIENT_MAX))['status'], 'SENT')
+            self.clear_out()
+            self.assertEqual(self.gate_name(lambda: self.run_send(Flaky(sd.RECEIPT_TRANSIENT_MAX + 1))), 'send_receipt_rpc')
+
+    def test_access_list_must_be_empty(self):
+        real = sd.decode
+        with mock.patch.object(sd, 'decode', lambda raw: dict(real(raw), accessList=[{'address': '0x' + '44' * 20, 'storageKeys': []}])):
+            self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_signed_accessList')
+        self.assertEqual(self.sent, [])
+
+    def test_log_topics_are_validated(self):
+        bad = [{'address': '0x' + '55' * 20, 'topics': [SECRET], 'data': '0x'}]
+        with self.assertRaises(ex.Gate) as c:
+            self.run_send(Chain(), receipt_edit=lambda r: r.__setitem__('logs', bad))
+        self.assertEqual(cause(c.exception), 'send_provider_logTopic')
+        self.assertNotIn('NEVER_PRINT_THIS', json.dumps(c.exception.record))
+
+    def test_decoded_json_is_an_allowlist(self):
+        real = sd.decode
+        with mock.patch.object(sd, 'decode', lambda raw: dict(real(raw), extra=SECRET)):
+            self.run_send(Chain())
+        decoded = json.loads((self.args.out / 'decoded.json').read_text())
+        self.assertEqual(sorted(decoded), sorted(sd.DECODED_FIELDS))
+
+    def test_confirmation_needs_a_terminal(self):
+        with mock.patch('builtins.open', side_effect=OSError('no tty')):
+            with self.assertRaises(ex.Gate) as c:
+                sd.tty_confirm('x')
+        self.assertEqual(c.exception.record['gate'], 'send_no_tty')
+        # run() without an injected confirm uses the terminal reader.
+        with mock.patch.object(sd, 'tty_confirm', side_effect=ex.Gate('send_no_tty', 'x', 'y')), \
+                self.gate([TX, TX]), self.broadcast(Chain(), TX):
+            with self.assertRaises(ex.Gate) as c:
+                sd.run(self.args, Chain(), SECRET)
+        self.assertEqual(c.exception.record['gate'], 'send_no_tty')
+        self.assertEqual(self.sent, [])
+    def test_attempt_record_precedes_transmission(self):
+        real = ex.write_json
+        def fail_attempt(path, data):
+            if path.name == 'broadcast.json':
+                raise OSError('disk full')
+            return real(path, data)
+        with mock.patch.object(ex, 'write_json', fail_attempt):
+            with self.assertRaises(OSError):
+                self.run_send(Chain())
+        self.assertEqual(self.sent, [])  # the attempt could not be recorded, so nothing was transmitted
+
+    def test_evidence_writes_after_broadcast_never_stop_monitoring(self):
+        real = ex.write_json
+        calls = []
+        def fail_after(path, data):
+            calls.append(path.name)
+            if path.name == 'broadcast.json' and calls.count('broadcast.json') > 1:
+                raise OSError('disk full')
+            if path.name in ('receipt.json', 'result.json'):
+                raise OSError('disk full')
+            return real(path, data)
+        chain = Chain()
+        with mock.patch.object(ex, 'write_json', fail_after), mock.patch('sys.stderr'):
+            result = self.run_send(chain)
+        self.assertEqual(result['status'], 'SENT')
+        self.assertIn('eth_getTransactionReceipt', [m for m, _ in chain.calls])
+
+    def test_failure_record_falls_back_to_stderr(self):
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        out = self.d / 'fallback'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        real = ex.write_json
+        def no_failure_file(path, data):
+            if path.name == 'FAILURE.json':
+                raise OSError('disk full')
+            return real(path, data)
+        err = io.StringIO()
+        chain = Chain()
+        with self.gate([TX, TX]), self.broadcast(chain, TX, status='0x0'), mock.patch.object(ex, 'RPC', lambda url: chain), \
+                mock.patch.object(sd, 'tty_confirm', lambda prompt: 'SEND S5a ' + SHA[:12]), \
+                mock.patch.object(ex, 'write_json', no_failure_file), mock.patch('sys.stdout'), mock.patch('sys.stderr', err):
+            self.assertEqual(sd.main(argv), 1)
+        self.assertIn(keccak(self.sent[0]), err.getvalue())
+        self.assertNotIn('NEVER_PRINT_THIS', err.getvalue())
+
+    def test_tty_confirmation_on_a_real_pty(self):
+        import pty, threading
+        master, slave = pty.openpty()
+        try:
+            with mock.patch.object(sd, 'TTY_PATH', os.ttyname(slave)):
+                got = {}
+                t = threading.Thread(target=lambda: got.setdefault('line', sd.tty_confirm('Type it: ')), daemon=True)
+                t.start()
+                import select, time as _t
+                prompt, deadline = b'', _t.monotonic() + 5
+                while not prompt.endswith(b'Type it: ') and _t.monotonic() < deadline:
+                    if select.select([master], [], [], 0.1)[0]:
+                        prompt += os.read(master, 64)
+                self.assertTrue(prompt.endswith(b'Type it: '), 'prompt never reached the terminal')
+                os.write(master, b'SEND S5a abc\n')
+                t.join(5)
+            self.assertFalse(t.is_alive(), 'tty_confirm did not return')
+            self.assertEqual(got['line'].strip(), 'SEND S5a abc')
+        finally:
+            os.close(master)
+            os.close(slave)
+    def test_monitoring_survives_a_failing_stderr(self):
+        class Broken:
+            def write(self, *a): raise OSError('disk full')
+            def flush(self): raise OSError('disk full')
+        real = ex.write_json
+        seen = []
+        def fail_update(path, data):
+            seen.append(path.name)
+            if path.name == 'broadcast.json' and seen.count('broadcast.json') == 2:  # the post-broadcast update
+                raise OSError('disk full')
+            return real(path, data)
+        chain = Chain()
+        with mock.patch.object(ex, 'write_json', fail_update), mock.patch('sys.stderr', Broken()):
+            result = self.run_send(chain)
+        self.assertEqual(result['status'], 'SENT')
+        # The fault is injected before the first receipt poll, so any poll proves monitoring went on after it.
+        self.assertEqual(seen.count('broadcast.json'), 2)
+        self.assertIn('eth_getTransactionReceipt', [m for m, _ in chain.calls])
+
+    def test_ctrl_c_after_the_attempt_names_the_hash(self):
+        def interrupted(url, raw):
+            self.sent.append(raw)
+            raise KeyboardInterrupt
+        def outcome(fn):
+            try:  # a KeyboardInterrupt escaping run() must fail this test, not kill the runner
+                fn()
+            except BaseException as e:
+                self.assertIsInstance(e, ex.Gate)
+                return e
+            self.fail('no failure raised')
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', interrupted):
+            e = outcome(lambda: sd.run(self.args, Chain(), SECRET, confirm=self.confirm()))
+        obs = e.record['observed']
+        self.assertEqual((e.record['gate'], obs['cause'], obs['broadcast'], obs['hash']),
+                         ('send_after_broadcast', 'interrupted', 'unknown', keccak(self.sent[0])))
+        self.clear_out()
+        class Polling(Chain):
+            def __call__(self, method, params):
+                if method == 'eth_getTransactionReceipt':
+                    raise KeyboardInterrupt
+                return super().__call__(method, params)
+        e = outcome(lambda: self.run_send(Polling()))
+        self.assertEqual((e.record['gate'], e.record['observed']['cause']), ('send_after_broadcast', 'interrupted'))
+
+    def test_broken_stdout_after_success_is_not_a_failure(self):
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        out = self.d / 'stdout'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        class Broken:
+            def write(self, *a): raise BrokenPipeError
+            def flush(self): raise BrokenPipeError
+        chain = Chain()
+        with self.gate([TX, TX]), self.broadcast(chain, TX), mock.patch.object(ex, 'RPC', lambda url: chain), \
+                mock.patch.object(sd, 'tty_confirm', lambda prompt: 'SEND S5a ' + SHA[:12]), mock.patch('sys.stdout', Broken()):
+            self.assertEqual(sd.main(argv), 0)
+        self.assertTrue((out / 'result.json').exists())
+        self.assertFalse((out / 'FAILURE.json').exists())
+
+    def test_hex_url_key_reflected_in_a_receipt_is_refused(self):
+        key = '0a1b2c3d4e5f6a7b8c9d'
+        url = 'https://eth-sepolia.example.invalid/v2/' + key
+        logs = [{'address': '0x' + '55' * 20, 'topics': [], 'data': '0x' + key}]
+        with self.assertRaises(ex.Gate) as c:
+            self.run_send(Chain(), url=url, receipt_edit=lambda r: r.__setitem__('logs', logs))
+        self.assertEqual(cause(c.exception), 'send_provider_leak')
+        self.assertFalse((self.args.out / 'receipt.json').exists())
+    def test_closed_stdout_pipe_keeps_exit_status_zero(self):
+        code = ('import sys; sys.path.insert(0, %r); import a3a_send as sd; '
+                'sd.report("SENT", sys.stdout); sys.exit(0)' % str(HERE))
+        p = subprocess.Popen([sys.executable, '-B', '-c', code], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p.stdout.close()  # the reader is gone before anything is written
+        _, err = p.communicate(timeout=30)
+        self.assertEqual(p.returncode, 0, err.decode()[-500:])
+
+    def test_closed_stderr_pipe_after_a_failed_evidence_write_keeps_exit_zero(self):
+        code = ('import sys; from pathlib import Path; sys.path.insert(0, %r); import a3a_send as sd\n'
+                'def fail(p): raise OSError("disk full")\n'
+                'sd.note(Path("signed.raw"), fail); sd.report("SENT", sys.stdout); sys.exit(0)' % str(HERE))
+        p = subprocess.Popen([sys.executable, '-B', '-c', code], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p.stderr.close()
+        out, _ = p.communicate(timeout=30)
+        self.assertEqual((p.returncode, out.strip()), (0, b'SENT'))
+
+    def test_url_key_variants_are_refused(self):
+        key = '0a1b2c3d4e5f6a7b8c9d'
+        logs = [{'address': '0x' + '55' * 20, 'topics': [], 'data': '0x' + key}]
+        for url in ('https://eth-sepolia.example.invalid/v2/' + key.upper(),
+                    'https://eth-sepolia.example.invalid/v2/%30' + key[1:]):
+            with self.subTest(url=url):
+                self.clear_out()
+                with self.assertRaises(ex.Gate) as c:
+                    self.run_send(Chain(), url=url, receipt_edit=lambda r: r.__setitem__('logs', logs))
+                self.assertEqual(cause(c.exception), 'send_provider_leak')
+        self.assertEqual(sd.scrub('0x' + key, 'https://x.invalid/' + key.upper()), '<redacted 22 chars>')
+    # --- review #548 ---
+
+    def test_failure_json_keeps_outcome_and_cause(self):
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        out = self.d / 'kept'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        def lost(url, raw):
+            self.sent.append(raw)
+            raise ex.Gate('send_broadcast_transport', 'TimeoutError', 'JSON-RPC response')
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', lost), mock.patch.object(ex, 'RPC', lambda url: Chain()), \
+                mock.patch.object(sd, 'tty_confirm', lambda prompt: 'SEND S5a ' + SHA[:12]), \
+                mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'), \
+                mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            self.assertEqual(sd.main(argv), 1)
+        obs = json.loads((out / 'FAILURE.json').read_text())['observed']
+        # Code-sourced metadata kept; the provider's free-text value is not (it cannot be told from a secret).
+        self.assertEqual(obs, {'hash': keccak(self.sent[0]), 'broadcast': 'unknown',
+                               'provider': {'gate': 'send_broadcast_transport', 'observed': '<redacted 12 chars>'},
+                               'cause': 'send_receipt_timeout', 'causeObserved': keccak(self.sent[0])})
+        saved = json.loads((out / 'broadcast.json').read_text())
+        self.assertEqual((saved['outcome'], saved['provider']['gate']), ('unknown', 'send_broadcast_transport'))
+
+    def test_scrub_strings_integers_and_trusted_metadata(self):
+        url = 'https://eth-sepolia.example.invalid/v2/deadbeefdeadbeefdeadbeefdeadbeef'
+        key_int = int('deadbeefdeadbeefdeadbeefdeadbeef', 16)
+        self.assertEqual(sd.scrub(key_int, url), '<redacted int>')
+        self.assertEqual(sd.scrub(7, url), 7)
+        # Any non-hex string is redacted, including an identifier-shaped secret that is not in the URL.
+        for s in ('AbC123SecretToken987', 'TimeoutError', 'deadbeefdeadbeefdeadbeefdeadbeef'):
+            self.assertEqual(sd.scrub(s, url), '<redacted %d chars>' % len(s))
+        # Gate names and the outcome come from code and are kept by failure_record, never a URL token.
+        rec = {'status': 'FAILURE', 'gate': 'send_after_broadcast', 'expected': 'x',
+               'observed': {'hash': '0x' + 'ab' * 32, 'broadcast': 'unknown', 'cause': 'S3_totalSupply()',
+                            'causeObserved': 'AbC123SecretToken987',
+                            'provider': {'gate': 'send_broadcast_rejected', 'observed': key_int}}}
+        out = sd.failure_record(rec, 'S5a', url)['observed']
+        self.assertEqual((out['broadcast'], out['cause'], out['provider']['gate']),
+                         ('unknown', 'S3_totalSupply()', 'send_broadcast_rejected'))
+        self.assertEqual((out['causeObserved'], out['provider']['observed']), ('<redacted 20 chars>', '<redacted int>'))
+        self.assertEqual(sd.trusted_gate('deadbeefdeadbeefdeadbeefdeadbeef', url), '<redacted>')
+        self.assertEqual(sd.failure_record(dict(rec, observed=dict(rec['observed'], broadcast='evil')), 'S5a', url)
+                         ['observed']['broadcast'], '<redacted>')
+
+    def test_broadcast_json_scrubs_the_provider_value(self):
+        key = '12345678901234567890'
+        url = 'https://eth-sepolia.example.invalid/v2/' + key
+        def refused(u, raw):
+            self.sent.append(raw)
+            raise ex.Gate('send_broadcast_rejected', int(key), 'transaction hash')  # code echoing the key
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', refused), \
+                mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'):
+            with self.assertRaises(ex.Gate):
+                sd.run(self.args, Chain(), url, confirm=self.confirm())
+        text = (self.args.out / 'broadcast.json').read_text()
+        self.assertNotIn(key, text)
+        self.assertEqual(json.loads(text)['provider'], {'gate': 'send_broadcast_rejected', 'observed': '<redacted int>'})
+
+    def test_mined_transaction_must_be_in_the_receipt_block(self):
+        for k, v in (('blockHash', '0x' + '98' * 32), ('blockNumber', hex(12000001)), ('blockNumber', None)):
+            with self.subTest(field=k, value=v):
+                self.clear_out()
+                gate = self.gate_name(lambda: self.run_send(Chain(), mined_edit=lambda m: m.__setitem__(k, v)))
+                self.assertIn(gate, ('send_mined_' + k, 'send_provider_' + k))
+
+    def test_receipt_is_kept_when_the_mined_check_fails(self):
+        with mock.patch.object(sd, 'check_mined', side_effect=ex.Gate('rpc_transport', 'TimeoutError', 'x')):
+            with self.assertRaises(ex.Gate):
+                self.run_send(Chain())
+        self.assertTrue((self.args.out / 'receipt.json').exists())
+
+    def test_report_after_fd_closed_keeps_exit_zero(self):
+        code = ('import os, sys; sys.path.insert(0, %r); import a3a_send as sd; os.close(1); '
+                'sd.report("SENT", sys.stdout); sys.exit(0)' % str(HERE))
+        p = subprocess.run([sys.executable, '-B', '-c', code], capture_output=True, timeout=30)
+        self.assertEqual(p.returncode, 0, p.stderr.decode()[-400:])
+    def test_provider_dict_keys_are_not_kept(self):
+        url = 'https://x.invalid/v2/abcdefabcdef'
+        self.assertEqual(sd.scrub({'removed': {'ProviderSecretNotInURL': False}}, url), {'<key 0>': {'<key 0>': False}})
+
+    def test_decimal_form_of_a_receipt_quantity_cannot_leak(self):
+        key = '123456'
+        url = 'https://x.invalid/v2/' + key
+        self.assertFalse(sd.leak_free({'gasUsed': int(key)}, url))
+        self.assertFalse(sd.leak_free({'gasUsed': hex(int(key))}, url))  # "0x1e240" serializes as 123456
+        self.assertTrue(sd.leak_free({'gasUsed': 135104, 'hash': '0x' + 'ab' * 32}, url))
+        chain = Chain()
+        result = self.run_send(chain, url=url, gas_used=int(key))
+        placeholder = {'redacted': 'contained an RPC URL token', 'hash': keccak(self.sent[0])}
+        self.assertEqual(result, placeholder)
+        # receipt.json stores gasUsed as "0x1e240" (whose decimal form is the key): the guard must replace it,
+        # which a plain substring check on the file would not show.
+        for name in ('result.json', 'receipt.json'):
+            self.assertEqual(json.loads((self.args.out / name).read_text()), placeholder, name)
+
+    def test_failure_record_final_check(self):
+        url = 'https://x.invalid/v2/123456'
+        rec = {'status': 'FAILURE', 'gate': 'send_after_broadcast', 'expected': 'x',
+               'observed': {'hash': '0x' + 'ab' * 32, 'broadcast': 'unknown', 'cause': 'x', 'causeObserved': 123456}}
+        self.assertNotIn('123456', json.dumps(sd.failure_record(rec, 'S5a', url)))
+        # Defence in depth: if failure_record ever let a token through, main() still writes only the placeholder.
+        rpc = self.d / 'rpc'
+        rpc.write_text(url)
+        out = self.d / 'final'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', 'cd' * 32, '--step', 'S1', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        with mock.patch.object(sd, 'failure_record', lambda record, step, u: dict(record, leaked=123456)), \
+                mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            self.assertEqual(sd.main(argv), 1)
+        text = (out / 'FAILURE.json').read_text()
+        self.assertNotIn('123456', text)
+        self.assertEqual(json.loads(text)['redacted'], 'contained an RPC URL token')
+        # A provider-sourced hash in another gate's observed value is not carried into the placeholder.
+        shutil.rmtree(out)
+        leaky = ex.Gate('role_log_removed', {'hash': '0x123456' + '0' * 58, 'code': '0x1e240'}, 'x')
+        with self.gate([leaky]), mock.patch.object(ex, 'RPC', lambda u: Chain()), mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            argv[argv.index('--reviewed-plan-sha256') + 1] = SHA
+            self.assertEqual(sd.main(argv), 1)
+        text = (out / 'FAILURE.json').read_text()
+        self.assertNotIn('123456', text)
+        self.assertIsNone(json.loads(text)['hash'])
+    # --- review #548 round 2 ---
+
+    def test_large_log_data_does_not_turn_a_success_into_a_failure(self):
+        big = [{'address': '0x' + '55' * 20, 'topics': ['0x' + '01' * 32], 'data': '0x' + 'ff' * 2000}]
+        result = self.run_send(Chain(), receipt_edit=lambda r: r.__setitem__('logs', big))
+        self.assertEqual(result['status'], 'SENT')
+        self.assertEqual(json.loads((self.args.out / 'receipt.json').read_text())['logs'][0]['data'], '0x' + 'ff' * 2000)
+
+    def test_leak_free_is_iterative_and_fail_closed(self):
+        url = 'https://x.invalid/v2/abcdefabcdef'
+        deep = 0
+        for _ in range(5000):  # built iteratively: json.loads itself would recurse
+            deep = [deep]
+        self.assertTrue(sd.leak_free({'x': deep}, url))
+        class Hostile:
+            def __str__(self): raise RuntimeError('boom')
+        self.assertFalse(sd.leak_free({'x': Hostile()}, url))
+        self.assertEqual(sd.guard({'x': Hostile()}, url, '0x' + 'ab' * 32), {'redacted': 'contained an RPC URL token', 'hash': '0x' + 'ab' * 32})
+
+    def test_leak_free_int_hex_form_and_0x_tokens(self):
+        url = 'https://x.invalid/v2/abcdef123456'
+        self.assertFalse(sd.leak_free({'x': int('abcdef123456', 16)}, url))  # only its hex form shows the key
+        url0x = 'https://x.invalid/v2/0xdeadbeef12'
+        self.assertFalse(sd.leak_free({'x': 0xdeadbeef12}, url0x))
+        self.assertEqual(sd.scrub(0xdeadbeef12, url0x), '<redacted int>')
+
+    def test_broadcast_json_guard_holds_even_if_scrub_misses(self):
+        key = '12345678901234567890'
+        url = 'https://eth-sepolia.example.invalid/v2/' + key
+        def refused(u, raw):
+            self.sent.append(raw)
+            raise ex.Gate('send_broadcast_rejected', int(key), 'transaction hash')
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', refused), mock.patch.object(sd, 'scrub', lambda v, u: v), \
+                mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'):
+            with self.assertRaises(ex.Gate):
+                sd.run(self.args, Chain(), url, confirm=self.confirm())
+        self.assertEqual(json.loads((self.args.out / 'broadcast.json').read_text()),
+                         {'redacted': 'contained an RPC URL token', 'hash': keccak(self.sent[0])})
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.
@@ -544,6 +1019,9 @@ class SenderS7Integration(unittest.TestCase):
             value = chain(method, params, error_ok=error_ok)
             if method == 'eth_getTransactionReceipt' and isinstance(value, dict):
                 value = dict(value, blockHash='0x' + '34' * 32)
+            if method == 'eth_getTransactionByHash' and isinstance(value, dict):
+                rc = chain('eth_getTransactionReceipt', params)
+                value = dict(value, blockHash='0x' + '34' * 32, blockNumber=rc['blockNumber'])
             return value
         with mock.patch.object(sd, 'signed', fake_signed), mock.patch.object(sd, 'broadcast', fake_broadcast), \
                 mock.patch.object(sd, 'LOCK_PATH', self.lock), mock.patch.object(ex, 'readback', readback), \
@@ -565,7 +1043,7 @@ class SenderS7Integration(unittest.TestCase):
             chain.state['pending'] = self.plan['pin']['sp']['pendingAPNTsToken']
         with self.assertRaises(ex.Gate) as c:
             self.send(after_mine=undo)
-        self.assertTrue(c.exception.record['gate'].startswith('S7_'), c.exception.record['gate'])
+        self.assertTrue(cause(c.exception).startswith('S7_'), c.exception.record)
 
 
 if __name__ == '__main__':

@@ -404,10 +404,12 @@ write method. The sender's one write call is its own `broadcast()`.
 One invocation sends **one** step. It is run by the operator in a terminal: `cast` asks for the keystore
 password, and the operator types the confirmation string. The author chose Foundry keystores (`cast wallet
 import`) on 2026-10-27. The step's sender role (deployer, approver or executor) is mapped to a keystore name by a
-JSON file. No key material appears in argv, the environment or the logs.
+JSON file. No key material appears in argv, the environment or the logs. The confirmation is read from
+`/dev/tty`; without a controlling terminal the run stops (`send_no_tty`), so piped or redirected input cannot
+confirm.
 
 Each of these is a hard stop. Nothing leaves the process unless every earlier one passed:
-0. A machine-wide `flock` is taken before the output directory is checked or written, so a second concurrent
+0. A per-user `flock` (`~/.a3a_send.lock`) is taken before the output directory is checked or written, so a second concurrent
    sender run is refused. The output directory is private (0700, umask 077). The plan is read once. Its sha256
    must equal the reviewed digest given out-of-band, and every later step reads a snapshot of those bytes.
 1. `signing_transaction` on the snapshot, including `pre_send`.
@@ -429,15 +431,58 @@ Each of these is a hard stop. Nothing leaves the process unless every earlier on
 
    After S7, the final `readback` runs on the allowlisted receipt.
 
+**Around broadcast.**
+- `broadcast.json` with `outcome: attempting` and the hash is written **before** anything is transmitted. If that
+  write fails, nothing is sent.
+- The outcome is then recorded as:
+  - `accepted`: the provider returned the signed hash;
+  - `accepted_hash_mismatch`: it returned another hash;
+  - `unknown`: anything else, meaning a timeout, a dropped connection, a malformed reply, or an error reply such
+    as "already known" or "nonce too low". The provider's code is kept as the reason.
+- None of these proves the transaction is absent from every mempool, so in every case the run monitors the
+  locally computed hash. Up to 10 consecutive transient RPC failures are tolerated.
+- Evidence writes after broadcast are best effort, so a full disk never stops monitoring. This holds even when
+  stderr itself cannot be written.
+- Every exit, Ctrl-C included (`interrupted`), ends as `send_after_broadcast`, with the hash, the outcome and the
+  cause. A hash mismatch is reported as a failure even when the signed transaction was mined.
+- Receipt strings are refused if they contain a token of the RPC URL (raw or percent-decoded, compared
+  case-insensitively). A hex-encoded key passes format checks, so
+  without this it could be stored.
+- A broken stdout after a successful send does not turn it into a failure, because `result.json` already holds
+  the result.
+- If even `FAILURE.json` cannot be written, the scrubbed record goes to stderr.
+- The broadcast is an explicit write transport. It reuses `ex.RPC`'s wall-clock total deadline but not
+  `ex.RPC.__call__`, so a stalled provider cannot hold the lock.
+
 A transaction that is not mined within 600 s is reported. It is never re-sent or repriced; doing either needs a
 new review. Each step's artefacts are written to its own empty `--out`: `unsigned.json`, `signed.raw`,
-`decoded.json` (without the signature), `receipt.json` and `result.json`, or `FAILURE.json` on a stop. `FAILURE.json`
+`decoded.json` (an allowlist of fields, never the signature), `broadcast.json`, `receipt.json` and `result.json`, or `FAILURE.json` on a stop. `FAILURE.json`
 is written while the lock is still held. Its `observed` and `expected` values are scrubbed, because gates
-inherited from `a3a_exec` can put raw provider output in either. Only numbers, booleans, short 0x-hex and
-short identifier keys survive, minus anything that contains a token of the RPC URL.
+inherited from `a3a_exec` can put raw provider output in either.
+- The values that survive are booleans, short 0x-hex and integers. An integer is checked in both decimal and
+  hex.
+- Anything containing a token of the RPC URL is dropped.
+- Every other string is replaced, because a provider value cannot be told apart from code text.
+- Code-sourced metadata is kept explicitly: the gate name, the `send_after_broadcast` outcome (one of a fixed
+  set), its `cause` and `provider.gate`.
+- `broadcast.json` stores the provider value under the same rules. Dict keys survive only if they are known record
+  keys.
+- A final check runs on every artefact built from provider values before it is written or printed:
+  `broadcast.json` (after the attempt), `receipt.json`, `result.json` and stdout, and `FAILURE.json` with its
+  stderr fallback.
+  - It looks at every key, every string, and every integer in decimal and hex, including the decimal form of
+    hex quantities up to 32 bytes. Longer hex, such as log data, is checked as text.
+  - It is iterative, so nesting depth cannot raise.
+  - It fails closed: anything unexpected counts as a leak.
+  - A hit replaces the artefact with `{redacted, hash}`.
+- `unsigned.json`, `decoded.json` and `plan.reviewed.json` are built from the reviewed plan and the local
+  signature, not from provider data, so this check does not run on them.
+- A `0x`-prefixed URL fragment is also matched without the prefix.
+- URL fragments shorter than six characters are not protected: shorter thresholds collide with ordinary
+  numbers, and provider keys are far longer.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 27 offline tests.
+`test_a3a_send.py` has 60 offline tests, including a real PTY for the `/dev/tty` confirmation.
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.
@@ -451,7 +496,7 @@ short identifier keys survive, minus anything that contains a token of the RPC U
 Not yet covered:
 - An end-to-end run against a local fork with real keystores.
 - The S5/S6 Safe flow live.
-- The lock is per machine: two machines sharing one key are out of its reach.
+- The lock is per user (HOME): another user, or another machine, sharing one key is out of its reach.
 
 ## Offline verification
 
