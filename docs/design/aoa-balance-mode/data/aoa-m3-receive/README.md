@@ -68,14 +68,14 @@ control must report no error. The duplicate-UserOp control reuses a hash across 
 at exactly one SP/VPM/TPM, so duplicate detection is the only rule it can trip. The tamper edits are in
 `script/a6-collector/aoa-m3-tamper.py`.
 
-**Exporter-level controls** are in `script/a6-collector/to-aoa-m3-receive.test.mjs`, 17 tests, all passing.
+**Exporter-level controls** are in `script/a6-collector/to-aoa-m3-receive.test.mjs`, 18 tests, all passing.
 They cover:
 - UOE deleted from a success row;
 - collector summary disagreeing with its log (`actualGasCost`, `actualGasUsed`, `success`);
 - an inconsistent archive;
 - passport (pin) drift and a missing passport;
 - an unmatched triplet;
-- inconsistent gas evidence on any arm, and non-decimal receipt numbers;
+- inconsistent gas evidence on any arm (including an unreachable maxFee cap), and non-decimal receipt numbers;
 - non-canonical address topics;
 - a differing arm made visible to the checker, and a non-passport account;
 - fixture rows kept;

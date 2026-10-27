@@ -43,14 +43,16 @@ const num = (v, what) => (typeof v === 'string' && DECIMAL.test(v)) ? BigInt(v) 
 
 // EntryPoint v0.7 charges actualGasCost = actualGasUsed * min(maxFeePerGas, basefee + maxPriorityFeePerGas).
 // The basefee is not in the row, so the check is: cost is an exact multiple of a positive gasUsed, the per-gas price
-// is at most maxFeePerGas, and unless capped at maxFee it implies a basefee in [0, the bundle tx's effective price].
+// is at most maxFeePerGas, and it implies a basefee in [0, the bundle tx's effective price] (when capped at maxFee:
+// a basefee of at least maxFee - priority, so maxFee <= priority + that price).
 export function gasConsistent(uoe, gas, txEffectivePrice) {
   const cost = BigInt(uoe.actualGasCost), used = BigInt(uoe.actualGasUsed);
   const maxFee = num(gas.maxFeePerGas, 'maxFeePerGas'), prio = num(gas.maxPriorityFeePerGas, 'maxPriorityFeePerGas');
   if (used <= 0n || cost % used !== 0n) return false;
   const price = cost / used;
   if (price > maxFee) return false;
-  if (price === maxFee) return true;
+  // Capped at maxFee needs basefee + priority >= maxFee, and basefee <= the bundle tx's effective price.
+  if (price === maxFee) return maxFee <= prio + txEffectivePrice;
   const basefee = price - prio;
   return basefee >= 0n && basefee <= txEffectivePrice;
 }

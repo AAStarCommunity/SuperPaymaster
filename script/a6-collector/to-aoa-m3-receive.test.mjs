@@ -169,6 +169,25 @@ test('gas evidence must be consistent on every arm', () => {
   refused(rows, /inconsistent with the op's fee caps/);
 });
 
+test('a price capped at maxFeePerGas must be reachable', () => {
+  const rows = rowsOf('positive.jsonl');
+  const r = rows.find((x) => x.kind === 'attempt' && x.arm === 'VPM');
+  const l = uoeLog(r);
+  const used = BigInt('0x' + l.data.slice(2 + 192, 2 + 256));
+  const cost = used * BigInt(r.gas.maxFeePerGas);  // 20 gwei: needs basefee >= 18 gwei, but the tx paid ~1 gwei
+  l.data = setWord(l.data, 2, cost.toString(16).padStart(64, '0'));
+  r.userOpEvent.actualGasCost = cost.toString();
+  refused(rows, /inconsistent with the op's fee caps/);
+  // Reachable cap: same cost with a bundle price high enough for that basefee.
+  const ok = rowsOf('positive.jsonl');
+  const v = ok.find((x) => x.kind === 'attempt' && x.arm === 'VPM');
+  const lv = uoeLog(v);
+  lv.data = setWord(lv.data, 2, cost.toString(16).padStart(64, '0'));
+  v.userOpEvent.actualGasCost = cost.toString();
+  v.tx.effectiveGasPrice = (BigInt(v.gas.maxFeePerGas) - BigInt(v.gas.maxPriorityFeePerGas)).toString();
+  assert.equal(exportRows(ok).attempts.filter((a) => a.included).length, 3);
+});
+
 test('receipt numbers must be decimal strings', () => {
   for (const [field, value] of [['gasUsed', false], ['effectiveGasPrice', false], ['gasUsed', '0x10'], ['gasUsed', '0']]) {
     const rows = rowsOf('positive.jsonl');
