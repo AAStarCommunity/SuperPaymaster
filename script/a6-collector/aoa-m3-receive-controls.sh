@@ -20,9 +20,13 @@ ERRDIR=$(mktemp -d); trap 'rm -rf "$ERRDIR"' EXIT  # checker stderr captures; re
 verdict() { # checker-json required-diagnostic -> "diagnostic-ok<TAB>status<TAB>first-error"
   python3 - "$1" "$2" <<'PY'
 import json, sys
-d = json.loads(sys.argv[1]); want = sys.argv[2]; errs = d.get("errors", [])
+try:
+    d = json.loads(sys.argv[1]); errs = d.get("errors", []); status = d["status"]
+except Exception:  # no or garbled verdict: record the row as failed instead of aborting the whole run
+    print(False, "NO_JSON", "", sep="\t"); sys.exit(0)
+want = sys.argv[2]
 ok = any(want in e for e in errs) if want else not errs
-print(ok, d["status"], errs[0] if errs else "", sep="\t")  # first-error last: may be empty
+print(ok, status, errs[0] if errs else "", sep="\t")  # first-error last: may be empty
 PY
 }
 
