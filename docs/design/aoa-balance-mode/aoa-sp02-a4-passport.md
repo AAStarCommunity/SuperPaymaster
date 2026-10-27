@@ -73,7 +73,7 @@
 | 用户 xPNTs 余额 / 锁定 | `balanceOf(u)`、`lockedOf(u)`、`lockOf(opHash,u)` → (xLocked, aReserved, locker) | ⚠️ 逐 op 读了前两项；`lockOf` 只保留 `xLocked`，丢了 `aReserved` 和 `locker`（`collector.mjs:312`） |
 | 用户预算 | `autoAllowance(u, SP)` → (cap, used)；`userTotal(u)` → (cap, used)；`autoRenewUsed(u)`、`renewalMode(u)`、`spenderDisabled(SP,u)` | ❌ 只在 setup 里写，Passport 不读 |
 | 债务 / 信用预留 | `debts(u)`、`creditReservedOf(u)`、`creditReservationOf(opHash,u)` | ⚠️ 读前两项，缺第三项 |
-| 防重放 | `usedOpHashes(opHash)` | ❌ |
+| 代币侧已用 opHash 标记 | `usedOpHashes(opHash)`（XB:126；只在结算时写，合约里没有任何读取，**不构成防重放**） | ❌ |
 | operator | `operators(op)` → aPNTsBalance、isConfigured、isPaused、xPNTsToken、reputation、minTxInterval、treasury、totalSpent、totalTxSponsored | ⚠️ 读了大部分；缺 reputation、treasury |
 | 协议收入 / 跟踪池 | `protocolRevenue()`、`totalTrackedBalance()` | ⚠️ 读 `protocolRevenue`，缺 `totalTrackedBalance` |
 | EP ETH | `EntryPoint.balanceOf(pm)`、`getDepositInfo(pm)` | ✅ |
@@ -86,7 +86,7 @@
 
 SP 没有全局 credit 开关；`MODE_CREDIT` 只是逐 op 的内部模式。credit 由**每个代币**的 `creditPolicy` 控制：
 `POLICY_OFF = 0`（XB:43-45），OFF 时 `effectiveCreditCap` 恒为 0（XT:337-339）。`creditPolicy` 唯一写入点是执行排队的
-policy（XE:174），初值为 0，且工厂部署时断言 `creditPolicy() == 0`（XF:329-330）。
+policy（XE:174），初值为 0，且工厂部署时断言 `creditPolicy() == 0`（XF:330；整条条件在 XF:324-331，不满足时 XF:332 revert `InitializationFailed`）。
 
 对窗口内要用到的每个代币 t、每个协议控制的用户 u，在固定块 B（开窗前与收窗后各一次）：
 
@@ -122,7 +122,7 @@ credit OFF：前两者管的是声誉抬升的额度，不管代币准入；后�
 | A4-G2 | 不读 Safe、Timelock、owner、pendingOwner、guardian、aPNTs 的 minter/capGuardian/cap | 治理漂移不可见 | 按 §1.2 补读，列入 `invariant` 做漂移检查。同 A4-G3 的限制：首尾快照相同不排除窗口内改了又改回。要排除，须给 §1.2 **每个**字段指定它的全部写入事件并对整个窗口扫描（双归档端点 + 正对照）；补读 PR 要附这张「字段 → 事件」表，并逐项从源码核对写入点。下列只是例子、**不是完整清单**：Timelock `RoleGranted`/`RoleRevoked`/`MinDelayChange`，owner 的 `OwnershipTransferStarted`/`OwnershipTransferred`，代币 `CommunityOwnerUpdated`，SP `GuardianSet`，aPNTs `MinterSet`/`CapGuardianSet`/`CapRaised`/`CapLowered`，Safe 的 owner、threshold、module、guard 变更事件 |
 | A4-G3 | 不读协议注册表封印和批准状态 | 无法证明窗口内没有新增 SP 或实现获批 | 按 §1.3 补读快照；但快照只说明被查的键在被查的块上的状态：窗口内「批准→撤销」前后快照相同，没查的键也看不到。要说「窗口内没有新的批准」，须对整个窗口扫 `ApprovalProposed` / `ApprovalExecuted` / `ApprovalRevoked` / `Sealed`（双归档端点 + 正对照），否则只能写成「这些键在开窗与收窗时的状态」 |
 | A4-G4 | 不读用户预算 `autoAllowance`、`userTotal` | budget/used 不进账本，守恒检查少一维 | 补进逐 op readbacks |
-| A4-G5 | 不读 `totalTrackedBalance`、`usedOpHashes`、operator reputation/treasury | SP 内部池与防重放不可审计 | 补读 |
+| A4-G5 | 不读 `totalTrackedBalance`、代币侧 `usedOpHashes`、operator reputation/treasury | SP 内部池不可审计；`usedOpHashes` 只写不读，补读只用于对账，不能当防线 | 补读 |
 | A4-G6 | Timelock 没有「全部待执行操作」的 getter；SP 没有 operator 枚举；代币没有用户枚举 | 「没有其它待执行操作」「全局无预留」只能靠日志对账 | 同 C7 的双归档端点扫描与正对照 |
 | A4-G7 | 运行时钉值缺合约源码树与配置的哈希 | Passport 绑定不到源码 | `run_start` 增加 `contracts/src` 树哈希与配置文件 SHA-256 |
 | A4-G9 | Ext 和价格源的 codehash 取自配置文件，不是链上实际绑定；`lockOf` 只存 `xLocked` | 配置与链上不一致时 Passport 仍显示一致；锁的 locker 不可审计 | 读代币 `EXTENSION()` 与 `SP.ETH_USD_PRICE_FEED()` 再哈希；`lockOf` 存全部三项 |
