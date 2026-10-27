@@ -241,3 +241,17 @@ Round-3 offline validation: local runs now require different RPC ports and the e
 `--allow-same-endpoint-local` override. Such runs are mechanism evidence with
 `protocolConformant: false`; the two local ports cannot establish provider independence.
 See [offline review](offline-review/README.md) for tampering controls and changed archive verdicts.
+
+## Export for DSR's M3 checker (`to-aoa-m3-receive.mjs`)
+
+`node script/a6-collector/to-aoa-m3-receive.mjs <run.jsonl> <empty-dir>` writes an `aoa-m3-receive-v1` package:
+`receive.json`, plus the raw per-attempt receipt, UOE and state files and the passport, each with its SHA-256.
+The input is DSR's `scripts/aoa_m3_check.py`. The collector JSONL stays the primary record; the package is a view
+of it.
+- It requires `validate.mjs` to report the run `consistent`.
+- It decodes each UserOperationEvent from the attempt's own logs and refuses the run if the collector's summary
+  disagrees. `validate.mjs` does not read that summary.
+- It never upgrades an attempt, and it keeps every exclusion with its reasons.
+
+Workbench run and controls: `docs/design/aoa-balance-mode/data/aoa-m3-receive/README.md`. Tests:
+`node --test script/a6-collector/to-aoa-m3-receive.test.mjs`.
