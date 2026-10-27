@@ -23,16 +23,21 @@ class Endpoint:
     def __call__(self, method, params):
         r, d = self.r, self.r["deployer"]
         blk, pin = r["receipt"]["blockNumber"], self.pin
+        if method == "eth_chainId":
+            return hex(r["chainId"])
         if method == "eth_getTransactionByHash":
             t = r["tx"]
             return {"hash": t["hash"], "from": t["from"], "to": t["to"], "nonce": hex(t["nonce"]),
-                    "value": hex(t["valueWei"]), "input": t["input"]}
+                    "value": hex(t["valueWei"]), "input": t["input"],
+                    "blockNumber": hex(t["blockNumber"]), "blockHash": t["blockHash"]}
         if method == "eth_getTransactionReceipt":
             rc = r["receipt"]
-            return {"status": rc["status"], "blockNumber": hex(rc["blockNumber"]), "blockHash": rc["blockHash"],
+            return {"transactionHash": rc["transactionHash"], "status": rc["status"],
+                    "blockNumber": hex(rc["blockNumber"]), "blockHash": rc["blockHash"],
                     "gasUsed": hex(rc["gasUsed"]), "logs": rc["logs"]}
         if method == "eth_getBlockByNumber":
-            return {"hash": r["canonicalBlockHash"]}
+            b = int(params[0], 16)
+            return {"hash": r["canonicalBlockHash"] if b == blk else r["pinBlockHash"]}
         b = int(params[1], 16)
         if method == "eth_getBalance":
             return hex({blk - 1: d["balanceBefore"], blk: d["balanceAt"], pin: d["balanceAtPin"]}[b])
@@ -81,6 +86,12 @@ class FundingControls(unittest.TestCase):
                               ["deployerNonceUnchanged"]),
             "later change": (lambda r: r["deployer"].__setitem__("balanceAtPin", r["deployer"]["balanceAtPin"] + 1),
                              ["noOtherBalanceChangeUntilPin"]),
+            "other chain": (lambda r: r.__setitem__("chainId", 1), ["chainMatchesPlan"]),
+            "other fork at pin": (lambda r: r.__setitem__("pinBlockHash", "0x" + "44" * 32), ["pinBlockHashMatchesPlan"]),
+            "tx hash swapped": (lambda r: (r["tx"].__setitem__("hash", "0x" + "55" * 32),
+                                           r["receipt"].__setitem__("transactionHash", "0x" + "55" * 32)), ["txIdentity"]),
+            "receipt of another tx": (lambda r: r["receipt"].__setitem__("transactionHash", "0x" + "66" * 32), ["txIdentity"]),
+            "tx block differs": (lambda r: r["tx"].__setitem__("blockHash", "0x" + "77" * 32), ["txIdentity"]),
             "delegated": (lambda r: r["deployer"].__setitem__("codeAtPin", "0xef0100" + "33" * 20), ["deployerHasNoCodeAtPin"]),
         }
         for name, (edit, want) in cases.items():
@@ -92,6 +103,7 @@ class FundingControls(unittest.TestCase):
         # The funding must precede the pin: a plan pinned at the funding block itself must fail only that check.
         plan = json.loads(PLAN.read_text())
         plan["pin"]["block"] = hex(RECORDED["reads"]["A"]["receipt"]["blockNumber"])
+        plan["pin"]["blockHash"] = RECORDED["reads"]["A"]["canonicalBlockHash"]  # the pin is now the funding block
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "plan.json"
             path.write_text(json.dumps(plan))

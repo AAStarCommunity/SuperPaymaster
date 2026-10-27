@@ -83,9 +83,9 @@ Endpoint A is Alchemy (archive) and endpoint B is the Tenderly public gateway. U
   - The receipt's only log is the Amsterdam EIP-7708 ETH-transfer log: emitter `0xff…fe`,
     `Transfer(executor, deployer, 10e18)`.
   - The executor balance in the plan pin is the balance after this transaction.
-  - Two endpoints, 10/10 checks: `funding-provenance.json`, from `script/evidence/a3a-funding-provenance.py`.
-    Its offline controls are in `script/evidence/test_a3a_funding_provenance.py` (5 tests, 13 negative cases;
-    setting each check to `True` turns the suite red).
+  - Two endpoints, 13/13 checks (bound to the plan's chain id and pin hash; tx, receipt and block identity cross-checked): `funding-provenance.json`, from `script/evidence/a3a-funding-provenance.py`.
+    Its offline controls are in `script/evidence/test_a3a_funding_provenance.py` (5 tests:  table cases plus pin-at-funding-block, endpoint divergence and same-endpoint refusal;
+    setting each of the 13 checks to `True` turns the suite red).
   - The funding is not a packet step.
 - **Pending values at plan time (DSR gap IG-03).** The archived packet does not record the `pending` nonces seen
   when the plan was built. They can only be inferred from the plan having been produced, because `plan` refuses
