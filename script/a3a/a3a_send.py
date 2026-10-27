@@ -10,24 +10,28 @@ Usage (run by the operator in a terminal: cast asks for the keystore password, a
     --step S1 --rpc-file <file holding the RPC URL> --accounts <json: {"deployer": "<keystore name>", ...}> \
     --out <new empty dir>
 
-Order of operations, each a hard stop on failure (nothing is broadcast unless every step before it passed):
-  1. a3a_exec.signing_transaction: reviewed sha256 (out-of-band, not the sidecar), frozen-plan validation,
-     Safe hash recheck for S5/S6, and pre_send (chain, code, predecessor readback, latest == pending == planned
-     nonce, Safe nonce, fresh estimateGas <= planned gas).
-  2. `cast mktx --account <name>` offline: no RPC in the signer's environment or argv; every field is given
-     explicitly from the plan (type 2, chain, nonce, gas, both fee caps, value, to or --create, data).
-  3. `cast decode-transaction` of the signed bytes: every field and the signer must equal the plan; empty
-     access list; no authorization list; the hash must equal web3_sha3(raw) computed by the node.
-  4. pre_send again (the password prompt takes time), and it must return the same transaction; the latest
-     base fee plus the planned priority fee must fit under the planned max fee.
-  5. The operator types `SEND <step> <first 12 hex of the plan sha256>`.
-  6. eth_sendRawTransaction; the returned hash must equal the decoded hash. Then wait for the receipt (no
+Order of operations, each a hard stop on failure (nothing leaves this process unless every step before it passed):
+  0. Read the plan once; its sha256 must equal the reviewed digest given out-of-band; a snapshot of those bytes
+     is what every later step reads. A machine-wide lock keeps a second sender run from overlapping.
+  1. a3a_exec.signing_transaction on the snapshot: frozen-plan validation, Safe hash recheck for S5/S6, and
+     pre_send (chain, code, predecessor readback, latest == pending == planned nonce, Safe nonce, fresh
+     estimateGas <= planned gas).
+  2. `cast mktx --account <name>` offline: the signer's environment is a whitelist with no RPC variable, and
+     argv carries no URL; every field comes from the plan (type 2, chain, nonce, gas, both fee caps, value,
+     to or --create, data).
+  3. Local verification: `cast decode-transaction` fields and signer equal the plan, no access list or
+     authorization list, and a local keccak of the raw bytes equals the decoded hash. Nothing is sent to any
+     provider here.
+  4. The operator types `SEND <step> <first 12 hex of the plan sha256>`.
+  5. After the confirmation, immediately before broadcast: pre_send again (it must return the identical
+     transaction) and the latest base fee plus the planned priority fee must fit under the planned max fee.
+  6. eth_sendRawTransaction; the returned hash must equal the signed hash. Then wait for the receipt (no
      resend, no replacement: a stuck transaction is reported, not repriced). Status must be 0x1 and gasUsed
      <= planned gas; eth_getTransactionByHash must equal the plan. After S7 the final readback runs.
 Every artefact (unsigned tx, signed raw, decoded fields, receipt) is written to --out. The RPC URL is never
 written or printed.
 """
-import argparse, hashlib, json, os, subprocess, sys, time, urllib.request
+import argparse, contextlib, fcntl, hashlib, json, os, subprocess, sys, time, urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -35,7 +39,26 @@ import a3a_exec as ex  # noqa: E402
 
 CAST = os.environ.get('A3A_CAST', str(Path.home()/'.foundry/bin/cast'))
 RECEIPT_WAIT_SECONDS = 600
-SIGNER_ENV = {k: v for k, v in os.environ.items() if k in ('HOME', 'PATH', 'TERM', 'LANG', 'USER')}
+SIGNER_ENV_KEYS = ('HOME', 'PATH', 'TERM', 'LANG', 'USER')
+LOCK_PATH = Path.home()/'.a3a_send.lock'  # one sender at a time on this machine; other machines are out of reach
+
+
+def signer_env():
+    """Built at call time from a whitelist: nothing RPC-related (ETH_RPC_URL, RPC_*) can reach cast."""
+    return {k: v for k, v in os.environ.items() if k in SIGNER_ENV_KEYS}
+
+
+@contextlib.contextmanager
+def sender_lock():
+    with open(LOCK_PATH, 'a') as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ex.Gate('send_lock_busy', str(LOCK_PATH), 'no other a3a_send run on this machine') from None
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def role_of(plan, address):
@@ -51,7 +74,7 @@ def sign(tx, account):
            '--gas-price', str(ex.qty(tx['maxFeePerGas'])), '--priority-gas-price', str(ex.qty(tx['maxPriorityFeePerGas'])),
            '--value', str(ex.qty(tx['value']))]
     cmd += ['--create', tx['data']] if tx.get('to') is None else [tx['to'], tx['data']]
-    r = subprocess.run(cmd, env=SIGNER_ENV, stdout=subprocess.PIPE, text=True)  # stdin/stderr: the terminal
+    r = subprocess.run(cmd, env=signer_env(), stdout=subprocess.PIPE, text=True)  # stdin/stderr: the terminal
     ex.need('send_sign_exit', r.returncode, 0)
     raw = r.stdout.strip()
     ex.need('send_sign_output', raw.startswith('0x02') and all(c in '0123456789abcdef' for c in raw[2:].lower()), True)
@@ -59,7 +82,7 @@ def sign(tx, account):
 
 
 def decode(raw):
-    r = subprocess.run([CAST, 'decode-transaction', raw], env=SIGNER_ENV, capture_output=True, text=True)
+    r = subprocess.run([CAST, 'decode-transaction', raw], env=signer_env(), capture_output=True, text=True)
     ex.need('send_decode_exit', r.returncode, 0)
     out = json.loads(r.stdout)
     return json.loads(out) if isinstance(out, str) else out
@@ -91,10 +114,15 @@ def broadcast(url, raw):
             d = json.loads(r.read())
     except Exception as e:  # never echo the exception text: it can carry the URL
         raise ex.Gate('send_broadcast_transport', type(e).__name__, 'JSON-RPC response') from None
-    if not isinstance(d, dict) or 'error' in d or not isinstance(d.get('result'), str):
-        code = d.get('error', {}).get('code') if isinstance(d, dict) and isinstance(d.get('error'), dict) else None
-        raise ex.Gate('send_broadcast_rejected', code, 'transaction hash')
-    return d['result'].lower()
+    # Nothing the provider returns is recorded verbatim: an integer error code, or a validated hash.
+    if not isinstance(d, dict) or 'error' in d:
+        err = d.get('error') if isinstance(d, dict) else None
+        code = err.get('code') if isinstance(err, dict) else None
+        raise ex.Gate('send_broadcast_rejected', code if type(code) is int else 'non-integer', 'transaction hash')
+    result = d.get('result')
+    if not isinstance(result, str) or not ex.HASH32.fullmatch(result):
+        raise ex.Gate('send_broadcast_result', 'malformed', 'transaction hash')
+    return result.lower()
 
 
 def wait_receipt(remote, h, tx):
@@ -118,30 +146,42 @@ def check_mined(remote, h, tx):
     ex.need('send_mined_input', m['input'].lower(), tx['data'].lower())
 
 
-def run(args, remote, url, confirm=input):
-    raw_plan = args.plan.read_bytes()
-    tx = ex.signing_transaction(args.plan, args.reviewed_plan_sha256, args.step, remote)
-    plan = ex.plan_json(raw_plan)
-    role = role_of(plan, tx['from'])
-    accounts = json.loads(args.accounts.read_text())
-    ex.need('send_account_named', isinstance(accounts.get(role), str) and accounts[role] != '', True)
-    ex.write_json(args.out/'unsigned.json', tx)
-    raw = sign(tx, accounts[role])
+def signed(tx, account):
+    """Sign and verify locally. The signed bytes leave this process only in broadcast()."""
+    raw = sign(tx, account)
     decoded = decode(raw)
     h = check_signed(decoded, tx)
-    # The hash is recomputed by the node, not taken from cast's decoder alone.
-    ex.need('send_signed_hash', ex.rpc_keccak(remote, raw), h)
-    (args.out/'signed.raw').write_text(raw+'\n')
-    ex.write_json(args.out/'decoded.json', decoded)
-    again = ex.signing_transaction(args.plan, args.reviewed_plan_sha256, args.step, remote)
-    ex.need('send_tx_stable', again, tx)
-    fee_fits(remote, tx)
-    phrase = 'SEND %s %s' % (args.step, args.reviewed_plan_sha256[:12])
-    ex.need('send_operator_confirmation', confirm('Type "%s" to broadcast %s from %s (%s): ' % (phrase, h, tx['from'], role)).strip(), phrase)
-    sent = broadcast(url, raw)
-    ex.need('send_returned_hash', sent, h)
-    r = wait_receipt(remote, h, tx)
-    check_mined(remote, h, tx)
+    ex.need('send_signed_hash', ex.keccak(raw).lower(), h)  # local keccak over the raw bytes, not cast's decoder
+    return raw, h, decoded
+
+
+def run(args, remote, url, confirm=input):
+    # One read of the plan; every later consumer uses these bytes or the snapshot written from them.
+    raw_plan = args.plan.read_bytes()
+    ex.need('reviewed_plan_hash', hashlib.sha256(raw_plan).hexdigest(), args.reviewed_plan_sha256)
+    snapshot = args.out/'plan.reviewed.json'
+    snapshot.write_bytes(raw_plan)
+    plan = ex.plan_json(raw_plan)
+    with sender_lock():
+        tx = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
+        role = role_of(plan, tx['from'])
+        accounts = json.loads(args.accounts.read_text())
+        ex.need('send_account_named', isinstance(accounts.get(role), str) and accounts[role] != '', True)
+        ex.write_json(args.out/'unsigned.json', tx)
+        raw, h, decoded = signed(tx, accounts[role])
+        (args.out/'signed.raw').write_text(raw+'\n')
+        ex.write_json(args.out/'decoded.json', decoded)
+        phrase = 'SEND %s %s' % (args.step, args.reviewed_plan_sha256[:12])
+        typed = confirm('Type "%s" to broadcast %s from %s (%s): ' % (phrase, h, tx['from'], role)).strip()
+        ex.need('send_operator_confirmation', typed, phrase)
+        # Every live check again after the (unbounded) confirmation pause, immediately before broadcast.
+        again = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
+        ex.need('send_tx_stable', again, tx)
+        fee_fits(remote, tx)
+        sent = broadcast(url, raw)
+        ex.need('send_returned_hash', sent, h)
+        r = wait_receipt(remote, h, tx)
+        check_mined(remote, h, tx)
     ex.write_json(args.out/'receipt.json', r)
     if args.step == ex.STEP_IDS[-1]:
         context = {'tlBlock': hex(int(plan['pin']['block'], 16)+1), 'eta': ex.scheduled_eta(remote, plan, done=True)}

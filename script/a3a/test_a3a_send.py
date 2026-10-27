@@ -2,11 +2,12 @@
 """Offline tests for a3a_send.py. Nothing reaches a network.
 
 Signing and decoding are real: a wrapper stands in for `cast`, rewrites `--account <name>` into the public anvil
-test key #0 and records argv and environment, so the exact command a3a_send builds is executed and its signed
-bytes are decoded by the real `cast decode-transaction`. The plan gate (signing_transaction), the RPC and the
-broadcast are fakes.
+test key #0 and records argv and environment. The wrapper's settings are baked into its own source, so the
+production signer environment (a3a_send.signer_env) is used unmodified while the test environment carries RPC
+secrets that must not reach it. The plan gate (signing_transaction), the RPC and the broadcast are fakes, except
+in the S7 integration test, which runs the real gate and readback against test_a3a_exec.FakeChain.
 """
-import copy, json, os, shutil, stat, subprocess, sys, tempfile, unittest
+import copy, fcntl, hashlib, json, os, shutil, stat, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 
@@ -18,38 +19,43 @@ import a3a_send as sd  # noqa: E402
 REAL_CAST = shutil.which('cast') or str(Path.home()/'.foundry/bin/cast')
 REAL_RUN = subprocess.run
 ANVIL_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'  # public anvil test key #0
+ANVIL_KEY_1 = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'  # public anvil test key #1
 ANVIL_ADDR = '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
-SHA = 'ab' * 32
+SECRET = 'https://secret.invalid/NEVER_PRINT_THIS'
 TX = {'chainId': '0xaa36a7', 'from': ANVIL_ADDR, 'to': '0x51edf11fdb0a4f66220efb8efa54eca77232e114',
       'data': '0xd4d9bdcd65f033abab61bfd4b3dd915e34a5a5aee635c6c90c6add2d2b58d6b48c6cd2a0', 'nonce': '0x7',
       'gas': '0x2b974', 'maxFeePerGas': '0x4a817c800', 'maxPriorityFeePerGas': '0x5f5e100', 'value': '0x0'}
+CREATE = dict(TX, to=None, data='0x6080604052348015600e575f80fd5b50', nonce='0x2f63', gas='0xb8a36e')
 PLAN = {'pin': {'block': '0xb70983', 'senders': {'approver': {'address': ANVIL_ADDR}, 'deployer': {'address': '0x' + '11' * 20},
                                                  'executor': {'address': '0x' + '22' * 20}}},
         'steps': [{'id': s} for s in ex.STEP_IDS]}
+PLAN_BYTES = json.dumps(PLAN, sort_keys=True).encode()
+SHA = hashlib.sha256(PLAN_BYTES).hexdigest()
 
 WRAPPER = r'''#!/usr/bin/env python3
 import json, os, sys
+cfg = json.load(open(%r))
 argv = sys.argv[1:]
-with open(os.environ['A3A_TEST_LOG'], 'a') as f:
-    f.write(json.dumps({'argv': argv, 'env': sorted(os.environ)}) + '\n')
+with open(cfg['log'], 'a') as f:
+    f.write(json.dumps({'argv': argv, 'env': dict(os.environ)}) + '\n')
 if '--account' in argv:
     i = argv.index('--account')
-    argv[i:i + 2] = ['--private-key', os.environ['A3A_TEST_KEY']]
-os.execv(os.environ['A3A_TEST_CAST'], [os.environ['A3A_TEST_CAST']] + argv)
+    argv[i:i + 2] = ['--private-key', cfg['key']]
+os.execv(cfg['cast'], [cfg['cast']] + argv)
 '''
 
 
 def keccak(data):
-    return subprocess.run([REAL_CAST, 'keccak', data], capture_output=True, text=True, check=True).stdout.strip()
+    return REAL_RUN([REAL_CAST, 'keccak', data], capture_output=True, text=True, check=True).stdout.strip()
 
 
 class Chain:
+    """Fake provider. Records every call so a test can prove signed bytes never reached it before broadcast."""
     def __init__(self, base_fee=10**9):
-        self.base_fee, self.mined, self.receipt = base_fee, None, None
+        self.base_fee, self.mined, self.receipt, self.calls = base_fee, None, None, []
 
     def __call__(self, method, params):
-        if method == 'web3_sha3':
-            return keccak(params[0])
+        self.calls.append((method, json.dumps(params)))
         if method == 'eth_getBlockByNumber':
             return {'baseFeePerGas': hex(self.base_fee)}
         if method == 'eth_getTransactionReceipt':
@@ -62,51 +68,63 @@ class Chain:
 class SenderTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        d = Path(self.tmp.name)
-        wrapper = d / 'cast'
-        wrapper.write_text(WRAPPER)
-        wrapper.chmod(wrapper.stat().st_mode | stat.S_IEXEC)
+        d = self.d = Path(self.tmp.name)
+        self.cfg = d / 'wrapper.json'
         self.log = d / 'cast.log'
-        (d / 'plan.json').write_text('{}')
-        (d / 'accounts.json').write_text(json.dumps({'approver': 'aastar-approver'}))
+        self.cfg.write_text(json.dumps({'log': str(self.log), 'key': ANVIL_KEY, 'cast': REAL_CAST}))
+        wrapper = d / 'cast'
+        wrapper.write_text(WRAPPER % str(self.cfg))
+        wrapper.chmod(wrapper.stat().st_mode | stat.S_IEXEC)
+        (d / 'plan.json').write_bytes(PLAN_BYTES)
+        (d / 'accounts.json').write_text(json.dumps({'approver': 'aastar-approver', 'deployer': 'aastar-deployer'}))
         self.args = mock.Mock(plan=d / 'plan.json', reviewed_plan_sha256=SHA, step='S5a',
                               accounts=d / 'accounts.json', out=d / 'out')
         self.args.out.mkdir()
         self.patches = [
             mock.patch.object(sd, 'CAST', str(wrapper)),
-            mock.patch.dict(os.environ, {'A3A_TEST_LOG': str(self.log), 'A3A_TEST_KEY': ANVIL_KEY,
-                                         'A3A_TEST_CAST': REAL_CAST, 'ETH_RPC_URL': 'https://secret.invalid/KEY'}),
-            mock.patch.object(sd, 'SIGNER_ENV', None),  # replaced per test below
-            mock.patch.object(ex, 'plan_json', lambda raw: copy.deepcopy(PLAN)),
+            mock.patch.object(sd, 'LOCK_PATH', d / 'send.lock'),
+            # Secrets present in the operator's environment must not reach cast.
+            mock.patch.dict(os.environ, {'ETH_RPC_URL': SECRET, 'RPC_A': SECRET, 'SEPOLIA_RPC': SECRET}),
+            mock.patch.object(ex, 'plan_json', lambda raw: json.loads(raw)),
         ]
         for p in self.patches:
             p.start()
-        # The signer env must carry the wrapper's test variables, but nothing RPC-related.
-        sd.SIGNER_ENV = {k: v for k, v in os.environ.items() if k in ('HOME', 'PATH') or k.startswith('A3A_TEST_')}
-        self.gate_calls, self.sent = [], []
+        self.events, self.sent = [], []
 
     def tearDown(self):
         for p in reversed(self.patches):
             p.stop()
         self.tmp.cleanup()
 
+    def clear_out(self):
+        for f in self.args.out.iterdir():
+            f.unlink()
+        self.sent.clear()
+        self.events.clear()
+
+    def set_key(self, key):
+        cfg = json.loads(self.cfg.read_text())
+        cfg['key'] = key
+        self.cfg.write_text(json.dumps(cfg))
+
     def gate(self, txs):
         seq = iter(txs)
         def signing_transaction(plan, sha, sid, remote):
-            self.gate_calls.append(sid)
+            self.events.append(('gate', sid, Path(plan).read_bytes()))
             nxt = next(seq)
             if isinstance(nxt, ex.Gate):
                 raise nxt
             return copy.deepcopy(nxt)
         return mock.patch.object(ex, 'signing_transaction', signing_transaction)
 
-    def broadcast(self, chain, returned=None, status='0x1', mined_edit=None, gas_used=135104):
+    def broadcast(self, chain, tx, returned=None, status='0x1', mined_edit=None, gas_used=135104):
         def fake(url, raw):
+            self.events.append(('broadcast',))
             self.sent.append(raw)
             h = keccak(raw)
             chain.receipt = {'status': status, 'gasUsed': hex(gas_used), 'blockNumber': hex(12000000), 'transactionHash': h}
-            mined = {k: TX[k] for k in ('nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value', 'from', 'to')}
-            mined['input'] = TX['data']
+            mined = {k: tx[k] for k in ('nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value', 'from', 'to')}
+            mined['input'] = tx['data']
             if mined_edit:
                 mined_edit(mined)
             chain.mined = mined
@@ -114,43 +132,90 @@ class SenderTests(unittest.TestCase):
         return mock.patch.object(sd, 'broadcast', fake)
 
     def phrase(self):
-        return 'SEND S5a ' + SHA[:12]
+        return 'SEND %s %s' % (self.args.step, SHA[:12])
 
-    def run_send(self, chain, txs=(TX, TX), confirm=None, **bk):
-        with self.gate(txs), self.broadcast(chain, **bk):
-            return sd.run(self.args, chain, 'https://secret.invalid/KEY', confirm=confirm or (lambda _: self.phrase()))
+    def confirm(self, typed=None):
+        def c(_):
+            self.events.append(('confirm',))
+            return self.phrase() if typed is None else typed
+        return c
+
+    def run_send(self, chain, txs=(TX, TX), confirm=None, tx=TX, **bk):
+        with self.gate(txs), self.broadcast(chain, tx, **bk):
+            return sd.run(self.args, chain, SECRET, confirm=confirm or self.confirm())
 
     def gate_name(self, fn):
         with self.assertRaises(ex.Gate) as c:
             fn()
         return c.exception.record['gate']
 
-    def test_positive_sends_once_and_records(self):
-        chain = Chain()
-        result = self.run_send(chain)
+    def calls(self):
+        return [json.loads(l) for l in self.log.read_text().splitlines()] if self.log.exists() else []
+
+    def test_positive_order_and_records(self):
+        result = self.run_send(Chain())
         self.assertEqual(result['status'], 'SENT')
+        self.assertEqual(result['planSha256'], SHA)
         self.assertEqual(len(self.sent), 1)
-        self.assertEqual(self.gate_calls, ['S5a', 'S5a'])
-        for f in ('unsigned.json', 'signed.raw', 'decoded.json', 'receipt.json', 'result.json'):
+        # gate, confirm, gate again, then broadcast: the recheck follows the confirmation pause.
+        self.assertEqual([e[0] for e in self.events], ['gate', 'confirm', 'gate', 'broadcast'])
+        for f in ('plan.reviewed.json', 'unsigned.json', 'signed.raw', 'decoded.json', 'receipt.json', 'result.json'):
             self.assertTrue((self.args.out / f).exists(), f)
-        calls = [json.loads(l) for l in self.log.read_text().splitlines()]
-        mktx = next(c for c in calls if c['argv'][0] == 'mktx')
-        self.assertIn('--account', mktx['argv'])
+        mktx = next(c for c in self.calls() if c['argv'][0] == 'mktx')
         self.assertEqual(mktx['argv'][mktx['argv'].index('--account') + 1], 'aastar-approver')
-        self.assertFalse(any('secret.invalid' in a for c in calls for a in c['argv']))
-        self.assertFalse(any(k in ('ETH_RPC_URL', 'RPC_URL') for c in calls for k in c['env']))
+        for c in self.calls():
+            self.assertFalse(any('secret.invalid' in a for a in c['argv']))
+            self.assertFalse(set(c['env']) & {'ETH_RPC_URL', 'RPC_A', 'SEPOLIA_RPC'})
+            self.assertNotIn('secret.invalid', json.dumps(c['env']))
         self.assertNotIn('secret.invalid', ''.join(p.read_text() for p in self.args.out.iterdir()))
 
-    def test_plan_gate_failure_signs_nothing(self):
+    def test_signed_bytes_reach_no_provider_before_broadcast(self):
         chain = Chain()
-        self.assertEqual(self.gate_name(lambda: self.run_send(chain, txs=[ex.Gate('pre_send_nonce_S5a', 8, 7)])),
+        self.run_send(chain)
+        raw = self.sent[0]
+        self.assertTrue(chain.calls)
+        self.assertFalse(any(raw[4:] in params for _, params in chain.calls))
+
+    def test_contract_creation_step(self):
+        self.args.step = 'S2'
+        self.run_send(Chain(), txs=(CREATE, CREATE), tx=CREATE)
+        mktx = next(c for c in self.calls() if c['argv'][0] == 'mktx')
+        self.assertEqual(mktx['argv'][mktx['argv'].index('--create') + 1], CREATE['data'])
+        self.assertIsNone(json.loads((self.args.out / 'decoded.json').read_text())['to'])
+        # A creation signed as a call must be refused before broadcast.
+        self.clear_out()
+        real = sd.sign
+        with mock.patch.object(sd, 'sign', lambda tx, account: real(dict(CREATE, to='0x' + '77' * 20), account)):
+            self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), txs=(CREATE, CREATE), tx=CREATE)), 'send_signed_to')
+        self.assertEqual(self.sent, [])
+        # And a creation that was mined as a call is caught after it.
+        self.clear_out()
+        self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), txs=(CREATE, CREATE), tx=CREATE,
+                                                              mined_edit=lambda m: m.__setitem__('to', '0x' + '77' * 20))),
+                         'send_mined_to')
+
+    def test_plan_is_read_once(self):
+        swapped = json.dumps(dict(PLAN, swapped=True)).encode()
+        real_write = ex.write_json
+        def swap_after_snapshot(path, data):
+            self.args.plan.write_bytes(swapped)  # the original file is replaced right after the single read
+            return real_write(path, data)
+        with mock.patch.object(ex, 'write_json', swap_after_snapshot):
+            result = self.run_send(Chain())
+        self.assertEqual(result['planSha256'], SHA)
+        self.assertTrue(all(e[2] == PLAN_BYTES for e in self.events if e[0] == 'gate'))
+        self.assertEqual((self.args.out / 'plan.reviewed.json').read_bytes(), PLAN_BYTES)
+        self.clear_out()
+        self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'reviewed_plan_hash')
+        self.assertEqual(self.events, [])
+
+    def test_plan_gate_failure_signs_nothing(self):
+        self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), txs=[ex.Gate('pre_send_nonce_S5a', 8, 7)])),
                          'pre_send_nonce_S5a')
-        self.assertFalse(self.log.exists())
+        self.assertEqual(self.calls(), [])
         self.assertEqual(self.sent, [])
 
     def test_signed_field_mismatch_is_refused(self):
-        # The wrapper signs what it is told; corrupt one argv value at a time to stand in for a signer that
-        # produced a different transaction than planned.
         for flag, value, gate in (('--nonce', '8', 'send_signed_nonce'), ('--gas-limit', '178549', 'send_signed_gas'),
                                   ('--gas-price', '20000000001', 'send_signed_maxFeePerGas'),
                                   ('--priority-gas-price', '100000001', 'send_signed_maxPriorityFeePerGas'),
@@ -166,49 +231,62 @@ class SenderTests(unittest.TestCase):
                 self.assertEqual(self.sent, [])
 
     def test_wrong_key_is_refused(self):
-        sd.SIGNER_ENV['A3A_TEST_KEY'] = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'  # anvil #1
+        self.set_key(ANVIL_KEY_1)
         self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_signed_signer')
         self.assertEqual(self.sent, [])
 
-    def test_hash_recomputed_by_node(self):
-        class Lying(Chain):
-            def __call__(self, method, params):
-                return '0x' + '00' * 32 if method == 'web3_sha3' else super().__call__(method, params)
-        self.assertEqual(self.gate_name(lambda: self.run_send(Lying())), 'send_signed_hash')
+    def test_decoded_hash_must_match_local_keccak(self):
+        real = sd.decode
+        with mock.patch.object(sd, 'decode', lambda raw: dict(real(raw), hash='0x' + '00' * 32)):
+            self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_signed_hash')
         self.assertEqual(self.sent, [])
 
-    def test_state_change_between_checks_is_refused(self):
-        moved = dict(TX, nonce='0x8')
-        self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), txs=[TX, moved])), 'send_tx_stable')
+    def test_recheck_after_confirmation(self):
+        self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), txs=[TX, dict(TX, nonce='0x8')])), 'send_tx_stable')
         self.assertEqual(self.sent, [])
+        self.clear_out()
         self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), txs=[TX, ex.Gate('pre_send_pending_S5a', 9, 8)])),
                          'pre_send_pending_S5a')
+        self.assertEqual([e[0] for e in self.events], ['gate', 'confirm', 'gate'])
         self.assertEqual(self.sent, [])
 
-    def test_fee_cap_exceeded_is_refused(self):
+    def test_fee_cap_checked_after_confirmation(self):
         base = int(TX['maxFeePerGas'], 16) - int(TX['maxPriorityFeePerGas'], 16) + 1
         self.assertEqual(self.gate_name(lambda: self.run_send(Chain(base_fee=base))), 'send_fee_cap')
         self.assertEqual(self.sent, [])
+        self.assertEqual([e[0] for e in self.events], ['gate', 'confirm', 'gate'])
+        self.clear_out()
         self.run_send(Chain(base_fee=base - 1))
         self.assertEqual(len(self.sent), 1)
 
     def test_operator_confirmation_must_be_exact(self):
         for typed in ('', 'SEND S5b ' + SHA[:12], 'SEND S5a ' + SHA[:11], 'yes'):
             with self.subTest(typed=typed):
-                self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), confirm=lambda _: typed)),
+                self.clear_out()
+                self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), confirm=self.confirm(typed))),
                                  'send_operator_confirmation')
                 self.assertEqual(self.sent, [])
+                self.assertEqual([e[0] for e in self.events], ['gate', 'confirm'])
+
+    def test_concurrent_run_is_refused(self):
+        with open(sd.LOCK_PATH, 'a') as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_lock_busy')
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(self.events, [])
+        self.clear_out()
+        self.run_send(Chain())
+        self.assertEqual(len(self.sent), 1)
 
     def test_post_broadcast_checks(self):
         self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), returned='0x' + '99' * 32)), 'send_returned_hash')
         self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), status='0x0')), 'send_receipt_status')
-        self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), mined_edit=lambda m: m.__setitem__('input', '0x'))),
-                         'send_mined_input')
-
-    def test_role_needs_a_named_account(self):
-        self.args.accounts.write_text(json.dumps({'deployer': 'x'}))
-        self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_account_named')
-        self.assertFalse(self.log.exists())
+        self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), gas_used=int(TX['gas'], 16) + 1)), 'send_receipt_gas')
+        for k, v in (('nonce', '0x8'), ('gas', '0x1'), ('maxFeePerGas', '0x1'), ('maxPriorityFeePerGas', '0x1'),
+                     ('value', '0x1'), ('from', '0x' + '55' * 20), ('to', '0x' + '66' * 20), ('input', '0x')):
+            with self.subTest(field=k):
+                self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), mined_edit=lambda m: m.__setitem__(k, v))),
+                                 'send_mined_' + k)
 
     def test_sender_must_map_to_exactly_one_role(self):
         stranger = dict(TX, **{'from': '0x' + '33' * 20})
@@ -216,8 +294,14 @@ class SenderTests(unittest.TestCase):
         twice = copy.deepcopy(PLAN)
         twice['pin']['senders']['deployer']['address'] = ANVIL_ADDR
         with mock.patch.object(ex, 'plan_json', lambda raw: copy.deepcopy(twice)):
+            self.clear_out()
             self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_sender_role')
-        self.assertFalse(self.log.exists())
+        self.assertEqual(self.calls(), [])
+
+    def test_role_needs_a_named_account(self):
+        self.args.accounts.write_text(json.dumps({'deployer': 'x'}))
+        self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_account_named')
+        self.assertEqual(self.calls(), [])
 
     def test_signer_tool_failures(self):
         def fake_run(stdout, code, which):
@@ -232,89 +316,132 @@ class SenderTests(unittest.TestCase):
                  ('decode-transaction', '', 1, 'send_decode_exit'))
         for which, out, code, gate in cases:
             with self.subTest(gate=gate, out=out):
+                self.clear_out()
                 with mock.patch.object(sd.subprocess, 'run', side_effect=fake_run(out, code, which)):
                     self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), gate)
                 self.assertEqual(self.sent, [])
 
     def test_authorization_list_is_refused(self):
         real = sd.decode
-        def with_auth(raw):
-            d = real(raw)
-            d['authorizationList'] = [{'address': '0x' + '44' * 20}]
-            return d
-        with mock.patch.object(sd, 'decode', with_auth):
+        with mock.patch.object(sd, 'decode', lambda raw: dict(real(raw), authorizationList=[{'address': '0x' + '44' * 20}])):
             self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_signed_no_authorizations')
         self.assertEqual(self.sent, [])
 
-    def test_receipt_gas_above_plan(self):
-        self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), gas_used=int(TX['gas'], 16) + 1)), 'send_receipt_gas')
-
-    def test_mined_transaction_must_equal_plan(self):
-        for k, v in (('nonce', '0x8'), ('gas', '0x1'), ('maxFeePerGas', '0x1'), ('maxPriorityFeePerGas', '0x1'),
-                     ('value', '0x1'), ('from', '0x' + '55' * 20), ('to', '0x' + '66' * 20)):
-            with self.subTest(field=k):
-                self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), mined_edit=lambda m: m.__setitem__(k, v))),
-                                 'send_mined_' + k)
-
-    def test_final_readback_only_after_s7(self):
-        for step, expected in (('S5a', 0), ('S7', 1)):
-            with self.subTest(step=step), mock.patch.object(ex, 'readback') as rb, \
-                    mock.patch.object(ex, 'scheduled_eta', return_value=123) as eta:
-                self.args.step = step
-                self.sent.clear()
-                for f in self.args.out.iterdir():
-                    f.unlink()
-                phrase = 'SEND %s %s' % (step, SHA[:12])
-                self.run_send(Chain(), confirm=lambda _: phrase)
-                self.assertEqual(rb.call_count, expected)
-                if expected:
-                    self.assertEqual(rb.call_args.args[2], PLAN['steps'][-1])
-                    eta.assert_called_once()
-
     def test_receipt_timeout_does_not_resend(self):
-        chain = Chain()
         with mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'), \
                 self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', lambda url, raw: (self.sent.append(raw), keccak(raw))[1]):
             with self.assertRaises(ex.Gate) as c:
-                sd.run(self.args, chain, 'u', confirm=lambda _: self.phrase())
+                sd.run(self.args, Chain(), SECRET, confirm=self.confirm())
         self.assertEqual(c.exception.record['gate'], 'send_receipt_timeout')
         self.assertEqual(len(self.sent), 1)
 
-    def test_broadcast_errors_never_print_the_url(self):
-        url = 'https://secret.invalid/NEVER_PRINT_THIS'
+    def test_broadcast_records_nothing_the_provider_wrote(self):
         class Resp:
             def __init__(self, body): self.body = body
             def __enter__(self): return self
             def __exit__(self, *a): return False
             def read(self): return json.dumps(self.body).encode()
-        cases = ((OSError('connect to ' + url), 'send_broadcast_transport'),
-                 (Resp({'jsonrpc': '2.0', 'id': 1, 'error': {'code': -32000, 'message': url}}), 'send_broadcast_rejected'),
-                 (Resp({'jsonrpc': '2.0', 'id': 1, 'result': None}), 'send_broadcast_rejected'))
+        cases = ((OSError('connect to ' + SECRET), 'send_broadcast_transport'),
+                 (Resp({'jsonrpc': '2.0', 'id': 1, 'error': {'code': SECRET, 'message': SECRET}}), 'send_broadcast_rejected'),
+                 (Resp({'jsonrpc': '2.0', 'id': 1, 'error': {'code': -32000, 'message': SECRET}}), 'send_broadcast_rejected'),
+                 (Resp({'jsonrpc': '2.0', 'id': 1, 'result': SECRET}), 'send_broadcast_result'),
+                 (Resp({'jsonrpc': '2.0', 'id': 1, 'result': None}), 'send_broadcast_result'))
         for outcome, gate in cases:
-            with self.subTest(gate=gate):
+            with self.subTest(gate=gate, outcome=str(outcome)[:40]):
                 side = {'side_effect': outcome} if isinstance(outcome, Exception) else {'return_value': outcome}
                 with mock.patch.object(sd.urllib.request, 'urlopen', **side):
                     with self.assertRaises(ex.Gate) as c:
-                        sd.broadcast(url, '0x02')
+                        sd.broadcast(SECRET, '0x02')
                 self.assertEqual(c.exception.record['gate'], gate)
                 self.assertNotIn('NEVER_PRINT_THIS', json.dumps(c.exception.record))
 
     def test_cli_records_failure_and_refuses_nonempty_out(self):
-        d = Path(self.tmp.name)
-        rpc = d / 'rpc'
-        rpc.write_text('https://secret.invalid/NEVER_PRINT_THIS')
-        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S1', '--rpc-file', str(rpc),
-                '--accounts', str(self.args.accounts), '--out', str(d / 'cli')]
-        with self.gate([ex.Gate('reviewed_plan_hash', 'x', SHA)]), mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        out = self.d / 'cli'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', 'cd' * 32, '--step', 'S1', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        with mock.patch('sys.stdout'), mock.patch('sys.stderr'):
             self.assertEqual(sd.main(argv), 1)
-            failure = json.loads((d / 'cli' / 'FAILURE.json').read_text())
-            self.assertEqual((failure['gate'], failure['step']), ('reviewed_plan_hash', 'S1'))
-            self.assertNotIn('NEVER_PRINT_THIS', json.dumps(failure))
-        before = (d / 'cli' / 'FAILURE.json').read_bytes()
-        with self.gate([TX]), mock.patch('sys.stdout'), mock.patch('sys.stderr'):
-            self.assertEqual(sd.main(argv), 1)  # out now holds FAILURE.json: refused before any gate
-        self.assertEqual(self.gate_calls, ['S1'])
-        self.assertEqual((d / 'cli' / 'FAILURE.json').read_bytes(), before)
+        failure = json.loads((out / 'FAILURE.json').read_text())
+        self.assertEqual((failure['gate'], failure['step']), ('reviewed_plan_hash', 'S1'))
+        self.assertNotIn('NEVER_PRINT_THIS', json.dumps(failure))
+        before = (out / 'FAILURE.json').read_bytes()
+        with mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            self.assertEqual(sd.main(argv), 1)  # out now holds FAILURE.json: refused, and the record is kept
+        self.assertEqual((out / 'FAILURE.json').read_bytes(), before)
+        self.assertEqual(self.calls(), [])
+
+
+class SenderS7Integration(unittest.TestCase):
+    """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.
+
+    Replaced: signing (covered by SenderTests; FakeChain's deployer has no known key), the fee check (FakeChain
+    blocks carry no base fee) and validate_plan (FakeChain's plan is the unrehearsed build_plan output; frozen-plan
+    validation is covered by test_a3a_exec). The broadcast
+    mines the planned transaction on FakeChain; the final readback must accept the resulting state and refuse
+    a state where S7 did not take effect.
+    """
+    def setUp(self):
+        import test_a3a_exec as te
+        self.te = te
+        te.ExecutorTests.setUpClass()
+        t = self.t = te.ExecutorTests('test_valid_plan')
+        t.setUp()
+        chain, plan = t.chain_and_plan()
+        for step in plan['steps']:
+            step['tx']['gas'] = hex(260000)
+        t.send_prefix(chain, plan, ('S1', 'S2', 'S3', 'S4', 'S5a', 'S5b', 'S6a'))
+        chain('evm_setNextBlockTimestamp', [chain.state['eta']])
+        chain('evm_mine', [])
+        t.send_prefix(chain, plan, ('S6b',))
+        self.chain, self.plan = chain, plan
+        self.tmp = tempfile.TemporaryDirectory()
+        d = Path(self.tmp.name)
+        path = d / 'plan.json'
+        ex.write_json(path, plan)
+        self.sha = hashlib.sha256(path.read_bytes()).hexdigest()
+        (d / 'accounts.json').write_text(json.dumps({'deployer': 'aastar-deployer'}))
+        self.args = mock.Mock(plan=path, reviewed_plan_sha256=self.sha, step='S7', accounts=d / 'accounts.json', out=d / 'out')
+        self.args.out.mkdir()
+        self.lock = d / 'lock'
+
+    def tearDown(self):
+        self.t.doCleanups()
+        self.tmp.cleanup()
+
+    def send(self, after_mine=None):
+        chain, plan, te = self.chain, self.plan, self.te
+        def fake_signed(tx, account):
+            self.assertEqual((account, tx), ('aastar-deployer', plan['steps'][-1]['tx']))
+            return '0x02ab', te.abi_word(chain.count + 1), {}
+        def fake_broadcast(url, raw):
+            h = chain('eth_sendTransaction', [ex.tx_rpc(dict(plan['steps'][-1]['tx']))]).lower()
+            if after_mine:
+                after_mine(chain)
+            return h
+        readback = mock.Mock(wraps=ex.readback)
+        with mock.patch.object(sd, 'signed', fake_signed), mock.patch.object(sd, 'broadcast', fake_broadcast), \
+                mock.patch.object(sd, 'LOCK_PATH', self.lock), mock.patch.object(ex, 'readback', readback), \
+                mock.patch.object(sd, 'fee_fits', lambda remote, tx: None), \
+                mock.patch.object(ex, 'artifact', self.t.artifact), \
+                mock.patch.object(ex, 'validate_plan', lambda plan, frozen=False: None):
+            result = sd.run(self.args, chain, 'unused', confirm=lambda _: 'SEND S7 ' + self.sha[:12])
+        return result, readback
+
+    def test_s7_real_gate_and_final_readback(self):
+        result, readback = self.send()
+        self.assertEqual(result['status'], 'SENT')
+        self.assertEqual(self.chain.state['pending'], self.plan['pin']['capped'])
+        final = [c for c in readback.call_args_list if c.args[2] == self.plan['steps'][-1]]
+        self.assertEqual(len(final), 1)
+
+    def test_s7_final_readback_refuses_a_state_without_the_effect(self):
+        def undo(chain):
+            chain.state['pending'] = self.plan['pin']['sp']['pendingAPNTsToken']
+        with self.assertRaises(ex.Gate) as c:
+            self.send(after_mine=undo)
+        self.assertTrue(c.exception.record['gate'].startswith('S7_'), c.exception.record['gate'])
 
 
 if __name__ == '__main__':

@@ -406,30 +406,39 @@ password, and the operator types the confirmation string. The author chose Found
 import`) on 2026-10-27. The step's sender role (deployer, approver or executor) is mapped to a keystore name by a
 JSON file. No key material appears in argv, the environment or the logs.
 
-Each of these is a hard stop, and nothing is broadcast unless every earlier one passed:
-1. `signing_transaction`, with the reviewed sha256 given out-of-band and `pre_send`.
-2. Offline `cast mktx --account`, with every field taken from the plan. The signer gets a minimal environment
-   with no RPC variable.
-3. `cast decode-transaction`: every field and the signer equal the plan, with no access list and no
-   authorization list. The hash is recomputed by the node (`web3_sha3`).
-4. `pre_send` again, which must return the identical transaction, and the latest base fee plus the planned
-   priority fee must be at most the planned max fee.
-5. The typed confirmation `SEND <step> <sha256[:12]>`.
-6. Broadcast. Then the returned hash must equal the signed hash, the receipt status must be 0x1, gasUsed must be
-   at most the planned gas, and `eth_getTransactionByHash` must equal the plan. After S7, the final `readback`
-   runs.
+Each of these is a hard stop. Nothing leaves the process unless every earlier one passed:
+0. The plan is read once. Its sha256 must equal the reviewed digest given out-of-band, and every later step
+   reads a snapshot of those bytes. A machine-wide `flock` refuses a second concurrent sender run.
+1. `signing_transaction` on the snapshot, including `pre_send`.
+2. Offline `cast mktx --account`, with every field taken from the plan. The signer gets a whitelisted
+   environment, built at call time, with no RPC variable.
+3. Local verification: the decoded fields and signer equal the plan; there is no access list and no
+   authorization list; and a **local** keccak of the raw bytes equals the decoded hash. The signed bytes are not
+   shown to any provider before broadcast.
+4. The typed confirmation `SEND <step> <sha256[:12]>`.
+5. After the confirmation, immediately before broadcast: `pre_send` again, which must return the identical
+   transaction, and the fee-cap check.
+6. Broadcast. Only an integer error code or a validated 32-byte hash from the provider is recorded. Then the
+   returned hash must equal the signed hash, the receipt status must be 0x1, gasUsed must be at most the planned
+   gas, and `eth_getTransactionByHash` must equal the plan. After S7, the final `readback` runs.
 
 A transaction that is not mined within 600 s is reported. It is never re-sent or repriced; doing either needs a
 new review. Each step's artefacts are written to its own empty `--out`: `unsigned.json`, `signed.raw`,
 `decoded.json`, `receipt.json` and `result.json`, or `FAILURE.json` on a stop.
 
-`test_a3a_send.py` has 19 offline tests. Signing and decoding are real `cast` calls with the public anvil test
-key, through a wrapper that records argv and environment. Removing any single gate, or the signer field, turns
-the suite red.
+`test_a3a_send.py` has 22 offline tests.
+- Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
+  and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
+- Contract creation (S2/S3, `--create`, `to: null`) is covered.
+- S7 runs through the real `signing_transaction`, `pre_send`, `scheduled_eta` and final `readback` on
+  `test_a3a_exec.FakeChain`, including a state where S7's effect is missing.
+- Removing any single gate, or any sanitiser, the lock, the snapshot, the local keccak or the signer field
+  turns the suite red (27 mutations).
 
 Not yet covered:
 - An end-to-end run against a local fork with real keystores.
-- The S5/S6 Safe flow live: approveHash by one owner, then execTransaction by another.
+- The S5/S6 Safe flow live.
+- The lock is per machine: two machines sharing one key are out of its reach.
 
 ## Offline verification
 
