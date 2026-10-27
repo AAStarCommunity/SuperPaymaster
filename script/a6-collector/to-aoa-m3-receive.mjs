@@ -12,7 +12,8 @@
 // UOE says success, SP/VPM/TPM conservation was evaluated and held, and its triplet was matched. Everything else
 // is listed with its exclusion reason, so no attempt is dropped.
 //
-// runType is `rehearsal` unless the run is protocolConformant; this view never makes a run formal.
+// runType is `rehearsal` unless the run is protocolConformant and a6-gauge/2 (credit OFF recorded);
+// this view never makes a run formal.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -197,7 +198,7 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
     });
   }
   const pkg = {
-    schema: 'aoa-m3-receive-v1', runType: start.protocolConformant ? 'formal-candidate' : 'rehearsal',
+    schema: 'aoa-m3-receive-v1', runType: start.protocolConformant && start.schema === 'a6-gauge/2' ? 'formal-candidate' : 'rehearsal',
     source: { runId: start.runId, collectorHead: start.head, collectorDirty: start.collectorDirty,
       jsonlSha256: sha256(raw), stop: end.stop, protocolConformant: start.protocolConformant,
       allowSameEndpointLocal: start.allowSameEndpointLocal },

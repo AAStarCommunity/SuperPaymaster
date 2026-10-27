@@ -121,9 +121,12 @@ test('an unmatched triplet excludes its successful arms', () => {
   assert.ok(pkg.attempts.every((a) => !a.included && a.exclusionReason === 'TRIPLET_INCOMPLETE'));
 });
 
-test('runType is formal-candidate only for a protocolConformant run', () => {
+test('runType is formal-candidate only for a protocolConformant a6-gauge/2 run', () => {
   const rows = rowsOf('positive.jsonl');
+  assert.equal(exportRows(rows).runType, 'rehearsal');
   rows[0].protocolConformant = true;
+  assert.equal(exportRows(rows).runType, 'rehearsal', 'a /1 run never recorded credit OFF');
+  for (const r of rows) r.schema = 'a6-gauge/2';
   assert.equal(exportRows(rows).runType, 'formal-candidate');
 });
 
