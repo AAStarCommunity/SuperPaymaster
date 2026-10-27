@@ -84,8 +84,10 @@ They cover:
 - the topic constant;
 - the non-empty output directory.
 
-`n50-mechanism.receive.json` is byte-identical when regenerated (sha256 `9741d32a…41388911`). The 452 raw files
-it lists are not committed. They are regenerated deterministically from the archived JSONL:
+The n50 package is not committed: `receive.json` alone is about 280 KB, and it lists 452 raw files. All of it is
+regenerated deterministically from the archived JSONL. The regenerated `receive.json` must have sha256
+`9741d32ab8127dfc0f75ce39f04c8caae96e12aa4703f743b37a5f1741388911`, and two independent runs produced exactly
+that value. `positive.receive.json`, the one-triplet package, is committed as a readable example.
 
 ```sh
 node script/a6-collector/to-aoa-m3-receive.mjs docs/design/aoa-balance-mode/data/a6-gauge-local/n50-mechanism.jsonl <empty-dir>
