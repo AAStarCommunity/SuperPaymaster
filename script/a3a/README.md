@@ -477,12 +477,14 @@ inherited from `a3a_exec` can put raw provider output in either.
   - A hit replaces the artefact with `{redacted, hash}`.
 - `unsigned.json`, `decoded.json` and `plan.reviewed.json` are built from the reviewed plan and the local
   signature, not from provider data, so this check does not run on them.
-- A `0x`-prefixed URL fragment is also matched without the prefix.
+- A `0x`-prefixed URL fragment is also matched without the prefix when the rest is hex of at least 8 digits.
+- `scrub` drops provider nesting deeper than 64 levels. If building the failure record raises anyway, a hash-only
+  record is written instead.
 - URL fragments shorter than six characters are not protected: shorter thresholds collide with ordinary
   numbers, and provider keys are far longer.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 60 offline tests, including a real PTY for the `/dev/tty` confirmation.
+`test_a3a_send.py` has 63 offline tests, including a real PTY for the `/dev/tty` confirmation.
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.
