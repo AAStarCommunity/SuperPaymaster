@@ -471,7 +471,7 @@ class SenderTests(unittest.TestCase):
         hex_key_url = 'https://eth-sepolia.example.invalid/v2/0a1b2c3d4e5f6a7b8c9d'
         self.assertEqual(sd.scrub('0x0a1b2c3d4e5f6a7b8c9d', hex_key_url), '<redacted 22 chars>')
         # Short hex (hashes, addresses, quantities) survives, so records stay useful.
-        self.assertEqual(sd.scrub({'h': '0x' + 'cd' * 32, 'n': 7}, SECRET), {'h': '0x' + 'cd' * 32, 'n': 7})
+        self.assertEqual(sd.scrub({'hash': '0x' + 'cd' * 32, 'code': 7}, SECRET), {'hash': '0x' + 'cd' * 32, 'code': 7})
 
     def test_failure_is_written_while_the_lock_is_held(self):
         rpc = self.d / 'rpc'
@@ -882,6 +882,39 @@ class SenderTests(unittest.TestCase):
                 'sd.report("SENT", sys.stdout); sys.exit(0)' % str(HERE))
         p = subprocess.run([sys.executable, '-B', '-c', code], capture_output=True, timeout=30)
         self.assertEqual(p.returncode, 0, p.stderr.decode()[-400:])
+    def test_provider_dict_keys_are_not_kept(self):
+        url = 'https://x.invalid/v2/abcdefabcdef'
+        self.assertEqual(sd.scrub({'removed': {'ProviderSecretNotInURL': False}}, url), {'<key 0>': {'<key 0>': False}})
+
+    def test_decimal_form_of_a_receipt_quantity_cannot_leak(self):
+        key = '123456'
+        url = 'https://x.invalid/v2/' + key
+        self.assertFalse(sd.leak_free({'gasUsed': int(key)}, url))
+        self.assertFalse(sd.leak_free({'gasUsed': hex(int(key))}, url))  # "0x1e240" serializes as 123456
+        self.assertTrue(sd.leak_free({'gasUsed': 135104, 'hash': '0x' + 'ab' * 32}, url))
+        chain = Chain()
+        result = self.run_send(chain, url=url, gas_used=int(key))
+        self.assertEqual(result, {'redacted': 'contained an RPC URL token', 'hash': keccak(self.sent[0])})
+        for name in ('result.json', 'receipt.json'):
+            self.assertNotIn(key, (self.args.out / name).read_text(), name)
+
+    def test_failure_record_final_check(self):
+        url = 'https://x.invalid/v2/123456'
+        rec = {'status': 'FAILURE', 'gate': 'send_after_broadcast', 'expected': 'x',
+               'observed': {'hash': '0x' + 'ab' * 32, 'broadcast': 'unknown', 'cause': 'x', 'causeObserved': 123456}}
+        self.assertNotIn('123456', json.dumps(sd.failure_record(rec, 'S5a', url)))
+        # Defence in depth: if failure_record ever let a token through, main() still writes only the placeholder.
+        rpc = self.d / 'rpc'
+        rpc.write_text(url)
+        out = self.d / 'final'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', 'cd' * 32, '--step', 'S1', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        with mock.patch.object(sd, 'failure_record', lambda record, step, u: dict(record, leaked=123456)), \
+                mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            self.assertEqual(sd.main(argv), 1)
+        text = (out / 'FAILURE.json').read_text()
+        self.assertNotIn('123456', text)
+        self.assertEqual(json.loads(text)['redacted'], 'contained an RPC URL token')
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.

@@ -282,10 +282,10 @@ def run(args, remote, url, confirm=None):
         evidence = dict(step=args.step, hash=h, outcome=outcome,
                         provider=None if provider is None else dict(gate=trusted_gate(provider['gate'], url),
                                                                     observed=scrub(provider['observed'], url)))
-        note(args.out/'broadcast.json', lambda p: ex.write_json(p, evidence))
+        note(args.out/'broadcast.json', lambda p: ex.write_json(p, guard(evidence, url, h)))
         note(args.out/'signed.raw', lambda p: p.write_text(raw+'\n'))  # public once broadcast; never on disk before
         r = wait_receipt(remote, h, tx, url_tokens(url))
-        note(args.out/'receipt.json', lambda p: ex.write_json(p, r))  # kept even if a later read fails
+        note(args.out/'receipt.json', lambda p: ex.write_json(p, guard(r, url, h)))  # kept even if a later read fails
         check_mined(remote, h, tx, r)
         if outcome == 'accepted_hash_mismatch':
             # Mined as signed, but the provider reported another hash: a provider fault the operator must see.
@@ -295,6 +295,7 @@ def run(args, remote, url, confirm=None):
             ex.readback(remote, plan, plan['steps'][-1], r, context)
         result = dict(status='SENT', step=args.step, role=role, hash=h, block=r['blockNumber'], broadcast=outcome,
                       gasUsed=ex.qty(r['gasUsed']), planSha256=hashlib.sha256(raw_plan).hexdigest())
+        result = guard(result, url, h)
         note(args.out/'result.json', lambda p: ex.write_json(p, result))
         return result
     except (Exception, KeyboardInterrupt) as e:
@@ -317,11 +318,43 @@ def note(path, write):
         report('WARNING: could not write %s' % path.name, sys.stderr)  # never raises, even if stderr is gone
 
 
+KNOWN_KEYS = frozenset(('hash', 'broadcast', 'provider', 'cause', 'causeObserved', 'gate', 'observed', 'expected',
+                        'method', 'code', 'step', 'status'))
+
+
+def leak_free(obj, url):
+    """Final check on what is about to be written or printed: no RPC URL token anywhere, in any key or string,
+    nor in any integer written in decimal or hex (a hex quantity can serialize as a decimal key)."""
+    tokens = url_tokens(url)
+    def bad(s):
+        return any(tok in s.lower() for tok in tokens)
+    def walk(v):
+        if isinstance(v, bool) or v is None:
+            return False
+        if isinstance(v, int):
+            return bad(str(v)) or bad(format(v, 'x'))
+        if isinstance(v, (list, tuple)):
+            return any(walk(x) for x in v)
+        if isinstance(v, dict):
+            return any(bad(str(k)) or walk(x) for k, x in v.items())
+        s = str(v)
+        return bad(s) or (re.fullmatch(r'0x[0-9a-fA-F]+', s) is not None and bad(str(int(s, 16))))
+    return not walk(obj)
+
+
+def guard(obj, url, h):
+    """obj if it is leak-free, else a placeholder that keeps only the transaction hash."""
+    return obj if leak_free(obj, url) else {'redacted': 'contained an RPC URL token', 'hash': h}
+
+
 SAFE_TEXT_MAX = 130  # "0x" + up to 64 bytes (two 32-byte words); longer hex (bytecode, calldata) is redacted
 
 
 def url_tokens(url):
-    """Path/query fragments of the RPC URL long enough to be a key; any provider string containing one is refused."""
+    """Path/query fragments of the RPC URL long enough to be a key; any provider string containing one is refused.
+
+    Fragments shorter than six characters are not protected: shorter thresholds collide with ordinary numbers
+    (gas used, block numbers). Provider keys are far longer; a sub-six-character credential is out of scope."""
     # Both the raw and the percent-decoded URL, lowercased: provider values are compared lowercased too.
     forms = {url, urllib.parse.unquote(url)}
     return {s.lower() for f in forms for s in re.split(r'[/?&=:#@.]+', f) if len(s) >= 6}
@@ -339,8 +372,8 @@ def scrub(value, url):
     def leaks(s):
         return any(tok in s.lower() for tok in tokens)
     def key(k, i):
-        s = str(k)
-        return s if re.fullmatch(r'[A-Za-z0-9_]{1,32}', s) and not leaks(s) else '<key %d>' % i
+        # Keys can be provider-controlled too (a dict inside an observed value): only known record keys survive.
+        return k if k in KNOWN_KEYS else '<key %d>' % i
     def clean(v):
         if v is None or isinstance(v, bool):
             return v
@@ -413,6 +446,12 @@ def main(argv=None):
                 # gate/status are code constants; observed and expected can both carry provider data (a3a_exec puts
                 # e.g. a receipt's transactionHash into expected), so both are scrubbed.
                 record = failure_record(e.record, args.step, url)
+                if not leak_free(record, url):
+                    obs = e.record.get('observed')
+                    record = {'status': 'FAILURE', 'gate': trusted_gate(e.record.get('gate'), url), 'step': args.step,
+                              'redacted': 'contained an RPC URL token',
+                              'hash': obs.get('hash') if isinstance(obs, dict) and isinstance(obs.get('hash'), str)
+                              and ex.HASH32.fullmatch(obs['hash']) else None}
                 try:
                     ex.write_json(args.out/'FAILURE.json', record)
                 except OSError:

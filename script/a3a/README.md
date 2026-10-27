@@ -465,10 +465,15 @@ inherited from `a3a_exec` can put raw provider output in either.
 - Every other string is replaced, because a provider value cannot be told apart from code text.
 - Code-sourced metadata is kept explicitly: the gate name, the `send_after_broadcast` outcome (one of a fixed
   set), its `cause` and `provider.gate`.
-- `broadcast.json` stores the provider value under the same rules.
+- `broadcast.json` stores the provider value under the same rules. Dict keys survive only if they are known record
+  keys.
+- A final check runs on every artefact before it is written or printed. It looks at every key, every string, and
+  every integer in decimal and hex, including the decimal form of a hex quantity. Anything containing a token
+  replaces the whole artefact with `{redacted, hash}`. URL fragments shorter than six characters are not
+  protected: shorter thresholds collide with ordinary numbers, and provider keys are far longer.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 53 offline tests, including a real PTY for the `/dev/tty` confirmation.
+`test_a3a_send.py` has 56 offline tests, including a real PTY for the `/dev/tty` confirmation.
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.
