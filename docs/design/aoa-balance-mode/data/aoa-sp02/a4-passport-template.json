@@ -1,0 +1,285 @@
+{
+ "schema": "aoa-a4-passport-template-v0",
+ "note": "Empty template. Fill A/B with raw values read at block.{number,hash} from two independent endpoints; A must equal B. Spec: docs/design/aoa-balance-mode/aoa-sp02-a4-passport.md",
+ "chainId": null,
+ "block": {
+  "number": null,
+  "hash": null,
+  "timestamp": null
+ },
+ "code": {
+  "superPaymasterProxy": {
+   "read": "eth_getCode keccak+size",
+   "changedBy": "SP owner (UUPS)",
+   "collector": "yes",
+   "A": null,
+   "B": null
+  },
+  "superPaymasterImpl": {
+   "read": "EIP-1967 slot 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc",
+   "changedBy": "SP owner (UUPS)",
+   "collector": "yes",
+   "A": null,
+   "B": null
+  },
+  "registryProxy": {
+   "read": "eth_getCode keccak+size",
+   "changedBy": "Registry owner (UUPS)",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "registryImpl": {
+   "read": "EIP-1967 slot",
+   "changedBy": "Registry owner (UUPS)",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "xPNTsClone": {
+   "read": "EIP-1167 target + codehash; token EXTENSION() and its codehash",
+   "changedBy": "immutable",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "xPNTsFactory": {
+   "read": "SP.xpntsFactory(); codehash; implementationCodehash(); extensionCodehash()",
+   "changedBy": "SP owner setXPNTsFactory",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "aPNTs": {
+   "read": "SP.APNTS_TOKEN(), pendingAPNTsToken(), pendingAPNTsTokenEta(); codehash",
+   "changedBy": "SP owner, 7-day queue",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "pins": {
+   "read": "collector/validator file sha256 + git HEAD; contracts/src tree hash; config sha256",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "priceFeed": {
+   "read": "SP.ETH_USD_PRICE_FEED() + codehash",
+   "changedBy": "SP implementation immutable (changes with upgrade)",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "account": {
+   "read": "sender + EIP-1967 impl codehash",
+   "changedBy": "account owner (UUPS)",
+   "collector": "yes",
+   "A": null,
+   "B": null
+  }
+ },
+ "governance": {
+  "safe": {
+   "read": "getOwners(), getThreshold()",
+   "changedBy": "Safe",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "timelock": {
+   "read": "hasRole(PROPOSER|EXECUTOR|CANCELLER|DEFAULT_ADMIN, x); hasRole(EXECUTOR, 0x0); getMinDelay()",
+   "changedBy": "role admin; updateDelay via timelock only",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "timelockOps": {
+   "read": "per known id: getTimestamp(id), isOperationPending/Ready/Done(id)",
+   "changedBy": "proposer/canceller/executor",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "superPaymaster": {
+   "read": "owner(), pendingOwner(), guardian(), paused()",
+   "changedBy": "owner (2-step); guardian pause-only",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "registry": {
+   "read": "owner(), pendingOwner()",
+   "changedBy": "owner (2-step)",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "xPNTs": {
+   "read": "communityOwner(), FACTORY()",
+   "changedBy": "community owner",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "aPNTs": {
+   "read": "owner(), pendingOwner(), minter(), capGuardian(), cap()",
+   "changedBy": "owner; owner or capGuardian lowerCap",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "factory": {
+   "read": "owner()",
+   "changedBy": "owner (1-step)",
+   "collector": "no",
+   "A": null,
+   "B": null
+  }
+ },
+ "allowlist": {
+  "protocolRegistry": {
+   "read": "sealed_(), isApprovedSP(sp), isApprovedImpl(kind,impl), approved(kind,key), pendingAt(kind,key)",
+   "changedBy": "owner pre-seal; post-seal 48h queue, anyone executes; owner revokes",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "tokenSpenders": {
+   "read": "autoApprovedSpenders(sp), spenderActivatesAt(sp)",
+   "changedBy": "community owner propose, anyone activates after 48h",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "facilitators": {
+   "read": "approvedFacilitators(x)",
+   "changedBy": "community owner",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "tokenSP": {
+   "read": "SUPERPAYMASTER_ADDRESS(), pendingSP(), pendingSPEta(), emergencyDisabled(), standbySP()",
+   "changedBy": "community owner / factory; owner emergency",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  }
+ },
+ "price": {
+  "cache": {
+   "read": "cachedPrice(), priceStalenessThreshold(), priceValidUntil()",
+   "changedBy": "anyone updatePrice(); owner/BLS updatePriceDVT",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "emergency": {
+   "read": "priceMode(), emergencyQueuedAt(), emergencyPendingPrice(), emergencyActivatedAt()",
+   "changedBy": "owner queue, anyone executes after 1h",
+   "collector": "no",
+   "A": null,
+   "B": null
+  },
+  "fees": {
+   "read": "protocolFeeBPS(), aPNTsPriceUSD()",
+   "changedBy": "SP owner",
+   "collector": "yes",
+   "A": null,
+   "B": null
+  },
+  "exchangeRate": {
+   "read": "exchangeRate(), exchangeRateUpdatedAt()",
+   "changedBy": "community owner or factory",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "gasParams": {
+   "read": "gasParams() current + pending",
+   "changedBy": "owner queue/execute/cancel",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  }
+ },
+ "ledger": {
+  "perUser": {
+   "read": "balanceOf(u), lockedOf(u), autoAllowance(u,SP), userTotal(u), autoRenewUsed(u), renewalMode(u), spenderDisabled(SP,u), debts(u), creditReservedOf(u)",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "perOp": {
+   "read": "SP.inflightOf(h), lockOf(h,u) -> (xLocked, aReserved, locker), creditReservationOf(h,u), usedOpHashes(h)",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "operator": {
+   "read": "operators(op) all 9 fields",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "protocol": {
+   "read": "protocolRevenue(), totalTrackedBalance()",
+   "collector": "partial",
+   "A": null,
+   "B": null
+  },
+  "entryPoint": {
+   "read": "EntryPoint.balanceOf(pm), getDepositInfo(pm)",
+   "collector": "yes",
+   "A": null,
+   "B": null
+  }
+ },
+ "creditOff": {
+  "C1": {
+   "assert": "token code identity (EIP-1167 target + factory pins)",
+   "A": null,
+   "B": null
+  },
+  "C2": {
+   "assert": "creditPolicy() == 0",
+   "A": null,
+   "B": null
+  },
+  "C3": {
+   "assert": "hasPendingPolicy() == false",
+   "A": null,
+   "B": null
+  },
+  "C4": {
+   "assert": "no CreditPolicyExecuted(policy != 0) from token deploy block to B; dual archive scan + positive control",
+   "A": null,
+   "B": null
+  },
+  "C5": {
+   "assert": "creditReservedOf(u) == 0 for each protocol-controlled user",
+   "A": null,
+   "B": null
+  },
+  "C6": {
+   "assert": "creditReservationOf(h,u).locker == 0 for each known opHash",
+   "A": null,
+   "B": null
+  },
+  "C7": {
+   "assert": "replay CreditReserved/CreditSettled/CreditReleased in (block, logIndex) order from token deploy block to B; each settle/release consumes exactly one open reservation with the same (user, opHash); none open at B; dual archive scan + positive control",
+   "A": null,
+   "B": null
+  },
+  "C8": {
+   "assert": "debts(user) == 0 for every user in C7",
+   "A": null,
+   "B": null
+  },
+  "C9": {
+   "assert": "SP.inflightOf(h) == (0,0) for each known opHash",
+   "A": null,
+   "B": null
+  }
+ }
+}
