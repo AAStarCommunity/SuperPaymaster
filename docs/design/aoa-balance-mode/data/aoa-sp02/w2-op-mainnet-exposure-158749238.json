@@ -1,0 +1,50 @@
+{
+ "tool": "w2-op-mainnet-exposure",
+ "block": 158749238,
+ "checks": {
+  "chainIdIsOpMainnet": true,
+  "endpointsAgree": true
+ },
+ "observation": {
+  "chainId": 10,
+  "blockHash": "0x2c0b5b46f8a315e4a9cc059568fab8db98d7d65dc64cf3d4468236546b8062a2",
+  "legacySuperPaymaster": {
+   "address": "0xa2c9a6e95f19f5d2a364cbcbb5f0b32b1b4d140e",
+   "depositInfo": {
+    "depositWei": "89012729856682592",
+    "staked": true,
+    "stakeWei": "100000000000000000",
+    "unstakeDelaySec": 86400,
+    "withdrawTime": 0
+   },
+   "owner": "0x51ac694981b6cea06aa6c51751c227aac5f6b8a3",
+   "ownerHasCode": false,
+   "version": "SuperPaymaster-3.2.2"
+  },
+  "factory": {
+   "address": "0x58a7f6e44a57028a255794119f8b37124c9a7eb8",
+   "paymasterCount": 1
+  },
+  "v4Paymasters": [
+   {
+    "address": "0x67a70a578e142b950987081e7016906ae4f56df4",
+    "depositInfo": {
+     "depositWei": "45097812963108079",
+     "staked": true,
+     "stakeWei": "100000000000000000",
+     "unstakeDelaySec": 86400,
+     "withdrawTime": 0
+    },
+    "owner": "0x51ac694981b6cea06aa6c51751c227aac5f6b8a3",
+    "ownerHasCode": false,
+    "version": "PMV4-Deposit-4.3.0"
+   }
+  ]
+ },
+ "totals": {
+  "paymasters": 2,
+  "depositWei": "134110542819790671",
+  "stakeWei": "200000000000000000"
+ },
+ "diffB": null
+}
