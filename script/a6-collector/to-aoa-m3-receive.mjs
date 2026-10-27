@@ -93,10 +93,13 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
   if (validate) {
     const scratch = mkdtempSync(join(tmpdir(), 'aoa-m3-validate-'));
     const reportPath = join(scratch, 'report.json');
+    // Validate the exact bytes being exported, not jsonlPath again: the file could change between the reads.
+    const runCopy = join(scratch, 'run.jsonl');
+    writeFileSync(runCopy, raw);
     let report;
     try {
       try {
-        execFileSync('node', [join(HERE, 'validate.mjs'), jsonlPath, '--json', reportPath], { stdio: 'ignore' });
+        execFileSync('node', [join(HERE, 'validate.mjs'), runCopy, '--json', reportPath], { stdio: 'ignore' });
       } catch (e) {
         // 3 = consistent, not accepted. Anything else (1 inconsistent, 2 missing field, or validate.mjs itself
         // could not run, e.g. without node_modules) refuses the export.

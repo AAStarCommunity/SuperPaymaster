@@ -158,6 +158,17 @@ test('runType is formal-candidate only for a validated, protocolConformant a6-ga
   refused(v2, /./, {});
 });
 
+test('an accepted /2 run that is not protocolConformant stays rehearsal', { skip: !hasViem }, () => {
+  // Archived local credit-off run: validate.mjs exit 0 (accepted), a6-gauge/2, protocolConformant false
+  // (count 1, one anvil behind both endpoints). Only the protocolConformant condition separates it from
+  // formal-candidate; the n50-based cases above cannot, since the validator requires n50 to be conformant.
+  const rows = readFileSync(join(HERE, '../../docs/design/aoa-balance-mode/data/a6-gauge-credit/credit-off.jsonl'), 'utf8')
+    .split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  assert.equal(rows[0].schema, 'a6-gauge/2');
+  assert.equal(rows[0].protocolConformant, false);
+  assert.equal(exportRows(rows, {}).runType, 'rehearsal');
+});
+
 test('decodeUoe matches only the EntryPoint, the topic and the expected hash', () => {
   const r = spRow(rowsOf('positive.jsonl'));
   assert.equal(decodeUoe(r.logs, r.entryPoint, r.expectedUserOpHash).count, 1);
