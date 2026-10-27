@@ -15,6 +15,7 @@ HERE=$(cd "$(dirname "$0")" && pwd); DATA="$HERE/../../docs/design/aoa-balance-m
 mkdir -p "$OUT"
 TSV="$OUT/results.tsv"; printf 'control\texpected\tobserved\tfirst_error\n' > "$TSV"
 bad=0
+ERRDIR=$(mktemp -d); trap 'rm -rf "$ERRDIR"' EXIT  # checker stderr captures; removed on any exit
 
 verdict() { # checker-json required-diagnostic -> "diagnostic-ok<TAB>status<TAB>first-error"
   python3 - "$1" "$2" <<'PY'
@@ -29,13 +30,12 @@ row() { # control expected-status receive.json expected-groups required-diagnost
   local res status err ok
   # The checker exits 0 for a pass and 1 for FAIL. An uncaught Python exception also exits 1, so exit code alone
   # cannot tell FAIL from a crash: a traceback on stderr, or any code other than 0/1, marks the row a crash.
-  local code=0 errf
-  errf=$(mktemp)
+  local code=0 errf="$ERRDIR/stderr"
   res=$(python3 "$CHECK" "$3" --expected "$4" 2>"$errf") || code=$?
   IFS=$'\t' read -r ok status err < <(verdict "$res" "$5")
   if [ "$code" -gt 1 ]; then ok=False; status="CHECKER_EXIT_$code"; fi
-  if grep -q '^Traceback' "$errf"; then ok=False; status="CHECKER_CRASH"; fi
-  rm -f "$errf"
+  # Any traceback form, including "+ Exception Group Traceback (most recent call last)".
+  if grep -q 'Traceback (most recent call last)' "$errf"; then ok=False; status="CHECKER_CRASH"; fi
   printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$status" "$err" >> "$TSV"
   if [ "$status" != "$2" ] || [ "$ok" != True ]; then
     echo "control $1: status $status (want $2), diagnostic '$5' present=$ok" >&2; bad=1
