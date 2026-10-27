@@ -7,7 +7,7 @@ production signer environment (a3a_send.signer_env) is used unmodified while the
 secrets that must not reach it. The plan gate (signing_transaction), the RPC and the broadcast are fakes, except
 in the S7 integration test, which runs the real gate and readback against test_a3a_exec.FakeChain.
 """
-import copy, fcntl, hashlib, json, os, shutil, stat, subprocess, sys, tempfile, unittest
+import copy, fcntl, hashlib, io, json, os, shutil, stat, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 
@@ -51,7 +51,7 @@ def cause(e):
     if rec['gate'] != 'send_after_broadcast':
         return rec['gate']
     assert ex.HASH32.fullmatch(rec['observed']['hash']), rec
-    assert rec['observed']['broadcast'] in ('accepted', 'unknown'), rec
+    assert rec['observed']['broadcast'] in ('accepted', 'accepted_hash_mismatch', 'unknown'), rec
     return rec['observed']['cause']
 
 
@@ -359,7 +359,11 @@ class SenderTests(unittest.TestCase):
                          'send_receipt_hash')
 
     def test_post_broadcast_checks(self):
-        self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), returned='0x' + '99' * 32)), 'send_returned_hash')
+        chain = Chain()
+        self.assertEqual(self.gate_name(lambda: self.run_send(chain, returned='0x' + '99' * 32)), 'send_returned_hash')
+        # The provider reported another hash, but the signed transaction is still monitored and its receipt kept.
+        self.assertIn('eth_getTransactionReceipt', [m for m, _ in chain.calls])
+        self.assertTrue((self.args.out / 'receipt.json').exists())
         self.clear_out()
         self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), status='0x0')), 'send_receipt_status')
         self.clear_out()
@@ -510,7 +514,7 @@ class SenderTests(unittest.TestCase):
         self.assertEqual(rec['gate'], 'send_after_broadcast')
         self.assertEqual(rec['observed']['hash'], keccak(self.sent[0]))
         self.assertEqual(json.loads((self.args.out / 'broadcast.json').read_text()),
-                         {'step': 'S5a', 'hash': keccak(self.sent[0]), 'outcome': 'accepted'})
+                         {'step': 'S5a', 'hash': keccak(self.sent[0]), 'outcome': 'accepted', 'provider': None})
 
     def test_local_error_after_broadcast_still_monitors_and_records(self):
         real = Path.write_text
@@ -553,15 +557,23 @@ class SenderTests(unittest.TestCase):
                 sd.run(self.args, Chain(), SECRET, confirm=self.confirm())
         obs = c.exception.record['observed']
         self.assertEqual((obs['broadcast'], obs['cause'], obs['hash']), ('unknown', 'send_receipt_timeout', keccak(self.sent[0])))
-        # A provider error reply is a definite rejection: not wrapped, nothing to reconcile.
-        self.clear_out()
-        def rejected(url, raw):
-            raise ex.Gate('send_broadcast_rejected', -32000, 'transaction hash')
-        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', rejected):
-            with self.assertRaises(ex.Gate) as c:
-                sd.run(self.args, Chain(), SECRET, confirm=self.confirm())
-        self.assertEqual(c.exception.record['gate'], 'send_broadcast_rejected')
-        self.assertFalse((self.args.out / 'broadcast.json').exists())
+        # An error reply ("already known", ...) or a malformed reply does not prove the transaction was not taken:
+        # it is outcome unknown too, monitored by hash, with the provider's code kept as the reason.
+        for gate, observed in (('send_broadcast_rejected', -32000), ('send_broadcast_result', 'malformed')):
+            with self.subTest(provider=gate):
+                self.clear_out()
+                chain = Chain()
+                def refused(url, raw, gate=gate, observed=observed):
+                    self.sent.append(raw)
+                    raise ex.Gate(gate, observed, 'transaction hash')
+                with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', refused), \
+                        mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'):
+                    with self.assertRaises(ex.Gate) as c:
+                        sd.run(self.args, chain, SECRET, confirm=self.confirm())
+                obs = c.exception.record['observed']
+                self.assertEqual((obs['broadcast'], obs['provider'], obs['hash']),
+                                 ('unknown', {'gate': gate, 'observed': observed}, keccak(self.sent[0])))
+                self.assertIn('eth_getTransactionReceipt', [m for m, _ in chain.calls])
 
     def test_broadcast_has_a_total_deadline(self):
         import threading, time as _t
@@ -628,6 +640,74 @@ class SenderTests(unittest.TestCase):
                 sd.run(self.args, Chain(), SECRET)
         self.assertEqual(c.exception.record['gate'], 'send_no_tty')
         self.assertEqual(self.sent, [])
+    def test_attempt_record_precedes_transmission(self):
+        real = ex.write_json
+        def fail_attempt(path, data):
+            if path.name == 'broadcast.json':
+                raise OSError('disk full')
+            return real(path, data)
+        with mock.patch.object(ex, 'write_json', fail_attempt):
+            with self.assertRaises(OSError):
+                self.run_send(Chain())
+        self.assertEqual(self.sent, [])  # the attempt could not be recorded, so nothing was transmitted
+
+    def test_evidence_writes_after_broadcast_never_stop_monitoring(self):
+        real = ex.write_json
+        calls = []
+        def fail_after(path, data):
+            calls.append(path.name)
+            if path.name == 'broadcast.json' and calls.count('broadcast.json') > 1:
+                raise OSError('disk full')
+            if path.name in ('receipt.json', 'result.json'):
+                raise OSError('disk full')
+            return real(path, data)
+        chain = Chain()
+        with mock.patch.object(ex, 'write_json', fail_after), mock.patch('sys.stderr'):
+            result = self.run_send(chain)
+        self.assertEqual(result['status'], 'SENT')
+        self.assertIn('eth_getTransactionReceipt', [m for m, _ in chain.calls])
+
+    def test_failure_record_falls_back_to_stderr(self):
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        out = self.d / 'fallback'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        real = ex.write_json
+        def no_failure_file(path, data):
+            if path.name == 'FAILURE.json':
+                raise OSError('disk full')
+            return real(path, data)
+        err = io.StringIO()
+        chain = Chain()
+        with self.gate([TX, TX]), self.broadcast(chain, TX, status='0x0'), mock.patch.object(ex, 'RPC', lambda url: chain), \
+                mock.patch.object(sd, 'tty_confirm', lambda prompt: 'SEND S5a ' + SHA[:12]), \
+                mock.patch.object(ex, 'write_json', no_failure_file), mock.patch('sys.stdout'), mock.patch('sys.stderr', err):
+            self.assertEqual(sd.main(argv), 1)
+        self.assertIn(keccak(self.sent[0]), err.getvalue())
+        self.assertNotIn('NEVER_PRINT_THIS', err.getvalue())
+
+    def test_tty_confirmation_on_a_real_pty(self):
+        import pty, threading
+        master, slave = pty.openpty()
+        try:
+            with mock.patch.object(sd, 'TTY_PATH', os.ttyname(slave)):
+                got = {}
+                t = threading.Thread(target=lambda: got.setdefault('line', sd.tty_confirm('Type it: ')), daemon=True)
+                t.start()
+                import select, time as _t
+                prompt, deadline = b'', _t.monotonic() + 5
+                while not prompt.endswith(b'Type it: ') and _t.monotonic() < deadline:
+                    if select.select([master], [], [], 0.1)[0]:
+                        prompt += os.read(master, 64)
+                self.assertTrue(prompt.endswith(b'Type it: '), 'prompt never reached the terminal')
+                os.write(master, b'SEND S5a abc\n')
+                t.join(5)
+            self.assertFalse(t.is_alive(), 'tty_confirm did not return')
+            self.assertEqual(got['line'].strip(), 'SEND S5a abc')
+        finally:
+            os.close(master)
+            os.close(slave)
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.

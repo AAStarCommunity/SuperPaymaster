@@ -26,11 +26,11 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
      no send).
   5. After the confirmation, immediately before broadcast: pre_send again (it must return the identical
      transaction) and the latest base fee plus the planned priority fee must fit under the planned max fee.
-  6. eth_sendRawTransaction under a total deadline. A provider error is a definite rejection; a timeout or a
-     dropped connection is outcome "unknown". From then on broadcast.json names the hash and outcome, the run
-     monitors by hash (tolerating transient RPC failures), and any failure ends as send_after_broadcast with the
-     hash. The returned hash, if any, must equal the signed hash. No resend, no replacement: a stuck transaction
-     is reported, not repriced. Status must be 0x1 and gasUsed
+  6. broadcast.json ("attempting", hash) is written first; then eth_sendRawTransaction under a total deadline.
+     Any reply other than the signed hash (timeout, malformed, error such as "already known") is outcome
+     "unknown"; another hash is "accepted_hash_mismatch". In every case the run monitors the local hash
+     (tolerating transient RPC failures), evidence writes are best effort, and any failure ends as
+     send_after_broadcast with the hash. No resend, no replacement: a stuck transaction is reported, not repriced. Status must be 0x1 and gasUsed
      <= planned gas; eth_getTransactionByHash must equal the plan. After S7 the final readback runs.
 Artefacts go to --out (0700): unsigned tx, decoded fields without the signature, the allowlisted receipt, and
 signed.raw only after broadcast. The RPC URL and provider-supplied text are never written or printed.
@@ -48,6 +48,7 @@ TRANSIENT_GATES = ('rpc_transport', 'rpc_envelope', 'rpc_fault')
 DECODED_FIELDS = ('signer', 'type', 'chainId', 'nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'to', 'value',
                   'accessList', 'input', 'hash')  # what decoded.json keeps; never the signature
 SIGNER_ENV_KEYS = ('HOME', 'PATH', 'TERM', 'LANG', 'USER')
+TTY_PATH = '/dev/tty'
 LOCK_PATH = Path.home()/'.a3a_send.lock'  # one sender at a time per user (HOME); other users or machines are out of reach
 
 
@@ -122,7 +123,9 @@ def fee_fits(remote, tx):
 
 
 def broadcast(url, raw):
-    """The one write call. Kept outside ex.RPC, which refuses every non-read method."""
+    """The one write call: an explicit write transport. It reuses ex.RPC's wall-clock total-deadline poster
+    (_post_with_deadline) but not ex.RPC.__call__, which refuses every non-read method; the envelope is checked
+    here. Any failure is a Gate; run() treats every failure as "outcome unknown" and monitors by hash."""
     q = {'jsonrpc': '2.0', 'id': 1, 'method': 'eth_sendRawTransaction', 'params': [raw]}
     try:
         # Same wall-clock total deadline as every read (ex.RPC): a trickling server cannot hold the lock open.
@@ -225,10 +228,11 @@ def signed(tx, account):
 def tty_confirm(prompt):
     """The confirmation must come from the operator's terminal, not from piped or redirected input."""
     try:
-        with open('/dev/tty', 'r+') as tty:
-            tty.write(prompt)
-            tty.flush()
-            return tty.readline()
+        # Separate read and write streams: a buffered 'r+' text stream needs a seekable file, which a tty is not.
+        with open(TTY_PATH, 'w') as out, open(TTY_PATH, 'r') as inp:
+            out.write(prompt)
+            out.flush()
+            return inp.readline()
     except OSError:
         raise ex.Gate('send_no_tty', 'no controlling terminal', 'operator at a terminal') from None
 
@@ -255,38 +259,48 @@ def run(args, remote, url, confirm=None):
     again = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
     ex.need('send_tx_stable', again, tx)
     fee_fits(remote, tx)
-    outcome = 'accepted'
+    # The attempt is on disk before anything is transmitted: if this write fails, nothing has been sent.
+    ex.write_json(args.out/'broadcast.json', dict(step=args.step, hash=h, outcome='attempting'))
+    outcome, provider = 'accepted', None
     try:
         sent = broadcast(url, raw)
+        if sent != h:
+            outcome = 'accepted_hash_mismatch'
     except ex.Gate as e:
-        if e.record['gate'] != 'send_broadcast_transport':
-            raise  # the provider answered with an error: the transaction was not accepted
-        sent, outcome = None, 'unknown'  # timeout or disconnect: the provider may hold the transaction
-    # From here on the transaction may be on its way. Whatever fails, the record names its hash and outcome, and
-    # monitoring by hash is never skipped because of a local error.
+        # No reply, a malformed reply, or an error reply ("already known", "nonce too low", ...) does not prove the
+        # transaction is not in some mempool. Every failure is treated as outcome unknown and monitored by hash.
+        outcome, provider = 'unknown', {'gate': e.record['gate'], 'observed': e.record['observed']}
+    # From here on the transaction may be on its way: evidence writes are best effort and never stop monitoring,
+    # and every failure is send_after_broadcast with the hash.
+    note(args.out/'broadcast.json', lambda p: ex.write_json(p, dict(step=args.step, hash=h, outcome=outcome, provider=provider)))
+    note(args.out/'signed.raw', lambda p: p.write_text(raw+'\n'))  # public once broadcast; never on disk before
     try:
-        ex.write_json(args.out/'broadcast.json', dict(step=args.step, hash=h, outcome=outcome))
-        try:
-            (args.out/'signed.raw').write_text(raw+'\n')  # evidence only; public once broadcast, never on disk before
-        except OSError:
-            pass
-        if sent is not None:
-            ex.need('send_returned_hash', sent, h)
         r = wait_receipt(remote, h, tx)
         check_mined(remote, h, tx)
-        ex.write_json(args.out/'receipt.json', r)
+        note(args.out/'receipt.json', lambda p: ex.write_json(p, r))
+        if outcome == 'accepted_hash_mismatch':
+            # Mined as signed, but the provider reported another hash: a provider fault the operator must see.
+            raise ex.Gate('send_returned_hash', 'mismatch', h)
         if args.step == ex.STEP_IDS[-1]:
             context = {'tlBlock': hex(int(plan['pin']['block'], 16)+1), 'eta': ex.scheduled_eta(remote, plan, done=True)}
             ex.readback(remote, plan, plan['steps'][-1], r, context)
         result = dict(status='SENT', step=args.step, role=role, hash=h, block=r['blockNumber'], broadcast=outcome,
                       gasUsed=ex.qty(r['gasUsed']), planSha256=hashlib.sha256(raw_plan).hexdigest())
-        ex.write_json(args.out/'result.json', result)
+        note(args.out/'result.json', lambda p: ex.write_json(p, result))
         return result
     except Exception as e:
         inner = e.record if isinstance(e, ex.Gate) else {'gate': 'local_error', 'observed': type(e).__name__}
-        raise ex.Gate('send_after_broadcast', {'hash': h, 'broadcast': outcome, 'cause': inner.get('gate'),
-                                               'causeObserved': inner.get('observed')},
+        raise ex.Gate('send_after_broadcast', {'hash': h, 'broadcast': outcome, 'provider': provider,
+                                               'cause': inner.get('gate'), 'causeObserved': inner.get('observed')},
                       'reconcile by hash on chain; never resend or reprice without a new review') from None
+
+
+def note(path, write):
+    """Best-effort evidence write after broadcast: a full disk must not stop monitoring."""
+    try:
+        write(path)
+    except OSError:
+        print('WARNING: could not write %s' % path.name, file=sys.stderr)
 
 
 SAFE_TEXT_MAX = 130  # "0x" + up to 64 bytes (two 32-byte words); longer hex (bytecode, calldata) is redacted
@@ -348,9 +362,13 @@ def main(argv=None):
                 # Only into the directory this run verified empty, never over earlier evidence; still locked.
                 # gate/status are code constants; observed and expected can both carry provider data (a3a_exec puts
                 # e.g. a receipt's transactionHash into expected), so both are scrubbed.
-                ex.write_json(args.out/'FAILURE.json', dict(e.record, step=args.step,
-                                                            observed=scrub(e.record.get('observed'), url),
-                                                            expected=scrub(e.record.get('expected'), url)))
+                record = dict(e.record, step=args.step, observed=scrub(e.record.get('observed'), url),
+                              expected=scrub(e.record.get('expected'), url))
+                try:
+                    ex.write_json(args.out/'FAILURE.json', record)
+                except OSError:
+                    # Disk still failing: the terminal is the last place the hash can be reported.
+                    print('FAILURE record (not written): ' + json.dumps(record), file=sys.stderr)
                 raise
         return 0
     except ex.Gate as e:

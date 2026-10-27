@@ -431,17 +431,22 @@ Each of these is a hard stop. Nothing leaves the process unless every earlier on
 
    After S7, the final `readback` runs on the allowlisted receipt.
 
-**After broadcast.** From the moment the broadcast is attempted, the transaction may be out.
-- `broadcast.json` records `{step, hash, outcome}` at once. `outcome` is `accepted` when the provider returned the
-  hash, and `unknown` when the call timed out or the connection dropped. A provider error reply is a definite
-  rejection and is not wrapped.
-- Either way the run keeps monitoring by hash. Up to 10 consecutive transient RPC failures are tolerated while
-  polling.
-- Any later failure, including a local error such as a full disk while writing `signed.raw`, ends as
-  `send_after_broadcast`. Its record carries the hash, the outcome and the cause, so the transaction can be
-  reconciled on chain.
-- The broadcast call uses the same wall-clock total deadline as every read (`ex.RPC`), so a stalled provider
-  cannot hold the lock.
+**Around broadcast.**
+- `broadcast.json` with `outcome: attempting` and the hash is written **before** anything is transmitted. If that
+  write fails, nothing is sent.
+- The outcome is then recorded as:
+  - `accepted`: the provider returned the signed hash;
+  - `accepted_hash_mismatch`: it returned another hash;
+  - `unknown`: anything else, meaning a timeout, a dropped connection, a malformed reply, or an error reply such
+    as "already known" or "nonce too low". The provider's code is kept as the reason.
+- None of these proves the transaction is absent from every mempool, so in every case the run monitors the
+  locally computed hash. Up to 10 consecutive transient RPC failures are tolerated.
+- Evidence writes after broadcast are best effort, so a full disk never stops monitoring.
+- Every failure ends as `send_after_broadcast`, with the hash, the outcome and the cause. A hash mismatch is
+  reported as a failure even when the signed transaction was mined.
+- If even `FAILURE.json` cannot be written, the scrubbed record goes to stderr.
+- The broadcast is an explicit write transport. It reuses `ex.RPC`'s wall-clock total deadline but not
+  `ex.RPC.__call__`, so a stalled provider cannot hold the lock.
 
 A transaction that is not mined within 600 s is reported. It is never re-sent or repriced; doing either needs a
 new review. Each step's artefacts are written to its own empty `--out`: `unsigned.json`, `signed.raw`,
@@ -451,7 +456,7 @@ inherited from `a3a_exec` can put raw provider output in either. Only numbers, b
 short identifier keys survive, minus anything that contains a token of the RPC URL.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 36 offline tests. It runs in CI (`a3a-executor.yml`).
+`test_a3a_send.py` has 40 offline tests, including a real PTY for the `/dev/tty` confirmation. It runs in CI (`a3a-executor.yml`).
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.
