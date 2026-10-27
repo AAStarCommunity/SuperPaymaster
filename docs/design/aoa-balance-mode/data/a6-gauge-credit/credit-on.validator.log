@@ -1,0 +1,19 @@
+{
+  "file": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/credit-out3/credit-on.jsonl",
+  "attempts": 3,
+  "recomputed": {
+    "USEROP_SUCCESS": 3
+  },
+  "errors": [
+    "passport credit policy is not OFF",
+    "passport credit policy is not OFF"
+  ],
+  "notes": [],
+  "matchedTriplets": 1,
+  "stop": "COMPLETE",
+  "exitCode": 0,
+  "protocolConformant": false,
+  "consistent": false,
+  "accepted": false,
+  "validatorExit": 1
+}

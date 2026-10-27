@@ -121,13 +121,41 @@ test('an unmatched triplet excludes its successful arms', () => {
   assert.ok(pkg.attempts.every((a) => !a.included && a.exclusionReason === 'TRIPLET_INCOMPLETE'));
 });
 
-test('runType is formal-candidate only for a protocolConformant a6-gauge/2 run', () => {
+// n50 mechanism run with conformant-looking endpoints, as a6-gauge/2 with credit OFF: validate.mjs accepts it
+// (same construction as negative-controls/credit-schema-downgrade.py). Synthetic: proves exporter rules only.
+function conformantV2() {
+  const hosts = [['http://127.0.0.1:8545', 'http://10.0.0.1:8545'], ['http://127.0.0.1:8546', 'http://10.0.0.2:8546']];
+  const patch = (o) => {
+    if (Array.isArray(o)) return o.forEach(patch);
+    if (!o || typeof o !== 'object') return;
+    for (const [k, v] of Object.entries(o)) {
+      if (k === 'allowSameEndpointLocal') o[k] = false;
+      else if (typeof v === 'string') { const h = hosts.find(([f]) => v.startsWith(f)); if (h) o[k] = h[1] + v.slice(h[0].length); }
+      else patch(v);
+    }
+  };
+  const rows = rowsOf('n50-mechanism.jsonl');
+  rows.forEach(patch);
+  rows[0].protocolConformant = true;
+  for (const r of rows) r.schema = 'a6-gauge/2';
+  for (const r of [rows[0], rows.at(-1)]) r.passport.invariant.credit = { policy: 0, hasPendingPolicy: false, pendingPolicy: 0, pendingPolicyEta: '0', policyEpoch: 0 };
+  return rows;
+}
+
+test('runType is formal-candidate only for a validated, protocolConformant a6-gauge/2 run', { skip: !hasViem }, () => {
   const rows = rowsOf('positive.jsonl');
   assert.equal(exportRows(rows).runType, 'rehearsal');
   rows[0].protocolConformant = true;
   assert.equal(exportRows(rows).runType, 'rehearsal', 'a /1 run never recorded credit OFF');
-  for (const r of rows) r.schema = 'a6-gauge/2';
-  assert.equal(exportRows(rows).runType, 'formal-candidate');
+  const v2 = conformantV2();
+  assert.equal(exportRows(v2).runType, 'rehearsal', 'without validate.mjs the exporter must not mark a run formal');
+  assert.equal(exportRows(v2, {}).runType, 'formal-candidate');
+  const unaccepted = structuredClone(v2);
+  Object.assign(unaccepted.at(-1), { stop: { reason: 'MAX_ATTEMPTS', code: 10 }, exitCode: 10 }); // consistent, not accepted (exit 3)
+  assert.equal(exportRows(unaccepted, {}).runType, 'rehearsal', 'consistent but not accepted is not a formal candidate');
+  for (const r of v2) r.schema = 'a6-gauge/1';
+  for (const r of [v2[0], v2.at(-1)]) delete r.passport.invariant.credit;
+  refused(v2, /./, {});
 });
 
 test('decodeUoe matches only the EntryPoint, the topic and the expected hash', () => {

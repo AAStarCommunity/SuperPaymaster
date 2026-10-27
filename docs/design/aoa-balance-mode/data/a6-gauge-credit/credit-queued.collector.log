@@ -1,0 +1,6 @@
+A6 gauge credit-queued: N=1 bMax=1 maxAttempts/arm=2 arms=SP,VPM,TPM fixture=none
+EP=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 (canonical v0.7 address: false) sender=0x43a71246698E5bE1D9fb04183589edA602EA06F1
+  t=0 SP  USEROP_SUCCESS hash=0xc1b0b281bc… tx=0xd8e398ad16… receipt=success
+  t=0 VPM USEROP_SUCCESS hash=0xcf96623446… tx=0x281312d64f… receipt=success
+  t=0 TPM USEROP_SUCCESS hash=0x53da7631c6… tx=0xd111f59503… receipt=success
+stop=COMPLETE exit=0 matched=1/1 {"SP":{"attempts":1,"verdicts":{"USEROP_SUCCESS":1}},"VPM":{"attempts":1,"verdicts":{"USEROP_SUCCESS":1}},"TPM":{"attempts":1,"verdicts":{"USEROP_SUCCESS":1}}}

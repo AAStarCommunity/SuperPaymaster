@@ -22,11 +22,11 @@
 |---|---|---|---|
 | SP proxy / implementation | proxy 地址；EIP-1967 slot `0x3608…2bbc`；两者 `eth_getCode` 的 keccak 与字节数 | owner 经 UUPS `upgradeToAndCall`，要求无 pendingOwner（BPU） | ✅ |
 | Registry proxy / implementation | 同上 | Registry owner（UUPS） | ❌ |
-| xPNTs 克隆 / 模板 / Ext | 克隆的 EIP-1167 目标；代币自己的 `EXTENSION()`；`XF.implementationCodehash()`、`extensionCodehash()` | 工厂部署时钉住，不可改 | ⚠️ 读了克隆、模板的 codehash；Ext 的 codehash 取自配置文件里的 `cfg.xPNTsTokenV2Ext`，**没核对代币实际的 `EXTENSION()` 是否指向它**（`collector.mjs:346`）；没读工厂钉值 |
+| xPNTs 克隆 / 模板 / Ext | 克隆的 EIP-1167 目标；代币自己的 `EXTENSION()`；`XF.implementationCodehash()`、`extensionCodehash()` | 工厂部署时钉住，不可改 | ⚠️ 读了克隆、模板的 codehash；自 `a6-gauge/2` 起 Ext 的 codehash 按代币链上的 `EXTENSION()` 取（#558）；没读工厂钉值 |
 | xPNTs 工厂 | `SP.xpntsFactory()`；工厂 codehash | SP owner `setXPNTsFactory` | ❌ |
 | aPNTs（APNTsCapped） | `SP.APNTS_TOKEN()`、`pendingAPNTsToken()`、`pendingAPNTsTokenEta()`；`CAP` codehash | SP owner 排队，7 天延迟（SPA） | ⚠️ 读了 `APNTS_TOKEN`，没读 pending 与 codehash |
 | EntryPoint | codehash | 不可改 | ✅ |
-| 价格源 | `SP.ETH_USD_PRICE_FEED()` 及其 codehash | SP 实现里的 immutable，随升级可变 | ⚠️ 哈希的是配置里的 `cfg.priceFeed`，没读 SP 实际绑定的地址（`collector.mjs:351`） |
+| 价格源 | `SP.ETH_USD_PRICE_FEED()` 及其 codehash | SP 实现里的 immutable，随升级可变 | ✅ 自 `a6-gauge/2` 起按 SP 链上的 `ETH_USD_PRICE_FEED()` 取（#558）；`/1` 运行哈希的是配置里的 `cfg.priceFeed` |
 | 账户 / 账户实现 | sender 与 EIP-1967 实现的 codehash | 账户 owner 可经 UUPS 升级（SimpleAccount） | ✅ 读了两者并做漂移检查 |
 | 运行时依赖钉值 | 采集器、校验器、依赖、合约源码、ABI、配置的 SHA-256 与 commit | — | ⚠️ `run_start` 有 collector 文件哈希与 HEAD；缺合约源码树哈希与配置哈希 |
 
@@ -102,6 +102,8 @@ policy（XE:174），初值为 0，且工厂部署时断言 `creditPolicy() == 0
 | C8 | 无遗留债务 | 对 C7 涉及的每个用户 `debts(user) == 0` | OFF 和零预留都不会清掉已结算的债务 |
 | C9 | SP 侧无遗留 | 对窗口前已知的每个 opHash，`SP.inflightOf(opHash) == (0, 0)` | SP 与代币的 stale release 分开清，只清一边会留下另一边 |
 
+**采集器现状**：自 `a6-gauge/2`（#558）起，C2、C3 写入 Passport `invariant.credit`，校验器拒收 policy≠OFF 或有排队变更的运行，`/1` 运行不能判为合规；本地对照见 `data/a6-gauge-credit/`。C1 只有克隆与 Ext 的 codehash，没有工厂钉值；C4–C9 尚未实现。
+
 **C4 与 C7 依赖日志扫描是否完整。** 扫描完整性无法从返回数据推断：漏掉的区间和真空区间长得一样。
 所以这两项必须在两个独立的归档端点上各扫一次、逐条一致，并给出正对照：用一个已知含 `CreditPolicyExecuted` 或
 `CreditReserved` 的区间（例如本地演练链），先证明扫描器能找到它。做不到就写「未能验证」，不写「无」。
@@ -118,14 +120,14 @@ credit OFF：前两者管的是声誉抬升的额度，不管代币准入；后�
 
 | # | 缺口 | 影响 | 处理 |
 |---|---|---|---|
-| A4-G1 | 采集器 Passport 不读 `creditPolicy`、`hasPendingPolicy`、`creditReservationOf` | 现有运行**无法**证明 credit OFF | 补读 C2、C3、C6；C4、C7 由独立扫描脚本做 |
+| A4-G1 | 采集器 Passport 不读 `creditPolicy`、`hasPendingPolicy`、`creditReservationOf` | 现有 `a6-gauge/1` 运行**无法**证明 credit OFF | **部分关闭**：`a6-gauge/2` 已记录 C2、C3，校验器拒收 policy≠OFF 或有排队变更的运行，`/1` 不能判为合规（`data/a6-gauge-credit/`）。C6 逐 op 读回与 C4/C7 扫描仍待做 |
 | A4-G2 | 不读 Safe、Timelock、owner、pendingOwner、guardian、aPNTs 的 minter/capGuardian/cap | 治理漂移不可见 | 按 §1.2 补读，列入 `invariant` 做漂移检查。同 A4-G3 的限制：首尾快照相同不排除窗口内改了又改回。要排除，须给 §1.2 **每个**字段指定它的全部写入事件并对整个窗口扫描（双归档端点 + 正对照）；补读 PR 要附这张「字段 → 事件」表，并逐项从源码核对写入点。下列只是例子、**不是完整清单**：Timelock `RoleGranted`/`RoleRevoked`/`MinDelayChange`，owner 的 `OwnershipTransferStarted`/`OwnershipTransferred`，代币 `CommunityOwnerUpdated`，SP `GuardianSet`，aPNTs `MinterSet`/`CapGuardianSet`/`CapRaised`/`CapLowered`，Safe 的 owner、threshold、module、guard 变更事件 |
 | A4-G3 | 不读协议注册表封印和批准状态 | 无法证明窗口内没有新增 SP 或实现获批 | 按 §1.3 补读快照；但快照只说明被查的键在被查的块上的状态：窗口内「批准→撤销」前后快照相同，没查的键也看不到。要说「窗口内没有新的批准」，须对整个窗口扫 `ApprovalProposed` / `ApprovalExecuted` / `ApprovalRevoked` / `Sealed`（双归档端点 + 正对照），否则只能写成「这些键在开窗与收窗时的状态」 |
 | A4-G4 | 不读用户预算 `autoAllowance`、`userTotal` | budget/used 不进账本，守恒检查少一维 | 补进逐 op readbacks |
 | A4-G5 | 不读 `totalTrackedBalance`、代币侧 `usedOpHashes`、operator reputation/treasury | SP 内部池不可审计；`usedOpHashes` 只写不读，补读只用于对账，不能当防线 | 补读 |
 | A4-G6 | Timelock 没有「全部待执行操作」的 getter；SP 没有 operator 枚举；代币没有用户枚举 | 「没有其它待执行操作」「全局无预留」只能靠日志对账 | 同 C7 的双归档端点扫描与正对照 |
 | A4-G7 | 运行时钉值缺合约源码树与配置的哈希 | Passport 绑定不到源码 | `run_start` 增加 `contracts/src` 树哈希与配置文件 SHA-256 |
-| A4-G9 | Ext 和价格源的 codehash 取自配置文件，不是链上实际绑定；`lockOf` 只存 `xLocked` | 配置与链上不一致时 Passport 仍显示一致；锁的 locker 不可审计 | 读代币 `EXTENSION()` 与 `SP.ETH_USD_PRICE_FEED()` 再哈希；`lockOf` 存全部三项 |
+| A4-G9 | Ext 和价格源的 codehash 取自配置文件，不是链上实际绑定；`lockOf` 只存 `xLocked` | 配置与链上不一致时 Passport 仍显示一致；锁的 locker 不可审计 | **部分关闭**：`a6-gauge/2` 改为哈希代币 `EXTENSION()` 与 `SP.ETH_USD_PRICE_FEED()`；`lockOf` 仍只存 `xLocked` |
 | A4-G8 | 本地演练里 SP 未质押（见[对照表](aoa-sp02-adapter-matrix.md) U-6） | 与生产 bundler 准入不符 | 正式窗口按 W-1 质押 ≥ 1 ETH |
 
 A4-G1 至 A4-G7、A4-G9 是对 `collector.mjs` 的改动，会在单独的 PR 里做，并配负对照。本文先把模板和判据定下来，供 DSR 审。

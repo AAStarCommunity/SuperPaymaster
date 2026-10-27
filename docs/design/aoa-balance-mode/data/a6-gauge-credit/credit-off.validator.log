@@ -1,0 +1,16 @@
+{
+  "file": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/credit-out3/credit-off.jsonl",
+  "attempts": 3,
+  "recomputed": {
+    "USEROP_SUCCESS": 3
+  },
+  "errors": [],
+  "notes": [],
+  "matchedTriplets": 1,
+  "stop": "COMPLETE",
+  "exitCode": 0,
+  "protocolConformant": false,
+  "consistent": true,
+  "accepted": true,
+  "validatorExit": 0
+}

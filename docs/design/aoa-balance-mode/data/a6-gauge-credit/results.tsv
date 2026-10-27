@@ -1,0 +1,4 @@
+control	command_exit	validator_exit
+credit-off	0	0
+credit-queued	0	1
+credit-on	0	1
