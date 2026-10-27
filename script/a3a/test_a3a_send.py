@@ -915,6 +915,15 @@ class SenderTests(unittest.TestCase):
         text = (out / 'FAILURE.json').read_text()
         self.assertNotIn('123456', text)
         self.assertEqual(json.loads(text)['redacted'], 'contained an RPC URL token')
+        # A provider-sourced hash in another gate's observed value is not carried into the placeholder.
+        shutil.rmtree(out)
+        leaky = ex.Gate('role_log_removed', {'hash': '0x123456' + '0' * 58, 'code': '0x1e240'}, 'x')
+        with self.gate([leaky]), mock.patch.object(ex, 'RPC', lambda u: Chain()), mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            argv[argv.index('--reviewed-plan-sha256') + 1] = SHA
+            self.assertEqual(sd.main(argv), 1)
+        text = (out / 'FAILURE.json').read_text()
+        self.assertNotIn('123456', text)
+        self.assertIsNone(json.loads(text)['hash'])
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.

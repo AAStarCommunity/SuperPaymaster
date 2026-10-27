@@ -447,11 +447,14 @@ def main(argv=None):
                 # e.g. a receipt's transactionHash into expected), so both are scrubbed.
                 record = failure_record(e.record, args.step, url)
                 if not leak_free(record, url):
+                    # Only send_after_broadcast's hash is ours (computed locally from the signed bytes); any other
+                    # gate's observed hash may be provider data. Even ours is rechecked before it is kept.
                     obs = e.record.get('observed')
+                    mine = (e.record.get('gate') == 'send_after_broadcast' and isinstance(obs, dict)
+                            and isinstance(obs.get('hash'), str) and ex.HASH32.fullmatch(obs['hash'])
+                            and leak_free(obs['hash'], url))
                     record = {'status': 'FAILURE', 'gate': trusted_gate(e.record.get('gate'), url), 'step': args.step,
-                              'redacted': 'contained an RPC URL token',
-                              'hash': obs.get('hash') if isinstance(obs, dict) and isinstance(obs.get('hash'), str)
-                              and ex.HASH32.fullmatch(obs['hash']) else None}
+                              'redacted': 'contained an RPC URL token', 'hash': obs['hash'] if mine else None}
                 try:
                     ex.write_json(args.out/'FAILURE.json', record)
                 except OSError:
