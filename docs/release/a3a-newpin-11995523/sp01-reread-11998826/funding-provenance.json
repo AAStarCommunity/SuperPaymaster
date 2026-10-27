@@ -1,0 +1,93 @@
+{
+ "note": "read-only; RPC URLs omitted",
+ "plan": "docs/release/a3a-newpin-11995523/a3a-plan/plan.json",
+ "pinBlock": 11995523,
+ "reads": {
+  "A": {
+   "tx": {
+    "hash": "0x1bf66ae42dcb55c7b4fa37f2ed39604faf1b31dd1d52e5395971dc78a3417495",
+    "from": "0x871608cba092105b91e91295a1d79ffc539bfb48",
+    "to": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+    "nonce": 28,
+    "valueWei": 10000000000000000000,
+    "input": "0x"
+   },
+   "receipt": {
+    "status": "0x1",
+    "blockNumber": 11995503,
+    "blockHash": "0x37a39e611f0ba0465e95529b076ed91d93c4365de7bc7f96f66a24b0e82b33dd",
+    "gasUsed": 21000,
+    "logs": [
+     {
+      "address": "0xfffffffffffffffffffffffffffffffffffffffe",
+      "topics": [
+       "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+       "0x000000000000000000000000871608cba092105b91e91295a1d79ffc539bfb48",
+       "0x000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e"
+      ],
+      "data": "0x0000000000000000000000000000000000000000000000008ac7230489e80000"
+     }
+    ]
+   },
+   "canonicalBlockHash": "0x37a39e611f0ba0465e95529b076ed91d93c4365de7bc7f96f66a24b0e82b33dd",
+   "deployer": {
+    "balanceBefore": 2161907553052084158,
+    "nonceBefore": 12131,
+    "balanceAt": 12161907553052084158,
+    "nonceAt": 12131,
+    "balanceAtPin": 12161907553052084158,
+    "nonceAtPin": 12131,
+    "codeAtPin": "0x"
+   }
+  },
+  "B": {
+   "tx": {
+    "hash": "0x1bf66ae42dcb55c7b4fa37f2ed39604faf1b31dd1d52e5395971dc78a3417495",
+    "from": "0x871608cba092105b91e91295a1d79ffc539bfb48",
+    "to": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+    "nonce": 28,
+    "valueWei": 10000000000000000000,
+    "input": "0x"
+   },
+   "receipt": {
+    "status": "0x1",
+    "blockNumber": 11995503,
+    "blockHash": "0x37a39e611f0ba0465e95529b076ed91d93c4365de7bc7f96f66a24b0e82b33dd",
+    "gasUsed": 21000,
+    "logs": [
+     {
+      "address": "0xfffffffffffffffffffffffffffffffffffffffe",
+      "topics": [
+       "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+       "0x000000000000000000000000871608cba092105b91e91295a1d79ffc539bfb48",
+       "0x000000000000000000000000b5600060e6de5e11d3636731964218e53caadf0e"
+      ],
+      "data": "0x0000000000000000000000000000000000000000000000008ac7230489e80000"
+     }
+    ]
+   },
+   "canonicalBlockHash": "0x37a39e611f0ba0465e95529b076ed91d93c4365de7bc7f96f66a24b0e82b33dd",
+   "deployer": {
+    "balanceBefore": 2161907553052084158,
+    "nonceBefore": 12131,
+    "balanceAt": 12161907553052084158,
+    "nonceAt": 12131,
+    "balanceAtPin": 12161907553052084158,
+    "nonceAtPin": 12131,
+    "codeAtPin": "0x"
+   }
+  }
+ },
+ "checks": {
+  "readsIdentical": true,
+  "receiptSuccess": true,
+  "receiptBlockCanonical": true,
+  "plainValueTransferToDeployer": true,
+  "onlyLogIsEip7708EthTransfer": true,
+  "minedBeforePin": true,
+  "balanceRoseByExactlyValue": true,
+  "deployerNonceUnchanged": true,
+  "noOtherBalanceChangeUntilPin": true,
+  "deployerHasNoCodeAtPin": true
+ }
+}
