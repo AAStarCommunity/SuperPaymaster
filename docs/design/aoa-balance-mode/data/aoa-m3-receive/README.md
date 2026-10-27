@@ -15,8 +15,14 @@ tampering hashes, duplicating operations and changing chain or pin are each refu
 - **Starts from a consistent run.** It runs `validate.mjs` first and requires `consistent`; otherwise nothing is
   written.
 - **Decodes the event itself.** For every attempt it decodes the EntryPoint v0.7 `UserOperationEvent` from that
-  attempt's own receipt logs, matched by EntryPoint address, topic and expected `userOpHash`. When the collector's
-  verdict is success, the decoded event must equal the collector's `userOpEvent` record, or the export is refused.
+  attempt's own receipt logs, matched by EntryPoint address, topic and expected `userOpHash`. The address topics
+  must be canonically zero-padded. When the collector's verdict is success, the decoded event must equal the
+  collector's record: `userOpEvent` hash, nonce, sender, paymaster, success, `actualGasCost` and `actualGasUsed`,
+  plus the row's own sender, paymaster and nonce. Otherwise the export is refused.
+- **Checks gas on every arm.** `actualGasCost` must be an exact multiple of a positive `actualGasUsed`. The
+  per-gas price must be at most the op's `maxFeePerGas`, and, unless capped there, it must imply a basefee
+  between 0 and the bundle transaction's effective price. Receipt `gasUsed` and `effectiveGasPrice` must be
+  decimal strings, with `gasUsed` positive.
 - **Never upgrades an attempt.** An attempt is `included` only if all of these hold:
   - the verdict is `USEROP_SUCCESS`, and the row is not a fixture or collector exclusion;
   - the receipt succeeded and the decoded UOE reports success;
@@ -28,9 +34,17 @@ tampering hashes, duplicating operations and changing chain or pin are each refu
   collector JSONL are written and listed with their SHA-256 in `files`.
 - **Refuses drift.** It refuses passport drift between `run_start` and `run_end` (the pin), a run without a
   passport, and a non-empty output directory.
-- **Controls.** The run-level controls (`accountImplementation`, `tokenStateProtocol`, `bundlerConfigHash`,
-  `windowId`, `samplingProtocolHash`) are content hashes of the run's own passport and argv. So the checker's
-  per-group equality tests the collector, not this view.
+- **Controls, two kinds.**
+  - **Per arm.** `entryPoint`, `target`, `calldataHash`, `accountImplementation` and `bundlerConfigHash` are
+    derived from each attempt's own data, so the checker's per-group equality really compares the arms.
+    - `accountImplementation` is the attempt's sender resolved against the passport, and must be the passport's
+      account.
+    - `bundlerConfigHash` covers the bundler, the bundle transaction's sender, the beneficiary, and the op's own
+      gas limits and fee caps.
+    - Paymaster gas limits differ by design between SP, VPM and TPM. They are recorded per row as `paymasterGas`,
+      a necessary difference, and are not hashed.
+  - **Run level.** `tokenStateProtocol`, `windowId` and `samplingProtocolHash` name the run's procedure and are
+    equal by construction. The checker's equality says nothing about them.
 
 ## Results (`results.tsv`, from `script/a6-collector/aoa-m3-receive-controls.sh`)
 
@@ -47,21 +61,30 @@ tampering hashes, duplicating operations and changing chain or pin are each refu
 | one arm removed | FAIL | FAIL | require exactly one SP/VPM/TPM |
 | injected scenario in typical | FAIL | FAIL | injected sample in typical group |
 | settlement unverified | FAIL | FAIL | settlement/state not verified |
+| one arm's bundler configuration differs | FAIL | FAIL | mismatched bundlerConfigHash |
 
-**Exporter-level controls** are in `script/a6-collector/to-aoa-m3-receive.test.mjs`, 13 tests, all passing.
+Each negative control passes only if the checker reports **that** diagnostic, not merely `FAIL`; a positive
+control must report no error. The duplicate-UserOp control reuses a hash across groups, which keeps every group
+at exactly one SP/VPM/TPM, so duplicate detection is the only rule it can trip. The tamper edits are in
+`script/a6-collector/aoa-m3-tamper.py`.
+
+**Exporter-level controls** are in `script/a6-collector/to-aoa-m3-receive.test.mjs`, 17 tests, all passing.
 They cover:
 - UOE deleted from a success row;
 - collector summary disagreeing with its log (`actualGasCost`, `actualGasUsed`, `success`);
 - an inconsistent archive;
 - passport (pin) drift and a missing passport;
 - an unmatched triplet;
+- inconsistent gas evidence on any arm, and non-decimal receipt numbers;
+- non-canonical address topics;
+- a differing arm made visible to the checker, and a non-passport account;
 - fixture rows kept;
 - `runType` following `protocolConformant`;
 - determinism;
 - the topic constant;
 - the non-empty output directory.
 
-`n50-mechanism.receive.json` is byte-identical when regenerated (sha256 `b637ec3d…5d503d07`). The 452 raw files
+`n50-mechanism.receive.json` is byte-identical when regenerated (sha256 `9741d32a…41388911`). The 452 raw files
 it lists are not committed. They are regenerated deterministically from the archived JSONL:
 
 ```sh

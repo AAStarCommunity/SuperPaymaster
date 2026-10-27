@@ -51,11 +51,15 @@
    "entryPoint": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
    "target": "0x000000000000000000000000000000000000dead",
    "calldataHash": "0x5364fce33a13da6231857f2eca5c115e6724ab94f85e17cda461f0bfd8e9ebac",
-   "accountImplementation": "0x6a358fd7b7700887b0cd974202cdf93208f793e2@0xedd7ce41d6ea7287a4df281ce926f95422d4825eca8f8a11184dc76b1b80baa2",
+   "accountImplementation": "0x43a71246698e5be1d9fb04183589eda602ea06f1->0x6a358fd7b7700887b0cd974202cdf93208f793e2@0xedd7ce41d6ea7287a4df281ce926f95422d4825eca8f8a11184dc76b1b80baa2",
+   "bundlerConfigHash": "0xcd3997d232af1a065f5238bd2962520ca19cff468259faa93fe84b7832020e89",
    "tokenStateProtocol": "0xb1e64d15c1cdeb7109d5daae311d2e29a675c3c1869e1c0af0e167f947184291",
-   "bundlerConfigHash": "0x71e287210f2c56be4d609d79072bf58988578cde8967dab7bf0fa43fd5be54fc",
    "windowId": "positive",
    "samplingProtocolHash": "0x47e6acc501d764db1dee3b911dadcf256df5e33bd7ea49c2389bbf9d1613eb79",
+   "paymasterGas": {
+    "ver": "400000",
+    "post": "200000"
+   },
    "injectedScenario": null
   },
   {
@@ -82,11 +86,15 @@
    "entryPoint": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
    "target": "0x000000000000000000000000000000000000dead",
    "calldataHash": "0x5364fce33a13da6231857f2eca5c115e6724ab94f85e17cda461f0bfd8e9ebac",
-   "accountImplementation": "0x6a358fd7b7700887b0cd974202cdf93208f793e2@0xedd7ce41d6ea7287a4df281ce926f95422d4825eca8f8a11184dc76b1b80baa2",
+   "accountImplementation": "0x43a71246698e5be1d9fb04183589eda602ea06f1->0x6a358fd7b7700887b0cd974202cdf93208f793e2@0xedd7ce41d6ea7287a4df281ce926f95422d4825eca8f8a11184dc76b1b80baa2",
+   "bundlerConfigHash": "0xcd3997d232af1a065f5238bd2962520ca19cff468259faa93fe84b7832020e89",
    "tokenStateProtocol": "0xb1e64d15c1cdeb7109d5daae311d2e29a675c3c1869e1c0af0e167f947184291",
-   "bundlerConfigHash": "0x71e287210f2c56be4d609d79072bf58988578cde8967dab7bf0fa43fd5be54fc",
    "windowId": "positive",
    "samplingProtocolHash": "0x47e6acc501d764db1dee3b911dadcf256df5e33bd7ea49c2389bbf9d1613eb79",
+   "paymasterGas": {
+    "ver": "100000",
+    "post": "50000"
+   },
    "injectedScenario": null
   },
   {
@@ -113,11 +121,15 @@
    "entryPoint": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
    "target": "0x000000000000000000000000000000000000dead",
    "calldataHash": "0x5364fce33a13da6231857f2eca5c115e6724ab94f85e17cda461f0bfd8e9ebac",
-   "accountImplementation": "0x6a358fd7b7700887b0cd974202cdf93208f793e2@0xedd7ce41d6ea7287a4df281ce926f95422d4825eca8f8a11184dc76b1b80baa2",
+   "accountImplementation": "0x43a71246698e5be1d9fb04183589eda602ea06f1->0x6a358fd7b7700887b0cd974202cdf93208f793e2@0xedd7ce41d6ea7287a4df281ce926f95422d4825eca8f8a11184dc76b1b80baa2",
+   "bundlerConfigHash": "0xcd3997d232af1a065f5238bd2962520ca19cff468259faa93fe84b7832020e89",
    "tokenStateProtocol": "0xb1e64d15c1cdeb7109d5daae311d2e29a675c3c1869e1c0af0e167f947184291",
-   "bundlerConfigHash": "0x71e287210f2c56be4d609d79072bf58988578cde8967dab7bf0fa43fd5be54fc",
    "windowId": "positive",
    "samplingProtocolHash": "0x47e6acc501d764db1dee3b911dadcf256df5e33bd7ea49c2389bbf9d1613eb79",
+   "paymasterGas": {
+    "ver": "150000",
+    "post": "120000"
+   },
    "injectedScenario": null
   }
  ]

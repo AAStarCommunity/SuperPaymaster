@@ -67,7 +67,8 @@ test('deleting the UserOperationEvent of a success row refuses the export', () =
 });
 
 test('a collector record that disagrees with its own log refuses the export', () => {
-  for (const [field, value] of [['actualGasCost', '1'], ['actualGasUsed', '1'], ['success', false]]) {
+  for (const [field, value] of [['actualGasCost', '1'], ['actualGasUsed', '1'], ['success', false], ['nonce', '9'],
+    ['sender', '0x' + '44'.repeat(20)], ['paymaster', '0x' + '55'.repeat(20)]]) {
     const rows = rowsOf('positive.jsonl');
     spRow(rows).userOpEvent[field] = value;
     refused(rows, /disagrees with the collector/);
@@ -145,4 +146,56 @@ test('CLI refuses a non-empty output directory', () => {
   } finally {
     rmSync(d, { recursive: true, force: true });
   }
+});
+
+const uoeLog = (r) => r.logs.find((l) => l.topics[0].toLowerCase() === UOE_TOPIC);
+const setWord = (data, i, hex64) => data.slice(0, 2 + 64 * i) + hex64 + data.slice(2 + 64 * (i + 1));
+
+test('gas evidence must be consistent on every arm', () => {
+  for (const arm of ['SP', 'VPM', 'TPM']) {
+    const rows = rowsOf('positive.jsonl');
+    const r = rows.find((x) => x.kind === 'attempt' && x.arm === arm);
+    const l = uoeLog(r);
+    l.data = setWord(l.data, 3, '0'.repeat(64));  // actualGasUsed = 0 in the log ...
+    r.userOpEvent.actualGasUsed = '0';             // ... and in the summary, so the two still agree
+    refused(rows, /inconsistent with the op's fee caps/);
+  }
+  const rows = rowsOf('positive.jsonl');
+  const r = rows.find((x) => x.kind === 'attempt' && x.arm === 'TPM');
+  const l = uoeLog(r);
+  const doubled = (BigInt('0x' + l.data.slice(2 + 128, 2 + 192)) * 2n).toString(16).padStart(64, '0');
+  l.data = setWord(l.data, 2, doubled);  // cost no longer equals used x a price within the caps
+  r.userOpEvent.actualGasCost = BigInt('0x' + doubled).toString();
+  refused(rows, /inconsistent with the op's fee caps/);
+});
+
+test('receipt numbers must be decimal strings', () => {
+  for (const [field, value] of [['gasUsed', false], ['effectiveGasPrice', false], ['gasUsed', '0x10'], ['gasUsed', '0']]) {
+    const rows = rowsOf('positive.jsonl');
+    spRow(rows).tx[field] = value;
+    refused(rows, field === 'gasUsed' && value === '0' ? /must be positive/ : /not a decimal string/);
+  }
+});
+
+test('address topics must be canonically padded', () => {
+  const rows = rowsOf('positive.jsonl');
+  const l = uoeLog(spRow(rows));
+  l.topics[2] = '0x' + 'ff'.repeat(12) + l.topics[2].slice(26);
+  refused(rows, /non-canonical address topic 2/);
+});
+
+test('per-arm controls are derived per arm, so a differing arm is visible to the checker', () => {
+  const rows = rowsOf('positive.jsonl');
+  const vpm = rows.find((x) => x.kind === 'attempt' && x.arm === 'VPM');
+  vpm.gas = { ...vpm.gas, callGasLimit: String(Number(vpm.gas.callGasLimit) + 1) };
+  const pkg = exportRows(rows);
+  assert.equal(new Set(pkg.attempts.map((a) => a.bundlerConfigHash)).size, 2);
+  // A different account, consistent across the row, its summary and its log, still differs from the passport.
+  const other = rowsOf('positive.jsonl');
+  const tpm = other.find((x) => x.kind === 'attempt' && x.arm === 'TPM');
+  const acct = '0x' + '66'.repeat(20);
+  tpm.sender = acct;
+  tpm.userOpEvent.sender = acct;
+  uoeLog(tpm).topics[2] = '0x' + '0'.repeat(24) + acct.slice(2);
+  refused(other, /sender is not the passport account/);
 });

@@ -7,8 +7,9 @@ c-wrong-hash	FAIL	FAIL	expected 1 matched groups, found 0
 d-tamper-b	EXPORT_REFUSED	EXPORT_REFUSED	EXPORT REFUSED: run has no start/end passport (stopped before read-back)
 t-raw-file-edited	FAIL	FAIL	hash mismatch: raw/SP-0.uoe.json
 t-uoe-deleted	FAIL	FAIL	missing archive: raw/SP-0.uoe.json
-t-duplicate-userop	FAIL	FAIL	attempt[150]: duplicate UserOp identity
+t-duplicate-userop	FAIL	FAIL	attempt[3]: duplicate UserOp identity
 t-chain-changed	FAIL	FAIL	n50-mechanism/0: mismatched chainId
 t-arm-missing	FAIL	FAIL	n50-mechanism/0: require exactly one SP/VPM/TPM
 t-injected-in-typical	FAIL	FAIL	attempt[0]: injected sample in typical group
 t-settlement-unverified	FAIL	FAIL	attempt[0]: settlement/state not verified
+t-bundler-config-differs	FAIL	FAIL	n50-mechanism/0: mismatched bundlerConfigHash

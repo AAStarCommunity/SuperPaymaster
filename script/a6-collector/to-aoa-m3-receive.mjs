@@ -38,6 +38,22 @@ export const canon = (v) => Array.isArray(v) ? `[${v.map(canon).join(',')}]`
 const hashOf = (v) => '0x' + sha256(canon(v));
 const word = (data, i) => data.slice(2 + 64 * i, 2 + 64 * (i + 1));
 const dec = (hexWord) => BigInt('0x' + hexWord).toString();
+const DECIMAL = /^(0|[1-9][0-9]*)$/;
+const num = (v, what) => (typeof v === 'string' && DECIMAL.test(v)) ? BigInt(v) : fail(`${what} is not a decimal string`);
+
+// EntryPoint v0.7 charges actualGasCost = actualGasUsed * min(maxFeePerGas, basefee + maxPriorityFeePerGas).
+// The basefee is not in the row, so the check is: cost is an exact multiple of a positive gasUsed, the per-gas price
+// is at most maxFeePerGas, and unless capped at maxFee it implies a basefee in [0, the bundle tx's effective price].
+export function gasConsistent(uoe, gas, txEffectivePrice) {
+  const cost = BigInt(uoe.actualGasCost), used = BigInt(uoe.actualGasUsed);
+  const maxFee = num(gas.maxFeePerGas, 'maxFeePerGas'), prio = num(gas.maxPriorityFeePerGas, 'maxPriorityFeePerGas');
+  if (used <= 0n || cost % used !== 0n) return false;
+  const price = cost / used;
+  if (price > maxFee) return false;
+  if (price === maxFee) return true;
+  const basefee = price - prio;
+  return basefee >= 0n && basefee <= txEffectivePrice;
+}
 
 export function decodeUoe(logs, entryPoint, userOpHash) {
   const hits = logs.filter((l) => l.address.toLowerCase() === entryPoint.toLowerCase()
@@ -45,6 +61,8 @@ export function decodeUoe(logs, entryPoint, userOpHash) {
   if (hits.length !== 1) return { count: hits.length };
   const l = hits[0];
   if (l.topics.length !== 4 || !/^0x[0-9a-fA-F]{256}$/.test(l.data)) fail(`malformed UserOperationEvent at logIndex ${l.logIndex}`);
+  // Indexed addresses are canonical only with 12 zero bytes of padding.
+  for (const i of [2, 3]) if (!/^0x0{24}[0-9a-fA-F]{40}$/.test(l.topics[i])) fail(`non-canonical address topic ${i} at logIndex ${l.logIndex}`);
   const flag = word(l.data, 1);
   if (!/^0{63}[01]$/.test(flag)) fail(`non-boolean success word at logIndex ${l.logIndex}`);
   return {
@@ -90,16 +108,26 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
   if (canon(inv) !== canon(end.passport.invariant)) fail('passport invariant drifted between run_start and run_end');
   if (start.passport.chainId !== end.passport.chainId) fail('passport chainId drifted');
   const matched = new Set((end.triplets || []).filter((t) => t.matched).map((t) => t.tripletIndex));
-  // Run-level controls: identical for every arm by construction, so the checker's per-group equality tests the
-  // collector, not this view.
-  const controls = {
-    accountImplementation: `${inv.code.accountImpl.address.toLowerCase()}@${inv.code.accountImpl.codehash}`,
+  // Two kinds of control field. Per-arm ones are derived from each attempt's own data, so the checker's
+  // per-group equality is a real test of the arms (entryPoint, target, calldataHash, accountImplementation,
+  // bundlerConfigHash). Run-level ones (tokenStateProtocol, windowId, samplingProtocolHash) name the run's
+  // procedure and are equal by construction: the checker's equality says nothing about them.
+  const runControls = {
     tokenStateProtocol: hashOf({ setupLog: start.setupLog, xPNTs: inv.xPNTs }),
-    bundlerConfigHash: hashOf({ bundler: inv.bundler, beneficiary: inv.beneficiary, gas: inv.gas, pmGas: inv.pmGas }),
     windowId: windowId || start.runId,
     samplingProtocolHash: hashOf({ argv: start.argv, count: start.count, bMax: start.bMax, maxAttempts: start.maxAttempts,
       arms: start.arms, head: start.head, codeSha256: start.codeSha256 }),
   };
+  const accountImpl = (r) => {
+    // The account is resolved from the attempt's sender against the passport's code inventory.
+    if (String(r.sender).toLowerCase() !== inv.code.account.address.toLowerCase()) fail(`attempt ${r.arm}/${r.attemptIndex}: sender is not the passport account`);
+    return `${r.sender.toLowerCase()}->${inv.code.accountImpl.address.toLowerCase()}@${inv.code.accountImpl.codehash}`;
+  };
+  // Bundler-side configuration shared by all arms: who bundles, who receives, and the op's own gas limits and
+  // fee caps. Paymaster gas limits (pmGas) differ by design between SP, VPM and TPM, so they are a recorded
+  // necessary difference (pmGas on each row), not part of this hash.
+  const bundlerConfig = (r) => hashOf({ bundler: String(r.bundler).toLowerCase(), txFrom: String(r.tx.from).toLowerCase(),
+    beneficiary: String(inv.beneficiary).toLowerCase(), opGas: r.gas });
   const files = {}, attempts = [];
   const put = (name, value) => {
     const body = typeof value === 'string' ? value : JSON.stringify(value, null, 1) + '\n';
@@ -130,10 +158,15 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
         const e = r.userOpEvent || {};
         const same = uoe.success === e.success && uoe.actualGasCost === String(e.actualGasCost)
           && uoe.actualGasUsed === String(e.actualGasUsed) && uoe.userOpHash === String(e.userOpHash).toLowerCase()
-          && uoe.sender === String(r.sender).toLowerCase() && uoe.paymaster === String(r.paymaster).toLowerCase();
+          && uoe.nonce === String(e.nonce) && uoe.nonce === String(r.nonce)
+          && uoe.sender === String(e.sender).toLowerCase() && uoe.sender === String(r.sender).toLowerCase()
+          && uoe.paymaster === String(e.paymaster).toLowerCase() && uoe.paymaster === String(r.paymaster).toLowerCase();
         if (!same) fail(`${id}: decoded UserOperationEvent disagrees with the collector's record`);
       }
       if (r.tx.status !== 'success') reasons.push('RECEIPT_FAILED');
+      const txGasUsed = num(r.tx.gasUsed, `${id}: tx.gasUsed`), txPrice = num(r.tx.effectiveGasPrice, `${id}: tx.effectiveGasPrice`);
+      if (txGasUsed <= 0n) fail(`${id}: tx.gasUsed must be positive`);
+      if (uoe.count === 1 && !gasConsistent(uoe, r.gas, txPrice)) fail(`${id}: actualGasCost/actualGasUsed inconsistent with the op's fee caps and the bundle tx price`);
       if (uoe.count === 1 && !uoe.success) reasons.push('UOE_FAILED');
       if (!(r.conservation && r.conservation.evaluated && r.conservation.ok)) reasons.push('CONSERVATION_NOT_VERIFIED');
     } else {
@@ -149,10 +182,11 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
       txHash: r.tx.hash, userOpHash: uoe.userOpHash, blockHash: r.tx.blockHash, runtimeCodeHash: code.codehash,
       receiptStatus: 1, userOpSuccess: true, settlementVerified: true,
       actualGasUsed: uoe.actualGasUsed, actualGasCostWei: uoe.actualGasCost,
-      txGasUsed: BigInt(r.tx.gasUsed).toString(), effectiveGasPriceWei: BigInt(r.tx.effectiveGasPrice).toString(),
+      txGasUsed: num(r.tx.gasUsed, 'tx.gasUsed').toString(), effectiveGasPriceWei: num(r.tx.effectiveGasPrice, 'tx.effectiveGasPrice').toString(),
       receiptFile: `${base}.receipt.json`, uoeFile: `${base}.uoe.json`, passportFile, stateFile: `${base}.state.json`,
       entryPoint: r.entryPoint.toLowerCase(), target: target(r.packedOp.callData), calldataHash: r.callDataHash.toLowerCase(),
-      ...controls, injectedScenario: null,
+      accountImplementation: accountImpl(r), bundlerConfigHash: bundlerConfig(r), ...runControls,
+      paymasterGas: r.pmGas, injectedScenario: null,
     });
   }
   const pkg = {
