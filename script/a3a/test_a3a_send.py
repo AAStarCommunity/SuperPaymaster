@@ -784,6 +784,15 @@ class SenderTests(unittest.TestCase):
         _, err = p.communicate(timeout=30)
         self.assertEqual(p.returncode, 0, err.decode()[-500:])
 
+    def test_closed_stderr_pipe_after_a_failed_evidence_write_keeps_exit_zero(self):
+        code = ('import sys; from pathlib import Path; sys.path.insert(0, %r); import a3a_send as sd\n'
+                'def fail(p): raise OSError("disk full")\n'
+                'sd.note(Path("signed.raw"), fail); sd.report("SENT", sys.stdout); sys.exit(0)' % str(HERE))
+        p = subprocess.Popen([sys.executable, '-B', '-c', code], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p.stderr.close()
+        out, _ = p.communicate(timeout=30)
+        self.assertEqual((p.returncode, out.strip()), (0, b'SENT'))
+
     def test_url_key_variants_are_refused(self):
         key = '0a1b2c3d4e5f6a7b8c9d'
         logs = [{'address': '0x' + '55' * 20, 'topics': [], 'data': '0x' + key}]

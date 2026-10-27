@@ -307,10 +307,7 @@ def note(path, write):
     try:
         write(path)
     except OSError:
-        try:
-            print('WARNING: could not write %s' % path.name, file=sys.stderr)
-        except Exception:
-            pass  # stderr on the same full disk: still never stop monitoring
+        report('WARNING: could not write %s' % path.name, sys.stderr)  # never raises, even if stderr is gone
 
 
 SAFE_TEXT_MAX = 130  # "0x" + up to 64 bytes (two 32-byte words); longer hex (bytecode, calldata) is redacted

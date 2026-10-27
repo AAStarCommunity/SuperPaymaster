@@ -462,7 +462,7 @@ inherited from `a3a_exec` can put raw provider output in either. Only numbers, b
 short identifier keys survive, minus anything that contains a token of the RPC URL.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 46 offline tests, including a real PTY for the `/dev/tty` confirmation. It runs in CI (`a3a-executor.yml`).
+`test_a3a_send.py` has 47 offline tests, including a real PTY for the `/dev/tty` confirmation. It runs in CI (`a3a-executor.yml`).
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.
