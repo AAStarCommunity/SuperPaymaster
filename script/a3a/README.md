@@ -458,13 +458,17 @@ A transaction that is not mined within 600 s is reported. It is never re-sent or
 new review. Each step's artefacts are written to its own empty `--out`: `unsigned.json`, `signed.raw`,
 `decoded.json` (an allowlist of fields, never the signature), `broadcast.json`, `receipt.json` and `result.json`, or `FAILURE.json` on a stop. `FAILURE.json`
 is written while the lock is still held. Its `observed` and `expected` values are scrubbed, because gates
-inherited from `a3a_exec` can put raw provider output in either. The values that survive are booleans, short
-0x-hex, integers, and short identifiers. The identifiers are gate names, outcomes and exception types, so the
-`send_after_broadcast` fields `broadcast`, `provider` and `cause` are kept. Anything containing a token of the RPC
-URL is dropped. An integer is checked in both decimal and hex.
+inherited from `a3a_exec` can put raw provider output in either.
+- The values that survive are booleans, short 0x-hex and integers. An integer is checked in both decimal and
+  hex.
+- Anything containing a token of the RPC URL is dropped.
+- Every other string is replaced, because a provider value cannot be told apart from code text.
+- Code-sourced metadata is kept explicitly: the gate name, the `send_after_broadcast` outcome (one of a fixed
+  set), its `cause` and `provider.gate`.
+- `broadcast.json` stores the provider value under the same rules.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 52 offline tests, including a real PTY for the `/dev/tty` confirmation.
+`test_a3a_send.py` has 53 offline tests, including a real PTY for the `/dev/tty` confirmation.
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.

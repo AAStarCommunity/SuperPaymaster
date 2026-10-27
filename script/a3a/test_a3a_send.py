@@ -822,19 +822,47 @@ class SenderTests(unittest.TestCase):
                 mock.patch('sys.stdout'), mock.patch('sys.stderr'):
             self.assertEqual(sd.main(argv), 1)
         obs = json.loads((out / 'FAILURE.json').read_text())['observed']
+        # Code-sourced metadata kept; the provider's free-text value is not (it cannot be told from a secret).
         self.assertEqual(obs, {'hash': keccak(self.sent[0]), 'broadcast': 'unknown',
-                               'provider': {'gate': 'send_broadcast_transport', 'observed': 'TimeoutError'},
-                               'cause': 'send_receipt_timeout', 'causeObserved': obs['causeObserved']})
-        self.assertTrue(obs['causeObserved'] == keccak(self.sent[0]))
+                               'provider': {'gate': 'send_broadcast_transport', 'observed': '<redacted 12 chars>'},
+                               'cause': 'send_receipt_timeout', 'causeObserved': keccak(self.sent[0])})
+        saved = json.loads((out / 'broadcast.json').read_text())
+        self.assertEqual((saved['outcome'], saved['provider']['gate']), ('unknown', 'send_broadcast_transport'))
 
-    def test_scrub_identifiers_and_integers(self):
+    def test_scrub_strings_integers_and_trusted_metadata(self):
         url = 'https://eth-sepolia.example.invalid/v2/deadbeefdeadbeefdeadbeefdeadbeef'
         key_int = int('deadbeefdeadbeefdeadbeefdeadbeef', 16)
-        self.assertEqual(sd.scrub({'cause': 'send_receipt_timeout', 'n': 7, 'e': 'TimeoutError'}, url),
-                         {'cause': 'send_receipt_timeout', 'n': 7, 'e': 'TimeoutError'})
         self.assertEqual(sd.scrub(key_int, url), '<redacted int>')
-        self.assertEqual(sd.scrub('deadbeefdeadbeefdeadbeefdeadbeef', url), '<redacted 32 chars>')
-        self.assertEqual(sd.scrub('has space', url), '<redacted 9 chars>')
+        self.assertEqual(sd.scrub(7, url), 7)
+        # Any non-hex string is redacted, including an identifier-shaped secret that is not in the URL.
+        for s in ('AbC123SecretToken987', 'TimeoutError', 'deadbeefdeadbeefdeadbeefdeadbeef'):
+            self.assertEqual(sd.scrub(s, url), '<redacted %d chars>' % len(s))
+        # Gate names and the outcome come from code and are kept by failure_record, never a URL token.
+        rec = {'status': 'FAILURE', 'gate': 'send_after_broadcast', 'expected': 'x',
+               'observed': {'hash': '0x' + 'ab' * 32, 'broadcast': 'unknown', 'cause': 'S3_totalSupply()',
+                            'causeObserved': 'AbC123SecretToken987',
+                            'provider': {'gate': 'send_broadcast_rejected', 'observed': key_int}}}
+        out = sd.failure_record(rec, 'S5a', url)['observed']
+        self.assertEqual((out['broadcast'], out['cause'], out['provider']['gate']),
+                         ('unknown', 'S3_totalSupply()', 'send_broadcast_rejected'))
+        self.assertEqual((out['causeObserved'], out['provider']['observed']), ('<redacted 20 chars>', '<redacted int>'))
+        self.assertEqual(sd.trusted_gate('deadbeefdeadbeefdeadbeefdeadbeef', url), '<redacted>')
+        self.assertEqual(sd.failure_record(dict(rec, observed=dict(rec['observed'], broadcast='evil')), 'S5a', url)
+                         ['observed']['broadcast'], '<redacted>')
+
+    def test_broadcast_json_scrubs_the_provider_value(self):
+        key = '12345678901234567890'
+        url = 'https://eth-sepolia.example.invalid/v2/' + key
+        def refused(u, raw):
+            self.sent.append(raw)
+            raise ex.Gate('send_broadcast_rejected', int(key), 'transaction hash')  # code echoing the key
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', refused), \
+                mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'):
+            with self.assertRaises(ex.Gate):
+                sd.run(self.args, Chain(), url, confirm=self.confirm())
+        text = (self.args.out / 'broadcast.json').read_text()
+        self.assertNotIn(key, text)
+        self.assertEqual(json.loads(text)['provider'], {'gate': 'send_broadcast_rejected', 'observed': '<redacted int>'})
 
     def test_mined_transaction_must_be_in_the_receipt_block(self):
         for k, v in (('blockHash', '0x' + '98' * 32), ('blockNumber', hex(12000001)), ('blockNumber', None)):

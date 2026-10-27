@@ -278,7 +278,11 @@ def run(args, remote, url, confirm=None):
             # No reply, a malformed reply, or an error reply ("already known", "nonce too low", ...) does not prove
             # the transaction is not in some mempool: outcome stays unknown and the local hash is monitored.
             provider = {'gate': e.record['gate'], 'observed': e.record['observed']}
-        note(args.out/'broadcast.json', lambda p: ex.write_json(p, dict(step=args.step, hash=h, outcome=outcome, provider=provider)))
+        # provider carries the broadcast Gate's observed value (an integer code at most), scrubbed like FAILURE.json.
+        evidence = dict(step=args.step, hash=h, outcome=outcome,
+                        provider=None if provider is None else dict(gate=trusted_gate(provider['gate'], url),
+                                                                    observed=scrub(provider['observed'], url)))
+        note(args.out/'broadcast.json', lambda p: ex.write_json(p, evidence))
         note(args.out/'signed.raw', lambda p: p.write_text(raw+'\n'))  # public once broadcast; never on disk before
         r = wait_receipt(remote, h, tx, url_tokens(url))
         note(args.out/'receipt.json', lambda p: ex.write_json(p, r))  # kept even if a later read fails
@@ -326,11 +330,10 @@ def url_tokens(url):
 def scrub(value, url):
     """FAILURE.json `observed`/`expected`: gate records from a3a_exec can carry raw provider results in either.
 
-    Kept: booleans, None, short 0x-hex strings (hashes, addresses, quantities, words), integers, and short
-    identifiers (gate names, outcomes, exception types: what send_after_broadcast records as broadcast / provider /
-    cause), all only if they contain no path/query token of the RPC URL; an integer is checked in decimal and in
-    hex. Anything else becomes a placeholder. Free-text expected values from code (e.g. 'deployed contract code')
-    are lost: the gate name still says what failed, and the precise inputs are in the reviewed plan.
+    Kept: booleans, None, short 0x-hex strings (hashes, addresses, quantities, words) and integers, only if they
+    contain no path/query token of the RPC URL (an integer is checked in decimal and in hex). Every other string
+    becomes a placeholder, whatever its shape: a provider value cannot be told apart from code text here. Trusted
+    metadata (gate names, the broadcast outcome) is kept by failure_record(), not by this function.
     """
     tokens = url_tokens(url)
     def leaks(s):
@@ -351,10 +354,34 @@ def scrub(value, url):
         s = str(v)
         if len(s) <= SAFE_TEXT_MAX and re.fullmatch(r'0x[0-9a-fA-F]*', s) and not leaks(s):
             return s
-        if re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}', s) and not leaks(s):
-            return s
         return '<redacted %d chars>' % len(s)
     return clean(value)
+
+
+OUTCOMES = ('attempting', 'accepted', 'accepted_hash_mismatch', 'unknown')
+GATE_NAME = re.compile(r'[A-Za-z][A-Za-z0-9_()]{0,63}', re.ASCII)  # e.g. send_after_broadcast, S3_totalSupply()
+
+
+def trusted_gate(name, url):
+    """A gate name is built by code (ex.Gate(name, ...) from constants, step ids and field names), never from
+    provider data; kept if it has that shape and no URL token, else redacted."""
+    ok = isinstance(name, str) and GATE_NAME.fullmatch(name) and not any(tok in name.lower() for tok in url_tokens(url))
+    return name if ok else '<redacted>'
+
+
+def failure_record(record, step, url):
+    """The persisted failure: provider-sourced values scrubbed; code-sourced metadata kept explicitly."""
+    out = dict(record, step=step, gate=trusted_gate(record.get('gate'), url),
+               observed=scrub(record.get('observed'), url), expected=scrub(record.get('expected'), url))
+    obs = record.get('observed')
+    if record.get('gate') == 'send_after_broadcast' and isinstance(obs, dict):
+        # The wrapper's own fields: the outcome is one of OUTCOMES; cause and provider.gate are gate names.
+        out['observed'] = dict(out['observed'],
+                               broadcast=obs.get('broadcast') if obs.get('broadcast') in OUTCOMES else '<redacted>',
+                               cause=trusted_gate(obs.get('cause'), url))
+        if isinstance(obs.get('provider'), dict):
+            out['observed']['provider'] = dict(out['observed']['provider'], gate=trusted_gate(obs['provider'].get('gate'), url))
+    return out
 
 
 def main(argv=None):
@@ -385,8 +412,7 @@ def main(argv=None):
                 # Only into the directory this run verified empty, never over earlier evidence; still locked.
                 # gate/status are code constants; observed and expected can both carry provider data (a3a_exec puts
                 # e.g. a receipt's transactionHash into expected), so both are scrubbed.
-                record = dict(e.record, step=args.step, observed=scrub(e.record.get('observed'), url),
-                              expected=scrub(e.record.get('expected'), url))
+                record = failure_record(e.record, args.step, url)
                 try:
                     ex.write_json(args.out/'FAILURE.json', record)
                 except OSError:
