@@ -395,6 +395,42 @@ exactly the plan's transaction bytes. Sending needs its own reviewed authorizati
 and freshness/recovery checks. None of that is implemented or implied by a plan.
 A SHA-256 sidecar detects changed bytes; it is not a review attestation.
 
+## Live sender (`a3a_send.py`) — written for DSR review, not authorised to run
+
+DSR M1 gap IG-07 asks for a concrete signing and sending path. `a3a_send.py` is that path. It stays outside
+`a3a_exec.py`, so `a3a_exec.py sign|send` keep refusing as described above, and `ex.RPC` keeps refusing every
+write method. The sender's one write call is its own `broadcast()`.
+
+One invocation sends **one** step. It is run by the operator in a terminal: `cast` asks for the keystore
+password, and the operator types the confirmation string. The author chose Foundry keystores (`cast wallet
+import`) on 2026-10-27. The step's sender role (deployer, approver or executor) is mapped to a keystore name by a
+JSON file. No key material appears in argv, the environment or the logs.
+
+Each of these is a hard stop, and nothing is broadcast unless every earlier one passed:
+1. `signing_transaction`, with the reviewed sha256 given out-of-band and `pre_send`.
+2. Offline `cast mktx --account`, with every field taken from the plan. The signer gets a minimal environment
+   with no RPC variable.
+3. `cast decode-transaction`: every field and the signer equal the plan, with no access list and no
+   authorization list. The hash is recomputed by the node (`web3_sha3`).
+4. `pre_send` again, which must return the identical transaction, and the latest base fee plus the planned
+   priority fee must be at most the planned max fee.
+5. The typed confirmation `SEND <step> <sha256[:12]>`.
+6. Broadcast. Then the returned hash must equal the signed hash, the receipt status must be 0x1, gasUsed must be
+   at most the planned gas, and `eth_getTransactionByHash` must equal the plan. After S7, the final `readback`
+   runs.
+
+A transaction that is not mined within 600 s is reported. It is never re-sent or repriced; doing either needs a
+new review. Each step's artefacts are written to its own empty `--out`: `unsigned.json`, `signed.raw`,
+`decoded.json`, `receipt.json` and `result.json`, or `FAILURE.json` on a stop.
+
+`test_a3a_send.py` has 19 offline tests. Signing and decoding are real `cast` calls with the public anvil test
+key, through a wrapper that records argv and environment. Removing any single gate, or the signer field, turns
+the suite red.
+
+Not yet covered:
+- An end-to-end run against a local fork with real keystores.
+- The S5/S6 Safe flow live: approveHash by one owner, then execTransaction by another.
+
 ## Offline verification
 
 ```sh
