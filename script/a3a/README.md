@@ -407,33 +407,42 @@ import`) on 2026-10-27. The step's sender role (deployer, approver or executor) 
 JSON file. No key material appears in argv, the environment or the logs.
 
 Each of these is a hard stop. Nothing leaves the process unless every earlier one passed:
-0. The plan is read once. Its sha256 must equal the reviewed digest given out-of-band, and every later step
-   reads a snapshot of those bytes. A machine-wide `flock` refuses a second concurrent sender run.
+0. A machine-wide `flock` is taken before the output directory is checked or written, so a second concurrent
+   sender run is refused. The output directory is private (0700, umask 077). The plan is read once. Its sha256
+   must equal the reviewed digest given out-of-band, and every later step reads a snapshot of those bytes.
 1. `signing_transaction` on the snapshot, including `pre_send`.
 2. Offline `cast mktx --account`, with every field taken from the plan. The signer gets a whitelisted
    environment, built at call time, with no RPC variable.
 3. Local verification: the decoded fields and signer equal the plan; there is no access list and no
-   authorization list; and a **local** keccak of the raw bytes equals the decoded hash. The signed bytes are not
-   shown to any provider before broadcast.
+   authorization list; and a **local** keccak of the raw bytes equals the decoded hash. The signed bytes are held
+   in memory and passed to `cast` on stdin, never in argv. They reach no provider, and are not written to disk,
+   before broadcast.
 4. The typed confirmation `SEND <step> <sha256[:12]>`.
 5. After the confirmation, immediately before broadcast: `pre_send` again, which must return the identical
    transaction, and the fee-cap check.
-6. Broadcast. Only an integer error code or a validated 32-byte hash from the provider is recorded. Then the
-   returned hash must equal the signed hash, the receipt status must be 0x1, gasUsed must be at most the planned
-   gas, and `eth_getTransactionByHash` must equal the plan. After S7, the final `readback` runs.
+6. Broadcast. Only an integer error code or a validated 32-byte hash from the provider is recorded. Then:
+   - the returned hash must equal the signed hash;
+   - every receipt and transaction field is format-validated before it is compared or written, and the receipt
+     is stored in an allowlisted form;
+   - the receipt status must be 0x1, and gasUsed must be at most the planned gas;
+   - `eth_getTransactionByHash` must equal the plan.
+
+   After S7, the final `readback` runs on the allowlisted receipt.
 
 A transaction that is not mined within 600 s is reported. It is never re-sent or repriced; doing either needs a
 new review. Each step's artefacts are written to its own empty `--out`: `unsigned.json`, `signed.raw`,
-`decoded.json`, `receipt.json` and `result.json`, or `FAILURE.json` on a stop.
+`decoded.json` (without the signature), `receipt.json` and `result.json`, or `FAILURE.json` on a stop.
+`signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 22 offline tests.
+`test_a3a_send.py` has 25 offline tests.
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.
 - S7 runs through the real `signing_transaction`, `pre_send`, `scheduled_eta` and final `readback` on
   `test_a3a_exec.FakeChain`, including a state where S7's effect is missing.
-- Removing any single gate, or any sanitiser, the lock, the snapshot, the local keccak or the signer field
-  turns the suite red (27 mutations).
+- Every one of 39 mutations turns the suite red. The mutations each remove a single gate, a sanitiser, the
+  lock, the lock-before-claim order, the snapshot (each consumer separately), the local keccak, the signer field,
+  the private permissions, the stdin passing, or the post-broadcast timing of `signed.raw`.
 
 Not yet covered:
 - An end-to-end run against a local fork with real keystores.

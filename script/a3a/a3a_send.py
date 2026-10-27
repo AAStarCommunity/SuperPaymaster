@@ -28,8 +28,8 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
   6. eth_sendRawTransaction; the returned hash must equal the signed hash. Then wait for the receipt (no
      resend, no replacement: a stuck transaction is reported, not repriced). Status must be 0x1 and gasUsed
      <= planned gas; eth_getTransactionByHash must equal the plan. After S7 the final readback runs.
-Every artefact (unsigned tx, signed raw, decoded fields, receipt) is written to --out. The RPC URL is never
-written or printed.
+Artefacts go to --out (0700): unsigned tx, decoded fields without the signature, the allowlisted receipt, and
+signed.raw only after broadcast. The RPC URL and provider-supplied text are never written or printed.
 """
 import argparse, contextlib, fcntl, hashlib, json, os, subprocess, sys, time, urllib.request
 from pathlib import Path
@@ -82,10 +82,17 @@ def sign(tx, account):
 
 
 def decode(raw):
-    r = subprocess.run([CAST, 'decode-transaction', raw], env=signer_env(), capture_output=True, text=True)
+    # The signed bytes go through stdin, never argv (argv is visible to other local users).
+    r = subprocess.run([CAST, 'decode-transaction'], input=raw, env=signer_env(), capture_output=True, text=True)
     ex.need('send_decode_exit', r.returncode, 0)
     out = json.loads(r.stdout)
     return json.loads(out) if isinstance(out, str) else out
+
+
+def local_keccak(raw):
+    r = subprocess.run([CAST, 'keccak'], input=raw, env=signer_env(), capture_output=True, text=True)
+    ex.need('send_keccak_exit', r.returncode, 0)
+    return ex.typed(r.stdout.strip(), ex.HASH32).lower()
 
 
 def check_signed(decoded, tx):
@@ -130,19 +137,60 @@ def wait_receipt(remote, h, tx):
     while time.monotonic() < deadline:
         r = remote('eth_getTransactionReceipt', [h])
         if r is not None:
-            ex.need('send_receipt_status', r.get('status'), '0x1')
+            r = clean_receipt(r)
+            ex.need('send_receipt_hash', r['transactionHash'], h)
+            ex.need('send_receipt_status', r['status'], '0x1')
             ex.need('send_receipt_gas', ex.qty(r['gasUsed']) <= ex.qty(tx['gas']), True)
             return r
         time.sleep(4)
     raise ex.Gate('send_receipt_timeout', h, 'mined within %ds; do not resend or reprice without review' % RECEIPT_WAIT_SECONDS)
 
 
+def field(value, rx, name):
+    """Validate a provider value before it is compared or recorded; a failure records no provider text."""
+    if not isinstance(value, str) or not rx.fullmatch(value):
+        raise ex.Gate('send_provider_'+name, 'malformed', rx.pattern)
+    return value.lower()
+
+
+def clean_receipt(r):
+    """Allowlisted, validated receipt: the only receipt form that is compared, persisted or read back."""
+    if not isinstance(r, dict) or not isinstance(r.get('logs'), list):
+        raise ex.Gate('send_provider_receipt', 'malformed', 'receipt object')
+    if r.get('status') not in ('0x0', '0x1'):
+        raise ex.Gate('send_provider_status', 'malformed', '0x0 | 0x1')
+    out = {'transactionHash': field(r.get('transactionHash'), ex.HASH32, 'transactionHash'),
+           'blockHash': field(r.get('blockHash'), ex.HASH32, 'blockHash'),
+           'blockNumber': field(r.get('blockNumber'), ex.QTY, 'blockNumber'),
+           'gasUsed': field(r.get('gasUsed'), ex.QTY, 'gasUsed'), 'status': r['status'],
+           'contractAddress': None if r.get('contractAddress') is None
+           else field(r.get('contractAddress'), ex.ADDRESS_RX, 'contractAddress'),
+           'logs': []}
+    for log in r['logs']:
+        if not isinstance(log, dict) or not isinstance(log.get('topics'), list):
+            raise ex.Gate('send_provider_log', 'malformed', 'log object')
+        entry = {'address': field(log.get('address'), ex.ADDRESS_RX, 'logAddress'),
+                 'topics': [field(x, ex.HASH32, 'logTopic') for x in log['topics']],
+                 'data': field(log.get('data'), ex.HEXDATA, 'logData')}
+        for k in ('blockNumber', 'transactionIndex', 'logIndex'):
+            if k in log:
+                entry[k] = field(log[k], ex.QTY, 'log'+k)
+        out['logs'].append(entry)
+    return out
+
+
 def check_mined(remote, h, tx):
     m = remote('eth_getTransactionByHash', [h])
+    if not isinstance(m, dict):
+        raise ex.Gate('send_provider_tx', 'malformed', 'transaction object')
+    for k in ('nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value'):
+        field(m.get(k), ex.QTY, k)
+    m = dict(m, **{'from': field(m.get('from'), ex.ADDRESS_RX, 'from'), 'input': field(m.get('input'), ex.HEXDATA, 'input'),
+                   'to': None if m.get('to') is None else field(m.get('to'), ex.ADDRESS_RX, 'to')})
     for k in ('nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value'):
         ex.need('send_mined_'+k, ex.qty(m[k]), ex.qty(tx[k]))
     ex.need('send_mined_from', m['from'].lower(), tx['from'].lower())
-    ex.need('send_mined_to', (m.get('to') or None) and m['to'].lower(), tx.get('to') and tx['to'].lower())
+    ex.need('send_mined_to', m['to'], tx.get('to') and tx['to'].lower())
     ex.need('send_mined_input', m['input'].lower(), tx['data'].lower())
 
 
@@ -151,37 +199,37 @@ def signed(tx, account):
     raw = sign(tx, account)
     decoded = decode(raw)
     h = check_signed(decoded, tx)
-    ex.need('send_signed_hash', ex.keccak(raw).lower(), h)  # local keccak over the raw bytes, not cast's decoder
+    ex.need('send_signed_hash', local_keccak(raw), h)  # local keccak over the raw bytes, not cast's decoder
     return raw, h, decoded
 
 
-def run(args, remote, url, confirm=input):
+def run(args, remote, url, confirm=None):
+    """The caller holds sender_lock() and owns args.out (see main)."""
     # One read of the plan; every later consumer uses these bytes or the snapshot written from them.
     raw_plan = args.plan.read_bytes()
     ex.need('reviewed_plan_hash', hashlib.sha256(raw_plan).hexdigest(), args.reviewed_plan_sha256)
     snapshot = args.out/'plan.reviewed.json'
     snapshot.write_bytes(raw_plan)
     plan = ex.plan_json(raw_plan)
-    with sender_lock():
-        tx = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
-        role = role_of(plan, tx['from'])
-        accounts = json.loads(args.accounts.read_text())
-        ex.need('send_account_named', isinstance(accounts.get(role), str) and accounts[role] != '', True)
-        ex.write_json(args.out/'unsigned.json', tx)
-        raw, h, decoded = signed(tx, accounts[role])
-        (args.out/'signed.raw').write_text(raw+'\n')
-        ex.write_json(args.out/'decoded.json', decoded)
-        phrase = 'SEND %s %s' % (args.step, args.reviewed_plan_sha256[:12])
-        typed = confirm('Type "%s" to broadcast %s from %s (%s): ' % (phrase, h, tx['from'], role)).strip()
-        ex.need('send_operator_confirmation', typed, phrase)
-        # Every live check again after the (unbounded) confirmation pause, immediately before broadcast.
-        again = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
-        ex.need('send_tx_stable', again, tx)
-        fee_fits(remote, tx)
-        sent = broadcast(url, raw)
-        ex.need('send_returned_hash', sent, h)
-        r = wait_receipt(remote, h, tx)
-        check_mined(remote, h, tx)
+    tx = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
+    role = role_of(plan, tx['from'])
+    accounts = json.loads(args.accounts.read_text())
+    ex.need('send_account_named', isinstance(accounts.get(role), str) and accounts[role] != '', True)
+    ex.write_json(args.out/'unsigned.json', tx)
+    raw, h, decoded = signed(tx, accounts[role])  # held in memory only until broadcast
+    ex.write_json(args.out/'decoded.json', {k: v for k, v in decoded.items() if k not in ('r', 's', 'v', 'yParity')})
+    phrase = 'SEND %s %s' % (args.step, args.reviewed_plan_sha256[:12])
+    typed = (confirm or input)('Type "%s" to broadcast %s from %s (%s): ' % (phrase, h, tx['from'], role)).strip()
+    ex.need('send_operator_confirmation', typed, phrase)
+    # Every live check again after the (unbounded) confirmation pause, immediately before broadcast.
+    again = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
+    ex.need('send_tx_stable', again, tx)
+    fee_fits(remote, tx)
+    sent = broadcast(url, raw)
+    (args.out/'signed.raw').write_text(raw+'\n')  # public once broadcast; never on disk before
+    ex.need('send_returned_hash', sent, h)
+    r = wait_receipt(remote, h, tx)
+    check_mined(remote, h, tx)
     ex.write_json(args.out/'receipt.json', r)
     if args.step == ex.STEP_IDS[-1]:
         context = {'tlBlock': hex(int(plan['pin']['block'], 16)+1), 'eta': ex.scheduled_eta(remote, plan, done=True)}
@@ -202,13 +250,16 @@ def main(argv=None):
     p.add_argument('--out', type=Path, required=True)
     args = p.parse_args(argv)
     owned = False  # FAILURE.json goes only into a directory this run verified empty (never over earlier evidence)
+    os.umask(0o077)  # every artefact, and the output directory, private to the operator
     try:
-        if args.out.exists():
-            ex.need('output_empty', args.out.is_dir() and not any(args.out.iterdir()), True)
-        args.out.mkdir(parents=True, exist_ok=True)
-        owned = True
-        url = args.rpc_file.read_text().strip()
-        print(json.dumps(run(args, ex.RPC(url), url), indent=2))
+        with sender_lock():  # taken before the output directory is claimed or written
+            if args.out.exists():
+                ex.need('output_empty', args.out.is_dir() and not any(args.out.iterdir()), True)
+            args.out.mkdir(parents=True, exist_ok=True)
+            os.chmod(args.out, 0o700)
+            owned = True
+            url = args.rpc_file.read_text().strip()
+            print(json.dumps(run(args, ex.RPC(url), url), indent=2))
         return 0
     except ex.Gate as e:
         if owned:
