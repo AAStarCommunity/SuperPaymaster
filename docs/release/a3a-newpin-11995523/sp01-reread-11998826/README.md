@@ -74,9 +74,29 @@ Endpoint A is Alchemy (archive) and endpoint B is the Tenderly public gateway. U
   - `cachedPrice` is still the stale value from v4 (updatedAt 1790488836), now about 29 days old. A3a does not
     read it. It belongs to the later live upgrade packet.
   - The budget reasoning in `../../a3a-precheck-v4/CAP-BUDGET.md` therefore still applies unchanged.
-- **Funding.** The +10 ETH funding of the deployer happened before the pin. Same nonce 12131, balance
-  2.161907553052084158 → 12.161907553052084158 ETH. It is not a packet step. Its transaction hash is not recorded
-  here. Nonce 12131 is unchanged, so it was an inbound transfer.
+- **Funding (DSR gap IG-04).** The +10 ETH came from transaction
+  `0x1bf66ae42dcb55c7b4fa37f2ed39604faf1b31dd1d52e5395971dc78a3417495`, mined in block 11,995,503 (hash
+  `0x37a39e61…b33dd`, 20 blocks before the pin).
+  - It was sent by the executor `0x8716…fb48` (its nonce 28) to the deployer, value 10 ETH, status 1, gas 21,000.
+  - The deployer's balance went 2.161907553052084158 → 12.161907553052084158 ETH at nonce 12131. It is unchanged
+    from then to the pin.
+  - The receipt's only log is the Amsterdam EIP-7708 ETH-transfer log: emitter `0xff…fe`,
+    `Transfer(executor, deployer, 10e18)`.
+  - The executor balance in the plan pin is the balance after this transaction.
+  - Two endpoints, 13/13 checks (bound to the plan's chain id and pin hash; tx, receipt and block identity cross-checked): `funding-provenance.json`, from `script/evidence/a3a-funding-provenance.py`.
+    Its offline controls are in `script/evidence/test_a3a_funding_provenance.py` (5 tests: 17 table cases plus pin-at-funding-block, endpoint divergence and same-endpoint refusal;
+    setting each of the 13 checks to `True` turns the suite red).
+  - The funding is not a packet step.
+- **Pending values at plan time (DSR gap IG-03).** The archived packet does not record the `pending` nonces seen
+  when the plan was built. They can only be inferred from the plan having been produced, because `plan` refuses
+  unless pin nonce == pending (`a3a_exec.py:679,706`) and rechecks after the rehearsal (`pin_recheck`,
+  `:1530`). This is a limitation of the historical record, and the packet is not rebuilt for it.
+  `senders-11998826.json` records explicit `latest` and `pending` values for every sender on both endpoints, and
+  any later re-read keeps doing so.
+- **Endpoints and method (DSR gap IG-02).** Endpoint A is an Alchemy Sepolia archive endpoint; the key is not
+  published. Endpoint B is the public `https://sepolia.gateway.tenderly.co`. The three scripts and the methods
+  they call are listed in each script's docstring. For an independent re-read, DSR can substitute any two
+  archive endpoints.
 - **Drift STOP.** Any of the 22 + 17 checks turning false means STOP and a rebuild at a new pin. Before every
   live step, the executor's own guard `pre_send` (`script/a3a/a3a_exec.py:1323-1336`) re-reads chain id, code,
   latest = pending = planned nonce and the Safe nonce. This re-read is evidence. It does not replace that guard.
@@ -161,7 +181,10 @@ RPC_A=<archive rpc> RPC_B=https://sepolia.gateway.tenderly.co BLOCK=11998826 \
 RPC_A=<archive rpc> RPC_B=https://sepolia.gateway.tenderly.co BLOCK=11998826 python3 -B scripts/a3a-v2-cap-budget-read.py
 (cd script/a3a && python3 -B -m unittest test_a3a_exec)          # 77 tests OK
 (cd script/upgrade && python3 -B -m unittest test_sp_upgrade_exec)  # 141 tests OK
-(cd script/evidence && python3 -B -m unittest test_a3a_newpin_senders_reread)  # 9 tests OK
+(cd script/evidence && python3 -B -m unittest test_a3a_newpin_senders_reread)  # 10 tests OK
+(cd script/evidence && python3 -B -m unittest test_a3a_funding_provenance)  # 5 tests OK
+RPC_A=<archive rpc> RPC_B=https://sepolia.gateway.tenderly.co python3 -B script/evidence/a3a-funding-provenance.py \
+  docs/release/a3a-newpin-11995523/a3a-plan/plan.json 0x1bf66ae42dcb55c7b4fa37f2ed39604faf1b31dd1d52e5395971dc78a3417495
 ```
 
 `SHA256SUMS` covers every file here except itself and this README.
