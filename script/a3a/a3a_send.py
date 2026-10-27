@@ -322,24 +322,42 @@ KNOWN_KEYS = frozenset(('hash', 'broadcast', 'provider', 'cause', 'causeObserved
                         'method', 'code', 'step', 'status'))
 
 
+QUANTITY_MAX = 66  # "0x" + 32 bytes: only a quantity this short can stand for a key in decimal form
+
+
 def leak_free(obj, url):
     """Final check on what is about to be written or printed: no RPC URL token anywhere, in any key or string,
-    nor in any integer written in decimal or hex (a hex quantity can serialize as a decimal key)."""
+    nor in any integer written in decimal or hex, nor in the decimal form of a hex quantity (<= 32 bytes; longer
+    hex such as log data is checked as text only). Iterative, so nesting depth cannot raise; and fail-closed:
+    anything unexpected while checking counts as a leak."""
     tokens = url_tokens(url)
     def bad(s):
         return any(tok in s.lower() for tok in tokens)
-    def walk(v):
-        if isinstance(v, bool) or v is None:
-            return False
-        if isinstance(v, int):
-            return bad(str(v)) or bad(format(v, 'x'))
-        if isinstance(v, (list, tuple)):
-            return any(walk(x) for x in v)
-        if isinstance(v, dict):
-            return any(bad(str(k)) or walk(x) for k, x in v.items())
-        s = str(v)
-        return bad(s) or (re.fullmatch(r'0x[0-9a-fA-F]+', s) is not None and bad(str(int(s, 16))))
-    return not walk(obj)
+    try:
+        stack = [obj]
+        while stack:
+            v = stack.pop()
+            if isinstance(v, bool) or v is None:
+                continue
+            if isinstance(v, int):
+                if bad(str(v)) or bad(format(v, 'x')):
+                    return False
+            elif isinstance(v, (list, tuple)):
+                stack.extend(v)
+            elif isinstance(v, dict):
+                for k, x in v.items():
+                    if bad(str(k)):
+                        return False
+                    stack.append(x)
+            else:
+                s = str(v)
+                if bad(s):
+                    return False
+                if len(s) <= QUANTITY_MAX and re.fullmatch(r'0x[0-9a-fA-F]+', s) and bad(str(int(s, 16))):
+                    return False
+        return True
+    except Exception:
+        return False
 
 
 def guard(obj, url, h):
@@ -357,7 +375,9 @@ def url_tokens(url):
     (gas used, block numbers). Provider keys are far longer; a sub-six-character credential is out of scope."""
     # Both the raw and the percent-decoded URL, lowercased: provider values are compared lowercased too.
     forms = {url, urllib.parse.unquote(url)}
-    return {s.lower() for f in forms for s in re.split(r'[/?&=:#@.]+', f) if len(s) >= 6}
+    raw = {s.lower() for f in forms for s in re.split(r'[/?&=:#@.]+', f)}
+    # A 0x-prefixed key is also matched without its prefix, as it appears inside a hex value or an int's hex form.
+    return {s for t in raw for s in (t, t[2:] if t.startswith('0x') else t) if len(s) >= 6}
 
 
 def scrub(value, url):

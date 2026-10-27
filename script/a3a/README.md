@@ -467,13 +467,22 @@ inherited from `a3a_exec` can put raw provider output in either.
   set), its `cause` and `provider.gate`.
 - `broadcast.json` stores the provider value under the same rules. Dict keys survive only if they are known record
   keys.
-- A final check runs on every artefact before it is written or printed. It looks at every key, every string, and
-  every integer in decimal and hex, including the decimal form of a hex quantity. Anything containing a token
-  replaces the whole artefact with `{redacted, hash}`. URL fragments shorter than six characters are not
-  protected: shorter thresholds collide with ordinary numbers, and provider keys are far longer.
+- A final check runs on every artefact built from provider values before it is written or printed:
+  `broadcast.json` (after the attempt), `receipt.json`, `result.json` and stdout, and `FAILURE.json` with its
+  stderr fallback.
+  - It looks at every key, every string, and every integer in decimal and hex, including the decimal form of
+    hex quantities up to 32 bytes. Longer hex, such as log data, is checked as text.
+  - It is iterative, so nesting depth cannot raise.
+  - It fails closed: anything unexpected counts as a leak.
+  - A hit replaces the artefact with `{redacted, hash}`.
+- `unsigned.json`, `decoded.json` and `plan.reviewed.json` are built from the reviewed plan and the local
+  signature, not from provider data, so this check does not run on them.
+- A `0x`-prefixed URL fragment is also matched without the prefix.
+- URL fragments shorter than six characters are not protected: shorter thresholds collide with ordinary
+  numbers, and provider keys are far longer.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 56 offline tests, including a real PTY for the `/dev/tty` confirmation.
+`test_a3a_send.py` has 60 offline tests, including a real PTY for the `/dev/tty` confirmation.
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.

@@ -894,9 +894,12 @@ class SenderTests(unittest.TestCase):
         self.assertTrue(sd.leak_free({'gasUsed': 135104, 'hash': '0x' + 'ab' * 32}, url))
         chain = Chain()
         result = self.run_send(chain, url=url, gas_used=int(key))
-        self.assertEqual(result, {'redacted': 'contained an RPC URL token', 'hash': keccak(self.sent[0])})
+        placeholder = {'redacted': 'contained an RPC URL token', 'hash': keccak(self.sent[0])}
+        self.assertEqual(result, placeholder)
+        # receipt.json stores gasUsed as "0x1e240" (whose decimal form is the key): the guard must replace it,
+        # which a plain substring check on the file would not show.
         for name in ('result.json', 'receipt.json'):
-            self.assertNotIn(key, (self.args.out / name).read_text(), name)
+            self.assertEqual(json.loads((self.args.out / name).read_text()), placeholder, name)
 
     def test_failure_record_final_check(self):
         url = 'https://x.invalid/v2/123456'
@@ -924,6 +927,44 @@ class SenderTests(unittest.TestCase):
         text = (out / 'FAILURE.json').read_text()
         self.assertNotIn('123456', text)
         self.assertIsNone(json.loads(text)['hash'])
+    # --- review #548 round 2 ---
+
+    def test_large_log_data_does_not_turn_a_success_into_a_failure(self):
+        big = [{'address': '0x' + '55' * 20, 'topics': ['0x' + '01' * 32], 'data': '0x' + 'ff' * 2000}]
+        result = self.run_send(Chain(), receipt_edit=lambda r: r.__setitem__('logs', big))
+        self.assertEqual(result['status'], 'SENT')
+        self.assertEqual(json.loads((self.args.out / 'receipt.json').read_text())['logs'][0]['data'], '0x' + 'ff' * 2000)
+
+    def test_leak_free_is_iterative_and_fail_closed(self):
+        url = 'https://x.invalid/v2/abcdefabcdef'
+        deep = 0
+        for _ in range(5000):  # built iteratively: json.loads itself would recurse
+            deep = [deep]
+        self.assertTrue(sd.leak_free({'x': deep}, url))
+        class Hostile:
+            def __str__(self): raise RuntimeError('boom')
+        self.assertFalse(sd.leak_free({'x': Hostile()}, url))
+        self.assertEqual(sd.guard({'x': Hostile()}, url, '0x' + 'ab' * 32), {'redacted': 'contained an RPC URL token', 'hash': '0x' + 'ab' * 32})
+
+    def test_leak_free_int_hex_form_and_0x_tokens(self):
+        url = 'https://x.invalid/v2/abcdef123456'
+        self.assertFalse(sd.leak_free({'x': int('abcdef123456', 16)}, url))  # only its hex form shows the key
+        url0x = 'https://x.invalid/v2/0xdeadbeef12'
+        self.assertFalse(sd.leak_free({'x': 0xdeadbeef12}, url0x))
+        self.assertEqual(sd.scrub(0xdeadbeef12, url0x), '<redacted int>')
+
+    def test_broadcast_json_guard_holds_even_if_scrub_misses(self):
+        key = '12345678901234567890'
+        url = 'https://eth-sepolia.example.invalid/v2/' + key
+        def refused(u, raw):
+            self.sent.append(raw)
+            raise ex.Gate('send_broadcast_rejected', int(key), 'transaction hash')
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', refused), mock.patch.object(sd, 'scrub', lambda v, u: v), \
+                mock.patch.object(sd, 'RECEIPT_WAIT_SECONDS', 0.01), mock.patch.object(sd.time, 'sleep'):
+            with self.assertRaises(ex.Gate):
+                sd.run(self.args, Chain(), url, confirm=self.confirm())
+        self.assertEqual(json.loads((self.args.out / 'broadcast.json').read_text()),
+                         {'redacted': 'contained an RPC URL token', 'hash': keccak(self.sent[0])})
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.
