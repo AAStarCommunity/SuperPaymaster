@@ -441,9 +441,14 @@ Each of these is a hard stop. Nothing leaves the process unless every earlier on
     as "already known" or "nonce too low". The provider's code is kept as the reason.
 - None of these proves the transaction is absent from every mempool, so in every case the run monitors the
   locally computed hash. Up to 10 consecutive transient RPC failures are tolerated.
-- Evidence writes after broadcast are best effort, so a full disk never stops monitoring.
-- Every failure ends as `send_after_broadcast`, with the hash, the outcome and the cause. A hash mismatch is
-  reported as a failure even when the signed transaction was mined.
+- Evidence writes after broadcast are best effort, so a full disk never stops monitoring. This holds even when
+  stderr itself cannot be written.
+- Every exit, Ctrl-C included (`interrupted`), ends as `send_after_broadcast`, with the hash, the outcome and the
+  cause. A hash mismatch is reported as a failure even when the signed transaction was mined.
+- Receipt strings are refused if they contain a token of the RPC URL. A hex-encoded key passes format checks, so
+  without this it could be stored.
+- A broken stdout after a successful send does not turn it into a failure, because `result.json` already holds
+  the result.
 - If even `FAILURE.json` cannot be written, the scrubbed record goes to stderr.
 - The broadcast is an explicit write transport. It reuses `ex.RPC`'s wall-clock total deadline but not
   `ex.RPC.__call__`, so a stalled provider cannot hold the lock.
@@ -456,7 +461,7 @@ inherited from `a3a_exec` can put raw provider output in either. Only numbers, b
 short identifier keys survive, minus anything that contains a token of the RPC URL.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 40 offline tests, including a real PTY for the `/dev/tty` confirmation. It runs in CI (`a3a-executor.yml`).
+`test_a3a_send.py` has 44 offline tests, including a real PTY for the `/dev/tty` confirmation. It runs in CI (`a3a-executor.yml`).
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.

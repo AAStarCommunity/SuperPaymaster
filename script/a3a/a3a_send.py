@@ -143,7 +143,7 @@ def broadcast(url, raw):
     return result.lower()
 
 
-def wait_receipt(remote, h, tx):
+def wait_receipt(remote, h, tx, tokens=frozenset()):
     deadline = time.monotonic() + RECEIPT_WAIT_SECONDS
     transient = 0
     while time.monotonic() < deadline:
@@ -159,7 +159,7 @@ def wait_receipt(remote, h, tx):
             time.sleep(4)
             continue
         if r is not None:
-            r = clean_receipt(r)
+            r = clean_receipt(r, tokens)
             ex.need('send_receipt_hash', r['transactionHash'], h)
             ex.need('send_receipt_status', r['status'], '0x1')
             ex.need('send_receipt_gas', ex.qty(r['gasUsed']) <= ex.qty(tx['gas']), True)
@@ -175,7 +175,7 @@ def field(value, rx, name):
     return value.lower()
 
 
-def clean_receipt(r):
+def clean_receipt(r, tokens=frozenset()):
     """Allowlisted, validated receipt: the only receipt form that is compared, persisted or read back."""
     if not isinstance(r, dict) or not isinstance(r.get('logs'), list):
         raise ex.Gate('send_provider_receipt', 'malformed', 'receipt object')
@@ -198,6 +198,9 @@ def clean_receipt(r):
             if k in log:
                 entry[k] = field(log[k], ex.QTY, 'log'+k)
         out['logs'].append(entry)
+    # Format validation alone lets a hex-encoded key through (e.g. as log data); refuse any URL token.
+    if any(tok in json.dumps(out) for tok in tokens):
+        raise ex.Gate('send_provider_leak', 'redacted', 'no RPC URL token in provider data')
     return out
 
 
@@ -261,21 +264,20 @@ def run(args, remote, url, confirm=None):
     fee_fits(remote, tx)
     # The attempt is on disk before anything is transmitted: if this write fails, nothing has been sent.
     ex.write_json(args.out/'broadcast.json', dict(step=args.step, hash=h, outcome='attempting'))
-    outcome, provider = 'accepted', None
+    outcome, provider = 'unknown', None
+    # From the broadcast attempt on, the transaction may be on its way. Every exit, including Ctrl-C, is
+    # send_after_broadcast with the hash; evidence writes are best effort and never stop monitoring.
     try:
-        sent = broadcast(url, raw)
-        if sent != h:
-            outcome = 'accepted_hash_mismatch'
-    except ex.Gate as e:
-        # No reply, a malformed reply, or an error reply ("already known", "nonce too low", ...) does not prove the
-        # transaction is not in some mempool. Every failure is treated as outcome unknown and monitored by hash.
-        outcome, provider = 'unknown', {'gate': e.record['gate'], 'observed': e.record['observed']}
-    # From here on the transaction may be on its way: evidence writes are best effort and never stop monitoring,
-    # and every failure is send_after_broadcast with the hash.
-    note(args.out/'broadcast.json', lambda p: ex.write_json(p, dict(step=args.step, hash=h, outcome=outcome, provider=provider)))
-    note(args.out/'signed.raw', lambda p: p.write_text(raw+'\n'))  # public once broadcast; never on disk before
-    try:
-        r = wait_receipt(remote, h, tx)
+        try:
+            sent = broadcast(url, raw)
+            outcome = 'accepted' if sent == h else 'accepted_hash_mismatch'
+        except ex.Gate as e:
+            # No reply, a malformed reply, or an error reply ("already known", "nonce too low", ...) does not prove
+            # the transaction is not in some mempool: outcome stays unknown and the local hash is monitored.
+            provider = {'gate': e.record['gate'], 'observed': e.record['observed']}
+        note(args.out/'broadcast.json', lambda p: ex.write_json(p, dict(step=args.step, hash=h, outcome=outcome, provider=provider)))
+        note(args.out/'signed.raw', lambda p: p.write_text(raw+'\n'))  # public once broadcast; never on disk before
+        r = wait_receipt(remote, h, tx, url_tokens(url))
         check_mined(remote, h, tx)
         note(args.out/'receipt.json', lambda p: ex.write_json(p, r))
         if outcome == 'accepted_hash_mismatch':
@@ -288,8 +290,13 @@ def run(args, remote, url, confirm=None):
                       gasUsed=ex.qty(r['gasUsed']), planSha256=hashlib.sha256(raw_plan).hexdigest())
         note(args.out/'result.json', lambda p: ex.write_json(p, result))
         return result
-    except Exception as e:
-        inner = e.record if isinstance(e, ex.Gate) else {'gate': 'local_error', 'observed': type(e).__name__}
+    except (Exception, KeyboardInterrupt) as e:
+        if isinstance(e, KeyboardInterrupt):
+            inner = {'gate': 'interrupted', 'observed': None}
+        elif isinstance(e, ex.Gate):
+            inner = e.record
+        else:
+            inner = {'gate': 'local_error', 'observed': type(e).__name__}
         raise ex.Gate('send_after_broadcast', {'hash': h, 'broadcast': outcome, 'provider': provider,
                                                'cause': inner.get('gate'), 'causeObserved': inner.get('observed')},
                       'reconcile by hash on chain; never resend or reprice without a new review') from None
@@ -300,10 +307,18 @@ def note(path, write):
     try:
         write(path)
     except OSError:
-        print('WARNING: could not write %s' % path.name, file=sys.stderr)
+        try:
+            print('WARNING: could not write %s' % path.name, file=sys.stderr)
+        except Exception:
+            pass  # stderr on the same full disk: still never stop monitoring
 
 
 SAFE_TEXT_MAX = 130  # "0x" + up to 64 bytes (two 32-byte words); longer hex (bytecode, calldata) is redacted
+
+
+def url_tokens(url):
+    """Path/query fragments of the RPC URL long enough to be a key; any provider string containing one is refused."""
+    return {s for s in re.split(r'[/?&=:#@.]+', url) if len(s) >= 6}
 
 
 def scrub(value, url):
@@ -314,7 +329,7 @@ def scrub(value, url):
     becomes a placeholder. Expected values from code (e.g. 'deployed contract code') are lost too: the gate name
     still says what failed, and the precise inputs are in the reviewed plan.
     """
-    tokens = {s for s in re.split(r'[/?&=:#@.]+', url) if len(s) >= 6}
+    tokens = url_tokens(url)
     def leaks(s):
         return any(tok in s for tok in tokens)
     def key(k, i):
@@ -353,7 +368,7 @@ def main(argv=None):
             url = args.rpc_file.read_text().strip()
             try:
                 try:
-                    print(json.dumps(run(args, ex.RPC(url), url), indent=2))
+                    result = run(args, ex.RPC(url), url)
                 except ex.Gate:
                     raise
                 except Exception as e:  # nothing was broadcast (run() wraps everything after broadcast in a Gate)
@@ -368,12 +383,21 @@ def main(argv=None):
                     ex.write_json(args.out/'FAILURE.json', record)
                 except OSError:
                     # Disk still failing: the terminal is the last place the hash can be reported.
-                    print('FAILURE record (not written): ' + json.dumps(record), file=sys.stderr)
+                    report('FAILURE record (not written): ' + json.dumps(record), sys.stderr)
                 raise
+        # Sent and recorded (result.json); a broken stdout does not turn that into a failure.
+        report(json.dumps(result, indent=2), sys.stdout)
         return 0
     except ex.Gate as e:
-        print('FAILURE: '+e.record['gate'], file=sys.stderr)
+        report('FAILURE: '+e.record['gate'], sys.stderr)
         return 1
+
+
+def report(text, stream):
+    try:
+        print(text, file=stream)
+    except Exception:
+        pass
 
 
 if __name__ == '__main__':

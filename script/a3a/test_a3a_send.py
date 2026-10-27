@@ -155,9 +155,9 @@ class SenderTests(unittest.TestCase):
             return self.phrase() if typed is None else typed
         return c
 
-    def run_send(self, chain, txs=(TX, TX), confirm=None, tx=TX, **bk):
+    def run_send(self, chain, txs=(TX, TX), confirm=None, tx=TX, url=SECRET, **bk):
         with self.gate(txs), self.broadcast(chain, tx, **bk):
-            return sd.run(self.args, chain, SECRET, confirm=confirm or self.confirm())
+            return sd.run(self.args, chain, url, confirm=confirm or self.confirm())
 
     def gate_name(self, fn):
         """The failing gate; for a failure after broadcast, the wrapped cause (the wrapper itself is checked too)."""
@@ -708,6 +708,70 @@ class SenderTests(unittest.TestCase):
         finally:
             os.close(master)
             os.close(slave)
+    def test_monitoring_survives_a_failing_stderr(self):
+        class Broken:
+            def write(self, *a): raise OSError('disk full')
+            def flush(self): raise OSError('disk full')
+        real = ex.write_json
+        def fail_receipt(path, data):
+            if path.name == 'receipt.json':
+                raise OSError('disk full')
+            return real(path, data)
+        chain = Chain()
+        with mock.patch.object(ex, 'write_json', fail_receipt), mock.patch('sys.stderr', Broken()):
+            result = self.run_send(chain)
+        self.assertEqual(result['status'], 'SENT')
+        self.assertIn('eth_getTransactionReceipt', [m for m, _ in chain.calls])
+
+    def test_ctrl_c_after_the_attempt_names_the_hash(self):
+        def interrupted(url, raw):
+            self.sent.append(raw)
+            raise KeyboardInterrupt
+        def outcome(fn):
+            try:  # a KeyboardInterrupt escaping run() must fail this test, not kill the runner
+                fn()
+            except BaseException as e:
+                self.assertIsInstance(e, ex.Gate)
+                return e
+            self.fail('no failure raised')
+        with self.gate([TX, TX]), mock.patch.object(sd, 'broadcast', interrupted):
+            e = outcome(lambda: sd.run(self.args, Chain(), SECRET, confirm=self.confirm()))
+        obs = e.record['observed']
+        self.assertEqual((e.record['gate'], obs['cause'], obs['broadcast'], obs['hash']),
+                         ('send_after_broadcast', 'interrupted', 'unknown', keccak(self.sent[0])))
+        self.clear_out()
+        class Polling(Chain):
+            def __call__(self, method, params):
+                if method == 'eth_getTransactionReceipt':
+                    raise KeyboardInterrupt
+                return super().__call__(method, params)
+        e = outcome(lambda: self.run_send(Polling()))
+        self.assertEqual((e.record['gate'], e.record['observed']['cause']), ('send_after_broadcast', 'interrupted'))
+
+    def test_broken_stdout_after_success_is_not_a_failure(self):
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        out = self.d / 'stdout'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        class Broken:
+            def write(self, *a): raise BrokenPipeError
+            def flush(self): raise BrokenPipeError
+        chain = Chain()
+        with self.gate([TX, TX]), self.broadcast(chain, TX), mock.patch.object(ex, 'RPC', lambda url: chain), \
+                mock.patch.object(sd, 'tty_confirm', lambda prompt: 'SEND S5a ' + SHA[:12]), mock.patch('sys.stdout', Broken()):
+            self.assertEqual(sd.main(argv), 0)
+        self.assertTrue((out / 'result.json').exists())
+        self.assertFalse((out / 'FAILURE.json').exists())
+
+    def test_hex_url_key_reflected_in_a_receipt_is_refused(self):
+        key = '0a1b2c3d4e5f6a7b8c9d'
+        url = 'https://eth-sepolia.example.invalid/v2/' + key
+        logs = [{'address': '0x' + '55' * 20, 'topics': [], 'data': '0x' + key}]
+        with self.assertRaises(ex.Gate) as c:
+            self.run_send(Chain(), url=url, receipt_edit=lambda r: r.__setitem__('logs', logs))
+        self.assertEqual(cause(c.exception), 'send_provider_leak')
+        self.assertFalse((self.args.out / 'receipt.json').exists())
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.
