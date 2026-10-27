@@ -376,8 +376,14 @@ def url_tokens(url):
     # Both the raw and the percent-decoded URL, lowercased: provider values are compared lowercased too.
     forms = {url, urllib.parse.unquote(url)}
     raw = {s.lower() for f in forms for s in re.split(r'[/?&=:#@.]+', f)}
-    # A 0x-prefixed key is also matched without its prefix, as it appears inside a hex value or an int's hex form.
-    return {s for t in raw for s in (t, t[2:] if t.startswith('0x') else t) if len(s) >= 6}
+    # A 0x-prefixed hex key is also matched without its prefix, as it appears inside a hex value or an int's hex
+    # form; only when what remains is hex (at least the 6-character threshold), so "0xstatus" does not turn into
+    # "status" while "0xabcdef" still yields "abcdef".
+    stripped = {t[2:] for t in raw if t.startswith('0x') and re.fullmatch(r'[0-9a-f]{6,}', t[2:])}
+    return {s for s in raw | stripped if len(s) >= 6}
+
+
+SCRUB_DEPTH = 64
 
 
 def scrub(value, url):
@@ -394,16 +400,17 @@ def scrub(value, url):
     def key(k, i):
         # Keys can be provider-controlled too (a dict inside an observed value): only known record keys survive.
         return k if k in KNOWN_KEYS else '<key %d>' % i
-    def clean(v):
+    def clean(v, depth=0):
         if v is None or isinstance(v, bool):
             return v
+        if depth >= SCRUB_DEPTH:  # deeper provider nesting is dropped, so the recursion is bounded
+            return '<redacted: nested deeper than %d>' % SCRUB_DEPTH
         if isinstance(v, int):
             return v if not leaks(str(v)) and not leaks(format(v, 'x')) else '<redacted int>'
-
         if isinstance(v, (list, tuple)):
-            return [clean(x) for x in v]
+            return [clean(x, depth + 1) for x in v]
         if isinstance(v, dict):
-            return {key(k, i): clean(x) for i, (k, x) in enumerate(v.items())}
+            return {key(k, i): clean(x, depth + 1) for i, (k, x) in enumerate(v.items())}
         s = str(v)
         if len(s) <= SAFE_TEXT_MAX and re.fullmatch(r'0x[0-9a-fA-F]*', s) and not leaks(s):
             return s
@@ -437,6 +444,16 @@ def failure_record(record, step, url):
     return out
 
 
+def hash_only(record, step, url, reason):
+    """Minimal failure record. Only send_after_broadcast's hash is ours (computed locally from the signed bytes);
+    any other gate's observed hash may be provider data. Even ours is rechecked before it is kept."""
+    obs = record.get('observed')
+    mine = (record.get('gate') == 'send_after_broadcast' and isinstance(obs, dict)
+            and isinstance(obs.get('hash'), str) and ex.HASH32.fullmatch(obs['hash']) and leak_free(obs['hash'], url))
+    return {'status': 'FAILURE', 'gate': trusted_gate(record.get('gate'), url), 'step': step,
+            'redacted': reason, 'hash': obs['hash'] if mine else None}
+
+
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument('--plan', type=Path, required=True)
@@ -465,16 +482,13 @@ def main(argv=None):
                 # Only into the directory this run verified empty, never over earlier evidence; still locked.
                 # gate/status are code constants; observed and expected can both carry provider data (a3a_exec puts
                 # e.g. a receipt's transactionHash into expected), so both are scrubbed.
-                record = failure_record(e.record, args.step, url)
-                if not leak_free(record, url):
-                    # Only send_after_broadcast's hash is ours (computed locally from the signed bytes); any other
-                    # gate's observed hash may be provider data. Even ours is rechecked before it is kept.
-                    obs = e.record.get('observed')
-                    mine = (e.record.get('gate') == 'send_after_broadcast' and isinstance(obs, dict)
-                            and isinstance(obs.get('hash'), str) and ex.HASH32.fullmatch(obs['hash'])
-                            and leak_free(obs['hash'], url))
-                    record = {'status': 'FAILURE', 'gate': trusted_gate(e.record.get('gate'), url), 'step': args.step,
-                              'redacted': 'contained an RPC URL token', 'hash': obs['hash'] if mine else None}
+                try:
+                    record = failure_record(e.record, args.step, url)
+                    if not leak_free(record, url):
+                        record = hash_only(e.record, args.step, url, 'contained an RPC URL token')
+                except Exception:
+                    # Building the record must never cost the record: fall back to the hash-only form.
+                    record = hash_only(e.record, args.step, url, 'failure record could not be built')
                 try:
                     ex.write_json(args.out/'FAILURE.json', record)
                 except OSError:

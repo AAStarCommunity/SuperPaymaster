@@ -965,6 +965,39 @@ class SenderTests(unittest.TestCase):
                 sd.run(self.args, Chain(), url, confirm=self.confirm())
         self.assertEqual(json.loads((self.args.out / 'broadcast.json').read_text()),
                          {'redacted': 'contained an RPC URL token', 'hash': keccak(self.sent[0])})
+    # --- review #548 round 3 (follow-up) ---
+
+    def test_scrub_bounds_depth_and_failure_record_never_raises(self):
+        url = 'https://x.invalid/v2/abcdefabcdef'
+        deep = 0
+        for _ in range(5000):
+            deep = [deep]
+        self.assertIn('nested deeper than', json.dumps(sd.scrub(deep, url)))
+        rec = {'status': 'FAILURE', 'gate': 'send_after_broadcast', 'expected': 'x',
+               'observed': {'hash': '0x' + 'ab' * 32, 'broadcast': 'unknown', 'cause': 'x', 'causeObserved': deep}}
+        self.assertEqual(sd.failure_record(rec, 'S5a', url)['observed']['hash'], '0x' + 'ab' * 32)
+        rpc = self.d / 'rpc'
+        rpc.write_text(url)
+        out = self.d / 'deep'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        boom = ex.Gate('send_after_broadcast', rec['observed'], 'x')
+        with self.gate([boom]), mock.patch.object(ex, 'RPC', lambda u: Chain()), mock.patch.object(sd, 'failure_record', side_effect=RecursionError), \
+                mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            self.assertEqual(sd.main(argv), 1)
+        saved = json.loads((out / 'FAILURE.json').read_text())
+        self.assertEqual((saved['hash'], saved['redacted']), ('0x' + 'ab' * 32, 'failure record could not be built'))
+
+    def test_leak_free_walks_list_elements_and_dict_keys(self):
+        url = 'https://x.invalid/v2/abcdefabcdef'
+        self.assertFalse(sd.leak_free({'logs': [{'x': 1}, 'zz-abcdefabcdef']}, url))
+        self.assertFalse(sd.leak_free({'abcdefabcdef': 1}, url))
+        self.assertTrue(sd.leak_free({'logs': [{'x': 1}, 'zz']}, url))
+
+    def test_0x_prefix_stripped_only_for_long_hex(self):
+        self.assertTrue(sd.leak_free({'status': '0x1'}, 'https://x.invalid/v2/0xstatus'))
+        self.assertFalse(sd.leak_free({'x': 0xdeadbeef12}, 'https://x.invalid/v2/0xdeadbeef12'))
+        self.assertFalse(sd.leak_free({'code': int('abcdef', 16)}, 'https://x.invalid/v2/0xabcdef'))  # 6 hex digits
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.
