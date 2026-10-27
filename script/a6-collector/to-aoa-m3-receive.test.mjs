@@ -188,6 +188,34 @@ test('a price capped at maxFeePerGas must be reachable', () => {
   assert.equal(exportRows(ok).attempts.filter((a) => a.included).length, 3);
 });
 
+test('a per-gas price above maxFeePerGas is refused', async () => {
+  const { gasConsistent } = await import('./to-aoa-m3-receive.mjs');
+  const gas = { maxFeePerGas: '10', maxPriorityFeePerGas: '1' };
+  assert.equal(gasConsistent({ actualGasCost: '12000', actualGasUsed: '1000' }, gas, 20n), false);  // price 12 > 10
+  assert.equal(gasConsistent({ actualGasCost: '5000', actualGasUsed: '1000' }, gas, 20n), true);    // price 5, basefee 4
+});
+
+test('tx.gasUsed above tx.gasLimit refuses the export', () => {
+  const rows = rowsOf('positive.jsonl');
+  const vpm = rows.find((x) => x.kind === 'attempt' && x.arm === 'VPM');
+  vpm.tx.gasUsed = '999999999999999';
+  refused(rows, /at most tx\.gasLimit/);
+});
+
+test('a failed UOE with a non-dividing prefund cost is excluded, not a refused run', () => {
+  const rows = rowsOf('positive.jsonl');
+  const r = rows.find((x) => x.kind === 'attempt' && x.arm === 'TPM');
+  const l = uoeLog(r);
+  l.data = setWord(l.data, 1, '0'.repeat(64));                      // success = false
+  const used = BigInt('0x' + l.data.slice(2 + 192, 2 + 256));
+  l.data = setWord(l.data, 2, (used * 3n + 1n).toString(16).padStart(64, '0'));  // prefund, not a multiple
+  r.verdict = 'USEROP_REVERTED';
+  const pkg = exportRows(rows);
+  const tpm = pkg.attempts.find((a) => a.paymasterKind === 'TokenPaymaster');
+  assert.equal(tpm.included, false);
+  assert.match(tpm.exclusionReason, /UOE_FAILED/);
+});
+
 test('receipt numbers must be decimal strings', () => {
   for (const [field, value] of [['gasUsed', false], ['effectiveGasPrice', false], ['gasUsed', '0x10'], ['gasUsed', '0']]) {
     const rows = rowsOf('positive.jsonl');
