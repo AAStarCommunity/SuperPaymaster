@@ -11,8 +11,8 @@ Usage (run by the operator in a terminal: cast asks for the keystore password, a
     --out <new empty dir>
 
 Order of operations, each a hard stop on failure (nothing leaves this process unless every step before it passed):
-  0. Read the plan once; its sha256 must equal the reviewed digest given out-of-band; a snapshot of those bytes
-     is what every later step reads. A machine-wide lock keeps a second sender run from overlapping.
+  0. A per-user lock is taken before the output directory is claimed. Read the plan once; its sha256 must equal
+     the reviewed digest given out-of-band; a snapshot of those bytes is what every later step reads.
   1. a3a_exec.signing_transaction on the snapshot: frozen-plan validation, Safe hash recheck for S5/S6, and
      pre_send (chain, code, predecessor readback, latest == pending == planned nonce, Safe nonce, fresh
      estimateGas <= planned gas).
@@ -22,11 +22,15 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
   3. Local verification: `cast decode-transaction` fields and signer equal the plan, no access list or
      authorization list, and a local keccak of the raw bytes equals the decoded hash. Nothing is sent to any
      provider here.
-  4. The operator types `SEND <step> <first 12 hex of the plan sha256>`.
+  4. The operator types `SEND <step> <first 12 hex of the plan sha256>` at the terminal (/dev/tty; no terminal,
+     no send).
   5. After the confirmation, immediately before broadcast: pre_send again (it must return the identical
      transaction) and the latest base fee plus the planned priority fee must fit under the planned max fee.
-  6. eth_sendRawTransaction; the returned hash must equal the signed hash. Then wait for the receipt (no
-     resend, no replacement: a stuck transaction is reported, not repriced). Status must be 0x1 and gasUsed
+  6. eth_sendRawTransaction under a total deadline. A provider error is a definite rejection; a timeout or a
+     dropped connection is outcome "unknown". From then on broadcast.json names the hash and outcome, the run
+     monitors by hash (tolerating transient RPC failures), and any failure ends as send_after_broadcast with the
+     hash. The returned hash, if any, must equal the signed hash. No resend, no replacement: a stuck transaction
+     is reported, not repriced. Status must be 0x1 and gasUsed
      <= planned gas; eth_getTransactionByHash must equal the plan. After S7 the final readback runs.
 Artefacts go to --out (0700): unsigned tx, decoded fields without the signature, the allowlisted receipt, and
 signed.raw only after broadcast. The RPC URL and provider-supplied text are never written or printed.
@@ -39,8 +43,12 @@ import a3a_exec as ex  # noqa: E402
 
 CAST = os.environ.get('A3A_CAST', str(Path.home()/'.foundry/bin/cast'))
 RECEIPT_WAIT_SECONDS = 600
+RECEIPT_TRANSIENT_MAX = 10  # consecutive RPC failures tolerated while waiting: the transaction is already out
+TRANSIENT_GATES = ('rpc_transport', 'rpc_envelope', 'rpc_fault')
+DECODED_FIELDS = ('signer', 'type', 'chainId', 'nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'to', 'value',
+                  'accessList', 'input', 'hash')  # what decoded.json keeps; never the signature
 SIGNER_ENV_KEYS = ('HOME', 'PATH', 'TERM', 'LANG', 'USER')
-LOCK_PATH = Path.home()/'.a3a_send.lock'  # one sender at a time on this machine; other machines are out of reach
+LOCK_PATH = Path.home()/'.a3a_send.lock'  # one sender at a time per user (HOME); other users or machines are out of reach
 
 
 def signer_env():
@@ -54,7 +62,7 @@ def sender_lock():
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            raise ex.Gate('send_lock_busy', str(LOCK_PATH), 'no other a3a_send run on this machine') from None
+            raise ex.Gate('send_lock_busy', str(LOCK_PATH), 'no other a3a_send run for this user') from None
         try:
             yield
         finally:
@@ -115,10 +123,10 @@ def fee_fits(remote, tx):
 
 def broadcast(url, raw):
     """The one write call. Kept outside ex.RPC, which refuses every non-read method."""
-    q = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'eth_sendRawTransaction', 'params': [raw]}).encode()
+    q = {'jsonrpc': '2.0', 'id': 1, 'method': 'eth_sendRawTransaction', 'params': [raw]}
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, q, {'Content-Type': 'application/json'}), timeout=45) as r:
-            d = json.loads(r.read())
+        # Same wall-clock total deadline as every read (ex.RPC): a trickling server cannot hold the lock open.
+        d = ex.RPC(url)._post_with_deadline(q)
     except Exception as e:  # never echo the exception text: it can carry the URL
         raise ex.Gate('send_broadcast_transport', type(e).__name__, 'JSON-RPC response') from None
     # Nothing the provider returns is recorded verbatim: an integer error code, or a validated hash.
@@ -134,8 +142,19 @@ def broadcast(url, raw):
 
 def wait_receipt(remote, h, tx):
     deadline = time.monotonic() + RECEIPT_WAIT_SECONDS
+    transient = 0
     while time.monotonic() < deadline:
-        r = remote('eth_getTransactionReceipt', [h])
+        try:
+            r = remote('eth_getTransactionReceipt', [h])
+            transient = 0
+        except ex.Gate as e:
+            if e.record['gate'] not in TRANSIENT_GATES:
+                raise
+            transient += 1
+            if transient > RECEIPT_TRANSIENT_MAX:
+                raise ex.Gate('send_receipt_rpc', e.record['gate'], 'receipt reads recovering within %d tries' % RECEIPT_TRANSIENT_MAX) from None
+            time.sleep(4)
+            continue
         if r is not None:
             r = clean_receipt(r)
             ex.need('send_receipt_hash', r['transactionHash'], h)
@@ -203,6 +222,17 @@ def signed(tx, account):
     return raw, h, decoded
 
 
+def tty_confirm(prompt):
+    """The confirmation must come from the operator's terminal, not from piped or redirected input."""
+    try:
+        with open('/dev/tty', 'r+') as tty:
+            tty.write(prompt)
+            tty.flush()
+            return tty.readline()
+    except OSError:
+        raise ex.Gate('send_no_tty', 'no controlling terminal', 'operator at a terminal') from None
+
+
 def run(args, remote, url, confirm=None):
     """The caller holds sender_lock() and owns args.out (see main)."""
     # One read of the plan; every later consumer uses these bytes or the snapshot written from them.
@@ -217,27 +247,46 @@ def run(args, remote, url, confirm=None):
     ex.need('send_account_named', isinstance(accounts.get(role), str) and accounts[role] != '', True)
     ex.write_json(args.out/'unsigned.json', tx)
     raw, h, decoded = signed(tx, accounts[role])  # held in memory only until broadcast
-    ex.write_json(args.out/'decoded.json', {k: v for k, v in decoded.items() if k not in ('r', 's', 'v', 'yParity')})
+    ex.write_json(args.out/'decoded.json', {k: decoded.get(k) for k in DECODED_FIELDS})
     phrase = 'SEND %s %s' % (args.step, args.reviewed_plan_sha256[:12])
-    typed = (confirm or input)('Type "%s" to broadcast %s from %s (%s): ' % (phrase, h, tx['from'], role)).strip()
+    typed = (confirm or tty_confirm)('Type "%s" to broadcast %s from %s (%s): ' % (phrase, h, tx['from'], role)).strip()
     ex.need('send_operator_confirmation', typed, phrase)
     # Every live check again after the (unbounded) confirmation pause, immediately before broadcast.
     again = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
     ex.need('send_tx_stable', again, tx)
     fee_fits(remote, tx)
-    sent = broadcast(url, raw)
-    (args.out/'signed.raw').write_text(raw+'\n')  # public once broadcast; never on disk before
-    ex.need('send_returned_hash', sent, h)
-    r = wait_receipt(remote, h, tx)
-    check_mined(remote, h, tx)
-    ex.write_json(args.out/'receipt.json', r)
-    if args.step == ex.STEP_IDS[-1]:
-        context = {'tlBlock': hex(int(plan['pin']['block'], 16)+1), 'eta': ex.scheduled_eta(remote, plan, done=True)}
-        ex.readback(remote, plan, plan['steps'][-1], r, context)
-    result = dict(status='SENT', step=args.step, role=role, hash=h, block=r['blockNumber'],
-                  gasUsed=ex.qty(r['gasUsed']), planSha256=hashlib.sha256(raw_plan).hexdigest())
-    ex.write_json(args.out/'result.json', result)
-    return result
+    outcome = 'accepted'
+    try:
+        sent = broadcast(url, raw)
+    except ex.Gate as e:
+        if e.record['gate'] != 'send_broadcast_transport':
+            raise  # the provider answered with an error: the transaction was not accepted
+        sent, outcome = None, 'unknown'  # timeout or disconnect: the provider may hold the transaction
+    # From here on the transaction may be on its way. Whatever fails, the record names its hash and outcome, and
+    # monitoring by hash is never skipped because of a local error.
+    try:
+        ex.write_json(args.out/'broadcast.json', dict(step=args.step, hash=h, outcome=outcome))
+        try:
+            (args.out/'signed.raw').write_text(raw+'\n')  # evidence only; public once broadcast, never on disk before
+        except OSError:
+            pass
+        if sent is not None:
+            ex.need('send_returned_hash', sent, h)
+        r = wait_receipt(remote, h, tx)
+        check_mined(remote, h, tx)
+        ex.write_json(args.out/'receipt.json', r)
+        if args.step == ex.STEP_IDS[-1]:
+            context = {'tlBlock': hex(int(plan['pin']['block'], 16)+1), 'eta': ex.scheduled_eta(remote, plan, done=True)}
+            ex.readback(remote, plan, plan['steps'][-1], r, context)
+        result = dict(status='SENT', step=args.step, role=role, hash=h, block=r['blockNumber'], broadcast=outcome,
+                      gasUsed=ex.qty(r['gasUsed']), planSha256=hashlib.sha256(raw_plan).hexdigest())
+        ex.write_json(args.out/'result.json', result)
+        return result
+    except Exception as e:
+        inner = e.record if isinstance(e, ex.Gate) else {'gate': 'local_error', 'observed': type(e).__name__}
+        raise ex.Gate('send_after_broadcast', {'hash': h, 'broadcast': outcome, 'cause': inner.get('gate'),
+                                               'causeObserved': inner.get('observed')},
+                      'reconcile by hash on chain; never resend or reprice without a new review') from None
 
 
 SAFE_TEXT_MAX = 130  # "0x" + up to 64 bytes (two 32-byte words); longer hex (bytecode, calldata) is redacted
@@ -289,7 +338,12 @@ def main(argv=None):
             os.chmod(args.out, 0o700)
             url = args.rpc_file.read_text().strip()
             try:
-                print(json.dumps(run(args, ex.RPC(url), url), indent=2))
+                try:
+                    print(json.dumps(run(args, ex.RPC(url), url), indent=2))
+                except ex.Gate:
+                    raise
+                except Exception as e:  # nothing was broadcast (run() wraps everything after broadcast in a Gate)
+                    raise ex.Gate('local_error', type(e).__name__, 'no local failure before broadcast') from None
             except ex.Gate as e:
                 # Only into the directory this run verified empty, never over earlier evidence; still locked.
                 # gate/status are code constants; observed and expected can both carry provider data (a3a_exec puts

@@ -404,10 +404,12 @@ write method. The sender's one write call is its own `broadcast()`.
 One invocation sends **one** step. It is run by the operator in a terminal: `cast` asks for the keystore
 password, and the operator types the confirmation string. The author chose Foundry keystores (`cast wallet
 import`) on 2026-10-27. The step's sender role (deployer, approver or executor) is mapped to a keystore name by a
-JSON file. No key material appears in argv, the environment or the logs.
+JSON file. No key material appears in argv, the environment or the logs. The confirmation is read from
+`/dev/tty`; without a controlling terminal the run stops (`send_no_tty`), so piped or redirected input cannot
+confirm.
 
 Each of these is a hard stop. Nothing leaves the process unless every earlier one passed:
-0. A machine-wide `flock` is taken before the output directory is checked or written, so a second concurrent
+0. A per-user `flock` (`~/.a3a_send.lock`) is taken before the output directory is checked or written, so a second concurrent
    sender run is refused. The output directory is private (0700, umask 077). The plan is read once. Its sha256
    must equal the reviewed digest given out-of-band, and every later step reads a snapshot of those bytes.
 1. `signing_transaction` on the snapshot, including `pre_send`.
@@ -429,15 +431,27 @@ Each of these is a hard stop. Nothing leaves the process unless every earlier on
 
    After S7, the final `readback` runs on the allowlisted receipt.
 
+**After broadcast.** From the moment the broadcast is attempted, the transaction may be out.
+- `broadcast.json` records `{step, hash, outcome}` at once. `outcome` is `accepted` when the provider returned the
+  hash, and `unknown` when the call timed out or the connection dropped. A provider error reply is a definite
+  rejection and is not wrapped.
+- Either way the run keeps monitoring by hash. Up to 10 consecutive transient RPC failures are tolerated while
+  polling.
+- Any later failure, including a local error such as a full disk while writing `signed.raw`, ends as
+  `send_after_broadcast`. Its record carries the hash, the outcome and the cause, so the transaction can be
+  reconciled on chain.
+- The broadcast call uses the same wall-clock total deadline as every read (`ex.RPC`), so a stalled provider
+  cannot hold the lock.
+
 A transaction that is not mined within 600 s is reported. It is never re-sent or repriced; doing either needs a
 new review. Each step's artefacts are written to its own empty `--out`: `unsigned.json`, `signed.raw`,
-`decoded.json` (without the signature), `receipt.json` and `result.json`, or `FAILURE.json` on a stop. `FAILURE.json`
+`decoded.json` (an allowlist of fields, never the signature), `broadcast.json`, `receipt.json` and `result.json`, or `FAILURE.json` on a stop. `FAILURE.json`
 is written while the lock is still held. Its `observed` and `expected` values are scrubbed, because gates
 inherited from `a3a_exec` can put raw provider output in either. Only numbers, booleans, short 0x-hex and
 short identifier keys survive, minus anything that contains a token of the RPC URL.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 27 offline tests.
+`test_a3a_send.py` has 36 offline tests. It runs in CI (`a3a-executor.yml`).
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.
@@ -451,7 +465,7 @@ short identifier keys survive, minus anything that contains a token of the RPC U
 Not yet covered:
 - An end-to-end run against a local fork with real keystores.
 - The S5/S6 Safe flow live.
-- The lock is per machine: two machines sharing one key are out of its reach.
+- The lock is per user (HOME): another user, or another machine, sharing one key is out of its reach.
 
 ## Offline verification
 
