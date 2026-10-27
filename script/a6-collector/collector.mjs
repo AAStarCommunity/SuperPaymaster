@@ -50,7 +50,7 @@ import {
 } from './gauge-lib.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const SCHEMA = 'a6-gauge/1';
+const SCHEMA = 'a6-gauge/2'; // /2 adds invariant.credit and the on-chain extension / price-feed bindings
 const PROTOCOL_N = 50;
 
 // ── arguments (validated; no silent defaults for the protocol parameters) ─────────────────
@@ -163,6 +163,7 @@ const SP_ABI = [
   { type: 'function', name: 'priceStalenessThreshold', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'paused', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
   { type: 'function', name: 'cachedPrice', stateMutability: 'view', inputs: [], outputs: [{ name: 'price', type: 'int256' }, { name: 'updatedAt', type: 'uint256' }, { name: 'roundId', type: 'uint80' }, { name: 'decimals', type: 'uint8' }] },
+  { type: 'function', name: 'ETH_USD_PRICE_FEED', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
   { type: 'function', name: 'isEligibleForSponsorship', stateMutability: 'view', inputs: [{ name: 'u', type: 'address' }], outputs: [{ type: 'bool' }] },
 ];
 const TOKEN_ABI = [
@@ -181,6 +182,12 @@ const TOKEN_ABI = [
   { type: 'function', name: 'SUPERPAYMASTER_ADDRESS', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
   { type: 'function', name: 'maxSingleTxLimit', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'emergencyDisabled', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
+  { type: 'function', name: 'EXTENSION', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'creditPolicy', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint8' }] },
+  { type: 'function', name: 'hasPendingPolicy', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
+  { type: 'function', name: 'pendingPolicy', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint8' }] },
+  { type: 'function', name: 'pendingPolicyEta', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint64' }] },
+  { type: 'function', name: 'policyEpoch', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint32' }] },
   { type: 'function', name: 'setAutoAllowance', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'cap', type: 'uint256' }], outputs: [] },
   { type: 'function', name: 'setUserTotalCap', stateMutability: 'nonpayable', inputs: [{ name: 'cap', type: 'uint256' }], outputs: [] },
 ];
@@ -343,12 +350,13 @@ async function passport(p, blockNumber) {
         entryPoint: await codehash(EP),
         superPaymasterProxy: await codehash(SPA), superPaymasterImpl: await codehash(await implOf(SPA)),
         xPNTsClone: await codehash(spToken), xPNTsImpl: tokenImpl ? await codehash(tokenImpl) : null,
-        xPNTsExt: await codehash(cfg.xPNTsTokenV2Ext),
+        // Hash what the token and SP actually bind to, not what the deployment config says.
+        xPNTsExt: await codehash(await tR('EXTENSION')),
         account: await codehash(sender), accountImpl: await codehash(await implOf(sender)),
         verifyingPaymaster: await codehash(baselines.verifyingPaymaster.address),
         tokenPaymaster: await codehash(baselines.tokenPaymaster.address),
         tokenPaymasterToken: await codehash(baselines.tokenPaymaster.token),
-        priceFeed: await codehash(cfg.priceFeed),
+        priceFeed: await codehash(await spR('ETH_USD_PRICE_FEED')),
       },
       superPaymaster: {
         version: await spR('version'), entryPoint: await spR('entryPoint'), registry: await spR('REGISTRY'),
@@ -361,6 +369,10 @@ async function passport(p, blockNumber) {
       },
       xPNTs: { address: spToken, version: await tR('version'), exchangeRate: await tR('exchangeRate'),
         superPaymaster: await tR('SUPERPAYMASTER_ADDRESS'), maxSingleTxLimit: await tR('maxSingleTxLimit'), emergencyDisabled: await tR('emergencyDisabled') },
+      // Credit OFF for the operator's token (A4 Passport C2/C3). Any change between run_start and
+      // run_end is drift; the validator also requires policy OFF and nothing queued.
+      credit: { policy: await tR('creditPolicy'), hasPendingPolicy: await tR('hasPendingPolicy'),
+        pendingPolicy: await tR('pendingPolicy'), pendingPolicyEta: await tR('pendingPolicyEta'), policyEpoch: await tR('policyEpoch') },
       stakes: { SP: await stakeOf(SPA), VPM: await stakeOf(baselines.verifyingPaymaster.address), TPM: await stakeOf(baselines.tokenPaymaster.address) },
       verifyingSigner: await p.readContract({ address: baselines.verifyingPaymaster.address, abi: baselines.verifyingPaymaster.abi, functionName: 'verifyingSigner', ...at }),
       // Identical-EntryPoint condition across arms: every paymaster must be bound to EP.

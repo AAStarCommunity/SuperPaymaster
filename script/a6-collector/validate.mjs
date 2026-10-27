@@ -364,12 +364,17 @@ const ADDRESS_FIELDS = new Set([
 const BOOL_FIELDS = new Set(['allowSameEndpointLocal', 'invariant.entryPoint.isCanonicalV07Address',
   ...['paused', 'operator.isConfigured', 'operator.isPaused', 'senderEligible'].map(f => `invariant.superPaymaster.${f}`),
   'invariant.xPNTs.emergencyDisabled', ...['SP', 'VPM', 'TPM'].map(n => `invariant.stakes.${n}.staked`)]);
+// a6-gauge/2 adds the token's credit state (A4 Passport C2/C3). /1 runs predate it and stay readable.
+const SCHEMAS = ['a6-gauge/1', 'a6-gauge/2'];
+const CREDIT_FIELDS = ['policy', 'hasPendingPolicy', 'pendingPolicy', 'pendingPolicyEta', 'policyEpoch'].map(f => `invariant.credit.${f}`);
+let schema = null;
 function completePassport(p) {
-  for (const f of PASSPORT_FIELDS) {
+  const fields = schema === 'a6-gauge/2' ? [...PASSPORT_FIELDS, ...CREDIT_FIELDS] : PASSPORT_FIELDS;
+  for (const f of fields) {
     const v = need(p, f);
     let valid;
     if (ADDRESS_FIELDS.has(f)) valid = typeof v === 'string' && /^0x[0-9a-f]{40}$/i.test(v) && !/^0x0{40}$/i.test(v);
-    else if (BOOL_FIELDS.has(f)) valid = typeof v === 'boolean';
+    else if (BOOL_FIELDS.has(f) || f === 'invariant.credit.hasPendingPolicy') valid = typeof v === 'boolean';
     else if (f.endsWith('.hash') || f.endsWith('.codehash') || f.endsWith('callDataHash')) valid = typeof v === 'string' && /^0x[0-9a-f]{64}$/i.test(v);
     else if (f.endsWith('.version')) valid = typeof v === 'string' && v.trim().length > 0;
     else valid = (typeof v === 'string' && /^\d+$/.test(v)) || (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0);
@@ -388,6 +393,12 @@ function completePassport(p) {
   same(inv.xPNTs.address, inv.superPaymaster.operator.xPNTsToken, 'operator token');
   same(inv.xPNTs.superPaymaster, inv.code.superPaymasterProxy.address, 'token SP');
   if (inv.entryPoint.isCanonicalV07Address !== (lc(ep) === '0x0000000071727de22e5e9d8baf0edac6f37da032')) errors.push('passport canonical EntryPoint flag mismatch');
+  if (schema === 'a6-gauge/2') {
+    // XB:43 POLICY_OFF = 0; XT:337-339 effectiveCreditCap is 0 under OFF. A queued policy could
+    // switch it on mid-window (XE:171-177), so OFF alone is not enough.
+    if (big(inv.credit.policy) !== 0n) errors.push('passport credit policy is not OFF');
+    if (inv.credit.hasPendingPolicy !== false) errors.push('passport credit policy change is queued');
+  }
 }
 // Host identity ignores URL decoration and transport; loopback aliases share one host.
 const endpoint = value => {
@@ -420,7 +431,10 @@ try {
   const start = lines[0], end = lines[lines.length - 1];
   if (need(start, 'kind') !== 'run_start') throw new Missing('first line is not run_start');
   if (need(end, 'kind') !== 'run_end') throw new Missing('last line is not run_end (truncated run?)');
-  for (const l of lines) { if (need(l, 'schema') !== 'a6-gauge/1') throw new Missing('unknown schema'); if (need(l, 'runId') !== start.runId) throw new Missing('runId differs between lines'); }
+  schema = need(start, 'schema');
+  if (!SCHEMAS.includes(schema)) throw new Missing('unknown schema');
+  for (const l of lines) { if (need(l, 'schema') !== schema) throw new Missing('schema differs between lines'); if (need(l, 'runId') !== start.runId) throw new Missing('runId differs between lines'); }
+  if (schema === 'a6-gauge/1') notes.push('schema a6-gauge/1: credit policy not recorded, so this run does not show credit OFF');
   const pStart = need(start, 'passport');
   completePassport(pStart);
   const inv = need(pStart, 'invariant');
@@ -443,6 +457,8 @@ try {
   const conformant = target === 50 && noFixture(fixture) && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
   if (need(start, 'protocolConformant') !== conformant) errors.push('protocolConformant differs from recomputed count/fixture/arms/endpoints/override');
   if (start.protocolConformant && (!distinctEndpoints || localOverride)) errors.push('conformant run requires distinct endpoints without local override');
+  // /1 never recorded credit state, so relabelling a run as /1 must not yield a conformant result.
+  if (start.protocolConformant && schema !== 'a6-gauge/2') errors.push('conformant run requires a6-gauge/2 (credit OFF recorded)');
   const attempts = lines.slice(1, -1);
   const byTriplet = new Map();
   let stoppedRows = 0;
