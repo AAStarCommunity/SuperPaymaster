@@ -35,7 +35,7 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
 Artefacts go to --out (0700): unsigned tx, decoded fields without the signature, the allowlisted receipt, and
 signed.raw only after broadcast. The RPC URL and provider-supplied text are never written or printed.
 """
-import argparse, contextlib, fcntl, hashlib, json, os, re, subprocess, sys, time, urllib.request
+import argparse, contextlib, fcntl, hashlib, json, os, re, subprocess, sys, time, urllib.parse, urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -199,7 +199,7 @@ def clean_receipt(r, tokens=frozenset()):
                 entry[k] = field(log[k], ex.QTY, 'log'+k)
         out['logs'].append(entry)
     # Format validation alone lets a hex-encoded key through (e.g. as log data); refuse any URL token.
-    if any(tok in json.dumps(out) for tok in tokens):
+    if any(tok in json.dumps(out).lower() for tok in tokens):
         raise ex.Gate('send_provider_leak', 'redacted', 'no RPC URL token in provider data')
     return out
 
@@ -318,7 +318,9 @@ SAFE_TEXT_MAX = 130  # "0x" + up to 64 bytes (two 32-byte words); longer hex (by
 
 def url_tokens(url):
     """Path/query fragments of the RPC URL long enough to be a key; any provider string containing one is refused."""
-    return {s for s in re.split(r'[/?&=:#@.]+', url) if len(s) >= 6}
+    # Both the raw and the percent-decoded URL, lowercased: provider values are compared lowercased too.
+    forms = {url, urllib.parse.unquote(url)}
+    return {s.lower() for f in forms for s in re.split(r'[/?&=:#@.]+', f) if len(s) >= 6}
 
 
 def scrub(value, url):
@@ -331,7 +333,7 @@ def scrub(value, url):
     """
     tokens = url_tokens(url)
     def leaks(s):
-        return any(tok in s for tok in tokens)
+        return any(tok in s.lower() for tok in tokens)
     def key(k, i):
         s = str(k)
         return s if re.fullmatch(r'[A-Za-z0-9_]{1,32}', s) and not leaks(s) else '<key %d>' % i
@@ -394,10 +396,17 @@ def main(argv=None):
 
 
 def report(text, stream):
+    """Print and flush now; if the stream is gone (closed pipe), point its fd at /dev/null so that the flush at
+    interpreter exit cannot fail and turn the exit status into 120."""
     try:
-        print(text, file=stream)
+        print(text, file=stream, flush=True)
     except Exception:
-        pass
+        try:
+            null = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(null, stream.fileno())
+            os.close(null)
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':

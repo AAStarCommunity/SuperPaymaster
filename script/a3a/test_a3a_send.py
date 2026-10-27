@@ -713,14 +713,18 @@ class SenderTests(unittest.TestCase):
             def write(self, *a): raise OSError('disk full')
             def flush(self): raise OSError('disk full')
         real = ex.write_json
-        def fail_receipt(path, data):
-            if path.name == 'receipt.json':
+        seen = []
+        def fail_update(path, data):
+            seen.append(path.name)
+            if path.name == 'broadcast.json' and seen.count('broadcast.json') == 2:  # the post-broadcast update
                 raise OSError('disk full')
             return real(path, data)
         chain = Chain()
-        with mock.patch.object(ex, 'write_json', fail_receipt), mock.patch('sys.stderr', Broken()):
+        with mock.patch.object(ex, 'write_json', fail_update), mock.patch('sys.stderr', Broken()):
             result = self.run_send(chain)
         self.assertEqual(result['status'], 'SENT')
+        # The fault is injected before the first receipt poll, so any poll proves monitoring went on after it.
+        self.assertEqual(seen.count('broadcast.json'), 2)
         self.assertIn('eth_getTransactionReceipt', [m for m, _ in chain.calls])
 
     def test_ctrl_c_after_the_attempt_names_the_hash(self):
@@ -772,6 +776,25 @@ class SenderTests(unittest.TestCase):
             self.run_send(Chain(), url=url, receipt_edit=lambda r: r.__setitem__('logs', logs))
         self.assertEqual(cause(c.exception), 'send_provider_leak')
         self.assertFalse((self.args.out / 'receipt.json').exists())
+    def test_closed_stdout_pipe_keeps_exit_status_zero(self):
+        code = ('import sys; sys.path.insert(0, %r); import a3a_send as sd; '
+                'sd.report("SENT", sys.stdout); sys.exit(0)' % str(HERE))
+        p = subprocess.Popen([sys.executable, '-B', '-c', code], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p.stdout.close()  # the reader is gone before anything is written
+        _, err = p.communicate(timeout=30)
+        self.assertEqual(p.returncode, 0, err.decode()[-500:])
+
+    def test_url_key_variants_are_refused(self):
+        key = '0a1b2c3d4e5f6a7b8c9d'
+        logs = [{'address': '0x' + '55' * 20, 'topics': [], 'data': '0x' + key}]
+        for url in ('https://eth-sepolia.example.invalid/v2/' + key.upper(),
+                    'https://eth-sepolia.example.invalid/v2/%30' + key[1:]):
+            with self.subTest(url=url):
+                self.clear_out()
+                with self.assertRaises(ex.Gate) as c:
+                    self.run_send(Chain(), url=url, receipt_edit=lambda r: r.__setitem__('logs', logs))
+                self.assertEqual(cause(c.exception), 'send_provider_leak')
+        self.assertEqual(sd.scrub('0x' + key, 'https://x.invalid/' + key.upper()), '<redacted 22 chars>')
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.
