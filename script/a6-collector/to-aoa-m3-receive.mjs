@@ -12,7 +12,7 @@
 // UOE says success, SP/VPM/TPM conservation was evaluated and held, and its triplet was matched. Everything else
 // is listed with its exclusion reason, so no attempt is dropped.
 //
-// runType is `rehearsal` unless validate.mjs ran and accepted the run, and the run is protocolConformant
+// runType is `rehearsal` unless validate.mjs ran and accepted the run (not merely consistent), and the run is protocolConformant
 // and a6-gauge/2 (credit OFF recorded); this view never makes a run formal.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -89,6 +89,7 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
   const [start, end] = [starts[0], ends[0]];
   if (!['a6-gauge/1', 'a6-gauge/2'].includes(start.schema) || rows.some((r) => r.schema !== start.schema || r.runId !== start.runId)) fail('unknown or mixed schema, or mixed runId');
   if (!start.passport || !end.passport) fail('run has no start/end passport (stopped before read-back)');
+  let accepted = false; // validate.mjs ran and accepted the run (its exit 0)
   if (validate) {
     const scratch = mkdtempSync(join(tmpdir(), 'aoa-m3-validate-'));
     const reportPath = join(scratch, 'report.json');
@@ -106,6 +107,7 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
       rmSync(scratch, { recursive: true, force: true });
     }
     if (report.consistent !== true) fail('validate.mjs: run is not consistent');
+    accepted = report.accepted === true;
   }
   const inv = start.passport.invariant;
   if (canon(inv) !== canon(end.passport.invariant)) fail('passport invariant drifted between run_start and run_end');
@@ -198,7 +200,7 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
     });
   }
   const pkg = {
-    schema: 'aoa-m3-receive-v1', runType: validate && start.protocolConformant && start.schema === 'a6-gauge/2' ? 'formal-candidate' : 'rehearsal',
+    schema: 'aoa-m3-receive-v1', runType: accepted && start.protocolConformant && start.schema === 'a6-gauge/2' ? 'formal-candidate' : 'rehearsal',
     source: { runId: start.runId, collectorHead: start.head, collectorDirty: start.collectorDirty,
       jsonlSha256: sha256(raw), stop: end.stop, protocolConformant: start.protocolConformant,
       allowSameEndpointLocal: start.allowSameEndpointLocal },

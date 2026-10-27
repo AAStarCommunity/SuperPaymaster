@@ -150,6 +150,9 @@ test('runType is formal-candidate only for a validated, protocolConformant a6-ga
   const v2 = conformantV2();
   assert.equal(exportRows(v2).runType, 'rehearsal', 'without validate.mjs the exporter must not mark a run formal');
   assert.equal(exportRows(v2, {}).runType, 'formal-candidate');
+  const unaccepted = structuredClone(v2);
+  Object.assign(unaccepted.at(-1), { stop: { reason: 'MAX_ATTEMPTS', code: 10 }, exitCode: 10 }); // consistent, not accepted (exit 3)
+  assert.equal(exportRows(unaccepted, {}).runType, 'rehearsal', 'consistent but not accepted is not a formal candidate');
   for (const r of v2) r.schema = 'a6-gauge/1';
   for (const r of [v2[0], v2.at(-1)]) delete r.passport.invariant.credit;
   refused(v2, /./, {});
