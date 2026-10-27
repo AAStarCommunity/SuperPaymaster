@@ -240,7 +240,7 @@ def run(args, remote, url, confirm=None):
     return result
 
 
-SAFE_TEXT_MAX = 130  # a 64-byte hex word; longer hex (bytecode, calldata) is redacted to its length
+SAFE_TEXT_MAX = 130  # "0x" + up to 64 bytes (two 32-byte words); longer hex (bytecode, calldata) is redacted
 
 
 def scrub(value, url):

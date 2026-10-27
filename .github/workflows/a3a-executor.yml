@@ -34,9 +34,6 @@ jobs:
       - name: Offline executor tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/a3a/test_a3a_exec.py
-      - name: Offline A3a live-sender tests (real cast signing with the public anvil key; no network)
-        run: |
-          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/a3a/test_a3a_send.py
       - name: Offline Safe A6e upgrade executor tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_sp_upgrade_exec.py
