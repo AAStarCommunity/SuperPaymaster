@@ -43,7 +43,7 @@ import a3a_exec as ex  # noqa: E402
 
 CAST = os.environ.get('A3A_CAST', str(Path.home()/'.foundry/bin/cast'))
 RECEIPT_WAIT_SECONDS = 600
-RECEIPT_TRANSIENT_MAX = 10  # consecutive RPC failures tolerated while waiting: the transaction is already out
+RECEIPT_TRANSIENT_MAX = 10  # consecutive RPC failures tolerated while waiting: the transaction may already be out
 TRANSIENT_GATES = ('rpc_transport', 'rpc_envelope', 'rpc_fault')
 DECODED_FIELDS = ('signer', 'type', 'chainId', 'nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'to', 'value',
                   'accessList', 'input', 'hash')  # what decoded.json keeps; never the signature
@@ -265,7 +265,7 @@ def run(args, remote, url, confirm=None):
     # The attempt is on disk before anything is transmitted: if this write fails, nothing has been sent.
     ex.write_json(args.out/'broadcast.json', dict(step=args.step, hash=h, outcome='attempting'))
     outcome, provider = 'unknown', None
-    # From the broadcast attempt on, the transaction may be on its way. Every exit, including Ctrl-C, is
+    # From the broadcast attempt on, the transaction may be on its way. Every failure, including Ctrl-C, is
     # send_after_broadcast with the hash; evidence writes are best effort and never stop monitoring.
     try:
         try:
@@ -384,7 +384,7 @@ def main(argv=None):
                     # Disk still failing: the terminal is the last place the hash can be reported.
                     report('FAILURE record (not written): ' + json.dumps(record), sys.stderr)
                 raise
-        # Sent and recorded (result.json); a broken stdout does not turn that into a failure.
+        # The send is complete; failing to print the result must not turn it into a failure.
         report(json.dumps(result, indent=2), sys.stdout)
         return 0
     except ex.Gate as e:
