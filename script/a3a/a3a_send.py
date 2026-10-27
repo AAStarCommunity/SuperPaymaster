@@ -244,22 +244,28 @@ SAFE_TEXT_MAX = 130  # a 64-byte hex word; longer hex (bytecode, calldata) is re
 
 
 def scrub(value, url):
-    """FAILURE.json `observed`: gate records from a3a_exec can carry raw provider results there.
+    """FAILURE.json `observed`/`expected`: gate records from a3a_exec can carry raw provider results in either.
 
-    Kept: integers, booleans, None, and short 0x-hex strings (hashes, addresses, quantities, words), which cannot
-    carry a URL or key unless the provider's own hex output is the secret. Everything else, and anything containing
-    the RPC URL or one of its path/query tokens, becomes a length-only placeholder.
+    Kept: integers, booleans, None, and short 0x-hex strings (hashes, addresses, quantities, words); dict keys only
+    when short identifiers. Anything else, and any string or key containing a path/query token of the RPC URL,
+    becomes a placeholder. Expected values from code (e.g. 'deployed contract code') are lost too: the gate name
+    still says what failed, and the precise inputs are in the reviewed plan.
     """
     tokens = {s for s in re.split(r'[/?&=:#@.]+', url) if len(s) >= 6}
+    def leaks(s):
+        return any(tok in s for tok in tokens)
+    def key(k, i):
+        s = str(k)
+        return s if re.fullmatch(r'[A-Za-z0-9_]{1,32}', s) and not leaks(s) else '<key %d>' % i
     def clean(v):
         if v is None or isinstance(v, (bool, int)):
             return v
         if isinstance(v, (list, tuple)):
             return [clean(x) for x in v]
         if isinstance(v, dict):
-            return {str(k) if re.fullmatch(r'[A-Za-z0-9_]{1,64}', str(k)) else '<key>': clean(x) for k, x in v.items()}
+            return {key(k, i): clean(x) for i, (k, x) in enumerate(v.items())}
         s = str(v)
-        if len(s) <= SAFE_TEXT_MAX and re.fullmatch(r'0x[0-9a-fA-F]*', s) and not any(tok in s for tok in tokens):
+        if len(s) <= SAFE_TEXT_MAX and re.fullmatch(r'0x[0-9a-fA-F]*', s) and not leaks(s):
             return s
         return '<redacted %d chars>' % len(s)
     return clean(value)
@@ -286,8 +292,11 @@ def main(argv=None):
                 print(json.dumps(run(args, ex.RPC(url), url), indent=2))
             except ex.Gate as e:
                 # Only into the directory this run verified empty, never over earlier evidence; still locked.
-                # gate/status/expected come from code and the reviewed plan; only `observed` can hold provider data.
-                ex.write_json(args.out/'FAILURE.json', dict(e.record, step=args.step, observed=scrub(e.record.get('observed'), url)))
+                # gate/status are code constants; observed and expected can both carry provider data (a3a_exec puts
+                # e.g. a receipt's transactionHash into expected), so both are scrubbed.
+                ex.write_json(args.out/'FAILURE.json', dict(e.record, step=args.step,
+                                                            observed=scrub(e.record.get('observed'), url),
+                                                            expected=scrub(e.record.get('expected'), url)))
                 raise
         return 0
     except ex.Gate as e:

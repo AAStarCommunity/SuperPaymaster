@@ -438,7 +438,9 @@ class SenderTests(unittest.TestCase):
         leaks = [ex.Gate('pre_send_code_S5a', SECRET, 'deployed contract code'),
                  ex.Gate('pre_send_code_S5a', {'nested': [SECRET, 'NEVER_PRINT_THIS']}, 'x'),
                  ex.Gate('pre_send_code_S5a', '0x' + 'ab' * 200, 'x'),
-                 ex.Gate('pre_send_code_S5a', 'NEVER_PRINT_THIS', 'x')]
+                 ex.Gate('pre_send_code_S5a', 'NEVER_PRINT_THIS', 'x'),
+                 ex.Gate('S5b_receipt_hash', '0x' + '12' * 32, SECRET),        # provider value in expected
+                 ex.Gate('pre_send_code_S5a', {'NEVER_PRINT_THIS': 1}, {'NEVER_PRINT_THIS': None})]  # in dict keys
         for leak in leaks:
             with self.subTest(observed=str(leak.record['observed'])[:30]):
                 shutil.rmtree(out, ignore_errors=True)
@@ -448,7 +450,7 @@ class SenderTests(unittest.TestCase):
                 text = (out / 'FAILURE.json').read_text()
                 self.assertNotIn('NEVER_PRINT_THIS', text)
                 self.assertNotIn('secret.invalid', text)
-                self.assertEqual(json.loads(text)['gate'], 'pre_send_code_S5a')
+                self.assertEqual(json.loads(text)['gate'], leak.record['gate'])
         # A key that is itself hex would pass the hex rule; the URL-token rule must still remove it.
         hex_key_url = 'https://eth-sepolia.example.invalid/v2/0a1b2c3d4e5f6a7b8c9d'
         self.assertEqual(sd.scrub('0x0a1b2c3d4e5f6a7b8c9d', hex_key_url), '<redacted 22 chars>')
