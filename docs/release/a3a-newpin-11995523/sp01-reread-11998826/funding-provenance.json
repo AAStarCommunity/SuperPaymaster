@@ -43,6 +43,10 @@
     "balanceAtPin": 12161907553052084158,
     "nonceAtPin": 12131,
     "codeAtPin": "0x"
+   },
+   "funder": {
+    "nonceAt": 29,
+    "nonceAtPin": 29
    }
   },
   "B": {
@@ -85,6 +89,10 @@
     "balanceAtPin": 12161907553052084158,
     "nonceAtPin": 12131,
     "codeAtPin": "0x"
+   },
+   "funder": {
+    "nonceAt": 29,
+    "nonceAtPin": 29
    }
   }
  },
@@ -101,6 +109,8 @@
   "balanceRoseByExactlyValue": true,
   "deployerNonceUnchanged": true,
   "noOtherBalanceChangeUntilPin": true,
-  "deployerHasNoCodeAtPin": true
+  "deployerHasNoCodeAtPin": true,
+  "sentByPlanExecutor": true,
+  "executorLastTxBeforePin": true
  }
 }

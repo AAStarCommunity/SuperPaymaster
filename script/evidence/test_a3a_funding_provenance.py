@@ -19,6 +19,7 @@ TX = RECORDED["reads"]["A"]["tx"]["hash"]
 class Endpoint:
     def __init__(self, reads, pin=None):
         self.r, self.pin = copy.deepcopy(reads), pin or RECORDED["pinBlock"]
+        self.r["deployer_address"] = json.loads(PLAN.read_text())["pin"]["senders"]["deployer"]["address"].lower()
 
     def __call__(self, method, params):
         r, d = self.r, self.r["deployer"]
@@ -42,6 +43,8 @@ class Endpoint:
         if method == "eth_getBalance":
             return hex({blk - 1: d["balanceBefore"], blk: d["balanceAt"], pin: d["balanceAtPin"]}[b])
         if method == "eth_getTransactionCount":
+            if params[0].lower() != r["deployer_address"]:
+                return hex({blk: r["funder"]["nonceAt"], pin: r["funder"]["nonceAtPin"]}[b])
             return hex({blk - 1: d["nonceBefore"], blk: d["nonceAt"], pin: d["nonceAtPin"]}[b])
         if method == "eth_getCode":
             return d["codeAtPin"]
@@ -92,6 +95,10 @@ class FundingControls(unittest.TestCase):
                                            r["receipt"].__setitem__("transactionHash", "0x" + "55" * 32)), ["txIdentity"]),
             "receipt of another tx": (lambda r: r["receipt"].__setitem__("transactionHash", "0x" + "66" * 32), ["txIdentity"]),
             "tx block differs": (lambda r: r["tx"].__setitem__("blockHash", "0x" + "77" * 32), ["txIdentity"]),
+            "not the executor": (lambda r: r["tx"].__setitem__("from", "0x" + "88" * 20),
+                                 ["onlyLogIsEip7708EthTransfer", "sentByPlanExecutor"]),
+            "executor sent again before pin": (lambda r: r["funder"].__setitem__("nonceAtPin", r["funder"]["nonceAtPin"] + 1),
+                                               ["executorLastTxBeforePin"]),
             "delegated": (lambda r: r["deployer"].__setitem__("codeAtPin", "0xef0100" + "33" * 20), ["deployerHasNoCodeAtPin"]),
         }
         for name, (edit, want) in cases.items():

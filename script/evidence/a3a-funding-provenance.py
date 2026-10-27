@@ -6,7 +6,8 @@ Usage:
     python3 script/evidence/a3a-funding-provenance.py docs/release/a3a-newpin-11995523/a3a-plan/plan.json \
     0x1bf66ae42dcb55c7b4fa37f2ed39604faf1b31dd1d52e5395971dc78a3417495 > out.json
 
-On both endpoints: chain id and the pin block hash (bound to the plan), the transaction and its receipt
+On both endpoints: the sender must be the plan's executor, with this transaction its last before the pin;
+chain id and the pin block hash (bound to the plan), the transaction and its receipt
 (hash and block identity must agree with each other and with the requested hash), the deployer's balance and nonce in the blocks just before and
 at the funding block, and the deployer's balance at the plan pin. Checks that the funding is a successful plain
 value transfer to the deployer, mined before the pin, whose only log is the EIP-7708 Transfer for that value; that the deployer's balance rose by exactly that value with no
@@ -43,7 +44,7 @@ def rpc(url, method, params):
     return d["result"]
 
 
-def read(url, deployer, txh, pin_blk):
+def read(url, deployer, txh, pin_blk, funder):
     tx = rpc(url, "eth_getTransactionByHash", [txh])
     rc = rpc(url, "eth_getTransactionReceipt", [txh])
     blk = int(rc["blockNumber"], 16)
@@ -65,6 +66,9 @@ def read(url, deployer, txh, pin_blk):
                      "balanceAt": bal(blk), "nonceAt": nonce(blk),
                      "balanceAtPin": bal(pin_blk), "nonceAtPin": nonce(pin_blk),
                      "codeAtPin": rpc(url, "eth_getCode", [deployer, hex(pin_blk)]).lower()},
+        # The plan's executor, read at the funding block and the pin: this tx is its last before the pin.
+        "funder": {"nonceAt": int(rpc(url, "eth_getTransactionCount", [funder, hex(blk)]), 16),
+                   "nonceAtPin": int(rpc(url, "eth_getTransactionCount", [funder, hex(pin_blk)]), 16)},
     }
 
 
@@ -77,9 +81,10 @@ def main():
         sys.exit(1)
     pin = plan["pin"]
     deployer = pin["senders"]["deployer"]["address"].lower()
+    funder = pin["senders"]["executor"]["address"].lower()
     pin_blk = int(pin["block"], 16)
     try:
-        A, B = read(a_url, deployer, txh, pin_blk), read(b_url, deployer, txh, pin_blk)
+        A, B = read(a_url, deployer, txh, pin_blk, funder), read(b_url, deployer, txh, pin_blk, funder)
     except RpcFailure as e:
         print(f"RPC failure: {e}", file=sys.stderr)
         sys.exit(1)
@@ -104,6 +109,9 @@ def main():
         # not change at all.
         "noOtherBalanceChangeUntilPin": d["balanceAtPin"] == d["balanceAt"] == pin["senders"]["deployer"]["balance"],
         "deployerHasNoCodeAtPin": d["codeAtPin"] == "0x",
+        "sentByPlanExecutor": t["from"] == funder,
+        "executorLastTxBeforePin": A["funder"]["nonceAt"] == A["funder"]["nonceAtPin"] == t["nonce"] + 1
+                                   == pin["senders"]["executor"]["nonce"],
     }
     print(json.dumps({"note": "read-only; RPC URLs omitted", "plan": sys.argv[1], "pinBlock": pin_blk,
                       "reads": {"A": A, "B": B}, "checks": checks}, indent=1))

@@ -83,9 +83,10 @@ Endpoint A is Alchemy (archive) and endpoint B is the Tenderly public gateway. U
   - The receipt's only log is the Amsterdam EIP-7708 ETH-transfer log: emitter `0xff…fe`,
     `Transfer(executor, deployer, 10e18)`.
   - The executor balance in the plan pin is the balance after this transaction.
-  - Two endpoints, 13/13 checks (bound to the plan's chain id and pin hash; tx, receipt and block identity cross-checked): `funding-provenance.json`, from `script/evidence/a3a-funding-provenance.py`.
-    Its offline controls are in `script/evidence/test_a3a_funding_provenance.py` (5 tests: 17 table cases plus pin-at-funding-block, endpoint divergence and same-endpoint refusal;
-    setting each of the 13 checks to `True` turns the suite red).
+  - Two endpoints, 15/15 checks (bound to the plan's chain id and pin hash; tx, receipt and block identity cross-checked;
+    the sender is the plan's executor, and this is its last transaction before the pin): `funding-provenance.json`, from `script/evidence/a3a-funding-provenance.py`.
+    Its offline controls are in `script/evidence/test_a3a_funding_provenance.py` (5 tests: 19 table cases plus pin-at-funding-block, endpoint divergence and same-endpoint refusal;
+    setting each of the 15 checks to `True` turns the suite red).
   - The funding is not a packet step.
 - **Pending values at plan time (DSR gap IG-03).** The archived packet does not record the `pending` nonces seen
   when the plan was built. They can only be inferred from the plan having been produced, because `plan` refuses
@@ -94,8 +95,10 @@ Endpoint A is Alchemy (archive) and endpoint B is the Tenderly public gateway. U
   `senders-11998826.json` records explicit `latest` and `pending` values for every sender on both endpoints, and
   any later re-read keeps doing so.
 - **Endpoints and method (DSR gap IG-02).** Endpoint A is an Alchemy Sepolia archive endpoint; the key is not
-  published. Endpoint B is the public `https://sepolia.gateway.tenderly.co`. The three scripts and the methods
-  they call are listed in each script's docstring. For an independent re-read, DSR can substitute any two
+  published. Endpoint B is the public `https://sepolia.gateway.tenderly.co`. The four read scripts are
+  `script/evidence/a3a-newpin-senders-reread.py`, `script/evidence/a3a-v4-reread.py`,
+  `scripts/a3a-v2-cap-budget-read.py` and `script/evidence/a3a-funding-provenance.py`. The methods each one calls
+  are listed in its docstring. For an independent re-read, DSR can substitute any two
   archive endpoints.
 - **Drift STOP.** Any of the 22 + 17 checks turning false means STOP and a rebuild at a new pin. Before every
   live step, the executor's own guard `pre_send` (`script/a3a/a3a_exec.py:1323-1336`) re-reads chain id, code,
