@@ -22,11 +22,11 @@
 |---|---|---|---|
 | SP proxy / implementation | proxy 地址；EIP-1967 slot `0x3608…2bbc`；两者 `eth_getCode` 的 keccak 与字节数 | owner 经 UUPS `upgradeToAndCall`，要求无 pendingOwner（BPU） | ✅ |
 | Registry proxy / implementation | 同上 | Registry owner（UUPS） | ❌ |
-| xPNTs 克隆 / 模板 / Ext | 克隆的 EIP-1167 目标；代币自己的 `EXTENSION()`；`XF.implementationCodehash()`、`extensionCodehash()` | 工厂部署时钉住，不可改 | ⚠️ 读了克隆、模板的 codehash；Ext 的 codehash 取自配置文件里的 `cfg.xPNTsTokenV2Ext`，**没核对代币实际的 `EXTENSION()` 是否指向它**（`collector.mjs:346`）；没读工厂钉值 |
+| xPNTs 克隆 / 模板 / Ext | 克隆的 EIP-1167 目标；代币自己的 `EXTENSION()`；`XF.implementationCodehash()`、`extensionCodehash()` | 工厂部署时钉住，不可改 | ⚠️ 读了克隆、模板的 codehash；自 `a6-gauge/2` 起 Ext 的 codehash 按代币链上的 `EXTENSION()` 取（#558）；没读工厂钉值 |
 | xPNTs 工厂 | `SP.xpntsFactory()`；工厂 codehash | SP owner `setXPNTsFactory` | ❌ |
 | aPNTs（APNTsCapped） | `SP.APNTS_TOKEN()`、`pendingAPNTsToken()`、`pendingAPNTsTokenEta()`；`CAP` codehash | SP owner 排队，7 天延迟（SPA） | ⚠️ 读了 `APNTS_TOKEN`，没读 pending 与 codehash |
 | EntryPoint | codehash | 不可改 | ✅ |
-| 价格源 | `SP.ETH_USD_PRICE_FEED()` 及其 codehash | SP 实现里的 immutable，随升级可变 | ⚠️ 哈希的是配置里的 `cfg.priceFeed`，没读 SP 实际绑定的地址（`collector.mjs:351`） |
+| 价格源 | `SP.ETH_USD_PRICE_FEED()` 及其 codehash | SP 实现里的 immutable，随升级可变 | ✅ 自 `a6-gauge/2` 起按 SP 链上的 `ETH_USD_PRICE_FEED()` 取（#558）；`/1` 运行哈希的是配置里的 `cfg.priceFeed` |
 | 账户 / 账户实现 | sender 与 EIP-1967 实现的 codehash | 账户 owner 可经 UUPS 升级（SimpleAccount） | ✅ 读了两者并做漂移检查 |
 | 运行时依赖钉值 | 采集器、校验器、依赖、合约源码、ABI、配置的 SHA-256 与 commit | — | ⚠️ `run_start` 有 collector 文件哈希与 HEAD；缺合约源码树哈希与配置哈希 |
 
@@ -101,6 +101,8 @@ policy（XE:174），初值为 0，且工厂部署时断言 `creditPolicy() == 0
 | C7 | 全局无在途 credit | 从 t 部署块到 B 按（块号, 日志序号）顺序重放 `CreditReserved` / `CreditSettled` / `CreditReleased`：每条结清事件必须消耗一条同键（user, opHash）、尚未结清的预留，且只消耗一次；到 B 时没有未结清的预留 | 别的用户还有预留（链上**没有**聚合 getter 或可枚举集合，只能靠日志对账）。不能只查「同键有结清」：`tryReserveCredit` 不拒绝用过的 opHash，「预留→释放→再预留」会留下一笔在途却能通过这种查法 |
 | C8 | 无遗留债务 | 对 C7 涉及的每个用户 `debts(user) == 0` | OFF 和零预留都不会清掉已结算的债务 |
 | C9 | SP 侧无遗留 | 对窗口前已知的每个 opHash，`SP.inflightOf(opHash) == (0, 0)` | SP 与代币的 stale release 分开清，只清一边会留下另一边 |
+
+**采集器现状**：自 `a6-gauge/2`（#558）起，C2、C3 写入 Passport `invariant.credit`，校验器拒收 policy≠OFF 或有排队变更的运行，`/1` 运行不能判为合规；本地对照见 `data/a6-gauge-credit/`。C1 只有克隆与 Ext 的 codehash，没有工厂钉值；C4–C9 尚未实现。
 
 **C4 与 C7 依赖日志扫描是否完整。** 扫描完整性无法从返回数据推断：漏掉的区间和真空区间长得一样。
 所以这两项必须在两个独立的归档端点上各扫一次、逐条一致，并给出正对照：用一个已知含 `CreditPolicyExecuted` 或
