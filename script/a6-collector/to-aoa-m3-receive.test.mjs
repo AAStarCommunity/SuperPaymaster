@@ -202,6 +202,33 @@ test('tx.gasUsed above tx.gasLimit refuses the export', () => {
   refused(rows, /at most tx\.gasLimit/);
 });
 
+test('tx.gasUsed equal to tx.gasLimit is accepted', () => {
+  const rows = rowsOf('positive.jsonl');
+  const vpm = rows.find((x) => x.kind === 'attempt' && x.arm === 'VPM');
+  vpm.tx.gasUsed = vpm.tx.gasLimit;
+  assert.equal(exportRows(rows).attempts.filter((a) => a.included).length, 3);
+});
+
+test('a successful UOE whose cost does not divide by gas used is refused', () => {
+  const rows = rowsOf('positive.jsonl');
+  const r = rows.find((x) => x.kind === 'attempt' && x.arm === 'VPM');
+  const l = uoeLog(r);
+  const cost = BigInt('0x' + l.data.slice(2 + 128, 2 + 192)) + 1n;
+  l.data = setWord(l.data, 2, cost.toString(16).padStart(64, '0'));
+  r.userOpEvent.actualGasCost = cost.toString();
+  refused(rows, /inconsistent with the op's fee caps/);
+});
+
+test('the gas check follows the decoded UOE, not the collector verdict', () => {
+  // An excluded row (verdict not success) whose log still says success is checked like any successful UOE.
+  const rows = rowsOf('positive.jsonl');
+  const r = rows.find((x) => x.kind === 'attempt' && x.arm === 'VPM');
+  r.verdict = 'USEROP_REVERTED';
+  const l = uoeLog(r);
+  l.data = setWord(l.data, 2, (BigInt('0x' + l.data.slice(2 + 128, 2 + 192)) + 1n).toString(16).padStart(64, '0'));
+  refused(rows, /inconsistent with the op's fee caps/);
+});
+
 test('a failed UOE with a non-dividing prefund cost is excluded, not a refused run', () => {
   const rows = rowsOf('positive.jsonl');
   const r = rows.find((x) => x.kind === 'attempt' && x.arm === 'TPM');

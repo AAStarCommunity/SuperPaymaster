@@ -25,7 +25,9 @@ tampering hashes, duplicating operations and changing chain or pin are each refu
   - The price must imply a basefee between 0 and the bundle transaction's effective price. When the price is
     capped at `maxFeePerGas`, the cap must be reachable.
   - A failed UOE can carry a prefund cost that need not divide, so it is excluded as `UOE_FAILED` without this
-    check.
+    check. EntryPoint v0.7 emits `success=false` with `actualGasCost = prefund` in that case: see
+    `EntryPoint.sol:127-133` and `:732-737` in `singleton-paymaster/lib/account-abstraction-v7`.
+  - The check follows the decoded UOE, not the collector's verdict.
   - Receipt `gasUsed`, `gasLimit` and `effectiveGasPrice` must be decimal strings, with
     0 < `gasUsed` ≤ `gasLimit`.
 - **Never upgrades an attempt.** An attempt is `included` only if all of these hold:
@@ -69,11 +71,14 @@ tampering hashes, duplicating operations and changing chain or pin are each refu
 | one arm's bundler configuration differs | FAIL | FAIL | mismatched bundlerConfigHash |
 
 Each negative control passes only if the checker reports **that** diagnostic, not merely `FAIL`. A positive
-control must report no error. A checker exit code other than 0 or 1 fails the row, even after valid JSON. The duplicate-UserOp control reuses a hash across groups, which keeps every group
+control must report no error. A checker crash fails the row, even if valid JSON was printed first. Exit code 1 means FAIL, but an uncaught
+Python exception also exits 1, so a crash is recognised by a traceback on stderr or by any exit code other than
+0 and 1. The duplicate-UserOp control reuses a hash across groups, which keeps every group
 at exactly one SP/VPM/TPM, so duplicate detection is the only rule it can trip. The tamper edits are in
 `script/a6-collector/aoa-m3-tamper.py`.
 
-**Exporter-level controls** are in `script/a6-collector/to-aoa-m3-receive.test.mjs`, 21 tests, all passing.
+**Exporter-level controls** are in `script/a6-collector/to-aoa-m3-receive.test.mjs`, 24 tests, all passing. Three of them need `viem` (the topic
+constant and the two `validate.mjs` tests) and are skipped without it.
 They cover:
 - UOE deleted from a success row;
 - collector summary disagreeing with its log (`actualGasCost`, `actualGasUsed`, `success`);

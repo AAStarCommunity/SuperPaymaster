@@ -27,11 +27,15 @@ PY
 
 row() { # control expected-status receive.json expected-groups required-diagnostic ("" = none)
   local res status err ok
-  # The checker exits 0 for a pass and 1 for FAIL; any other code is a crash, even after printing JSON.
-  local code=0
-  res=$(python3 "$CHECK" "$3" --expected "$4" 2>/dev/null) || code=$?
+  # The checker exits 0 for a pass and 1 for FAIL. An uncaught Python exception also exits 1, so exit code alone
+  # cannot tell FAIL from a crash: a traceback on stderr, or any code other than 0/1, marks the row a crash.
+  local code=0 errf
+  errf=$(mktemp)
+  res=$(python3 "$CHECK" "$3" --expected "$4" 2>"$errf") || code=$?
   IFS=$'\t' read -r ok status err < <(verdict "$res" "$5")
   if [ "$code" -gt 1 ]; then ok=False; status="CHECKER_EXIT_$code"; fi
+  if grep -q '^Traceback' "$errf"; then ok=False; status="CHECKER_CRASH"; fi
+  rm -f "$errf"
   printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$status" "$err" >> "$TSV"
   if [ "$status" != "$2" ] || [ "$ok" != True ]; then
     echo "control $1: status $status (want $2), diagnostic '$5' present=$ok" >&2; bad=1
