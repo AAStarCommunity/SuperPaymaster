@@ -55,6 +55,8 @@
 | Echidna（`contracts/echidna/README.md`） | 历史 V2 性质 | 无可用的最终活动；配置已失效，不在 CI | — | — | **NOT-COVERED** |
 | Slither / Aderyn（`docs/security/slither-aderyn-report-2026-09-17.md`） | 静态检测 | `be170a48` | Slither 0.11.5 | **Δstatic** | **RERUN-NEEDED** |
 
+**注意**：表中多行判为 ENV-GAP，但目标环境下的全量回归**没有通过**（Amsterdam 1617 通过 / 54 失败），见 §3 G-7；只摘本表时不能漏掉这一条。
+
 CI 的覆盖范围：
 - 当前 CI 只跑 Cancun 全量、`--fuzz-runs 10000` 和一次 Prague。
 - Slither 带 `continue-on-error`，只作参考。
@@ -74,9 +76,9 @@ CI 的覆盖范围：
 | G-6 | **代币账恢复 ≠ ETH 恢复** | I10 恢复 operator 的 a0、释放代币预留，失败 op 不进协议收入；但 **SP 在 EntryPoint 的 ETH 押金仍付了 actualGasCost**，验证期的 nonce、状态和 `totalSpent` 也可能留下 | `03-final-spec.md`；RR 矩阵 REPORT |
 | G-7 | **Amsterdam 全量回归没过** | 54 个失败分五类：18 个是测试固定的 `paymasterVerificationGasLimit = 700k`，首个 balance 模式 op 需要 820,305；3 个是 no-OOG 带；27 个是 postOp 在 `MIN_POST_OP_GAS = 200k` 下结算不了（经 EntryPoint 最小可结算约 365k–370k）；5 个是探针夹具问题；1 个是 postOp 实测超过 200k。挑选出来的 G/B 与 RR 结果**不能**替代全量。R2-F2 的参数是实测候选，不是已接受的默认值 | `data/rams-2a/REPORT.md` §2；`data/rams-f2/REPORT.md` |
 | G-8 | 证据完整性有界 | 部分历史变异日志缺失；部分运行的树没记录；Halmos 有界且部分分区用 fuzz 替代；RR 全量 trace 在仓库外，只入库了归档与逐 trace 哈希和 12 个样本 | `EVIDENCE-INDEX.md` §3 |
-| G-10 | **六类对抗各自声明的缺口**（`R1-3-ADVERSARIAL-INDEX.md` 的 GAP 列；下面是摘要，**完整内容以原表为准**，M2.5 报告应整列引用） | ① 被盗社区 owner 仍可 mint、改上限/policy、提议 SP、用已指定的 standby 紧急切换，没有公链演练和完整符号证明；② 工厂 owner / registry 失守与代币 owner 失守**组合**未穷举；③ 显式 ERC-20 approval 独立于自动额度，有限额 approval 被替换时的扣用顺序没测；⑤ `disableSpenderForSelf` 与降低自动额度都不减已有显式 approval，disable 之后用显式 approval 拉款、以及公网 bundler 下的撤销竞态都没测；④ `test_old_locker_settles_only_in_original_tx_after_rotation` **名不副实**：不轮换、不用旧 locker 结算，没有测试证明旧 locker 的结算顺序；被盗 owner 利用 standby 的时序也没测；⑥ 只有本地 EntryPoint 夹具，5.4.2→rc.2 同 bundle 不兼容，credit 模式的升级竞态没测。这些不是换环境重跑能补的 | `docs/release/v5.5.0-rc.2-review-pack/R1-3-ADVERSARIAL-INDEX.md` |
-| G-11 | **本地 bundler 层的未测项** | 没有 SimpleAccount 的 B 层运行（用的是 MockAirAccount）；Rundler 默认上限下 initCode op 的 PVG 接纳没测出来；新 beneficiary 的 bundle 组合、L2 链参数、非默认 `pre_verification_gas_accept_percent` 下的 PVG 没测；Alto B6 在 v 150k 时的接纳与估算器抛错原因未定；B 层探针不搜 MIN 以下；非首个 op 的 PVG 余量没拆解；没有 geth 交叉核对（只校准了 anvil nightly） | `data/rams-f2/REPORT.md` §6 |
 | G-9 | 治理演练不是链上验收 | 升级演练接在模拟的 A3a 之后；A3a 真执行后要从链上状态重生成升级包（即 IG-08）。其对照不扩展为 Registry/xPNTs 全量回归 | `docs/release/a3a-newpin-11995523/README.md` |
+| G-10 | **六类对抗各自声明的缺口**（`R1-3-ADVERSARIAL-INDEX.md` 的 GAP 列；下面是摘要，**完整内容以原表为准**，M2.5 报告应整列引用） | ① 被盗社区 owner 仍可 mint、改上限/policy、提议 SP、用已指定的 standby 紧急切换，没有公链演练和完整符号证明；② 工厂 owner / registry 失守与代币 owner 失守**组合**未穷举；③ 显式 ERC-20 approval 独立于自动额度，有限额 approval 被替换时的扣用顺序没测；④ `test_old_locker_settles_only_in_original_tx_after_rotation` **名不副实**：不轮换、不用旧 locker 结算，没有测试证明旧 locker 的结算顺序；被盗 owner 利用 standby 的时序也没测；⑤ `disableSpenderForSelf` 与降低自动额度都不减已有显式 approval，disable 之后用显式 approval 拉款、以及公网 bundler 下的撤销竞态都没测；⑥ 只有本地 EntryPoint 夹具，5.4.2→rc.2 同 bundle 不兼容，credit 模式的升级竞态没测。这些不是换环境重跑能补的 | `docs/release/v5.5.0-rc.2-review-pack/R1-3-ADVERSARIAL-INDEX.md` |
+| G-11 | **本地 bundler 层的未测项** | 没有 SimpleAccount 的 B 层运行（用的是 MockAirAccount）；Rundler 默认上限下 initCode op 的 PVG 接纳没测出来；新 beneficiary 的 bundle 组合、L2 链参数、非默认 `pre_verification_gas_accept_percent` 下的 PVG 没测；Alto B6 在 v 150k 时的接纳与估算器抛错原因未定；B 层探针不搜 MIN 以下；非首个 op 的 PVG 余量没拆解；没有 geth 交叉核对（只校准了 anvil nightly） | `data/rams-f2/REPORT.md` §6 |
 
 ## 4. 建议重跑（只限受影响或缺覆盖的项）
 

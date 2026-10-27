@@ -86,7 +86,7 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
   const starts = rows.filter((r) => r.kind === 'run_start'), ends = rows.filter((r) => r.kind === 'run_end');
   if (starts.length !== 1 || ends.length !== 1) fail('need exactly one run_start and one run_end');
   const [start, end] = [starts[0], ends[0]];
-  if (rows.some((r) => r.schema !== 'a6-gauge/1' || r.runId !== start.runId)) fail('mixed schema or runId');
+  if (!['a6-gauge/1', 'a6-gauge/2'].includes(start.schema) || rows.some((r) => r.schema !== start.schema || r.runId !== start.runId)) fail('unknown or mixed schema, or mixed runId');
   if (!start.passport || !end.passport) fail('run has no start/end passport (stopped before read-back)');
   if (validate) {
     const scratch = mkdtempSync(join(tmpdir(), 'aoa-m3-validate-'));
