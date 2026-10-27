@@ -1,5 +1,6 @@
 name: a3a-executor
-# Offline tests of script/a3a/a3a_exec.py (68+ cases, mocked RPC; no network, no keys).
+# Offline tests of script/a3a/a3a_exec.py and the live sender script/a3a/a3a_send.py (mocked RPC; no network,
+# no keys: the sender tests sign with the public anvil test key through a cast wrapper).
 # The tests use `cast` only for ABI encoding / keccak, which is identical across foundry versions;
 # the executor itself still pins and verifies the Amsterdam engine commit at fork start.
 on:
@@ -34,6 +35,9 @@ jobs:
       - name: Offline executor tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/a3a/test_a3a_exec.py
+      - name: Offline A3a live-sender tests (real cast signing with the public anvil key; no network)
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/a3a/test_a3a_send.py </dev/null
       - name: Offline Safe A6e upgrade executor tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_sp_upgrade_exec.py
