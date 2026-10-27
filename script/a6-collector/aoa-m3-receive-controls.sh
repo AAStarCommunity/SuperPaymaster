@@ -27,8 +27,11 @@ PY
 
 row() { # control expected-status receive.json expected-groups required-diagnostic ("" = none)
   local res status err ok
-  res=$(python3 "$CHECK" "$3" --expected "$4" 2>/dev/null || true)
+  # The checker exits 0 for a pass and 1 for FAIL; any other code is a crash, even after printing JSON.
+  local code=0
+  res=$(python3 "$CHECK" "$3" --expected "$4" 2>/dev/null) || code=$?
   IFS=$'\t' read -r ok status err < <(verdict "$res" "$5")
+  if [ "$code" -gt 1 ]; then ok=False; status="CHECKER_EXIT_$code"; fi
   printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$status" "$err" >> "$TSV"
   if [ "$status" != "$2" ] || [ "$ok" != True ]; then
     echo "control $1: status $status (want $2), diagnostic '$5' present=$ok" >&2; bad=1

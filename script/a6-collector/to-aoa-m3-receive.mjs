@@ -167,8 +167,12 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
       }
       if (r.tx.status !== 'success') reasons.push('RECEIPT_FAILED');
       const txGasUsed = num(r.tx.gasUsed, `${id}: tx.gasUsed`), txPrice = num(r.tx.effectiveGasPrice, `${id}: tx.effectiveGasPrice`);
-      if (txGasUsed <= 0n) fail(`${id}: tx.gasUsed must be positive`);
-      if (uoe.count === 1 && !gasConsistent(uoe, r.gas, txPrice)) fail(`${id}: actualGasCost/actualGasUsed inconsistent with the op's fee caps and the bundle tx price`);
+      const txGasLimit = num(r.tx.gasLimit, `${id}: tx.gasLimit`);
+      if (txGasUsed <= 0n || txGasUsed > txGasLimit) fail(`${id}: tx.gasUsed must be positive and at most tx.gasLimit`);
+      // Only a successful UOE must satisfy cost = used x price: when prefund falls short, EntryPoint v0.7 emits
+      // success=false with actualGasCost = the prefund, which need not divide. Such an attempt is excluded
+      // (UOE_FAILED) rather than refusing the whole run.
+      if (uoe.count === 1 && uoe.success && !gasConsistent(uoe, r.gas, txPrice)) fail(`${id}: actualGasCost/actualGasUsed inconsistent with the op's fee caps and the bundle tx price`);
       if (uoe.count === 1 && !uoe.success) reasons.push('UOE_FAILED');
       if (!(r.conservation && r.conservation.evaluated && r.conservation.ok)) reasons.push('CONSERVATION_NOT_VERIFIED');
     } else {

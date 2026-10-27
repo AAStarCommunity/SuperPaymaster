@@ -19,10 +19,15 @@ tampering hashes, duplicating operations and changing chain or pin are each refu
   must be canonically zero-padded. When the collector's verdict is success, the decoded event must equal the
   collector's record: `userOpEvent` hash, nonce, sender, paymaster, success, `actualGasCost` and `actualGasUsed`,
   plus the row's own sender, paymaster and nonce. Otherwise the export is refused.
-- **Checks gas on every arm.** `actualGasCost` must be an exact multiple of a positive `actualGasUsed`. The
-  per-gas price must be at most the op's `maxFeePerGas`, and, unless capped there, it must imply a basefee
-  between 0 and the bundle transaction's effective price. Receipt `gasUsed` and `effectiveGasPrice` must be
-  decimal strings, with `gasUsed` positive.
+- **Checks gas on every arm.**
+  - For a successful UOE, `actualGasCost` must be an exact multiple of a positive `actualGasUsed`.
+  - The per-gas price must be at most the op's `maxFeePerGas`.
+  - The price must imply a basefee between 0 and the bundle transaction's effective price. When the price is
+    capped at `maxFeePerGas`, the cap must be reachable.
+  - A failed UOE can carry a prefund cost that need not divide, so it is excluded as `UOE_FAILED` without this
+    check.
+  - Receipt `gasUsed`, `gasLimit` and `effectiveGasPrice` must be decimal strings, with
+    0 < `gasUsed` ≤ `gasLimit`.
 - **Never upgrades an attempt.** An attempt is `included` only if all of these hold:
   - the verdict is `USEROP_SUCCESS`, and the row is not a fixture or collector exclusion;
   - the receipt succeeded and the decoded UOE reports success;
@@ -63,12 +68,12 @@ tampering hashes, duplicating operations and changing chain or pin are each refu
 | settlement unverified | FAIL | FAIL | settlement/state not verified |
 | one arm's bundler configuration differs | FAIL | FAIL | mismatched bundlerConfigHash |
 
-Each negative control passes only if the checker reports **that** diagnostic, not merely `FAIL`; a positive
-control must report no error. The duplicate-UserOp control reuses a hash across groups, which keeps every group
+Each negative control passes only if the checker reports **that** diagnostic, not merely `FAIL`. A positive
+control must report no error. A checker exit code other than 0 or 1 fails the row, even after valid JSON. The duplicate-UserOp control reuses a hash across groups, which keeps every group
 at exactly one SP/VPM/TPM, so duplicate detection is the only rule it can trip. The tamper edits are in
 `script/a6-collector/aoa-m3-tamper.py`.
 
-**Exporter-level controls** are in `script/a6-collector/to-aoa-m3-receive.test.mjs`, 18 tests, all passing.
+**Exporter-level controls** are in `script/a6-collector/to-aoa-m3-receive.test.mjs`, 21 tests, all passing.
 They cover:
 - UOE deleted from a success row;
 - collector summary disagreeing with its log (`actualGasCost`, `actualGasUsed`, `success`);
