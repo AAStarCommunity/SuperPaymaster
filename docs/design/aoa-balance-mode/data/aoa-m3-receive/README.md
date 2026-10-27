@@ -73,7 +73,8 @@ tampering hashes, duplicating operations and changing chain or pin are each refu
 Each negative control passes only if the checker reports **that** diagnostic, not merely `FAIL`. A positive
 control must report no error. A checker crash fails the row, even if valid JSON was printed first. Exit code 1 means FAIL, but an uncaught
 Python exception also exits 1, so a crash is recognised by a traceback on stderr or by any exit code other than
-0 and 1. The duplicate-UserOp control reuses a hash across groups, which keeps every group
+0 and 1. A checker that prints no verdict at all is recorded as `NO_JSON` and fails its row. The remaining
+controls still run. The duplicate-UserOp control reuses a hash across groups, which keeps every group
 at exactly one SP/VPM/TPM, so duplicate detection is the only rule it can trip. The tamper edits are in
 `script/a6-collector/aoa-m3-tamper.py`.
 
