@@ -395,6 +395,64 @@ exactly the plan's transaction bytes. Sending needs its own reviewed authorizati
 and freshness/recovery checks. None of that is implemented or implied by a plan.
 A SHA-256 sidecar detects changed bytes; it is not a review attestation.
 
+## Live sender (`a3a_send.py`) — written for DSR review, not authorised to run
+
+DSR M1 gap IG-07 asks for a concrete signing and sending path. `a3a_send.py` is that path. It stays outside
+`a3a_exec.py`, so `a3a_exec.py sign|send` keep refusing as described above, and `ex.RPC` keeps refusing every
+write method. The sender's one write call is its own `broadcast()`.
+
+One invocation sends **one** step. It is run by the operator in a terminal: `cast` asks for the keystore
+password, and the operator types the confirmation string. The author chose Foundry keystores (`cast wallet
+import`) on 2026-10-27. The step's sender role (deployer, approver or executor) is mapped to a keystore name by a
+JSON file. No key material appears in argv, the environment or the logs.
+
+Each of these is a hard stop. Nothing leaves the process unless every earlier one passed:
+0. A machine-wide `flock` is taken before the output directory is checked or written, so a second concurrent
+   sender run is refused. The output directory is private (0700, umask 077). The plan is read once. Its sha256
+   must equal the reviewed digest given out-of-band, and every later step reads a snapshot of those bytes.
+1. `signing_transaction` on the snapshot, including `pre_send`.
+2. Offline `cast mktx --account`, with every field taken from the plan. The signer gets a whitelisted
+   environment, built at call time, with no RPC variable.
+3. Local verification: the decoded fields and signer equal the plan; there is no access list and no
+   authorization list; and a **local** keccak of the raw bytes equals the decoded hash. The signed bytes are held
+   in memory and passed to `cast` on stdin, never in argv. They reach no provider, and are not written to disk,
+   before broadcast.
+4. The typed confirmation `SEND <step> <sha256[:12]>`.
+5. After the confirmation, immediately before broadcast: `pre_send` again, which must return the identical
+   transaction, and the fee-cap check.
+6. Broadcast. Only an integer error code or a validated 32-byte hash from the provider is recorded. Then:
+   - the returned hash must equal the signed hash;
+   - every receipt and transaction field is format-validated before it is compared or written, and the receipt
+     is stored in an allowlisted form;
+   - the receipt status must be 0x1, and gasUsed must be at most the planned gas;
+   - `eth_getTransactionByHash` must equal the plan.
+
+   After S7, the final `readback` runs on the allowlisted receipt.
+
+A transaction that is not mined within 600 s is reported. It is never re-sent or repriced; doing either needs a
+new review. Each step's artefacts are written to its own empty `--out`: `unsigned.json`, `signed.raw`,
+`decoded.json` (without the signature), `receipt.json` and `result.json`, or `FAILURE.json` on a stop. `FAILURE.json`
+is written while the lock is still held. Its `observed` and `expected` values are scrubbed, because gates
+inherited from `a3a_exec` can put raw provider output in either. Only numbers, booleans, short 0x-hex and
+short identifier keys survive, minus anything that contains a token of the RPC URL.
+`signed.raw` is written only after the broadcast.
+
+`test_a3a_send.py` has 27 offline tests.
+- Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
+  and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
+- Contract creation (S2/S3, `--create`, `to: null`) is covered.
+- S7 runs through the real `signing_transaction`, `pre_send`, `scheduled_eta` and final `readback` on
+  `test_a3a_exec.FakeChain`, including a state where S7's effect is missing.
+- Every one of 44 mutations turns the suite red. The mutations each remove a single gate, a sanitiser, the
+  lock, the lock-before-claim order, the snapshot (each consumer separately), the local keccak, the signer field,
+  the private permissions, the stdin passing, the post-broadcast timing of `signed.raw`, the `observed` scrub
+  (including its URL-token rule), or the failure write under the lock.
+
+Not yet covered:
+- An end-to-end run against a local fork with real keystores.
+- The S5/S6 Safe flow live.
+- The lock is per machine: two machines sharing one key are out of its reach.
+
 ## Offline verification
 
 ```sh
