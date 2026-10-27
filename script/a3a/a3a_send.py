@@ -31,7 +31,7 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
 Artefacts go to --out (0700): unsigned tx, decoded fields without the signature, the allowlisted receipt, and
 signed.raw only after broadcast. The RPC URL and provider-supplied text are never written or printed.
 """
-import argparse, contextlib, fcntl, hashlib, json, os, subprocess, sys, time, urllib.request
+import argparse, contextlib, fcntl, hashlib, json, os, re, subprocess, sys, time, urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -240,6 +240,31 @@ def run(args, remote, url, confirm=None):
     return result
 
 
+SAFE_TEXT_MAX = 130  # a 64-byte hex word; longer hex (bytecode, calldata) is redacted to its length
+
+
+def scrub(value, url):
+    """FAILURE.json `observed`: gate records from a3a_exec can carry raw provider results there.
+
+    Kept: integers, booleans, None, and short 0x-hex strings (hashes, addresses, quantities, words), which cannot
+    carry a URL or key unless the provider's own hex output is the secret. Everything else, and anything containing
+    the RPC URL or one of its path/query tokens, becomes a length-only placeholder.
+    """
+    tokens = {s for s in re.split(r'[/?&=:#@.]+', url) if len(s) >= 6}
+    def clean(v):
+        if v is None or isinstance(v, (bool, int)):
+            return v
+        if isinstance(v, (list, tuple)):
+            return [clean(x) for x in v]
+        if isinstance(v, dict):
+            return {str(k) if re.fullmatch(r'[A-Za-z0-9_]{1,64}', str(k)) else '<key>': clean(x) for k, x in v.items()}
+        s = str(v)
+        if len(s) <= SAFE_TEXT_MAX and re.fullmatch(r'0x[0-9a-fA-F]*', s) and not any(tok in s for tok in tokens):
+            return s
+        return '<redacted %d chars>' % len(s)
+    return clean(value)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument('--plan', type=Path, required=True)
@@ -249,21 +274,23 @@ def main(argv=None):
     p.add_argument('--accounts', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
     args = p.parse_args(argv)
-    owned = False  # FAILURE.json goes only into a directory this run verified empty (never over earlier evidence)
     os.umask(0o077)  # every artefact, and the output directory, private to the operator
     try:
-        with sender_lock():  # taken before the output directory is claimed or written
+        with sender_lock():  # held from before the output directory is claimed until FAILURE.json is written
             if args.out.exists():
                 ex.need('output_empty', args.out.is_dir() and not any(args.out.iterdir()), True)
             args.out.mkdir(parents=True, exist_ok=True)
             os.chmod(args.out, 0o700)
-            owned = True
             url = args.rpc_file.read_text().strip()
-            print(json.dumps(run(args, ex.RPC(url), url), indent=2))
+            try:
+                print(json.dumps(run(args, ex.RPC(url), url), indent=2))
+            except ex.Gate as e:
+                # Only into the directory this run verified empty, never over earlier evidence; still locked.
+                # gate/status/expected come from code and the reviewed plan; only `observed` can hold provider data.
+                ex.write_json(args.out/'FAILURE.json', dict(e.record, step=args.step, observed=scrub(e.record.get('observed'), url)))
+                raise
         return 0
     except ex.Gate as e:
-        if owned:
-            ex.write_json(args.out/'FAILURE.json', dict(e.record, step=args.step))
         print('FAILURE: '+e.record['gate'], file=sys.stderr)
         return 1
 

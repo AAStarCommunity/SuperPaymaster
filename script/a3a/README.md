@@ -431,18 +431,22 @@ Each of these is a hard stop. Nothing leaves the process unless every earlier on
 
 A transaction that is not mined within 600 s is reported. It is never re-sent or repriced; doing either needs a
 new review. Each step's artefacts are written to its own empty `--out`: `unsigned.json`, `signed.raw`,
-`decoded.json` (without the signature), `receipt.json` and `result.json`, or `FAILURE.json` on a stop.
+`decoded.json` (without the signature), `receipt.json` and `result.json`, or `FAILURE.json` on a stop. `FAILURE.json`
+is written while the lock is still held. Its `observed` value is scrubbed, because gates inherited from
+`a3a_exec` can put raw provider output there: only numbers, booleans and short 0x-hex survive, minus anything
+containing a token of the RPC URL.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 25 offline tests.
+`test_a3a_send.py` has 27 offline tests.
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.
 - S7 runs through the real `signing_transaction`, `pre_send`, `scheduled_eta` and final `readback` on
   `test_a3a_exec.FakeChain`, including a state where S7's effect is missing.
-- Every one of 39 mutations turns the suite red. The mutations each remove a single gate, a sanitiser, the
+- Every one of 42 mutations turns the suite red. The mutations each remove a single gate, a sanitiser, the
   lock, the lock-before-claim order, the snapshot (each consumer separately), the local keccak, the signer field,
-  the private permissions, the stdin passing, or the post-broadcast timing of `signed.raw`.
+  the private permissions, the stdin passing, the post-broadcast timing of `signed.raw`, the `observed` scrub
+  (including its URL-token rule), or the failure write under the lock.
 
 Not yet covered:
 - An end-to-end run against a local fork with real keystores.

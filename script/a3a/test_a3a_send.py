@@ -90,6 +90,7 @@ class SenderTests(unittest.TestCase):
         for p in self.patches:
             p.start()
         self.events, self.sent = [], []
+        self.out_dir = self.args.out  # where the broadcast helper asserts that no signature is on disk yet
 
     def tearDown(self):
         for p in reversed(self.patches):
@@ -119,7 +120,7 @@ class SenderTests(unittest.TestCase):
 
     def broadcast(self, chain, tx, returned=None, status='0x1', mined_edit=None, gas_used=135104, receipt_edit=None):
         def fake(url, raw):
-            self.assertFalse((self.args.out / 'signed.raw').exists(), 'signed bytes on disk before broadcast')
+            self.assertFalse((self.out_dir / 'signed.raw').exists(), 'signed bytes on disk before broadcast')
             self.events.append(('broadcast',))
             self.sent.append(raw)
             h = keccak(raw)
@@ -308,6 +309,7 @@ class SenderTests(unittest.TestCase):
         out = self.d / 'private'
         out.mkdir(mode=0o755)  # a pre-existing empty directory must also end up private
         os.chmod(out, 0o755)
+        self.out_dir = out
         argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a', '--rpc-file', str(rpc),
                 '--accounts', str(self.args.accounts), '--out', str(out)]
         chain = Chain()
@@ -425,6 +427,49 @@ class SenderTests(unittest.TestCase):
                         sd.broadcast(SECRET, '0x02')
                 self.assertEqual(c.exception.record['gate'], gate)
                 self.assertNotIn('NEVER_PRINT_THIS', json.dumps(c.exception.record))
+
+    def test_failure_record_carries_no_provider_text(self):
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        out = self.d / 'scrub'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        # An inherited a3a_exec gate whose observed value is raw provider output (e.g. eth_getCode).
+        leaks = [ex.Gate('pre_send_code_S5a', SECRET, 'deployed contract code'),
+                 ex.Gate('pre_send_code_S5a', {'nested': [SECRET, 'NEVER_PRINT_THIS']}, 'x'),
+                 ex.Gate('pre_send_code_S5a', '0x' + 'ab' * 200, 'x'),
+                 ex.Gate('pre_send_code_S5a', 'NEVER_PRINT_THIS', 'x')]
+        for leak in leaks:
+            with self.subTest(observed=str(leak.record['observed'])[:30]):
+                shutil.rmtree(out, ignore_errors=True)
+                with self.gate([leak]), mock.patch.object(ex, 'RPC', lambda url: Chain()), \
+                        mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+                    self.assertEqual(sd.main(argv), 1)
+                text = (out / 'FAILURE.json').read_text()
+                self.assertNotIn('NEVER_PRINT_THIS', text)
+                self.assertNotIn('secret.invalid', text)
+                self.assertEqual(json.loads(text)['gate'], 'pre_send_code_S5a')
+        # A key that is itself hex would pass the hex rule; the URL-token rule must still remove it.
+        hex_key_url = 'https://eth-sepolia.example.invalid/v2/0a1b2c3d4e5f6a7b8c9d'
+        self.assertEqual(sd.scrub('0x0a1b2c3d4e5f6a7b8c9d', hex_key_url), '<redacted 22 chars>')
+        # Short hex (hashes, addresses, quantities) survives, so records stay useful.
+        self.assertEqual(sd.scrub({'h': '0x' + 'cd' * 32, 'n': 7}, SECRET), {'h': '0x' + 'cd' * 32, 'n': 7})
+
+    def test_failure_is_written_while_the_lock_is_held(self):
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        out = self.d / 'held'
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', 'cd' * 32, '--step', 'S1', '--rpc-file', str(rpc),
+                '--accounts', str(self.args.accounts), '--out', str(out)]
+        real = ex.write_json
+        def probe(path, data):
+            with open(sd.LOCK_PATH, 'a') as other:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return real(path, data)
+        with mock.patch.object(ex, 'write_json', probe), mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            self.assertEqual(sd.main(argv), 1)
+        self.assertTrue((out / 'FAILURE.json').exists())
 
     def test_cli_records_failure_and_refuses_nonempty_out(self):
         rpc = self.d / 'rpc'
