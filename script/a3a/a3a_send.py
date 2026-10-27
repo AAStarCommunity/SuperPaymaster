@@ -377,8 +377,9 @@ def url_tokens(url):
     forms = {url, urllib.parse.unquote(url)}
     raw = {s.lower() for f in forms for s in re.split(r'[/?&=:#@.]+', f)}
     # A 0x-prefixed hex key is also matched without its prefix, as it appears inside a hex value or an int's hex
-    # form; only when what remains is hex of at least 8 digits, so "0xstatus" does not turn into "status".
-    stripped = {t[2:] for t in raw if t.startswith('0x') and re.fullmatch(r'[0-9a-f]{8,}', t[2:])}
+    # form; only when what remains is hex (at least the 6-character threshold), so "0xstatus" does not turn into
+    # "status" while "0xabcdef" still yields "abcdef".
+    stripped = {t[2:] for t in raw if t.startswith('0x') and re.fullmatch(r'[0-9a-f]{6,}', t[2:])}
     return {s for s in raw | stripped if len(s) >= 6}
 
 

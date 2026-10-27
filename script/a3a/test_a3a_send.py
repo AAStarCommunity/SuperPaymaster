@@ -997,6 +997,7 @@ class SenderTests(unittest.TestCase):
     def test_0x_prefix_stripped_only_for_long_hex(self):
         self.assertTrue(sd.leak_free({'status': '0x1'}, 'https://x.invalid/v2/0xstatus'))
         self.assertFalse(sd.leak_free({'x': 0xdeadbeef12}, 'https://x.invalid/v2/0xdeadbeef12'))
+        self.assertFalse(sd.leak_free({'code': int('abcdef', 16)}, 'https://x.invalid/v2/0xabcdef'))  # 6 hex digits
 
 class SenderS7Integration(unittest.TestCase):
     """S7 through the real signing_transaction / pre_send / scheduled_eta / readback on FakeChain.

@@ -477,7 +477,7 @@ inherited from `a3a_exec` can put raw provider output in either.
   - A hit replaces the artefact with `{redacted, hash}`.
 - `unsigned.json`, `decoded.json` and `plan.reviewed.json` are built from the reviewed plan and the local
   signature, not from provider data, so this check does not run on them.
-- A `0x`-prefixed URL fragment is also matched without the prefix when the rest is hex of at least 8 digits.
+- A `0x`-prefixed URL fragment is also matched without the prefix when the rest is hex (at least 6 digits).
 - `scrub` drops provider nesting deeper than 64 levels. If building the failure record raises anyway, a hash-only
   record is written instead.
 - URL fragments shorter than six characters are not protected: shorter thresholds collide with ordinary
