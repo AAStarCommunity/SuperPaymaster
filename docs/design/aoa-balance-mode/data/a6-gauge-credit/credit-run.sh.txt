@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# LOCAL ANVIL ONLY: a6-gauge/2 credit-state controls (positive / queued policy / policy ON).
+set -u
+export PATH="$HOME/.foundry/bin:$PATH"
+ROOT=/Users/jason/Dev/aastar/sp-wt/a4c
+OUT=${1:?outDir}
+cd "$ROOT"
+mkdir -p "$OUT"
+A=http://127.0.0.1:8545
+B=http://127.0.0.1:8546
+anvil --port 8545 --chain-id 31337 > "$OUT/anvil.log" 2>&1 &
+AP=$!
+trap 'kill $AP $PP 2>/dev/null' EXIT
+sleep 3
+./deploy-core anvil --force > "$OUT/setup-deploy-core.log" 2>&1 || { echo "deploy-core failed"; exit 1; }
+./prepare-test anvil > "$OUT/setup-prepare-test.log" 2>&1 || { echo "prepare-test failed"; exit 1; }
+node script/a6-collector/deploy-baselines.mjs $A "$OUT/baselines.anvil.json" > "$OUT/setup-deploy-baselines.log" 2>&1 || { echo "baselines failed"; exit 1; }
+node script/a6-collector/rpc-proxy.mjs --listen 8546 --upstream $A > "$OUT/proxy-B.log" 2>&1 &
+PP=$!
+sleep 1
+EP=$(jq -r .entryPoint deployments/config.anvil.json)
+SP=$(jq -r .superPaymaster deployments/config.anvil.json)
+DEPLOYER=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+KEY0=<anvil dev key #0, redacted>
+TOKEN=$(cast call "$SP" "operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)" $DEPLOYER --rpc-url $A | sed -n 4p)
+echo "token=$TOKEN owner=$(cast call $TOKEN 'communityOwner()(address)' --rpc-url $A)" > "$OUT/token.txt"
+printf 'control\tcommand_exit\tvalidator_exit\n' > "$OUT/results.tsv"
+run() {
+  local name=$1
+  node script/a6-collector/collector.mjs --rpc-a $A --rpc-b $B --count 1 --b-max 1 --run-id "$name" \
+    --baselines "$OUT/baselines.anvil.json" --expect-entrypoint "$EP" --out "$OUT/$name.jsonl" --allow-same-endpoint-local > "$OUT/$name.collector.log" 2>&1
+  local ce=$?
+  node script/a6-collector/validate.mjs "$OUT/$name.jsonl" --json "$OUT/$name.validator.json" > "$OUT/$name.validator.log" 2>&1
+  printf '%s\t%s\t%s\n' "$name" "$ce" "$?" >> "$OUT/results.tsv"
+}
+# 1. credit OFF, nothing queued: must be accepted
+run credit-off
+# 2. a policy change queued (AUTO) but not executed: must be rejected
+cast send $TOKEN 'queueCreditPolicy(uint8)' 2 --private-key $KEY0 --rpc-url $A > "$OUT/queue.log" 2>&1
+run credit-queued
+# 3. policy executed (AUTO): must be rejected
+cast rpc evm_increaseTime 172801 --rpc-url $A > /dev/null && cast rpc evm_mine --rpc-url $A > /dev/null
+cast send $TOKEN 'executeCreditPolicy()' --private-key $KEY0 --rpc-url $A > "$OUT/execute.log" 2>&1
+run credit-on
+echo "policy=$(cast call $TOKEN 'creditPolicy()(uint8)' --rpc-url $A) pending=$(cast call $TOKEN 'hasPendingPolicy()(bool)' --rpc-url $A)" >> "$OUT/token.txt"
+cat "$OUT/results.tsv"

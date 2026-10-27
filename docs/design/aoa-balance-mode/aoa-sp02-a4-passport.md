@@ -118,14 +118,14 @@ credit OFF：前两者管的是声誉抬升的额度，不管代币准入；后�
 
 | # | 缺口 | 影响 | 处理 |
 |---|---|---|---|
-| A4-G1 | 采集器 Passport 不读 `creditPolicy`、`hasPendingPolicy`、`creditReservationOf` | 现有运行**无法**证明 credit OFF | 补读 C2、C3、C6；C4、C7 由独立扫描脚本做 |
+| A4-G1 | 采集器 Passport 不读 `creditPolicy`、`hasPendingPolicy`、`creditReservationOf` | 现有 `a6-gauge/1` 运行**无法**证明 credit OFF | **部分关闭**：`a6-gauge/2` 已记录 C2、C3，校验器拒收 policy≠OFF 或有排队变更的运行，`/1` 不能判为合规（`data/a6-gauge-credit/`）。C6 逐 op 读回与 C4/C7 扫描仍待做 |
 | A4-G2 | 不读 Safe、Timelock、owner、pendingOwner、guardian、aPNTs 的 minter/capGuardian/cap | 治理漂移不可见 | 按 §1.2 补读，列入 `invariant` 做漂移检查。同 A4-G3 的限制：首尾快照相同不排除窗口内改了又改回。要排除，须给 §1.2 **每个**字段指定它的全部写入事件并对整个窗口扫描（双归档端点 + 正对照）；补读 PR 要附这张「字段 → 事件」表，并逐项从源码核对写入点。下列只是例子、**不是完整清单**：Timelock `RoleGranted`/`RoleRevoked`/`MinDelayChange`，owner 的 `OwnershipTransferStarted`/`OwnershipTransferred`，代币 `CommunityOwnerUpdated`，SP `GuardianSet`，aPNTs `MinterSet`/`CapGuardianSet`/`CapRaised`/`CapLowered`，Safe 的 owner、threshold、module、guard 变更事件 |
 | A4-G3 | 不读协议注册表封印和批准状态 | 无法证明窗口内没有新增 SP 或实现获批 | 按 §1.3 补读快照；但快照只说明被查的键在被查的块上的状态：窗口内「批准→撤销」前后快照相同，没查的键也看不到。要说「窗口内没有新的批准」，须对整个窗口扫 `ApprovalProposed` / `ApprovalExecuted` / `ApprovalRevoked` / `Sealed`（双归档端点 + 正对照），否则只能写成「这些键在开窗与收窗时的状态」 |
 | A4-G4 | 不读用户预算 `autoAllowance`、`userTotal` | budget/used 不进账本，守恒检查少一维 | 补进逐 op readbacks |
 | A4-G5 | 不读 `totalTrackedBalance`、代币侧 `usedOpHashes`、operator reputation/treasury | SP 内部池不可审计；`usedOpHashes` 只写不读，补读只用于对账，不能当防线 | 补读 |
 | A4-G6 | Timelock 没有「全部待执行操作」的 getter；SP 没有 operator 枚举；代币没有用户枚举 | 「没有其它待执行操作」「全局无预留」只能靠日志对账 | 同 C7 的双归档端点扫描与正对照 |
 | A4-G7 | 运行时钉值缺合约源码树与配置的哈希 | Passport 绑定不到源码 | `run_start` 增加 `contracts/src` 树哈希与配置文件 SHA-256 |
-| A4-G9 | Ext 和价格源的 codehash 取自配置文件，不是链上实际绑定；`lockOf` 只存 `xLocked` | 配置与链上不一致时 Passport 仍显示一致；锁的 locker 不可审计 | 读代币 `EXTENSION()` 与 `SP.ETH_USD_PRICE_FEED()` 再哈希；`lockOf` 存全部三项 |
+| A4-G9 | Ext 和价格源的 codehash 取自配置文件，不是链上实际绑定；`lockOf` 只存 `xLocked` | 配置与链上不一致时 Passport 仍显示一致；锁的 locker 不可审计 | **部分关闭**：`a6-gauge/2` 改为哈希代币 `EXTENSION()` 与 `SP.ETH_USD_PRICE_FEED()`；`lockOf` 仍只存 `xLocked` |
 | A4-G8 | 本地演练里 SP 未质押（见[对照表](aoa-sp02-adapter-matrix.md) U-6） | 与生产 bundler 准入不符 | 正式窗口按 W-1 质押 ≥ 1 ETH |
 
 A4-G1 至 A4-G7、A4-G9 是对 `collector.mjs` 的改动，会在单独的 PR 里做，并配负对照。本文先把模板和判据定下来，供 DSR 审。
