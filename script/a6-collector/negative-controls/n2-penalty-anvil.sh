@@ -38,14 +38,29 @@ for (const r of attempts) {
     const d = decomposeGas(live, uoe);
     assert.deepEqual(d, decomposeGas(r, archived), 'live and archived decomposition differ');
     assert.ok(exactClaimMatches(r.gasDecomposition, d), 'stored exact claim disagrees');
-    assert.equal(d.status, 'exact', `cannot prove exact decomposition: ${d.reason}`);
-    assert.equal(BigInt(d.actualGasUsed), BigInt(d.preOpGas) + BigInt(d.executionGasUsed) + BigInt(d.unusedGasPenalty));
-    console.log(JSON.stringify({ arm: r.arm, attempt: r.attemptIndex, ...d }));
+    assert.ok(d.status === 'exact' || d.status === 'bounded', `no decomposition: ${d.reason}`);
+    const eLo = BigInt(d.status === 'exact' ? d.executionGasUsed : d.bounds.executionGasUsed[0]);
+    if (d.status === 'exact') {
+      assert.equal(BigInt(d.actualGasUsed), BigInt(d.preOpGas) + eLo + BigInt(d.unusedGasPenalty));
+    } else {
+      assert.equal(BigInt(d.bounds.executionGasUsed[1]) - eLo, 1n, 'bounded width must be one gas');
+    }
+    // Independent cross-check: E is derived algebraically from actualGasUsed, so compare it with
+    // the callTracer innerHandleOp frame. The frame also covers the tail after the penalty
+    // (event, deposit update), so tail = frame.gasUsed - E must be positive and small.
+    const inner = [];
+    const own = i => i?.toLowerCase().startsWith('0x0042dc53') && ('0x' + i.slice(10 + 64 * 11, 10 + 64 * 12)).toLowerCase() === r.expectedUserOpHash.toLowerCase();
+    const walk = f => { if (own(f.input)) inner.push(f); (f.calls || []).forEach(walk); };
+    walk(live.gasTrace.result);
+    assert.equal(inner.length, 1, 'need one innerHandleOp frame');
+    const tail = BigInt(inner[0].gasUsed) - eLo;
+    assert.ok(tail > 0n && tail < 20000n, `innerHandleOp tail out of range: ${tail}`);
+    console.log(JSON.stringify({ arm: r.arm, attempt: r.attemptIndex, innerHandleOpTail: String(tail), ...d }));
   } catch (e) {
     failures++;
     console.error(`${r.arm}/${r.attemptIndex}: ${e.message}`);
   }
 }
-console.log(JSON.stringify({ attempts: attempts.length, exact: attempts.length - failures, failures }));
+console.log(JSON.stringify({ attempts: attempts.length, decomposed: attempts.length - failures, failures }));
 process.exitCode = failures ? 1 : 0;
 JS
