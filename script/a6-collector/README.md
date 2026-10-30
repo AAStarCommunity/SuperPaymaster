@@ -255,3 +255,89 @@ of it.
 
 Workbench run and controls: `docs/design/aoa-balance-mode/data/aoa-m3-receive/README.md`. Tests:
 `node --test script/a6-collector/to-aoa-m3-receive.test.mjs`.
+
+## U-6 stake gate and N-2 gas decomposition (DSR 2026-10-30)
+
+For `run_start.protocolConformant === true`, the validator requires **each** of SP,
+VPM and TPM to be staked on EntryPoint at **both** pinned passport blocks, with
+`stake >= 1000000000000000000` wei and `unstakeDelaySec >= 86400`. Each failed
+condition produces one distinct error per arm (deduplicated across start/end).
+The existing `invariant.stakes` values come from pinned `getDepositInfo` reads;
+new collections also retain the complete response in `volatile.depositInfo`, with
+all four integer fields as decimal strings and `staked` as a boolean. Deposits
+are volatile because sponsorship spends them. A/B compares the complete passport.
+Non-conformant rehearsals skip the gate and receive an explicit note.
+
+Add `--trace` to the collector command to save RPC A's `debug_traceTransaction`
+`callTracer` result for each mined attempt, bound to its txHash and receipt
+blockHash. Unsupported tracing records a reason; it does not fabricate zeros.
+This optional trace is not independently authenticated by RPC B. The module is
+included in the collector's source hashes. Raw traces are also exported and hashed.
+
+Every exported attempt has `gasDecomposition`, reporting `actualGasUsed`,
+`unusedGasPenalty`, `executionGasUsed`, `preOpGas`, `callGasLimit`,
+`paymasterPostOpGasLimit`, and their sum `executionGasLimit`. All gas integers
+are decimal strings. Missing trace/UOE or unsupported fallback paths produce
+null derived values and a reason. The limits and observed UOE remain available
+where recorded; they are not replaced by zero.
+
+The derivation reads `preOpGas` from the EntryPoint v0.7 `innerHandleOp` self-call
+calldata (`UserOpInfo`, source lines 285–318), matching the operation hash,
+addresses, nonce and limits. It requires exactly one matching non-reverted
+self-call. It inverts the source formula at lines 715–730:
+
+```
+L = callGasLimit + paymasterPostOpGasLimit
+A = actualGasUsed = preOpGas + E + floor(max(L - E, 0) / 10)
+```
+
+The integer function is monotone but not strictly monotone. Usually it has one
+solution, reported as `status: "exact"` with reconstruction checked to the unit.
+At a rounding plateau it has **two adjacent solutions**: E spans one gas unit,
+and the penalty spans one gas unit in the opposite direction. Such results are
+`status: "bounded"`, with null scalar E/penalty and inclusive decimal-string
+ranges in `bounds`; `preOpGas` and the limits remain exact. Both candidate pairs
+reconstruct A. No midpoint or lower endpoint is presented as an exact measurement.
+For example, L=300, preOpGas=1000, A=1120 permits (E, penalty)=(100,20) or (101,19).
+Call-frame gasUsed includes overhead outside the charged interval and is not
+substituted for E. Reverted self-calls/postOp fallback paths are unsupported.
+
+This is an algebraic derivation using the observed UOE and traced preOpGas, **not
+an independent opcode-level gas measurement**. A plausible change to A can admit
+a different solution; exact reconstruction alone does not authenticate the trace
+or UOE. DSR's independent chain re-fetch requirements still apply. An impossible
+reconstruction or inconsistent stored exact claim flags the attempt as
+`N2_RECONSTRUCTION_MISMATCH`, excludes it from rehearsal output and refuses a
+validated formal-candidate export. Missing/bounded traces remain explicit and do
+not themselves upgrade or disqualify the existing formal-candidate classification.
+
+Offline checks:
+
+```sh
+node --test script/a6-collector/*.test.mjs
+python3 script/a6-collector/negative-controls/stake-gate.py
+python3 script/a6-collector/negative-controls/credit-schema-downgrade.py
+```
+
+The exact directory-form `node --test script/a6-collector/` does not discover
+these tests on Node 24.21.0; the explicit glob above runs both test files.
+The stake control has one threshold-positive case, nine isolated violations,
+and nine restored positives. The credit-schema control now supplies qualifying
+stakes so its schema downgrade failure remains isolated.
+[Archived exit codes](negative-controls/stake-n2-verification.md) list every
+archived JSONL before/after, including non-gauge ledgers.
+
+Read-only live control (run result: `docs/design/aoa-balance-mode/data/a6-gauge-n2/`):
+
+```sh
+bash script/a6-collector/negative-controls/n2-penalty-anvil.sh http://127.0.0.1:8545 path/to/run.jsonl
+```
+
+It re-fetches receipts and traces from the supplied Anvil and compares the archived
+and live decompositions. An exact result must reconstruct `actualGasUsed`; a bounded
+result is accepted only with width exactly one gas. Because E is derived from
+`actualGasUsed`, the reconstruction identity alone cannot catch a wrong `preOpGas`;
+the control therefore also requires `0 < innerHandleOp.gasUsed - E < 20,000`
+(the frame also covers the post-penalty tail). It exits nonzero for missing or
+reverted traces, unsent attempts, live/archive mismatches, a bounded width other than
+one, or a tail outside that range. No keys or transactions are used by this script.

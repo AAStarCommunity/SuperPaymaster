@@ -2,6 +2,7 @@
 // Offline controls for the aoa-m3-receive-v1 exporter, on the archived local-anvil runs (not A6 data).
 // validate.mjs needs node_modules (viem); the adapter-only controls run with validate disabled.
 import test from 'node:test';
+import { INNER_HANDLE_OP, decomposeGas } from './gas-decomposition.mjs';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -139,6 +140,9 @@ function conformantV2() {
   rows[0].protocolConformant = true;
   for (const r of rows) r.schema = 'a6-gauge/2';
   for (const r of [rows[0], rows.at(-1)]) r.passport.invariant.credit = { policy: 0, hasPendingPolicy: false, pendingPolicy: 0, pendingPolicyEta: '0', policyEpoch: 0 };
+  for (const r of [rows[0], rows.at(-1)]) for (const stake of Object.values(r.passport.invariant.stakes)) {
+    Object.assign(stake, { staked: true, stake: '1000000000000000000', unstakeDelaySec: '86400' });
+  }
   return rows;
 }
 
@@ -316,4 +320,56 @@ test('per-arm controls are derived per arm, so a differing arm is visible to the
   tpm.userOpEvent.sender = acct;
   uoeLog(tpm).topics[2] = '0x' + '0'.repeat(24) + acct.slice(2);
   refused(other, /sender is not the passport account/);
+});
+
+test('N-2 missing trace exports nulls with a reason on every attempt', () => {
+  const pkg = exportRows(rowsOf('positive.jsonl'));
+  for (const a of pkg.attempts) {
+    assert.equal(a.gasDecomposition.status, 'unavailable');
+    assert.equal(a.gasDecomposition.unusedGasPenalty, null);
+    assert.match(a.gasDecomposition.reason, /no debug_traceTransaction/);
+  }
+});
+
+// Synthetic self-call calldata; no claim that this trace came from the archived chain.
+function attachTrace(r, E = 105n) {
+  const L = BigInt(r.gas.callGasLimit) + BigInt(r.pmGas.post);
+  const P = BigInt(r.userOpEvent.actualGasUsed) - E - (L > E ? (L - E) / 10n : 0n);
+  const words = [512n, r.sender, r.nonce, r.gas.verificationGasLimit, r.gas.callGasLimit,
+    r.pmGas.ver, r.pmGas.post, r.gas.preVerificationGas, r.paymaster,
+    r.gas.maxFeePerGas, r.gas.maxPriorityFeePerGas, r.expectedUserOpHash, 0n, 0n, P, 544n, 0n, 0n];
+  r.gasTrace = { tracer: 'callTracer', transactionHash: r.tx.hash, blockHash: r.tx.blockHash,
+    result: { type: 'CALL', to: r.entryPoint, calls: [{ type: 'CALL', from: r.entryPoint, to: r.entryPoint,
+      input: INNER_HANDLE_OP + words.map(v => BigInt(v).toString(16).padStart(64, '0')).join('') }] } };
+  r.gasDecomposition = decomposeGas(r, r.userOpEvent);
+}
+
+test('N-2 export reports exact trace decomposition for every arm and preserves bounds', () => {
+  const rows = rowsOf('positive.jsonl');
+  for (const r of rows.filter(r => r.kind === 'attempt')) attachTrace(r);
+  const pkg = exportRows(rows);
+  for (const a of pkg.attempts) {
+    assert.equal(a.gasDecomposition.status, 'exact');
+    assert.equal(a.gasDecomposition.executionGasUsed, '105');
+    assert.equal(a.gasDecomposition.actualGasUsed, a.actualGasUsed);
+  }
+  attachTrace(spRow(rows), 100n);
+  assert.equal(exportRows(rows).attempts.find(a => a.paymasterKind === 'SP').gasDecomposition.status, 'bounded');
+});
+
+test('N-2 exact reconstruction mismatch flags rehearsal and refuses formal-candidate', { skip: !hasViem }, () => {
+  const rows = rowsOf('positive.jsonl');
+  attachTrace(spRow(rows));
+  assert.equal(spRow(rows).gasDecomposition.status, 'exact');
+  spRow(rows).gasDecomposition.executionGasUsed = '106';
+  const pkg = exportRows(rows);
+  const sp = pkg.attempts.find(a => a.paymasterKind === 'SP');
+  assert.equal(sp.included, false);
+  assert.equal(sp.gasDecomposition.status, 'mismatch');
+  assert.match(sp.exclusionReason, /N2_RECONSTRUCTION_MISMATCH/);
+  const formal = conformantV2();
+  attachTrace(spRow(formal));
+  assert.equal(exportRows(formal, {}).runType, 'formal-candidate');
+  spRow(formal).gasDecomposition.executionGasUsed = '106';
+  refused(formal, /N2_RECONSTRUCTION_MISMATCH.*formal-candidate refused/, {});
 });

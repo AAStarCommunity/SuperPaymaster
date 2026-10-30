@@ -44,6 +44,9 @@ def main():
     for r in rows:
         patch(r)
     rows[0]["protocolConformant"] = True
+    for r in (rows[0], rows[-1]):
+        for stake in r["passport"]["invariant"]["stakes"].values():
+            stake.update(staked=True, stake="1000000000000000000", unstakeDelaySec="86400")
     with tempfile.TemporaryDirectory() as d:
         c1, r1 = validate(rows, d, "v1")
         for r in rows:

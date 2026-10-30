@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# LOCAL ANVIL ONLY: N-2 decomposition positive control (--trace run + live re-derivation).
+set -u
+export PATH="$HOME/.foundry/bin:$PATH"
+ROOT=/Users/jason/Dev/aastar/sp-wt/a4c
+OUT=${1:?outDir}
+cd "$ROOT"; mkdir -p "$OUT"
+A=http://127.0.0.1:8545; B=http://127.0.0.1:8546
+anvil --port 8545 --chain-id 31337 > "$OUT/anvil.log" 2>&1 & AP=$!
+trap 'kill $AP $PP 2>/dev/null' EXIT
+sleep 3
+./deploy-core anvil --force > "$OUT/setup-deploy-core.log" 2>&1 || { echo "deploy-core failed"; exit 1; }
+./prepare-test anvil > "$OUT/setup-prepare-test.log" 2>&1 || { echo "prepare-test failed"; exit 1; }
+node script/a6-collector/deploy-baselines.mjs $A "$OUT/baselines.anvil.json" > "$OUT/setup-deploy-baselines.log" 2>&1 || { echo "baselines failed"; exit 1; }
+node script/a6-collector/rpc-proxy.mjs --listen 8546 --upstream $A > "$OUT/proxy-B.log" 2>&1 & PP=$!
+sleep 1
+EP=$(jq -r .entryPoint deployments/config.anvil.json)
+node script/a6-collector/collector.mjs --rpc-a $A --rpc-b $B --count 10 --b-max 1 --run-id n2-trace \
+  --baselines "$OUT/baselines.anvil.json" --expect-entrypoint "$EP" --out "$OUT/n2-trace.jsonl" --allow-same-endpoint-local --trace > "$OUT/collector.log" 2>&1
+echo "collector exit $?"
+node script/a6-collector/validate.mjs "$OUT/n2-trace.jsonl" --json "$OUT/validator.json" > "$OUT/validator.log" 2>&1; echo "validator exit $?"
+bash script/a6-collector/negative-controls/n2-penalty-anvil.sh $A "$OUT/n2-trace.jsonl" > "$OUT/n2-control.out" 2> "$OUT/n2-control.err"; echo "n2 control exit $?"
+# mutation probe: preOpGas read from the wrong word (13 instead of 14) must turn the control red
+cp script/a6-collector/gas-decomposition.mjs "$OUT/gd.orig"
+sed -i '' 's/const P = n(14);/const P = n(13);/' script/a6-collector/gas-decomposition.mjs
+bash script/a6-collector/negative-controls/n2-penalty-anvil.sh $A "$OUT/n2-trace.jsonl" > "$OUT/mut-preop.out" 2> "$OUT/mut-preop.err"; echo "mutation preOpGas-word13 control exit $?"
+# same mutation with the stored claims stripped: only the innerHandleOp tail cross-check can catch it
+python3 -c "import json,sys;[print(json.dumps({k:v for k,v in json.loads(l).items() if k!='gasDecomposition'})) for l in open(sys.argv[1]) if l.strip()]" "$OUT/n2-trace.jsonl" > "$OUT/n2-trace.noclaim.jsonl"
+bash script/a6-collector/negative-controls/n2-penalty-anvil.sh $A "$OUT/n2-trace.noclaim.jsonl" > "$OUT/mut-preop-noclaim.out" 2> "$OUT/mut-preop-noclaim.err"; echo "mutation preOpGas-word13 no-claim control exit $?"
+cp "$OUT/gd.orig" script/a6-collector/gas-decomposition.mjs; rm "$OUT/gd.orig"
+bash script/a6-collector/negative-controls/n2-penalty-anvil.sh $A "$OUT/n2-trace.noclaim.jsonl" > "$OUT/noclaim.out" 2> "$OUT/noclaim.err"; echo "unmutated no-claim control exit $?"
