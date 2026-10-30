@@ -1,0 +1,76 @@
+{
+  "tool": "a4-credit-logscan",
+  "fromBlock": 1,
+  "toBlock": 99,
+  "endpoints": {
+    "A": "127.0.0.1",
+    "B": "127.0.0.1"
+  },
+  "chainId": 31337,
+  "blockHashes": {
+    "from": {
+      "A": "0x36189d6b12adfbf643e1f6bba5737d7f61b3e9f8718e53e62c66a78731a01950",
+      "B": "0x36189d6b12adfbf643e1f6bba5737d7f61b3e9f8718e53e62c66a78731a01950"
+    },
+    "to": {
+      "A": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009",
+      "B": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009"
+    }
+  },
+  "deployBlocks": {
+    "0xdc17c27ae8be831af07cc38c02930007060020f4": 54
+  },
+  "archiveProbes": [
+    {
+      "token": "0xdc17c27ae8be831af07cc38c02930007060020f4",
+      "blocks": [
+        0,
+        1
+      ],
+      "bothSucceeded": true
+    }
+  ],
+  "chunks": [
+    {
+      "token": "0xdc17c27ae8be831af07cc38c02930007060020f4",
+      "fromBlock": 1,
+      "toBlock": 99,
+      "status": "agreed",
+      "count": 0,
+      "boundaryHashes": {
+        "from": "0x36189d6b12adfbf643e1f6bba5737d7f61b3e9f8718e53e62c66a78731a01950",
+        "to": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009"
+      }
+    }
+  ],
+  "logs": [],
+  "canonicalLogsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "complete": true,
+  "scope": "C4/C7 only; conditional on C1, independent archive providers and known-event positive control. Identical omissions and provider independence cannot be established by this scan.",
+  "finalized": {
+    "A": {
+      "number": 99,
+      "hash": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009"
+    },
+    "B": {
+      "number": 99,
+      "hash": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009"
+    }
+  },
+  "C4": {
+    "verdict": "pass",
+    "events": []
+  },
+  "C7": {
+    "verdict": "pass",
+    "counts": {
+      "CreditReserved": 0,
+      "CreditSettled": 0,
+      "CreditReleased": 0
+    },
+    "openCount": 0,
+    "anomalyCount": 0,
+    "openReservations": [],
+    "anomalies": []
+  }
+}

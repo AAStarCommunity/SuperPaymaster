@@ -1,0 +1,100 @@
+{
+  "tool": "a4-credit-logscan",
+  "fromBlock": 1,
+  "toBlock": 172,
+  "endpoints": {
+    "A": "127.0.0.1",
+    "B": "127.0.0.1"
+  },
+  "chainId": 31337,
+  "blockHashes": {
+    "from": {
+      "A": "0x36189d6b12adfbf643e1f6bba5737d7f61b3e9f8718e53e62c66a78731a01950",
+      "B": "0x36189d6b12adfbf643e1f6bba5737d7f61b3e9f8718e53e62c66a78731a01950"
+    },
+    "to": {
+      "A": "0x3670d2b665e462cf39ab47004659c1c0db6c79ee77a6541fc85df302732a93c4",
+      "B": "0x3670d2b665e462cf39ab47004659c1c0db6c79ee77a6541fc85df302732a93c4"
+    }
+  },
+  "deployBlocks": {
+    "0xdc17c27ae8be831af07cc38c02930007060020f4": 54
+  },
+  "archiveProbes": [
+    {
+      "token": "0xdc17c27ae8be831af07cc38c02930007060020f4",
+      "blocks": [
+        0,
+        1
+      ],
+      "bothSucceeded": true
+    }
+  ],
+  "chunks": [
+    {
+      "token": "0xdc17c27ae8be831af07cc38c02930007060020f4",
+      "fromBlock": 1,
+      "toBlock": 172,
+      "status": "agreed",
+      "count": 1,
+      "boundaryHashes": {
+        "from": "0x36189d6b12adfbf643e1f6bba5737d7f61b3e9f8718e53e62c66a78731a01950",
+        "to": "0x3670d2b665e462cf39ab47004659c1c0db6c79ee77a6541fc85df302732a93c4"
+      }
+    }
+  ],
+  "logs": [
+    {
+      "blockNumber": 166,
+      "transactionIndex": 0,
+      "logIndex": 0,
+      "address": "0xdc17c27ae8be831af07cc38c02930007060020f4",
+      "blockHash": "0x67773f68a6306f520503a27e8449b082596077be81c30545b803aa1a63687d77",
+      "transactionHash": "0x3222db950298e2a63d7b2290bc37d7c86cba63065ce10f32fc68a458fe709253",
+      "topics": [
+        "0x4a53aec9f255b2d5bcb9ce63ec2e9263cd6094537eec19973e8708c1b1e35f02"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001",
+      "removed": false
+    }
+  ],
+  "canonicalLogsSha256": "97eec90599c7e07e1f58ef7a12f9094e0db54cea64831b51bb1256f287934a89",
+  "complete": true,
+  "scope": "C4/C7 only; conditional on C1, independent archive providers and known-event positive control. Identical omissions and provider independence cannot be established by this scan.",
+  "finalized": {
+    "A": {
+      "number": 172,
+      "hash": "0x3670d2b665e462cf39ab47004659c1c0db6c79ee77a6541fc85df302732a93c4"
+    },
+    "B": {
+      "number": 172,
+      "hash": "0x3670d2b665e462cf39ab47004659c1c0db6c79ee77a6541fc85df302732a93c4"
+    }
+  },
+  "C4": {
+    "verdict": "fail",
+    "events": [
+      {
+        "event": "CreditPolicyExecuted",
+        "address": "0xdc17c27ae8be831af07cc38c02930007060020f4",
+        "blockNumber": 166,
+        "transactionHash": "0x3222db950298e2a63d7b2290bc37d7c86cba63065ce10f32fc68a458fe709253",
+        "logIndex": 0,
+        "policy": 2,
+        "epoch": 1
+      }
+    ]
+  },
+  "C7": {
+    "verdict": "pass",
+    "counts": {
+      "CreditReserved": 0,
+      "CreditSettled": 0,
+      "CreditReleased": 0
+    },
+    "openCount": 0,
+    "anomalyCount": 0,
+    "openReservations": [],
+    "anomalies": []
+  }
+}
