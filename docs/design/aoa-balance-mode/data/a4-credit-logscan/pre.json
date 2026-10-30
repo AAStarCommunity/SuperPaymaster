@@ -9,12 +9,12 @@
   "chainId": 31337,
   "blockHashes": {
     "from": {
-      "A": "0xa2421f1975ffcd5abbbccd9a57ea6289aa1fd5ca4bc9fa93e76951c89d6183c0",
-      "B": "0xa2421f1975ffcd5abbbccd9a57ea6289aa1fd5ca4bc9fa93e76951c89d6183c0"
+      "A": "0x36189d6b12adfbf643e1f6bba5737d7f61b3e9f8718e53e62c66a78731a01950",
+      "B": "0x36189d6b12adfbf643e1f6bba5737d7f61b3e9f8718e53e62c66a78731a01950"
     },
     "to": {
-      "A": "0x601fe2386aed79ead994dbe380d7409c3ffc9970321c5d17cadca874e7dc47ab",
-      "B": "0x601fe2386aed79ead994dbe380d7409c3ffc9970321c5d17cadca874e7dc47ab"
+      "A": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009",
+      "B": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009"
     }
   },
   "deployBlocks": {
@@ -38,8 +38,8 @@
       "status": "agreed",
       "count": 0,
       "boundaryHashes": {
-        "from": "0xa2421f1975ffcd5abbbccd9a57ea6289aa1fd5ca4bc9fa93e76951c89d6183c0",
-        "to": "0x601fe2386aed79ead994dbe380d7409c3ffc9970321c5d17cadca874e7dc47ab"
+        "from": "0x36189d6b12adfbf643e1f6bba5737d7f61b3e9f8718e53e62c66a78731a01950",
+        "to": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009"
       }
     }
   ],
@@ -50,11 +50,11 @@
   "finalized": {
     "A": {
       "number": 99,
-      "hash": "0x601fe2386aed79ead994dbe380d7409c3ffc9970321c5d17cadca874e7dc47ab"
+      "hash": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009"
     },
     "B": {
       "number": 99,
-      "hash": "0x601fe2386aed79ead994dbe380d7409c3ffc9970321c5d17cadca874e7dc47ab"
+      "hash": "0x6d4afc2280f78c7247a07e234b3840315632b2c0550a0db0e79f7786fe0c0009"
     }
   },
   "C4": {

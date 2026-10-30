@@ -2,7 +2,7 @@
 
 **Local anvil only. Endpoint B is `script/a6-collector/rpc-proxy.mjs` in front of the same anvil, so this tests
 the instrument (selectors, decoding, chunking, verdicts), not provider independence or archive completeness.**
-Scanner: `script/evidence/a4-credit-logscan.py` at HEAD `bdff68a7`, dirty 0 (`token.txt`). Driver:
+Scanner: `script/evidence/a4-credit-logscan.py` at HEAD `ba278225`, dirty 0 (`token.txt`). Driver:
 `scan-run.sh.txt` (anvil dev key redacted). Chain built like `../a6-gauge-credit/`: deploy-core, prepare-test,
 then the operator token `0xdc17…20f4` (deployed in block 54, found by the scanner's code bisection).
 
