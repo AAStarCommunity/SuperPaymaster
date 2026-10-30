@@ -1,0 +1,18 @@
+{
+  "file": "<out>/n2-trace.jsonl",
+  "attempts": 30,
+  "recomputed": {
+    "USEROP_SUCCESS": 30
+  },
+  "errors": [],
+  "notes": [
+    "U-6 stake gate not applied: non-conformant run"
+  ],
+  "matchedTriplets": 10,
+  "stop": "COMPLETE",
+  "exitCode": 0,
+  "protocolConformant": false,
+  "consistent": true,
+  "accepted": true,
+  "validatorExit": 0
+}

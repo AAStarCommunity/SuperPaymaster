@@ -435,6 +435,7 @@ try {
   if (!SCHEMAS.includes(schema)) throw new Missing('unknown schema');
   for (const l of lines) { if (need(l, 'schema') !== schema) throw new Missing('schema differs between lines'); if (need(l, 'runId') !== start.runId) throw new Missing('runId differs between lines'); }
   if (schema === 'a6-gauge/1') notes.push('schema a6-gauge/1: credit policy not recorded, so this run does not show credit OFF');
+  if (start.protocolConformant !== true) notes.push('U-6 stake gate not applied: non-conformant run');
   const pStart = need(start, 'passport');
   completePassport(pStart);
   const inv = need(pStart, 'invariant');
@@ -721,6 +722,15 @@ try {
   if (report.exitCode !== need(stop, 'code')) errors.push('run_end.exitCode differs from stop.code');
   // passport drift, recomputed
   completePassport(need(end, 'passport'));
+  // U-6 applies only to protocol-conformant runs, at both pinned passport blocks.
+  if (start.protocolConformant === true) {
+    for (const arm of ['SP', 'VPM', 'TPM']) {
+      const stakes = [pStart, end.passport].map(p => p.invariant.stakes[arm]);
+      if (stakes.some(s => s.staked !== true)) errors.push(`arm ${arm}: paymaster not staked`);
+      if (stakes.some(s => big(s.stake) < 1000000000000000000n)) errors.push(`arm ${arm}: paymaster stake below 1000000000000000000 wei`);
+      if (stakes.some(s => big(s.unstakeDelaySec) < 86400n)) errors.push(`arm ${arm}: paymaster unstakeDelaySec below 86400`);
+    }
+  }
   if (!deepEq(inv, need(end, 'passport.invariant'))) errors.push('passport invariant drifted between run_start and run_end');
   if (pStart.allowSameEndpointLocal !== end.passport.allowSameEndpointLocal) errors.push('passport local override drifted');
   if (big(end.passport.chainId) !== big(chainId)) errors.push('end passport chainId differs from start');
