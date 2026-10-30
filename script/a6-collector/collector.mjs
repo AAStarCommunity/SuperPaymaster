@@ -1,3 +1,4 @@
+import { decomposeGas } from './gas-decomposition.mjs';
 import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
 // A6 per-UserOperation gauge (CC-125 a71741ed; RDR-6 ①; plan §8.4 SP-owned implementation half).
 //
@@ -26,7 +27,7 @@ import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
 //   node script/a6-collector/collector.mjs --rpc-a http://127.0.0.1:8545 --rpc-b http://127.0.0.1:8546 \
 //     --count 50 --b-max 1 --out <run.jsonl> [--max-attempts 60] [--arms SP,VPM,TPM] \
 //     [--fixture exec-revert|drop-op|wrong-hash] [--config deployments/config.anvil.json] \
-//     [--baselines <baselines.json>] [--expect-entrypoint 0x...]
+//     [--baselines <baselines.json>] [--expect-entrypoint 0x...] [--trace]
 //
 // Exit codes: 0 = N matched triplets collected; 10 = attempt budget exhausted before N;
 //   20 RPC_DISAGREEMENT, 21 PASSPORT_DRIFT, 22 CONSERVATION_MISMATCH, 23 HASH_SELF_CHECK,
@@ -61,6 +62,7 @@ const rpcA = argVal('--rpc-a') ?? argVal('--rpc');
 const rpcB = argVal('--rpc-b');
 if (!rpcA || !rpcB) die('--rpc-a and --rpc-b are both required (two read-back endpoints; see README)');
 if (!LOCAL.test(rpcA) || !LOCAL.test(rpcB)) die('refusing: local Anvil only (http://127.0.0.1:<port>)');
+const traceEnabled = process.argv.includes('--trace');
 const allowSameEndpointLocal = process.argv.includes('--allow-same-endpoint-local');
 const distinctEndpoints = false; // Local aliases cannot establish independent host identity.
 if (new URL(rpcA).port === new URL(rpcB).port) die('identical RPC endpoints: different local ports are required');
@@ -102,7 +104,7 @@ const pubB = createPublicClient({ transport: http(rpcB, { timeout: 60_000 }) });
 const runId = argVal('--run-id') ?? `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 
 function collectorHead() {
-  const files = ['collector.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', '../b-layer/lib.mjs'];
+  const files = ['collector.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', '../b-layer/lib.mjs'];
   const codeSha256 = Object.fromEntries(files.map((f) => [f, createHash('sha256').update(readFileSync(resolve(ROOT, 'script/a6-collector', f))).digest('hex')]));
   try {
     const head = execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim();
@@ -338,7 +340,8 @@ async function passport(p, blockNumber) {
   const op = await spR('operators', [ctx.account.address]);
   const price = await spR('cachedPrice');
   const depInfo = async (a) => p.readContract({ address: EP, abi: EP_DEPOSIT_ABI, functionName: 'getDepositInfo', args: [a], ...at });
-  const stakeOf = async (a) => { const d = await depInfo(a); return { staked: d.staked, stake: d.stake, unstakeDelaySec: d.unstakeDelaySec, withdrawTime: d.withdrawTime }; };
+  const depositInfo = { SP: await depInfo(SPA), VPM: await depInfo(baselines.verifyingPaymaster.address), TPM: await depInfo(baselines.tokenPaymaster.address) };
+  const stakeOf = (arm) => { const d = depositInfo[arm]; return { staked: d.staked, stake: d.stake, unstakeDelaySec: d.unstakeDelaySec, withdrawTime: d.withdrawTime }; };
   return {
     allowSameEndpointLocal,
     chainId: await p.getChainId(),
@@ -373,7 +376,7 @@ async function passport(p, blockNumber) {
       // run_end is drift; the validator also requires policy OFF and nothing queued.
       credit: { policy: await tR('creditPolicy'), hasPendingPolicy: await tR('hasPendingPolicy'),
         pendingPolicy: await tR('pendingPolicy'), pendingPolicyEta: await tR('pendingPolicyEta'), policyEpoch: await tR('policyEpoch') },
-      stakes: { SP: await stakeOf(SPA), VPM: await stakeOf(baselines.verifyingPaymaster.address), TPM: await stakeOf(baselines.tokenPaymaster.address) },
+      stakes: { SP: stakeOf('SP'), VPM: stakeOf('VPM'), TPM: stakeOf('TPM') },
       verifyingSigner: await p.readContract({ address: baselines.verifyingPaymaster.address, abi: baselines.verifyingPaymaster.abi, functionName: 'verifyingSigner', ...at }),
       // Identical-EntryPoint condition across arms: every paymaster must be bound to EP.
       armEntryPoints: {
@@ -386,7 +389,11 @@ async function passport(p, blockNumber) {
       gas: GAS, pmGas: PM_GAS, callDataHash: keccak256(defaultCallData()),
     },
     // Recorded, not drift-checked (moves with every op / with time).
-    volatile: { cachedPriceUpdatedAt: price[1], operatorBalance: op[0] },
+    volatile: { cachedPriceUpdatedAt: price[1], operatorBalance: op[0],
+      depositInfo: Object.fromEntries(Object.entries(depositInfo).map(([arm, d]) => [arm, {
+        deposit: String(d.deposit), staked: d.staked, stake: String(d.stake),
+        unstakeDelaySec: String(d.unstakeDelaySec), withdrawTime: String(d.withdrawTime),
+      }])) },
   };
 }
 async function passportAB(label) {
@@ -538,6 +545,17 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const cls = classifyAttempt({ sent: true, txStatus: rcA.status, logs, entryPoint: EP, expectedHash, sender, nonce, paymaster: pm });
   Object.assign(row, { sent: true, tx, logs, verdict: cls.verdict, failingCheck: cls.failingCheck,
     revertKind: cls.revertKind ?? null, userOpEvent: cls.event ?? null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [] });
+  if (traceEnabled) {
+    try {
+      row.gasTrace = { transactionHash: txHash, blockHash: rcA.blockHash,
+        tracer: 'callTracer', result: await pubA.request({ method: 'debug_traceTransaction',
+          params: [txHash, { tracer: 'callTracer' }] }) };
+    } catch {
+      row.gasTrace = { reason: 'debug_traceTransaction callTracer unavailable' };
+    }
+  }
+  row.gasDecomposition = decomposeGas(row, cls.event);
+
   if (noFixture(fixture) && cls.epEvents?.some(e => e.event === 'UserOperationEvent' && e.args.userOpHash.toLowerCase() !== expectedHash.toLowerCase())) {
     // All receipt logs are already in row; never attribute another op's event to an arm.
     throw new Stop('UNEXPECTED_USEROP_EVENT', 27, { attemptIndex: idx, txHash });

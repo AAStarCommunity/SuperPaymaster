@@ -14,6 +14,7 @@
 //
 // runType is `rehearsal` unless validate.mjs ran and accepted the run (not merely consistent), and the run is protocolConformant
 // and a6-gauge/2 (credit OFF recorded); this view never makes a run formal.
+import { decomposeGas, exactClaimMatches } from './gas-decomposition.mjs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -185,6 +186,16 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
     } else {
       reasons.push('NOT_SENT');
     }
+    row.gasDecomposition = decomposeGas(r, uoe?.count === 1 ? uoe : null);
+    if (!exactClaimMatches(r.gasDecomposition, row.gasDecomposition)) {
+      row.gasDecomposition = { ...row.gasDecomposition, status: 'mismatch',
+        reason: 'N-2 exact claim reconstruction mismatch', reconstructionMatches: false };
+    }
+    if (row.gasDecomposition.status === 'mismatch') {
+      reasons.push('N2_RECONSTRUCTION_MISMATCH');
+      if (accepted && start.protocolConformant === true) fail(`${id}: N2_RECONSTRUCTION_MISMATCH: ${row.gasDecomposition.reason}; formal-candidate refused`);
+    }
+    if (r.gasTrace) put(`${base}.trace.json`, r.gasTrace);
     if (!matched.has(r.tripletIndex)) reasons.push('TRIPLET_INCOMPLETE');
     if (reasons.length) { attempts.push({ ...row, exclusionReason: reasons.join(';') }); continue; }
     const code = inv.code[RUNTIME[r.arm]];
