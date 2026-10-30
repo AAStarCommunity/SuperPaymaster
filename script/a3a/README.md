@@ -85,7 +85,7 @@ Put just the archive URL in a private file. Pass its **path**, never the URL:
 
 ```sh
 python3 script/a3a/a3a_exec.py plan \
-  --rpc-file /private/tmp/archive-rpc.txt --block 11969744 \
+  --rpc-file /private/tmp/archive-rpc.txt --block 12025381 \
   --out /private/tmp/a3a-plan
 python3 script/a3a/a3a_exec.py simulate \
   --rpc-file /private/tmp/archive-rpc.txt \
@@ -125,11 +125,26 @@ requires `eth_config.current.activationTime == 1791294816` and
 `docs/design/aoa-balance-mode/data/rams/`. Missing `eth_config` is a hard failure.
 It verifies the pinned block's hash and post-activation timestamp, reads the
 deployer's, approver's and executor's block and pending nonces, and requires each pair to agree. It checks the
-Safe's nonce, exact three owners and threshold 2; SP owner, current token,
+Safe's nonce, exact three owners, threshold 2, zero guard storage slot and an empty
+`getModulesPaginated(SENTINEL,10)` page terminating at SENTINEL, all at the pin; SP owner, current token,
 pending token and ETA; the on-chain SP queue delay; empty code at both predicted
 CREATE addresses; and each of the three senders' balances against its own fee-cap budget.
-The expected governance and SP pre-state comes from the sealed v4 snapshot;
+The expected SP pre-state comes from the sealed v4 snapshot;
 changed pre-state requires a separately reviewed workflow change.
+
+The author's 2026-10-30 decision selects the separate Sepolia test Safe
+`0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf` (reported Safe 1.4.1):
+
+- Executor / owner Jammy: `0xF7Bf79AcB7F3702b9DbD397d8140ac9DE6Ce642C`.
+- Approver / owner David: `0xE3D28Aa77c95d5C098170698e5ba68824BFC008d`.
+- Third owner: `0x92a30Ef64b0b750220B2b3BAFE4F3121263d45b3`.
+
+Reported at block 12,025,381: threshold 2, nonce 1, no guard or modules. Nonce 1
+is an observation, not a fixed execution expectation: planning reads the nonce at
+its chosen pin. Guard and module checks fail closed; a module could otherwise
+execute as the Safe on the timelock. There is no singleton, VERSION or fallback
+handler check; the existing Safe 1.4.1 hash and nonce-slot assumptions remain.
+Historical release packets are unchanged and their old Safe hashes are not current expectations.
 
 CREATE addresses are derived from the current deployer nonce, and Safe EIP-712
 hashes from the current Safe nonce. Timelock operation ID and salt are derived
@@ -401,12 +416,29 @@ DSR M1 gap IG-07 asks for a concrete signing and sending path. `a3a_send.py` is 
 `a3a_exec.py`, so `a3a_exec.py sign|send` keep refusing as described above, and `ex.RPC` keeps refusing every
 write method. The sender's one write call is its own `broadcast()`.
 
-One invocation sends **one** step. It is run by the operator in a terminal: `cast` asks for the keystore
+One invocation sends **one** step. By default it is run by the operator in a terminal: `cast` asks for the keystore
 password, and the operator types the confirmation string. The author chose Foundry keystores (`cast wallet
 import`) on 2026-10-27. The step's sender role (deployer, approver or executor) is mapped to a keystore name by a
 JSON file. No key material appears in argv, the environment or the logs. The confirmation is read from
 `/dev/tty`; without a controlling terminal the run stops (`send_no_tty`), so piped or redirected input cannot
-confirm.
+confirm unless `--confirm` is supplied.
+
+For Sepolia testing, the author's 2026-10-30 decision permits two independent,
+opt-in flags:
+
+- `--password-file PATH` passes the path to `cast mktx --account <name>
+  --password-file PATH`. Before signing, it must be a regular file owned by the
+  current user, mode **0600 exactly**, and not a symlink. The sender inspects
+  metadata only and never reads or logs its contents. The signer environment
+  whitelist is unchanged.
+- `--confirm "SEND <step> <first 12 hex of the plan sha256>"` replaces the
+  `/dev/tty` prompt. The phrase must match exactly, including whitespace. It is
+  checked after signing and local verification, before the second `pre_send`
+  and broadcast; a mismatch is `send_operator_confirmation`.
+
+Together these remove the human pause, while the reviewed sha256, `pre_send`
+twice, local decode check, no resend/reprice, and one step per run still hold.
+Omitting either flag preserves its corresponding interactive prompt.
 
 Each of these is a hard stop. Nothing leaves the process unless every earlier one passed:
 0. A per-user `flock` (`~/.a3a_send.lock`) is taken before the output directory is checked or written, so a second concurrent
@@ -419,7 +451,7 @@ Each of these is a hard stop. Nothing leaves the process unless every earlier on
    authorization list; and a **local** keccak of the raw bytes equals the decoded hash. The signed bytes are held
    in memory and passed to `cast` on stdin, never in argv. They reach no provider, and are not written to disk,
    before broadcast.
-4. The typed confirmation `SEND <step> <sha256[:12]>`.
+4. The typed or `--confirm` confirmation `SEND <step> <sha256[:12]>`.
 5. After the confirmation, immediately before broadcast: `pre_send` again, which must return the identical
    transaction, and the fee-cap check.
 6. Broadcast. Only an integer error code or a validated 32-byte hash from the provider is recorded. Then:
@@ -484,7 +516,7 @@ inherited from `a3a_exec` can put raw provider output in either.
   numbers, and provider keys are far longer.
 `signed.raw` is written only after the broadcast.
 
-`test_a3a_send.py` has 63 offline tests, including a real PTY for the `/dev/tty` confirmation.
+`test_a3a_send.py` has offline tests, including a real PTY for the `/dev/tty` confirmation.
 - Signing and decoding are real `cast` calls with the public anvil test key, through a wrapper that records argv
   and environment. The test environment carries RPC secrets, and the production `signer_env` must keep them out.
 - Contract creation (S2/S3, `--create`, `to: null`) is covered.
@@ -531,9 +563,9 @@ no-hash CBOR and enabled-hash verification, duplicate keys, pin integer/canonica
 quantity types, the gas cap and both estimate rechecks, exact inner early-execute
 reverts, and receipt-block-bounded schedule logs. The compiler/archive boundary
 is mocked in the orchestration tests and exercised independently by its own
-failure controls; the full rebuild can also be run locally without an archive RPC. It cross-checks all
-non-deployment calldata and derived identity hashes against v4, without reusing
-v4 gas. It does not prove archive capabilities or replace the live fork run.
+failure controls; the full rebuild can also be run locally without an archive RPC. It cross-checks unchanged non-Safe calldata, CREATE targets and the operation ID
+against v4, without reusing v4 gas. New Safe hashes use an independent EIP-712
+fixture derived from the ABI call bytes. It does not prove archive capabilities or replace the live fork run.
 The module keeps `sys.dont_write_bytecode = True` at its top. Python 3.11 syntax
 is required; compilation can be checked with py_compile output directed to a
 temporary directory to avoid repository bytecode files. No shell script is added

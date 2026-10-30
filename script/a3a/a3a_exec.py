@@ -48,15 +48,19 @@ MAX_FEE, PRIORITY = 20_000_000_000, 100_000_000
 ZERO = '0x' + '00' * 20
 ZERO32 = '0x' + '00' * 32
 DEPLOYER = '0xb5600060e6de5e11d3636731964218e53caadf0e'
-SAFE = '0x51edf11fdb0a4f66220efb8efa54eca77232e114'
+SAFE = '0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf'
 SP = '0x09df0d2e3722ec0e401fe3819e64278a42ae4de9'
-EXECUTOR = '0x871608cba092105b91e91295a1d79ffc539bfb48'
-APPROVER = '0x8c3499252232105a1615767c459db9bbbf1273d6'
+EXECUTOR = '0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c'
+APPROVER = '0xe3d28aa77c95d5c098170698e5ba68824bfc008d'
 REFUSAL = "not authorized: requires a reviewed plan hash and the author's separate go"
 EIP712_IMMUTABLES = frozenset(('_cachedDomainSeparator', '_cachedChainId', '_cachedThis',
                              '_hashedName', '_hashedVersion', '_name', '_version'))
 STEP_IDS = ('S1', 'S2', 'S3', 'S4', 'S5a', 'S5b', 'S6a', 'S6b', 'S7')
 CONTROL_IDS = ('S4_before_S3', 'wrong_safe_nonce', 'early_execute', 'non_owner_queue')
+# Author decision 2026-10-30: separate Sepolia test Safe.
+SAFE_OWNERS = (EXECUTOR, APPROVER, '0x92a30ef64b0b750220b2b3bafe4f3121263d45b3')
+SENTINEL = '0x' + '00'*19 + '01'
+
 SENDERS = {'deployer': DEPLOYER, 'approver': APPROVER, 'executor': EXECUTOR}
 EMPTY_KECCAK = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
 
@@ -662,6 +666,15 @@ def artifact(name):
     return a
 
 
+def safe_extensions(rpc, block):
+    # Safe 1.4.1 GuardManager uses keccak256("guard_manager.guard.address").
+    slot = keccak('guard_manager.guard.address')
+    need('safe_guard', typed(rpc('eth_getStorageAt', [SAFE, slot, block]), HASH32), ZERO32)
+    # Empty page must also terminate at SENTINEL; reject malformed or truncated ABI responses.
+    empty = '0x' + f'{64:064x}' + SENTINEL[2:].zfill(64) + '00'*32
+    need('safe_modules', call(rpc, SAFE, 'getModulesPaginated(address,uint256)', SENTINEL, 10, block=block), empty)
+
+
 def preflight(rpc, block):
     need('chain_id', qty(rpc('eth_chainId', [])), CHAIN)
     config = rpc('eth_config', [])
@@ -687,8 +700,9 @@ def preflight(rpc, block):
         need('safe_owner_padding', raw[i:i+12].hex(), '00'*12)
     owners = ['0x' + raw[i:i+32].hex()[-40:] for i in range(64, len(raw), 32)]
     snapshot = json.loads((PACKET.parent / 'snapshot.json').read_text())['snapshot']
-    need('safe_owners', sorted(owners), sorted(x.lower() for x in snapshot['multisig']['owners']))
+    need('safe_owners', sorted(owners), sorted(SAFE_OWNERS))
     need('safe_threshold', word(rpc, SAFE, 'getThreshold()', block=block), 2)
+    safe_extensions(rpc, block)
     sp = {}
     for name in ('owner', 'APNTS_TOKEN', 'pendingAPNTsToken'):
         sp[name] = address(rpc, SP, name + '()', block)

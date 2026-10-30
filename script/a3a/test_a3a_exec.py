@@ -27,6 +27,20 @@ def abi_word(value):
     return "0x" + format(number, "064x")
 
 
+def safe_hash_fixture(data):
+    # Independent EIP-712 oracle from the ABI call bytes, not the historical Safe's packet hashes.
+    body = bytes.fromhex(data[10:])
+    words = [body[i:i+32] for i in range(0, 320, 32)]
+    offset = int.from_bytes(words[2], 'big')
+    size = int.from_bytes(body[offset:offset+32], 'big')
+    words[2] = bytes.fromhex(ex.keccak('0x'+body[offset+32:offset+32+size].hex())[2:])
+    typehash = ex.keccak('SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)')
+    struct = ex.keccak(typehash + b''.join(words).hex())
+    domain = ex.keccak(ex.keccak('EIP712Domain(uint256 chainId,address verifyingContract)') +
+                       abi_word(ex.CHAIN)[2:] + abi_word(ex.SAFE)[2:])
+    return ex.keccak('0x1901' + domain[2:] + struct[2:])
+
+
 def immutable_fixture():
     names = sorted(ex.EIP712_IMMUTABLES)
     runtime = '0x60' + '00'*(8*32) + '00'
@@ -297,6 +311,9 @@ class ExecutorTests(unittest.TestCase):
                 v = hex(base+1 if case == 'nonce' and p[1] == 'pending' else base)
                 if case in ('approver_nonce', 'executor_nonce') and p[0] == ex.SENDERS[case[:-6]] and p[1] == 'pending':
                     v = hex(base+1)
+            elif m == 'eth_getStorageAt':
+                self.assertEqual(p, [ex.SAFE, ex.keccak('guard_manager.guard.address'), BLOCK])
+                v = abi_word(1 if case == 'guard' else 0)
             elif m == 'eth_getCode':
                 v = '0x6000' if case == 'code' else '0x'
             elif m == 'eth_getBalance':
@@ -304,9 +321,16 @@ class ExecutorTests(unittest.TestCase):
             elif m == 'eth_estimateGas':
                 v = hex(100000)
             elif m == 'eth_call':
+                if p[0]['data'] == ex.calldata('getModulesPaginated(address,uint256)', ex.SENTINEL, 10):
+                    self.assertEqual((p[0]['to'], p[1]), (ex.SAFE, BLOCK))
+                    v = '0x' + abi_word(64)[2:] + abi_word(ex.SENTINEL)[2:] + abi_word(0)[2:]
+                    if case == 'modules': v = v[:-64] + abi_word(1)[2:] + abi_word(ex.APPROVER)[2:]
+                    if case == 'modules_next': v = '0x' + abi_word(64)[2:] + abi_word(ex.APPROVER)[2:] + abi_word(0)[2:]
+                    if case == 'modules_malformed': v = '0x'
+                    r['result'] = v
+                    return io.BytesIO(json.dumps(r).encode())
                 if p[0]['data'].startswith(ex.calldata('getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)', ex.ZERO, 0, '0x', 0, 0, 0, 0, ex.ZERO, ex.ZERO, 0)[:10]):
-                    safe_nonce = int(p[0]['data'][10+9*64:10+10*64], 16)
-                    v = PACKET['simulatedAddresses']['safeTxHashS5' if safe_nonce == 1 else 'safeTxHashS6']
+                    v = safe_hash_fixture(p[0]['data'])
                     if case == 'safe_hash': v = ex.ZERO32
                     r['result'] = v
                     return io.BytesIO(json.dumps(r).encode())
@@ -316,7 +340,7 @@ class ExecutorTests(unittest.TestCase):
                 elif sig == 'getThreshold()':
                     v = abi_word(3 if case == 'threshold' else 2)
                 elif sig == 'getOwners()':
-                    owners = SNAPSHOT['multisig']['owners']
+                    owners = list(ex.SAFE_OWNERS)
                     if case == 'owners':
                         owners = [ex.ZERO]*3
                     v = '0x'+abi_word(32)[2:]+abi_word(3)[2:]+''.join(abi_word(x)[2:] for x in owners)
@@ -368,10 +392,11 @@ class ExecutorTests(unittest.TestCase):
                 self.assertEqual(p['roles']['DEFAULT_ADMIN'], [p['pin']['timelock']])
                 self.assertEqual(p['pin']['timelock'], PACKET['simulatedAddresses']['newTimelock'].lower())
                 self.assertEqual(p['pin']['capped'], PACKET['simulatedAddresses']['apntsCapped'].lower())
-                self.assertEqual(p['safeTxHashes'], [PACKET['simulatedAddresses']['safeTxHashS5'], PACKET['simulatedAddresses']['safeTxHashS6']])
+                self.assertEqual(p['pin']['owners'], list(ex.SAFE_OWNERS))
+                self.assertEqual(p['pin']['safeNonce'], 1)
                 self.assertEqual(p['operationId'], PACKET['simulatedAddresses']['acceptOperationId'])
                 for s, reference in zip(p['steps'], PACKET['steps']):
-                    if s['id'] not in ('S2', 'S3'):
+                    if s['id'] not in ('S2', 'S3', 'S5a', 'S5b', 'S6a', 'S6b'):
                         self.assertEqual(s['tx']['data'], reference['calldata'])
                 return code, None
             self.assertFalse((out/'plan.json').exists())
@@ -382,6 +407,18 @@ class ExecutorTests(unittest.TestCase):
 
     def test_valid_plan(self):
         self.assertEqual(self.run_plan(), (0, None))
+
+    def test_safe_guard(self):
+        self.assertEqual(self.run_plan('guard'), (1, 'safe_guard'))
+
+    def test_safe_modules(self):
+        self.assertEqual(self.run_plan('modules'), (1, 'safe_modules'))
+
+    def test_safe_modules_next(self):
+        self.assertEqual(self.run_plan('modules_next'), (1, 'safe_modules'))
+
+    def test_safe_modules_malformed(self):
+        self.assertEqual(self.run_plan('modules_malformed'), (1, 'safe_modules'))
 
     def test_distinct_preflight_gates(self):
         cases = {'chain': 'chain_id', 'missing': 'fork_config_missing',
@@ -1216,7 +1253,7 @@ class ExecutorTests(unittest.TestCase):
         # Real sockets. Each server keeps every recv well inside the 45 s socket timeout by sending one byte every
         # 20 ms, at a different stage: status/header line, chunk trailers (chunked framing), and body. Only the
         # wall-clock deadline can end these requests, and the failure must be that deadline (TimeoutError).
-        import socketserver, threading, time as _time
+        import http.client, socket, threading, time as _time
         stages = {
             'headers': (b'HTTP/1.1 200 OK\r\nX-Slow: ', b'a'),
             'chunk_trailers': (b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\n{\r\n0\r\n', b'X: y\r\n'),
@@ -1224,30 +1261,31 @@ class ExecutorTests(unittest.TestCase):
         }
         for stage, (prefix, drip) in stages.items():
             stop = threading.Event()
-            class Trickle(socketserver.BaseRequestHandler):
-                def handle(self):
-                    self.request.recv(65536)
-                    try:
-                        self.request.sendall(prefix)
-                        while not stop.is_set():
-                            self.request.sendall(drip); _time.sleep(.02)
-                    except OSError:
-                        pass
-            server = socketserver.ThreadingTCPServer(('127.0.0.1', 0), Trickle)
-            server.daemon_threads = True
-            threading.Thread(target=server.serve_forever, daemon=True).start()
+            # A Unix socket pair preserves real blocking I/O without a network listener.
+            client, peer = socket.socketpair()
+            def trickle():
+                try:
+                    peer.recv(65536)
+                    peer.sendall(prefix)
+                    while not stop.is_set():
+                        peer.sendall(drip); _time.sleep(.02)
+                except OSError:
+                    pass
+            thread = threading.Thread(target=trickle, daemon=True)
+            thread.start()
             try:
                 with self.subTest(stage=stage):
                     started = _time.monotonic()
-                    with patch.object(ex, 'RPC_TOTAL_DEADLINE_SECONDS', .3), self.assertRaises(ex.Gate) as caught:
-                        ex.RPC(f'http://127.0.0.1:{server.server_address[1]}')('eth_chainId', [])
+                    with patch.object(ex, 'RPC_TOTAL_DEADLINE_SECONDS', .3), \
+                            patch.object(http.client.HTTPConnection, 'connect', lambda conn: setattr(conn, 'sock', client)), self.assertRaises(ex.Gate) as caught:
+                        ex.RPC('http://127.0.0.1:1')('eth_chainId', [])
                     elapsed = _time.monotonic() - started
                     self.assertEqual(caught.exception.record['gate'], 'rpc_transport')
                     self.assertEqual(caught.exception.record['observed'], 'TimeoutError')
                     self.assertGreaterEqual(elapsed, .3)
                     self.assertLess(elapsed, 5)
             finally:
-                stop.set(); server.shutdown(); server.server_close()
+                stop.set(); peer.close(); client.close(); thread.join(1)
 
     def test_rpc_deadline_refuses_a_result_decoded_after_it(self):
         # The body arrives at once but decoding it outlasts the deadline (json.loads holds the GIL, so join()

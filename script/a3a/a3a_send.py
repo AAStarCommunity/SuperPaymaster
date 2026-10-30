@@ -10,6 +10,12 @@ Usage (run by the operator in a terminal: cast asks for the keystore password, a
     --step S1 --rpc-file <file holding the RPC URL> --accounts <json: {"deployer": "<keystore name>", ...}> \
     --out <new empty dir>
 
+Author decision 2026-10-30, Sepolia testing only: opt-in --password-file PATH passes the path to cast
+(regular file, current user's ownership, exactly 0600, no symlink; this module never reads its contents).
+Independent --confirm "SEND <step> <first 12 hex of the plan sha256>" replaces the /dev/tty pause.
+These options remove the human pause only: reviewed sha256, pre_send twice, local decode verification,
+no resend/reprice and one step per run still hold. Interactive operation remains the default.
+
 Order of operations, each a hard stop on failure (nothing leaves this process unless every step before it passed):
   0. A per-user lock is taken before the output directory is claimed. Read the plan once; its sha256 must equal
      the reviewed digest given out-of-band; a snapshot of those bytes is what every later step reads.
@@ -23,7 +29,7 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
      authorization list, and a local keccak of the raw bytes equals the decoded hash. Nothing is sent to any
      provider here.
   4. The operator types `SEND <step> <first 12 hex of the plan sha256>` at the terminal (/dev/tty; no terminal,
-     no send).
+     no send), unless the exact phrase is supplied through --confirm at this same point.
   5. After the confirmation, immediately before broadcast: pre_send again (it must return the identical
      transaction) and the latest base fee plus the planned priority fee must fit under the planned max fee.
   6. broadcast.json ("attempting", hash) is written first; then eth_sendRawTransaction under a total deadline.
@@ -35,7 +41,7 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
 Artefacts go to --out (0700): unsigned tx, decoded fields without the signature, the allowlisted receipt, and
 signed.raw only after broadcast. The RPC URL and provider-supplied text are never written or printed.
 """
-import argparse, contextlib, fcntl, hashlib, json, os, re, subprocess, sys, time, urllib.parse, urllib.request
+import argparse, contextlib, fcntl, hashlib, json, os, re, stat, subprocess, sys, time, urllib.parse, urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -76,12 +82,27 @@ def role_of(plan, address):
     return roles[0]
 
 
-def sign(tx, account):
-    """Offline signature by cast with a keystore; the password prompt goes to the operator's terminal."""
+def password_file_check(path):
+    """Inspect metadata only; cast alone reads the password."""
+    try:
+        info = path.lstat()
+    except OSError:
+        raise ex.Gate('send_password_file', 'unavailable', 'regular file owned by current user, mode 0600') from None
+    ex.need('send_password_symlink', stat.S_ISLNK(info.st_mode), False)
+    ex.need('send_password_regular', stat.S_ISREG(info.st_mode), True)
+    ex.need('send_password_owner', info.st_uid, os.getuid())
+    ex.need('send_password_mode', stat.S_IMODE(info.st_mode), 0o600)
+
+
+def sign(tx, account, password_file=None):
+    """Offline signature by cast with a keystore; by default the password prompt goes to the terminal."""
     cmd = [CAST, 'mktx', '--account', account, '--chain', str(ex.CHAIN),
            '--nonce', str(ex.qty(tx['nonce'])), '--gas-limit', str(ex.qty(tx['gas'])),
            '--gas-price', str(ex.qty(tx['maxFeePerGas'])), '--priority-gas-price', str(ex.qty(tx['maxPriorityFeePerGas'])),
            '--value', str(ex.qty(tx['value']))]
+    if password_file is not None:
+        password_file_check(password_file)
+        cmd += ['--password-file', str(password_file)]
     cmd += ['--create', tx['data']] if tx.get('to') is None else [tx['to'], tx['data']]
     r = subprocess.run(cmd, env=signer_env(), stdout=subprocess.PIPE, text=True)  # stdin/stderr: the terminal
     ex.need('send_sign_exit', r.returncode, 0)
@@ -222,9 +243,9 @@ def check_mined(remote, h, tx, r):
     ex.need('send_mined_blockNumber', field(m.get('blockNumber'), ex.QTY, 'blockNumber'), r['blockNumber'].lower())
 
 
-def signed(tx, account):
+def signed(tx, account, password_file=None):
     """Sign and verify locally. The signed bytes leave this process only in broadcast()."""
-    raw = sign(tx, account)
+    raw = sign(tx, account, password_file)
     decoded = decode(raw)
     h = check_signed(decoded, tx)
     ex.need('send_signed_hash', local_keccak(raw), h)  # local keccak over the raw bytes, not cast's decoder
@@ -256,10 +277,13 @@ def run(args, remote, url, confirm=None):
     accounts = json.loads(args.accounts.read_text())
     ex.need('send_account_named', isinstance(accounts.get(role), str) and accounts[role] != '', True)
     ex.write_json(args.out/'unsigned.json', tx)
-    raw, h, decoded = signed(tx, accounts[role])  # held in memory only until broadcast
+    raw, h, decoded = signed(tx, accounts[role], args.password_file)  # held in memory only until broadcast
     ex.write_json(args.out/'decoded.json', {k: decoded.get(k) for k in DECODED_FIELDS})
     phrase = 'SEND %s %s' % (args.step, args.reviewed_plan_sha256[:12])
-    typed = (confirm or tty_confirm)('Type "%s" to broadcast %s from %s (%s): ' % (phrase, h, tx['from'], role)).strip()
+    typed = args.confirm
+    if typed is None:
+        typed = (confirm or tty_confirm)('Type "%s" to broadcast %s from %s (%s): ' %
+                                         (phrase, h, tx['from'], role)).strip()
     ex.need('send_operator_confirmation', typed, phrase)
     # Every live check again after the (unbounded) confirmation pause, immediately before broadcast.
     again = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
@@ -462,6 +486,8 @@ def main(argv=None):
     p.add_argument('--rpc-file', type=Path, required=True)
     p.add_argument('--accounts', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--password-file', type=Path)
+    p.add_argument('--confirm')
     args = p.parse_args(argv)
     os.umask(0o077)  # every artefact, and the output directory, private to the operator
     try:
