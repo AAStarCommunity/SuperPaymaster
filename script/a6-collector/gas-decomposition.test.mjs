@@ -92,3 +92,13 @@ test('inverse agrees with exhaustive integer candidates at rounding boundaries',
     }
   }
 });
+
+test('non-decimal gas fields are malformed, not parsed as hex or empty', () => {
+  for (const v of ['0x12c', '', '-1', '1.5', ' 300']) {
+    const { row, uoe } = syntheticTrace();
+    row.gas.callGasLimit = v;
+    const d = decomposeGas(row, uoe);
+    assert.equal(d.status, 'mismatch', `callGasLimit ${JSON.stringify(v)}`);
+    assert.equal(d.reason, 'malformed gas or trace evidence');
+  }
+});
