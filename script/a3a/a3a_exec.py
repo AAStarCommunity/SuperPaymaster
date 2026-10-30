@@ -61,6 +61,10 @@ CONTROL_IDS = ('S4_before_S3', 'wrong_safe_nonce', 'early_execute', 'non_owner_q
 SAFE_OWNERS = (EXECUTOR, APPROVER, '0x92a30ef64b0b750220b2b3bafe4f3121263d45b3')
 SENTINEL = '0x' + '00'*19 + '01'
 RELAY_ATTEMPTS, RELAY_BACKOFF = 4, 1.0  # fork relay: bounded retries of pinned reads
+RELAY_RETRY_BUDGET = 20.0  # seconds for all attempts of one request, far below anvil's fork timeout
+# Reads whose answer is fixed once the block is fixed: retried only when the block argument is a hex number.
+RELAY_RETRY_BLOCK_ARG = {'eth_getBalance': 1, 'eth_getCode': 1, 'eth_getTransactionCount': 1,
+                         'eth_getStorageAt': 2, 'eth_getProof': 2, 'eth_getBlockByNumber': 0}
 
 SENDERS = {'deployer': DEPLOYER, 'approver': APPROVER, 'executor': EXECUTOR}
 EMPTY_KECCAK = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
@@ -810,15 +814,24 @@ class RelayFilter:
             return dict(jsonrpc='2.0', id=q.get('id'), error=dict(code=-32601, message='relay: method refused'))
         if m in extras:
             return dict(jsonrpc='2.0', id=q.get('id'), result=extras[m])
-        # Every relayed method is a read pinned to one block, so a retry cannot change the answer; it only
-        # rides out transient upstream failures (rate limits). Each failed attempt is logged.
-        for attempt in range(RELAY_ATTEMPTS):
+        # Retry only state reads pinned to a numbered block: their answer cannot change, so a retry only rides
+        # out transient upstream failures (rate limits). Tags, filters and calls get one attempt. All attempts of
+        # one request stay within RELAY_RETRY_BUDGET, far below anvil's fork timeout. Each failure is logged.
+        params = q.get('params', [])
+        index = RELAY_RETRY_BLOCK_ARG.get(m)
+        pinned = (index is not None and isinstance(params, list) and len(params) > index
+                  and isinstance(params[index], str) and re.fullmatch(r'0x[0-9a-fA-F]+', params[index]) is not None)
+        attempts, start = (RELAY_ATTEMPTS if pinned else 1), time.monotonic()
+        for attempt in range(attempts):
             try:
-                return dict(jsonrpc='2.0', id=q.get('id'), result=self.remote(m, q.get('params', [])))
+                return dict(jsonrpc='2.0', id=q.get('id'), result=self.remote(m, params))
             except Exception:
-                self.log.write('failed '+str(m)+(' (retrying)' if attempt + 1 < RELAY_ATTEMPTS else '')+'\n')
-                if attempt + 1 < RELAY_ATTEMPTS:
-                    time.sleep(RELAY_BACKOFF * (attempt + 1))
+                wait = RELAY_BACKOFF * (attempt + 1)
+                again = attempt + 1 < attempts and time.monotonic() - start + wait < RELAY_RETRY_BUDGET
+                self.log.write('failed '+str(m)+(' (retrying)' if again else '')+'\n')
+                if not again:
+                    break
+                time.sleep(wait)
         return dict(jsonrpc='2.0', id=q.get('id'), error=dict(code=-32000, message='relay: upstream failed'))
 
     def dispatch(self, q):

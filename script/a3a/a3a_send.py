@@ -92,6 +92,15 @@ def password_file_check(path):
     ex.need('send_password_regular', stat.S_ISREG(info.st_mode), True)
     ex.need('send_password_owner', info.st_uid, os.getuid())
     ex.need('send_password_mode', stat.S_IMODE(info.st_mode), 0o600)
+    # cast opens the path after this check, so the directory must be closed to everyone else as well:
+    # nobody but the current user can then swap the file between the check and cast's open.
+    try:
+        parent = path.parent.lstat()
+    except OSError:
+        raise ex.Gate('send_password_dir', 'unavailable', 'directory owned by current user, mode 0700') from None
+    ex.need('send_password_dir_symlink', stat.S_ISLNK(parent.st_mode), False)
+    ex.need('send_password_dir_owner', parent.st_uid, os.getuid())
+    ex.need('send_password_dir_mode', stat.S_IMODE(parent.st_mode), 0o700)
 
 
 def sign(tx, account, password_file=None):

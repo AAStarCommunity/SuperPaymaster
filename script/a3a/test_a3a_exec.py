@@ -1592,7 +1592,7 @@ class RelayRetry(unittest.TestCase):
         log = io.StringIO()
         relay = ex.RelayFilter(flaky, {'block': '0x1'}, log)
         with patch.object(ex, 'RELAY_BACKOFF', 0):
-            r = relay.one({'jsonrpc': '2.0', 'id': 1, 'method': 'eth_getCode', 'params': []})
+            r = relay.one({'jsonrpc': '2.0', 'id': 1, 'method': 'eth_getCode', 'params': ['0x' + '11'*20, '0xb77e20']})
         self.assertEqual((r.get('result'), len(calls)), ('0x01', 3))
         self.assertEqual(log.getvalue(), 'failed eth_getCode (retrying)\n' * 2)
         calls.clear(); log.truncate(0); log.seek(0)
@@ -1600,9 +1600,22 @@ class RelayRetry(unittest.TestCase):
             raise OSError('down')
         relay.remote = dead
         with patch.object(ex, 'RELAY_BACKOFF', 0):
-            r = relay.one({'jsonrpc': '2.0', 'id': 2, 'method': 'eth_getCode', 'params': []})
+            r = relay.one({'jsonrpc': '2.0', 'id': 2, 'method': 'eth_getCode', 'params': ['0x' + '11'*20, '0xb77e20']})
         self.assertIn('error', r)
         self.assertTrue(log.getvalue().endswith('failed eth_getCode\n'))
+        # Not pinned to a numbered block (tag, or not a state read): exactly one attempt, no retry line.
+        for method, params in (('eth_getCode', ['0x' + '11'*20, 'latest']), ('eth_call', [{}, '0xb77e20']),
+                               ('eth_getFilterChanges', ['0x1'])):
+            calls.clear(); log.truncate(0); log.seek(0)
+            relay.remote = lambda m, p: (calls.append(m), (_ for _ in ()).throw(OSError('down')))
+            with patch.object(ex, 'RELAY_BACKOFF', 0):
+                r = relay.one({'jsonrpc': '2.0', 'id': 3, 'method': method, 'params': params})
+            self.assertEqual((len(calls), log.getvalue()), (1, 'failed %s\n' % method))
+        # The retry budget ends retrying early.
+        calls.clear(); log.truncate(0); log.seek(0)
+        with patch.object(ex, 'RELAY_BACKOFF', 0), patch.object(ex, 'RELAY_RETRY_BUDGET', -1):
+            relay.one({'jsonrpc': '2.0', 'id': 4, 'method': 'eth_getCode', 'params': ['0x' + '11'*20, '0xb77e20']})
+        self.assertEqual((len(calls), log.getvalue()), (1, 'failed eth_getCode\n'))
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
             (out/'relay.log').write_text('failed eth_getCode (retrying)\n' + ex.TEARDOWN_MARK + '\n')

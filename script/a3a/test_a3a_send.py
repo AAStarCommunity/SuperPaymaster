@@ -209,6 +209,14 @@ class SenderTests(unittest.TestCase):
         with mock.patch.object(sd.os, 'getuid', return_value=os.getuid()+1):
             self.refused_password('send_password_owner')
 
+    def test_password_dir_not_private(self):
+        self.password_path()
+        self.d.chmod(0o755)
+        try:
+            self.refused_password('send_password_dir_mode')
+        finally:
+            self.d.chmod(0o700)
+
     def test_password_missing(self):
         self.args.password_file = self.d / 'missing'
         self.refused_password('send_password_file')
