@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -72,7 +73,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
 
     /// @notice m of the rule C_POSTOP >= W_postop x (1 + m) (DSR: >= 15%; author decides).
     uint256 constant M_BPS = 1_500;
-    uint256 constant MIN_POST_OP_GAS = 200_000; // the op's postOpGasLimit in these scenarios (== default)
+    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST; // The op's postOpGasLimit at the queued deployment floor.
     uint256 constant OWNER_PK = 0xA0A0;
     uint256 constant CALL_GAS = 200_000;
     uint256 constant P_WEI = 1e14;
@@ -112,7 +113,9 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         V55APNTs apnts = new V55APNTs();
         address feed = address(new V55PriceFeed()); // ETH/USD 2000, 8 decimals
         sp = UUPSDeployHelper.deploySuperPaymasterProxy(entryPoint, IRegistry(address(registry)), feed, owner, address(apnts), treasury, 3600);
+        GasFixture.configure(sp);
         sp2 = UUPSDeployHelper.deploySuperPaymasterProxy(entryPoint, IRegistry(address(registry)), feed, owner, address(apnts), treasury, 3600);
+        GasFixture.configure(sp2);
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
         aoa.bootstrapApprove(aoa.KIND_SP(), aoa.spKey(address(sp)));
@@ -167,7 +170,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         op.preVerificationGas = 50_000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(
-            address(sp), uint128(700_000), uint128(MIN_POST_OP_GAS), operator, type(uint256).max, address(token), uint8(0)
+            address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(MIN_POST_OP_GAS), operator, type(uint256).max, address(token), uint8(0)
         );
         vm.prank(EP);
         uint256 vd;
@@ -364,10 +367,10 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         console.log("W_postop (max over paths)", W);
         console.log("observed C_POSTOP + C_WRAP / C_POSTOP_obs", sum, cPostop);
         console.log("W_postop x (1 + m), m bps", need, M_BPS);
-        console.log("margin of C_POSTOP over W_postop (bps)", (cPostop - W) * 10_000 / W);
         console.log("EntryPoint wrap upper bound / C_WRAP", wrap, g.cWrap);
         assertGt(W, 100_000, "positive control: the measurement is live (a real settlement)");
         assertGe(cPostop, need, "rule: C_POSTOP >= W_postop x (1 + m)");
+        console.log("margin of C_POSTOP over W_postop (bps)", (cPostop - W) * 10_000 / W);
         assertLe(wrap, g.cWrap, "rule: EntryPoint wrap <= C_WRAP");
         // C_POSTOP replaces postOpGasLimit only because MIN_POST_OP_GAS >= C_POSTOP
         assertLe(cPostop, g.minPostOpGas, "MIN_POST_OP_GAS >= C_POSTOP (min(limit, C_POSTOP) == C_POSTOP)");

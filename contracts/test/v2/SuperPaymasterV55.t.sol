@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -36,7 +37,7 @@ contract SuperPaymasterV55Test is Test {
     xPNTsTokenV2 token;
 
     uint256 constant OWNER_PK = 0xA0A0;
-    uint256 constant MIN_POST_OP_GAS = 200_000;
+    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST;
     address owner = address(0x0A11);
     address treasury = address(0x7EA);
     address operator = address(0x0BE);
@@ -62,6 +63,7 @@ contract SuperPaymasterV55Test is Test {
             IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(new V55PriceFeed()),
             owner, address(apnts), treasury, 3600
         );
+        GasFixture.configure(sp);
 
         aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
@@ -106,7 +108,7 @@ contract SuperPaymasterV55Test is Test {
         op.preVerificationGas = 50_000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(
-            address(sp), uint128(700_000), uint128(postOpGas), operator, type(uint256).max, address(token), flags
+            address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(postOpGas), operator, type(uint256).max, address(token), flags
         );
         bytes32 h = entryPoint.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PK, MessageHashUtils.toEthSignedMessageHash(h));
@@ -134,7 +136,7 @@ contract SuperPaymasterV55Test is Test {
         uint256 userBefore = token.balanceOf(user);
         uint128 opBefore = _opBalance();
         uint256 revBefore = sp.protocolRevenue();
-        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
         bytes32 h = entryPoint.getUserOpHash(op);
 
         (bool reverted, bool postOpFailed) = _handle(op);
@@ -192,7 +194,8 @@ contract SuperPaymasterV55Test is Test {
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei);
         uint256 used = g0 - gasleft();
         console.log("measured postOp gas (worst-ish, warm-in-test)", used);
-        assertLe(used * 64 / 63 + 20_000, MIN_POST_OP_GAS, "MIN_POST_OP_GAS must cover postOp x 64/63 + margin");
+        (SuperPaymaster.GasParams memory configured, ) = sp.gasParams();
+        assertLe(used * 64 / 63 + 20_000, configured.minPostOpGas, "MIN_POST_OP_GAS must cover postOp x 64/63 + margin");
     }
 
     // ------------------------------------------------------------------
@@ -208,7 +211,7 @@ contract SuperPaymasterV55Test is Test {
         // make settlement impossible: drop the lock record by releasing it in a prior step is not
         // possible within one tx, so instead exercise the SP guard directly: postOp with a context
         // whose lock does not exist must revert (no silent catch).
-        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
         bytes32 h = entryPoint.getUserOpHash(op);
         bytes memory ctx = abi.encode(SuperPaymaster.OpCtx(address(token), user, 1 ether, h, operator, 1, 0, 300_000, 2000e8, 8, 0.02 ether));
         vm.prank(address(entryPoint));
@@ -218,7 +221,7 @@ contract SuperPaymasterV55Test is Test {
 
     /// forge-config: default.isolate = true
     function test_I10_stale_sponsorship_restores_operator() public {
-        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
         bytes32 h = entryPoint.getUserOpHash(op);
         uint128 opBefore = _opBalance();
         vm.prank(address(entryPoint));
@@ -233,7 +236,7 @@ contract SuperPaymasterV55Test is Test {
     }
 
     function test_I10_release_refused_while_in_flight() public {
-        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
         bytes32 h = entryPoint.getUserOpHash(op);
         vm.prank(address(entryPoint));
         sp.validatePaymasterUserOp(op, h, 1e15);
@@ -256,22 +259,22 @@ contract SuperPaymasterV55Test is Test {
         vm.prank(other);
         IV2Ext(address(otherToken)).mint(user, 10_000 ether);
 
-        PackedUserOperation memory op = _op(0, 300_000, 0, "");
-        op.paymasterAndData = abi.encodePacked(address(sp), uint128(700_000), uint128(300_000), operator, type(uint256).max, address(otherToken), uint8(0));
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
+        op.paymasterAndData = abi.encodePacked(address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(MIN_POST_OP_GAS), operator, type(uint256).max, address(otherToken), uint8(0));
         vm.prank(address(entryPoint));
         (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(op, bytes32(uint256(1)), 1e15);
         assertEq(vd & 1, 1, "sigFail bit set on token mismatch");
         assertEq(ctx.length, 0, "no context on sigFail");
         assertEq(otherToken.lockedOf(user), 0, "the other community's token was not touched");
 
-        PackedUserOperation memory good = _op(0, 300_000, 0, "");
+        PackedUserOperation memory good = _op(0, MIN_POST_OP_GAS, 0, "");
         vm.prank(address(entryPoint));
         (, uint256 vdGood) = sp.validatePaymasterUserOp(good, bytes32(uint256(2)), 1e15);
         assertEq(vdGood & 1, 0, "control: the configured token validates");
     }
 
     function test_both_renew_flags_rejected() public {
-        PackedUserOperation memory op = _op(0, 300_000, 3, "");
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 3, "");
         vm.prank(address(entryPoint));
         (, uint256 vd) = sp.validatePaymasterUserOp(op, bytes32(uint256(2)), 1e15);
         assertEq(vd & 1, 1, "sigFail when both renew bits are set");
@@ -285,7 +288,7 @@ contract SuperPaymasterV55Test is Test {
         sp.updateSBTStatus(poor, true);
         registry.setCreditLimit(poor, 1_000 ether);
 
-        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
         op.sender = poor;
         vm.prank(address(entryPoint));
         (, uint256 vd) = sp.validatePaymasterUserOp(op, keccak256("p1"), 1e15);
@@ -326,7 +329,7 @@ contract SuperPaymasterV55Test is Test {
     // ------------------------------------------------------------------
 
     function test_lens_agrees_with_validation() public {
-        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
         (bool ok, bytes32 reason) = lens.dryRunValidation(address(sp), op, 1e15);
         assertTrue(ok, string(abi.encodePacked(reason)));
         bytes32 h = entryPoint.getUserOpHash(op); // compute BEFORE prank (prank binds the next call)
@@ -357,7 +360,7 @@ contract SuperPaymasterV55Test is Test {
     ///         moved +10% between validate and postOp; the charge must equal the formula evaluated
     ///         with the snapshot. Mutation "postOp re-reads the live price" makes this red.
     function test_R10M3_charge_uses_validation_price_snapshot() public {
-        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
         bytes32 h = entryPoint.getUserOpHash(op);
         (int256 pAtValidation, , , uint8 decAtValidation) = sp.cachedPrice();
         uint256 aAtValidation = sp.aPNTsPriceUSD();
@@ -376,8 +379,8 @@ contract SuperPaymasterV55Test is Test {
 
         uint256 actualGasCost = 1e14;
         uint256 feePerGas = 1 gwei;
-        // exp/buffer: C_POSTOP replaces postOpGasLimit (exp/params default 175k); C_WRAP 5k
-        uint256 bufWei = (175_000 + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100) + 5_000) * feePerGas;
+        // exp/buffer: C_POSTOP replaces postOpGasLimit; use the queued deployment tuple
+        uint256 bufWei = (GasFixture.POSTOP + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100) + 5_000) * feePerGas;
         uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil);
         uint256 expected = Math.mulDiv(aGas, 10_000 + sp.protocolFeeBPS(), 10_000, Math.Rounding.Ceil);
         assertLt(expected, c.a0, "precondition: charge below the reservation cap (cap cannot mask a wrong price)");
@@ -392,7 +395,7 @@ contract SuperPaymasterV55Test is Test {
     ///         dedicated error. Mutation "delete the entry check" makes this red (it would then fail,
     ///         if at all, with an out-of-gas instead of PostOpGasTooLow).
     function test_B1_postOp_entry_gas_guard() public {
-        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
         bytes32 h = entryPoint.getUserOpHash(op);
         vm.prank(address(entryPoint));
         (bytes memory ctx, ) = sp.validatePaymasterUserOp(op, h, 1e15);
@@ -422,7 +425,7 @@ contract SuperPaymasterV55Test is Test {
             bytes memory ctx = m == 0 ? ctxB : ctxC;
             (address sender, bytes32 h) = m == 0 ? (user, keccak256("band-b")) : (poor, keccak256("band-c"));
             (uint256 guard, uint256 ok) = (0, 0);
-            for (uint256 g = 60_000; g <= 260_000; g += 500) {
+            for (uint256 g = 60_000; g <= GasFixture.SWEEP_MAX; g += 500) {
                 uint256 snap = vm.snapshot();
                 vm.prank(address(entryPoint));
                 (bool success, bytes memory ret) = address(sp).call{gas: g}(
@@ -484,14 +487,14 @@ contract SuperPaymasterV55Test is Test {
         bytes memory exec = abi.encodeWithSignature("execute(address,uint256,bytes)", address(counter), 0, abi.encodeCall(V55Counter.inc, ()));
 
         // control run: settlement works → execution kept, counter == 1
-        (bool r0, bool pf0) = _handle(_op(0, 300_000, 0, exec));
+        (bool r0, bool pf0) = _handle(_op(0, MIN_POST_OP_GAS, 0, exec));
         assertFalse(r0); assertFalse(pf0);
         assertEq(counter.n(), 1, "control: execution kept when settlement succeeds");
 
         // failing run
         uint256 userBal = token.balanceOf(user);
         uint128 opBefore = _opBalance();
-        PackedUserOperation memory op = _op(1, 300_000, 0, exec);
+        PackedUserOperation memory op = _op(1, MIN_POST_OP_GAS, 0, exec);
         bytes32 h = entryPoint.getUserOpHash(op);
         vm.mockCallRevert(address(token), abi.encodeWithSelector(IxPNTsTokenV2.settleLocked.selector), "settle boom");
         (bool reverted, bool postOpFailed) = _handle(op);

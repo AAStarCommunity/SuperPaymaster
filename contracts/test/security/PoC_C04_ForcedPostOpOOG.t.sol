@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -73,8 +74,8 @@ contract PoC_C04_ForcedPostOpOOG_Test is Test {
     uint256 internal constant ACCOUNT_OWNER_PK = 0xC0400A;
     uint256 internal constant POOR_OWNER_PK = 0xC0400B;
     uint256 internal constant NORMAL_POST_OP_GAS = 1_000_000;
-    uint256 internal constant MIN_POST_OP_GAS = 200_000; // SuperPaymaster.MIN_POST_OP_GAS (internal)
-    uint256 internal constant PM_VERIFICATION_GAS = 700_000;
+    uint256 internal constant MIN_POST_OP_GAS = GasFixture.MIN_POST; // Queued deployment floor
+    uint256 internal constant PM_VERIFICATION_GAS = GasFixture.PM_VERIFICATION;
     uint256 internal constant ACCOUNT_VERIFICATION_GAS = 350_000;
     uint256 internal constant CALL_GAS_LIMIT = 0;
     uint256 internal constant PRE_VERIFICATION_GAS = 50_000;
@@ -142,6 +143,7 @@ contract PoC_C04_ForcedPostOpOOG_Test is Test {
             treasury,
             3600
         );
+        GasFixture.configure(paymaster);
         vm.stopPrank();
 
         // xPNTs v2 stack (this test contract is the protocol-registry owner and the token FACTORY).

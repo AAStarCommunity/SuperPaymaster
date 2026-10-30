@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -92,7 +93,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     address constant SENDER_CREATOR = 0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C;
     bytes32 constant EP_CODEHASH = 0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58;
 
-    uint256 constant MIN_POST_OP_GAS = 200_000; // SuperPaymaster.MIN_POST_OP_GAS
+    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST; // Queued deployment floor
     /// @dev Buffer constants of the charge oracle (exp/buffer). Defaults = the source values
     ///      (C_POSTOP_GAS 170k, C_WRAP_GAS 5k; pinned by SuperPaymasterV55PostOpBoundTest and
     ///      V55Test R10M3). Env overrides exist ONLY for the negative control / m sweep, where the
@@ -107,7 +108,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     uint256 private _minPost; // SP gasParams().minPostOpGas (exp/params)
     uint256 private _settle;  // SP gasParams().settleGasBound
     uint256 constant VERIF_GAS = 400_000;
-    uint256 constant PM_VERIF_GAS = 700_000;
+    uint256 constant PM_VERIF_GAS = GasFixture.PM_VERIFICATION;
     uint256 constant PVG = 50_000;
     uint256 constant BPS = 10_000;
     uint256 constant VALIDATION_BUFFER_BPS = 1_000; // SuperPaymaster.VALIDATION_BUFFER_BPS
@@ -344,6 +345,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         sp = UUPSDeployHelper.deploySuperPaymasterProxy(
             entryPoint, IRegistry(address(registry)), address(feed), owner, address(apnts), treasury, 3600
         );
+        GasFixture.configure(sp);
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
         aoa.bootstrapApprove(aoa.KIND_SP(), aoa.spKey(address(sp)));
@@ -517,13 +519,13 @@ contract SuperPaymasterV55FuzzTest is Test {
     }
 
     /// @notice The OOG band of mutation (2) is unreachable through EntryPoint (the validation floor
-    ///         MIN_POST_OP_GAS = 200k keeps postOp's gas well above SETTLE_GAS_BOUND), so the fuzz
+    ///         The configured MIN_POST_OP_GAS keeps postOp's gas well above SETTLE_GAS_BOUND), so the fuzz
     ///         also drives postOp directly with a random gas budget: every call either stops at the
     ///         entry guard (PostOpGasTooLow) or settles completely — never an OOG half-way.
     /// forge-config: default.fuzz.runs = 1000
     /// forge-config: default.fuzz.seed = "0xd5c3"
     function testFuzz_G2_noOOGBand_direct_postOp(uint256 gasSeed, bool credit) public {
-        uint256 g = _bound(gasSeed, 60_000, 260_000);
+        uint256 g = _bound(gasSeed, 60_000, GasFixture.SWEEP_MAX);
         address u = usr[0];
         if (credit) {
             vm.prank(u);
@@ -644,7 +646,7 @@ contract SuperPaymasterV55FuzzTest is Test {
                 : 1_000_000 + _r(500_001)
             );
             o.callGas = uint128(
-                o.exec == EX_OK ? 100_000 + _r(400_000)
+                o.exec == EX_OK ? GasFixture.FUZZ_SUCCESS_CALL_MIN + _r(400_000)
                 : o.exec == EX_MOVE ? 400_000 + _r(200_000)
                 : o.exec == EX_REVERT ? 60_000 + _r(440_000)
                 : 40_000 + _r(160_000)

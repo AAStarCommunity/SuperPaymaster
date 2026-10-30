@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -60,10 +61,10 @@ contract SuperPaymasterD5bUpgradeRaceTest is Test {
     uint256 constant GOV2_SLOT = 40;
 
     // gas parameters executed MID-BUNDLE (all within the hard bounds, far from the defaults)
-    uint32 constant NEW_MIN = 400_000;
+    uint32 constant NEW_MIN = GasFixture.MIN_POST + 400_000;
     uint32 constant NEW_SETTLE = 300_000;
     uint32 constant NEW_CWRAP = 50_000;
-    uint32 constant NEW_CPOSTOP = 400_000;
+    uint32 constant NEW_CPOSTOP = GasFixture.POSTOP + 300_000;
 
     IEntryPoint entryPoint = IEntryPoint(EP);
     SimpleAccountFactory accountFactory;
@@ -110,6 +111,7 @@ contract SuperPaymasterD5bUpgradeRaceTest is Test {
         ))));
         assertEq(address(uint160(uint256(vm.load(address(sp), IMPL_SLOT)))), startOnNew ? newImpl : oldImpl, "precondition: starting implementation");
 
+        GasFixture.configure(sp);
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
         aoa.bootstrapApprove(aoa.KIND_SP(), aoa.spKey(address(sp)));
@@ -178,7 +180,7 @@ contract SuperPaymasterD5bUpgradeRaceTest is Test {
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         if (sponsored) {
             op.paymasterAndData = abi.encodePacked(
-                address(sp), uint128(700_000), uint128(200_000), operator, type(uint256).max, address(token), uint8(0)
+                address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST), operator, type(uint256).max, address(token), uint8(0)
             );
         }
         bytes32 h = entryPoint.getUserOpHash(op);
@@ -256,8 +258,8 @@ contract SuperPaymasterD5bUpgradeRaceTest is Test {
         assertEq(r.nTS, 2, string.concat(dir, ": both victims sponsored"));
         assertEq(target.hits(keccak256("v1")), 1, "victim 1 execution kept");
         assertEq(target.hits(keccak256("v2")), 1, "victim 2 execution kept");
-        uint256 bufSnap = (175_000 + 5_000 + Math.ceilDiv(uint256(300_000 + 200_000) * 10, 100)) * 1 gwei;
-        uint256 bufNew = (uint256(NEW_CPOSTOP) + NEW_CWRAP + Math.ceilDiv(uint256(300_000 + 200_000) * 10, 100)) * 1 gwei;
+        uint256 bufSnap = (GasFixture.POSTOP + GasFixture.WRAP + Math.ceilDiv(uint256(300_000 + GasFixture.MIN_POST) * 10, 100)) * 1 gwei;
+        uint256 bufNew = (uint256(NEW_CPOSTOP) + NEW_CWRAP + Math.ceilDiv(uint256(300_000 + GasFixture.MIN_POST) * 10, 100)) * 1 gwei;
         assertGt(bufNew, bufSnap + 200_000 gwei, "precondition: the mid-bundle params would move the charge");
         for (uint256 k = 2; k < 4; k++) {
             uint256 W = r.aGas[k] / 1e5; // ETH 2000 / aPNTs 0.02 -> exact

@@ -1,0 +1,24 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+Compiling 174 files with Solc 0.8.33
+Compiling 117 files with Solc 0.8.33
+Solc 0.8.33 finished in 40.67s
+Solc 0.8.33 finished in 50.42s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/v2/G7Mutations.t.sol:G7MutationFuzz
+[FAIL: DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost: 1827511012226570 < 1838299350952020] test_mutation_G2_noop_settlement() (gas: 7698676)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 4.96s (4.96s CPU time)
+
+Ran 1 test suite in 4.96s (4.96s CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/G7Mutations.t.sol:G7MutationFuzz
+[FAIL: DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost: 1827511012226570 < 1838299350952020] test_mutation_G2_noop_settlement() (gas: 7698676)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

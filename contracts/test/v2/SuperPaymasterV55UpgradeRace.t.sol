@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -154,7 +155,7 @@ contract SuperPaymasterV55UpgradeRaceTest is Test {
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         if (sponsored) {
             op.paymasterAndData = abi.encodePacked(
-                address(sp), uint128(700_000), uint128(200_000), operator, type(uint256).max, address(token), uint8(0)
+                address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST), operator, type(uint256).max, address(token), uint8(0)
             );
         }
         bytes32 h = entryPoint.getUserOpHash(op);
@@ -224,12 +225,12 @@ contract SuperPaymasterV55UpgradeRaceTest is Test {
     /// @dev The victims are charged with the 5.5.0 formula in BOTH directions (forward: the new impl's
     ///      legacy rule for a 352-byte context; rollback: 5.5.0 itself).
     function _assertChargedWith550Formula(Res memory r) internal pure {
-        uint256 bufOld = (200_000 + Math.ceilDiv(uint256(300_000 + 200_000) * 10, 100) + 30_000) * 1 gwei;
+        uint256 bufOld = (GasFixture.MIN_POST + Math.ceilDiv(uint256(300_000 + GasFixture.MIN_POST) * 10, 100) + 30_000) * 1 gwei;
         for (uint256 k = 1; k < 3; k++) {
             uint256 W = r.aGas[k] / 1e5; // ETH 2000 / aPNTs 0.02 -> exact
             assertGe(W + 1, r.G[k], "charge covers the op's cost");
             assertLe(W, r.G[k] + bufOld + 1, "charged within the 5.5.0 (validation-time) bound");
-            assertGe(W + 1, r.G[k] + bufOld - (200_000 + 30_000 + 50_000) * 1 gwei,
+            assertGe(W + 1, r.G[k] + bufOld - (uint256(GasFixture.MIN_POST) + 30_000 + 50_000) * 1 gwei,
                 "charged with the 5.5.0 formula (not a zero / snapshot buffer)");
         }
     }

@@ -14,8 +14,12 @@ import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 contract PostOpProbePaymaster is IPaymaster {
     uint256 public constant BURN_FLOOR = 300;
     uint256 public constant CTX_WORDS = 12; // == SuperPaymaster context: 11 OpCtx words + 1 gas-snapshot word (exp/params)
-    uint256 public lastPassedGas;
-    uint256 public calls;
+    // Pre-create the recording slots outside the measured frame. EIP-8037 state
+    // creation gas belongs to instrumentation, not EntryPoint wrapper overhead.
+    uint256 public lastPassedGas = 1;
+    uint256 private callCount = 1;
+
+    function calls() external view returns (uint256) { return callCount - 1; }
 
     function validatePaymasterUserOp(PackedUserOperation calldata, bytes32, uint256)
         external pure returns (bytes memory context, uint256 validationData)
@@ -27,7 +31,7 @@ contract PostOpProbePaymaster is IPaymaster {
 
     function postOp(PostOpMode, bytes calldata, uint256 actualGasCost, uint256 feePerGas) external {
         lastPassedGas = actualGasCost / feePerGas;
-        calls += 1;
+        callCount += 1;
         while (gasleft() > BURN_FLOOR) {}
     }
 }

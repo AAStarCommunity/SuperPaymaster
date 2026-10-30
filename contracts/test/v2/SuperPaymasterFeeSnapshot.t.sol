@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -89,6 +90,7 @@ contract SuperPaymasterFeeSnapshotTest is Test {
             startOnNew ? newImpl : oldImpl, abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 3600))
         ))));
 
+        GasFixture.configure(sp);
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(deployer);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
         aoa.bootstrapApprove(aoa.KIND_SP(), aoa.spKey(address(sp)));
@@ -134,7 +136,7 @@ contract SuperPaymasterFeeSnapshotTest is Test {
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         if (sponsored) {
             op.paymasterAndData = abi.encodePacked(
-                address(sp), uint128(700_000), uint128(200_000), operator, type(uint256).max, address(token), uint8(0)
+                address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST), operator, type(uint256).max, address(token), uint8(0)
             );
         }
         bytes32 h = entryPoint.getUserOpHash(op);
