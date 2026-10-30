@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# LOCAL ANVIL ONLY: C4 positive control for script/evidence/a4-credit-logscan.py.
+# Chain setup reuses the a6-gauge-credit recipe (deploy, queue policy AUTO=2, wait 48 h, execute).
+set -u
+export PATH="$HOME/.foundry/bin:$PATH"
+SETUP=/Users/jason/Dev/aastar/sp-wt/a4c      # worktree with submodules, used only to deploy
+SCAN=/Users/jason/Dev/aastar/sp-wt/a4scan    # worktree under test (committed HEAD)
+OUT=${1:?outDir}; mkdir -p "$OUT"
+A=http://127.0.0.1:8545
+KEY0=<anvil-dev-key-0>
+anvil --port 8545 --chain-id 31337 > "$OUT/anvil.log" 2>&1 & AP=$!
+trap 'kill $AP 2>/dev/null; (cd $SETUP && git checkout -q -- abis deployments)' EXIT
+sleep 3
+(cd $SETUP && ./deploy-core anvil --force > "$OUT/setup-deploy-core.log" 2>&1) || { echo "deploy-core failed"; exit 1; }
+SP=$(jq -r .superPaymaster $SETUP/deployments/config.anvil.json)
+DEPLOYER=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+(cd $SETUP && ./prepare-test anvil > "$OUT/setup-prepare-test.log" 2>&1) || { echo "prepare-test failed"; exit 1; }
+TOKEN=$(cast call "$SP" "operators(address)(uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)" $DEPLOYER --rpc-url $A | sed -n 4p)
+echo "token=$TOKEN head=$(git -C $SCAN rev-parse HEAD) dirty=$(git -C $SCAN status --porcelain | wc -l | tr -d ' ')" > "$OUT/token.txt"
+mine_finality() { for i in $(seq 1 70); do cast rpc evm_mine --rpc-url $A > /dev/null; done; }
+# 1. negative of the positive: before any policy change, C4 must pass
+mine_finality
+TO=$(cast block finalized -f number --rpc-url $A); echo "pre to=$TO" >> "$OUT/token.txt"
+node $SCAN/script/a6-collector/rpc-proxy.mjs --listen 18547 --upstream $A > "$OUT/proxy-pre.log" 2>&1 & PX=$!; sleep 1
+echo $A > "$OUT/a.rpc"; echo http://127.0.0.1:18547 > "$OUT/b.rpc"
+python3 $SCAN/script/evidence/a4-credit-logscan.py --rpc-a-file "$OUT/a.rpc" --rpc-b-file "$OUT/b.rpc" --token $TOKEN --from-block 1 --to-block $TO --out "$OUT/pre.json" > "$OUT/pre.out" 2>&1; echo "pre scan exit $?"
+kill $PX
+# 2. queue + execute AUTO, then the control script must find it
+cast send $TOKEN 'queueCreditPolicy(uint8)' 2 --private-key $KEY0 --rpc-url $A > "$OUT/queue.log" 2>&1
+cast rpc evm_increaseTime 172801 --rpc-url $A > /dev/null && cast rpc evm_mine --rpc-url $A > /dev/null
+cast send $TOKEN 'executeCreditPolicy()' --private-key $KEY0 --rpc-url $A > "$OUT/execute.log" 2>&1
+mine_finality
+TO=$(cast block finalized -f number --rpc-url $A); echo "post to=$TO policy=$(cast call $TOKEN 'creditPolicy()(uint8)' --rpc-url $A)" >> "$OUT/token.txt"
+bash $SCAN/script/evidence/a4-credit-logscan-anvil-control.sh $TOKEN 1 $TO "$OUT/post.json" > "$OUT/control.out" 2>&1; echo "control exit $?"
