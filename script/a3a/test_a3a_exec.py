@@ -1581,5 +1581,36 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'], 'rebuild_forge_version')
 
 
+class RelayRetry(unittest.TestCase):
+    def test_transient_upstream_failure_is_retried_and_final_failure_stays_fatal(self):
+        calls = []
+        def flaky(method, params):
+            calls.append(method)
+            if len(calls) < 3:
+                raise OSError('rate limited')
+            return '0x01'
+        log = io.StringIO()
+        relay = ex.RelayFilter(flaky, {'block': '0x1'}, log)
+        with patch.object(ex, 'RELAY_BACKOFF', 0):
+            r = relay.one({'jsonrpc': '2.0', 'id': 1, 'method': 'eth_getCode', 'params': []})
+        self.assertEqual((r.get('result'), len(calls)), ('0x01', 3))
+        self.assertEqual(log.getvalue(), 'failed eth_getCode (retrying)\n' * 2)
+        calls.clear(); log.truncate(0); log.seek(0)
+        def dead(method, params):
+            raise OSError('down')
+        relay.remote = dead
+        with patch.object(ex, 'RELAY_BACKOFF', 0):
+            r = relay.one({'jsonrpc': '2.0', 'id': 2, 'method': 'eth_getCode', 'params': []})
+        self.assertIn('error', r)
+        self.assertTrue(log.getvalue().endswith('failed eth_getCode\n'))
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            (out/'relay.log').write_text('failed eth_getCode (retrying)\n' + ex.TEARDOWN_MARK + '\n')
+            ex.relay_evidence(out)
+            (out/'relay.log').write_text('failed eth_getCode (retrying)\nfailed eth_getCode\n' + ex.TEARDOWN_MARK + '\n')
+            with self.assertRaises(ex.Gate):
+                ex.relay_evidence(out)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

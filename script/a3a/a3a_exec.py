@@ -60,6 +60,7 @@ CONTROL_IDS = ('S4_before_S3', 'wrong_safe_nonce', 'early_execute', 'non_owner_q
 # Author decision 2026-10-30: separate Sepolia test Safe.
 SAFE_OWNERS = (EXECUTOR, APPROVER, '0x92a30ef64b0b750220b2b3bafe4f3121263d45b3')
 SENTINEL = '0x' + '00'*19 + '01'
+RELAY_ATTEMPTS, RELAY_BACKOFF = 4, 1.0  # fork relay: bounded retries of pinned reads
 
 SENDERS = {'deployer': DEPLOYER, 'approver': APPROVER, 'executor': EXECUTOR}
 EMPTY_KECCAK = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
@@ -807,12 +808,18 @@ class RelayFilter:
             name = m if isinstance(m, str) and m.replace('_', '').isalnum() else 'malformed'
             self.log.write('refused '+name+'\n')
             return dict(jsonrpc='2.0', id=q.get('id'), error=dict(code=-32601, message='relay: method refused'))
-        try:
-            result = extras[m] if m in extras else self.remote(m, q.get('params', []))
-            return dict(jsonrpc='2.0', id=q.get('id'), result=result)
-        except Exception:
-            self.log.write('failed '+str(m)+'\n')
-            return dict(jsonrpc='2.0', id=q.get('id'), error=dict(code=-32000, message='relay: upstream failed'))
+        if m in extras:
+            return dict(jsonrpc='2.0', id=q.get('id'), result=extras[m])
+        # Every relayed method is a read pinned to one block, so a retry cannot change the answer; it only
+        # rides out transient upstream failures (rate limits). Each failed attempt is logged.
+        for attempt in range(RELAY_ATTEMPTS):
+            try:
+                return dict(jsonrpc='2.0', id=q.get('id'), result=self.remote(m, q.get('params', [])))
+            except Exception:
+                self.log.write('failed '+str(m)+(' (retrying)' if attempt + 1 < RELAY_ATTEMPTS else '')+'\n')
+                if attempt + 1 < RELAY_ATTEMPTS:
+                    time.sleep(RELAY_BACKOFF * (attempt + 1))
+        return dict(jsonrpc='2.0', id=q.get('id'), error=dict(code=-32000, message='relay: upstream failed'))
 
     def dispatch(self, q):
         return [self.one(x) for x in q] if isinstance(q, list) else self.one(q)
@@ -851,6 +858,10 @@ def relay_evidence(out, live=False):
     # risky variant is anvil giving up on its own timeout (120 s), so an abandon is accepted only well below it.
     def allowed(x):
         if x == 'refused eth_gasPrice' or x.startswith('redelivered key='):
+            return True
+        # A pinned read that failed and was retried: anvil never saw that error. Only the final failure of a
+        # request (a plain 'failed <method>' line) reaches anvil, and that stays fatal.
+        if re.fullmatch(r'failed eth_[A-Za-z]+ \(retrying\)', x):
             return True
         if x.startswith(('abandoned ', 'abandoned-duplicate ')):
             parts = dict(p.split('=', 1) for p in x.split() if '=' in p)
