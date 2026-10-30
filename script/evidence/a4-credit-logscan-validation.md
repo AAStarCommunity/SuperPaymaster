@@ -5,7 +5,7 @@ Offline validation performed without network access or signing. The Anvil contro
 ## Files and use
 
 - `a4-credit-logscan.py`: stdlib-only read-only scanner; URL contents come from files and are never printed. Exit 0 means both criteria pass, 1 means fail or unverified, and command/output errors are nonzero.
-- `test_a4_credit_logscan.py`: 35 offline unittest controls and a repeatable mutation runner.
+- `test_a4_credit_logscan.py`: 36 offline unittest controls and a repeatable mutation runner.
 - `a4-credit-logscan-anvil-control.sh`: read-only positive control for an already prepared Anvil chain with executed policy 2. Starts the existing local proxy and requires a complete scan with C4=fail and policy 2 present.
 
 ```sh
@@ -39,7 +39,7 @@ Each topic0 was computed offline using both `cast keccak` and PyCryptodome Kecca
 
 ## Results and targeted mutations
 
-35/35 tests passed. 39/39 targeted mutations were killed by assertion failures, with zero mutant test errors. Each unittest method has one aggregate assertion and a named mutation that makes it fail. These results do not claim exhaustive mutation coverage of every branch or every component within an aggregate assertion. The shell control was executed on a local anvil chain afterwards; see `docs/design/aoa-balance-mode/data/a4-credit-logscan/README.md`.
+36/36 tests passed. 40/40 targeted mutations were killed by assertion failures, with zero mutant test errors. Each unittest method has one aggregate assertion and a named mutation that makes it fail. These results do not claim exhaustive mutation coverage of every branch or every component within an aggregate assertion. The shell control was executed on a local anvil chain afterwards; see `docs/design/aoa-balance-mode/data/a4-credit-logscan/README.md`.
 
 The fake provider filters by the requested topics, while injected event topic0 values are independent literals. With a wrong policy selector the scan misses the fixture and returns C4=pass: the deliberate broken-instrument test records that failure mode, and the separate policy-selector mutation turns the actual positive control red.
 
@@ -59,6 +59,7 @@ The fake provider filters by the requested topics, while injected event topic0 v
 | Report start instead of discovered deployment block | `test_bisection_and_evidence` | assertion failed |
 | Return pass when no token code exists at the end | `test_no_code` | assertion failed |
 | Skip the finalized-checkpoint check against the numbered view | `test_finalized_checkpoint_in_numbered_view` | assertion failed |
+| Accept any RPC URL file (scheme/host/fragment check removed) | `test_endpoint_file_rejected_without_echo` | assertion failed |
 | Remove finalized-height gate | `test_finalized_both` | assertion failed |
 | Remove chain-ID equality gate | `test_chain_mismatch` | assertion failed |
 | Remove chunk-boundary header equality gate | `test_boundary_hash` | assertion failed |

@@ -182,6 +182,25 @@ class Controls(unittest.TestCase):
         b.final_hash = bh(999)
         self.assertEqual(verdicts(run(b=b)), ("未能验证", "未能验证"))
 
+    def test_endpoint_file_rejected_without_echo(self):
+        bad = []
+        with tempfile.TemporaryDirectory() as d:
+            for i, text in enumerate(["ftp://secret-host/key123", "http://secret-host/key123#frag", "not a url key123"]):
+                f = Path(d) / str(i)
+                f.write_text(text)
+                try:
+                    m.endpoint_file(f)
+                    bad.append(text)
+                except m.RpcFailure as e:
+                    if "key123" in str(e) or "secret-host" in str(e):
+                        bad.append(text)
+            try:
+                m.endpoint_file(Path(d) / "missing")
+                bad.append("missing")
+            except m.RpcFailure:
+                pass
+        self.assertEqual(bad, [])
+
     def test_chain_mismatch(self):
         b = Endpoint()
         b.chain = "0xb"
@@ -336,6 +355,7 @@ MUTATIONS = {
     "no_code": ('raise RpcFailure("token has no code at to-block")', 'return dict(out, C4={"verdict": "pass"}, C7={"verdict": "pass"})'),
     "finalized_both": ('if any(end > f["number"] for f in finals):', 'if False:'),
     "chain_mismatch": ('if ids[0] != ids[1]:', 'if False:'),
+    "endpoint_file_rejected_without_echo": ('if p.scheme not in ("http", "https") or not p.hostname or p.fragment:', 'if False:'),
     "finalized_checkpoint_in_numbered_view": ('if block(u, hex(f["number"]))["hash"] != f["hash"]:', 'if False:'),
     "boundary_hash": ('if pair[0] != pair[1]:\n                raise RpcFailure("block hash disagreement")', 'if False:\n                raise RpcFailure("block hash disagreement")'),
     "log_hash": ('v["blockHash"] != hashes[v["blockNumber"]]', 'False'),
