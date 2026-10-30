@@ -12,6 +12,16 @@ Counts are pass / fail / skip, from complete raw runs (not merged targeted rerun
 | Prague | 1669 / 0 / 39 | 1669 / 0 / 39 | [prague-before.log](prague-before.log), [prague.log](prague.log) |
 | Cancun | 1789 / 0 / 65 | 1789 / 0 / 65 | [cancun-before.log](cancun-before.log), [cancun.log](cancun.log) |
 
+Re-run from the committed HEAD `3b6c7b57` (clean tree), as the repo's gate commands (CLAUDE.md) prescribe:
+
+| Runtime | Engine / flags | Result | Evidence |
+|---|---|---:|---|
+| Amsterdam | nightly `4e8874b`, flags as above | 1663 / 6 / 39 (same 6 tests) | [amsterdam-rerun-head.log](amsterdam-rerun-head.log) |
+| Prague gate | stable forge 1.7.1, `forge test --offline --evm-version prague` | 1677 / 0 / 39 | [gate-prague-forge171.log](gate-prague-forge171.log) |
+| Cancun gate | stable forge 1.7.1, `forge test --offline` | 1797 / 0 / 65 | [gate-cancun-forge171.log](gate-cancun-forge171.log) |
+
+The gate runs report 8 more tests than the nightly `--no-isolate` runs in the table above (1716 vs 1708 and 1862 vs 1854 in total); both have zero failures. The difference comes from the different engine and isolation mode, not from these edits.
+
 The Amsterdam baseline is the supplied exact-tree log; Cancun and Prague baselines were run before edits. Common flags include `--offline --no-isolate --fuzz-seed 0x5eed -vv`; Amsterdam also uses `--evm-version prague --hardfork amsterdam`. Inline per-test isolation/fuzz settings still apply. Different total test counts across compile targets existed before these edits and are not new skips.
 
 ## Classification scope
