@@ -56,9 +56,12 @@ python3 - "$OUT" "$TOKEN" <<'PY'
 import json, sys
 with open(sys.argv[1]) as f:
     d = json.load(f)
-assert d["chainId"] == 31337 and d["complete"] is True, "scan incomplete"
-assert d["C4"]["verdict"] == "fail", "known policy execution was not detected"
-assert any(e["policy"] == 2 and e["address"] == sys.argv[2].lower()
-           for e in d["C4"]["events"]), "executed policy 2 missing"
+# Explicit checks, not assert: they must hold under PYTHONOPTIMIZE too.
+if not (d["chainId"] == 31337 and d["complete"] is True):
+    sys.exit("scan incomplete")
+if d["C4"]["verdict"] != "fail":
+    sys.exit("known policy execution was not detected")
+if not any(e["policy"] == 2 and e["address"] == sys.argv[2].lower() for e in d["C4"]["events"]):
+    sys.exit("executed policy 2 missing")
 print("PASS: known policy 2 execution found; C4=fail (local proxy control only)")
 PY

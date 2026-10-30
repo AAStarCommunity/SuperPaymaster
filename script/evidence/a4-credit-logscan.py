@@ -186,6 +186,11 @@ def scan(urls, tokens, start, end, chunk_size=2000, hosts=None):
         out["finalized"] = dict(zip(("A", "B"), finals))
         if any(end > f["number"] for f in finals):
             raise RpcFailure("to-block exceeds finalized")
+        # Each endpoint's numbered view must contain its own finalized checkpoint; otherwise a stale or
+        # inconsistent view could certify blocks that are not on the finalized chain.
+        for u, f in zip(urls, finals):
+            if block(u, hex(f["number"]))["hash"] != f["hash"]:
+                raise RpcFailure("finalized block differs from the numbered block at that height")
 
         def agreed_block(n):
             pair = [block(u, hex(n)) for u in urls]

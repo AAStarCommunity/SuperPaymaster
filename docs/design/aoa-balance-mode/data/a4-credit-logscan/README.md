@@ -19,7 +19,9 @@ change between them is the policy execution.
 - **C7 on a chain**: no credit reservations were made on this chain, so C7 = pass is vacuous here. C7's replay logic
   is covered only by the offline tests (`script/evidence/test_a4_credit_logscan.py`, reserve/settle/re-reserve,
   open reservation, orphan close, duplicate open).
-- Two independent archive providers, finality on a public chain, and identical omissions by both providers. On
-  Sepolia the verdicts mean something only with two independent archive endpoints; otherwise the result is
-  `未能验证` by design.
+- Two independent archive providers, finality on a public chain, and identical omissions by both providers.
+  **The scanner cannot establish provider independence**: it only refuses two identical URL strings, so two URLs
+  served by the same backend (as here, through the proxy) can still yield `pass`. Independence of the two
+  endpoints is a prerequisite the operator must establish and record separately; without it a `pass` says only
+  that one backend's view is self-consistent.
 - Criteria other than C4/C7 (C1, C6, C8, C9 are separate work).

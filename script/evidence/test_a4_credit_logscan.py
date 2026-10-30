@@ -51,6 +51,7 @@ class Endpoint:
         self.logs = copy.deepcopy(list(logs))
         self.deploy, self.finalized, self.chain = 2, 8, "0xa"
         self.max_range, self.archive, self.bad_hash = 999, True, None
+        self.final_hash = None  # hash reported for the "finalized" tag only
         self.raw, self.calls = {}, []
 
     def __call__(self, method, params):
@@ -61,6 +62,8 @@ class Endpoint:
             return self.chain
         if method == "eth_getBlockByNumber":
             n = self.finalized if params[0] == "finalized" else int(params[0], 16)
+            if params[0] == "finalized" and self.final_hash:
+                return {"number": hex(n), "hash": self.final_hash}
             return {"number": hex(n), "hash": bh(n) if n != self.bad_hash else bh(999)}
         if method == "eth_getCode":
             if not self.archive:
@@ -172,6 +175,11 @@ class Controls(unittest.TestCase):
     def test_finalized_both(self):
         b = Endpoint()
         b.finalized = 7
+        self.assertEqual(verdicts(run(b=b)), ("未能验证", "未能验证"))
+
+    def test_finalized_checkpoint_in_numbered_view(self):
+        b = Endpoint()
+        b.final_hash = bh(999)
         self.assertEqual(verdicts(run(b=b)), ("未能验证", "未能验证"))
 
     def test_chain_mismatch(self):
@@ -328,6 +336,7 @@ MUTATIONS = {
     "no_code": ('raise RpcFailure("token has no code at to-block")', 'return dict(out, C4={"verdict": "pass"}, C7={"verdict": "pass"})'),
     "finalized_both": ('if any(end > f["number"] for f in finals):', 'if False:'),
     "chain_mismatch": ('if ids[0] != ids[1]:', 'if False:'),
+    "finalized_checkpoint_in_numbered_view": ('if block(u, hex(f["number"]))["hash"] != f["hash"]:', 'if False:'),
     "boundary_hash": ('if pair[0] != pair[1]:\n                raise RpcFailure("block hash disagreement")', 'if False:\n                raise RpcFailure("block hash disagreement")'),
     "log_hash": ('v["blockHash"] != hashes[v["blockNumber"]]', 'False'),
     "removed_log": ('d.get("removed") is not False', 'False'),
