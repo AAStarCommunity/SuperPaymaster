@@ -73,12 +73,13 @@ Every archived `*.jsonl` under `docs/design/aoa-balance-mode/data/` was checked 
 - `bash -n negative-controls/n2-penalty-anvil.sh`: passed syntax validation only.
 - `git diff --check`: passed.
 
-No network, chain calls, transactions, private-key operations, commit or push were
-performed. The live Anvil script was **not run**. Collector RPC compatibility and
-live trace decoding remain unverified. The callTracer inversion sometimes yields
-two adjacent solutions; those are explicitly bounded, and the exact-only live
-control will fail them rather than assert an exact result. Independent opcode-level
-measurement and postOp-reverted fallback decomposition are not implemented.
+This offline verification used no network, chain calls, transactions or private-key
+operations. The live Anvil control was run afterwards; see
+`docs/design/aoa-balance-mode/data/a6-gauge-n2/README.md` (30/30 exact, and a mutation
+probe showing the innerHandleOp tail check is load-bearing). The callTracer inversion
+can yield two adjacent solutions; those are reported as bounded (width one gas) and
+the live control accepts them as bounded, never as exact. postOp-reverted fallback
+decomposition is not implemented.
 
 ## Files changed
 

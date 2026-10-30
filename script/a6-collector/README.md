@@ -327,15 +327,17 @@ stakes so its schema downgrade failure remains isolated.
 [Archived exit codes](negative-controls/stake-n2-verification.md) list every
 archived JSONL before/after, including non-gauge ledgers.
 
-Read-only live control, **not run during this offline change**:
+Read-only live control (run result: `docs/design/aoa-balance-mode/data/a6-gauge-n2/`):
 
 ```sh
 bash script/a6-collector/negative-controls/n2-penalty-anvil.sh http://127.0.0.1:8545 path/to/run.jsonl
 ```
 
-It re-fetches receipts and traces from the supplied Anvil, compares the archived
-and live decompositions and requires exact reconstruction on every attempt.
-It exits nonzero for missing/reverted traces, unsent attempts, mismatches **or
-rounding ambiguity**. A bounded result is not a successful exact positive control;
-resolving those cases requires additional opcode-level tracing. No keys or
-transactions are used by this script.
+It re-fetches receipts and traces from the supplied Anvil and compares the archived
+and live decompositions. An exact result must reconstruct `actualGasUsed`; a bounded
+result is accepted only with width exactly one gas. Because E is derived from
+`actualGasUsed`, the reconstruction identity alone cannot catch a wrong `preOpGas`;
+the control therefore also requires `0 < innerHandleOp.gasUsed - E < 20,000`
+(the frame also covers the post-penalty tail). It exits nonzero for missing or
+reverted traces, unsent attempts, live/archive mismatches, a bounded width other than
+one, or a tail outside that range. No keys or transactions are used by this script.
