@@ -1,0 +1,10 @@
+{
+  "status": "SENT",
+  "step": "S4",
+  "role": "deployer",
+  "hash": "0x80e2d82efc23b9843ae5426492862a250e77c424a3054d4895e3e03dbbfc6b56",
+  "block": "0xb799d8",
+  "broadcast": "accepted",
+  "gasUsed": 130258,
+  "planSha256": "0bb821d18f60495d9b576763923d456a8e5f64277be40549da24643de5083151"
+}
