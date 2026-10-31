@@ -1,0 +1,3 @@
+verifier commit=238481fc (logs unchanged, produced at 2fffd855)
+VERDICT PASS: 292 commands; all exits zero; exact counts, adjacent thresholds, snapshot bands, and trajectories verified
+exit=0

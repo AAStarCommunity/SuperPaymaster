@@ -122,4 +122,4 @@ Final run, from clean commit `2fffd855` (`run/head.txt`; `run/working-tree.txt` 
 
 The runner and final verifier both exit **0**. Probe provenance, Solidity formatting and shell syntax checks pass. Separate negative checks confirm that an empty log with exit 0 is rejected, a nonzero command exit is rejected, and a nonempty output directory is rejected with exit 2 without modifying its existing file.
 
-See [verdict](run/verdict.txt) (runner and final verifier lines), [numbers](run/numbers.json), [per-command exits](run/exits.txt), [commands](run/commands.jsonl), [source hashes](run/source-hashes.json), [run HEAD](run/head.txt) and [evidence hashes](run/SHA256SUMS). `contracts/src/` hashes match before and after the run.
+See [verdict](run/verdict.txt) (runner and final verifier lines), [verifier rerun](run/verify-rerun.txt) (the stricter inventory-checking verifier applied to the same logs), [numbers](run/numbers.json), [per-command exits](run/exits.txt), [commands](run/commands.jsonl), [source hashes](run/source-hashes.json), [run HEAD](run/head.txt) and [evidence hashes](run/SHA256SUMS). `contracts/src/` hashes match before and after the run.
