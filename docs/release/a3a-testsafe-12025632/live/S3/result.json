@@ -1,0 +1,10 @@
+{
+  "block": "0xb799bf",
+  "broadcast": "accepted",
+  "gasUsed": 9183549,
+  "hash": "0x93e0fe11f4de1cd88b087b5ef9b40fcc4ee9355d940e169825f23d6c2a721abe",
+  "planSha256": "0bb821d18f60495d9b576763923d456a8e5f64277be40549da24643de5083151",
+  "role": "deployer",
+  "status": "SENT",
+  "step": "S3"
+}
