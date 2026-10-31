@@ -736,7 +736,7 @@ def execution_timestamps(pin):
     return {sid: pin['timestamp']+offset for sid, offset in zip(STEP_IDS, offsets)}
 
 
-def build_plan(state):
+def build_plan(state, gaps=()):
     for label, who in SENDERS.items():
         need('plan_sender_'+label, state['senders'][label]['address'], who)
     n = state['senders']['deployer']['nonce']
@@ -777,22 +777,30 @@ def build_plan(state):
                            tl, 0, inner[i], 0, 0, 0, 0, ZERO, ZERO, sigs))]
     rows += [('S7', DEPLOYER, SP, calldata('setAPNTsToken(address)', token))]
     counters = {v['address']: v['nonce'] for v in state['senders'].values()}
+    # A recorded foreign transaction that consumed a planned nonce moves this and every later step of
+    # that sender up by one; nothing else in the plan changes.
+    skipped = {(g['from'], qty(g['nonce'])) for g in gaps}
     steps = []
     times = execution_timestamps(state)
     for sid, sender, to, data in rows:
+        while (sender, counters[sender]) in skipped:
+            counters[sender] += 1
         steps.append(dict(id=sid, executionTimestamp=times[sid], tx=dict(to=to, data=data, value='0x0', nonce=hex(counters[sender]),
                      **{'from': sender}, chainId=hex(CHAIN), maxFeePerGas=hex(MAX_FEE),
                      maxPriorityFeePerGas=hex(PRIORITY))))
         if sid == 'S5b':
             steps[-1]['plannedETA'] = times[sid]+172800
         counters[sender] += 1
-    return dict(schema=4, rebuild=rebuild, chainId=CHAIN, pin=state, operationId=op, salt=salt, safeTxHashes=hashes,
+    plan = dict(schema=4, rebuild=rebuild, chainId=CHAIN, pin=state, operationId=op, salt=salt, safeTxHashes=hashes,
                 runtimeIdentity=a['runtimeIdentity'], timelockRuntimeIdentity=t['runtimeIdentity'],
                 artifactSources={name: art['sourceHashes'] for name, art in
                                  (('APNTsCapped', a), ('TimelockController', t))}, constructorArgs=constructor_args,
                 # No external admin; OZ retains the timelock's self-admin role.
                 roles={'DEFAULT_ADMIN': [tl], 'PROPOSER': [SAFE], 'EXECUTOR': [SAFE], 'CANCELLER': [SAFE]},
                 margin=[MARGIN_NUM, MARGIN_DEN], safeInnerData=inner, steps=steps)
+    if gaps:
+        plan['nonceGaps'] = [dict(g) for g in gaps]
+    return plan
 
 
 class RelayFilter:
@@ -1269,10 +1277,48 @@ def tx_quantities(tx, gas_cap=GAS_CAP):
         need('gas_cap', qty(tx['gas']) <= gas_cap, True)
 
 
+def validate_gaps(plan):
+    """A nonce gap records one mined foreign transaction from a plan sender after the pin. Shape only here;
+    pre_send proves each one on chain before any later step of that sender is prepared."""
+    if 'nonceGaps' not in plan:
+        return ()
+    gaps = plan['nonceGaps']
+    need('nonce_gaps_list', isinstance(gaps, list) and len(gaps) > 0, True)
+    for g in gaps:
+        exact_keys('nonce_gap_keys', g, ('from', 'nonce', 'hash'))
+        need('nonce_gap_sender', g['from'] in SENDERS.values(), True)
+        label = next(k for k, v in SENDERS.items() if v == g['from'])
+        typed(g['nonce'], QTY, gate='nonce_gap_hex')
+        need('nonce_gap_hex', g['nonce'], hex(qty(g['nonce'])))
+        need('nonce_gap_after_pin', qty(g['nonce']) >= plan['pin']['senders'][label]['nonce'], True)
+        need('nonce_gap_hash', typed(g['hash'], HASH32), g['hash'].lower())
+    keys = [(g['from'], qty(g['nonce'])) for g in gaps]
+    need('nonce_gaps_sorted_unique', keys, sorted(set(keys)))
+    return gaps
+
+
+def check_gaps(remote, plan, tx):
+    """Every recorded gap below this transaction's nonce must be a mined, non-creating transaction with exactly
+    that sender and nonce, touching none of the plan's contracts."""
+    protected = {SAFE, SP, plan['pin']['timelock'], plan['pin']['capped']}
+    for g in plan.get('nonceGaps', ()):
+        if g['from'] != tx['from'] or qty(g['nonce']) >= qty(tx['nonce']):
+            continue
+        mined = remote('eth_getTransactionByHash', [g['hash']])
+        need('nonce_gap_mined_'+g['nonce'], isinstance(mined, dict) and mined.get('blockNumber') is not None, True)
+        need('nonce_gap_from_'+g['nonce'], str(mined.get('from', '')).lower(), g['from'])
+        need('nonce_gap_nonce_'+g['nonce'], mined.get('nonce'), g['nonce'])
+        to = mined.get('to')
+        need('nonce_gap_call_'+g['nonce'], isinstance(to, str) and ADDRESS_RX.fullmatch(to) is not None, True)
+        need('nonce_gap_untouched_'+g['nonce'], to.lower() in protected, False)
+        receipt = remote('eth_getTransactionReceipt', [g['hash']])
+        need('nonce_gap_receipt_'+g['nonce'], isinstance(receipt, dict) and receipt.get('blockNumber'), mined['blockNumber'])
+
+
 def validate_plan(plan, frozen=False):
     validate_pin(plan['pin'])
     need('plan_step_ids', [s['id'] for s in plan['steps']], list(STEP_IDS))
-    rebuilt = build_plan(plan['pin'])
+    rebuilt = build_plan(plan['pin'], validate_gaps(plan))
     exact_keys('plan_keys', plan, set(rebuilt) | ({'budgetsWei', 'budgetWei'} if frozen else set()))
     for key in set(rebuilt)-{'steps'}:
         need('plan_identity_'+key, plan[key], rebuilt[key])
@@ -1367,6 +1413,7 @@ def pre_send(step, remote):
     for target in set(dependencies):
         if typed(remote('eth_getCode', [target, 'latest']), HEXDATA) == '0x':
             raise Gate('pre_send_code_'+sid, target, 'deployed contract code')
+    check_gaps(remote, plan, tx)
     latest = nonce(remote, tx['from'], 'latest')
     need('pre_send_pending_'+sid, nonce(remote, tx['from'], 'pending'), latest)
     need('pre_send_nonce_'+sid, latest, qty(tx['nonce']))
@@ -1572,6 +1619,55 @@ def plan_command(remote, block, out):
     return plan
 
 
+def parse_gap(text):
+    parts = text.split(':')
+    need('nonce_gap_arg', len(parts), 3)
+    who, n, h = parts
+    need('nonce_gap_arg_address', ADDRESS_RX.fullmatch(who) is not None, True)
+    return dict(hash=h.lower(), nonce=hex(int(n, 0)), **{'from': who.lower()})
+
+
+def amend_command(remote, plan_path, reviewed_sha256, gaps, out):
+    """Re-issue a reviewed frozen plan after foreign transactions consumed planned nonces.
+
+    The only permitted differences from the reviewed plan are `nonceGaps`, the rebuild record of the current
+    commit, and the nonce of each step that a gap moves. Measured gas and budgets are carried over unchanged
+    (a nonce does not change execution); pre_send still re-estimates against live state before any send."""
+    raw = plan_path.read_bytes()
+    need('reviewed_plan_hash', hashlib.sha256(raw).hexdigest(), reviewed_sha256)
+    old = plan_json(raw)
+    need('amend_source_ungapped', 'nonceGaps' in old, False)
+    gaps = sorted(gaps, key=lambda g: (g['from'], qty(g['nonce'])))
+    rebuilt = build_plan(old['pin'], gaps)
+    new = copy.deepcopy(old)
+    new['nonceGaps'] = rebuilt['nonceGaps']
+    new['rebuild'] = rebuilt['rebuild']
+    moved = []
+    for step, fresh in zip(new['steps'], rebuilt['steps']):
+        if step['tx']['nonce'] != fresh['tx']['nonce']:
+            moved.append(dict(step=step['id'], old=step['tx']['nonce'], new=fresh['tx']['nonce']))
+            step['tx']['nonce'] = fresh['tx']['nonce']
+    need('amend_moves_something', len(moved) > 0, True)
+    validate_plan(new, frozen=True)
+    checked = copy.deepcopy(new)
+    budget(checked)
+    need('amend_budgets_unchanged', checked['budgetsWei'], old['budgetsWei'])
+    unchanged = {k: v for k, v in new.items() if k not in ('nonceGaps', 'rebuild', 'steps')}
+    need('amend_identity_unchanged', unchanged, {k: v for k, v in old.items() if k not in ('rebuild', 'steps')})
+    for a, b in zip(new['steps'], old['steps']):
+        a2 = copy.deepcopy(a); a2['tx'].pop('nonce'); b2 = copy.deepcopy(b); b2['tx'].pop('nonce')
+        need('amend_step_unchanged_'+a['id'], a2, b2)
+    for g in gaps:
+        check_gaps(remote, new, {'from': g['from'], 'nonce': hex(qty(g['nonce'])+1)})
+    write_json(out/'plan.json', new)
+    digest = hashlib.sha256((out/'plan.json').read_bytes()).hexdigest()
+    (out/'plan.json.sha256').write_text(digest+'  plan.json\n')
+    write_json(out/'amend.json', dict(sourcePlanSha256=reviewed_sha256, planSha256=digest,
+                                     sourceCommit=old['rebuild']['commit'], commit=new['rebuild']['commit'],
+                                     nonceGaps=new['nonceGaps'], movedNonces=moved))
+    return new
+
+
 def load_plan(path):
     raw = path.read_bytes()
     expected = path.with_name(path.name+'.sha256').read_text().split()[0]
@@ -1601,6 +1697,12 @@ def main(argv=None):
             p.add_argument('--block', required=True, type=lambda s: hex(int(s, 0) if s.startswith('0x') else int(s)))
         else:
             p.add_argument('--plan', type=Path, required=True)
+    p = sub.add_parser('amend')
+    p.add_argument('--rpc-file', type=Path, required=True)
+    p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--plan', type=Path, required=True)
+    p.add_argument('--reviewed-plan-sha256', required=True)
+    p.add_argument('--gap', action='append', required=True, help='<sender>:<nonce>:<tx hash>')
     for name in ('sign', 'send'):
         p = sub.add_parser(name)
         p.add_argument('--reviewed-plan-sha256')
@@ -1613,6 +1715,11 @@ def main(argv=None):
             args.out.mkdir(parents=True, exist_ok=True)
         if args.command in ('sign', 'send'):
             raise Gate('sign_disabled' if args.command == 'sign' else 'send_disabled', REFUSAL, 'separate authorization and implemented reviewed signer')
+        if args.command == 'amend':
+            amend_command(RPC(args.rpc_file.read_text().strip()), args.plan, args.reviewed_plan_sha256,
+                          [parse_gap(g) for g in args.gap], args.out)
+            (args.out/'FAILURE.json').unlink(missing_ok=True)
+            return 0
         plan = load_plan(args.plan) if args.command == 'simulate' else None
         remote = RPC(args.rpc_file.read_text().strip())
         if plan is None:

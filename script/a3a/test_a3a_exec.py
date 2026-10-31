@@ -969,6 +969,115 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'], 'timelock_role_admins')
 
 
+    def gap_for(self, plan, sid):
+        tx = next(st['tx'] for st in plan['steps'] if st['id'] == sid)
+        return dict(hash='0x'+'ab'*32, nonce=tx['nonce'], **{'from': tx['from']})
+
+    def gap_rpc(self, gap, **override):
+        mined = dict(blockNumber='0x10', nonce=gap['nonce'], to='0x'+'c2'*20, **{'from': gap['from']})
+        mined.update(override)
+        def rpc(method, params):
+            if method == 'eth_getTransactionByHash': return mined if params[0] == gap['hash'] else None
+            if method == 'eth_getTransactionReceipt': return dict(blockNumber=mined['blockNumber']) if params[0] == gap['hash'] else None
+            raise AssertionError(method)
+        return rpc
+
+    def test_nonce_gap_moves_only_later_steps_of_that_sender(self):
+        plan = self.measured_plan()
+        gap = self.gap_for(plan, 'S6b')
+        with patch.object(ex, 'artifact', self.artifact):
+            moved = ex.build_plan(plan['pin'], [gap])
+        before = {st['id']: st['tx']['nonce'] for st in plan['steps']}
+        after = {st['id']: st['tx']['nonce'] for st in moved['steps']}
+        self.assertEqual({k for k in before if before[k] != after[k]}, {'S6b'})
+        self.assertEqual(int(after['S6b'], 16), int(before['S6b'], 16)+1)
+        self.assertEqual(moved['nonceGaps'], [gap])
+        with patch.object(ex, 'artifact', self.artifact):
+            self.assertNotIn('nonceGaps', ex.build_plan(plan['pin']))
+
+    def test_nonce_gap_shape_is_validated(self):
+        plan = self.measured_plan()
+        gap = self.gap_for(plan, 'S6b')
+        pin_nonce = hex(plan['pin']['senders']['executor']['nonce']-1)
+        cases = {
+            'nonce_gaps_list': [],
+            'nonce_gap_keys': [dict(gap, extra=1)],
+            'nonce_gap_sender': [dict(gap, **{'from': '0x'+'11'*20})],
+            'nonce_gap_after_pin': [dict(gap, nonce=pin_nonce)],
+            'nonce_gap_hex': [dict(gap, nonce='0x02f1')],
+            'nonce_gap_hash': [dict(gap, hash='0x'+'AB'*32)],
+            'nonce_gaps_sorted_unique': [gap, dict(gap)],
+        }
+        for gate, gaps in cases.items():
+            with self.subTest(gate=gate), self.assertRaises(ex.Gate) as caught:
+                ex.validate_gaps(dict(plan, nonceGaps=gaps))
+            self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_frozen_plan_rejects_hand_edited_nonce_without_gap(self):
+        plan = self.measured_plan()
+        step = next(st for st in plan['steps'] if st['id'] == 'S6b')
+        step['tx']['nonce'] = hex(int(step['tx']['nonce'], 16)+1)
+        with patch.object(ex, 'artifact', self.artifact), self.assertRaises(ex.Gate) as caught:
+            ex.validate_plan(plan, frozen=True)
+        self.assertEqual(caught.exception.record['gate'], 'plan_step_S6b_nonce')
+
+    def test_check_gaps_requires_a_mined_foreign_call(self):
+        plan = self.measured_plan()
+        gap = self.gap_for(plan, 'S6b')
+        gapped = dict(plan, nonceGaps=[gap])
+        later = dict(gap, nonce=hex(int(gap['nonce'], 16)+1))
+        ex.check_gaps(self.gap_rpc(gap), gapped, later)
+        n = gap['nonce']
+        cases = {
+            'nonce_gap_mined_'+n: dict(blockNumber=None),
+            'nonce_gap_from_'+n: {'from': ex.DEPLOYER},
+            'nonce_gap_nonce_'+n: dict(nonce=hex(int(n, 16)+1)),
+            'nonce_gap_call_'+n: dict(to=None),
+            'nonce_gap_untouched_'+n: dict(to=ex.SAFE),
+        }
+        for gate, override in cases.items():
+            with self.subTest(gate=gate), self.assertRaises(ex.Gate) as caught:
+                ex.check_gaps(self.gap_rpc(gap, **override), gapped, later)
+            self.assertEqual(caught.exception.record['gate'], gate)
+        for target in (ex.SP, plan['pin']['timelock'], plan['pin']['capped']):
+            with self.subTest(target=target), self.assertRaises(ex.Gate) as caught:
+                ex.check_gaps(self.gap_rpc(gap, to=target.upper().replace('0X', '0x')), gapped, later)
+            self.assertEqual(caught.exception.record['gate'], 'nonce_gap_untouched_'+n)
+        # A gap at or above the step's own nonce, or from another sender, is not this step's concern.
+        def silent(method, params): raise AssertionError(method)
+        ex.check_gaps(silent, gapped, gap)
+        ex.check_gaps(silent, gapped, dict(later, **{'from': ex.DEPLOYER}))
+
+    def test_amend_reissues_the_reviewed_plan_with_only_the_moved_nonce(self):
+        plan = self.measured_plan()
+        gap = self.gap_for(plan, 'S6b')
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            ex.write_json(d/'old.json', plan)
+            sha = hashlib.sha256((d/'old.json').read_bytes()).hexdigest()
+            out = d/'out'; out.mkdir()
+            with patch.object(ex, 'artifact', self.artifact):
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.amend_command(self.gap_rpc(gap), d/'old.json', '0'*64, [gap], out)
+                self.assertEqual(caught.exception.record['gate'], 'reviewed_plan_hash')
+                new = ex.amend_command(self.gap_rpc(gap), d/'old.json', sha, [gap], out)
+                ex.validate_plan(ex.plan_json((out/'plan.json').read_bytes()), frozen=True)
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.amend_command(self.gap_rpc(gap, to=ex.SAFE), d/'old.json', sha, [gap], d)
+                self.assertEqual(caught.exception.record['gate'], 'nonce_gap_untouched_'+gap['nonce'])
+                unrelated = dict(gap, nonce=hex(int(gap['nonce'], 16)+5))
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.amend_command(self.gap_rpc(unrelated), d/'old.json', sha, [unrelated], d)
+                self.assertEqual(caught.exception.record['gate'], 'amend_moves_something')
+            record = json.loads((out/'amend.json').read_text())
+            self.assertEqual(record['sourcePlanSha256'], sha)
+            self.assertEqual(record['planSha256'], hashlib.sha256((out/'plan.json').read_bytes()).hexdigest())
+            self.assertEqual([m['step'] for m in record['movedNonces']], ['S6b'])
+            self.assertEqual(new['budgetsWei'], plan['budgetsWei'])
+            for a, b in zip(new['steps'], plan['steps']):
+                if a['id'] != 'S6b':
+                    self.assertEqual(a, b)
+
     def measured_plan(self):
         _, plan = self.chain_and_plan()
         for step in plan['steps']:
@@ -1084,6 +1193,36 @@ class ExecutorTests(unittest.TestCase):
         with self.assertRaises(ex.Gate) as caught:
             ex.pre_send(ex.ExecutionStep(plan, 'S6b'), chain)
         self.assertEqual(caught.exception.record['gate'], 'schedule_chain_eta')
+
+    def test_pre_send_s6b_after_a_foreign_executor_transaction(self):
+        chain, plan = self.chain_and_plan()
+        for step in plan['steps']: step['tx']['gas'] = hex(260000)
+        self.send_prefix(chain, plan, ('S1', 'S2', 'S3', 'S4', 'S5a', 'S5b', 'S6a'))
+        chain('evm_setNextBlockTimestamp', [chain.state['eta']])
+        chain('evm_mine', [])
+        s = chain.state
+        h = '0x'+'cd'*32
+        s['txs'][h] = {'from': ex.EXECUTOR, 'nonce': hex(s['nonces'][ex.EXECUTOR]), 'to': '0x'+'c2'*20,
+                       'blockNumber': hex(s['head']), 'value': hex(10**18)}
+        s['receipts'][h] = dict(blockNumber=hex(s['head']), status='0x1', transactionHash=h, logs=[])
+        gap = dict(hash=h, nonce=hex(s['nonces'][ex.EXECUTOR]), **{'from': ex.EXECUTOR})
+        s['nonces'][ex.EXECUTOR] += 1
+        with self.assertRaises(ex.Gate) as caught:
+            ex.pre_send(ex.ExecutionStep(plan, 'S6b'), chain)
+        self.assertEqual(caught.exception.record['gate'], 'pre_send_nonce_S6b')
+        with patch.object(ex, 'artifact', self.artifact):
+            gapped = ex.build_plan(plan['pin'], [gap])
+        for step in gapped['steps']: step['tx']['gas'] = hex(260000)
+        tx = ex.pre_send(ex.ExecutionStep(gapped, 'S6b'), chain)
+        self.assertEqual(int(tx['nonce'], 16), int(plan['steps'][7]['tx']['nonce'], 16)+1)
+        self.assertEqual({k: v for k, v in tx.items() if k != 'nonce'},
+                         {k: v for k, v in plan['steps'][7]['tx'].items() if k != 'nonce'})
+        def unmined_receipt(method, params, error_ok=False):
+            if method == 'eth_getTransactionReceipt' and params[0] == h: return None  # real RPC shape
+            return chain(method, params, error_ok)
+        with self.assertRaises(ex.Gate) as caught:
+            ex.pre_send(ex.ExecutionStep(gapped, 'S6b'), unmined_receipt)
+        self.assertEqual(caught.exception.record['gate'], 'nonce_gap_receipt_'+gap['nonce'])
 
     def test_signing_requires_out_of_band_file_hash(self):
         plan = self.measured_plan()

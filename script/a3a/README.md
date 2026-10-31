@@ -286,6 +286,31 @@ If --out itself cannot be created, failure evidence falls back to stderr.
 A successful CLI run removes any FAILURE.json created during that attempt.
 Prior output directories, including stale failure records, cannot be reused.
 
+## Re-issuing a reviewed plan after a foreign transaction (`amend`)
+
+A plan pins every sender's nonce at the pin block. If one of the three plan senders later sends a transaction that
+is not a plan step, every remaining step of that sender is one nonce behind and `pre_send` stops it
+(`pre_send_nonce_<step>`). A hand-edited nonce is also rejected, because `validate_plan` rebuilds every step from the
+pin (`plan_step_<step>_nonce`).
+
+```
+python3 -B script/a3a/a3a_exec.py amend --rpc-file <file> --out <new empty dir> \
+  --plan <reviewed plan.json> --reviewed-plan-sha256 <its sha256> --gap <sender>:<nonce>:<tx hash>
+```
+
+- The source plan must hash to the reviewed digest and must not already carry gaps.
+- `nonceGaps` (sorted, unique, sender in the plan, nonce at or after the pin, canonical hex) is the only new field.
+  `build_plan` skips each recorded `(sender, nonce)`, so only that sender's steps at or after the gap move up by one.
+- The command refuses unless something moved, and asserts that everything else equals the reviewed plan: identity,
+  Safe hashes, calldata, gas, measurements and budgets. The rebuild record is replaced with the current commit,
+  because `validate_plan` recompiles at HEAD. Sign and send from that same commit.
+- On chain, each gap must be a mined call (not a CREATE) with exactly that sender, nonce and hash, and with a
+  receipt in the same block. Its target must not be the Safe, SP, timelock or token. `amend` checks this, and so does
+  `pre_send` again before every later step of that sender.
+- Outputs `plan.json`, `plan.json.sha256` and `amend.json` (source/new digests, commits, gaps, moved nonces). The
+  new digest needs its own review and its own go. Gas measured for the moved step carries over: a nonce does not
+  change execution, and `pre_send` re-estimates against live state anyway.
+
 ## Runtime identity with EIP712 immutables
 
 APNTsCapped inherits ERC20Permit and OZ v5.0.2 EIP712. Its seven immutable
