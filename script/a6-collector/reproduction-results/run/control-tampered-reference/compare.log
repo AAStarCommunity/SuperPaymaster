@@ -1,6 +1,0 @@
-{
-  "status": "FAIL",
-  "errors": [
-    "stat_results comparison failed: [\"root.arms.SP.actualGasUsed.meanExact: computed='387702' != external='387701'\", \"root.statisticalConfig.pythonVersion: computed='3.9.6' != external='0.0.0'\"]"
-  ]
-}

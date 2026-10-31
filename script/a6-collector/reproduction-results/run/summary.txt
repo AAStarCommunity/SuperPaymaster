@@ -1,3 +1,0 @@
-py3.9.6: self-compare 10706 fields; vs DSR reference exact (10706 fields)
-py3.11.9: self-compare 10706 fields; vs DSR reference differs only in pythonVersion
-control: tampered reference rejected by the compare (exit 1) and by the acceptance predicate (exit 1)
