@@ -286,6 +286,50 @@ If --out itself cannot be created, failure evidence falls back to stderr.
 A successful CLI run removes any FAILURE.json created during that attempt.
 Prior output directories, including stale failure records, cannot be reused.
 
+## Re-issuing a reviewed plan after a foreign transaction (`amend`)
+
+A plan pins every sender's nonce at the pin block. If one of the three plan senders later sends a transaction that
+is not a plan step, every remaining step of that sender is one nonce behind and `pre_send` stops it
+(`pre_send_nonce_<step>`). A hand-edited nonce is also rejected, because `validate_plan` rebuilds every step from the
+pin (`plan_step_<step>_nonce`).
+
+```
+python3 -B script/a3a/a3a_exec.py amend --rpc-file <file> --out <new empty dir> \
+  --plan <reviewed plan.json> --reviewed-plan-sha256 <its sha256> --gap <sender>:<nonce>:<tx hash>
+```
+
+- The source plan must hash to the reviewed digest and must not already carry gaps.
+- `nonceGaps` (sorted, unique, sender in the plan, nonce at or after the pin, canonical hex) is the only new field.
+  `build_plan` skips each recorded `(sender, nonce)`, so only that sender's steps at or after the gap move up by one.
+- The source must first pass full frozen validation itself (its rebuild record replaced with the current commit), so
+  amend cannot repair anything but the gap. The output is a copy of that source with only `nonceGaps`, the rebuild
+  record and the moved nonces replaced, validated again; it refuses unless something moved. `validate_plan`
+  recompiles at HEAD, so sign and send from that same commit.
+- `runtimeIdentity` / `timelockRuntimeIdentity` record AST node ids, which belong to one compilation unit; a later
+  commit with more sources renumbers them while the bytecode, immutable names, starts and lengths stay identical.
+  Only those ids may follow the current build (`amend_<key>_semantics` otherwise); `amend.json` lists every
+  renumbered id pair.
+- A gap may not move S2 or S3: the timelock and token addresses are derived from the pinned deployer nonces
+  (`nonce_gap_moves_create_<step>`).
+- Only a plain ETH transfer qualifies as a gap: exact sender, nonce and hash; mined (quantity block number and block
+  hash, and the block by that number has that hash); type 0-2 with no authorization list; empty input; recipient
+  above 0xffff (no precompile or system address) with no code at that block; receipt with the same hash, block number
+  and block hash, status 1. End-of-block code alone is not enough, because an EIP-7702 delegation can be installed
+  and cleared around the gap inside one block. So the execution trace (`debug_traceTransaction`, `prestateTracer`,
+  which lists every account read or written) must touch only the sender, the recipient and the block's fee
+  recipient, none with code or storage. The sender must be present with its prestate nonce equal to the gap's
+  nonce, so an empty or partial trace cannot pass, and every field present is type-checked.
+  `debug_traceTransaction` is therefore on the remote read-only allowlist. `amend` also requires the RPC to be
+  Sepolia, and a gap transaction that carries a chainId must carry Sepolia's.
+  `amend` checks all of this, and `pre_send` checks it again before every later step of that sender.
+- Gas cannot stand in for the trace: under Amsterdam a transfer that creates an account costs far more than 21000.
+  The real gap (executor nonce 0x2f1) used 204600.
+- `simulate` refuses a gapped plan (`simulate_gapped_plan`): the rehearsal forks at the pin and cannot replay the
+  foreign transaction.
+- Outputs `plan.json`, `plan.json.sha256` and `amend.json` (source/new digests, commits, gaps, moved nonces). The
+  new digest needs its own review and its own go. Gas measured for the moved step carries over: a nonce does not
+  change execution, and `pre_send` re-estimates against live state anyway.
+
 ## Runtime identity with EIP712 immutables
 
 APNTsCapped inherits ERC20Permit and OZ v5.0.2 EIP712. Its seven immutable
