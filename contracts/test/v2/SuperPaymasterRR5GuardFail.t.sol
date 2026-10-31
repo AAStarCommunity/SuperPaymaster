@@ -228,8 +228,16 @@ abstract contract RR5GuardBase is Test {
         V55FuzzTarget target = new V55FuzzTarget();
         vm.prank(address(registry));
         sp.updateSBTStatus(account, true);
-        vm.prank(operator);
-        IV2Ext(address(token)).mint(account, 10_000 ether);
+        if (creditMode()) {
+            // no balance: the reservation must fall through to credit (the token policy was enabled in setUp)
+            registry.setCreditLimit(account, 50_000 ether);
+            vm.prank(account);
+            IV2Ext(address(token)).requestCredit(50_000 ether);
+        } else {
+            vm.prank(operator);
+            IV2Ext(address(token)).mint(account, 10_000 ether);
+        }
+        uint256 accountBalance0 = token.balanceOf(account);
         vm.deal(address(this), 1 ether);
         ep.depositTo{value: 1 ether}(address(sp));
         PackedUserOperation memory op;
@@ -267,6 +275,14 @@ abstract contract RR5GuardBase is Test {
         assertEq(target.hits(HASH), 1);
         assertTrue(token.usedOpHashes(hash));
         assertEq(token.lockedOf(account), 0);
+        assertEq(token.creditReservedOf(account), 0, "reservation cleared");
+        if (creditMode()) {
+            assertEq(accountBalance0, 0, "precondition: credit suite has no balance");
+            assertGt(token.debts(account), 0, "credit settlement recorded a debt");
+        } else {
+            assertEq(token.debts(account), 0, "balance settlement records no debt");
+            assertLt(token.balanceOf(account), accountBalance0, "balance settlement burned tokens");
+        }
     }
 
     function release() internal {
@@ -299,7 +315,13 @@ abstract contract RR5GuardBase is Test {
         assertEq(usedAllowance, 0);
         assertEq(usedTotal, 0);
         sp.releaseStaleSponsorship(HASH);
+        if (creditMode()) token.releaseStaleCredit(user, HASH);
+        else token.releaseStaleLock(user, HASH);
         assertEq(operatorBalance(), beforeOperator, "idempotent recovery");
+        assertEq(token.balanceOf(user), beforeBalance, "idempotent token release");
+        assertEq(token.lockedOf(user), 0);
+        assertEq(token.creditReservedOf(user), 0);
+        assertEq(token.debts(user), 0);
     }
 
     /// @notice Diagnostic only (no assertion): classify every call gas from SETTLE to 900k in 2k steps as

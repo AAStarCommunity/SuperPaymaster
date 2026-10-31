@@ -1,3 +1,0 @@
-head e9900e499fcf7aec11864fe2a3ec63e4832625f7
-forge Version: 1.7.1
-forge Version: 1.8.7-nightly
