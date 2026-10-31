@@ -1,5 +1,0 @@
-postOp frame: │   ├─ [590261] SuperPaymaster.registry-size
-settleCredit child frame: │   │   ├─ [253881] 0x37042F7b12E8bc6487EEA3c780415044e4032Cc9
-settleCredit frame returned successfully: True
-postOp frame result: │   │   └─ ← [OutOfGas] EvmError: OutOfGas
-OOG in the SP frame after settleCredit returned: True
