@@ -1,9 +1,10 @@
-# RR-5 lifecycle isolation: root cause of the Amsterdam non-guard band
+# RR-5 lifecycle isolation: observed condition for the Amsterdam non-guard band
 
-2026-10-31. **Classification: category 1, test-lifecycle only.** The band appears only when the
-same operation hash is released and then admitted again within one transaction. EntryPoint cannot
-produce that sequence, because it consumes the account nonce during validation. Every production-like
-lifecycle completes at the guard boundary on all three engines.
+2026-10-31. **Classification: category 1, test-lifecycle only within the tested variants.**
+The observed band occurs in variants that release and re-admit the same operation hash while
+preserving the earlier reservation state. No production path preserving that state has been
+demonstrated. The tested fresh and new-operation lifecycles complete at the guard boundary.
+These are direct-call simulations that impersonate EntryPoint; the test never calls `handleOps`.
 
 ## Question
 
@@ -17,28 +18,44 @@ DSR asked which fixture difference caused it, and whether production can reach t
   `LIFECYCLE_VARIANT`.
 - Variants: 26, crossed with two modes (BALANCE, CREDIT) and three engines (Amsterdam nightly; stable
   1.7.1 Cancun; stable 1.7.1 Prague), for 156 rows.
-- Isolation: each `rr_*` / `fresh_*` pair flips exactly one difference between the original RR-5
-  fixture (`rr_base`) and the fresh fixture (`fresh_base`), in both directions:
-  - snapshot use;
-  - re-admitting the same released operation (`releaseAgain`);
-  - same-transaction storage history;
-  - rate limit;
-  - call gas;
-  - calldata;
-  - operation hash;
-  - guard probe;
-  - block roll.
-- Production-like additions:
-  - `rr_new_op`: release the stale record, then admit a NEW operation.
-  - `rr_settled_prior`: settle a previous operation in an earlier transaction, then admit a new one.
+- The `rr_*` / `fresh_*` pairs probe snapshot use, re-admission, storage history, rate limit,
+  call gas, calldata, operation hash, guard probes, and block rolls. They do not all isolate one
+  difference in opposite directions:
+  - `rr_calldata` and `rr_hash` also deploy `V55FuzzTarget`; the reverse fresh variants retain
+    their already-deployed target.
+  - Both storage variants add identical writes to a separate helper; both roll variants add
+    a block roll. These are additional probes in both directions.
+  - The fresh fixture also creates/funds an extra account and deposits into EntryPoint;
+    those baseline differences are not isolated by a variant.
+  - Snapshot variants also add a preceding guard invocation at independent boundary samples,
+    changing execution history as well as snapshot use.
+- Lifecycle simulation additions:
+  - `rr_new_op`: retains `releaseAgain` and advances the nonce/hash to admit a NEW operation.
+  - `rr_settled_prior`: disables release, settles a previous operation in an earlier transaction,
+    and advances the nonce/hash. This is a composite lifecycle replacement.
   - `rr_split`: validate in setUp, then settle in the test transaction.
-- Each point runs as its own forge process on a new deployment:
-  - a coarse scan, then bisection to adjacent integers for the guard boundary and for first completion;
-  - the guard counts only when the revert data equals the `PostOpGasTooLow()` selector exactly.
-- Production sources are hashed before and after the run (`source-before.json` = `source-after.json`).
-- Run provenance: from clean HEAD `5edd1d30` (`run/head.txt`, `run/working-tree.txt`).
-  The verifier and the missing-variant negative control both behave as required (`run/verdict.txt`,
-  `run/negative-missing-variant.log`).
+- Scans run many points in one Forge process: snapshot scans execute 241 points plus internal
+  bisections in one test with snapshot restoration; non-snapshot scans execute 241 tests.
+  External bisection and boundary samples run in separate processes on new deployments.
+  The guard counts only when revert bytes equal the independently derived
+  `keccak256("PostOpGasTooLow()")[:4]` selector, `0x8890295d`, exactly.
+- Production sources were hashed before and after the run (`source-before.json` = `source-after.json`).
+  The recorded maps omit the lifecycle test, its recursively imported test helpers, the EntryPoint
+  runtime fixture, `foundry.toml`, and the runner. The verifier hashes those harness/build files
+  against `git show <run/head.txt>:<path>` instead. For the runner, the historical bytes supply
+  the baseline; all measurement definitions must match that revision's AST. The current runner's
+  whole-file hash necessarily differs because its verifier has been repaired; this is not a claim
+  that the new verifier ran during measurement.
+- Run provenance: HEAD `5edd1d308d5e17fea8cbda586e7ea2c871fc0e33`. The recorded working tree
+  lists only the then-untracked evidence directory, not a completely clean status. Verification
+  checks that status, resolves the recorded commit, validates engine version records, and checks
+  the complete `SHA256SUMS` inventory and file digests. These checks establish internal consistency,
+  not cryptographic authenticity of an independently editable checksum file. Dependency source
+  hashes outside the production and test-helper closure were not recorded by this run.
+- Verification recomputes scan summaries (including split rows), binds every command's tuple,
+  arguments, environment, log and mode, and replays both bisections in order, rejecting missing
+  or extra commands. Variant and engine identity rely on the command records: plain scan logs
+  themselves do not print the variant or engine identity.
 
 ## Result
 
@@ -56,34 +73,39 @@ The full table, generated by `script/evidence/rr5-lifecycle-report.py run`, is i
 
 - **Amsterdam**: all 20 non-split rows with a band are exactly the rows that re-admit the same
   released hash.
-  - Toggling any other difference changes nothing: snapshot, storage history, call gas, calldata,
-    hash freshness, guard probe, roll.
+  - The other probes retain the presence of the band: snapshot, storage history, call gas, calldata,
+    hash freshness, guard probe, roll. Their extra differences limit single-factor attribution.
   - The rate limit only widens an existing band.
 - **Cancun and Prague**: no non-split row has a band. Each completes at the guard boundary 431,514.
 - **Guard boundary**: every non-split row rejects at 438,827 (Amsterdam) or 431,513 (stable) with the
   exact guard selector, and accepts one gas above.
-- **Split rows** (`rr_split`, `fresh_split`): never complete, and every failure is `NotLive()`
-  (`0xbaf13b3f`) on all engines.
+- **Split rows** (`rr_split`, `fresh_split`): never complete. Every sampled non-guard split
+  failure is `NotLive()` (`0xbaf13b3f`); guard failures occur below 446,000 (Amsterdam) /
+  440,000 (stable).
   - This is by design. The xPNTs V2 liveness flag lives in transient storage, so it does not survive
     from the validation transaction to a settlement in a different transaction.
   - EntryPoint always validates and settles in the same transaction, so this is not a production path.
 
-## Why production cannot reach the band
+## Production reachability qualifications
 
-The band requires validating, releasing and validating again the SAME `userOpHash`.
+The observed band requires validating, releasing and validating again the SAME `userOpHash`
+with the earlier reservation state preserved. The hash commits to the full account nonce.
+EntryPoint v0.7 increments the nonce before paymaster validation. Its caught postOp-revert path
+retains validation state and does not call the paymaster again in `postOpReverted` mode.
+A second successful bundle cannot validate that same nonce; changing the nonce key changes
+the full nonce and hash. A later release does not reset EntryPoint's nonce.
 
-- The hash commits to the account nonce.
-- EntryPoint v0.7 increments that nonce in validation, and a postOp failure does not roll it back.
-
-So no second validation of the same operation can occur. The production-like replacement, which
-releases the stale record and admits a new operation, shows no band on any engine.
+A reverted whole bundle can re-validate the same hash on retry. However, that rollback also
+removes the reservation writes, so it does not reproduce the band's state. No counterexample
+preserving the required stale reservation has been demonstrated. The direct-call new-operation
+variants show no band; they do not establish behavior for every reachable `handleOps` lifecycle.
 
 ## Consequences
 
 - The gas tuple is not sized for this band. The tuple validation (`cc127/tuple-480`) uses only
   fresh and previously-settled paths, and never re-admits a released hash.
 - The original RR-5 adjacent-boundary tests stay red on Amsterdam as documented test-lifecycle failures.
-  This report is their root cause; no production change follows from it.
+  This report identifies their observed lifecycle condition; no production change follows from it.
 
 ## Not established
 
@@ -99,3 +121,12 @@ PROFILE_DEPS_ROOT=<checkout with submodules> \
 python3 script/evidence/rr5-lifecycle-run.py --verify <dir>
 python3 script/evidence/rr5-lifecycle-report.py <dir> > SUMMARY.md
 ```
+
+Offline negative controls (temporary evidence copies only):
+
+```sh
+python3 script/evidence/test_rr5_lifecycle_verify.py
+```
+
+The untouched copy must pass; null bands, substituted scans, dropped bisection commands,
+wrong selectors, and empty guard-boundary revert bytes must fail even after refreshing checksums.

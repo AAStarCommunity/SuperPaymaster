@@ -2,8 +2,7 @@
 """Summarise an rr5-lifecycle-run.py output directory as a Markdown table (stdout).
 
 Usage: python3 script/evidence/rr5-lifecycle-report.py <run-dir> > SUMMARY.md
-Reads only manifest.json (already checked by `rr5-lifecycle-run.py --verify`). Exits non-zero if any
-expected engine/mode/variant row is missing or has an unexpected shape.
+Verifies the complete recorded evidence before reducing manifest.json.
 """
 import importlib.util
 import json
@@ -15,6 +14,7 @@ run = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run)
 
 out = Path(sys.argv[1])
+run.verify(out)
 manifest = json.loads((out/'manifest.json').read_text())
 expected = [f'{e}/{m}/{v}' for e in run.ENGINES for m in run.MODES for v in run.VARIANTS]
 assert sorted(manifest) == sorted(expected), 'manifest rows differ from the declared inventory'

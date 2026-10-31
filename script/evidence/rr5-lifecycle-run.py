@@ -30,54 +30,201 @@ def hashes():
 def points(log):
     return [(int(g), int(k), r) for g, k, r in re.findall(r'gas: (\d+)\s+kind: (\d+)\s+ret: (0x[0-9a-fA-F]*)', log)]
 
+def guard_selector():
+    """Keccak-256 (Ethereum padding), restricted to this one-block signature."""
+    data = bytearray(b'PostOpGasTooLow()')
+    data.append(1)
+    data.extend(bytes(136 - len(data)))
+    data[-1] |= 128
+    a = [int.from_bytes(data[i:i+8], 'little') for i in range(0, 136, 8)] + [0]*8
+    rotations = [[0,36,3,41,18], [1,44,10,45,2], [62,6,43,15,61],
+                 [28,55,25,21,56], [27,20,39,8,14]]
+    constants = [0x1,0x8082,0x800000000000808a,0x8000000080008000,
+                 0x808b,0x80000001,0x8000000080008081,0x8000000000008009,
+                 0x8a,0x88,0x80008009,0x8000000a,0x8000808b,
+                 0x800000000000008b,0x8000000000008089,0x8000000000008003,
+                 0x8000000000008002,0x8000000000000080,0x800a,
+                 0x800000008000000a,0x8000000080008081,0x8000000000008080,
+                 0x80000001,0x8000000080008008]
+    mask = (1 << 64)-1
+    def rol(x, n):
+        return ((x << n) | (x >> ((64-n) % 64))) & mask
+    for rc in constants:
+        c = [a[x]^a[x+5]^a[x+10]^a[x+15]^a[x+20] for x in range(5)]
+        d = [c[(x-1)%5]^rol(c[(x+1)%5],1) for x in range(5)]
+        b = [0]*25
+        for x in range(5):
+            for y in range(5):
+                b[y+5*((2*x+3*y)%5)] = rol(a[x+5*y]^d[x],rotations[x][y])
+        for x in range(5):
+            for y in range(5):
+                a[x+5*y] = b[x+5*y]^((~b[(x+1)%5+5*y]) & b[(x+2)%5+5*y])
+        a[0] ^= rc
+    return '0x' + a[0].to_bytes(8,'little')[:4].hex()
+
+
+def verify_sources(out):
+    import ast
+    sums = {}
+    for line in (out/'SHA256SUMS').read_text().splitlines():
+        digest, name = line.split('  ', 1)
+        assert re.fullmatch('[0-9a-f]{64}', digest) and Path(name).name == name
+        assert name not in sums, ('duplicate checksum', name)
+        sums[name] = digest
+    assert set(sums) == {p.name for p in out.iterdir() if p.name != 'SHA256SUMS'}, 'checksum inventory'
+    for name, digest in sums.items():
+        assert hashlib.sha256((out/name).read_bytes()).hexdigest() == digest, ('checksum', name)
+    head = (out/'head.txt').read_text().strip()
+    assert re.fullmatch('[0-9a-f]{40}', head), 'head format'
+    def recorded(path):
+        return subprocess.check_output(['git','show',f'{head}:{path}'])
+    assert subprocess.check_output(['git','rev-parse',f'{head}^{{commit}}'],text=True).strip() == head
+    # The original record has no tracked changes, only the then-untracked evidence folder.
+    assert (out/'working-tree.txt').read_text() in ('', '?? docs/design/aoa-balance-mode/data/rr5-lifecycle-isolation/\n'), 'dirty measurement sources'
+    for engine in ENGINES:
+        version = (out/f'{engine}-version.txt').read_text()
+        assert re.fullmatch(r'forge Version: [^\n]+\nCommit SHA: [0-9a-f]{40}\nBuild Timestamp: [^\n]+\nBuild Profile: dist\n', version)
+        release, commit = (('1.8.7-nightly', '4e8874b2bdc840929585ca73e170993c50a4a531')
+                           if engine == 'amsterdam' else
+                           ('1.7.1', '4072e48705af9d93e3c0f6e29e93b5e9a40caed8'))
+        assert version.startswith(f'forge Version: {release}\nCommit SHA: {commit}\n')
+    assert (out/'cancun-version.txt').read_bytes() == (out/'prague-version.txt').read_bytes()
+    before = json.loads((out/'source-before.json').read_text())
+    assert before == json.loads((out/'source-after.json').read_text())
+    assert all(before.get(p) == h for p,h in hashes().items()), 'production source hashes'
+    paths = {TEST, 'contracts/test/fixtures/entrypoint-v0.7.runtime.hex', 'foundry.toml'}
+    pending = [TEST]
+    while pending:
+        path = pending.pop()
+        for imp in re.findall(r'import\s+(?:[^;]*?from\s+)?["\']([^"\']+)["\']\s*;', recorded(path).decode()):
+            if imp.startswith('.'):
+                child = os.path.normpath(str(Path(path).parent/imp))
+                if child.startswith('contracts/test/') and child not in paths:
+                    paths.add(child)
+                    pending.append(child)
+    for path in sorted(paths):
+        expected = before.get(path, hashlib.sha256(recorded(path)).hexdigest())
+        assert hashlib.sha256(Path(path).read_bytes()).hexdigest() == expected, ('harness source', path)
+    runner = 'script/evidence/rr5-lifecycle-run.py'
+    original = recorded(runner)
+    if runner in before:
+        assert hashlib.sha256(original).hexdigest() == before[runner], 'recorded runner hash'
+    # Verifier-only repairs necessarily change this file's byte hash. Bind all original
+    # measurement definitions verbatim, permitting only the verification implementation to change.
+    old = ast.parse(original)
+    current = ast.parse(Path(runner).read_bytes())
+    def measurement_digest(tree):
+        tree.body = [n for n in tree.body if not (
+            isinstance(n, ast.FunctionDef) and n.name in
+            {'verify', 'verify_sources', 'guard_selector'})]
+        return hashlib.sha256(ast.dump(tree).encode()).hexdigest()
+    assert measurement_digest(old) == measurement_digest(current), 'measurement runner changed'
+
+
+
 def verify(out):
+    verify_sources(out)
     manifest = json.loads((out/'manifest.json').read_text())
-    assert set(manifest) == {f'{e}/{m}/{v}' for e in ENGINES for m in MODES for v in VARIANTS}, 'incomplete variant inventory'
+    keys = [f'{e}/{m}/{v}' for e in ENGINES for m in MODES for v in VARIANTS]
+    assert set(manifest) == set(keys), 'incomplete variant inventory'
     commands = [json.loads(x) for x in (out/'commands.jsonl').read_text().splitlines()]
-    by_id = {c['id']: c for c in commands}
-    assert len(by_id) == len(commands)
-    for c in commands:
+    cursor = 0
+    selector = guard_selector()
+    build_root = None
+    deps_root = None
+    def consume(key, label, budget=0, scan=False, trace=False):
+        nonlocal cursor, build_root, deps_root
+        assert cursor < len(commands), ('missing command', key, label)
+        c = commands[cursor]
+        cursor += 1
+        e,m,v = key.split('/')
+        ident = f'{cursor:05d}-{e}-{m}-{v}-{label}'
+        assert c['id'] == ident and c['log'] == ident+'.log', ('command order/identity', ident)
+        assert (c['engine'], c['mode'], c['variant']) == (e,m,v), ('command tuple', ident)
+        env = c['env']
+        root = str(Path(env['FOUNDRY_OUT']).parent.parent)
+        if build_root is None: build_root = root
+        assert root == build_root
+        assert env == dict(TUPLE_CANDIDATE='false', LIFECYCLE_VARIANT=v, LIFECYCLE_BUDGET=str(budget),
+                           FOUNDRY_OUT=f'{root}/{e}/out', FOUNDRY_CACHE_PATH=f'{root}/{e}/cache'), ('command env', ident)
+        argv = c['argv']
+        binary = argv[0]
+        assert binary.endswith('/nightly-4e8874b/forge' if e == 'amsterdam' else '/.foundry/bin/forge')
+        expected = [binary,'test','--offline','--match-path',TEST,'--match-contract',f'Lifecycle{m.title()}Test',
+                    '--match-test','test_scan_' if scan else 'test_lifecycle','-vvvv' if trace else '-vv']
+        if e != 'cancun': expected += ['--evm-version','prague']
+        if e == 'amsterdam': expected += ['--no-isolate','--hardfork','amsterdam']
+        tail = argv[len(expected):]
+        if tail[:1] == ['-R']:
+            remap = tail[1]
+            prefix = '@chainlink/contracts/='
+            suffix = '/contracts/lib/chainlink-brownie-contracts/contracts/'
+            assert remap.startswith(prefix) and remap.endswith(suffix)
+            deps = remap[len(prefix):-len(suffix)]
+            if deps_root is None: deps_root = deps
+            assert deps == deps_root
+            expected += ['-R',remap,'-R',f'solady/={deps}/contracts/lib/solady/src/']
+        if trace and e == 'amsterdam': expected += ['--debug','--dump',f'{root}/debug.json']
+        assert argv == expected, ('command argv', ident)
         log = (out/c['log']).read_text()
-        assert c['exit'] == 0 and log.strip(), c['id']
+        count = 241 if scan else 1
+        assert c['count'] == count and c['exit'] == 0
         assert hashlib.sha256(log.encode()).hexdigest() == c['sha256']
-        assert re.search(rf"{c['count']} tests? passed, 0 failed, 0 skipped", log), c['id']
-    for key, row in manifest.items():
-        scan = points((out/by_id[row['scan']]['log']).read_text())[:241]
+        assert re.search(rf'{count} tests? passed, 0 failed, 0 skipped', log)
+        assert f'{TEST}:Lifecycle{m.title()}Test' in log, ('log mode', ident)
+        ps = points(log)
+        assert ps and all(k in (0,1,2,3) and (k != 0 or r == selector) and
+                          (k not in (1,3) or r == '0x') for g,k,r in ps), ('point classification', ident)
+        if budget: assert ps[-1][0] == budget, ('sample budget', ident)
+        return ident, ps, log
+    for key in keys:
+        row = manifest[key]
+        e,m,v = key.split('/')
+        snap = (v.startswith('rr_') and v != 'rr_no_snapshot') or v == 'fresh_snapshot'
+        sid, ps, _ = consume(key,'scan',scan=not snap)
+        assert row['scan'] == sid
+        scan = ps[:241]
         assert len(scan) == 241 and sorted(g for g,k,r in scan) == list(range(420000,900001,2000)), key
-        assert all(k in (0,1,2,3) and (k != 1 or r == '0x') and (k != 3 or r == '0x') for g,k,r in scan)
-        # Require the full bytes for exact guard classification (selector derived by cast below).
-        assert all(r == row['guard_selector'] for g,k,r in scan if k == 0)
-        if key.split('/')[2] in SPLIT:
-            assert row['split'] is True
-            assert any(k == 0 for g,k,r in scan), ('split scan has no guard rejection', key)
-            assert not any(k == 3 for g,k,r in scan), ('split variant settled across transactions', key)
-            assert all(k == 2 and r == NOT_LIVE for g,k,r in scan if k != 0), ('split failure is not NotLive', key)
-            continue
-        ordered = sorted(scan)
-        kinds = [k for g,k,r in ordered]
-        assert kinds[0] == 0 and kinds[-1] == 3
-        assert kinds == sorted(kinds), ('nonmonotone scan',key)
-        assert row['last_guard_scan'] == max(g for g,k,r in scan if k == 0)
-        assert row['first_complete_scan'] == min(g for g,k,r in scan if k == 3)
-        for name, g, want in [('guard_lo',row['last_guard'],0),('guard_hi',row['last_guard']+1,None),
-                              ('complete_lo',row['first_complete']-1,None),('complete_hi',row['first_complete'],3)]:
-            c = by_id[row[name]]
-            assert (c['engine'],c['mode'],c['variant']) == tuple(key.split('/'))
-            p = points((out/c['log']).read_text())[-1]
-            assert p[0] == g
-            if want is not None: assert p[1] == want
-            elif name == 'guard_hi': assert p[1] != 0
-            else: assert p[1] != 3
-        t = by_id[row['trace']]
-        trace = (out/t['log']).read_text()
+        guards = [g for g,k,r in scan if k == 0]
+        completed = [g for g,k,r in scan if k == 3]
+        failures = [g for g,k,r in scan if k in (1,2)]
+        split = not completed and bool(failures) and all(k == 0 or (k == 2 and r == NOT_LIVE) for g,k,r in scan)
+        assert split == (v in SPLIT) and row.get('split',False) == split, ('split classification',key)
+        expected = dict(last_guard_scan=max(guards), first_complete_scan=min(completed) if completed else None,
+                        non_guard_scan=[min(failures),max(failures)] if failures else None,
+                        failure_selectors=sorted({r for g,k,r in scan if k in (1,2)}))
+        for field,value in expected.items():
+            if field in row or field in ('last_guard_scan','non_guard_scan') or (field == 'first_complete_scan' and not split) or (field == 'failure_selectors' and split):
+                assert row[field] == value, ('scan summary',key,field)
+        assert row['guard_selector'] == selector, ('guard selector',key)
+        if split: continue
+        kinds = [k for g,k,r in sorted(scan)]
+        assert kinds[0] == 0 and kinds[-1] == 3 and kinds == sorted(kinds), ('nonmonotone scan',key)
+        for edge in ('guard','complete'):
+            lo = max(guards) if edge == 'guard' else min(completed)-2000
+            hi = lo+2000
+            def lower(k): return k == 0 if edge == 'guard' else k != 3
+            while hi-lo > 1:
+                mid = (hi+lo)//2
+                _, ps, _ = consume(key,f'bisect-{mid}',mid)
+                if lower(ps[-1][1]): lo = mid
+                else: hi = mid
+            assert row['last_guard' if edge == 'guard' else 'first_complete'] == (lo if edge == 'guard' else hi), ('bisected boundary',key,edge)
+            for side,g in [('lo',lo),('hi',hi)]:
+                name = edge+'_'+side
+                ident, ps, _ = consume(key,f'{name}-{g}',g)
+                assert row[name] == ident and lower(ps[-1][1]) == (side == 'lo'), ('boundary',key,name)
+        assert row['first_complete'] >= row['last_guard']+1
+        budget = (row['last_guard']+row['first_complete'])//2 if failures else row['last_guard']
+        tid, ps, trace = consume(key,'trace',budget,trace=True)
+        assert row['trace'] == tid and row['trace_budget'] == budget
         assert 'postOp(' in trace
-        if row['first_complete'] > row['last_guard']+1:
-            assert '[OutOfGas]' in trace, ('missing OOG trace', key)
-        if key.startswith('amsterdam/'):
+        if row['first_complete'] > row['last_guard']+1: assert '[OutOfGas]' in trace
+        if e == 'amsterdam':
+            assert row['entry_steps'] == tid+'-entry.json'
             entry = json.loads((out/row['entry_steps']).read_text())
             assert entry and all('state_gas_reservoir' in x['step'] for x in entry)
-        assert row['first_complete'] >= row['last_guard']+1
-    assert json.loads((out/'source-before.json').read_text()) == json.loads((out/'source-after.json').read_text()) == hashes()
+    assert cursor == len(commands), 'extra commands'
     return len(manifest), len(commands)
 
 def main(out):
