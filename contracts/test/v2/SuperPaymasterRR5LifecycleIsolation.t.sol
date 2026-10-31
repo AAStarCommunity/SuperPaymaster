@@ -90,7 +90,8 @@ abstract contract LifecycleIsolationBase is Test {
 
     function setUp() public {
         history = new LifecycleStorageHistory();
-        variant = vm.envString("LIFECYCLE_VARIANT");
+        variant = vm.envOr("LIFECYCLE_VARIANT", string(""));
+        if (bytes(variant).length == 0) vm.skip(true); // runner-only suite: skipped in a plain `forge test`
         freshBase = bytes(variant)[0] == bytes1("f");
         snapshots = !freshBase;
         releaseAgain = !freshBase;

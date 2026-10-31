@@ -104,6 +104,18 @@ def verify_sources(out):
                     pending.append(child)
     for path in sorted(paths):
         expected = before.get(path, hashlib.sha256(recorded(path)).hexdigest())
+        if path == TEST:
+            skip_patch = (b'        variant = vm.envString("LIFECYCLE_VARIANT");\n',
+                          b'        variant = vm.envOr("LIFECYCLE_VARIANT", string(""));\n'
+                          b'        if (bytes(variant).length == 0) vm.skip(true); // runner-only suite: skipped in a plain `forge test`\n')
+            # The only post-run edit to the measured test: skip the suite when LIFECYCLE_VARIANT is unset, so
+            # a plain `forge test` does not fail in setUp. With the variable set (every recorded command) the
+            # behaviour is identical. Anything else differing from the measured revision is rejected.
+            measured = recorded(path)
+            assert measured.count(skip_patch[0]) == 1, 'skip patch anchor'
+            assert hashlib.sha256(measured).hexdigest() == expected, ('harness source', path)
+            assert Path(path).read_bytes() == measured.replace(*skip_patch), ('harness source', path)
+            continue
         assert hashlib.sha256(Path(path).read_bytes()).hexdigest() == expected, ('harness source', path)
     runner = 'script/evidence/rr5-lifecycle-run.py'
     original = recorded(runner)

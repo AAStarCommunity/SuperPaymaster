@@ -46,6 +46,9 @@ DSR asked which fixture difference caused it, and whether production can reach t
   the baseline; all measurement definitions must match that revision's AST. The current runner's
   whole-file hash necessarily differs because its verifier has been repaired; this is not a claim
   that the new verifier ran during measurement.
+- Post-run edit to the test, the only one: `setUp` now skips the suite when `LIFECYCLE_VARIANT` is unset, so a
+  plain `forge test` does not fail. Every recorded command sets the variable, so measured behaviour is unchanged.
+  The verifier accepts the current test only if it equals the measured revision with exactly that one replacement.
 - Run provenance: HEAD `5edd1d308d5e17fea8cbda586e7ea2c871fc0e33`. The recorded working tree
   lists only the then-untracked evidence directory, not a completely clean status. Verification
   checks that status, resolves the recorded commit, validates engine version records, and checks
