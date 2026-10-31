@@ -1,0 +1,47 @@
+Compiling 102 files with Solc 0.8.33
+Compiling 109 files with Solc 0.8.33
+Solc 0.8.33 finished in 15.74s
+Solc 0.8.33 finished in 52.87s
+Compiler run successful with warnings:
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/paymasters/v4/PaymasterBase.sol:313:9:
+    |
+313 |         PostOpMode mode,
+    |         ^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:230:40:
+    |
+230 |     function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
+    |                                        ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:294:37:
+    |
+294 |     function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
+    |                                     ^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 1 test for contracts/test/v2/SuperPaymasterRR5LifecycleIsolation.t.sol:LifecycleBalanceTest
+[PASS] test_lifecycle() (gas: 307991)
+Logs:
+  gas: 420000
+  kind: 0
+  ret: 0x8890295d
+  gas: 431000
+  kind: 0
+  ret: 0x8890295d
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 4.60ms (369.92µs CPU time)
+
+Ran 1 test suite in 5.28ms (4.60ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

@@ -1,0 +1,12 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/v2/SuperPaymasterRR5LifecycleIsolation.t.sol:LifecycleCreditTest
+[PASS] test_lifecycle() (gas: 708964)
+Logs:
+  gas: 431500
+  kind: 0
+  ret: 0x8890295d
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 4.58ms (261.29µs CPU time)
+
+Ran 1 test suite in 5.21ms (4.58ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

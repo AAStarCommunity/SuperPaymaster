@@ -1,0 +1,1454 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+No files changed, compilation skipped
+
+Ran 241 tests for contracts/test/v2/SuperPaymasterRR5LifecycleIsolation.t.sol:LifecycleBalanceTest
+[PASS] test_scan_420000() (gas: 2961750)
+Logs:
+  gas: 420000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_422000() (gas: 2962212)
+Logs:
+  gas: 422000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_424000() (gas: 2960210)
+Logs:
+  gas: 424000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_426000() (gas: 2960232)
+Logs:
+  gas: 426000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_428000() (gas: 2957702)
+Logs:
+  gas: 428000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_430000() (gas: 2959506)
+Logs:
+  gas: 430000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_432000() (gas: 2962256)
+Logs:
+  gas: 432000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_434000() (gas: 2958032)
+Logs:
+  gas: 434000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_436000() (gas: 2960386)
+Logs:
+  gas: 436000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_438000() (gas: 2961904)
+Logs:
+  gas: 438000
+  kind: 0
+  ret: 0x8890295d
+
+[PASS] test_scan_440000() (gas: 3104702)
+Logs:
+  gas: 440000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_442000() (gas: 3102744)
+Logs:
+  gas: 442000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_444000() (gas: 3105582)
+Logs:
+  gas: 444000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_446000() (gas: 3102788)
+Logs:
+  gas: 446000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_448000() (gas: 3106088)
+Logs:
+  gas: 448000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_450000() (gas: 3105604)
+Logs:
+  gas: 450000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_452000() (gas: 3103140)
+Logs:
+  gas: 452000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_454000() (gas: 3106352)
+Logs:
+  gas: 454000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_456000() (gas: 3104988)
+Logs:
+  gas: 456000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_458000() (gas: 3105648)
+Logs:
+  gas: 458000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_460000() (gas: 3102568)
+Logs:
+  gas: 460000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_462000() (gas: 3105076)
+Logs:
+  gas: 462000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_464000() (gas: 3103866)
+Logs:
+  gas: 464000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_466000() (gas: 3103074)
+Logs:
+  gas: 466000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_468000() (gas: 3104680)
+Logs:
+  gas: 468000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_470000() (gas: 3106264)
+Logs:
+  gas: 470000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_472000() (gas: 3103734)
+Logs:
+  gas: 472000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_474000() (gas: 3103690)
+Logs:
+  gas: 474000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_476000() (gas: 3106132)
+Logs:
+  gas: 476000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_478000() (gas: 3102700)
+Logs:
+  gas: 478000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_480000() (gas: 3103514)
+Logs:
+  gas: 480000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_482000() (gas: 3102128)
+Logs:
+  gas: 482000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_484000() (gas: 3106154)
+Logs:
+  gas: 484000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_486000() (gas: 3103910)
+Logs:
+  gas: 486000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_488000() (gas: 3106110)
+Logs:
+  gas: 488000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_490000() (gas: 3101350)
+Logs:
+  gas: 490000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_492000() (gas: 3105120)
+Logs:
+  gas: 492000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_494000() (gas: 3102436)
+Logs:
+  gas: 494000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_496000() (gas: 3104240)
+Logs:
+  gas: 496000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_498000() (gas: 3102106)
+Logs:
+  gas: 498000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_500000() (gas: 3101732)
+Logs:
+  gas: 500000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_502000() (gas: 3102722)
+Logs:
+  gas: 502000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_504000() (gas: 3103580)
+Logs:
+  gas: 504000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_506000() (gas: 3103602)
+Logs:
+  gas: 506000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_508000() (gas: 3102370)
+Logs:
+  gas: 508000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_510000() (gas: 3101394)
+Logs:
+  gas: 510000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_512000() (gas: 3105714)
+Logs:
+  gas: 512000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_514000() (gas: 3102194)
+Logs:
+  gas: 514000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_516000() (gas: 3106176)
+Logs:
+  gas: 516000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_518000() (gas: 3106374)
+Logs:
+  gas: 518000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_520000() (gas: 3101438)
+Logs:
+  gas: 520000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_522000() (gas: 3103976)
+Logs:
+  gas: 522000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_524000() (gas: 3103668)
+Logs:
+  gas: 524000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_526000() (gas: 3101512)
+Logs:
+  gas: 526000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_528000() (gas: 3104218)
+Logs:
+  gas: 528000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_530000() (gas: 3103624)
+Logs:
+  gas: 530000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_532000() (gas: 3103756)
+Logs:
+  gas: 532000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_534000() (gas: 3102238)
+Logs:
+  gas: 534000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_536000() (gas: 3102986)
+Logs:
+  gas: 536000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_538000() (gas: 3101820)
+Logs:
+  gas: 538000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_540000() (gas: 3103118)
+Logs:
+  gas: 540000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_542000() (gas: 3101578)
+Logs:
+  gas: 542000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_544000() (gas: 3106919)
+Logs:
+  gas: 544000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_546000() (gas: 3101842)
+Logs:
+  gas: 546000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_548000() (gas: 3101328)
+Logs:
+  gas: 548000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_550000() (gas: 3104548)
+Logs:
+  gas: 550000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_552000() (gas: 3102964)
+Logs:
+  gas: 552000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_554000() (gas: 3105516)
+Logs:
+  gas: 554000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_556000() (gas: 3101864)
+Logs:
+  gas: 556000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_558000() (gas: 3102414)
+Logs:
+  gas: 558000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_560000() (gas: 3104482)
+Logs:
+  gas: 560000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_562000() (gas: 3106462)
+Logs:
+  gas: 562000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_564000() (gas: 3101622)
+Logs:
+  gas: 564000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_566000() (gas: 3103382)
+Logs:
+  gas: 566000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_568000() (gas: 3106528)
+Logs:
+  gas: 568000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_570000() (gas: 3106660)
+Logs:
+  gas: 570000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_572000() (gas: 3103844)
+Logs:
+  gas: 572000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_574000() (gas: 3101372)
+Logs:
+  gas: 574000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_576000() (gas: 3103932)
+Logs:
+  gas: 576000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_578000() (gas: 3104636)
+Logs:
+  gas: 578000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_580000() (gas: 3105670)
+Logs:
+  gas: 580000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_582000() (gas: 3104284)
+Logs:
+  gas: 582000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_584000() (gas: 3106792)
+Logs:
+  gas: 584000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_586000() (gas: 3102326)
+Logs:
+  gas: 586000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_588000() (gas: 3104350)
+Logs:
+  gas: 588000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_590000() (gas: 3105758)
+Logs:
+  gas: 590000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_592000() (gas: 3105230)
+Logs:
+  gas: 592000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_594000() (gas: 3103998)
+Logs:
+  gas: 594000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_596000() (gas: 3105384)
+Logs:
+  gas: 596000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_598000() (gas: 3105208)
+Logs:
+  gas: 598000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_600000() (gas: 3105978)
+Logs:
+  gas: 600000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_602000() (gas: 3104724)
+Logs:
+  gas: 602000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_604000() (gas: 3101952)
+Logs:
+  gas: 604000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_606000() (gas: 3104768)
+Logs:
+  gas: 606000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_608000() (gas: 3103250)
+Logs:
+  gas: 608000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_610000() (gas: 3106638)
+Logs:
+  gas: 610000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_612000() (gas: 3106880)
+Logs:
+  gas: 612000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_614000() (gas: 3102216)
+Logs:
+  gas: 614000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_616000() (gas: 3101776)
+Logs:
+  gas: 616000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_618000() (gas: 3106682)
+Logs:
+  gas: 618000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_620000() (gas: 3104790)
+Logs:
+  gas: 620000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_622000() (gas: 3104900)
+Logs:
+  gas: 622000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_624000() (gas: 3106814)
+Logs:
+  gas: 624000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_626000() (gas: 3104262)
+Logs:
+  gas: 626000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_628000() (gas: 3102546)
+Logs:
+  gas: 628000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_630000() (gas: 3102590)
+Logs:
+  gas: 630000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_632000() (gas: 3106000)
+Logs:
+  gas: 632000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_634000() (gas: 3105450)
+Logs:
+  gas: 634000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_636000() (gas: 3106044)
+Logs:
+  gas: 636000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_638000() (gas: 3102766)
+Logs:
+  gas: 638000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_640000() (gas: 3101908)
+Logs:
+  gas: 640000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_642000() (gas: 3104394)
+Logs:
+  gas: 642000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_644000() (gas: 3104460)
+Logs:
+  gas: 644000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_646000() (gas: 3102172)
+Logs:
+  gas: 646000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_648000() (gas: 3101710)
+Logs:
+  gas: 648000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_650000() (gas: 3102304)
+Logs:
+  gas: 650000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_652000() (gas: 3101688)
+Logs:
+  gas: 652000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_654000() (gas: 3105098)
+Logs:
+  gas: 654000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_656000() (gas: 3106242)
+Logs:
+  gas: 656000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_658000() (gas: 3105406)
+Logs:
+  gas: 658000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_660000() (gas: 3101666)
+Logs:
+  gas: 660000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_662000() (gas: 3105934)
+Logs:
+  gas: 662000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_664000() (gas: 3105186)
+Logs:
+  gas: 664000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_666000() (gas: 3101754)
+Logs:
+  gas: 666000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_668000() (gas: 3102260)
+Logs:
+  gas: 668000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_670000() (gas: 3103492)
+Logs:
+  gas: 670000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_672000() (gas: 3104042)
+Logs:
+  gas: 672000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_674000() (gas: 3102018)
+Logs:
+  gas: 674000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_676000() (gas: 3106594)
+Logs:
+  gas: 676000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_678000() (gas: 3104372)
+Logs:
+  gas: 678000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_680000() (gas: 3105472)
+Logs:
+  gas: 680000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_682000() (gas: 3104416)
+Logs:
+  gas: 682000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_684000() (gas: 3103470)
+Logs:
+  gas: 684000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_686000() (gas: 3106748)
+Logs:
+  gas: 686000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_688000() (gas: 3106286)
+Logs:
+  gas: 688000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_690000() (gas: 3105252)
+Logs:
+  gas: 690000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_692000() (gas: 3105296)
+Logs:
+  gas: 692000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_694000() (gas: 3103360)
+Logs:
+  gas: 694000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_696000() (gas: 3104130)
+Logs:
+  gas: 696000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_698000() (gas: 3102502)
+Logs:
+  gas: 698000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_700000() (gas: 3101556)
+Logs:
+  gas: 700000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_702000() (gas: 3105494)
+Logs:
+  gas: 702000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_704000() (gas: 3104834)
+Logs:
+  gas: 704000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_706000() (gas: 3106418)
+Logs:
+  gas: 706000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_708000() (gas: 3104592)
+Logs:
+  gas: 708000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_710000() (gas: 3103272)
+Logs:
+  gas: 710000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_712000() (gas: 3104196)
+Logs:
+  gas: 712000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_714000() (gas: 3103404)
+Logs:
+  gas: 714000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_716000() (gas: 3101798)
+Logs:
+  gas: 716000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_718000() (gas: 3106066)
+Logs:
+  gas: 718000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_720000() (gas: 3105736)
+Logs:
+  gas: 720000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_722000() (gas: 3106704)
+Logs:
+  gas: 722000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_724000() (gas: 3101600)
+Logs:
+  gas: 724000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_726000() (gas: 3105164)
+Logs:
+  gas: 726000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_728000() (gas: 3105956)
+Logs:
+  gas: 728000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_730000() (gas: 3106198)
+Logs:
+  gas: 730000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_732000() (gas: 3103536)
+Logs:
+  gas: 732000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_734000() (gas: 3103162)
+Logs:
+  gas: 734000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_736000() (gas: 3104086)
+Logs:
+  gas: 736000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_738000() (gas: 3101490)
+Logs:
+  gas: 738000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_740000() (gas: 3104966)
+Logs:
+  gas: 740000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_742000() (gas: 3104328)
+Logs:
+  gas: 742000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_744000() (gas: 3103712)
+Logs:
+  gas: 744000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_746000() (gas: 3105538)
+Logs:
+  gas: 746000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_748000() (gas: 3106022)
+Logs:
+  gas: 748000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_750000() (gas: 3104020)
+Logs:
+  gas: 750000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_752000() (gas: 3104944)
+Logs:
+  gas: 752000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_754000() (gas: 3104064)
+Logs:
+  gas: 754000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_756000() (gas: 3102480)
+Logs:
+  gas: 756000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_758000() (gas: 3106220)
+Logs:
+  gas: 758000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_760000() (gas: 3104658)
+Logs:
+  gas: 760000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_762000() (gas: 3101974)
+Logs:
+  gas: 762000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_764000() (gas: 3104526)
+Logs:
+  gas: 764000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_766000() (gas: 3103052)
+Logs:
+  gas: 766000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_768000() (gas: 3102062)
+Logs:
+  gas: 768000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_770000() (gas: 3106770)
+Logs:
+  gas: 770000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_772000() (gas: 3105824)
+Logs:
+  gas: 772000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_774000() (gas: 3103426)
+Logs:
+  gas: 774000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_776000() (gas: 3106308)
+Logs:
+  gas: 776000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_778000() (gas: 3102392)
+Logs:
+  gas: 778000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_780000() (gas: 3102898)
+Logs:
+  gas: 780000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_782000() (gas: 3102150)
+Logs:
+  gas: 782000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_784000() (gas: 3103206)
+Logs:
+  gas: 784000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_786000() (gas: 3106440)
+Logs:
+  gas: 786000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_788000() (gas: 3104746)
+Logs:
+  gas: 788000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_790000() (gas: 3103184)
+Logs:
+  gas: 790000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_792000() (gas: 3104438)
+Logs:
+  gas: 792000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_794000() (gas: 3102458)
+Logs:
+  gas: 794000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_796000() (gas: 3102854)
+Logs:
+  gas: 796000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_798000() (gas: 3102656)
+Logs:
+  gas: 798000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_800000() (gas: 3103888)
+Logs:
+  gas: 800000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_802000() (gas: 3104174)
+Logs:
+  gas: 802000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_804000() (gas: 3105846)
+Logs:
+  gas: 804000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_806000() (gas: 3103294)
+Logs:
+  gas: 806000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_808000() (gas: 3103646)
+Logs:
+  gas: 808000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_810000() (gas: 3102634)
+Logs:
+  gas: 810000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_812000() (gas: 3101534)
+Logs:
+  gas: 812000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_814000() (gas: 3102612)
+Logs:
+  gas: 814000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_816000() (gas: 3102920)
+Logs:
+  gas: 816000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_818000() (gas: 3105318)
+Logs:
+  gas: 818000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_820000() (gas: 3105274)
+Logs:
+  gas: 820000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_822000() (gas: 3104922)
+Logs:
+  gas: 822000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_824000() (gas: 3104504)
+Logs:
+  gas: 824000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_826000() (gas: 3102876)
+Logs:
+  gas: 826000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_828000() (gas: 3105142)
+Logs:
+  gas: 828000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_830000() (gas: 3103228)
+Logs:
+  gas: 830000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_832000() (gas: 3105890)
+Logs:
+  gas: 832000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_834000() (gas: 3103558)
+Logs:
+  gas: 834000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_836000() (gas: 3105912)
+Logs:
+  gas: 836000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_838000() (gas: 3103338)
+Logs:
+  gas: 838000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_840000() (gas: 3104570)
+Logs:
+  gas: 840000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_842000() (gas: 3105868)
+Logs:
+  gas: 842000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_844000() (gas: 3103448)
+Logs:
+  gas: 844000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_846000() (gas: 3106506)
+Logs:
+  gas: 846000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_848000() (gas: 3106572)
+Logs:
+  gas: 848000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_850000() (gas: 3101644)
+Logs:
+  gas: 850000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_852000() (gas: 3102524)
+Logs:
+  gas: 852000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_854000() (gas: 3103822)
+Logs:
+  gas: 854000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_856000() (gas: 3102084)
+Logs:
+  gas: 856000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_858000() (gas: 3105362)
+Logs:
+  gas: 858000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_860000() (gas: 3105780)
+Logs:
+  gas: 860000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_862000() (gas: 3106616)
+Logs:
+  gas: 862000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_864000() (gas: 3103096)
+Logs:
+  gas: 864000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_866000() (gas: 3102942)
+Logs:
+  gas: 866000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_868000() (gas: 3104812)
+Logs:
+  gas: 868000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_870000() (gas: 3106726)
+Logs:
+  gas: 870000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_872000() (gas: 3103800)
+Logs:
+  gas: 872000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_874000() (gas: 3103954)
+Logs:
+  gas: 874000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_876000() (gas: 3105692)
+Logs:
+  gas: 876000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_878000() (gas: 3101886)
+Logs:
+  gas: 878000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_880000() (gas: 3105802)
+Logs:
+  gas: 880000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_882000() (gas: 3105340)
+Logs:
+  gas: 882000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_884000() (gas: 3105010)
+Logs:
+  gas: 884000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_886000() (gas: 3101996)
+Logs:
+  gas: 886000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_888000() (gas: 3105054)
+Logs:
+  gas: 888000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_890000() (gas: 3103030)
+Logs:
+  gas: 890000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_892000() (gas: 3101416)
+Logs:
+  gas: 892000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_894000() (gas: 3103008)
+Logs:
+  gas: 894000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_896000() (gas: 3104108)
+Logs:
+  gas: 896000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_898000() (gas: 3102040)
+Logs:
+  gas: 898000
+  kind: 3
+  ret: 0x
+
+[PASS] test_scan_900000() (gas: 3106484)
+Logs:
+  gas: 900000
+  kind: 3
+  ret: 0x
+
+Suite result: ok. 241 passed; 0 failed; 0 skipped; finished in 17.91ms (82.31ms CPU time)
+
+Ran 1 test suite in 20.11ms (17.91ms CPU time): 241 tests passed, 0 failed, 0 skipped (241 total tests)
