@@ -31,3 +31,4 @@ run mutation-m1-d5b-amsterdam "$AMS" test --offline --match-path "$D5B" -vv --ev
 git checkout -- "$SRC"; trap - EXIT
 test -z "$(git status --porcelain)"
 echo "restored; tree clean" >> "$OUT/exits.txt"
+"$(dirname "$0")/rams-g7-verdict.sh" "$OUT" | tee "$OUT/verdict.txt"

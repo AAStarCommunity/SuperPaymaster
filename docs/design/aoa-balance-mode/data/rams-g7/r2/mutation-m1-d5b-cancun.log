@@ -1,0 +1,36 @@
+Compiling 18 files with Solc 0.8.33
+Compiling 151 files with Solc 0.8.33
+Solc 0.8.33 finished in 12.76s
+Solc 0.8.33 finished in 93.49s
+Compiler run successful with warnings:
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 2 tests for contracts/test/v2/SuperPaymasterD5bUpgradeRace.t.sol:SuperPaymasterD5bUpgradeRaceTest
+[FAIL: forward: no victim postOp fails: 2 != 0] test_d5b_forward_mid_bundle_upgrade_with_extension_calls() (gas: 28527561)
+[PASS] test_d5b_rollback_mid_bundle_with_extension_calls() (gas: 28716672)
+Suite result: FAILED. 1 passed; 1 failed; 0 skipped; finished in 19.11ms (21.92ms CPU time)
+
+Ran 1 test suite in 26.30ms (19.11ms CPU time): 1 tests passed, 1 failed, 0 skipped (2 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/SuperPaymasterD5bUpgradeRace.t.sol:SuperPaymasterD5bUpgradeRaceTest
+[FAIL: forward: no victim postOp fails: 2 != 0] test_d5b_forward_mid_bundle_upgrade_with_extension_calls() (gas: 28527561)
+
+Encountered a total of 1 failing tests, 1 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
