@@ -26,9 +26,15 @@ All six receipts have status 0x1, and every sender exit code was 0.
   - `signed.raw` is the broadcast transaction, which is public on chain.
   - No step wrote stderr.
 - The sender also saves `plan.reviewed.json` for each step. All six copies hashed to `0bb821d1…` and were left out, since the plan is already in this repository.
-- `readback-12033065/` holds `script/evidence/a3a-live-readback.sh` run from a clean HEAD at block 12,033,065.
-  - It reads from two RPCs, the archive RPC and publicnode, and gets the same block hash and the same value from each.
-  - Its `verdict.txt` is `READBACK PASS`.
+- `readback-12033089/` holds `script/evidence/a3a-live-readback.sh` run at commit `3761c01f` from a clean tree, at block 12,033,089. Its `verdict.txt` is `READBACK PASS`.
+  - It reads from two different endpoints, Alchemy and publicnode; only their hostnames are recorded. Both return the same block hash before and after the reads, and the same value for every query.
+  - The timelock role sets are rebuilt from every RoleGranted / RoleRevoked / RoleAdminChanged event since deployment, using both RPCs' logs (4 grants, no revokes or admin changes). They equal `plan.json` `roles` exactly, so an extra member would fail.
+  - It also checks that the timelock had no code the block before S2. It checks operation state, ETA = S5b block time + 172,800, minDelay, the APNTsCapped cap, supply, owner and pending owner, the Safe nonce and the three sender nonces.
+- `controls/` holds four runs of the same script that must fail. `SUMMARY.txt` lists their exit codes.
+  - At block 12,032,510, before S5b: exit 1. Exactly the four S5b-dependent values mismatch.
+  - With a plan copy whose CANCELLER set is emptied, which models an extra on-chain member: exit 1 on the role-set comparison.
+  - With the same endpoint passed twice: exit 2.
+  - With the tag `latest` instead of a block number: exit 2.
 
 ## Remaining
 
