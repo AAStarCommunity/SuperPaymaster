@@ -1,0 +1,8 @@
+matrix-cancun exit 0
+matrix-prague exit 0
+matrix-amsterdam exit 0
+matrix-stable-prague exit 0
+matrix-stable-cancun exit 0
+probe-amsterdam exit 0
+probe-prague exit 0
+counterexample exit 1
