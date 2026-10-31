@@ -45,6 +45,16 @@ def source_hashes():
     paths += [p for p in Path('contracts/test/fixtures').rglob('*') if p.is_file()]
     return {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths) if p.is_file()}
 
+def source_hashes_at(revision):
+    """source_hashes() as it would have read the tree at `revision` (tracked files only)."""
+    names = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', revision], cwd=ROOT, text=True).splitlines()
+    fixed = {'foundry.toml', 'script/evidence/tuple-validation-run.py', 'contracts/test/tuple_validation_evidence_test.py',
+             'script/evidence/tuple-validation-run.sh', 'script/evidence/postop-gas-profile-trace.py'}
+    chosen = [n for n in names if (n.startswith(('contracts/src/', 'contracts/test/')) and n.endswith('.sol'))
+              or n in fixed or n.startswith('contracts/test/fixtures/')]
+    return {n: hashlib.sha256(subprocess.check_output(['git', 'show', f'{revision}:{n}'], cwd=ROOT)).hexdigest()
+            for n in sorted(chosen)}
+
 def selectors(row):
     e = row['engine']
     env = {'TUPLE_CANDIDATE':str(row['candidate']).lower(), 'PROFILE_AMSTERDAM':str(e=='amsterdam').lower()}
@@ -144,16 +154,12 @@ def verify(out):
     manifest={line.split('  ',1)[1]:line.split('  ',1)[0] for line in (out/'SHA256SUMS').read_text().splitlines()}
     assert set(manifest)=={p.name for p in out.iterdir() if p.is_file() and p.name!='SHA256SUMS'}
     for name,digest in manifest.items(): assert hashlib.sha256((out/name).read_bytes()).hexdigest()==digest, name
+    # Bind the recorded source hashes to the recorded revision, not to the current tree: later commits may add or
+    # change tests without invalidating a measurement made at that revision.
     recorded = json.loads((out/'source-hashes.json').read_text())
-    current = source_hashes()
-    runner = 'script/evidence/tuple-validation-run.py'
-    if recorded.get(runner) != current.get(runner):
-        revision = (out/'head.txt').read_text().strip()
-        assert re.fullmatch(r'[0-9a-f]{40}', revision), 'invalid recorded revision'
-        historical = subprocess.check_output(['git', 'show', f'{revision}:{runner}'], cwd=ROOT)
-        assert hashlib.sha256(historical).hexdigest() == recorded[runner], 'historical runner drifted'
-        current[runner] = recorded[runner]
-    assert recorded == current, 'sources drifted'
+    revision = (out/'head.txt').read_text().strip()
+    assert re.fullmatch(r'[0-9a-f]{40}', revision), 'invalid recorded revision'
+    assert recorded == source_hashes_at(revision), 'sources differ from the recorded revision'
     return rows
 
 
