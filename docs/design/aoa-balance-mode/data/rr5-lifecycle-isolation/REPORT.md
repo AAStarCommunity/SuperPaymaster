@@ -110,6 +110,22 @@ variants show no band; they do not establish behavior for every reachable `handl
 - The original RR-5 adjacent-boundary tests stay red on Amsterdam as documented test-lifecycle failures.
   This report identifies their observed lifecycle condition; no production change follows from it.
 
+## Known Amsterdam failures attributed to this report
+
+These original RR-5 tests stay **red on Amsterdam** (Sepolia engine, forge nightly `4e8874b`) and green on stable
+Cancun/Prague. They are neither skipped nor inverted. The test files are left byte-identical, because later
+evidence (tuple validation, tuple 480) binds them by hash.
+
+| Test | Amsterdam failure |
+| --- | --- |
+| `contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:*::test_RR5_exactSelector_adjacentBoundary()` (BALANCE and CREDIT suites) | `exact guard, not OOG: 0x != 0x8890295d` |
+| `contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:*::test_RR5_snapshot_not_live_bound()` (CREDIT) | `validation snapshot wins over larger live bound` |
+
+Scope:
+- This attribution covers only these tests in this harness. The fixture releases and re-admits the same hash.
+- An unexpected postOp failure in live sampling is **not** covered. It must be exported and re-discussed.
+- Why re-admission costs more on Amsterdam is not established, and nothing here says that it cannot happen.
+
 ## Not established
 
 - This identifies the condition, not the EVM mechanism inside the Amsterdam engine that makes a
