@@ -1,6 +1,6 @@
 # Multi-operation postOp peak
 
-Measured 2026-10-31 on the local Amsterdam nightly `4e8874b`, with stable Foundry Cancun/Prague completion controls. No production sources or gas parameters were changed. Changes remain uncommitted.
+Measured 2026-10-31 on the local Amsterdam nightly `4e8874b`, with stable Foundry Cancun/Prague completion controls. No production sources or gas parameters were changed. The retained run was generated from clean commit `6e6ebaa5` (`validation.log` records the HEAD).
 
 **Worst observed peak: 391,239 gas; headroom at 440,000: 48,761 gas.** This is operation 1 of same-user all-BALANCE N=2/3/5 and BALANCE-first alternating N=3/5. Highest net consumption is 389,186. These are measured-case results, not production bounds.
 
@@ -271,6 +271,6 @@ The negative control removes one complete case from commands, logs, trajectories
 | Runner on nonempty output directory | Rejected, as required | 1 |
 | Solidity formatting / git whitespace / unchanged production source checks | Pass | 0 |
 
-See [validation.log](validation.log), [command-exits.json](command-exits.json), [nonempty-output-control.log](nonempty-output-control.log), and [run/SHA256SUMS](run/SHA256SUMS). The missing-case CLI check is performed inside the Python test and its exit 1 is asserted. Forge's logs may include failed automatic dependency-install warnings for the unpopulated worktree submodules; the explicit read-only remappings resolve the imports, and the retained test commands all exit zero.
+See [validation.log](validation.log), [run/commands.jsonl](run/commands.jsonl) (per-command exit codes), [nonempty-output-control.log](nonempty-output-control.log), and [run/SHA256SUMS](run/SHA256SUMS). The missing-case CLI check is performed inside the Python test and its exit 1 is asserted. Forge's logs may include failed automatic dependency-install warnings for the unpopulated worktree submodules; the explicit read-only remappings resolve the imports, and the retained test commands all exit zero.
 
-Files added: the multi-operation Solidity fixture, frozen per-operation JSON, Python evidence tests, runner/wrapper/verifier, this report and retained evidence. Existing files changed: the profiling fixture's setUp is now virtual to allow reuse; the reducer supports multiple frames while retaining the original single-frame API. All changes are confined to `contracts/test/`, `script/evidence/`, and `docs/`; `contracts/src/` is unchanged. Nothing was committed.
+Files added: the multi-operation Solidity fixture, frozen per-operation JSON, Python evidence tests, runner/wrapper/verifier, this report and retained evidence. Existing files changed: the profiling fixture's setUp is now virtual to allow reuse; the reducer supports multiple frames while retaining the original single-frame API. All changes are confined to `contracts/test/`, `script/evidence/`, and `docs/`; `contracts/src/` is unchanged.

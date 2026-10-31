@@ -1,0 +1,29 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+Compiling 104 files with Solc 0.8.33
+Compiling 175 files with Solc 0.8.33
+Solc 0.8.33 finished in 23.39s
+Solc 0.8.33 finished in 40.35s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:142:9:
+    |
+142 |         address account = realEP ? realAccount : user;
+    |         ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:106:5:
+    |
+106 |     address account;
+    |     ^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/v2/SuperPaymasterPostOpMultiOp.t.sol:PostOpMultiOpTest
+[PASS] test_bundle() (gas: 2473440)
+Logs:
+  completed operations: 2
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 27.68ms (11.71ms CPU time)
+
+Ran 1 test suite in 53.03ms (27.68ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

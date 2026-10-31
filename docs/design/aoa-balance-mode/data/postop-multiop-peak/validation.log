@@ -1,0 +1,92 @@
+head=6e6ebaa5
+amsterdam-2-balance-same exit 0 [{'initial': 440000, 'minimum_remaining': 48761, 'peak': 391239, 'net': 309496, 'terminal': 130504}, {'initial': 440000, 'minimum_remaining': 288943, 'peak': 151057, 'net': 57314, 'terminal': 382686}]
+amsterdam-2-balance-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 49103, 'peak': 390897, 'net': 211234, 'terminal': 228766}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}]
+amsterdam-2-credit-same exit 0 [{'initial': 440000, 'minimum_remaining': 50814, 'peak': 389186, 'net': 389186, 'terminal': 50814}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}]
+amsterdam-2-credit-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 67002, 'peak': 372998, 'net': 291266, 'terminal': 148734}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}]
+amsterdam-2-mixed-bc-same exit 0 [{'initial': 440000, 'minimum_remaining': 49103, 'peak': 390897, 'net': 211234, 'terminal': 228766}, {'initial': 440000, 'minimum_remaining': 284842, 'peak': 155158, 'net': 61426, 'terminal': 378574}]
+amsterdam-2-mixed-bc-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 49103, 'peak': 390897, 'net': 211234, 'terminal': 228766}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}]
+amsterdam-2-mixed-cb-same exit 0 [{'initial': 440000, 'minimum_remaining': 67002, 'peak': 372998, 'net': 291266, 'terminal': 148734}, {'initial': 440000, 'minimum_remaining': 266943, 'peak': 173057, 'net': 79314, 'terminal': 360686}]
+amsterdam-2-mixed-cb-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 67002, 'peak': 372998, 'net': 291266, 'terminal': 148734}, {'initial': 440000, 'minimum_remaining': 159023, 'peak': 280977, 'net': 89314, 'terminal': 350686}]
+amsterdam-3-balance-same exit 0 [{'initial': 440000, 'minimum_remaining': 48761, 'peak': 391239, 'net': 309496, 'terminal': 130504}, {'initial': 440000, 'minimum_remaining': 288601, 'peak': 151399, 'net': 57656, 'terminal': 382344}, {'initial': 440000, 'minimum_remaining': 288943, 'peak': 151057, 'net': 57314, 'terminal': 382686}]
+amsterdam-3-balance-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 49103, 'peak': 390897, 'net': 211234, 'terminal': 228766}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}]
+amsterdam-3-credit-same exit 0 [{'initial': 440000, 'minimum_remaining': 50814, 'peak': 389186, 'net': 389186, 'terminal': 50814}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}]
+amsterdam-3-credit-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 67002, 'peak': 372998, 'net': 291266, 'terminal': 148734}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}]
+amsterdam-3-mixed-bc-same exit 0 [{'initial': 440000, 'minimum_remaining': 48761, 'peak': 391239, 'net': 309496, 'terminal': 130504}, {'initial': 440000, 'minimum_remaining': 284842, 'peak': 155158, 'net': 61426, 'terminal': 378574}, {'initial': 440000, 'minimum_remaining': 288943, 'peak': 151057, 'net': 57314, 'terminal': 382686}]
+amsterdam-3-mixed-bc-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 49103, 'peak': 390897, 'net': 211234, 'terminal': 228766}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}]
+amsterdam-3-mixed-cb-same exit 0 [{'initial': 440000, 'minimum_remaining': 50814, 'peak': 389186, 'net': 389186, 'terminal': 50814}, {'initial': 440000, 'minimum_remaining': 266943, 'peak': 173057, 'net': 79314, 'terminal': 360686}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}]
+amsterdam-3-mixed-cb-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 67002, 'peak': 372998, 'net': 291266, 'terminal': 148734}, {'initial': 440000, 'minimum_remaining': 159023, 'peak': 280977, 'net': 89314, 'terminal': 350686}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}]
+amsterdam-5-balance-same exit 0 [{'initial': 440000, 'minimum_remaining': 48761, 'peak': 391239, 'net': 309496, 'terminal': 130504}, {'initial': 440000, 'minimum_remaining': 288601, 'peak': 151399, 'net': 57656, 'terminal': 382344}, {'initial': 440000, 'minimum_remaining': 288601, 'peak': 151399, 'net': 57656, 'terminal': 382344}, {'initial': 440000, 'minimum_remaining': 288601, 'peak': 151399, 'net': 57656, 'terminal': 382344}, {'initial': 440000, 'minimum_remaining': 288943, 'peak': 151057, 'net': 57314, 'terminal': 382686}]
+amsterdam-5-balance-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 49103, 'peak': 390897, 'net': 211234, 'terminal': 228766}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}]
+amsterdam-5-credit-same exit 0 [{'initial': 440000, 'minimum_remaining': 50814, 'peak': 389186, 'net': 389186, 'terminal': 50814}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}]
+amsterdam-5-credit-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 67002, 'peak': 372998, 'net': 291266, 'terminal': 148734}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}]
+amsterdam-5-mixed-bc-same exit 0 [{'initial': 440000, 'minimum_remaining': 48761, 'peak': 391239, 'net': 309496, 'terminal': 130504}, {'initial': 440000, 'minimum_remaining': 284447, 'peak': 155553, 'net': 61426, 'terminal': 378574}, {'initial': 440000, 'minimum_remaining': 288601, 'peak': 151399, 'net': 57656, 'terminal': 382344}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}, {'initial': 440000, 'minimum_remaining': 288943, 'peak': 151057, 'net': 57314, 'terminal': 382686}]
+amsterdam-5-mixed-bc-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 49103, 'peak': 390897, 'net': 211234, 'terminal': 228766}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}]
+amsterdam-5-mixed-cb-same exit 0 [{'initial': 440000, 'minimum_remaining': 50814, 'peak': 389186, 'net': 389186, 'terminal': 50814}, {'initial': 440000, 'minimum_remaining': 266601, 'peak': 173399, 'net': 79656, 'terminal': 360344}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}, {'initial': 440000, 'minimum_remaining': 288943, 'peak': 151057, 'net': 57314, 'terminal': 382686}, {'initial': 440000, 'minimum_remaining': 294842, 'peak': 145158, 'net': 51426, 'terminal': 388574}]
+amsterdam-5-mixed-cb-distinct exit 0 [{'initial': 440000, 'minimum_remaining': 67002, 'peak': 372998, 'net': 291266, 'terminal': 148734}, {'initial': 440000, 'minimum_remaining': 159023, 'peak': 280977, 'net': 89314, 'terminal': 350686}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}, {'initial': 440000, 'minimum_remaining': 171023, 'peak': 268977, 'net': 77314, 'terminal': 362686}, {'initial': 440000, 'minimum_remaining': 176922, 'peak': 263078, 'net': 71426, 'terminal': 368574}]
+cancun-2-balance-same exit 0 
+cancun-2-balance-distinct exit 0 
+cancun-2-credit-same exit 0 
+cancun-2-credit-distinct exit 0 
+cancun-2-mixed-bc-same exit 0 
+cancun-2-mixed-bc-distinct exit 0 
+cancun-2-mixed-cb-same exit 0 
+cancun-2-mixed-cb-distinct exit 0 
+cancun-3-balance-same exit 0 
+cancun-3-balance-distinct exit 0 
+cancun-3-credit-same exit 0 
+cancun-3-credit-distinct exit 0 
+cancun-3-mixed-bc-same exit 0 
+cancun-3-mixed-bc-distinct exit 0 
+cancun-3-mixed-cb-same exit 0 
+cancun-3-mixed-cb-distinct exit 0 
+cancun-5-balance-same exit 0 
+cancun-5-balance-distinct exit 0 
+cancun-5-credit-same exit 0 
+cancun-5-credit-distinct exit 0 
+cancun-5-mixed-bc-same exit 0 
+cancun-5-mixed-bc-distinct exit 0 
+cancun-5-mixed-cb-same exit 0 
+cancun-5-mixed-cb-distinct exit 0 
+prague-2-balance-same exit 0 
+prague-2-balance-distinct exit 0 
+prague-2-credit-same exit 0 
+prague-2-credit-distinct exit 0 
+prague-2-mixed-bc-same exit 0 
+prague-2-mixed-bc-distinct exit 0 
+prague-2-mixed-cb-same exit 0 
+prague-2-mixed-cb-distinct exit 0 
+prague-3-balance-same exit 0 
+prague-3-balance-distinct exit 0 
+prague-3-credit-same exit 0 
+prague-3-credit-distinct exit 0 
+prague-3-mixed-bc-same exit 0 
+prague-3-mixed-bc-distinct exit 0 
+prague-3-mixed-cb-same exit 0 
+prague-3-mixed-cb-distinct exit 0 
+prague-5-balance-same exit 0 
+prague-5-balance-distinct exit 0 
+prague-5-credit-same exit 0 
+prague-5-credit-distinct exit 0 
+prague-5-mixed-bc-same exit 0 
+prague-5-mixed-bc-distinct exit 0 
+prague-5-mixed-cb-same exit 0 
+prague-5-mixed-cb-distinct exit 0 
+amsterdam-5-mixed-bc-same-floor-439999 exit 0 
+VERDICT PASS: (391239, 'amsterdam-5-mixed-bc-same', 0) ; 73/73 commands, 24 trajectories, frozen per-op numbers
+Worst: (391239, 'amsterdam-5-mixed-bc-same', 0)
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.233s
+
+OK
+NEGATIVE CONTROL PASS: verifier exit 1; rejects missing case amsterdam-2-balance-same
+runner exit=0
+VERDICT PASS: (391239, 'amsterdam-5-mixed-bc-same', 0) ; 73/73 commands, 24 trajectories, frozen per-op numbers
+verifier exit=0
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.253s
+
+OK
+NEGATIVE CONTROL PASS: verifier exit 1; rejects missing case amsterdam-2-balance-same
+regression exit=0
