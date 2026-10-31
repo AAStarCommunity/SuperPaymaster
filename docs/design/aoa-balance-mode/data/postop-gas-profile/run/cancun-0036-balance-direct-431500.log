@@ -1,0 +1,11 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileBalanceTest
+[PASS] test_search_sample() (gas: 299678)
+Logs:
+  sample budget: 431500
+  sample completed: 0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.46ms (150.62µs CPU time)
+
+Ran 1 test suite in 4.63ms (2.46ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

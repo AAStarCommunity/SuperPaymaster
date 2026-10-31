@@ -1,0 +1,35 @@
+VERDICT PASS: all exits zero; exact test counts; frozen thresholds; fresh-process searches; nonempty trajectories
+{
+  "cancun": {
+    "balance-entrypoint": 440000,
+    "balance-direct": 431514,
+    "credit-entrypoint": 440000,
+    "credit-direct": 431514
+  },
+  "prague": {
+    "balance-entrypoint": 440000,
+    "balance-direct": 431514,
+    "credit-entrypoint": 440000,
+    "credit-direct": 431514
+  },
+  "amsterdam": {
+    "balance-entrypoint": 440000,
+    "balance-direct": 438828,
+    "credit-entrypoint": 440000,
+    "credit-direct": 438828,
+    "balance-trajectory": {
+      "initial": 440000,
+      "minimum_remaining": 49103,
+      "peak": 390897,
+      "net": 211234,
+      "terminal": 228766
+    },
+    "credit-trajectory": {
+      "initial": 440000,
+      "minimum_remaining": 67002,
+      "peak": 372998,
+      "net": 291266,
+      "terminal": 148734
+    }
+  }
+}

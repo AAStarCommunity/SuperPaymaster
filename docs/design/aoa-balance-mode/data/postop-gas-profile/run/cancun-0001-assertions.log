@@ -1,0 +1,101 @@
+Compiling 103 files with Solc 0.8.33
+Compiling 109 files with Solc 0.8.33
+Solc 0.8.33 finished in 19.27s
+Solc 0.8.33 finished in 30.42s
+Compiler run successful with warnings:
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:142:9:
+    |
+142 |         address account = realEP ? realAccount : user;
+    |         ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:106:5:
+    |
+106 |     address account;
+    |     ^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/paymasters/v4/PaymasterBase.sol:313:9:
+    |
+313 |         PostOpMode mode,
+    |         ^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:230:40:
+    |
+230 |     function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
+    |                                        ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:294:37:
+    |
+294 |     function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
+    |                                     ^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+Ran 1 test for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileBalanceTrajectoryTest
+[PASS] test_trajectory() (gas: 534123)
+Logs:
+  checkpoint gasleft: 428353
+  checkpoint gasleft: 428076
+  checkpoint gasleft: 406352
+  checkpoint gasleft: 361565
+  checkpoint gasleft: 317428
+  checkpoint gasleft: 317227
+  checkpoint gasleft: 293948
+  checkpoint gasleft: 291772
+  checkpoint peak: 136581
+  checkpoint net: 136581
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 4.23ms (970.54µs CPU time)
+
+Ran 6 tests for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileBalanceTest
+[PASS] test_direct_minimum() (gas: 338883)
+[PASS] test_direct_minimum_minus_one() (gas: 295963)
+[PASS] test_direct_stable_boundary_is_guard_on_amsterdam() (gas: 3252)
+[PASS] test_entrypoint_minimum() (gas: 497001)
+[PASS] test_entrypoint_minimum_minus_one() (gas: 132098)
+[PASS] test_search_sample() (gas: 502574)
+Logs:
+  sample budget: 440000
+  sample completed: 1
+
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 4.39ms (3.52ms CPU time)
+
+Ran 6 tests for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileCreditTest
+[PASS] test_direct_minimum() (gas: 329166)
+[PASS] test_direct_minimum_minus_one() (gas: 283848)
+[PASS] test_direct_stable_boundary_is_guard_on_amsterdam() (gas: 3252)
+[PASS] test_entrypoint_minimum() (gas: 485429)
+[PASS] test_entrypoint_minimum_minus_one() (gas: 132098)
+[PASS] test_search_sample() (gas: 490987)
+Logs:
+  sample budget: 440000
+  sample completed: 1
+
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 4.39ms (2.15ms CPU time)
+
+Ran 1 test for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileCreditTrajectoryTest
+[PASS] test_trajectory() (gas: 522552)
+Logs:
+  checkpoint gasleft: 428353
+  checkpoint gasleft: 428076
+  checkpoint gasleft: 406352
+  checkpoint gasleft: 361565
+  checkpoint gasleft: 311016
+  checkpoint gasleft: 310815
+  checkpoint gasleft: 287536
+  checkpoint gasleft: 285360
+  checkpoint peak: 142993
+  checkpoint net: 142993
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 4.44ms (1.19ms CPU time)
+
+Ran 4 test suites in 5.39ms (17.45ms CPU time): 14 tests passed, 0 failed, 0 skipped (14 total tests)

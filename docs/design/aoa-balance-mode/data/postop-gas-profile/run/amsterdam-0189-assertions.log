@@ -1,0 +1,80 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+Compiling 103 files with Solc 0.8.33
+Compiling 175 files with Solc 0.8.33
+Solc 0.8.33 finished in 20.97s
+Solc 0.8.33 finished in 40.81s
+Compiler run successful with warnings:
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:142:9:
+    |
+142 |         address account = realEP ? realAccount : user;
+    |         ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:106:5:
+    |
+106 |     address account;
+    |     ^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileCreditTrajectoryTest
+[PASS] test_trajectory() (gas: 1586185)
+Logs:
+  checkpoint gasleft: 421153
+  checkpoint gasleft: 420876
+  checkpoint gasleft: 311132
+  checkpoint gasleft: 90305
+  checkpoint gasleft: 157476
+  checkpoint gasleft: 255195
+  checkpoint gasleft: 143896
+  checkpoint gasleft: 141720
+  checkpoint peak: 330848
+  checkpoint net: 279433
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 3.04ms (456.92µs CPU time)
+
+Ran 1 test for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileBalanceTrajectoryTest
+[PASS] test_trajectory() (gas: 1699377)
+Logs:
+  checkpoint gasleft: 421153
+  checkpoint gasleft: 420876
+  checkpoint gasleft: 311132
+  checkpoint gasleft: 90305
+  checkpoint gasleft: 237508
+  checkpoint gasleft: 335227
+  checkpoint gasleft: 223928
+  checkpoint gasleft: 221752
+  checkpoint peak: 330848
+  checkpoint net: 199401
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 3.01ms (594.67µs CPU time)
+
+Ran 6 tests for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileCreditTest
+[PASS] test_direct_minimum() (gas: 956605)
+[PASS] test_direct_minimum_minus_one() (gas: 830167)
+[PASS] test_direct_stable_boundary_is_guard_on_amsterdam() (gas: 829988)
+[PASS] test_entrypoint_minimum() (gas: 1548672)
+[PASS] test_entrypoint_minimum_minus_one() (gas: 129598)
+[PASS] test_search_sample() (gas: 1554231)
+Logs:
+  sample budget: 440000
+  sample completed: 1
+
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 3.37ms (2.39ms CPU time)
+
+Ran 6 tests for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileBalanceTest
+[PASS] test_direct_minimum() (gas: 1067942)
+[PASS] test_direct_minimum_minus_one() (gas: 1017522)
+[PASS] test_direct_stable_boundary_is_guard_on_amsterdam() (gas: 1017324)
+[PASS] test_entrypoint_minimum() (gas: 1661866)
+[PASS] test_entrypoint_minimum_minus_one() (gas: 129598)
+[PASS] test_search_sample() (gas: 1667440)
+Logs:
+  sample budget: 440000
+  sample completed: 1
+
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 3.44ms (3.05ms CPU time)
+
+Ran 4 test suites in 6.01ms (12.86ms CPU time): 14 tests passed, 0 failed, 0 skipped (14 total tests)
