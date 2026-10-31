@@ -1,0 +1,24 @@
+[
+  {
+    "node": 29,
+    "kind": "CALL",
+    "step": {
+      "pc": 0,
+      "op": 96,
+      "stack": [],
+      "push_stack": null,
+      "memory": "0x",
+      "returndata": "0x",
+      "gas_remaining": 438827,
+      "gas_refund_counter": 0,
+      "gas_used": 0,
+      "gas_cost": 3,
+      "state_gas_cost": null,
+      "state_gas_reservoir": 0,
+      "storage_change": null,
+      "status": null,
+      "immediate_bytes": "0x80",
+      "decoded": null
+    }
+  }
+]
