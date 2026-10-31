@@ -1,0 +1,315 @@
+{
+ "readbacks": {
+  "before": {
+   "A": {
+    "blockNumber": "223",
+    "blockHash": "0xa2e6205a3159d058dfdb25315f27af34b8fe9153684703cdd1c29980dddf7209",
+    "epDeposit": "9985860731716026244",
+    "operatorBalance": "18815664095854824350000",
+    "totalSpent": "45792000000000000000000",
+    "totalTxSponsored": "18",
+    "protocolRevenue": "1951470657050475220000",
+    "inflightOperator": "0x0000000000000000000000000000000000000000",
+    "inflightA0": "0",
+    "userXPNTs": "58492054654722191310000",
+    "totalSupply": "58492054654722191310000",
+    "lockedOf": "0",
+    "debts": "0",
+    "creditReservedOf": "0",
+    "lockXLocked": "0"
+   },
+   "B": {
+    "blockNumber": "223",
+    "blockHash": "0xa2e6205a3159d058dfdb25315f27af34b8fe9153684703cdd1c29980dddf7209",
+    "epDeposit": "9985860731716026244",
+    "operatorBalance": "18815664095854824350000",
+    "totalSpent": "45792000000000000000000",
+    "totalTxSponsored": "18",
+    "protocolRevenue": "1951470657050475220000",
+    "inflightOperator": "0x0000000000000000000000000000000000000000",
+    "inflightA0": "0",
+    "userXPNTs": "58492054654722191310000",
+    "totalSupply": "58492054654722191310000",
+    "lockedOf": "0",
+    "debts": "0",
+    "creditReservedOf": "0",
+    "lockXLocked": "0"
+   }
+  },
+  "after": {
+   "A": {
+    "blockNumber": "224",
+    "blockHash": "0xa201bbe3995a68b945963b6cc733abecbdf77514a84eac79fdeab420510cf9f5",
+    "epDeposit": "9985085327713312330",
+    "operatorBalance": "18707997195477990200000",
+    "totalSpent": "48336000000000000000000",
+    "totalTxSponsored": "19",
+    "protocolRevenue": "2059137557427309370000",
+    "inflightOperator": "0x0000000000000000000000000000000000000000",
+    "inflightA0": "0",
+    "userXPNTs": "58384387754345357160000",
+    "totalSupply": "58384387754345357160000",
+    "lockedOf": "0",
+    "debts": "0",
+    "creditReservedOf": "0",
+    "lockXLocked": "0"
+   },
+   "B": {
+    "blockNumber": "224",
+    "blockHash": "0xa201bbe3995a68b945963b6cc733abecbdf77514a84eac79fdeab420510cf9f5",
+    "epDeposit": "9985085327713312330",
+    "operatorBalance": "18707997195477990200000",
+    "totalSpent": "48336000000000000000000",
+    "totalTxSponsored": "19",
+    "protocolRevenue": "2059137557427309370000",
+    "inflightOperator": "0x0000000000000000000000000000000000000000",
+    "inflightA0": "0",
+    "userXPNTs": "58384387754345357160000",
+    "totalSupply": "58384387754345357160000",
+    "lockedOf": "0",
+    "debts": "0",
+    "creditReservedOf": "0",
+    "lockXLocked": "0"
+   }
+  }
+ },
+ "conservation": {
+  "evaluated": true,
+  "notEvaluable": null,
+  "ok": true,
+  "checks": [
+   {
+    "id": "continuity.block",
+    "ok": true
+   },
+   {
+    "id": "continuity.epDeposit",
+    "ok": true
+   },
+   {
+    "id": "continuity.totalSpent",
+    "ok": true
+   },
+   {
+    "id": "continuity.totalTxSponsored",
+    "ok": true
+   },
+   {
+    "id": "continuity.protocolRevenue",
+    "ok": true
+   },
+   {
+    "id": "continuity.userXPNTs",
+    "ok": true
+   },
+   {
+    "id": "continuity.totalSupply",
+    "ok": true
+   },
+   {
+    "id": "continuity.lockedOf",
+    "ok": true
+   },
+   {
+    "id": "continuity.debts",
+    "ok": true
+   },
+   {
+    "id": "continuity.creditReservedOf",
+    "ok": true
+   },
+   {
+    "id": "continuity.operatorBalance",
+    "ok": true,
+    "expected": "18815664095854824350000",
+    "actual": "18815664095854824350000"
+   },
+   {
+    "id": "continuity.new_op_lock_empty",
+    "ok": true
+   },
+   {
+    "id": "unique.tx",
+    "ok": true
+   },
+   {
+    "id": "unique.op",
+    "ok": true
+   },
+   {
+    "id": "unique.block",
+    "ok": true
+   },
+   {
+    "id": "D1.ep_deposit_delta_eq_minus_actualGasCost",
+    "ok": true,
+    "expected": "-775404002713914",
+    "actual": "-775404002713914",
+    "src": "EP:535,744-745"
+   },
+   {
+    "id": "lock.user",
+    "ok": true,
+    "expected": "0x43a71246698E5bE1D9fb04183589edA602EA06F1",
+    "actual": "0x43a71246698E5bE1D9fb04183589edA602EA06F1",
+    "src": "XT:243"
+   },
+   {
+    "id": "lock.locker",
+    "ok": true,
+    "expected": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
+    "actual": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
+    "src": "XT:243"
+   },
+   {
+    "id": "C4.before_operator_empty",
+    "ok": true,
+    "expected": "0",
+    "actual": "0x0000000000000000000000000000000000000000",
+    "src": "SP:445"
+   },
+   {
+    "id": "C4.inflight_before_empty",
+    "ok": true,
+    "expected": "0",
+    "actual": "0",
+    "src": "SP:324,445"
+   },
+   {
+    "id": "C9.sponsored_exactly_one",
+    "ok": true,
+    "expected": "1",
+    "actual": "1",
+    "src": "SP:450"
+   },
+   {
+    "id": "C9.sponsored_operator",
+    "ok": true,
+    "expected": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "actual": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "src": "SP:450"
+   },
+   {
+    "id": "C9.sponsored_user",
+    "ok": true,
+    "expected": "0x43a71246698E5bE1D9fb04183589edA602EA06F1",
+    "actual": "0x43a71246698E5bE1D9fb04183589edA602EA06F1",
+    "src": "SP:450"
+   },
+   {
+    "id": "C1.op_delta_eq_minus_charge",
+    "ok": true,
+    "expected": "-107666900376834150000",
+    "actual": "-107666900376834150000",
+    "src": "SP:322,447"
+   },
+   {
+    "id": "C2.revenue_delta_eq_charge",
+    "ok": true,
+    "expected": "107666900376834150000",
+    "actual": "107666900376834150000",
+    "src": "SP:448"
+   },
+   {
+    "id": "C3.op_plus_revenue_zero",
+    "ok": true,
+    "expected": "0",
+    "actual": "0",
+    "src": "SP:322,447,448"
+   },
+   {
+    "id": "C4.after_operator_empty",
+    "ok": true,
+    "expected": "0",
+    "actual": "0x0000000000000000000000000000000000000000",
+    "src": "SP:445"
+   },
+   {
+    "id": "C4.inflight_after_empty",
+    "ok": true,
+    "expected": "0",
+    "actual": "0",
+    "src": "SP:445"
+   },
+   {
+    "id": "C10.totalTxSponsored_plus_one",
+    "ok": true,
+    "expected": "1",
+    "actual": "1",
+    "src": "SP:417"
+   },
+   {
+    "id": "C8.settled_user",
+    "ok": true,
+    "expected": "0x43a71246698E5bE1D9fb04183589edA602EA06F1",
+    "actual": "0x43a71246698E5bE1D9fb04183589edA602EA06F1",
+    "src": "XT:268"
+   },
+   {
+    "id": "C8.credit_unchanged",
+    "ok": true,
+    "expected": "0",
+    "actual": "0/0",
+    "src": "XT:259-268"
+   },
+   {
+    "id": "C8.lock_charge_eq_sponsored_charge",
+    "ok": true,
+    "expected": "107666900376834150000",
+    "actual": "107666900376834150000",
+    "src": "XT:259,268"
+   },
+   {
+    "id": "C8.charge_le_a0",
+    "ok": true,
+    "expected": "<=2544000000000000000000",
+    "actual": "107666900376834150000",
+    "src": "SP:434"
+   },
+   {
+    "id": "C10.totalSpent_plus_a0",
+    "ok": true,
+    "expected": "2544000000000000000000",
+    "actual": "2544000000000000000000",
+    "src": "SP:323"
+   },
+   {
+    "id": "C7.xBurned_formula",
+    "ok": true,
+    "expected": "107666900376834150000",
+    "actual": "107666900376834150000",
+    "src": "XT:259-261"
+   },
+   {
+    "id": "C5.user_delta_eq_minus_burn",
+    "ok": true,
+    "expected": "-107666900376834150000",
+    "actual": "-107666900376834150000",
+    "src": "XT:267"
+   },
+   {
+    "id": "C5.supply_delta_eq_minus_burn",
+    "ok": true,
+    "expected": "-107666900376834150000",
+    "actual": "-107666900376834150000",
+    "src": "XT:267"
+   },
+   {
+    "id": "C6.locked_unchanged",
+    "ok": true,
+    "expected": "0",
+    "actual": "0",
+    "src": "XT:240,263"
+   },
+   {
+    "id": "C6.lock_record_cleared",
+    "ok": true,
+    "expected": "0",
+    "actual": "0",
+    "src": "XT:262"
+   }
+  ]
+ },
+ "spMode": "BALANCE",
+ "charge": "107666900376834150000"
+}
