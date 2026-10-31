@@ -41,5 +41,5 @@ amsterdam	contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileCr
 amsterdam	contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileCreditTest::test_search_sample()	PASS	FAIL
 amsterdam	contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileCreditTrajectoryTest::test_trajectory()	PASS	FAIL
 amsterdam	contracts/test/v2/SuperPaymasterPostOpMultiOp.t.sol:PostOpMultiOpTest::test_bundle()	PASS	FAIL
-amsterdam	contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest::testFuzz_G2_I8_I9_I10_conservation(uint256)	ABSENT	PASS
+amsterdam	contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest::testFuzz_G2_I8_I9_I10_conservation(uint256)	FAIL	PASS
 amsterdam	contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest::test_G2_coverage_replay_fixed_seeds()	FAIL	PASS

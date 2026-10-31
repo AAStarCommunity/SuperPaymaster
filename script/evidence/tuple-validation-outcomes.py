@@ -1,35 +1,70 @@
-"""List tests whose outcome differs between the current tuple (full-<engine>-0.log) and the
-candidate tuple (full-<engine>-1.log) in a tuple-validation run directory.
-
-Usage: python3 script/evidence/tuple-validation-outcomes.py <run-dir> > outcome-changes.tsv
-Fails if any of the six full-suite logs is missing or has no test summary.
-"""
-import pathlib, re, sys
-
-run = pathlib.Path(sys.argv[1])
+"""Compare completed, suite-qualified Forge outcomes without running Forge."""
+import pathlib
+import re
+import sys
 
 
-def outcomes(path):
-    text = path.read_text(errors='replace')
-    assert re.search(r'\d+ tests passed, \d+ failed, \d+ skipped', text), f'{path.name}: no test summary'
-    out, suite = {}, None
-    for line in text.splitlines():
+def parse(log, label='log'):
+    out, suite, active, trailer = {}, None, False, False
+    suite_results = {}
+    aggregate = None
+    declared = 0
+    for line in log.splitlines():
+        header = re.match(r'Ran (\d+) tests? for (\S+)', line)
+        if header:
+            assert not active, f'{label}: incomplete suite {suite}'
+            declared, suite = int(header[1]), header[2]
+            assert suite not in suite_results, f'{label}: repeated suite {suite}'
+            active, trailer, aggregate = True, False, None
+            current = {}
+            continue
         if line.startswith('Failing tests:'):
-            break  # the trailing summary repeats FAIL lines without their suite header
-        m = re.match(r'Ran \d+ tests? for (\S+)', line)
-        if m:
-            suite = m.group(1)
-        m = re.match(r'\[(PASS|FAIL)[^\]]*\]\s+(\w+\([^)]*\))', line)
-        if m:
-            out[f'{suite}::{m.group(2)}'] = m.group(1)
+            trailer = True
+        if trailer:
+            continue
+        result = re.match(r'^\[(PASS|FAIL|SKIP)(?::.*?)?\]\s+(\w+\([^)]*\))(?:\s|$)', line)
+        group = re.fullmatch(r'\[(PASS|FAIL|SKIP)\]', line)
+        if result or group:
+            assert active, f'{label}: result outside suite'
+            status = (result or group)[1]
+            name = result[2] if result else '<invariant-group>'
+            key = f'{suite}::{name}'
+            assert key not in out, f'{label}: duplicate key {key}'
+            out[key] = current[key] = status
+        completion = re.match(r'Suite result: .*? (\d+) passed; (\d+) failed; (\d+) skipped;', line)
+        if completion:
+            assert active, f'{label}: completion without suite'
+            counts = tuple(sum(v == s for v in current.values()) for s in ('PASS', 'FAIL', 'SKIP'))
+            assert counts == tuple(map(int, completion.groups())), f'{label}: suite counts mismatch {suite}'
+            assert len(current) == declared, f'{label}: declared count mismatch {suite}'
+            suite_results[suite] = set(current)
+            active = False
+        total = re.match(r'Ran (\d+) test suites? .*?: (\d+) tests? passed, (\d+) failed, (\d+) skipped', line)
+        if total:
+            assert not active, f'{label}: incomplete suite {suite}'
+            assert int(total[1]) == len(suite_results), f'{label}: suite total mismatch'
+            aggregate = tuple(map(int, total.groups()[1:]))
+            assert aggregate == tuple(sum(v == s for v in out.values()) for s in ('PASS', 'FAIL', 'SKIP')), f'{label}: aggregate mismatch'
+    assert not active, f'{label}: incomplete suite {suite}'
+    assert aggregate is not None and out, f'{label}: missing final aggregate'
     return out
 
 
-print('engine\ttest\tcurrent\tcandidate')
-for engine in ['cancun', 'prague', 'amsterdam']:
-    cur = outcomes(run / f'full-{engine}-0.log')
-    cand = outcomes(run / f'full-{engine}-1.log')
-    for test in sorted(set(cur) | set(cand)):
-        a, b = cur.get(test, 'ABSENT'), cand.get(test, 'ABSENT')
-        if a != b:
-            print(f'{engine}\t{test}\t{a}\t{b}')
+def outcomes(path):
+    return parse(path.read_text(errors='replace'), path.name)
+
+
+def changes(run):
+    for engine in ('cancun', 'prague', 'amsterdam'):
+        cur = outcomes(run / f'full-{engine}-0.log')
+        cand = outcomes(run / f'full-{engine}-1.log')
+        for test in sorted(set(cur) | set(cand)):
+            a, b = cur.get(test, 'ABSENT'), cand.get(test, 'ABSENT')
+            if a != b:
+                yield f'{engine}\t{test}\t{a}\t{b}'
+
+
+if __name__ == '__main__':
+    rows = list(changes(pathlib.Path(sys.argv[1])))
+    print('engine\ttest\tcurrent\tcandidate')
+    print('\n'.join(rows))

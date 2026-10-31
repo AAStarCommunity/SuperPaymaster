@@ -79,7 +79,11 @@ preOpGas, not a claim that every operation has this wrapper cost.
 `SelectedGasFixtures.sol` selects the candidate only when `TUPLE_CANDIDATE=true`.
 Its default values remain 440000/420000/5000/340000, and the original
 `DeploymentGasFixtures.sol` is byte-for-byte unchanged. Consumers use runtime-selected
-limits for operation budgets, sweeps and charge expectations. Explicit all-floor tests
+limits for operation budgets, sweeps and charge expectations. The switched tests are
+not byte-for-byte identical: former constants are storage variables and the helper
+reads environment settings at runtime. Numerical defaults and existing assertion
+conditions are preserved. These retained runs do not establish unchanged execution
+versus `origin/main` on all three engines. Explicit all-floor tests
 still queue their own tuple. The original gas matrix, gas-profile checkpoints and
 multi-op 440000 assertions are preserved; their failures with a different tuple are
 reported below, not suppressed or rewritten.
@@ -106,11 +110,30 @@ Amsterdam state-gas effects. EntryPoint's unused-gas penalty is separately extra
 at the canonical runtime's DIV instruction (PC 7838), retaining numerator and denominator.
 The charge is not compared with transaction-end gas after refunds.
 
-The evidence verifier requires the complete 46-command inventory, exact selectors,
-completed test counts, exit/status consistency, all 24 trajectories and 80 frames,
-trajectory arithmetic, the 15% peak/net bounds, penalty arithmetic, and source/file hashes.
-A resealed missing-command control must fail. The original current-tuple G2 failure is
-also a live negative control for the reimbursement gate.
+The revised offline verifier checks the expected 46-command inventory and recorded
+selectors, and binds each filtered log's exact suite-qualified test identities to the
+selection from that engine/tuple's full log. Each full log must have the same test
+inventory as the same engine's other tuple log. All six peer logs are available here;
+no independent `forge test --list` inventory was recorded. This detects a suite removed
+from one tuple, but does not establish completeness if both peer logs omit the same
+tests. It is a consistency check against retained evidence, not independent discovery
+of every test that should have run.
+
+The shared parser recognizes PASS, FAIL (including bracketed fuzz counterexamples),
+and SKIP, checks each suite's completion and counts plus the final aggregate, and
+rejects duplicate keys or incomplete appended suites. The verifier also requires
+`statuses.json` to equal parsed outcomes, checks exit/status consistency, all 24
+trajectories and 80 frames, trajectory arithmetic, the 15% peak/net bounds, and
+penalty arithmetic. File hashes detect unresealed changes; resealing is not proof of
+authenticity. Source hashes still check current recorded sources, except the revised
+runner: its recorded hash is checked against the runner blob at `run/head.txt`'s Git
+revision. The retained manifest and raw logs have not been rewritten.
+
+Offline temporary-copy controls reject an unrelated boundary log, a removed suite
+with reduced aggregate counts, empty statuses, an incomplete appended run, and a
+duplicate key. Positive parsing/comparison controls cover bracketed fuzz failures and
+SKIP transitions; the untouched copy passes. The original current-tuple G2 failure
+remains the measured negative control for the reimbursement gate.
 
 ## Results
 
@@ -158,7 +181,9 @@ The **only new failures** on all three engines are these fourteen frozen expecta
   floor: one failure. Separate candidate matrix commands explicitly submit 470000.
 
 No previously passing non-frozen test changes to failure. Skips are unchanged within
-each engine. The full keyed comparison is in `run/statuses.json`; failure reasons
+each engine. The regenerated `outcome-changes.tsv` records the Amsterdam conservation fuzz test
+as **FAIL → PASS**, correcting the previous parser's erroneous ABSENT → PASS row.
+The full keyed comparison is in `run/statuses.json`; failure reasons
 and every test outcome are retained in the six `run/full-*.log` files.
 
 ## Guard results and the unresolved RR-5 scope
@@ -337,14 +362,28 @@ boundary/admission commands, and two worst-net trace commands exit 0.
 
 | Evidence/check | Exit |
 |---|---:|
-| Full runner and embedded fail-closed verifier | 0 |
-| Standalone verifier | 0 |
+| Historical full runner and original embedded verifier (not rerun for this revision) | 0 |
+| Revised offline standalone verifier | 0 |
+| Revised outcomes generator | 0 |
+| Offline negative-control tests: 8 tests, including untouched copy | 0 |
 | Python accounting/evidence tests: 3 tests, including three tamper subcases | 0 |
 | Resealed missing-command negative control | 1, required rejection |
 | Runner pointed at the nonempty retained directory | 1, required rejection |
 | Git whitespace and unchanged production/default-fixture checks | 0 |
 
-Files: [runner](../../../../../script/evidence/tuple-validation-run.py),
+The revised checks above were run offline without rerunning the measurement:
+
+```sh
+python3 script/evidence/tuple-validation-run.py --verify docs/design/aoa-balance-mode/data/tuple-validation/run
+python3 script/evidence/tuple-validation-outcomes.py docs/design/aoa-balance-mode/data/tuple-validation/run > docs/design/aoa-balance-mode/data/tuple-validation/outcome-changes.tsv
+python3 script/evidence/tuple-validation-negative-tests.py docs/design/aoa-balance-mode/data/tuple-validation/run
+```
+
+`run/verdict.txt` retains the original runner's wording as historical output; its
+“complete evidence” phrase is limited by the consistency checks described above.
+
+Files: [offline controls](../../../../../script/evidence/tuple-validation-negative-tests.py),
+[runner](../../../../../script/evidence/tuple-validation-run.py),
 [wrapper](../../../../../script/evidence/tuple-validation-run.sh),
 [selected helper](../../../../../contracts/test/helpers/SelectedGasFixtures.sol),
 [fresh boundary tests](../../../../../contracts/test/v2/SuperPaymasterTupleValidation.t.sol),
