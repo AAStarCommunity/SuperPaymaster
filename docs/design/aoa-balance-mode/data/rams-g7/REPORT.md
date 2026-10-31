@@ -38,7 +38,7 @@ F = fixture/parameter repair, verified passing in the final Amsterdam run. M = r
 - Sweep upper endpoint = **506,000**, the configured 440k floor plus 15%; fixed low endpoints and guard/success coverage assertions remain. The bundler sweep upper endpoint derives from all declared operation budgets plus 15%. Seven above-floor cases remain in the nine-case postOp sweep.
 - G2's successful execution minimum = **140,000**: successful fresh `hit` through the account measured 114,957 charged gas, adjusted for two 63/64 forwards, plus 15%, rounded up to 5,000. The former EX_OK minimum 100k can OOG at the target's fresh slot; the diagnostic trace shows a failing target frame of 95,278 versus successful target frames of 110,419. EX_REVERT and EX_OOG budgets and all I8/I9/I10/no-subsidy assertions are unchanged.
 - Historical 5.4.2 / 5.5.0 bytecode upgrade tests keep their historical implementation/formula. They receive larger operation budgets, not a fictitious GasParams API on old bytecode. The 5.5.0 legacy oracle now substitutes the operation's actual postOp allocation in its existing `postOpGas + 30000` formula (current source legacy branch confirms this formula). The rc1/rc2 test keeps its deliberately distinct VAL/MID tuples and only raises verification allowance.
-- D5b's starting tuple is now the deployment tuple. Its *mid-bundle adversarial change* is adjusted to remain distinguishable (NEW_MIN = floor + 400k, NEW_CPOSTOP = deployed C_POSTOP + 300k); the original “buffer differs by >200k” precondition and snapshot bounds are unchanged. This is not an increase in the deployed contract bound.
+- D5b's starting tuple is now the deployment tuple. Its *mid-bundle adversarial change* is adjusted to remain distinguishable (NEW_MIN = floor + 400k, NEW_SETTLE = floor + 160k, NEW_CPOSTOP = deployed C_POSTOP + 300k; see §Review round 2 for NEW_SETTLE); the original “buffer differs by >200k” precondition and snapshot bounds are unchanged. This is not an increase in the deployed contract bound.
 - Exact-charge oracles substitute the shared parameters; no discriminating bound is loosened. The logging subtraction in the all-floor postOp rule now follows its assertion, so a negative margin reports the bound failure rather than panicking before it.
 
 Every test in the changed test files (92 tests, a conservative superset of paths affected) has named discriminating assertions in [assertion-inventory.md](assertion-inventory.md).
@@ -166,3 +166,55 @@ Intermediate runs exposed fixture-oracle mistakes (the legacy postOp allocation 
 ## Verification limits
 
 These are offline Forge results for the requested engine and the suite's existing isolation choices. They do not prove behavior under all state-gas reservoir regimes, all seeds, different account factories, or live bundler estimation. The baseline Amsterdam run was supplied, not regenerated. The four all-floor findings concern a different tuple by construction. The remaining deployment no-subsidy failures prevent declaring G-7 fully green or the queued configuration universally sufficient.
+
+## Review round 2 (PR #563 review M-1, S-1..S-4)
+
+All runs below are at `a941ddd9` (clean tree), produced by `script/evidence/rams-g7-rerun.sh`. Logs are in
+[`r2/`](r2/), with hashes in `r2/SHA256SUMS`. The test sources these runs used are in `r2/test-sources.sha256`.
+The top-level `test-sources.sha256` records round 1, so the D5b and Fuzz lines in it no longer match HEAD by design.
+
+- **M-1 (fixed).** The original D5b `NEW_SETTLE = 300_000` was below the victims' postOp limit (`MIN_POST` = 440k),
+  so a guard that read the *live* settle bound passed, just as one reading the snapshot did. D5b had lost its
+  discrimination. The fix sets `NEW_SETTLE = MIN_POST + 160_000` (600k) and adds the precondition
+  `assertGt(NEW_SETTLE, MIN_POST)`.
+  - Mutation `SuperPaymaster.sol` `snapSettle = uint32(snap >> 32)` → `_gasParams.settleGasBound`:
+    `test_d5b_forward_mid_bundle_upgrade_with_extension_calls` fails `forward: no victim postOp fails: 2 != 0` on
+    both forge 1.7.1 Cancun and Amsterdam (`r2/mutation-m1-d5b-*.log`).
+  - The rollback test stays green under this mutation, as expected: after the rollback the victims settle on the
+    previous-release fixture bytecode, which the mutation does not touch.
+- **S-1 (kept, with evidence).** The `test_G_min_post_op_gas_covers_measured_postOp` bound reads the configured floor
+  (440k). Restoring 200k is green on Cancun but red on Amsterdam: `amsterdam-before.log`,
+  `235580 > 200000` (measured 212,212 × 64/63 + 20k). The relaxation is therefore required on Amsterdam.
+- **S-2 (comment added).** The EX_OK call-gas floor is the Amsterdam-measured success need; below it the call is
+  not a success path.
+- **S-3 (fixed).** The absolute engine path in `commands.md` is now `~/…`.
+- **S-4 (added).** `test_G2_noOOGBand_fixed_points_above_settle` adds samples at SETTLE + {1, 2k, 10k, 40k} for
+  both modes. Each sample starts from a fresh snapshot, and the top sample must settle.
+  - Positive control: with the top sample changed to SETTLE + 1, the test fails
+    `SETTLE + 40k settles: the success band is sampled`.
+  - While adding it, I found that the credit branch read `balanceOf` *after* `vm.prank`, so the prank was
+    consumed by the static call. It only worked because the user started empty. The branch now reads the balance
+    before the prank.
+
+| run (`r2/`) | result |
+|---|---|
+| `cancun-forge171.log` (forge 1.7.1) | 1798 passed, 0 failed, 65 skipped |
+| `prague-forge171.log` (forge 1.7.1, `--evm-version prague`) | 1678 passed, 0 failed, 39 skipped |
+| `amsterdam.log` (nightly 4e8874b) | 1664 passed, 6 failed, 39 skipped — the **same 6** tests as `amsterdam.log` above (set diff empty) |
+| `mutation-m1-d5b-cancun.log` / `-amsterdam.log` | 1 passed, 1 failed (the forward test), source restored, tree clean |
+
+Each count is one above round 1 because of the new S-4 test.
+
+`r2/verdict.txt` comes from `script/evidence/rams-g7-verdict.sh r2`. It requires:
+- 0 failures on both stable runs;
+- the Amsterdam failing set to equal the 6 listed below;
+- the M-1 mutation to be killed by the forward test with the forward assertion.
+
+Three tampered copies (an extra Amsterdam failure, a Cancun failure, a mutation not killed) are each rejected.
+`r2/s4-control.log` is the S-4 positive control, run with `script/evidence/rams-g7-s4-control.sh` at the commit
+named in its first line.
+
+The 6 remaining failures are unchanged:
+- 2 are the no-subsidy mechanism result. DSR ruled (CC-127 1c0b8150) that frame-level attribution must come first,
+  and that is now being done separately.
+- 4 are the floor-parameter (M†) rows.
