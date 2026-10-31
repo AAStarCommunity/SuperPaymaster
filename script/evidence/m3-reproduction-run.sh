@@ -29,9 +29,19 @@ if code == "0":
     if not (c["match"] and not c["mismatches"]): sys.exit(f"vs-dsr failed: {c}")
     print(f"{label}: self-compare {self_c['checkedFields']} fields; vs DSR reference exact ({c['checkedFields']} fields)")
 else:
+    if code != "1": sys.exit(f"{label}: compare exited {code}, not the comparison-failure exit 1")
     if os.path.exists(out_path): sys.exit("a failed compare must not leave a report")
-    diffs = re.findall(r"root\.[^:]+:", log)
-    if diffs != ["root.statisticalConfig.pythonVersion:"]: sys.exit(f"{label}: vs-dsr differs beyond pythonVersion: {diffs}")
+    # the whole log must be exactly one comparison error naming only pythonVersion
+    try:
+        payload = json.loads(log)
+    except ValueError:
+        sys.exit(f"{label}: compare log is not a single JSON payload")
+    m = re.fullmatch(r"stat_results comparison failed: (\[.*\])", (payload.get("errors") or [""])[0]) if isinstance(payload, dict) else None
+    diffs = json.loads(m.group(1)) if m else None
+    ok = (set(payload) == {"status", "errors"} and payload["status"] == "FAIL" and len(payload["errors"]) == 1
+          and isinstance(diffs, list) and len(diffs) == 1
+          and re.fullmatch(r"root\.statisticalConfig\.pythonVersion: computed='[0-9.]+' != external='[0-9.]+'", diffs[0]))
+    if not ok: sys.exit(f"{label}: vs-dsr differs beyond pythonVersion: {log[-2000:]}")
     print(f"{label}: self-compare {self_c['checkedFields']} fields; vs DSR reference differs only in pythonVersion")
 PYEOF
 cd "$WORK/$KIT"
