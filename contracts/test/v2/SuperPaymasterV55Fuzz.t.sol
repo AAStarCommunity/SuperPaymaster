@@ -528,8 +528,9 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint256 g = _bound(gasSeed, 60_000, GasFixture.SWEEP_MAX);
         address u = usr[0];
         if (credit) {
+            uint256 bal = tok[0].balanceOf(u); // read before prank: the prank must reach transfer, not balanceOf
             vm.prank(u);
-            tok[0].transfer(sink, tok[0].balanceOf(u)); // empty -> INSUFFICIENT -> credit
+            tok[0].transfer(sink, bal); // empty -> INSUFFICIENT -> credit
         } else {
             vm.prank(opr[0]);
             IG2Tok(address(tok[0])).mint(u, 5_000 ether);
@@ -561,6 +562,24 @@ contract SuperPaymasterV55FuzzTest is Test {
         } else {
             assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector),
                 "no-OOG band: a postOp that passed the SETTLE_GAS_BOUND entry check must complete");
+        }
+    }
+
+    /// @notice S-4: fixed samples just above SETTLE_GAS_BOUND, where the widened fuzz range is sparse. The top
+    ///         sample must land in the success band, so the band is exercised rather than only the guard reject.
+    function test_G2_noOOGBand_fixed_points_above_settle() public {
+        uint256[4] memory d = [uint256(1), 2_000, 10_000, 40_000];
+        for (uint256 c; c < 2; c++) {
+            for (uint256 i; i < d.length; i++) {
+                uint256 snap = vm.snapshot(); // each sample from the same fresh state, as a fuzz run would be
+                uint256 g = uint256(GasFixture.SETTLE) + d[i];
+                testFuzz_G2_noOOGBand_direct_postOp(g, c == 1);
+                if (i == d.length - 1) {
+                    assertTrue(tok[0].usedOpHashes(keccak256(abi.encode("no-oog", g, c == 1))),
+                        "SETTLE + 40k settles: the success band is sampled");
+                }
+                vm.revertTo(snap);
+            }
         }
     }
 
@@ -646,6 +665,7 @@ contract SuperPaymasterV55FuzzTest is Test {
                 : 1_000_000 + _r(500_001)
             );
             o.callGas = uint128(
+                // EX_OK starts at the Amsterdam-measured success need; below it the call is not a success path
                 o.exec == EX_OK ? GasFixture.FUZZ_SUCCESS_CALL_MIN + _r(400_000)
                 : o.exec == EX_MOVE ? 400_000 + _r(200_000)
                 : o.exec == EX_REVERT ? 60_000 + _r(440_000)

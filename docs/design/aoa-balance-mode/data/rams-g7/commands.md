@@ -1,6 +1,6 @@
 # Offline commands and evidence provenance
 
-Engine: `/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/forge`,
+Engine: `~/Dev/aastar/tools/foundry-rams/nightly-4e8874b/forge`,
 1.8.7-nightly, commit `4e8874b2bdc840929585ca73e170993c50a4a531`.
 No network, no source contract / deployment script / Foundry configuration changes, no commit or push.
 

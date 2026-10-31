@@ -62,7 +62,7 @@ contract SuperPaymasterD5bUpgradeRaceTest is Test {
 
     // gas parameters executed MID-BUNDLE (all within the hard bounds, far from the defaults)
     uint32 constant NEW_MIN = GasFixture.MIN_POST + 400_000;
-    uint32 constant NEW_SETTLE = 300_000;
+    uint32 constant NEW_SETTLE = GasFixture.MIN_POST + 160_000; // above any victim postOp limit: a live-settle guard would reject
     uint32 constant NEW_CWRAP = 50_000;
     uint32 constant NEW_CPOSTOP = GasFixture.POSTOP + 300_000;
 
@@ -261,6 +261,7 @@ contract SuperPaymasterD5bUpgradeRaceTest is Test {
         uint256 bufSnap = (GasFixture.POSTOP + GasFixture.WRAP + Math.ceilDiv(uint256(300_000 + GasFixture.MIN_POST) * 10, 100)) * 1 gwei;
         uint256 bufNew = (uint256(NEW_CPOSTOP) + NEW_CWRAP + Math.ceilDiv(uint256(300_000 + GasFixture.MIN_POST) * 10, 100)) * 1 gwei;
         assertGt(bufNew, bufSnap + 200_000 gwei, "precondition: the mid-bundle params would move the charge");
+        assertGt(NEW_SETTLE, GasFixture.MIN_POST, "precondition: a guard reading the live settle bound would reject every victim postOp");
         for (uint256 k = 2; k < 4; k++) {
             uint256 W = r.aGas[k] / 1e5; // ETH 2000 / aPNTs 0.02 -> exact
             assertGe(W + 1, r.G[k], "charge covers the op's cost");
