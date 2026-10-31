@@ -1,0 +1,58 @@
+VERDICT PASS (stable engines; Amsterdam recorded)
+cancun: Ran 2 test suites in 49.68ms (85.20ms CPU time): 10 tests passed, 0 failed, 0 skipped (10 total tests)
+  cancun red: 
+  cancun Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardBalanceTest
+  cancun   scan last guard-fail call gas: 430000
+  cancun   scan first non-guard failure call gas: 0
+  cancun   scan last non-guard failure call gas: 0
+  cancun   scan non-guard failures (2k steps): 0
+  cancun   scan first settled call gas: 432000
+  cancun   last guard-fail call gas: 431513
+  cancun   first complete settlement call gas: 431514
+  cancun Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardCreditTest
+  cancun   scan last guard-fail call gas: 430000
+  cancun   scan first non-guard failure call gas: 0
+  cancun   scan last non-guard failure call gas: 0
+  cancun   scan non-guard failures (2k steps): 0
+  cancun   scan first settled call gas: 432000
+  cancun   last guard-fail call gas: 431513
+  cancun   first complete settlement call gas: 431514
+prague: Ran 2 test suites in 47.95ms (81.39ms CPU time): 10 tests passed, 0 failed, 0 skipped (10 total tests)
+  prague red: 
+  prague Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardCreditTest
+  prague   scan last guard-fail call gas: 430000
+  prague   scan first non-guard failure call gas: 0
+  prague   scan last non-guard failure call gas: 0
+  prague   scan non-guard failures (2k steps): 0
+  prague   scan first settled call gas: 432000
+  prague   last guard-fail call gas: 431513
+  prague   first complete settlement call gas: 431514
+  prague Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardBalanceTest
+  prague   scan last guard-fail call gas: 430000
+  prague   scan first non-guard failure call gas: 0
+  prague   scan last non-guard failure call gas: 0
+  prague   scan non-guard failures (2k steps): 0
+  prague   scan first settled call gas: 432000
+  prague   last guard-fail call gas: 431513
+  prague   first complete settlement call gas: 431514
+amsterdam: Ran 2 test suites in 34.38ms (53.87ms CPU time): 7 tests passed, 3 failed, 0 skipped (10 total tests)
+  amsterdam red: test_RR5_exactSelector_adjacentBoundary test_RR5_snapshot_not_live_bound 
+  amsterdam Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardCreditTest
+  amsterdam   scan last guard-fail call gas: 438000
+  amsterdam   scan first non-guard failure call gas: 440000
+  amsterdam   scan last non-guard failure call gas: 632000
+  amsterdam   scan non-guard failures (2k steps): 97
+  amsterdam   scan first settled call gas: 634000
+  amsterdam Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardBalanceTest
+  amsterdam   scan last guard-fail call gas: 438000
+  amsterdam   scan first non-guard failure call gas: 440000
+  amsterdam   scan last non-guard failure call gas: 568000
+  amsterdam   scan non-guard failures (2k steps): 65
+  amsterdam   scan first settled call gas: 570000
+last postOp frame: │   ├─ [590261] SuperPaymaster.registry-size
+settleCredit line: │   │   ├─ [253881] 0x37042F7b12E8bc6487EEA3c780415044e4032Cc9
+settleCredit returned: True
+OutOfGas line: │   │   └─ ← [OutOfGas] EvmError: OutOfGas
+OOG after settleCredit: True
+mutation-delete-guard red: test_RR5_exactSelector_adjacentBoundary test_RR5_guardFail_staleRecovery test_RR5_snapshot_not_live_bound 
+mutation-live-bound red: test_RR5_snapshot_not_live_bound 

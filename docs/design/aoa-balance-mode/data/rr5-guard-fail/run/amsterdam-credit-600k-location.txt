@@ -1,0 +1,5 @@
+last postOp frame: │   ├─ [590261] SuperPaymaster.registry-size
+settleCredit line: │   │   ├─ [253881] 0x37042F7b12E8bc6487EEA3c780415044e4032Cc9
+settleCredit returned: True
+OutOfGas line: │   │   └─ ← [OutOfGas] EvmError: OutOfGas
+OOG after settleCredit: True
