@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# RR-5 evidence: run SuperPaymasterRR5GuardFail.t.sol on three engines and two guard mutations, then judge.
+# Usage: script/evidence/rr5-guard-fail-run.sh <empty-out-dir>   (clean tree; restores the source)
+set -euo pipefail
+OUT=${1:?out dir}
+[ ! -e "$OUT" ] || [ -z "$(ls -A "$OUT")" ] || { echo "out dir must be empty" >&2; exit 2; }
+STABLE=${STABLE_FORGE:-$HOME/.foundry/bin/forge}
+AMS=${AMS_FORGE:-$HOME/Dev/aastar/tools/foundry-rams/nightly-4e8874b/forge}
+T=contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol
+SRC=contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
+test -z "$(git status --porcelain)" || { echo "tree not clean" >&2; exit 2; }
+mkdir -p "$OUT"
+{ echo "head $(git rev-parse HEAD)"; "$STABLE" --version | head -1; "$AMS" --version | head -1; } > "$OUT/head.txt"
+run() { local name=$1 rc=0; shift; "$@" > "$OUT/$name.log" 2>&1 || rc=$?; echo "$name exit $rc" >> "$OUT/exits.txt"; }
+run cancun "$STABLE" test --offline --match-path "$T" -vv
+run prague "$STABLE" test --offline --match-path "$T" -vv --evm-version prague
+run amsterdam "$AMS" test --offline --no-isolate --match-path "$T" -vv --evm-version prague --hardfork amsterdam
+GUARD='if (gasleft() < (snapSettle == 0 ? LEGACY_SETTLE_GAS_BOUND : snapSettle)) revert PostOpGasTooLow();'
+test "$(grep -cF "$GUARD" "$SRC")" = 1
+trap 'git checkout -- "$SRC"' EXIT
+mutate() { python3 -I -c 'import sys;p,a,b=sys.argv[1:];s=open(p).read();assert s.count(a)==1;open(p,"w").write(s.replace(a,b))' "$SRC" "$GUARD" "$1"; }
+mutate ''
+run mutation-delete-guard "$STABLE" test --offline --match-path "$T" -vv
+git checkout -- "$SRC"
+mutate 'if (gasleft() < _gasParams.settleGasBound) revert PostOpGasTooLow();'
+run mutation-live-bound "$STABLE" test --offline --match-path "$T" -vv
+git checkout -- "$SRC"; trap - EXIT
+test -z "$(git status --porcelain -- contracts)" && echo "restored; tree clean" >> "$OUT/exits.txt"
+fail() { echo "VERDICT FAIL: $*" >&2; exit 1; }
+fails() { grep -E '^\[FAIL' "$OUT/$1.log" | grep -oE '\] [A-Za-z0-9_]+\(' | sed 's/^\] //; s/($//' | sort -u; }
+for r in cancun prague amsterdam; do
+  grep -qE "8 tests passed, 0 failed, 0 skipped" "$OUT/$r.log" || fail "$r not 8/0/0"
+  grep -qx "$r exit 0" "$OUT/exits.txt" || fail "$r exit"
+done
+[ -n "$(fails mutation-delete-guard)" ] || fail "deleting the guard was not detected"
+fails mutation-live-bound | grep -qx test_RR5_snapshot_not_live_bound || fail "live-bound mutation not killed by the snapshot test"
+{ echo "VERDICT PASS"; for r in cancun prague amsterdam; do echo "$r: $(grep -E 'tests passed' "$OUT/$r.log" | tail -1)"; grep -E 'last guard-fail call gas|first complete settlement call gas' "$OUT/$r.log" | sort -u | sed "s/^/  $r /"; done
+  echo "mutation-delete-guard red: $(fails mutation-delete-guard | tr '\n' ' ')"; echo "mutation-live-bound red: $(fails mutation-live-bound | tr '\n' ' ')"; } | tee "$OUT/verdict.txt"
