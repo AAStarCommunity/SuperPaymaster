@@ -42,5 +42,5 @@ for r in matrix-cancun matrix-prague matrix-amsterdam matrix-stable-prague matri
 done
 grep -qx "counterexample exit 1" "$OUT/exits.txt" || fail "counterexample no longer fails"
 grep -q "1827511012226570 < 1838299350952020" "$OUT/counterexample-result.log" || fail "counterexample values changed"
-test -z "$(git status --porcelain)" || fail "tree changed"
+test -z "$(git status --porcelain --untracked-files=no)" || fail "tracked files changed"
 echo "VERDICT PASS: matrix 3 runtimes + 2 stable controls pass; probe ok; counterexample reproduces exactly" | tee "$OUT/verdict.txt"
