@@ -1,0 +1,230 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest
+[FAIL: DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost: 1827511012226570 < 1838299350952020] test_G2_coverage_replay_fixed_seeds() (gas: 7711521)
+Logs:
+  tuple fee: 2246883178
+  tuple call limit: 384893
+  tuple post limit: 440000
+  tuple P: 1591727993426048
+  tuple F: 2120621824695468
+  tuple net charge: 2552248083189268
+  tuple fee: 2042780984
+  tuple call limit: 462206
+  tuple post limit: 440000
+  tuple P: 1417148665935240
+  tuple F: 1734359868254696
+  tuple net charge: 2306209848572704
+  tuple fee: 2073072335
+  tuple call limit: 68247
+  tuple post limit: 1371577
+  tuple P: 1419843096096830
+  tuple F: 1834671089547335
+  tuple net charge: 2433540225682135
+  tuple fee: 1901988207
+  tuple call limit: 458992
+  tuple post limit: 485715
+  tuple P: 1319471984806731
+  tuple F: 1622903771422269
+  tuple net charge: 2155340644125228
+  tuple fee: 1385345170
+  tuple call limit: 405677
+  tuple post limit: 487283
+  tuple P: 952442813862210
+  tuple F: 1153413452328940
+  tuple net charge: 1554092679812530
+  tuple fee: 2105697584
+  tuple call limit: 243090
+  tuple post limit: 1035402
+  tuple P: 1867378942838048
+  tuple F: 2689607524043200
+  tuple net charge: 2863058045432448
+  tuple fee: 1630574740
+  tuple call limit: 318494
+  tuple post limit: 440000
+  tuple P: 1150655829649500
+  tuple F: 1380517950747300
+  tuple net charge: 1836883208978500
+  tuple fee: 2560461317
+  tuple call limit: 257994
+  tuple post limit: 1199147
+  tuple P: 2144207120695310
+  tuple F: 2936452259094865
+  tuple net charge: 3400663895866965
+  tuple fee: 1534838514
+  tuple call limit: 362000
+  tuple post limit: 440000
+  tuple P: 1210837173371628
+  tuple F: 1737024326287734
+  tuple net charge: 1863450509524428
+  tuple fee: 1176121859
+  tuple call limit: 378061
+  tuple post limit: 464035
+  tuple P: 1043013091485816
+  tuple F: 1450938020939517
+  tuple net charge: 1547816354587206
+  tuple fee: 2141320039
+  tuple call limit: 105253
+  tuple post limit: 440000
+  tuple P: 1491688506888219
+  tuple F: 1747143704900841
+  tuple net charge: 2347201536789733
+  tuple fee: 1706995925
+  tuple call limit: 102142
+  tuple post limit: 444028
+  tuple P: 1179503458248350
+  tuple F: 1721041087470900
+  tuple net charge: 1861648048809075
+  tuple fee: 1088555544
+  tuple call limit: 468498
+  tuple post limit: 458273
+  tuple P: 908447497911936
+  tuple F: 1187844872279328
+  tuple net charge: 1384884311298768
+  tuple fee: 2347885142
+  tuple call limit: 499907
+  tuple post limit: 440000
+  tuple P: 1966196498120486
+  tuple F: 2803499297460526
+  tuple net charge: 2996896944492208
+  tuple fee: 2498183333
+  tuple call limit: 174212
+  tuple post limit: 1424632
+  tuple P: 1713056773288093
+  tuple F: 2274291146329874
+  tuple net charge: 2974352065369798
+  tuple fee: 1792352098
+  tuple call limit: 278202
+  tuple post limit: 453748
+  tuple P: 1413984777760102
+  tuple F: 1699986817333766
+  tuple net charge: 2163537463383212
+  tuple fee: 1263054825
+  tuple call limit: 407297
+  tuple post limit: 1131904
+  tuple P: 894782140510275
+  tuple F: 1420906364809200
+  tuple net charge: 1524946716854100
+  tuple fee: 1270404264
+  tuple call limit: 273367
+  tuple post limit: 1309872
+  tuple P: 899970895873032
+  tuple F: 1183394275958640
+  tuple net charge: 1539395851646568
+  tuple fee: 2820119888
+  tuple call limit: 495606
+  tuple post limit: 485032
+  tuple P: 1989622782182880
+  tuple F: 2449660479152656
+  tuple net charge: 3239116380239712
+  tuple fee: 2917896662
+  tuple call limit: 353902
+  tuple post limit: 462725
+  tuple P: 1963257164783446
+  tuple F: 2365127400454058
+  tuple net charge: 3208215708282352
+  tuple fee: 1209575117
+  tuple call limit: 458517
+  tuple post limit: 484155
+  tuple P: 1072674195682823
+  tuple F: 1504366716639655
+  tuple net charge: 1604001838177179
+  tuple fee: 2689418706
+  tuple call limit: 438870
+  tuple post limit: 1232267
+  tuple P: 1505840495932578
+  tuple F: 2105276963056800
+  tuple net charge: 2883129467137062
+  tuple fee: 1873550166
+  tuple call limit: 209485
+  tuple post limit: 466579
+  tuple P: 1574415399396108
+  tuple F: 2173436226220458
+  tuple net charge: 2347455312738870
+  tuple fee: 2658335957
+  tuple call limit: 465947
+  tuple post limit: 452378
+  tuple P: 2357484101738439
+  tuple F: 3299760523392616
+  tuple net charge: 3518732972842620
+  tuple fee: 2350159418
+  tuple call limit: 102022
+  tuple post limit: 486940
+  tuple P: 1854452042758350
+  tuple F: 2195993660498036
+  tuple net charge: 2803674381210296
+  tuple fee: 1109862720
+  tuple call limit: 335857
+  tuple post limit: 440000
+  tuple P: 929435667197760
+  tuple F: 1197231113318400
+  tuple net charge: 1398448114591680
+  tuple fee: 1996930529
+  tuple call limit: 413580
+  tuple post limit: 440000
+  tuple P: 1397294226682409
+  tuple F: 1697674513785118
+  tuple net charge: 2256689255281791
+  tuple fee: 1204880110
+  tuple call limit: 321095
+  tuple post limit: 474014
+  tuple P: 824872972107100
+  tuple F: 988223388140240
+  tuple net charge: 1336357832483310
+  tuple fee: 2021318041
+  tuple call limit: 312387
+  tuple post limit: 1024594
+  tuple P: 1389732963273058
+  tuple F: 1772714113819369
+  tuple net charge: 2357335888181717
+  tuple fee: 2240066534
+  tuple call limit: 309640
+  tuple post limit: 479001
+  tuple P: 1520579563944540
+  tuple F: 2064590922059110
+  tuple net charge: 2470065365378450
+  tuple fee: 1756763336
+  tuple call limit: 116944
+  tuple post limit: 463780
+  tuple P: 1557950429264880
+  tuple F: 2121346187883416
+  tuple net charge: 2266054297396408
+  tuple fee: 1727732258
+  tuple call limit: 489802
+  tuple post limit: 470573
+  tuple P: 1363310331481350
+  tuple F: 1678566181134094
+  tuple net charge: 2125305911085154
+  tuple fee: 2362295263
+  tuple call limit: 356792
+  tuple post limit: 1428890
+  tuple P: 1666828450687011
+  tuple F: 2242493821032218
+  tuple net charge: 2903653019240658
+  tuple fee: 2320857934
+  tuple call limit: 360414
+  tuple post limit: 451097
+  tuple P: 1831416846014608
+  tuple F: 2220350860310196
+  tuple net charge: 2820455096304576
+  tuple fee: 1864881370
+  tuple call limit: 285665
+  tuple post limit: 465691
+  tuple P: 1044007212960250
+  tuple F: 1838299350952020
+  tuple net charge: 1827511012226570
+
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 4.78s (4.78s CPU time)
+
+Ran 1 test suite in 4.78s (4.78s CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest
+[FAIL: DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost: 1827511012226570 < 1838299350952020] test_G2_coverage_replay_fixed_seeds() (gas: 7711521)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

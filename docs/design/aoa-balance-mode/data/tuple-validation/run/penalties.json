@@ -1,0 +1,610 @@
+{
+  "multi-2-0-0": [
+    {
+      "pc": 7838,
+      "numerator": 3433790,
+      "denominator": 100,
+      "unused": 343379,
+      "penalty": 34337
+    },
+    {
+      "pc": 7838,
+      "numerator": 7083810,
+      "denominator": 100,
+      "unused": 708381,
+      "penalty": 70838
+    }
+  ],
+  "multi-2-0-1": [
+    {
+      "pc": 7838,
+      "numerator": 4416410,
+      "denominator": 100,
+      "unused": 441641,
+      "penalty": 44164
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    }
+  ],
+  "multi-2-1-0": [
+    {
+      "pc": 7838,
+      "numerator": 2636890,
+      "denominator": 100,
+      "unused": 263689,
+      "penalty": 26368
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    }
+  ],
+  "multi-2-1-1": [
+    {
+      "pc": 7838,
+      "numerator": 3616090,
+      "denominator": 100,
+      "unused": 361609,
+      "penalty": 36160
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    }
+  ],
+  "multi-2-2-0": [
+    {
+      "pc": 7838,
+      "numerator": 4416410,
+      "denominator": 100,
+      "unused": 441641,
+      "penalty": 44164
+    },
+    {
+      "pc": 7838,
+      "numerator": 7042690,
+      "denominator": 100,
+      "unused": 704269,
+      "penalty": 70426
+    }
+  ],
+  "multi-2-2-1": [
+    {
+      "pc": 7838,
+      "numerator": 4416410,
+      "denominator": 100,
+      "unused": 441641,
+      "penalty": 44164
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    }
+  ],
+  "multi-2-3-0": [
+    {
+      "pc": 7838,
+      "numerator": 3616090,
+      "denominator": 100,
+      "unused": 361609,
+      "penalty": 36160
+    },
+    {
+      "pc": 7838,
+      "numerator": 6863810,
+      "denominator": 100,
+      "unused": 686381,
+      "penalty": 68638
+    }
+  ],
+  "multi-2-3-1": [
+    {
+      "pc": 7838,
+      "numerator": 3616090,
+      "denominator": 100,
+      "unused": 361609,
+      "penalty": 36160
+    },
+    {
+      "pc": 7838,
+      "numerator": 6763810,
+      "denominator": 100,
+      "unused": 676381,
+      "penalty": 67638
+    }
+  ],
+  "multi-3-0-0": [
+    {
+      "pc": 7838,
+      "numerator": 3433790,
+      "denominator": 100,
+      "unused": 343379,
+      "penalty": 34337
+    },
+    {
+      "pc": 7838,
+      "numerator": 7080390,
+      "denominator": 100,
+      "unused": 708039,
+      "penalty": 70803
+    },
+    {
+      "pc": 7838,
+      "numerator": 7083810,
+      "denominator": 100,
+      "unused": 708381,
+      "penalty": 70838
+    }
+  ],
+  "multi-3-0-1": [
+    {
+      "pc": 7838,
+      "numerator": 4416410,
+      "denominator": 100,
+      "unused": 441641,
+      "penalty": 44164
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    }
+  ],
+  "multi-3-1-0": [
+    {
+      "pc": 7838,
+      "numerator": 2636890,
+      "denominator": 100,
+      "unused": 263689,
+      "penalty": 26368
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    }
+  ],
+  "multi-3-1-1": [
+    {
+      "pc": 7838,
+      "numerator": 3616090,
+      "denominator": 100,
+      "unused": 361609,
+      "penalty": 36160
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    }
+  ],
+  "multi-3-2-0": [
+    {
+      "pc": 7838,
+      "numerator": 3433790,
+      "denominator": 100,
+      "unused": 343379,
+      "penalty": 34337
+    },
+    {
+      "pc": 7838,
+      "numerator": 7042690,
+      "denominator": 100,
+      "unused": 704269,
+      "penalty": 70426
+    },
+    {
+      "pc": 7838,
+      "numerator": 7083810,
+      "denominator": 100,
+      "unused": 708381,
+      "penalty": 70838
+    }
+  ],
+  "multi-3-2-1": [
+    {
+      "pc": 7838,
+      "numerator": 4416410,
+      "denominator": 100,
+      "unused": 441641,
+      "penalty": 44164
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    }
+  ],
+  "multi-3-3-0": [
+    {
+      "pc": 7838,
+      "numerator": 2636890,
+      "denominator": 100,
+      "unused": 263689,
+      "penalty": 26368
+    },
+    {
+      "pc": 7838,
+      "numerator": 6863810,
+      "denominator": 100,
+      "unused": 686381,
+      "penalty": 68638
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    }
+  ],
+  "multi-3-3-1": [
+    {
+      "pc": 7838,
+      "numerator": 3616090,
+      "denominator": 100,
+      "unused": 361609,
+      "penalty": 36160
+    },
+    {
+      "pc": 7838,
+      "numerator": 6763810,
+      "denominator": 100,
+      "unused": 676381,
+      "penalty": 67638
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    }
+  ],
+  "multi-5-0-0": [
+    {
+      "pc": 7838,
+      "numerator": 3433790,
+      "denominator": 100,
+      "unused": 343379,
+      "penalty": 34337
+    },
+    {
+      "pc": 7838,
+      "numerator": 7080390,
+      "denominator": 100,
+      "unused": 708039,
+      "penalty": 70803
+    },
+    {
+      "pc": 7838,
+      "numerator": 7080390,
+      "denominator": 100,
+      "unused": 708039,
+      "penalty": 70803
+    },
+    {
+      "pc": 7838,
+      "numerator": 7080390,
+      "denominator": 100,
+      "unused": 708039,
+      "penalty": 70803
+    },
+    {
+      "pc": 7838,
+      "numerator": 7083810,
+      "denominator": 100,
+      "unused": 708381,
+      "penalty": 70838
+    }
+  ],
+  "multi-5-0-1": [
+    {
+      "pc": 7838,
+      "numerator": 4416410,
+      "denominator": 100,
+      "unused": 441641,
+      "penalty": 44164
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    }
+  ],
+  "multi-5-1-0": [
+    {
+      "pc": 7838,
+      "numerator": 2636890,
+      "denominator": 100,
+      "unused": 263689,
+      "penalty": 26368
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    }
+  ],
+  "multi-5-1-1": [
+    {
+      "pc": 7838,
+      "numerator": 3616090,
+      "denominator": 100,
+      "unused": 361609,
+      "penalty": 36160
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    }
+  ],
+  "multi-5-2-0": [
+    {
+      "pc": 7838,
+      "numerator": 3433790,
+      "denominator": 100,
+      "unused": 343379,
+      "penalty": 34337
+    },
+    {
+      "pc": 7838,
+      "numerator": 7042690,
+      "denominator": 100,
+      "unused": 704269,
+      "penalty": 70426
+    },
+    {
+      "pc": 7838,
+      "numerator": 7080390,
+      "denominator": 100,
+      "unused": 708039,
+      "penalty": 70803
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    },
+    {
+      "pc": 7838,
+      "numerator": 7083810,
+      "denominator": 100,
+      "unused": 708381,
+      "penalty": 70838
+    }
+  ],
+  "multi-5-2-1": [
+    {
+      "pc": 7838,
+      "numerator": 4416410,
+      "denominator": 100,
+      "unused": 441641,
+      "penalty": 44164
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    }
+  ],
+  "multi-5-3-0": [
+    {
+      "pc": 7838,
+      "numerator": 2636890,
+      "denominator": 100,
+      "unused": 263689,
+      "penalty": 26368
+    },
+    {
+      "pc": 7838,
+      "numerator": 6860390,
+      "denominator": 100,
+      "unused": 686039,
+      "penalty": 68603
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    },
+    {
+      "pc": 7838,
+      "numerator": 7083810,
+      "denominator": 100,
+      "unused": 708381,
+      "penalty": 70838
+    },
+    {
+      "pc": 7838,
+      "numerator": 7142690,
+      "denominator": 100,
+      "unused": 714269,
+      "penalty": 71426
+    }
+  ],
+  "multi-5-3-1": [
+    {
+      "pc": 7838,
+      "numerator": 3616090,
+      "denominator": 100,
+      "unused": 361609,
+      "penalty": 36160
+    },
+    {
+      "pc": 7838,
+      "numerator": 6763810,
+      "denominator": 100,
+      "unused": 676381,
+      "penalty": 67638
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    },
+    {
+      "pc": 7838,
+      "numerator": 6883810,
+      "denominator": 100,
+      "unused": 688381,
+      "penalty": 68838
+    },
+    {
+      "pc": 7838,
+      "numerator": 6942690,
+      "denominator": 100,
+      "unused": 694269,
+      "penalty": 69426
+    }
+  ]
+}
