@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -145,7 +145,7 @@ contract SuperPaymasterV55ParamRaceTest is Test {
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         if (i != 0) {
             op.paymasterAndData = abi.encodePacked(
-                address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST), operator, type(uint256).max, address(token), uint8(0)
+                address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST()), operator, type(uint256).max, address(token), uint8(0)
             );
         }
         bytes32 h = entryPoint.getUserOpHash(op);
@@ -198,7 +198,7 @@ contract SuperPaymasterV55ParamRaceTest is Test {
             }
         }
         assertEq(kt, 3, "two SP sponsorships (the victims)");
-        uint256 bufSnap = (GasFixture.POSTOP + Math.ceilDiv(uint256(300_000 + GasFixture.MIN_POST) * 10, 100) + 5_000) * 1 gwei;
+        uint256 bufSnap = (GasFixture.POSTOP() + Math.ceilDiv(uint256(300_000 + GasFixture.MIN_POST()) * 10, 100) + 5_000) * 1 gwei;
         for (uint256 k = 1; k < 3; k++) {
             uint256 W = aGas[k] / 1e5; // ETH 2000 / aPNTs 0.02 -> 1e5 aPNTs-wei per wei, exact
             assertGe(W + 1, G[k], "charge covers the op's cost");

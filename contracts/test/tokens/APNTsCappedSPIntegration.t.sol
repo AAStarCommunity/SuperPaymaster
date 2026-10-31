@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -52,12 +52,12 @@ contract APNTsCappedSPIntegrationTest is Test {
     /// @dev The APNTsCapped artifact whose own metadata says runs == 500 (profile.default), never
     ///      chosen by file name alone (forge's suffix scheme depends on which profiles built it).
     function _defaultApntsArtifact() internal view returns (string memory) {
-        string[2] memory c = ["out/APNTsCapped.sol/APNTsCapped.json", "out/APNTsCapped.sol/APNTsCapped.default.json"];
+        string[2] memory c = ["/APNTsCapped.sol/APNTsCapped.json", "/APNTsCapped.sol/APNTsCapped.default.json"];
         for (uint256 i; i < c.length; ++i) {
-            try vm.readFile(string.concat(vm.projectRoot(), "/", c[i])) returns (string memory j) {
+            try vm.readFile(string.concat(vm.envOr("FOUNDRY_OUT", string("out")), c[i])) returns (string memory j) {
                 if (vm.parseJsonUint(j, ".metadata.settings.optimizer.runs") == 500
                     && vm.keyExistsJson(j, "$.metadata.settings.compilationTarget['contracts/src/tokens/APNTsCapped.sol']")) {
-                    return c[i];
+                    return string.concat(vm.envOr("FOUNDRY_OUT", string("out")), c[i]);
                 }
             } catch { }
         }
@@ -189,7 +189,7 @@ contract APNTsCappedSPIntegrationTest is Test {
         op.preVerificationGas = 50_000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(
-            address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST), operator, type(uint256).max, address(token), uint8(0)
+            address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST()), operator, type(uint256).max, address(token), uint8(0)
         );
         bytes32 h = entryPoint.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PK, MessageHashUtils.toEthSignedMessageHash(h));

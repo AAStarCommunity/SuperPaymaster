@@ -306,9 +306,9 @@ contract D5c1ReplayTest is Test {
         bytes4[] memory listed = XPNTsV2Selectors.all();
         bytes4[] memory seen = new bytes4[](400);
         uint256 n;
-        string[2] memory files = ["out/xPNTsTokenV2.sol/xPNTsTokenV2.json", "out/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json"];
+        string[2] memory files = ["/xPNTsTokenV2.sol/xPNTsTokenV2.json", "/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json"];
         for (uint256 f = 0; f < 2; f++) {
-            string[] memory sigs = vm.parseJsonKeys(vm.readFile(files[f]), ".methodIdentifiers");
+            string[] memory sigs = vm.parseJsonKeys(vm.readFile(string.concat(vm.envOr("FOUNDRY_OUT", string("out")), files[f])), ".methodIdentifiers");
             for (uint256 i = 0; i < sigs.length; i++) {
                 bytes4 s = bytes4(keccak256(bytes(sigs[i])));
                 assertEq(XPNTsV2Selectors.isKnown(s), 1, sigs[i]);

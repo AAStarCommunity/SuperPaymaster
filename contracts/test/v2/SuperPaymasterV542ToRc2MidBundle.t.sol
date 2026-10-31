@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -170,7 +170,7 @@ contract SuperPaymasterV542ToRc2MidBundleTest is Test {
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         if (sponsored) {
             // 5.4.2 layout: [paymaster 20][verif 16][postOp 16][operator 20][maxRate 32]
-            op.paymasterAndData = abi.encodePacked(address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST), operator, type(uint256).max);
+            op.paymasterAndData = abi.encodePacked(address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST()), operator, type(uint256).max);
         }
         bytes32 h = entryPoint.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk[i], MessageHashUtils.toEthSignedMessageHash(h));
@@ -188,7 +188,7 @@ contract SuperPaymasterV542ToRc2MidBundleTest is Test {
     /// @dev 5.4.2 context + a0 for a victim op at the EntryPoint's maxCost (state rolled back).
     function _probe(uint256 i, string memory tag) internal returns (uint256 ctxLen, uint256 a0) {
         PackedUserOperation memory op = _victimOp(i, tag);
-        uint256 maxCost = uint256(400_000 + 300_000 + GasFixture.PM_VERIFICATION + GasFixture.MIN_POST + 50_000) * 1 gwei;
+        uint256 maxCost = uint256(400_000 + 300_000 + GasFixture.PM_VERIFICATION + GasFixture.MIN_POST() + 50_000) * 1 gwei;
         bytes32 oh = entryPoint.getUserOpHash(op); // before the prank: it is itself a call
         uint256 s = vm.snapshot();
         vm.prank(EP);

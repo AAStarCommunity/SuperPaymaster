@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -153,13 +153,13 @@ contract SuperPaymasterV55AdversarialTest is Test {
     uint256 constant PK_P = 0xD0D0;
     uint256 constant PK_T = 0xE0E0;
 
-    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST;  // Queued deployment floor
-    uint256 constant SETTLE_GAS_BOUND = GasFixture.SETTLE; // Queued deployment guard
+    uint256 MIN_POST_OP_GAS = GasFixture.MIN_POST();  // Queued deployment floor
+    uint256 SETTLE_GAS_BOUND = GasFixture.SETTLE(); // Queued deployment guard
     uint256 constant VERIF_GAS = 350_000;
     uint256 constant CALL_GAS = 200_000;
     uint256 constant PM_VERIF_GAS = GasFixture.PM_VERIFICATION;
     uint256 constant PVG = 50_000;
-    uint256 constant POST = GasFixture.MIN_POST;
+    uint256 POST = GasFixture.MIN_POST();
 
     bytes32 constant POST_OP_REVERT_REASON = keccak256("PostOpRevertReason(bytes32,address,uint256,bytes)");
     bytes32 constant USER_OP_EVENT = keccak256("UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)");
@@ -169,8 +169,8 @@ contract SuperPaymasterV55AdversarialTest is Test {
     bytes32 constant H_FRESH = keccak256("adv.fresh");
 
     string constant ABI_PATH = "abis/xPNTsTokenV2.full.json";
-    string constant CORE_ARTIFACT = "out/xPNTsTokenV2.sol/xPNTsTokenV2.json";
-    string constant EXT_ARTIFACT = "out/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json";
+    string constant CORE_ARTIFACT = "/xPNTsTokenV2.sol/xPNTsTokenV2.json";
+    string constant EXT_ARTIFACT = "/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json";
     string constant INIT_TUPLE = "(string,string,address,address,string,string,uint256,address,address,address)";
 
     function setUp() public {
@@ -665,7 +665,7 @@ contract SuperPaymasterV55AdversarialTest is Test {
         uint256 oog;
         uint256 okN;
         uint256 minOk;
-        for (uint256 g = 60_000; g <= GasFixture.SWEEP_MAX; g += 1_000) { // fixed start: independent of the bound under test
+        for (uint256 g = 60_000; g <= GasFixture.SWEEP_MAX(); g += 1_000) { // fixed start: independent of the bound under test
             uint256 sid = vmx.snapshotState();
             bytes32 h = keccak256(abi.encode("sweep", g));
             vm.prank(address(entryPoint));
@@ -1583,8 +1583,8 @@ contract SuperPaymasterV55AdversarialTest is Test {
     ///         selectors is present in either.
     function test_abi_fixture_matches_compiled_token_and_has_no_3x_debt_selectors() public view {
         AbiFn[] memory fns = _loadAbi();
-        string[] memory core = vm.parseJsonKeys(vm.readFile(CORE_ARTIFACT), ".methodIdentifiers");
-        string[] memory ext = vm.parseJsonKeys(vm.readFile(EXT_ARTIFACT), ".methodIdentifiers");
+        string[] memory core = vm.parseJsonKeys(vm.readFile(string.concat(vm.envOr("FOUNDRY_OUT", string("out")), CORE_ARTIFACT)), ".methodIdentifiers");
+        string[] memory ext = vm.parseJsonKeys(vm.readFile(string.concat(vm.envOr("FOUNDRY_OUT", string("out")), EXT_ARTIFACT)), ".methodIdentifiers");
         for (uint256 i; i < core.length + ext.length; i++) {
             string memory s = i < core.length ? core[i] : ext[i - core.length];
             bool found;

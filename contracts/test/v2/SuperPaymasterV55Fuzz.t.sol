@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -93,7 +93,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     address constant SENDER_CREATOR = 0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C;
     bytes32 constant EP_CODEHASH = 0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58;
 
-    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST; // Queued deployment floor
+    uint256 MIN_POST_OP_GAS = GasFixture.MIN_POST(); // Queued deployment floor
     /// @dev Buffer constants of the charge oracle (exp/buffer). Defaults = the source values
     ///      (C_POSTOP_GAS 170k, C_WRAP_GAS 5k; pinned by SuperPaymasterV55PostOpBoundTest and
     ///      V55Test R10M3). Env overrides exist ONLY for the negative control / m sweep, where the
@@ -525,7 +525,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     /// forge-config: default.fuzz.runs = 1000
     /// forge-config: default.fuzz.seed = "0xd5c3"
     function testFuzz_G2_noOOGBand_direct_postOp(uint256 gasSeed, bool credit) public {
-        uint256 g = _bound(gasSeed, 60_000, GasFixture.SWEEP_MAX);
+        uint256 g = _bound(gasSeed, 60_000, GasFixture.SWEEP_MAX());
         address u = usr[0];
         if (credit) {
             uint256 bal = tok[0].balanceOf(u); // read before prank: the prank must reach transfer, not balanceOf
@@ -572,7 +572,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         for (uint256 c; c < 2; c++) {
             for (uint256 i; i < d.length; i++) {
                 uint256 snap = vm.snapshot(); // each sample from the same fresh state, as a fuzz run would be
-                uint256 g = uint256(GasFixture.SETTLE) + d[i];
+                uint256 g = uint256(GasFixture.SETTLE()) + d[i];
                 testFuzz_G2_noOOGBand_direct_postOp(g, c == 1);
                 if (i == d.length - 1) {
                     assertTrue(tok[0].usedOpHashes(keccak256(abi.encode("no-oog", g, c == 1))),
@@ -1069,6 +1069,15 @@ contract SuperPaymasterV55FuzzTest is Test {
                 // ---- DSR (zero-tolerance hard gate, checked FIRST): the user's net-of-fee charge
                 //      covers what EntryPoint took from SP's deposit for this op
                 uint256 eth = _chargeEthNet(x, o.spCharge);
+                if (vm.envOr("TUPLE_ACCOUNTING", false) && (eth < o.G || (o.mode == MODE_CREDIT && o.exec == EX_REVERT))) {
+                    emit log_named_uint("tuple fee", o.fpg);
+                    emit log_named_uint("tuple call limit", o.callGas);
+                    emit log_named_uint("tuple post limit", o.postGas);
+                    emit log_named_uint("tuple P", o.P);
+                    emit log_named_uint("tuple F", o.G);
+                    emit log_named_uint("tuple net charge", eth);
+                }
+
                 if (eth < o.G) {
                     st.subsidyCnt++;
                     st.subsidyWei += o.G - eth;
