@@ -10,7 +10,12 @@ Fresh direct calls complete at **438,828 gas** in both modes. This does not repr
 
 **No residual non-guard band on fresh state.** On Amsterdam the fresh direct minimum, 438,828, is also where the entry guard starts admitting. Both `test_direct_minimum_minus_one` (438,827) and `test_direct_stable_boundary_is_guard_on_amsterdam` (431,514, the stable-engine guard boundary) assert that the call fails with exactly `PostOpGasTooLow()`, so both ends of that window are guard rejections, not out-of-gas past the guard. On Cancun and Prague the guard boundary and the direct minimum are both 431,514. In this fresh single-operation setup, a postOp the guard admits completes, on all three engines. The window's interior is not sampled point by point; the claim rests on its two ends and on gasleft being monotonic in the call gas.
 
-This answers the open finding in `../rr5-guard-fail/REPORT.md` as follows: the 440k–632k (CREDIT) / 440k–568k (BALANCE) non-guard band appears only in that test's snapshot/release/re-admit lifecycle and does not appear when each sample is deployed fresh. Which part of that lifecycle causes it (snapshot restore, the release/re-admit sequence, or the transaction history it creates) is **not** isolated here.
+This answers the open finding in `../rr5-guard-fail/REPORT.md` as follows: the 440k–632k (CREDIT) / 440k–568k (BALANCE) non-guard band appears only in that test's snapshot/release/re-admit lifecycle and does not appear when each sample is deployed fresh. Which part of that lifecycle causes it is **not** isolated. The old scan differs from the fresh samples in three ways at once, and none was varied alone:
+1. state restore through `vm.snapshot` / `vm.revertTo` between gas points;
+2. the release-then-re-admit sequence, where a prior reservation is released and a new one validated for the next point;
+3. the storage history that sequence leaves inside the same test transaction (slots already written once, then cleared), which changes Amsterdam's state-gas charges and credits.
+
+So the finding is classified as a **test-lifecycle effect**, not as a defect in a specific harness component. If a later experiment shows that neither lifecycle difference reproduces the band, the classification goes back to undetermined.
 
 There is also a real **peak-above-net** effect. Neither the net frame nor eight sparse checkpoints alone is a sufficient peak estimate. The retained instruction trajectories include the token child frames and the unforwarded gas held by their callers.
 
@@ -81,6 +86,11 @@ The existing calibration records 10/10 strict matches for nightly **4e8874b** ag
 
 The retained phase-2 matrix used 1,080 mined local `handleOps` transactions, 360 cells across R0, RR30M and RRdelta. It found no guard pass/fail changes in 720 R0↔RR comparisons; guard gas was 421,177–421,178, and 439,999 was rejected before postOp. Its 40 outcome changes were state-demand cells, and the exhaustion fixture used an adversarial token. It also documented EntryPoint reimbursement differences under RR. Those are broader reservoir/state-history experiments, not a proof of a universal 440k postOp bound. The present tests are offline Forge measurements; no new Sepolia transaction or public RPC calibration was performed.
 
+## Open items that block the final gas tuple
+
+- **Multi-operation bundle peak: not measured.** All trajectories here are single-op. The tuple is not set until a multi-op peak is measured on Amsterdam with the same fresh-deployment method.
+- The test-lifecycle cause above is not isolated (it does not affect the production path, but the classification rests on it).
+
 ## What is not established
 
 - A universal production upper bound across arbitrary bundle sizes, account/token implementations, reservoir regimes, parameters, prices, storage histories or future engines.
@@ -108,7 +118,7 @@ For direct test invocation, set `PROFILE_AMSTERDAM=true` on the Amsterdam engine
 
 Each engine uses `--offline`; Amsterdam additionally uses `--no-isolate --evm-version prague --hardfork amsterdam`. Commands, scoped profile environment, engine versions, repository HEAD, source hashes, exits, summaries and compact trajectories are retained. The verdict rejects nonzero exits, empty/missing logs, wrong test counts, changed exact thresholds or checkpoint numbers, missing adjacent samples, and changed snapshot bands. Production source hashes are checked before/after. All changes are left uncommitted.
 
-Final run: **292 Forge commands, all exit 0**, comprising **328 passing test executions**, zero failures and zero skips. Cancun: 106; Prague: 106; Amsterdam: 116. Each engine's main suite passes 14/14; the remaining executions are single-sample searches, two snapshot diagnostics per engine, and two Amsterdam instruction captures.
+Final run, from clean commit `2fffd855` (`run/head.txt`; `run/working-tree.txt` lists only the output directory): **292 Forge commands, all exit 0**, comprising **334 passing test executions**, zero failures and zero skips. Cancun: 108; Prague: 108; Amsterdam: 118. Each engine's main suite passes 14/14; the remaining executions are single-sample searches, two snapshot diagnostics per engine, and two Amsterdam instruction captures.
 
 The runner and final verifier both exit **0**. Probe provenance, Solidity formatting and shell syntax checks pass. Separate negative checks confirm that an empty log with exit 0 is rejected, a nonzero command exit is rejected, and a nonempty output directory is rejected with exit 2 without modifying its existing file.
 
