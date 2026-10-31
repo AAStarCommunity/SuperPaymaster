@@ -983,9 +983,10 @@ class ExecutorTests(unittest.TestCase):
         r.update(receipt or {})
         b = dict(hash='0x'+'be'*32, miner=self.MINER)
         b.update(block or {})
-        t = {gap['from']: dict(balance='0x1', nonce=1), str(mined['to']).lower(): dict(balance='0x0'),
+        t = {gap['from']: dict(balance='0x1', nonce=int(gap['nonce'], 16)), str(mined['to']).lower(): dict(balance='0x0'),
              self.MINER: dict(balance='0x1')} if trace is None else trace
         def rpc(method, params):
+            if method == 'eth_chainId': return hex(ex.CHAIN)
             if method == 'eth_getTransactionByHash': return mined if params[0] == gap['hash'] else None
             if method == 'eth_getTransactionReceipt': return r if params[0] == gap['hash'] else None
             if method == 'eth_getCode':
@@ -1061,16 +1062,24 @@ class ExecutorTests(unittest.TestCase):
             'nonce_gap_receipt_status_'+n: dict(receipt=dict(status='0x0')),
             'nonce_gap_not_precompile_'+n: dict(override=dict(to='0x'+'00'*19+'02')),
             'nonce_gap_block_'+n: dict(block=dict(hash='0x'+'00'*32)),
+            'miner': dict(block=dict(miner='garbage')),
             'nonce_gap_trace_'+n: dict(trace={ex.SAFE: None}),
             'nonce_gap_trace_accounts_'+n: dict(trace={gap['from']: {}, ex.SAFE: dict(balance='0x0')}),
-            'nonce_gap_trace_no_code_'+n: dict(trace={'0x'+'c2'*20: dict(code='0xef0100'+'16'*20)}),
-            'nonce_gap_trace_no_storage_'+n: dict(trace={'0x'+'c2'*20: dict(storage={'0x0': '0x1'})}),
+            'nonce_gap_trace_sender_'+n: dict(trace={}),
+            'nonce_gap_trace_fields_'+n: dict(trace={gap['from']: dict(nonce=int(n, 16), balance=1)}),
+            'nonce_gap_trace_no_code_'+n: dict(trace={gap['from']: dict(nonce=int(n, 16)), '0x'+'c2'*20: dict(code='0xef0100'+'16'*20)}),
+            'nonce_gap_trace_no_storage_'+n: dict(trace={gap['from']: dict(nonce=int(n, 16)), '0x'+'c2'*20: dict(storage=False)}),
+            'nonce_gap_chain_'+n: dict(override=dict(chainId='0x1')),
         }
         for gate, kw in cases.items():
             with self.subTest(gate=gate), self.assertRaises(ex.Gate) as caught:
                 ex.check_gaps(self.gap_rpc(gap, receipt=kw.get('receipt'), code=kw.get('code', '0x'), trace=kw.get('trace'),
                                            block=kw.get('block'), **kw.get('override', {})), gapped, later)
-            self.assertEqual(caught.exception.record['gate'], gate)
+            self.assertEqual(caught.exception.record['gate'], 'nonce_gap_block_'+n if gate == 'miner' else gate)
+        for sender_state in ({}, dict(nonce=int(n, 16)+1), dict(nonce=str(int(n, 16)))):
+            with self.subTest(sender=sender_state), self.assertRaises(ex.Gate) as caught:
+                ex.check_gaps(self.gap_rpc(gap, trace={gap['from']: sender_state}), gapped, later)
+            self.assertEqual(caught.exception.record['gate'], 'nonce_gap_trace_sender_'+n)
         def missing(method, params): return None
         with self.assertRaises(ex.Gate) as caught:
             ex.check_gaps(missing, gapped, later)
@@ -1166,6 +1175,11 @@ class ExecutorTests(unittest.TestCase):
                 with self.assertRaises(ex.Gate) as caught:
                     ex.amend_command(self.gap_rpc(gap, input='0x01'), d/'old.json', sha, [gap], d)
                 self.assertEqual(caught.exception.record['gate'], 'nonce_gap_no_calldata_'+gap['nonce'])
+                def other_chain(method, params):
+                    return '0x1' if method == 'eth_chainId' else self.gap_rpc(gap)(method, params)
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.amend_command(other_chain, d/'old.json', sha, [gap], d)
+                self.assertEqual(caught.exception.record['gate'], 'amend_chain')
                 unrelated = dict(gap, nonce=hex(int(gap['nonce'], 16)+5))
                 with self.assertRaises(ex.Gate) as caught:
                     ex.amend_command(self.gap_rpc(unrelated), d/'old.json', sha, [unrelated], d)
@@ -1318,7 +1332,7 @@ class ExecutorTests(unittest.TestCase):
         for step in gapped['steps']: step['tx']['gas'] = hex(260000)
         def traced(method, params, error_ok=False):
             if method == 'debug_traceTransaction' and params[0] == h:
-                return {ex.EXECUTOR: dict(balance='0x1', nonce=1), '0x'+'c2'*20: dict(balance='0x0'), self.MINER: {}}
+                return {ex.EXECUTOR: dict(balance='0x1', nonce=int(gap['nonce'], 16)), '0x'+'c2'*20: dict(balance='0x0'), self.MINER: {}}
             if method == 'eth_getBlockByNumber' and params == [s['txs'][h]['blockNumber'], False]:
                 return dict(chain(method, params), miner=self.MINER)
             return chain(method, params, error_ok)

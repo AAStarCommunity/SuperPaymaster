@@ -1319,6 +1319,7 @@ def check_gaps(remote, plan, tx):
         need('nonce_gap_from_'+n, str(mined.get('from', '')).lower(), g['from'])
         need('nonce_gap_nonce_'+n, mined.get('nonce'), n)
         need('nonce_gap_type_'+n, mined.get('type') in ('0x0', '0x1', '0x2'), True)
+        need('nonce_gap_chain_'+n, mined.get('chainId', hex(CHAIN)), hex(CHAIN))  # legacy txs may omit it
         need('nonce_gap_no_authorizations_'+n, mined.get('authorizationList') in (None, []), True)
         need('nonce_gap_no_calldata_'+n, mined.get('input'), '0x')
         to = mined.get('to')
@@ -1331,10 +1332,19 @@ def check_gaps(remote, plan, tx):
         miner = typed(block.get('miner'), ADDRESS_RX, gate='nonce_gap_block_'+n).lower()
         trace = remote('debug_traceTransaction', [g['hash'], {'tracer': 'prestateTracer'}])
         need('nonce_gap_trace_'+n, isinstance(trace, dict) and all(isinstance(v, dict) for v in trace.values()), True)
-        need('nonce_gap_trace_accounts_'+n, {a.lower() for a in trace} <= {g['from'], to, miner}, True)
-        for account, state in trace.items():
-            need('nonce_gap_trace_no_code_'+n, state.get('code', '0x') in ('0x', '', None), True)
-            need('nonce_gap_trace_no_storage_'+n, not state.get('storage'), True)
+        accounts = {a.lower(): v for a, v in trace.items()}
+        need('nonce_gap_trace_accounts_'+n, len(accounts) == len(trace) and set(accounts) <= {g['from'], to, miner}, True)
+        # The tracer records the sender at transaction start; its prestate nonce is the gap's own nonce. An empty or
+        # partial trace therefore cannot pass. Recipient and fee recipient may be omitted when previously empty.
+        sender = accounts.get(g['from'])
+        need('nonce_gap_trace_sender_'+n, isinstance(sender, dict) and type(sender.get('nonce')) is int
+             and sender['nonce'] == qty(n), True)
+        for state in accounts.values():
+            need('nonce_gap_trace_fields_'+n, set(state) <= {'balance', 'nonce', 'code', 'storage'}, True)
+            if 'balance' in state: typed(state['balance'], QTY, gate='nonce_gap_trace_fields_'+n)
+            if 'nonce' in state: need('nonce_gap_trace_fields_'+n, type(state['nonce']) is int, True)
+            need('nonce_gap_trace_no_code_'+n, state.get('code', '0x'), '0x')
+            need('nonce_gap_trace_no_storage_'+n, state.get('storage', {}), {})
         receipt = remote('eth_getTransactionReceipt', [g['hash']])
         need('nonce_gap_receipt_'+n, isinstance(receipt, dict), True)
         need('nonce_gap_receipt_hash_'+n, str(receipt.get('transactionHash', '')).lower(), g['hash'])
@@ -1663,6 +1673,7 @@ def amend_command(remote, plan_path, reviewed_sha256, gaps, out):
     (a nonce does not change execution); pre_send still re-estimates against live state before any send."""
     raw = plan_path.read_bytes()
     need('reviewed_plan_hash', hashlib.sha256(raw).hexdigest(), reviewed_sha256)
+    need('amend_chain', qty(remote('eth_chainId', [])), CHAIN)
     old = plan_json(raw)
     need('amend_source_ungapped', 'nonceGaps' in old, False)
     gaps = sorted(gaps, key=lambda g: (g['from'], qty(g['nonce'])))

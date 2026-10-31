@@ -313,7 +313,10 @@ python3 -B script/a3a/a3a_exec.py amend --rpc-file <file> --out <new empty dir> 
   and block hash, status 1. End-of-block code alone is not enough, because an EIP-7702 delegation can be installed
   and cleared around the gap inside one block. So the execution trace (`debug_traceTransaction`, `prestateTracer`,
   which lists every account read or written) must touch only the sender, the recipient and the block's fee
-  recipient, none with code or storage. `debug_traceTransaction` is therefore on the remote read-only allowlist.
+  recipient, none with code or storage. The sender must be present with its prestate nonce equal to the gap's
+  nonce, so an empty or partial trace cannot pass, and every field present is type-checked.
+  `debug_traceTransaction` is therefore on the remote read-only allowlist. `amend` also requires the RPC to be
+  Sepolia, and a gap transaction that carries a chainId must carry Sepolia's.
   `amend` checks all of this, and `pre_send` checks it again before every later step of that sender.
 - Gas cannot stand in for the trace: under Amsterdam a transfer that creates an account costs far more than 21000.
   The real gap (executor nonce 0x2f1) used 204600.
