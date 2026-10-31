@@ -1,0 +1,2 @@
+[FAIL: DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost: 1827511012226570 < 1838299350952020] test_G2_coverage_replay_fixed_seeds() (gas: 7698676)
+[FAIL: DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost: 1827511012226570 < 1838299350952020] test_G2_coverage_replay_fixed_seeds() (gas: 7698676)
