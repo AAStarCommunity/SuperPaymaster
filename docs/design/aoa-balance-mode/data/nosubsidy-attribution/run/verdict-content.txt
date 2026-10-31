@@ -1,0 +1,1 @@
+VERDICT PASS: 5 matrix runs 5/0/0; 12 frames per nightly runtime; stable frames equal nightly; probe checkpoints present; counterexample reproduces exactly
