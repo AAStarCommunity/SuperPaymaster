@@ -1,0 +1,11 @@
+{
+  "chainId": "0xaa36a7",
+  "data": "0x1d2282c9",
+  "from": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+  "gas": "0xf884",
+  "maxFeePerGas": "0x4a817c800",
+  "maxPriorityFeePerGas": "0x5f5e100",
+  "nonce": "0x2f63",
+  "to": "0x09df0d2e3722ec0e401fe3819e64278a42ae4de9",
+  "value": "0x0"
+}

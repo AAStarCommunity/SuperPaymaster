@@ -1,0 +1,11 @@
+{
+ "count": 1,
+ "logIndex": 4,
+ "userOpHash": "0x3f8f8f9865700c10bb20e35356b45026f29199e7ed0f74f5637c2b931efc4657",
+ "sender": "0x43a71246698e5be1d9fb04183589eda602ea06f1",
+ "paymaster": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+ "nonce": "42",
+ "success": true,
+ "actualGasCost": "320260001120910",
+ "actualGasUsed": "160130"
+}

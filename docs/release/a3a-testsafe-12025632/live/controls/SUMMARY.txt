@@ -1,0 +1,9 @@
+script commit=8fe5fbe7 pass-block=12033107
+PASS-run exit=0
+pre-S5b-12032510 exit=1
+plan-canceller-removed exit=1
+same-endpoint exit=2
+trailing-dot-alias exit=2
+tag-latest exit=2
+cast-nonzero-exit exit=1
+fake-cast.sh = the CAST used by cast-nonzero-exit (prints a well-formed value, exits 7)
