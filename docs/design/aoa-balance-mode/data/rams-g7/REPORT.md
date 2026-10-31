@@ -205,6 +205,15 @@ The top-level `test-sources.sha256` records round 1, so the D5b and Fuzz lines i
 
 Each count is one above round 1 because of the new S-4 test.
 
+`r2/verdict.txt` comes from `script/evidence/rams-g7-verdict.sh r2`. It requires:
+- 0 failures on both stable runs;
+- the Amsterdam failing set to equal the 6 listed below;
+- the M-1 mutation to be killed by the forward test with the forward assertion.
+
+Three tampered copies (an extra Amsterdam failure, a Cancun failure, a mutation not killed) are each rejected.
+`r2/s4-control.log` is the S-4 positive control, run with `script/evidence/rams-g7-s4-control.sh` at the commit
+named in its first line.
+
 The 6 remaining failures are unchanged:
 - 2 are the no-subsidy mechanism result. DSR ruled (CC-127 1c0b8150) that frame-level attribution must come first,
   and that is now being done separately.
