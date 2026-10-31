@@ -5,6 +5,15 @@ def verify(out):
     commands = [json.loads(l) for l in (out / 'commands.jsonl').read_text().splitlines()]
     exits = (out / 'exits.txt').read_text().splitlines()
     assert commands and len(commands) == len(exits), 'missing commands/exits'
+    # Required inventory: a run that drops the assertion suites, snapshot comparisons or trace captures fails.
+    def named(engine, suffix):
+        return [c for c in commands if c['engine'] == engine and c['name'].endswith(suffix)]
+    for engine in ['cancun', 'prague', 'amsterdam']:
+        assert len(named(engine, '-assertions')) == 1, f'{engine}: assertion suite missing or repeated'
+        assert len(named(engine, '-snapshot-comparison')) == 1, f'{engine}: snapshot comparison missing or repeated'
+    for mode in ['balance', 'credit']:
+        assert len(named('amsterdam', f'-{mode}-steps')) == 1, f'amsterdam: {mode} trace capture missing or repeated'
+    assert len(commands) == 292, f'expected 292 commands, found {len(commands)}'
     for command, exit_line in zip(commands, exits):
         stem = f"{command['engine']}-{command['name']}"
         assert exit_line == f'{stem} exit 0', exit_line

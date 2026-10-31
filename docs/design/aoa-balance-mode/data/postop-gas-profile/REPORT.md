@@ -89,7 +89,7 @@ The retained phase-2 matrix used 1,080 mined local `handleOps` transactions, 360
 ## Open items that block the final gas tuple
 
 - **Multi-operation bundle peak: not measured.** All trajectories here are single-op. The tuple is not set until a multi-op peak is measured on Amsterdam with the same fresh-deployment method.
-- The test-lifecycle cause above is not isolated (it does not affect the production path, but the classification rests on it).
+- The test-lifecycle cause above is not isolated. The old snapshot scan and the fresh samples also differ in rate-limit configuration and operation parameters, so this report does **not** exclude that a production state history could reproduce the band. It records only that the fresh single-op setup does not show it.
 
 ## What is not established
 
@@ -122,4 +122,4 @@ Final run, from clean commit `2fffd855` (`run/head.txt`; `run/working-tree.txt` 
 
 The runner and final verifier both exit **0**. Probe provenance, Solidity formatting and shell syntax checks pass. Separate negative checks confirm that an empty log with exit 0 is rejected, a nonzero command exit is rejected, and a nonempty output directory is rejected with exit 2 without modifying its existing file.
 
-See [verdict](run/verdict.txt), [numbers](run/numbers.json), [per-command exits](run/exits.txt), [verification](run/verification.txt), [input hashes](run/inputs.sha256), and [evidence hashes](run/SHA256SUMS). `contracts/src/` hashes match before and after the run. No commit was made.
+See [verdict](run/verdict.txt) (runner and final verifier lines), [numbers](run/numbers.json), [per-command exits](run/exits.txt), [commands](run/commands.jsonl), [source hashes](run/source-hashes.json), [run HEAD](run/head.txt) and [evidence hashes](run/SHA256SUMS). `contracts/src/` hashes match before and after the run.
