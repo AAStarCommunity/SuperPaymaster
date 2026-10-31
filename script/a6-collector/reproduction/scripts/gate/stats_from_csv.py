@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""A3.2 / G5 publication statistics entrypoint for archived CSVs and AOA M3 packages.
+
+CSV compatibility: --col gas A=a.csv B=b.csv --cliff A,B --out stats.md
+M3 package: --m3-package receive.json --json-out stats.json --latex-out tables.tex
+
+Both modes share the same exact-offset statistical implementation. Confidence
+intervals are endpoint pairs, never mean +/- half-width. Cliff's delta is
+P(A > B) - P(A < B), positive when the first sample is larger.
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+from decimal import Decimal, InvalidOperation
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+SCRIPTS = Path(__file__).resolve().parents[1]
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+import aoa_m3_stats as stats
+
+
+def load(path, col):
+    """Read decimal observations without converting large integers to float."""
+    values = []
+    with open(path, newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        if col not in (reader.fieldnames or []):
+            raise ValueError(f"{path}: missing column {col!r}")
+        for line, row in enumerate(reader, start=2):
+            raw = row.get(col)
+            if raw in (None, ""):
+                continue
+            try:
+                value = Decimal(raw)
+            except InvalidOperation as exc:
+                raise ValueError(f"{path}:{line}: invalid number {raw!r}") from exc
+            if not value.is_finite():
+                raise ValueError(f"{path}:{line}: nonfinite observation")
+            values.append(int(value) if value == value.to_integral_value() else value)
+    if not values:
+        raise ValueError(f"{path}: no observations in {col!r}")
+    return values
+
+
+def boot_ci(x, B=10000, seed=42):
+    """Return Decimal (low, high) endpoints; the obsolete half-width API is removed."""
+    result = stats.summarize_sample(x, seed=seed, resamples=B)
+    return Decimal(result["ci95LowExact"]), Decimal(result["ci95HighExact"])
+
+
+def skew(x):
+    """Adjusted Fisher-Pearson skewness; undefined samples return None."""
+    return stats.compute_skewness(x)
+
+
+def cliff(a, b):
+    """P(A > B) - P(A < B), positive when the first sample is larger."""
+    return stats.cliffs_delta(a, b)["delta"]
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--col")
+    parser.add_argument("sets", nargs="*")
+    parser.add_argument("--cliff", action="append", default=[])
+    parser.add_argument("--out", type=Path, help="CSV-mode Markdown output")
+    parser.add_argument("--m3-package", type=Path)
+    parser.add_argument("--json-out", type=Path)
+    parser.add_argument("--latex-out", type=Path)
+    parser.add_argument("--compare-stat-results", type=Path)
+    parser.add_argument("--expected", type=int, default=50)
+    parser.add_argument("--resamples", type=int, default=10000)
+    parser.add_argument("--seed", type=int, help="Default: CSV=42 (legacy), M3=20261030")
+    args = parser.parse_args(argv)
+    try:
+        if args.m3_package:
+            if args.col or args.sets or args.cliff or args.out:
+                raise ValueError("--m3-package cannot be mixed with CSV options")
+            forwarded = [str(args.m3_package), "--expected", str(args.expected),
+                         "--resamples", str(args.resamples), "--seed",
+                         str(args.seed if args.seed is not None else stats.BOOTSTRAP_SEED)]
+            for option, value in (("--json-out", args.json_out), ("--latex-out", args.latex_out),
+                                  ("--compare-stat-results", args.compare_stat_results)):
+                if value is not None:
+                    forwarded += [option, str(value)]
+            return stats.main(forwarded, publication_entrypoint="scripts/gate/stats_from_csv.py")
+        if not args.col or not args.sets:
+            raise ValueError("CSV mode requires --col and at least one label=path.csv")
+        if args.latex_out or args.compare_stat_results:
+            raise ValueError("--latex-out/--compare-stat-results require --m3-package")
+        data, inputs = {}, {}
+        for item in args.sets:
+            label, path = item.split("=", 1)
+            if not label or label in data:
+                raise ValueError(f"empty or duplicate label: {label!r}")
+            data[label] = load(path, args.col)
+            inputs[label] = {"path": path, "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest()}
+        seed = args.seed if args.seed is not None else 42
+        summaries = {label: stats.summarize_sample(values, seed=seed, resamples=args.resamples)
+                     for label, values in data.items()}
+        comparisons = {}
+        for pair in args.cliff:
+            left, right = pair.split(",")
+            comparisons[pair] = stats.cliffs_delta(data[left], data[right])
+        report = [f"# Descriptive statistics — column `{args.col}`", "",
+                  f"Generated by scripts/gate/stats_from_csv.py; B={args.resamples}, seed={seed}; Type-7 percentile CI.", "",
+                  "| system | n | mean | sample SD | min | max | range | bootstrap 95% CI [low, high] | adjusted skewness |",
+                  "|:--|--:|--:|--:|--:|--:|--:|:--|--:|"]
+        for label, result in summaries.items():
+            values = data[label]
+            skewness = "N/A" if result["skewness"] is None else f"{result['skewness']:.3f}"
+            report.append(f"| {label} | {result['n']} | {result['meanExact']} | {result['sd']:.6g} | "
+                          f"{min(values)} | {max(values)} | {max(values)-min(values)} | "
+                          f"[{result['ci95LowExact']}, {result['ci95HighExact']}] | {skewness} |")
+        if comparisons:
+            report += ["", "| pair | Cliff's delta (positive = first is larger) |", "|:--|--:|"]
+            report += [f"| {pair} | {value['delta']:+.6g} |" for pair, value in comparisons.items()]
+        rendered = "\n".join(report) + "\n"
+        if args.out:
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            args.out.write_text(rendered, encoding="utf-8")
+        if args.json_out:
+            args.json_out.parent.mkdir(parents=True, exist_ok=True)
+            args.json_out.write_text(json.dumps({"schema": "gate-csv-stats-v2", "column": args.col,
+                "inputs": inputs, "summaries": summaries, "cliffsDelta": comparisons,
+                "sourceCodeSha256": stats.source_code_hashes(),
+                "publicationEntrypoint": "scripts/gate/stats_from_csv.py"}, indent=2) + "\n", encoding="utf-8")
+        print(rendered, end="")
+        return 0
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

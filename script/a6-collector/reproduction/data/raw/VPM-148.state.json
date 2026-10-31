@@ -1,0 +1,78 @@
+{
+ "readbacks": {
+  "before": {
+   "A": {
+    "blockNumber": "338",
+    "blockHash": "0x6ae8c1bcc97bd2c8e42a874044b94b86d9addcd1ff5dddcf5e32c1fe1b427541",
+    "epDeposit": "9986718923897270889",
+    "operatorBalance": "14616654981158292500000"
+   },
+   "B": {
+    "blockNumber": "338",
+    "blockHash": "0x6ae8c1bcc97bd2c8e42a874044b94b86d9addcd1ff5dddcf5e32c1fe1b427541",
+    "epDeposit": "9986718923897270889",
+    "operatorBalance": "14616654981158292500000"
+   }
+  },
+  "after": {
+   "A": {
+    "blockNumber": "339",
+    "blockHash": "0xebccf0b62ff3d3d3fbcf3c57a0a616ba4408a03f377d12820163422c2969db4b",
+    "epDeposit": "9986477773896426864",
+    "operatorBalance": "14616654981158292500000"
+   },
+   "B": {
+    "blockNumber": "339",
+    "blockHash": "0xebccf0b62ff3d3d3fbcf3c57a0a616ba4408a03f377d12820163422c2969db4b",
+    "epDeposit": "9986477773896426864",
+    "operatorBalance": "14616654981158292500000"
+   }
+  }
+ },
+ "conservation": {
+  "evaluated": true,
+  "notEvaluable": null,
+  "ok": true,
+  "checks": [
+   {
+    "id": "continuity.block",
+    "ok": true
+   },
+   {
+    "id": "continuity.epDeposit",
+    "ok": true
+   },
+   {
+    "id": "continuity.operatorBalance",
+    "ok": true,
+    "expected": "14616654981158292500000",
+    "actual": "14616654981158292500000"
+   },
+   {
+    "id": "continuity.operatorBalance_baseline_unchanged",
+    "ok": true
+   },
+   {
+    "id": "unique.tx",
+    "ok": true
+   },
+   {
+    "id": "unique.op",
+    "ok": true
+   },
+   {
+    "id": "unique.block",
+    "ok": true
+   },
+   {
+    "id": "D1.ep_deposit_delta_eq_minus_actualGasCost",
+    "ok": true,
+    "expected": "-241150000844025",
+    "actual": "-241150000844025",
+    "src": "EP:535,744-745"
+   }
+  ]
+ },
+ "spMode": null,
+ "charge": null
+}
