@@ -49,4 +49,22 @@ else:
     print(f"py{v}: self-compare {self_c['checkedFields']} fields; vs DSR reference differs only in pythonVersion")
 PYEOF
 done | tee "$OUT/summary.txt"
+# Control: a one-digit change in the reference must be reported next to (not hidden by) a version difference.
+PY=${PYS[0]}; C="$OUT/control-tampered-reference"; mkdir -p "$C"
+"$PY" -I - "$REF" "$C/ref.json" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+m = d["arms"]["SP"]["actualGasUsed"]
+m["meanExact"] = m["meanExact"][:-1] + ("1" if m["meanExact"][-1] != "1" else "2")
+d["statisticalConfig"]["pythonVersion"] = "0.0.0"
+json.dump(d, open(sys.argv[2], "w"))
+PYEOF
+set +e
+"$PY" -B scripts/gate/stats_from_csv.py --m3-package data/receive.json \
+  --compare-stat-results "$C/ref.json" --json-out "$C/out.json" > "$C/compare.log" 2>&1
+code=$?; set -e
+test "$code" -ne 0
+grep -q 'root.arms.SP.actualGasUsed.meanExact:' "$C/compare.log"
+grep -q 'root.statisticalConfig.pythonVersion:' "$C/compare.log"
+echo "control: tampered reference rejected (exit $code), numeric and version mismatches both listed" | tee -a "$OUT/summary.txt"
 (cd "$OUT" && find . -type f ! -name SHA256SUMS | sort | xargs shasum -a 256 > SHA256SUMS)
