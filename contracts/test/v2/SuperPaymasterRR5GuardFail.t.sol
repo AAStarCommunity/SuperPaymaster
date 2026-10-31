@@ -301,6 +301,28 @@ abstract contract RR5GuardBase is Test {
         sp.releaseStaleSponsorship(HASH);
         assertEq(operatorBalance(), beforeOperator, "idempotent recovery");
     }
+
+    /// @notice Diagnostic only (no assertion): classify every call gas from SETTLE to 900k in 2k steps as
+    ///         guard-fail (PostOpGasTooLow), other failure (OOG past the guard) or settled, and log the bands.
+    function test_RR5_diag_scan_band() public {
+        release();
+        admit();
+        uint256 lastGuard; uint256 firstOk; uint256 oogLo; uint256 oogHi; uint256 nOog;
+        bytes32 guardRet = keccak256(abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector));
+        for (uint256 g = GasFixture.SETTLE; g <= 900_000; g += 2_000) {
+            uint256 snap = vm.snapshot();
+            (bool ok, bytes memory ret) = invoke(g);
+            if (ok) { if (firstOk == 0) firstOk = g; }
+            else if (keccak256(ret) == guardRet) lastGuard = g;
+            else { if (oogLo == 0) oogLo = g; oogHi = g; nOog++; }
+            vm.revertTo(snap);
+        }
+        emit log_named_uint("scan last guard-fail call gas", lastGuard);
+        emit log_named_uint("scan first non-guard failure call gas", oogLo);
+        emit log_named_uint("scan last non-guard failure call gas", oogHi);
+        emit log_named_uint("scan non-guard failures (2k steps)", nOog);
+        emit log_named_uint("scan first settled call gas", firstOk);
+    }
 }
 
 contract SuperPaymasterRR5GuardBalanceTest is RR5GuardBase {
