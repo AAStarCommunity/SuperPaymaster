@@ -1,0 +1,111 @@
+Compiling 102 files with Solc 0.8.33
+Compiling 109 files with Solc 0.8.33
+Solc 0.8.33 finished in 15.85s
+Solc 0.8.33 finished in 16.83s
+Compiler run successful with warnings:
+Warning (2072): Unused local variable.
+   --> contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:404:9:
+    |
+404 |         uint256 snapSettle = uint32(snap >> 32);
+    |         ^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/paymasters/v4/PaymasterBase.sol:313:9:
+    |
+313 |         PostOpMode mode,
+    |         ^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:230:40:
+    |
+230 |     function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
+    |                                        ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:294:37:
+    |
+294 |     function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
+    |                                     ^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:191:14:
+    |
+191 |             (bool ok, bytes memory ret) = invoke(mid);
+    |              ^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:198:10:
+    |
+198 |         (bool ok, bytes memory ret) = invoke(lo);
+    |          ^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:191:23:
+    |
+191 |             (bool ok, bytes memory ret) = invoke(mid);
+    |                       ^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:198:19:
+    |
+198 |         (bool ok, bytes memory ret) = invoke(lo);
+    |                   ^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardBalanceTest
+[PASS] test_RR5_diag_scan_band() (gas: 2447374)
+Logs:
+  scan last guard-fail call gas: 0
+  scan first non-guard failure call gas: 0
+  scan last non-guard failure call gas: 0
+  scan non-guard failures (2k steps): 0
+  scan first settled call gas: 420000
+
+[FAIL: must fail at guard] test_RR5_exactSelector_adjacentBoundary() (gas: 8063)
+[FAIL: must fail at guard] test_RR5_guardFail_staleRecovery() (gas: 8239)
+[PASS] test_RR5_realEntryPoint_minimum_negativeControl() (gas: 2194270)
+[FAIL: must fail at guard] test_RR5_snapshot_not_live_bound() (gas: 8195)
+Suite result: FAILED. 2 passed; 3 failed; 0 skipped; finished in 10.45ms (11.37ms CPU time)
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardCreditTest
+[PASS] test_RR5_diag_scan_band() (gas: 2460380)
+Logs:
+  scan last guard-fail call gas: 0
+  scan first non-guard failure call gas: 0
+  scan last non-guard failure call gas: 0
+  scan non-guard failures (2k steps): 0
+  scan first settled call gas: 420000
+
+[FAIL: must fail at guard] test_RR5_exactSelector_adjacentBoundary() (gas: 8063)
+[FAIL: must fail at guard] test_RR5_guardFail_staleRecovery() (gas: 8239)
+[PASS] test_RR5_realEntryPoint_minimum_negativeControl() (gas: 2194270)
+[FAIL: must fail at guard] test_RR5_snapshot_not_live_bound() (gas: 8195)
+Suite result: FAILED. 2 passed; 3 failed; 0 skipped; finished in 11.26ms (9.02ms CPU time)
+
+Ran 2 test suites in 12.01ms (21.71ms CPU time): 4 tests passed, 6 failed, 0 skipped (10 total tests)
+
+Failing tests:
+Encountered 3 failing tests in contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardBalanceTest
+[FAIL: must fail at guard] test_RR5_exactSelector_adjacentBoundary() (gas: 8063)
+[FAIL: must fail at guard] test_RR5_guardFail_staleRecovery() (gas: 8239)
+[FAIL: must fail at guard] test_RR5_snapshot_not_live_bound() (gas: 8195)
+
+Encountered 3 failing tests in contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardCreditTest
+[FAIL: must fail at guard] test_RR5_exactSelector_adjacentBoundary() (gas: 8063)
+[FAIL: must fail at guard] test_RR5_guardFail_staleRecovery() (gas: 8239)
+[FAIL: must fail at guard] test_RR5_snapshot_not_live_bound() (gas: 8195)
+
+Encountered a total of 6 failing tests, 4 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 6 failed tests

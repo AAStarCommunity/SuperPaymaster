@@ -1,0 +1,47 @@
+No files changed, compilation skipped
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardCreditTest
+[PASS] test_RR5_diag_scan_band() (gas: 28538372)
+Logs:
+  scan last guard-fail call gas: 430000
+  scan first non-guard failure call gas: 0
+  scan last non-guard failure call gas: 0
+  scan non-guard failures (2k steps): 0
+  scan first settled call gas: 432000
+
+[PASS] test_RR5_exactSelector_adjacentBoundary() (gas: 2370373)
+Logs:
+  last guard-fail call gas: 431513
+  first complete settlement call gas: 431514
+
+[PASS] test_RR5_guardFail_staleRecovery() (gas: 151299)
+[PASS] test_RR5_realEntryPoint_minimum_negativeControl() (gas: 2228583)
+[PASS] test_RR5_snapshot_not_live_bound() (gas: 401400)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 25.16ms (29.23ms CPU time)
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardBalanceTest
+[PASS] test_RR5_diag_scan_band() (gas: 27851429)
+Logs:
+  scan last guard-fail call gas: 430000
+  scan first non-guard failure call gas: 0
+  scan last non-guard failure call gas: 0
+  scan non-guard failures (2k steps): 0
+  scan first settled call gas: 432000
+
+[PASS] test_RR5_exactSelector_adjacentBoundary() (gas: 2376929)
+Logs:
+  last guard-fail call gas: 431513
+  first complete settlement call gas: 431514
+
+[PASS] test_RR5_guardFail_staleRecovery() (gas: 148580)
+[PASS] test_RR5_realEntryPoint_minimum_negativeControl() (gas: 2228583)
+[PASS] test_RR5_snapshot_not_live_bound() (gas: 377094)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 26.33ms (29.41ms CPU time)
+
+Ran 2 test suites in 27.77ms (51.48ms CPU time): 10 tests passed, 0 failed, 0 skipped (10 total tests)
