@@ -48,7 +48,7 @@ Token **proxy subcall** costs, included in the above totals:
 | settleLocked / first | 41,783 | 41,783 | 46,283 |
 | settleLocked / repeat | 33,841 | 33,841 | 23,941 |
 | settleCredit / first | 47,841 | 47,841 | 28,041 |
-| settleCredit / repeat | 27,841 | 27,841 | 18,041 |
+| settleCredit / repeat | 27,941 | 27,941 | 18,041 |
 
 The token clone adds 184 gas over its implementation. SP's proxy adds 400 gas over its implementation. Exact per-row subcalls/opcode histograms are in `matrix-summary.json`. There are **zero** price-feed or registry subcalls inside postOp, settleCredit, or settleLocked: price/fee/gas parameters come from the validation context; credit policy/tier are not rechecked at settlement.
 
@@ -137,17 +137,19 @@ The original fuzz conservation test is also left unchanged. This work reproduces
 
 ## Peak versus net — caveat on the proposal (added after review)
 
-The tuple below is derived from the **net** frame. The in-flight clear (−97,820) lands near the end of the frame, so
-the gas that must be available **during** the frame is about W + 97,820 on Amsterdam, not W. `SETTLE` is checked at
-entry and has to cover that peak. Otherwise a call that passes the guard can still run out of gas before the
-credit arrives.
+The tuple below is derived from the **net** frame. The net total contains a signed −97,820 in-flight clear. That
+credit does not come at the very end: the retained trace clears the in-flight record and *then* initializes
+`protocolRevenue` (+108,020). The gas that must be available **during** the frame (the peak of the gasleft
+trajectory) is therefore neither W nor simply W + 97,820, and it is **not derived here**. `SETTLE` is checked at
+entry and has to cover that peak. Otherwise a call that passes the guard can still run out of gas before it
+finishes.
 
-`rr5-guard-fail/` (branch `cc127/rr5-guard-fail`) observes exactly this kind of band in a direct-call setup under
-the deployment tuple on Amsterdam: OOG past the guard for 440k–632k call gas (CREDIT) and 440k–568k (BALANCE). That
+`rr5-guard-fail/` (branch `cc127/rr5-guard-fail`) observes a band of non-guard failures in a direct-call setup under
+the deployment tuple on Amsterdam: 440k–632k call gas (CREDIT) and 440k–568k (BALANCE), with the CREDIT 600k point traced to an OOG in SP's frame after `settleCredit` returned. That
 setup's state-gas regime is not yet reconciled with this matrix.
 
-**The proposal below is therefore not adoptable as is.** The final tuple has to come from a peak measurement, and
-the gasleft trajectory needs its own attribution.
+**The proposal below is therefore not adoptable.** It stays pending a measured gasleft trajectory (peak), which is
+not part of this report.
 
 ## Measured bounds and proposals only
 

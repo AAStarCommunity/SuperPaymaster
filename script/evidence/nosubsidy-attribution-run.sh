@@ -36,11 +36,5 @@ echo "counterexample exit $rc" >> "$OUT/exits.txt"
 grep '^\[FAIL' "$ARCH/counterexample-final-amsterdam.log" > "$OUT/counterexample-result.log" || true
 shasum -a 256 "$ARCH/counterexample-final-amsterdam.log" | sed "s#  .*/#  #" > "$OUT/external-trace.sha256"
 python3 -I "$EV/analyze.py" "$OUT"/matrix-{cancun,prague,amsterdam}.log > "$OUT/matrix-summary.json"
-fail() { echo "VERDICT FAIL: $*" >&2; exit 1; }
-for r in matrix-cancun matrix-prague matrix-amsterdam matrix-stable-prague matrix-stable-cancun probe-amsterdam probe-prague; do
-  grep -qx "$r exit 0" "$OUT/exits.txt" || fail "$r did not pass"
-done
-grep -qx "counterexample exit 1" "$OUT/exits.txt" || fail "counterexample no longer fails"
-grep -q "1827511012226570 < 1838299350952020" "$OUT/counterexample-result.log" || fail "counterexample values changed"
-test -z "$(git status --porcelain --untracked-files=no)" || fail "tracked files changed"
-echo "VERDICT PASS: matrix 3 runtimes + 2 stable controls pass; probe ok; counterexample reproduces exactly" | tee "$OUT/verdict.txt"
+test -z "$(git status --porcelain --untracked-files=no)" || { echo "VERDICT FAIL: tracked files changed" >&2; exit 1; }
+"$(dirname "$0")/nosubsidy-attribution-verdict.sh" "$OUT" | tee "$OUT/verdict.txt"
