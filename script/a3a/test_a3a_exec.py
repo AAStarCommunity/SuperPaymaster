@@ -1145,6 +1145,36 @@ class ExecutorTests(unittest.TestCase):
                 ex.parse_gap(text)
             self.assertEqual(caught.exception.record['gate'], gate)
 
+    def test_amend_follows_renumbered_ast_ids_only(self):
+        plan = self.measured_plan()
+        gap = self.gap_for(plan, 'S6b')
+        def renumbered(shift, start=0):
+            def art(name):
+                a = self.artifact(name)
+                if name == 'APNTsCapped':
+                    for entry in a['runtimeIdentity']['ranges']:
+                        entry['id'] = str(int(entry['id'])+shift)
+                        entry['start'] += start
+                return a
+            return art
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            ex.write_json(d/'old.json', plan)
+            sha = hashlib.sha256((d/'old.json').read_bytes()).hexdigest()
+            self.assertTrue(plan['runtimeIdentity']['ranges'])
+            out = d/'out'; out.mkdir()
+            with patch.object(ex, 'artifact', renumbered(1000)):
+                new = ex.amend_command(self.gap_rpc(gap), d/'old.json', sha, [gap], out)
+                ex.validate_plan(new, frozen=True)
+            self.assertEqual(ex.strip_ast_ids(new['runtimeIdentity']), ex.strip_ast_ids(plan['runtimeIdentity']))
+            self.assertNotEqual(new['runtimeIdentity'], plan['runtimeIdentity'])
+            record = json.loads((out/'amend.json').read_text())
+            self.assertEqual(len(record['renumberedAstIds']['runtimeIdentity']), len(plan['runtimeIdentity']['ranges']))
+            self.assertEqual(record['renumberedAstIds']['timelockRuntimeIdentity'], [])
+            with patch.object(ex, 'artifact', renumbered(1000, start=1)), self.assertRaises(ex.Gate) as caught:
+                ex.amend_command(self.gap_rpc(gap), d/'old.json', sha, [gap], d)
+            self.assertEqual(caught.exception.record['gate'], 'amend_runtimeIdentity_semantics')
+
     def test_simulate_refuses_a_gapped_plan(self):
         plan = dict(self.measured_plan(), nonceGaps=[])
         with tempfile.TemporaryDirectory() as d:

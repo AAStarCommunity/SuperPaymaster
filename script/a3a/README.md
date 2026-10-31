@@ -305,6 +305,10 @@ python3 -B script/a3a/a3a_exec.py amend --rpc-file <file> --out <new empty dir> 
   amend cannot repair anything but the gap. The output is a copy of that source with only `nonceGaps`, the rebuild
   record and the moved nonces replaced, validated again; it refuses unless something moved. `validate_plan`
   recompiles at HEAD, so sign and send from that same commit.
+- `runtimeIdentity` / `timelockRuntimeIdentity` record AST node ids, which belong to one compilation unit; a later
+  commit with more sources renumbers them while the bytecode, immutable names, starts and lengths stay identical.
+  Only those ids may follow the current build (`amend_<key>_semantics` otherwise); `amend.json` lists every
+  renumbered id pair.
 - A gap may not move S2 or S3: the timelock and token addresses are derived from the pinned deployer nonces
   (`nonce_gap_moves_create_<step>`).
 - Only a plain ETH transfer qualifies as a gap: exact sender, nonce and hash; mined (quantity block number and block

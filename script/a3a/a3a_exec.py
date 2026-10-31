@@ -1665,6 +1665,14 @@ def parse_gap(text):
     return dict(hash=h.lower(), nonce=hex(int(n, 0)), **{'from': who.lower()})
 
 
+def strip_ast_ids(identity):
+    """A runtime identity without the compilation-unit-local AST ids of its ranges."""
+    out = copy.deepcopy(identity)
+    for entry in out.get('ranges', []):
+        entry.pop('id', None)
+    return out
+
+
 def amend_command(remote, plan_path, reviewed_sha256, gaps, out):
     """Re-issue a reviewed frozen plan after foreign transactions consumed planned nonces.
 
@@ -1680,12 +1688,17 @@ def amend_command(remote, plan_path, reviewed_sha256, gaps, out):
     rebuilt = build_plan(old['pin'], gaps)
     # The reviewed source must itself be a valid frozen plan (its own nonce schedule included) once its rebuild
     # record names this commit; otherwise amend could silently repair something other than the gap.
+    # AST node ids in the runtime identity belong to a compilation unit, so a later commit with more sources
+    # renumbers them. Only those ids may follow the current build; bytecode, names and ranges must be identical.
+    for key in ('runtimeIdentity', 'timelockRuntimeIdentity'):
+        need('amend_'+key+'_semantics', strip_ast_ids(rebuilt[key]), strip_ast_ids(old[key]))
     source = copy.deepcopy(old)
     source['rebuild'] = rebuilt['rebuild']
+    for key in ('runtimeIdentity', 'timelockRuntimeIdentity'):
+        source[key] = rebuilt[key]
     validate_plan(source, frozen=True)
-    new = copy.deepcopy(old)
+    new = copy.deepcopy(source)
     new['nonceGaps'] = rebuilt['nonceGaps']
-    new['rebuild'] = rebuilt['rebuild']
     moved = []
     for step, fresh in zip(new['steps'], rebuilt['steps']):
         if step['tx']['nonce'] != fresh['tx']['nonce']:
@@ -1700,9 +1713,11 @@ def amend_command(remote, plan_path, reviewed_sha256, gaps, out):
     write_json(out/'plan.json', new)
     digest = hashlib.sha256((out/'plan.json').read_bytes()).hexdigest()
     (out/'plan.json.sha256').write_text(digest+'  plan.json\n')
+    renumbered = {key: [[a['id'], b['id']] for a, b in zip(old[key].get('ranges', []), new[key].get('ranges', []))
+                        if a['id'] != b['id']] for key in ('runtimeIdentity', 'timelockRuntimeIdentity')}
     write_json(out/'amend.json', dict(sourcePlanSha256=reviewed_sha256, planSha256=digest,
                                      sourceCommit=old['rebuild']['commit'], commit=new['rebuild']['commit'],
-                                     nonceGaps=new['nonceGaps'], movedNonces=moved))
+                                     nonceGaps=new['nonceGaps'], movedNonces=moved, renumberedAstIds=renumbered))
     return new
 
 
