@@ -9,8 +9,9 @@ import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPa
 library SelectedGasFixtures {
     using SuperPaymasterAdminCalls for SuperPaymaster;
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-    function candidate() internal view returns (bool) { return vm.envOr("TUPLE_CANDIDATE", false); }
-    function MIN_POST() internal view returns (uint32) { return candidate() ? 470_000 : 440_000; }
+    function candidate() internal view returns (bool) { return vm.envOr("TUPLE_CANDIDATE", false) || candidate480(); }
+    function candidate480() internal view returns (bool) { return vm.envOr("TUPLE_480", false); }
+    function MIN_POST() internal view returns (uint32) { return candidate480() ? 480_000 : candidate() ? 470_000 : 440_000; }
     function SETTLE() internal view returns (uint32) { return candidate() ? 450_000 : 420_000; }
     uint32 internal constant WRAP = 5_000;
     function POSTOP() internal view returns (uint32) { return candidate() ? 450_000 : 340_000; }
