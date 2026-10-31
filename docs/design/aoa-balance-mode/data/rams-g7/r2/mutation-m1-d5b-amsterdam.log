@@ -1,0 +1,45 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+Compiling 180 files with Solc 0.8.33
+Compiling 41 files with Solc 0.8.33
+Solc 0.8.33 finished in 32.45s
+Solc 0.8.33 finished in 328.34s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:526:5:
+    |
+526 |     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> contracts/src/core/Registry.sol:973:5:
+    |
+973 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 2 tests for contracts/test/v2/SuperPaymasterD5bUpgradeRace.t.sol:SuperPaymasterD5bUpgradeRaceTest
+[FAIL: forward: no victim postOp fails: 2 != 0] test_d5b_forward_mid_bundle_upgrade_with_extension_calls() (gas: 12269455)
+[PASS] test_d5b_rollback_mid_bundle_with_extension_calls() (gas: 211330423)
+Suite result: FAILED. 1 passed; 1 failed; 0 skipped; finished in 9.92ms (13.13ms CPU time)
+
+Ran 1 test suite in 10.79ms (9.92ms CPU time): 1 tests passed, 1 failed, 0 skipped (2 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/SuperPaymasterD5bUpgradeRace.t.sol:SuperPaymasterD5bUpgradeRaceTest
+[FAIL: forward: no victim postOp fails: 2 != 0] test_d5b_forward_mid_bundle_upgrade_with_extension_calls() (gas: 12269455)
+
+Encountered a total of 1 failing tests, 1 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger
