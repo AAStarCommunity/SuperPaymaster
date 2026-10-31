@@ -785,6 +785,10 @@ def build_plan(state, gaps=()):
     for sid, sender, to, data in rows:
         while (sender, counters[sender]) in skipped:
             counters[sender] += 1
+        if to is None:
+            # The timelock/token addresses above are derived from the pinned nonces; a moved CREATE would deploy
+            # elsewhere.
+            need('nonce_gap_moves_create_'+sid, counters[sender], n+(1 if sid == 'S2' else 2))
         steps.append(dict(id=sid, executionTimestamp=times[sid], tx=dict(to=to, data=data, value='0x0', nonce=hex(counters[sender]),
                      **{'from': sender}, chainId=hex(CHAIN), maxFeePerGas=hex(MAX_FEE),
                      maxPriorityFeePerGas=hex(PRIORITY))))
@@ -1298,21 +1302,32 @@ def validate_gaps(plan):
 
 
 def check_gaps(remote, plan, tx):
-    """Every recorded gap below this transaction's nonce must be a mined, non-creating transaction with exactly
-    that sender and nonce, touching none of the plan's contracts."""
-    protected = {SAFE, SP, plan['pin']['timelock'], plan['pin']['capped']}
+    """Every recorded gap below this transaction's nonce must be a mined plain ETH transfer with exactly that
+    sender, nonce and hash: no calldata, no authorization list, and a recipient with no code (so no delegation)
+    at that block. Such a transaction executes nothing, so it cannot have touched any plan contract."""
     for g in plan.get('nonceGaps', ()):
         if g['from'] != tx['from'] or qty(g['nonce']) >= qty(tx['nonce']):
             continue
+        n = g['nonce']
         mined = remote('eth_getTransactionByHash', [g['hash']])
-        need('nonce_gap_mined_'+g['nonce'], isinstance(mined, dict) and mined.get('blockNumber') is not None, True)
-        need('nonce_gap_from_'+g['nonce'], str(mined.get('from', '')).lower(), g['from'])
-        need('nonce_gap_nonce_'+g['nonce'], mined.get('nonce'), g['nonce'])
+        need('nonce_gap_found_'+n, isinstance(mined, dict), True)
+        need('nonce_gap_hash_'+n, str(mined.get('hash', '')).lower(), g['hash'])
+        number = typed(mined.get('blockNumber'), QTY, gate='nonce_gap_mined_'+n)
+        block_hash = typed(mined.get('blockHash'), HASH32, gate='nonce_gap_mined_'+n).lower()
+        need('nonce_gap_from_'+n, str(mined.get('from', '')).lower(), g['from'])
+        need('nonce_gap_nonce_'+n, mined.get('nonce'), n)
+        need('nonce_gap_type_'+n, mined.get('type') in ('0x0', '0x1', '0x2'), True)
+        need('nonce_gap_no_authorizations_'+n, mined.get('authorizationList') in (None, []), True)
+        need('nonce_gap_no_calldata_'+n, mined.get('input'), '0x')
         to = mined.get('to')
-        need('nonce_gap_call_'+g['nonce'], isinstance(to, str) and ADDRESS_RX.fullmatch(to) is not None, True)
-        need('nonce_gap_untouched_'+g['nonce'], to.lower() in protected, False)
+        need('nonce_gap_call_'+n, isinstance(to, str) and ADDRESS_RX.fullmatch(to) is not None, True)
+        need('nonce_gap_recipient_codeless_'+n, typed(remote('eth_getCode', [to, number]), HEXDATA), '0x')
         receipt = remote('eth_getTransactionReceipt', [g['hash']])
-        need('nonce_gap_receipt_'+g['nonce'], isinstance(receipt, dict) and receipt.get('blockNumber'), mined['blockNumber'])
+        need('nonce_gap_receipt_'+n, isinstance(receipt, dict), True)
+        need('nonce_gap_receipt_hash_'+n, str(receipt.get('transactionHash', '')).lower(), g['hash'])
+        need('nonce_gap_receipt_block_'+n, [receipt.get('blockNumber'), str(receipt.get('blockHash', '')).lower()],
+             [number, block_hash])
+        need('nonce_gap_receipt_status_'+n, receipt.get('status'), '0x1')
 
 
 def validate_plan(plan, frozen=False):
@@ -1639,6 +1654,11 @@ def amend_command(remote, plan_path, reviewed_sha256, gaps, out):
     need('amend_source_ungapped', 'nonceGaps' in old, False)
     gaps = sorted(gaps, key=lambda g: (g['from'], qty(g['nonce'])))
     rebuilt = build_plan(old['pin'], gaps)
+    # The reviewed source must itself be a valid frozen plan (its own nonce schedule included) once its rebuild
+    # record names this commit; otherwise amend could silently repair something other than the gap.
+    source = copy.deepcopy(old)
+    source['rebuild'] = rebuilt['rebuild']
+    validate_plan(source, frozen=True)
     new = copy.deepcopy(old)
     new['nonceGaps'] = rebuilt['nonceGaps']
     new['rebuild'] = rebuilt['rebuild']
@@ -1648,15 +1668,9 @@ def amend_command(remote, plan_path, reviewed_sha256, gaps, out):
             moved.append(dict(step=step['id'], old=step['tx']['nonce'], new=fresh['tx']['nonce']))
             step['tx']['nonce'] = fresh['tx']['nonce']
     need('amend_moves_something', len(moved) > 0, True)
+    # `new` is a copy of the validated source with only nonceGaps, rebuild and the moved nonces replaced, so the
+    # rest equals the reviewed plan by construction; validate_plan re-derives budgets from the carried gas.
     validate_plan(new, frozen=True)
-    checked = copy.deepcopy(new)
-    budget(checked)
-    need('amend_budgets_unchanged', checked['budgetsWei'], old['budgetsWei'])
-    unchanged = {k: v for k, v in new.items() if k not in ('nonceGaps', 'rebuild', 'steps')}
-    need('amend_identity_unchanged', unchanged, {k: v for k, v in old.items() if k not in ('rebuild', 'steps')})
-    for a, b in zip(new['steps'], old['steps']):
-        a2 = copy.deepcopy(a); a2['tx'].pop('nonce'); b2 = copy.deepcopy(b); b2['tx'].pop('nonce')
-        need('amend_step_unchanged_'+a['id'], a2, b2)
     for g in gaps:
         check_gaps(remote, new, {'from': g['from'], 'nonce': hex(qty(g['nonce'])+1)})
     write_json(out/'plan.json', new)

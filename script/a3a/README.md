@@ -301,12 +301,16 @@ python3 -B script/a3a/a3a_exec.py amend --rpc-file <file> --out <new empty dir> 
 - The source plan must hash to the reviewed digest and must not already carry gaps.
 - `nonceGaps` (sorted, unique, sender in the plan, nonce at or after the pin, canonical hex) is the only new field.
   `build_plan` skips each recorded `(sender, nonce)`, so only that sender's steps at or after the gap move up by one.
-- The command refuses unless something moved, and asserts that everything else equals the reviewed plan: identity,
-  Safe hashes, calldata, gas, measurements and budgets. The rebuild record is replaced with the current commit,
-  because `validate_plan` recompiles at HEAD. Sign and send from that same commit.
-- On chain, each gap must be a mined call (not a CREATE) with exactly that sender, nonce and hash, and with a
-  receipt in the same block. Its target must not be the Safe, SP, timelock or token. `amend` checks this, and so does
-  `pre_send` again before every later step of that sender.
+- The source must first pass full frozen validation itself (its rebuild record replaced with the current commit), so
+  amend cannot repair anything but the gap. The output is a copy of that source with only `nonceGaps`, the rebuild
+  record and the moved nonces replaced, validated again; it refuses unless something moved. `validate_plan`
+  recompiles at HEAD, so sign and send from that same commit.
+- A gap may not move S2 or S3: the timelock and token addresses are derived from the pinned deployer nonces
+  (`nonce_gap_moves_create_<step>`).
+- Only a plain ETH transfer qualifies as a gap, because only that provably executed nothing: exact sender, nonce and
+  hash; mined (quantity block number and block hash); type 0-2 with no authorization list; empty input; a recipient
+  with no code at that block (so no EIP-7702 delegation); receipt with the same hash, block number and block hash,
+  status 1. `amend` checks this, and so does `pre_send` again before every later step of that sender.
 - Outputs `plan.json`, `plan.json.sha256` and `amend.json` (source/new digests, commits, gaps, moved nonces). The
   new digest needs its own review and its own go. Gas measured for the moved step carries over: a nonce does not
   change execution, and `pre_send` re-estimates against live state anyway.
