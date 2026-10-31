@@ -1,7 +1,7 @@
 # Tuple validation
 
-2026-10-31. Worktree-only parameter experiment; production contracts and the original
-`DeploymentGasFixtures.sol` are unchanged. Results below concern the canonical EntryPoint
+2026-10-31. Parameter experiment; production contracts and the original `DeploymentGasFixtures.sol` are
+unchanged. The retained run was generated from clean commit `392a448f` (`validation.log`). Results below concern the canonical EntryPoint
 v0.7 runtime and Amsterdam nightly `4e8874b`, with stable Cancun/Prague controls.
 
 **Decision:** the candidate repairs the demonstrated reimbursement shortfall and adds
@@ -311,7 +311,7 @@ that unresolved behavior with a guessed larger bound.
 - Reimbursement of deliberately injected postOp settlement failures; the original
   conservation/rollback tests retain their separate treatment of those failures.
 - Production deployment, bundler estimation, a live-network loss estimate, or a change
-  to production defaults. Nothing was committed or deployed.
+  to production defaults. Nothing was deployed.
 
 ## Reproduce and verify
 

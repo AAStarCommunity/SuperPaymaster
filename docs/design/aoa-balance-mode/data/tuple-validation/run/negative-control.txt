@@ -1,0 +1,2 @@
+Resealed missing command rejected: missing command inventory
+exit 1

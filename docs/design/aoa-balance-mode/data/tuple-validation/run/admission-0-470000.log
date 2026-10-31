@@ -1,0 +1,13 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/v2/SuperPaymasterTupleValidation.t.sol:TupleBalanceTest
+[PASS] test_tuple_boundary() (gas: 1682929)
+Logs:
+  boundary budget: 470000
+  boundary complete: 1
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.83ms (589.75µs CPU time)
+
+Ran 1 test suite in 6.61ms (2.83ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
