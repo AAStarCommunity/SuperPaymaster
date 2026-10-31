@@ -26,8 +26,10 @@ steps:
 6. A compare against DSR's published `dsr-0b030b54-stat_results.json`
    (sha256 `6e0e44ca42fcd82d0b7207b97aa85fe3d3d1d711ee4fc330bce6a048ae816988`).
 
-It finishes with a control: the reference is tampered by one digit. The compare must reject it and list the
-numeric mismatch alongside the version mismatch.
+The kit and the reference are both taken from the same captured commit, and the output directory must be empty.
+The script finishes with a control: the reference is tampered by one digit and its version is changed. Both the
+compare and the script's own acceptance predicate must reject it, with the numeric mismatch listed alongside the
+version mismatch.
 
 ## Result (`run/`, generated at the commit in `run/head.txt`)
 
@@ -36,7 +38,7 @@ numeric mismatch alongside the version mismatch.
 | Python 3.9.6 | 10,706 fields, exact | exact, 10,706 fields |
 | Python 3.11.9 | 10,706 fields, exact | differs only in `statisticalConfig.pythonVersion` |
 
-The tampered reference was rejected with exit 1, and both mismatches were listed.
+In the control, the compare exited 1 and listed both mismatches, and the acceptance predicate exited 1. Logs are committed.
 `run/SHA256SUMS` gives the hash of every output file.
 
 **Note for DSR:** the kit README says Python ≥ 3.10, but the reference was generated on 3.9.6. Every statistic
