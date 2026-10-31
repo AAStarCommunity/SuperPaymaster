@@ -42,16 +42,26 @@ grep -q "scan first settled call gas" "$OUT/amsterdam.log" || fail "amsterdam sc
 python3 -I - "$OUT/amsterdam-credit-600k-trace.log" > "$OUT/amsterdam-credit-600k-location.txt" <<'PYEOF'
 import sys
 lines = open(sys.argv[1]).read().splitlines()
-post = [i for i, l in enumerate(lines) if "SuperPaymaster" in l and "::postOp(" in l]
+def col(l, mark):
+    k = l.find(mark); return k if k >= 0 else None
+post = [i for i, l in enumerate(lines) if "SuperPaymaster" in l and "::postOp(" in l and col(l, "├─") is not None]
 if not post: sys.exit("no postOp frame in trace")
-i = post[-1]; seg = lines[i:i + 40]
-ret = next((k for k, l in enumerate(seg) if "settleCredit" in l), None)
-oog = next((k for k, l in enumerate(seg) if "[OutOfGas]" in l), None)
-print("last postOp frame:", lines[i].split("::postOp(")[0].strip())
-print("settleCredit line:", seg[ret].split("::settleCredit(")[0].strip() if ret is not None else None)
-print("settleCredit returned:", any("CreditSettled" in l for l in seg))
-print("OutOfGas line:", seg[oog].strip() if oog is not None else None)
-print("OOG after settleCredit:", ret is not None and oog is not None and oog > ret)
+i = post[-1]; pc = col(lines[i], "├─")
+# end of the postOp frame: its own result line, one level deeper than its call line
+end = next((k for k in range(i + 1, len(lines)) if col(lines[k], "└─ ←") == pc + 4), None)
+if end is None: sys.exit("postOp frame has no result line")
+child = [k for k in range(i + 1, end) if col(lines[k], "├─") == pc + 4 and "::settleCredit(" in lines[k]]
+settle_ret = None
+if child:
+    c = child[0]; cc = pc + 4
+    settle_end = next((k for k in range(c + 1, end) if col(lines[k], "└─ ←") == cc + 4), None)
+    if settle_end is not None and "[Return]" in lines[settle_end]: settle_ret = settle_end
+sp_result = lines[end].strip()
+print("postOp frame:", lines[i].split("::postOp(")[0].strip())
+print("settleCredit child frame:", lines[child[0]].split("::settleCredit(")[0].strip() if child else None)
+print("settleCredit frame returned successfully:", settle_ret is not None)
+print("postOp frame result:", sp_result)
+print("OOG in the SP frame after settleCredit returned:", settle_ret is not None and "[OutOfGas]" in sp_result and end > settle_ret)
 PYEOF
 [ -n "$(fails mutation-delete-guard)" ] || fail "deleting the guard was not detected"
 fails mutation-live-bound | grep -qx test_RR5_snapshot_not_live_bound || fail "live-bound mutation not killed by the snapshot test"

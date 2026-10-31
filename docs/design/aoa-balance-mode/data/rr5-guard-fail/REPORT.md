@@ -28,7 +28,7 @@ rollback after a postOp revert in general is covered by `test_I8_settle_failure_
 |---|---|---|---|
 | forge 1.7.1 Cancun | 10/0/0 | last guard-fail 431,513 / first settle 431,514 (both modes) | guard ≤ 430k, settle from 432k, **no** non-guard failure |
 | forge 1.7.1 Prague | 10/0/0 | same | same |
-| nightly 4e8874b Amsterdam | **7 passed / 3 failed** | — | guard ≤ 438k. **Non-guard failure (OOG past the guard) 440k–632k CREDIT, 440k–568k BALANCE**. Settles from 634k / 570k. |
+| nightly 4e8874b Amsterdam | **7 passed / 3 failed** | — | guard ≤ 438k. **Non-guard failure 440k–632k CREDIT, 440k–568k BALANCE** (empty revert data; only CREDIT 600k is traced, and that trace shows OOG). Settles from 634k / 570k. |
 
 Mutations (stable Cancun):
 - Deleting the guard turns 3 tests red in each suite: `exactSelector_adjacentBoundary`, `guardFail_staleRecovery`,
@@ -42,7 +42,7 @@ On Amsterdam the guard admits the call, but the call then fails without the guar
 scan shows this as a non-guard failure band. The B-1 property "a
 postOp that passed the entry check completes" does **not** hold in this direct-call setup under the deployment
 tuple. For one point, the CREDIT 600k call in `test_RR5_snapshot_not_live_bound`, the failure is located by a trace:
-`run/amsterdam-credit-600k-trace.log`, summarised in `run/amsterdam-credit-600k-location.txt`. It shows
+`run/amsterdam-credit-600k-trace.log`, summarised in `run/amsterdam-credit-600k-location.txt`. The parser checks frame depth: the `settleCredit` child frame must end in `[Return]`, and `[OutOfGas]` must be the SP postOp frame's own result. On a synthetic trace with the OOG moved inside the token frame, it reports False. It shows
 `[OutOfGas]` *after* `settleCredit` has returned (`CreditSettled` emitted), inside SP's own writes. The other band
 points are classified only by their revert data and are **not** individually traced.
 
