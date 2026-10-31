@@ -1,0 +1,50 @@
+Compiling 109 files with Solc 0.8.33
+Compiling 104 files with Solc 0.8.33
+Solc 0.8.33 finished in 17.18s
+Solc 0.8.33 finished in 31.01s
+Compiler run successful with warnings:
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/paymasters/v4/PaymasterBase.sol:313:9:
+    |
+313 |         PostOpMode mode,
+    |         ^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:230:40:
+    |
+230 |     function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
+    |                                        ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:294:37:
+    |
+294 |     function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
+    |                                     ^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:142:9:
+    |
+142 |         address account = realEP ? realAccount : user;
+    |         ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:106:5:
+    |
+106 |     address account;
+    |     ^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/v2/SuperPaymasterPostOpMultiOp.t.sol:PostOpMultiOpTest
+[PASS] test_bundle() (gas: 657507)
+Logs:
+  completed operations: 2
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 3.93ms (1.60ms CPU time)
+
+Ran 1 test suite in 5.77ms (3.93ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

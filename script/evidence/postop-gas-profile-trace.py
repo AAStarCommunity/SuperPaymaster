@@ -9,9 +9,18 @@ import json, pathlib, sys
 
 def reduce_trace(path):
     arena = json.loads(pathlib.Path(path).read_text())['debug_arena']
-    starts = [i for i,n in enumerate(arena) if n['calldata'].startswith('0x7c627b21') and n['step_offset'] == 0 and n['kind'] == 'CALL']
-    assert len(starts) == 1, 'exactly one proxy postOp required'
-    start = starts[0]
+    assert len(postop_starts(arena)) == 1, 'exactly one proxy postOp required'
+    result = reduce_arena(arena)[0]
+    assert result['initial'] == 440000
+    return result
+
+def postop_starts(arena):
+    return [i for i,n in enumerate(arena) if n["calldata"].startswith("0x7c627b21") and n["step_offset"] == 0 and n["kind"] == "CALL"]
+
+def reduce_arena(arena):
+    return [reduce_frame(arena, start) for start in postop_starts(arena)]
+
+def reduce_frame(arena, start):
     first = arena[start]
     root = first['trace_node_idx']
     stack = []
@@ -43,7 +52,7 @@ def reduce_trace(path):
             terminal = last['gas_remaining'] - last['gas_cost']
             low = min(low, terminal)
             break
-    assert terminal is not None and initial == 440000
+    assert terminal is not None and initial > 0
     return {'columns':['pc','opcode','gas_remaining','gas_cost','state_gas_reservoir','regular_gas_in_frame_and_descendants'], 'initial':initial,'minimum_remaining':low,'peak':initial-low,'net':initial-terminal,'terminal':terminal,'chunks':chunks}
 
 if __name__ == '__main__':

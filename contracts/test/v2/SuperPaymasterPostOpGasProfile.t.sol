@@ -112,7 +112,7 @@ abstract contract PostOpProfileFixture is Test {
         return false;
     }
 
-    function setUp() public {
+    function setUp() public virtual {
         fresh(creditMode(), probeMode());
 
         account = user;
