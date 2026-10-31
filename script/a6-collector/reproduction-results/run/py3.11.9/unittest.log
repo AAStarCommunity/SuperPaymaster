@@ -1,0 +1,28 @@
+test_b9_settlement_and_codex_counterexamples (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_b9_settlement_and_codex_counterexamples) ... ok
+test_cliffs_delta (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_cliffs_delta) ... ok
+test_codex_counterexample_large_int_tiny_variance_ci (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_codex_counterexample_large_int_tiny_variance_ci) ... ok
+test_codex_counterexample_skewed_asymmetric_ci (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_codex_counterexample_skewed_asymmetric_ci) ... ok
+test_complete_result_comparison_rejects_semantic_tampering (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_complete_result_comparison_rejects_semantic_tampering) ... ok
+test_constant_sample_zero_sd_and_none_skewness (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_constant_sample_zero_sd_and_none_skewness) ... ok
+test_end_to_end_package_compare_and_fail_closed (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_end_to_end_package_compare_and_fail_closed) ... {
+  "status": "FAIL",
+  "errors": [
+    "stat_results comparison failed: ['root.packageSha256: missing in external report', 'root.arms.SP.actualGasUsed.mean: computed=387702.0 != external=999999.0']"
+  ]
+}
+ok
+test_latex_ci_preserves_large_integer_offsets (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_latex_ci_preserves_large_integer_offsets) ... ok
+test_n2_bounds_match_exhaustive_feasible_execution (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_n2_bounds_match_exhaustive_feasible_execution) ... ok
+test_n2_penalty_exact_and_interval_bounds_and_codex_counterexamples (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_n2_penalty_exact_and_interval_bounds_and_codex_counterexamples) ... ok
+test_paired_sign_test_and_holm_bonferroni (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_paired_sign_test_and_holm_bonferroni) ... ok
+test_quantile_linear (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_quantile_linear) ... ok
+test_skewness_asymmetric (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_skewness_asymmetric) ... ok
+test_summarize_sample_and_r2_4_separation (scripts.test_aoa_m3_stats.TestAoaM3Stats.test_summarize_sample_and_r2_4_separation) ... ok
+test_bad_csv_fails (scripts.test_gate_stats_from_csv.TestGateStats.test_bad_csv_fails) ... ok
+test_cliff_direction_and_endpoint_helper (scripts.test_gate_stats_from_csv.TestGateStats.test_cliff_direction_and_endpoint_helper) ... ok
+test_large_integer_csv_and_asymmetric_ci (scripts.test_gate_stats_from_csv.TestGateStats.test_large_integer_csv_and_asymmetric_ci) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.437s
+
+OK
