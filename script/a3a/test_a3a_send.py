@@ -22,7 +22,7 @@ ANVIL_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 ANVIL_KEY_1 = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'  # public anvil test key #1
 ANVIL_ADDR = '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
 SECRET = 'https://secret.invalid/NEVER_PRINT_THIS'
-TX = {'chainId': '0xaa36a7', 'from': ANVIL_ADDR, 'to': '0x51edf11fdb0a4f66220efb8efa54eca77232e114',
+TX = {'chainId': '0xaa36a7', 'from': ANVIL_ADDR, 'to': ex.SAFE,
       'data': '0xd4d9bdcd65f033abab61bfd4b3dd915e34a5a5aee635c6c90c6add2d2b58d6b48c6cd2a0', 'nonce': '0x7',
       'gas': '0x2b974', 'maxFeePerGas': '0x4a817c800', 'maxPriorityFeePerGas': '0x5f5e100', 'value': '0x0'}
 CREATE = dict(TX, to=None, data='0x6080604052348015600e575f80fd5b50', nonce='0x2f63', gas='0xb8a36e')
@@ -41,6 +41,9 @@ with open(cfg['log'], 'a') as f:
 if '--account' in argv:
     i = argv.index('--account')
     argv[i:i + 2] = ['--private-key', cfg['key']]
+if '--password-file' in argv:
+    i = argv.index('--password-file')
+    del argv[i:i + 2]  # metadata/argv tested; no real password or keystore is used
 os.execv(cfg['cast'], [cfg['cast']] + argv)
 '''
 
@@ -87,7 +90,7 @@ class SenderTests(unittest.TestCase):
         wrapper.chmod(wrapper.stat().st_mode | stat.S_IEXEC)
         (d / 'plan.json').write_bytes(PLAN_BYTES)
         (d / 'accounts.json').write_text(json.dumps({'approver': 'aastar-approver', 'deployer': 'aastar-deployer'}))
-        self.args = mock.Mock(plan=d / 'plan.json', reviewed_plan_sha256=SHA, step='S5a',
+        self.args = mock.Mock(password_file=None, confirm=None, plan=d / 'plan.json', reviewed_plan_sha256=SHA, step='S5a',
                               accounts=d / 'accounts.json', out=d / 'out')
         self.args.out.mkdir()
         self.patches = [
@@ -169,6 +172,92 @@ class SenderTests(unittest.TestCase):
     def calls(self):
         return [json.loads(l) for l in self.log.read_text().splitlines()] if self.log.exists() else []
 
+    def password_path(self):
+        path = self.d / 'password'
+        path.touch()  # empty fixture; neither the sender nor the wrapper reads it
+        path.chmod(0o600)
+        self.args.password_file = path
+        return path
+
+    def refused_password(self, gate):
+        self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), gate)
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(self.sent, [])
+
+    def test_password_wrong_mode(self):
+        path = self.password_path()
+        for mode in (0o644, 0o400, 0o700):
+            with self.subTest(mode=oct(mode)):
+                path.chmod(mode)
+                self.refused_password('send_password_mode')
+
+    def test_password_symlink(self):
+        path = self.password_path()
+        link = self.d / 'link'
+        link.symlink_to(path)
+        self.args.password_file = link
+        self.refused_password('send_password_symlink')
+
+    def test_password_not_regular(self):
+        path = self.d / 'directory'
+        path.mkdir(mode=0o600)
+        self.args.password_file = path
+        self.refused_password('send_password_regular')
+
+    def test_password_not_owned(self):
+        self.password_path()
+        with mock.patch.object(sd.os, 'getuid', return_value=os.getuid()+1):
+            self.refused_password('send_password_owner')
+
+    def test_password_dir_not_private(self):
+        self.password_path()
+        self.d.chmod(0o755)
+        try:
+            self.refused_password('send_password_dir_mode')
+        finally:
+            self.d.chmod(0o700)
+
+    def test_password_missing(self):
+        self.args.password_file = self.d / 'missing'
+        self.refused_password('send_password_file')
+
+    def test_password_flag_reaches_cast(self):
+        path = self.password_path()
+        self.assertEqual(self.run_send(Chain())['status'], 'SENT')
+        argv = next(c['argv'] for c in self.calls() if c['argv'][0] == 'mktx')
+        self.assertEqual(argv[argv.index('--password-file')+1], str(path))
+        self.assertEqual([e[0] for e in self.events], ['gate', 'confirm', 'gate', 'broadcast'])
+
+    def test_confirm_wrong_phrase(self):
+        for phrase in ('wrong', self.phrase()+' ', ' '+self.phrase(), ''):
+            with self.subTest(phrase=phrase):
+                self.clear_out()
+                self.args.confirm = phrase
+                self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_operator_confirmation')
+                self.assertEqual(self.sent, [])
+                self.assertEqual([e[0] for e in self.events], ['gate'])
+                self.assertTrue((self.args.out / 'decoded.json').exists())
+
+    def test_confirm_right_phrase(self):
+        self.args.confirm = self.phrase()
+        with mock.patch.object(sd, 'tty_confirm', side_effect=AssertionError('no terminal')):
+            self.assertEqual(self.run_send(Chain())['status'], 'SENT')
+        self.assertEqual([e[0] for e in self.events], ['gate', 'gate', 'broadcast'])
+        self.assertEqual(len(self.sent), 1)
+
+    def test_cli_unattended_flags(self):
+        path = self.password_path()
+        rpc = self.d / 'rpc'
+        rpc.write_text(SECRET)
+        argv = ['--plan', str(self.args.plan), '--reviewed-plan-sha256', SHA, '--step', 'S5a',
+                '--rpc-file', str(rpc), '--accounts', str(self.args.accounts), '--out', str(self.args.out),
+                '--password-file', str(path), '--confirm', self.phrase()]
+        chain = Chain()
+        with self.gate([TX, TX]), self.broadcast(chain, TX), mock.patch.object(ex, 'RPC', lambda _: chain), \
+                mock.patch.object(sd, 'tty_confirm', side_effect=AssertionError('no terminal')), mock.patch('sys.stdout'):
+            self.assertEqual(sd.main(argv), 0)
+        self.assertEqual(len(self.sent), 1)
+
     def test_positive_order_and_records(self):
         result = self.run_send(Chain())
         self.assertEqual(result['status'], 'SENT')
@@ -206,7 +295,7 @@ class SenderTests(unittest.TestCase):
         # A creation signed as a call must be refused before broadcast.
         self.clear_out()
         real = sd.sign
-        with mock.patch.object(sd, 'sign', lambda tx, account: real(dict(CREATE, to='0x' + '77' * 20), account)):
+        with mock.patch.object(sd, 'sign', lambda tx, account, password_file=None: real(dict(CREATE, to='0x' + '77' * 20), account)):
             self.assertEqual(self.gate_name(lambda: self.run_send(Chain(), txs=(CREATE, CREATE), tx=CREATE)), 'send_signed_to')
         self.assertEqual(self.sent, [])
         # And a creation that was mined as a call is caught after it.
@@ -256,7 +345,7 @@ class SenderTests(unittest.TestCase):
                                   ('--value', '1', 'send_signed_value'), ('--chain', '1', 'send_signed_chainId')):
             with self.subTest(flag=flag):
                 real = sd.sign
-                def corrupt(tx, account, flag=flag, value=value):
+                def corrupt(tx, account, password_file=None, flag=flag, value=value):
                     with mock.patch.object(sd.subprocess, 'run', side_effect=lambda cmd, **kw: REAL_RUN(
                             [c if i == 0 or cmd[i - 1] != flag else value for i, c in enumerate(cmd)], **kw)):
                         return real(tx, account)
@@ -1028,7 +1117,7 @@ class SenderS7Integration(unittest.TestCase):
         ex.write_json(path, plan)
         self.sha = hashlib.sha256(path.read_bytes()).hexdigest()
         (d / 'accounts.json').write_text(json.dumps({'deployer': 'aastar-deployer'}))
-        self.args = mock.Mock(plan=path, reviewed_plan_sha256=self.sha, step='S7', accounts=d / 'accounts.json', out=d / 'out')
+        self.args = mock.Mock(password_file=None, confirm=None, plan=path, reviewed_plan_sha256=self.sha, step='S7', accounts=d / 'accounts.json', out=d / 'out')
         self.args.out.mkdir()
         self.lock = d / 'lock'
 
@@ -1038,7 +1127,7 @@ class SenderS7Integration(unittest.TestCase):
 
     def send(self, after_mine=None):
         chain, plan, te = self.chain, self.plan, self.te
-        def fake_signed(tx, account):
+        def fake_signed(tx, account, password_file=None):
             self.assertEqual((account, tx), ('aastar-deployer', plan['steps'][-1]['tx']))
             return '0x02ab', te.abi_word(chain.count + 1), {}
         def fake_broadcast(url, raw):

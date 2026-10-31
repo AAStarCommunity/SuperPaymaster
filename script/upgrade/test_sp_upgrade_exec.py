@@ -325,10 +325,14 @@ class ExecutorTests(unittest.TestCase):
         # Independent vector: the Safe contract itself (0x51edf11f..e114, chain 11155111, nonce 3) emitted this hash as
         # the indexed topic of ApproveHash and ExecutionSuccess for this step on the evidence fork
         # (evidence-11983550/boot/upgrade-simulate.json), so it does not come from safe_hash.
+        # The vector was emitted by the Mycelium community Safe; the executor now targets the Sepolia test Safe, so the
+        # domain is pinned back to the Safe that produced it, and the current Safe must yield a different hash.
         expected = '0x4c9b0cc33bd2371240fa617eb47b175e92c572541c9fc59347987f99a6f78287'
         self.assertEqual(step['safeNonce'], 3)
-        self.assertEqual(ex.safe_hash(step['inner'], step['safeNonce']), expected)
-        self.assertNotEqual(ex.safe_hash(step['inner'], step['safeNonce']+1), expected)
+        with patch.object(ex, 'SAFE', '0x51edf11fdb0a4f66220efb8efa54eca77232e114'):
+            self.assertEqual(ex.safe_hash(step['inner'], step['safeNonce']), expected)
+            self.assertNotEqual(ex.safe_hash(step['inner'], step['safeNonce']+1), expected)
+        self.assertNotEqual(ex.safe_hash(step['inner'], step['safeNonce']), expected)
 
     def test_plan_contains_no_unpause_or_registration_reactivation(self):
         p = self.plan()
