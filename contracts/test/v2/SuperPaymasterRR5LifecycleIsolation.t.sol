@@ -47,6 +47,7 @@ abstract contract LifecycleIsolationBase is Test {
     uint256 beforeOperator;
     uint256 beforeRevenue;
     uint256 beforeSupply;
+    uint256 beforeDebt; // nonzero only after a prior settled CREDIT operation
     uint256 reserved;
     bool setupCallOK;
     bytes setupReturn;
@@ -63,10 +64,28 @@ abstract contract LifecycleIsolationBase is Test {
     bool internal calldataFresh;
     bool internal hashFresh;
     bytes32 internal operationHash;
+    uint256 internal opIndex; // only the new-op / settled-prior variants advance it
     V55FuzzTarget internal target;
 
     function isVariant(string memory name) internal view returns (bool) {
         return keccak256(bytes(variant)) == keccak256(bytes(name));
+    }
+
+    /// @dev Production-like replacement for "release then re-admit the SAME operation" (a reused
+    ///      nonce, which EntryPoint rejects): release the stale record, then admit a NEW operation.
+    function newOpVariant() internal view returns (bool) {
+        return isVariant("rr_new_op") || isVariant("fresh_new_op");
+    }
+
+    /// @dev A previous operation fully settled in an earlier transaction (setUp), then a new one.
+    function settledPriorVariant() internal view returns (bool) {
+        return isVariant("rr_settled_prior") || isVariant("fresh_settled_prior");
+    }
+
+    /// @dev Validation in setUp and postOp in the test transaction: the token's liveness flag is
+    ///      transient storage, so settlement reverts NotLive by design. Recorded, not required to complete.
+    function splitVariant() internal view returns (bool) {
+        return isVariant("rr_split") || isVariant("fresh_split");
     }
 
     function setUp() public {
@@ -93,6 +112,7 @@ abstract contract LifecycleIsolationBase is Test {
         if (isVariant("rr_hash")) hashFresh = true;
         if (isVariant("fresh_hash")) hashFresh = false;
         if (isVariant("rr_no_guard_probe")) guardProbe = false;
+        if (settledPriorVariant()) releaseAgain = false; // no release/re-admit: a settled op, then a new one
         if (isVariant("fresh_guard_probe")) guardProbe = true;
 
         vm.etch(EP, vm.parseBytes(vm.readFile("contracts/test/fixtures/entrypoint-v0.7.runtime.hex")));
@@ -159,7 +179,13 @@ abstract contract LifecycleIsolationBase is Test {
             vm.deal(address(this), 1 ether);
             IEntryPoint(EP).depositTo{value: 1 ether}(address(sp));
         }
-        if (releaseAgain || isVariant("fresh_split")) admit();
+        if (releaseAgain || isVariant("fresh_split") || isVariant("fresh_new_op")) admit();
+        if (settledPriorVariant()) {
+            admit();
+            (bool ok,) = invoke(900_000);
+            assertTrue(ok, "prior operation must settle in setUp");
+            assertSettled();
+        }
 
     }
 
@@ -168,6 +194,7 @@ abstract contract LifecycleIsolationBase is Test {
         beforeSupply = token.totalSupply();
         beforeOperator = operatorBalance();
         beforeRevenue = sp.protocolRevenue();
+        beforeDebt = token.debts(user);
         PackedUserOperation memory op;
         op.sender = user;
         op.accountGasLimits = bytes32(abi.encodePacked(uint128(400_000), uint128(callGasFresh ? 300_000 : 200_000)));
@@ -177,7 +204,9 @@ abstract contract LifecycleIsolationBase is Test {
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(address(sp), uint128(GasFixture.PM_VERIFICATION),
             uint128(GasFixture.MIN_POST()), operator, type(uint256).max, address(token), uint8(0));
-        operationHash = hashFresh ? IEntryPoint(EP).getUserOpHash(op) : HASH;
+        if (newOpVariant() || settledPriorVariant()) op.nonce = opIndex++;
+        operationHash = hashFresh ? IEntryPoint(EP).getUserOpHash(op)
+            : (op.nonce == 0 ? HASH : keccak256(abi.encode(HASH, op.nonce)));
         vm.prank(EP);
         uint256 vd;
         (storedContext, vd) = sp.validatePaymasterUserOp(op, operationHash, 1e16);
@@ -212,7 +241,7 @@ abstract contract LifecycleIsolationBase is Test {
         assertEq(sp.protocolRevenue(), beforeRevenue);
         assertEq(token.balanceOf(user), beforeBalance);
         assertEq(token.totalSupply(), beforeSupply);
-        assertEq(token.debts(user), 0);
+        assertEq(token.debts(user), beforeDebt);
         (address who, uint256 a0) = sp.inflightOf(operationHash);
         assertEq(who, operator);
         assertEq(a0, reserved);
@@ -239,7 +268,7 @@ abstract contract LifecycleIsolationBase is Test {
         uint256 charge = sp.protocolRevenue() - beforeRevenue;
         assertGt(charge, 0);
         assertEq(beforeOperator - operatorBalance(), charge);
-        if (creditMode()) assertEq(token.debts(user), charge);
+        if (creditMode()) assertEq(token.debts(user) - beforeDebt, charge);
         else assertEq(beforeBalance - token.balanceOf(user), charge);
     }
 
@@ -251,8 +280,8 @@ abstract contract LifecycleIsolationBase is Test {
 
 
     function prepare() internal {
-        if (!isVariant("rr_split") && !isVariant("fresh_split")) {
-            if (releaseAgain) release();
+        if (!splitVariant()) {
+            if (releaseAgain || isVariant("fresh_new_op")) release();
             admit();
         }
         if (isVariant("rr_roll") || isVariant("fresh_roll")) vm.roll(block.number + 1);
@@ -544,6 +573,8 @@ abstract contract LifecycleIsolationBase is Test {
             if (k == 0) lastGuard = g;
             if (k == 3 && firstComplete == 0) firstComplete = g;
         }
+        emit log_named_uint("first_complete", firstComplete);
+        if (splitVariant()) return; // no completion by design; the per-point kinds are the result
         assertGt(firstComplete, 0);
         uint256 lo = lastGuard;
         uint256 hi = lastGuard + 2000;

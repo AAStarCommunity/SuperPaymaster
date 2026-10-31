@@ -14,7 +14,12 @@ VARIANTS = ['rr_base', 'fresh_base', 'rr_no_snapshot', 'fresh_snapshot',
             'rr_rate', 'fresh_rate', 'rr_callgas', 'fresh_callgas',
             'rr_calldata', 'fresh_calldata', 'rr_hash', 'fresh_hash',
             'rr_no_guard_probe', 'fresh_guard_probe', 'rr_roll', 'fresh_roll',
-            'rr_split', 'fresh_split']
+            'rr_split', 'fresh_split', 'rr_new_op', 'fresh_new_op',
+            'rr_settled_prior', 'fresh_settled_prior']
+# Validation and postOp in different transactions: the token's liveness flag is transient
+# storage, so every admitted settlement must revert NotLive(). Scanned and classified only.
+SPLIT = {'rr_split', 'fresh_split'}
+NOT_LIVE = '0xbaf13b3f'
 ENGINES = ['amsterdam', 'cancun', 'prague']
 MODES = ['balance', 'credit']
 TEST = 'contracts/test/v2/SuperPaymasterRR5LifecycleIsolation.t.sol'
@@ -42,6 +47,12 @@ def verify(out):
         assert all(k in (0,1,2,3) and (k != 1 or r == '0x') and (k != 3 or r == '0x') for g,k,r in scan)
         # Require the full bytes for exact guard classification (selector derived by cast below).
         assert all(r == row['guard_selector'] for g,k,r in scan if k == 0)
+        if key.split('/')[2] in SPLIT:
+            assert row['split'] is True
+            assert any(k == 0 for g,k,r in scan), ('split scan has no guard rejection', key)
+            assert not any(k == 3 for g,k,r in scan), ('split variant settled across transactions', key)
+            assert all(k == 2 and r == NOT_LIVE for g,k,r in scan if k != 0), ('split failure is not NotLive', key)
+            continue
         ordered = sorted(scan)
         kinds = [k for g,k,r in ordered]
         assert kinds[0] == 0 and kinds[-1] == 3
@@ -127,6 +138,15 @@ def main(out):
                 guards=[g for g,k,r in scan if k==0]
                 completed=[g for g,k,r in scan if k==3]
                 failures=[g for g,k,r in scan if k in (1,2)]
+                if variant in SPLIT:
+                    row = dict(scan=sid, split=True, last_guard_scan=max(guards),
+                               non_guard_scan=[min(failures),max(failures)] if failures else None,
+                               failure_selectors=sorted({r for g,k,r in scan if k in (1,2)}),
+                               guard_selector=next(r for g,k,r in scan if k==0))
+                    manifest[key]=row
+                    (out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+                    print(key,'split',row['last_guard_scan'],row['non_guard_scan'],row['failure_selectors'],flush=True)
+                    continue
                 row = dict(scan=sid,last_guard_scan=max(guards),first_complete_scan=min(completed),
                            non_guard_scan=[min(failures),max(failures)] if failures else None,
                            guard_selector=next(r for g,k,r in scan if k==0))
