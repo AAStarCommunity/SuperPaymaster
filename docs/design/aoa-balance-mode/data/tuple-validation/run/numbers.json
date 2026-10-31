@@ -1,0 +1,610 @@
+{
+  "multi-2-0-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 78761,
+      "peak": 391239,
+      "net": 309496,
+      "terminal": 160504
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318943,
+      "peak": 151057,
+      "net": 57314,
+      "terminal": 412686
+    }
+  ],
+  "multi-2-0-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 79103,
+      "peak": 390897,
+      "net": 211234,
+      "terminal": 258766
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    }
+  ],
+  "multi-2-1-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 80814,
+      "peak": 389186,
+      "net": 389186,
+      "terminal": 80814
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    }
+  ],
+  "multi-2-1-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 97002,
+      "peak": 372998,
+      "net": 291266,
+      "terminal": 178734
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    }
+  ],
+  "multi-2-2-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 79103,
+      "peak": 390897,
+      "net": 211234,
+      "terminal": 258766
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 314842,
+      "peak": 155158,
+      "net": 61426,
+      "terminal": 408574
+    }
+  ],
+  "multi-2-2-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 79103,
+      "peak": 390897,
+      "net": 211234,
+      "terminal": 258766
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    }
+  ],
+  "multi-2-3-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 97002,
+      "peak": 372998,
+      "net": 291266,
+      "terminal": 178734
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 296943,
+      "peak": 173057,
+      "net": 79314,
+      "terminal": 390686
+    }
+  ],
+  "multi-2-3-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 97002,
+      "peak": 372998,
+      "net": 291266,
+      "terminal": 178734
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 189023,
+      "peak": 280977,
+      "net": 89314,
+      "terminal": 380686
+    }
+  ],
+  "multi-3-0-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 78761,
+      "peak": 391239,
+      "net": 309496,
+      "terminal": 160504
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318601,
+      "peak": 151399,
+      "net": 57656,
+      "terminal": 412344
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318943,
+      "peak": 151057,
+      "net": 57314,
+      "terminal": 412686
+    }
+  ],
+  "multi-3-0-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 79103,
+      "peak": 390897,
+      "net": 211234,
+      "terminal": 258766
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    }
+  ],
+  "multi-3-1-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 80814,
+      "peak": 389186,
+      "net": 389186,
+      "terminal": 80814
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    }
+  ],
+  "multi-3-1-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 97002,
+      "peak": 372998,
+      "net": 291266,
+      "terminal": 178734
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    }
+  ],
+  "multi-3-2-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 78761,
+      "peak": 391239,
+      "net": 309496,
+      "terminal": 160504
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 314842,
+      "peak": 155158,
+      "net": 61426,
+      "terminal": 408574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318943,
+      "peak": 151057,
+      "net": 57314,
+      "terminal": 412686
+    }
+  ],
+  "multi-3-2-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 79103,
+      "peak": 390897,
+      "net": 211234,
+      "terminal": 258766
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    }
+  ],
+  "multi-3-3-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 80814,
+      "peak": 389186,
+      "net": 389186,
+      "terminal": 80814
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 296943,
+      "peak": 173057,
+      "net": 79314,
+      "terminal": 390686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    }
+  ],
+  "multi-3-3-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 97002,
+      "peak": 372998,
+      "net": 291266,
+      "terminal": 178734
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 189023,
+      "peak": 280977,
+      "net": 89314,
+      "terminal": 380686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    }
+  ],
+  "multi-5-0-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 78761,
+      "peak": 391239,
+      "net": 309496,
+      "terminal": 160504
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318601,
+      "peak": 151399,
+      "net": 57656,
+      "terminal": 412344
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318601,
+      "peak": 151399,
+      "net": 57656,
+      "terminal": 412344
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318601,
+      "peak": 151399,
+      "net": 57656,
+      "terminal": 412344
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318943,
+      "peak": 151057,
+      "net": 57314,
+      "terminal": 412686
+    }
+  ],
+  "multi-5-0-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 79103,
+      "peak": 390897,
+      "net": 211234,
+      "terminal": 258766
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    }
+  ],
+  "multi-5-1-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 80814,
+      "peak": 389186,
+      "net": 389186,
+      "terminal": 80814
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    }
+  ],
+  "multi-5-1-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 97002,
+      "peak": 372998,
+      "net": 291266,
+      "terminal": 178734
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    }
+  ],
+  "multi-5-2-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 78761,
+      "peak": 391239,
+      "net": 309496,
+      "terminal": 160504
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 314447,
+      "peak": 155553,
+      "net": 61426,
+      "terminal": 408574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318601,
+      "peak": 151399,
+      "net": 57656,
+      "terminal": 412344
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318943,
+      "peak": 151057,
+      "net": 57314,
+      "terminal": 412686
+    }
+  ],
+  "multi-5-2-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 79103,
+      "peak": 390897,
+      "net": 211234,
+      "terminal": 258766
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    }
+  ],
+  "multi-5-3-0": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 80814,
+      "peak": 389186,
+      "net": 389186,
+      "terminal": 80814
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 296601,
+      "peak": 173399,
+      "net": 79656,
+      "terminal": 390344
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 318943,
+      "peak": 151057,
+      "net": 57314,
+      "terminal": 412686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 324842,
+      "peak": 145158,
+      "net": 51426,
+      "terminal": 418574
+    }
+  ],
+  "multi-5-3-1": [
+    {
+      "initial": 470000,
+      "minimum_remaining": 97002,
+      "peak": 372998,
+      "net": 291266,
+      "terminal": 178734
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 189023,
+      "peak": 280977,
+      "net": 89314,
+      "terminal": 380686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 201023,
+      "peak": 268977,
+      "net": 77314,
+      "terminal": 392686
+    },
+    {
+      "initial": 470000,
+      "minimum_remaining": 206922,
+      "peak": 263078,
+      "net": 71426,
+      "terminal": 398574
+    }
+  ]
+}

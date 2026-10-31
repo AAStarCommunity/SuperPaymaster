@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -46,7 +46,7 @@ contract SuperPaymasterV55GasTest is Test {
     ///      SuperPaymasterV55Test.test_R10M3_charge_uses_validation_price_snapshot (exact charge).
     uint256 constant C_WRAP = GasFixture.WRAP;
     uint256 constant BURN_FLOOR = 300;      // == PostOpProbePaymaster.BURN_FLOOR
-    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST;
+    uint256 MIN_POST_OP_GAS = GasFixture.MIN_POST();
     uint256 constant OWNER_PK = 0xA0A0;
 
     IEntryPoint entryPoint = IEntryPoint(EP);

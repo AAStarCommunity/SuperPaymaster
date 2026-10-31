@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -150,7 +150,7 @@ abstract contract PostOpProfileFixture is Test {
         op.paymasterAndData = abi.encodePacked(
             address(sp),
             uint128(GasFixture.PM_VERIFICATION),
-            uint128(realEP ? budget : GasFixture.MIN_POST),
+            uint128(realEP ? budget : GasFixture.MIN_POST()),
             operator,
             type(uint256).max,
             address(token),
@@ -165,7 +165,7 @@ abstract contract PostOpProfileFixture is Test {
             vm.recordLogs();
             try ep.handleOps(ops, payable(stranger)) {}
             catch (bytes memory reason) {
-                assertLt(budget, GasFixture.MIN_POST, "unexpected handleOps rejection");
+                assertLt(budget, GasFixture.MIN_POST(), "unexpected handleOps rejection");
                 assertEq(
                     reason, abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error")
                 );

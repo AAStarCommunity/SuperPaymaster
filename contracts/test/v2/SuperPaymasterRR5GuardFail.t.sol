@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -112,7 +112,7 @@ abstract contract RR5GuardBase is Test {
         op.preVerificationGas = 50_000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(address(sp), uint128(GasFixture.PM_VERIFICATION),
-            uint128(GasFixture.MIN_POST), operator, type(uint256).max, address(token), uint8(0));
+            uint128(GasFixture.MIN_POST()), operator, type(uint256).max, address(token), uint8(0));
         vm.prank(EP);
         uint256 vd;
         (storedContext, vd) = sp.validatePaymasterUserOp(op, HASH, 1e16);
@@ -122,7 +122,7 @@ abstract contract RR5GuardBase is Test {
         assertEq(c.mode, creditMode() ? 2 : 1);
         reserved = c.a0;
         // A failed call in the validation transaction leaves the record for later recovery.
-        (setupCallOK, setupReturn) = invoke(GasFixture.SETTLE - 1);
+        (setupCallOK, setupReturn) = invoke(GasFixture.SETTLE() - 1);
     }
 
     function operatorBalance() internal view returns (uint256) {
@@ -183,8 +183,8 @@ abstract contract RR5GuardBase is Test {
         release();
         admit();
         exactGuard(setupCallOK, setupReturn);
-        uint256 lo = GasFixture.SETTLE - 1;
-        uint256 hi = GasFixture.MIN_POST + 100_000;
+        uint256 lo = GasFixture.SETTLE() - 1;
+        uint256 hi = GasFixture.MIN_POST() + 100_000;
         while (hi - lo > 1) {
             uint256 mid = (lo + hi) / 2;
             uint256 snapshot = vm.snapshot();
@@ -210,7 +210,7 @@ abstract contract RR5GuardBase is Test {
         admit();
         exactGuard(setupCallOK, setupReturn);
         vm.prank(owner);
-        sp.queueGasParams(1_020_000, 1_000_000, GasFixture.WRAP, GasFixture.POSTOP);
+        sp.queueGasParams(1_020_000, 1_000_000, GasFixture.WRAP, GasFixture.POSTOP());
         vm.warp(vm.getBlockTimestamp() + 48 hours);
         vm.prank(owner);
         sp.executeGasParams();
@@ -248,7 +248,7 @@ abstract contract RR5GuardBase is Test {
         op.preVerificationGas = 50_000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(address(sp), uint128(GasFixture.PM_VERIFICATION),
-            uint128(GasFixture.MIN_POST), operator, type(uint256).max, address(token), uint8(0));
+            uint128(GasFixture.MIN_POST()), operator, type(uint256).max, address(token), uint8(0));
         bytes32 hash = ep.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 sigS) = vm.sign(0xC001, MessageHashUtils.toEthSignedMessageHash(hash));
         op.signature = abi.encodePacked(r, sigS, v);
@@ -331,7 +331,7 @@ abstract contract RR5GuardBase is Test {
         admit();
         uint256 lastGuard; uint256 firstOk; uint256 oogLo; uint256 oogHi; uint256 nOog;
         bytes32 guardRet = keccak256(abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector));
-        for (uint256 g = GasFixture.SETTLE; g <= 900_000; g += 2_000) {
+        for (uint256 g = GasFixture.SETTLE(); g <= 900_000; g += 2_000) {
             uint256 snap = vm.snapshot();
             (bool ok, bytes memory ret) = invoke(g);
             if (ok) { if (firstOk == 0) firstOk = g; }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -37,7 +37,7 @@ contract SuperPaymasterV55Test is Test {
     xPNTsTokenV2 token;
 
     uint256 constant OWNER_PK = 0xA0A0;
-    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST;
+    uint256 MIN_POST_OP_GAS = GasFixture.MIN_POST();
     address owner = address(0x0A11);
     address treasury = address(0x7EA);
     address operator = address(0x0BE);
@@ -380,7 +380,7 @@ contract SuperPaymasterV55Test is Test {
         uint256 actualGasCost = 1e14;
         uint256 feePerGas = 1 gwei;
         // exp/buffer: C_POSTOP replaces postOpGasLimit; use the queued deployment tuple
-        uint256 bufWei = (GasFixture.POSTOP + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100) + 5_000) * feePerGas;
+        uint256 bufWei = (GasFixture.POSTOP() + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100) + 5_000) * feePerGas;
         uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil);
         uint256 expected = Math.mulDiv(aGas, 10_000 + sp.protocolFeeBPS(), 10_000, Math.Rounding.Ceil);
         assertLt(expected, c.a0, "precondition: charge below the reservation cap (cap cannot mask a wrong price)");
@@ -425,7 +425,7 @@ contract SuperPaymasterV55Test is Test {
             bytes memory ctx = m == 0 ? ctxB : ctxC;
             (address sender, bytes32 h) = m == 0 ? (user, keccak256("band-b")) : (poor, keccak256("band-c"));
             (uint256 guard, uint256 ok) = (0, 0);
-            for (uint256 g = 60_000; g <= GasFixture.SWEEP_MAX; g += 500) {
+            for (uint256 g = 60_000; g <= GasFixture.SWEEP_MAX(); g += 500) {
                 uint256 snap = vm.snapshot();
                 vm.prank(address(entryPoint));
                 (bool success, bytes memory ret) = address(sp).call{gas: g}(
