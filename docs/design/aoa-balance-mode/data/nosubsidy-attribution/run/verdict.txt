@@ -1,0 +1,1 @@
+VERDICT PASS: matrix 3 runtimes + 2 stable controls pass; probe ok; counterexample reproduces exactly

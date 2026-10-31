@@ -1,0 +1,59 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+Compiling 117 files with Solc 0.8.33
+Compiling 174 files with Solc 0.8.33
+Solc 0.8.33 finished in 42.27s
+Solc 0.8.33 finished in 52.51s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/v2/G7Mutations.t.sol:G7MutationBound
+[FAIL: rule per path: BALANCE first-time user, cold lastTimestamp: 1750000000 < 2179790500] test_mutation_postop_old_bound() (gas: 1918570)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 4.49ms (2.10ms CPU time)
+
+Ran 2 tests for contracts/test/v2/G7Mutations.t.sol:G7MutationC04
+[FAIL: worst path must be exercised (escrow actually settled, not skipped): 0 <= 0] test_mutation_floor_balance_noop() (gas: 433429)
+[FAIL: credit path must be exercised (debt recorded by settleCredit): 0 <= 0] test_mutation_floor_credit_noop() (gas: 518146)
+Suite result: FAILED. 0 passed; 2 failed; 0 skipped; finished in 12.24ms (2.13ms CPU time)
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 4 tests for contracts/test/v2/G7Mutations.t.sol:G7MutationCore
+[FAIL: user paid in xPNTs: 0 <= 0] test_mutation_balance_settlement_noop() (gas: 374535)
+[FAIL: postOp must NOT fail at MIN_POST_OP_GAS] test_mutation_floor_settlement_reverts() (gas: 386503)
+[FAIL: MIN_POST_OP_GAS must cover postOp x 64/63 + margin: 235580 > 200000] test_mutation_measured_postop_old_minimum() (gas: 428182)
+Logs:
+  measured postOp gas (worst-ish, warm-in-test) 212212
+
+[FAIL: no OOG band: a postOp that passed the entry check must complete: 0x != 0x8890295d] test_mutation_no_oog_old_guard() (gas: 4844551)
+Suite result: FAILED. 0 passed; 4 failed; 0 skipped; finished in 12.12ms (10.79ms CPU time)
+
+Ran 1 test for contracts/test/v2/G7Mutations.t.sol:G7MutationFuzz
+[FAIL: StillLive()] test_mutation_G2_noop_settlement() (gas: 14485422)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 31.98ms (28.33ms CPU time)
+
+Ran 4 test suites in 33.34ms (60.83ms CPU time): 0 tests passed, 8 failed, 0 skipped (8 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/v2/G7Mutations.t.sol:G7MutationBound
+[FAIL: rule per path: BALANCE first-time user, cold lastTimestamp: 1750000000 < 2179790500] test_mutation_postop_old_bound() (gas: 1918570)
+
+Encountered 2 failing tests in contracts/test/v2/G7Mutations.t.sol:G7MutationC04
+[FAIL: worst path must be exercised (escrow actually settled, not skipped): 0 <= 0] test_mutation_floor_balance_noop() (gas: 433429)
+[FAIL: credit path must be exercised (debt recorded by settleCredit): 0 <= 0] test_mutation_floor_credit_noop() (gas: 518146)
+
+Encountered 4 failing tests in contracts/test/v2/G7Mutations.t.sol:G7MutationCore
+[FAIL: user paid in xPNTs: 0 <= 0] test_mutation_balance_settlement_noop() (gas: 374535)
+[FAIL: postOp must NOT fail at MIN_POST_OP_GAS] test_mutation_floor_settlement_reverts() (gas: 386503)
+[FAIL: MIN_POST_OP_GAS must cover postOp x 64/63 + margin: 235580 > 200000] test_mutation_measured_postop_old_minimum() (gas: 428182)
+[FAIL: no OOG band: a postOp that passed the entry check must complete: 0x != 0x8890295d] test_mutation_no_oog_old_guard() (gas: 4844551)
+
+Encountered 1 failing test in contracts/test/v2/G7Mutations.t.sol:G7MutationFuzz
+[FAIL: StillLive()] test_mutation_G2_noop_settlement() (gas: 14485422)
+
+Encountered a total of 8 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 8 failed tests
+Tip: Run `forge test --debug --match-test <TEST_NAME>` to inspect one failing test in the debugger

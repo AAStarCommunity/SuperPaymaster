@@ -1,0 +1,2 @@
+# These small raw logs are reviewable evidence despite the repository-wide *.log rule.
+!*.log

@@ -1,0 +1,80 @@
+Compiling 2 files with Solc 0.8.33
+Compiling 5 files with Solc 0.8.33
+Solc 0.8.33 finished in 2.08s
+Solc 0.8.33 finished in 12.02s
+Compiler run successful with warnings:
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:191:14:
+    |
+191 |             (bool ok, bytes memory ret) = invoke(mid);
+    |              ^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:198:10:
+    |
+198 |         (bool ok, bytes memory ret) = invoke(lo);
+    |          ^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:191:23:
+    |
+191 |             (bool ok, bytes memory ret) = invoke(mid);
+    |                       ^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:198:19:
+    |
+198 |         (bool ok, bytes memory ret) = invoke(lo);
+    |                   ^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  revertTo(uint256): replaced by `revertToState`
+  snapshot(): replaced by `snapshotState`
+Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardCreditTest
+[PASS] test_RR5_diag_scan_band() (gas: 28538372)
+Logs:
+  scan last guard-fail call gas: 430000
+  scan first non-guard failure call gas: 0
+  scan last non-guard failure call gas: 0
+  scan non-guard failures (2k steps): 0
+  scan first settled call gas: 432000
+
+[PASS] test_RR5_exactSelector_adjacentBoundary() (gas: 2370373)
+Logs:
+  last guard-fail call gas: 431513
+  first complete settlement call gas: 431514
+
+[PASS] test_RR5_guardFail_staleRecovery() (gas: 164557)
+[PASS] test_RR5_realEntryPoint_minimum_negativeControl() (gas: 2245125)
+[PASS] test_RR5_snapshot_not_live_bound() (gas: 401400)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 28.03ms (27.80ms CPU time)
+
+Warning: the following cheatcode(s) are deprecated and will be removed in future versions:
+  snapshot(): replaced by `snapshotState`
+  revertTo(uint256): replaced by `revertToState`
+Ran 5 tests for contracts/test/v2/SuperPaymasterRR5GuardFail.t.sol:SuperPaymasterRR5GuardBalanceTest
+[PASS] test_RR5_diag_scan_band() (gas: 27851360)
+Logs:
+  scan last guard-fail call gas: 430000
+  scan first non-guard failure call gas: 0
+  scan last non-guard failure call gas: 0
+  scan non-guard failures (2k steps): 0
+  scan first settled call gas: 432000
+
+[PASS] test_RR5_exactSelector_adjacentBoundary() (gas: 2376925)
+Logs:
+  last guard-fail call gas: 431513
+  first complete settlement call gas: 431514
+
+[PASS] test_RR5_guardFail_staleRecovery() (gas: 162238)
+[PASS] test_RR5_realEntryPoint_minimum_negativeControl() (gas: 2243180)
+[PASS] test_RR5_snapshot_not_live_bound() (gas: 377030)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 32.20ms (31.61ms CPU time)
+
+Ran 2 test suites in 37.71ms (60.23ms CPU time): 10 tests passed, 0 failed, 0 skipped (10 total tests)

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -43,9 +44,9 @@ contract SuperPaymasterV55GasTest is Test {
     bytes32 constant USEROP_EVENT = keccak256("UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)");
     /// @dev SuperPaymaster.C_WRAP_GAS is internal; its value (exp/buffer: 5_000) is pinned by
     ///      SuperPaymasterV55Test.test_R10M3_charge_uses_validation_price_snapshot (exact charge).
-    uint256 constant C_WRAP = 5_000;
+    uint256 constant C_WRAP = GasFixture.WRAP;
     uint256 constant BURN_FLOOR = 300;      // == PostOpProbePaymaster.BURN_FLOOR
-    uint256 constant MIN_POST_OP_GAS = 200_000;
+    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST;
     uint256 constant OWNER_PK = 0xA0A0;
 
     IEntryPoint entryPoint = IEntryPoint(EP);
@@ -151,9 +152,9 @@ contract SuperPaymasterV55GasTest is Test {
         uint256 w2 = _probeSingle(0, "", 1_000_000);                         // large postOp limit
         uint256 w3 = _probeSingle(50_000, burnCall, uint128(MIN_POST_OP_GAS)); // opReverted (call OOG)
         uint256 w4 = _probeSingle(3_000_000, "", uint128(MIN_POST_OP_GAS));    // big unused callGas → penalty
-        console.log("wrap upper bound: succeeded/200k", w1);
+        console.log("wrap upper bound: succeeded/floor", w1);
         console.log("wrap upper bound: succeeded/1M  ", w2);
-        console.log("wrap upper bound: reverted/200k ", w3);
+        console.log("wrap upper bound: reverted/floor ", w3);
         console.log("wrap upper bound (+penalty 10% of 3M unused callGas)", w4);
         assertEq(probe.calls(), 4, "postOp really ran in every scenario");
 
@@ -182,6 +183,7 @@ contract SuperPaymasterV55GasTest is Test {
             PackedUserOperation[] memory prefix = new PackedUserOperation[](i + 1);
             for (uint256 j; j <= i; j++) prefix[j] = ops[j];
             (uint256[] memory f, ) = _run(prefix);
+            assertEq(probe.calls(), i + 1, "measurement requires every probe postOp to complete");
             passed[i] = probe.lastPassedGas();
             uint256 w = _wrapUpper(ops[i], f[i], passed[i]);
             console.log("bundle position", i, "wrap upper bound", w);
@@ -213,6 +215,7 @@ contract SuperPaymasterV55GasTest is Test {
         sp = UUPSDeployHelper.deploySuperPaymasterProxy(
             entryPoint, IRegistry(address(registry)), address(new V55PriceFeed()), owner, address(apnts), treasury, 3600
         );
+        GasFixture.configure(sp);
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
         aoa.bootstrapApprove(aoa.KIND_SP(), aoa.spKey(address(sp)));
@@ -246,7 +249,7 @@ contract SuperPaymasterV55GasTest is Test {
     {
         op = _baseOp(user, nonce, callGas, callData);
         op.paymasterAndData = abi.encodePacked(
-            address(sp), uint128(700_000), postOpGas, operator, type(uint256).max, address(token), uint8(0)
+            address(sp), uint128(GasFixture.PM_VERIFICATION), postOpGas, operator, type(uint256).max, address(token), uint8(0)
         );
         _sign(op);
     }

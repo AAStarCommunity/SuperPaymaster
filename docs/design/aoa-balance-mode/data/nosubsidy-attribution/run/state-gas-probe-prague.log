@@ -1,0 +1,89 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+No files changed, compilation skipped
+
+Ran 1 test for test/StateGas.t.sol:StateGasProbe
+[PASS] test_stateGasClear() (gas: 14906)
+Traces:
+  [23898] StateGasProbe::test_stateGasClear()
+    ├─ [3] PUSH1
+    ├─ [3] PUSH1
+    ├─ [3] DUP1
+    ├─ [3] PUSH1
+    ├─ [2] POP
+    ├─ [3] PUSH1
+    ├─ [3] PUSH1
+    ├─ [2] PUSH0
+    ├─ [3] PUSH1
+    ├─ [3] DUP1
+    ├─ [3] PUSH1
+    ├─ [3] PUSH1
+    ├─ [3] PUSH1
+    ├─ [2] PUSH0
+    ├─ [2] PUSH0
+    ├─ [3] PUSH1
+    ├─ [2] PUSH0
+    ├─ [22100] SSTORE 0x0: 0x0 → 0x1
+    ├─ [2] GAS
+    ├─ [3] SWAP2
+    ├─ [2] POP
+    ├─ [2] PUSH0
+    ├─ [2] PUSH0
+    ├─ [100] SSTORE 0x0: 0x1 → 0x0
+    ├─ [2] GAS
+    ├─ [3] SWAP1
+    ├─ [2] POP
+    ├─ [3] PUSH1
+    ├─ [3] PUSH1
+    ├─ [3] SWAP2
+    ├─ [3] SWAP1
+    ├─ [3] PUSH1
+    ├─ [2] PUSH0
+    ├─ [3] PUSH1
+    ├─ [3] SWAP1
+    ├─ [2] POP
+    ├─ [3] PUSH1
+    ├─ [2] PUSH0
+    ├─ [3] PUSH1
+    ├─ [3] PUSH1
+    ├─ [3] DUP2
+    ├─ [3] PUSH1
+    ├─ [2] PUSH0
+    ├─ [3] DUP2
+    ├─ [3] SWAP1
+    ├─ [2] POP
+    ├─ [3] SWAP2
+    ├─ [3] SWAP1
+    ├─ [2] POP
+    ├─ [2] POP
+    ├─ [2] POP
+    ├─ [3] PUSH1
+    ├─ [3] PUSH1
+    ├─ [3] PUSH1
+    ├─ [3] PUSH1
+    ├─ [3] DUP2
+    ├─ [3] PUSH1
+    ├─ [2] PUSH0
+    ├─ [3] DUP2
+    ├─ [3] SWAP1
+    ├─ [2] POP
+    ├─ [3] SWAP2
+    ├─ [3] SWAP1
+    ├─ [2] POP
+    ├─ [2] POP
+    ├─ [2] POP
+    ├─ [2] POP
+    ├─ [2] POP
+    ├─ [2] POP
+    ├─ [3] PUSH1
+    ├─ [3] DUP1
+    ├─ [3] SWAP2
+    ├─ [3] SWAP1
+    ├─ emit Checkpoint(beforeGas: 1073698537 [1.073e9], afterGas: 1073698426 [1.073e9])
+    ├─ [2] POP
+    ├─ [2] POP
+    └─ ← [Stop]
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 285.83µs (94.21µs CPU time)
+
+Ran 1 test suite in 2.06ms (285.83µs CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

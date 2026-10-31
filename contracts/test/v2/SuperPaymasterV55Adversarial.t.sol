@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -152,13 +153,13 @@ contract SuperPaymasterV55AdversarialTest is Test {
     uint256 constant PK_P = 0xD0D0;
     uint256 constant PK_T = 0xE0E0;
 
-    uint256 constant MIN_POST_OP_GAS = 200_000;  // SuperPaymaster.MIN_POST_OP_GAS
-    uint256 constant SETTLE_GAS_BOUND = 160_000; // SuperPaymaster.SETTLE_GAS_BOUND
+    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST;  // Queued deployment floor
+    uint256 constant SETTLE_GAS_BOUND = GasFixture.SETTLE; // Queued deployment guard
     uint256 constant VERIF_GAS = 350_000;
     uint256 constant CALL_GAS = 200_000;
-    uint256 constant PM_VERIF_GAS = 700_000;
+    uint256 constant PM_VERIF_GAS = GasFixture.PM_VERIFICATION;
     uint256 constant PVG = 50_000;
-    uint256 constant POST = 300_000;
+    uint256 constant POST = GasFixture.MIN_POST;
 
     bytes32 constant POST_OP_REVERT_REASON = keccak256("PostOpRevertReason(bytes32,address,uint256,bytes)");
     bytes32 constant USER_OP_EVENT = keccak256("UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)");
@@ -186,9 +187,11 @@ contract SuperPaymasterV55AdversarialTest is Test {
         sp = UUPSDeployHelper.deploySuperPaymasterProxy(
             IEntryPoint(address(entryPoint)), IRegistry(address(registry)), feed, owner, address(apnts), treasury, 3600
         );
+        GasFixture.configure(sp);
         sp2 = UUPSDeployHelper.deploySuperPaymasterProxy(
             IEntryPoint(address(entryPoint)), IRegistry(address(registry)), feed, owner, address(apnts), treasury, 3600
         );
+        GasFixture.configure(sp2);
 
         aoa = new AOAProtocolRegistry(owner);
         tier = new GlobalTierSource(address(registry));
@@ -590,7 +593,7 @@ contract SuperPaymasterV55AdversarialTest is Test {
         bytes memory exec = _exec(address(counter), abi.encodeCall(V55Counter.inc, ()));
         uint256[9] memory limits = [
             MIN_POST_OP_GAS - 10_000, MIN_POST_OP_GAS - 1, MIN_POST_OP_GAS, MIN_POST_OP_GAS + 1,
-            MIN_POST_OP_GAS + 1_000, MIN_POST_OP_GAS + 20_000, 260_000, 400_000, 1_000_000
+            MIN_POST_OP_GAS + 1_000, MIN_POST_OP_GAS + 20_000, MIN_POST_OP_GAS + 40_000, MIN_POST_OP_GAS + 200_000, 1_000_000
         ];
         uint256 settled;
         for (uint256 i; i < limits.length; i++) {
@@ -626,7 +629,7 @@ contract SuperPaymasterV55AdversarialTest is Test {
         uint256 reverted;
         uint256 settledOk;
         uint256 undone;
-        for (uint256 g = 300_000; g <= 1_600_000; g += 10_000) {
+        for (uint256 g = 300_000; g <= (VERIF_GAS + CALL_GAS + PM_VERIF_GAS + MIN_POST_OP_GAS + PVG) * 115 / 100; g += 10_000) {
             uint256 sid = vmx.snapshotState();
             uint256 bal0 = token.balanceOf(u);
             vm.recordLogs();
@@ -662,7 +665,7 @@ contract SuperPaymasterV55AdversarialTest is Test {
         uint256 oog;
         uint256 okN;
         uint256 minOk;
-        for (uint256 g = 60_000; g <= 240_000; g += 1_000) { // fixed start: independent of the bound under test
+        for (uint256 g = 60_000; g <= GasFixture.SWEEP_MAX; g += 1_000) { // fixed start: independent of the bound under test
             uint256 sid = vmx.snapshotState();
             bytes32 h = keccak256(abi.encode("sweep", g));
             vm.prank(address(entryPoint));

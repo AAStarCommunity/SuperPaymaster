@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.33;
+import {SuperPaymaster} from "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster;
+import {SuperPaymasterV55Test} from "./SuperPaymasterV55.t.sol";
+import {SuperPaymasterV55PostOpBoundTest} from "./SuperPaymasterV55PostOpBound.t.sol";
+import {SuperPaymasterV55FuzzTest} from "./SuperPaymasterV55Fuzz.t.sol";
+import {PoC_C04_ForcedPostOpOOG_Test} from "../security/PoC_C04_ForcedPostOpOOG.t.sol";
+
+contract G7MutationCore is SuperPaymasterV55Test {
+    function test_mutation_balance_settlement_noop() public {
+        vm.mockCall(address(token), abi.encodeWithSignature("settleLocked(address,bytes32,uint256)"), abi.encode(uint256(0)));
+        test_balance_mode_end_to_end();
+    }
+    function test_mutation_no_oog_old_guard() public {
+        vm.prank(owner);
+        (bool ok,) = address(sp).call(abi.encodeWithSignature("queueGasParams(uint32,uint32,uint32,uint32)", uint32(440000), uint32(160000), uint32(5000), uint32(340000)));
+        require(ok);
+        vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
+        vm.prank(owner);
+        (ok,) = address(sp).call(abi.encodeWithSignature("executeGasParams()"));
+        require(ok);
+        sp.updatePrice();
+        test_B1_no_oog_band_above_entry_guard();
+    }
+    function test_mutation_measured_postop_old_minimum() public {
+        vm.prank(owner);
+        (bool ok,) = address(sp).call(abi.encodeWithSignature("queueGasParams(uint32,uint32,uint32,uint32)", uint32(200000), uint32(160000), uint32(5000), uint32(175000)));
+        require(ok);
+        vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
+        vm.prank(owner);
+        (ok,) = address(sp).call(abi.encodeWithSignature("executeGasParams()"));
+        require(ok);
+        sp.updatePrice();
+        test_G_min_post_op_gas_covers_measured_postOp();
+    }
+    function test_mutation_floor_settlement_reverts() public {
+        vm.mockCallRevert(address(token), abi.encodeWithSignature("settleLocked(address,bytes32,uint256)"), "mutation");
+        test_TR1409_settles_at_MIN_POST_OP_GAS_worst_path();
+    }
+}
+contract G7MutationC04 is PoC_C04_ForcedPostOpOOG_Test {
+    function test_mutation_floor_balance_noop() public {
+        vm.mockCall(address(xpnts), abi.encodeWithSignature("settleLocked(address,bytes32,uint256)"), abi.encode(uint256(0)));
+        test_fix_minGasFloorIsSufficient();
+    }
+    function test_mutation_floor_credit_noop() public {
+        vm.mockCall(address(xpnts), abi.encodeWithSignature("settleCredit(address,bytes32,uint256)"), abi.encode(uint256(0)));
+        test_fix_minGasFloorIsSufficient_creditPath();
+    }
+}
+contract G7MutationBound is SuperPaymasterV55PostOpBoundTest {
+    function test_mutation_postop_old_bound() public {
+        vm.prank(owner);
+        (bool ok,) = address(sp).call(abi.encodeWithSignature("queueGasParams(uint32,uint32,uint32,uint32)", uint32(440000), uint32(420000), uint32(5000), uint32(175000)));
+        require(ok);
+        vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
+        vm.prank(owner);
+        (ok,) = address(sp).call(abi.encodeWithSignature("executeGasParams()"));
+        require(ok);
+        sp.updatePrice();
+        test_each_path_within_C_POSTOP();
+    }
+}
+contract G7MutationFuzz is SuperPaymasterV55FuzzTest {
+    /// forge-config: default.isolate = true
+    function test_mutation_G2_noop_settlement() public {
+        for (uint256 i; i < 2; i++) {
+            vm.mockCall(address(tok[i]), abi.encodeWithSignature("settleLocked(address,bytes32,uint256)"), abi.encode(uint256(0)));
+            vm.mockCall(address(tok[i]), abi.encodeWithSignature("settleCredit(address,bytes32,uint256)"), abi.encode(uint256(0)));
+        }
+        test_G2_coverage_replay_fixed_seeds();
+    }
+}
