@@ -458,7 +458,7 @@ class ExecutorTests(unittest.TestCase):
 
     def test_archive_refuses_mutations(self):
         with patch.object(ex.urllib.request, 'urlopen', side_effect=AssertionError('must not connect')):
-            for method in ('eth_sendTransaction', 'eth_sendRawTransaction', 'anvil_setBalance'):
+            for method in ('eth_sendTransaction', 'eth_sendRawTransaction', 'anvil_setBalance', 'debug_setHead'):
                 with self.assertRaises(ex.Gate) as caught:
                     ex.RPC('https://unused')(method, [])
                 self.assertEqual(caught.exception.record['gate'], 'remote_read_only')
@@ -973,18 +973,30 @@ class ExecutorTests(unittest.TestCase):
         tx = next(st['tx'] for st in plan['steps'] if st['id'] == sid)
         return dict(hash='0x'+'ab'*32, nonce=tx['nonce'], **{'from': tx['from']})
 
-    def gap_rpc(self, gap, receipt=None, code='0x', **override):
+    MINER = '0x'+'8f'*20
+
+    def gap_rpc(self, gap, receipt=None, code='0x', trace=None, block=None, **override):
         mined = dict(hash=gap['hash'], blockNumber='0x10', blockHash='0x'+'be'*32, nonce=gap['nonce'], type='0x2',
                      input='0x', to='0x'+'c2'*20, **{'from': gap['from']})
         mined.update(override)
         r = dict(transactionHash=gap['hash'], blockNumber='0x10', blockHash='0x'+'be'*32, status='0x1')
         r.update(receipt or {})
+        b = dict(hash='0x'+'be'*32, miner=self.MINER)
+        b.update(block or {})
+        t = {gap['from']: dict(balance='0x1', nonce=1), str(mined['to']).lower(): dict(balance='0x0'),
+             self.MINER: dict(balance='0x1')} if trace is None else trace
         def rpc(method, params):
             if method == 'eth_getTransactionByHash': return mined if params[0] == gap['hash'] else None
             if method == 'eth_getTransactionReceipt': return r if params[0] == gap['hash'] else None
             if method == 'eth_getCode':
-                assert params == [mined['to'], mined['blockNumber']], params
+                assert params == [str(mined['to']).lower(), mined['blockNumber']], params
                 return code
+            if method == 'eth_getBlockByNumber':
+                assert params == [mined['blockNumber'], False], params
+                return b
+            if method == 'debug_traceTransaction':
+                assert params == [gap['hash'], {'tracer': 'prestateTracer'}], params
+                return t
             raise AssertionError(method)
         return rpc
 
@@ -1047,11 +1059,25 @@ class ExecutorTests(unittest.TestCase):
             'nonce_gap_receipt_hash_'+n: dict(receipt=dict(transactionHash='0x'+'ef'*32)),
             'nonce_gap_receipt_block_'+n: dict(receipt=dict(blockHash='0x'+'00'*32)),
             'nonce_gap_receipt_status_'+n: dict(receipt=dict(status='0x0')),
+            'nonce_gap_not_precompile_'+n: dict(override=dict(to='0x'+'00'*19+'02')),
+            'nonce_gap_block_'+n: dict(block=dict(hash='0x'+'00'*32)),
+            'nonce_gap_trace_'+n: dict(trace={ex.SAFE: None}),
+            'nonce_gap_trace_accounts_'+n: dict(trace={gap['from']: {}, ex.SAFE: dict(balance='0x0')}),
+            'nonce_gap_trace_no_code_'+n: dict(trace={'0x'+'c2'*20: dict(code='0xef0100'+'16'*20)}),
+            'nonce_gap_trace_no_storage_'+n: dict(trace={'0x'+'c2'*20: dict(storage={'0x0': '0x1'})}),
         }
         for gate, kw in cases.items():
             with self.subTest(gate=gate), self.assertRaises(ex.Gate) as caught:
-                ex.check_gaps(self.gap_rpc(gap, receipt=kw.get('receipt'), code=kw.get('code', '0x'), **kw.get('override', {})), gapped, later)
+                ex.check_gaps(self.gap_rpc(gap, receipt=kw.get('receipt'), code=kw.get('code', '0x'), trace=kw.get('trace'),
+                                           block=kw.get('block'), **kw.get('override', {})), gapped, later)
             self.assertEqual(caught.exception.record['gate'], gate)
+        def missing(method, params): return None
+        with self.assertRaises(ex.Gate) as caught:
+            ex.check_gaps(missing, gapped, later)
+        self.assertEqual(caught.exception.record['gate'], 'nonce_gap_found_'+n)
+        with self.assertRaises(ex.Gate) as caught:
+            ex.check_gaps(self.gap_rpc(gap, blockHash='0xbe'), gapped, later)
+        self.assertEqual(caught.exception.record['gate'], 'nonce_gap_mined_'+n)
         for bad in ('pending', False, '0x010'):
             with self.subTest(blockNumber=bad), self.assertRaises(ex.Gate) as caught:
                 ex.check_gaps(self.gap_rpc(gap, blockNumber=bad), gapped, later)
@@ -1084,6 +1110,10 @@ class ExecutorTests(unittest.TestCase):
             with self.assertRaises(ex.Gate) as caught:
                 ex.build_plan(pin, [s2])
             self.assertEqual(caught.exception.record['gate'], 'nonce_gap_moves_create_S2')
+            s3 = dict(hash='0x'+'a5'*32, nonce=plan['steps'][2]['tx']['nonce'], **{'from': ex.DEPLOYER})
+            with self.assertRaises(ex.Gate) as caught:
+                ex.build_plan(pin, [s3])
+            self.assertEqual(caught.exception.record['gate'], 'nonce_gap_moves_create_S3')
 
     def test_amend_requires_a_valid_ungapped_source_and_well_formed_gaps(self):
         plan = self.measured_plan()
@@ -1105,6 +1135,19 @@ class ExecutorTests(unittest.TestCase):
             with self.subTest(text=text), self.assertRaises(ex.Gate) as caught:
                 ex.parse_gap(text)
             self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_simulate_refuses_a_gapped_plan(self):
+        plan = dict(self.measured_plan(), nonceGaps=[])
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            ex.write_json(d/'plan.json', plan)
+            (d/'plan.json.sha256').write_text(hashlib.sha256((d/'plan.json').read_bytes()).hexdigest()+'  plan.json\n')
+            (d/'rpc').write_text('https://unused')
+            with patch.object(ex.urllib.request, 'urlopen', side_effect=AssertionError('must not connect')), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(ex.main(['simulate', '--rpc-file', str(d/'rpc'), '--out', str(d/'out'),
+                                          '--plan', str(d/'plan.json')]), 1)
+            self.assertEqual(json.loads((d/'out'/'FAILURE.json').read_text())['gate'], 'simulate_gapped_plan')
 
     def test_amend_reissues_the_reviewed_plan_with_only_the_moved_nonce(self):
         plan = self.measured_plan()
@@ -1273,13 +1316,19 @@ class ExecutorTests(unittest.TestCase):
         with patch.object(ex, 'artifact', self.artifact):
             gapped = ex.build_plan(plan['pin'], [gap])
         for step in gapped['steps']: step['tx']['gas'] = hex(260000)
-        tx = ex.pre_send(ex.ExecutionStep(gapped, 'S6b'), chain)
+        def traced(method, params, error_ok=False):
+            if method == 'debug_traceTransaction' and params[0] == h:
+                return {ex.EXECUTOR: dict(balance='0x1', nonce=1), '0x'+'c2'*20: dict(balance='0x0'), self.MINER: {}}
+            if method == 'eth_getBlockByNumber' and params == [s['txs'][h]['blockNumber'], False]:
+                return dict(chain(method, params), miner=self.MINER)
+            return chain(method, params, error_ok)
+        tx = ex.pre_send(ex.ExecutionStep(gapped, 'S6b'), traced)
         self.assertEqual(int(tx['nonce'], 16), int(plan['steps'][7]['tx']['nonce'], 16)+1)
         self.assertEqual({k: v for k, v in tx.items() if k != 'nonce'},
                          {k: v for k, v in plan['steps'][7]['tx'].items() if k != 'nonce'})
         def unmined_receipt(method, params, error_ok=False):
             if method == 'eth_getTransactionReceipt' and params[0] == h: return None  # real RPC shape
-            return chain(method, params, error_ok)
+            return traced(method, params, error_ok)
         with self.assertRaises(ex.Gate) as caught:
             ex.pre_send(ex.ExecutionStep(gapped, 'S6b'), unmined_receipt)
         self.assertEqual(caught.exception.record['gate'], 'nonce_gap_receipt_'+gap['nonce'])

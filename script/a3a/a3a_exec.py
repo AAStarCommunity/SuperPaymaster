@@ -135,7 +135,8 @@ class RPC:
 
     def __call__(self, method, params, error_ok=False):
         if not self.local and not (method.startswith('eth_get') or method in
-                                  ('eth_chainId', 'eth_config', 'eth_call', 'eth_estimateGas', 'web3_sha3')):
+                                  ('eth_chainId', 'eth_config', 'eth_call', 'eth_estimateGas', 'web3_sha3',
+                                                    'debug_traceTransaction')):
             raise Gate('remote_read_only', method, 'read-only RPC')
         with self.serial_lock:
             self.serial += 1
@@ -1293,7 +1294,6 @@ def validate_gaps(plan):
         need('nonce_gap_sender', g['from'] in SENDERS.values(), True)
         label = next(k for k, v in SENDERS.items() if v == g['from'])
         typed(g['nonce'], QTY, gate='nonce_gap_hex')
-        need('nonce_gap_hex', g['nonce'], hex(qty(g['nonce'])))
         need('nonce_gap_after_pin', qty(g['nonce']) >= plan['pin']['senders'][label]['nonce'], True)
         need('nonce_gap_hash', typed(g['hash'], HASH32), g['hash'].lower())
     keys = [(g['from'], qty(g['nonce'])) for g in gaps]
@@ -1303,8 +1303,10 @@ def validate_gaps(plan):
 
 def check_gaps(remote, plan, tx):
     """Every recorded gap below this transaction's nonce must be a mined plain ETH transfer with exactly that
-    sender, nonce and hash: no calldata, no authorization list, and a recipient with no code (so no delegation)
-    at that block. Such a transaction executes nothing, so it cannot have touched any plan contract."""
+    sender, nonce and hash: no calldata, no authorization list, not to a precompile/system address, a recipient
+    with no code at that block, and an execution trace (prestateTracer, every account read or written) that
+    touched only the sender, the recipient and the block's fee recipient, none with code or storage. End-of-block
+    code alone cannot prove this: a delegation can be installed and cleared around the gap within one block."""
     for g in plan.get('nonceGaps', ()):
         if g['from'] != tx['from'] or qty(g['nonce']) >= qty(tx['nonce']):
             continue
@@ -1321,7 +1323,18 @@ def check_gaps(remote, plan, tx):
         need('nonce_gap_no_calldata_'+n, mined.get('input'), '0x')
         to = mined.get('to')
         need('nonce_gap_call_'+n, isinstance(to, str) and ADDRESS_RX.fullmatch(to) is not None, True)
+        to = to.lower()
+        need('nonce_gap_not_precompile_'+n, int(to, 16) > 0xffff, True)
         need('nonce_gap_recipient_codeless_'+n, typed(remote('eth_getCode', [to, number]), HEXDATA), '0x')
+        block = remote('eth_getBlockByNumber', [number, False])
+        need('nonce_gap_block_'+n, isinstance(block, dict) and str(block.get('hash', '')).lower(), block_hash)
+        miner = typed(block.get('miner'), ADDRESS_RX, gate='nonce_gap_block_'+n).lower()
+        trace = remote('debug_traceTransaction', [g['hash'], {'tracer': 'prestateTracer'}])
+        need('nonce_gap_trace_'+n, isinstance(trace, dict) and all(isinstance(v, dict) for v in trace.values()), True)
+        need('nonce_gap_trace_accounts_'+n, {a.lower() for a in trace} <= {g['from'], to, miner}, True)
+        for account, state in trace.items():
+            need('nonce_gap_trace_no_code_'+n, state.get('code', '0x') in ('0x', '', None), True)
+            need('nonce_gap_trace_no_storage_'+n, not state.get('storage'), True)
         receipt = remote('eth_getTransactionReceipt', [g['hash']])
         need('nonce_gap_receipt_'+n, isinstance(receipt, dict), True)
         need('nonce_gap_receipt_hash_'+n, str(receipt.get('transactionHash', '')).lower(), g['hash'])
@@ -1739,6 +1752,8 @@ def main(argv=None):
         if plan is None:
             plan_command(remote, args.block, args.out)
         else:
+            # The rehearsal forks at the pin and cannot replay the foreign transactions a gap records.
+            need('simulate_gapped_plan', 'nonceGaps' in plan, False)
             validate_plan(plan, frozen=True)
             safe_hash_check(remote, plan)
             need('simulation_pin', preflight(remote, plan['pin']['block']), plan['pin'])
