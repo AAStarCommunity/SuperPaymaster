@@ -6,13 +6,14 @@
 # Timelock role sets are rebuilt from all role events since deployment and compared
 # exactly with plan.json, so an extra member fails. The RPC URL is read from a file and
 # only its hostname is recorded.
+# Every cast call checks its own exit status: errexit is not inherited by command substitutions.
 # Usage: a3a-live-readback.sh <rpc-file> <second-rpc-url> <decimal-block> <out-dir>
 set -euo pipefail
 RPC_FILE=$1; RPC2=$2; BLOCK=$3; OUT=$4
 [[ $BLOCK =~ ^[0-9]+$ ]] || { echo "block must be a decimal number, not a tag: $BLOCK" >&2; exit 2; }
 [ -d "$OUT" ] && [ -n "$(ls -A "$OUT")" ] && { echo "out dir not empty: $OUT" >&2; exit 2; }
 RPC1=$(cat "$RPC_FILE")
-host() { python3 -c 'import sys,urllib.parse as u;print(u.urlparse(sys.argv[1]).hostname or "")' "$1"; }
+host() { python3 -c 'import sys,urllib.parse as u;print((u.urlparse(sys.argv[1]).hostname or "").rstrip("."))' "$1"; }
 H1=$(host "$RPC1"); H2=$(host "$RPC2")
 [ -n "$H1" ] && [ -n "$H2" ] || { echo "cannot parse RPC hostnames" >&2; exit 2; }
 [ "$RPC1" != "$RPC2" ] && [ "$H1" != "$H2" ] || { echo "the two RPCs must be different endpoints" >&2; exit 2; }
@@ -52,16 +53,16 @@ QUERIES=(
 q() { # q <rpc> <kind> args... ; prints the value, fails on an RPC error or empty output
   local rpc=$1 kind=$2 r; shift 2
   case $kind in
-    call) r=$("$CAST" call "$@" --block "$BLOCK" --rpc-url "$rpc") && r=${r%% *} ;;
-    nonce) r=$("$CAST" nonce "$1" --block "$BLOCK" --rpc-url "$rpc") ;;
-    ts) r=$("$CAST" block "$1" -f timestamp --rpc-url "$rpc") ;;
-    code) r=$("$CAST" code "$1" --block "$2" --rpc-url "$rpc") ;;
+    call) r=$("$CAST" call "$@" --block "$BLOCK" --rpc-url "$rpc") || return 1; r=${r%% *} ;;
+    nonce) r=$("$CAST" nonce "$1" --block "$BLOCK" --rpc-url "$rpc") || return 1 ;;
+    ts) r=$("$CAST" block "$1" -f timestamp --rpc-url "$rpc") || return 1 ;;
+    code) r=$("$CAST" code "$1" --block "$2" --rpc-url "$rpc") || return 1 ;;
   esac
   [ -n "$r" ] || return 1
   printf '%s\n' "$r"
 }
 bhash() { # bhash <rpc> ; the block hash at BLOCK, format-checked
-  local h; h=$("$CAST" block "$BLOCK" -f hash --rpc-url "$1")
+  local h; h=$("$CAST" block "$BLOCK" -f hash --rpc-url "$1") || return 1
   [[ $h =~ ^0x[0-9a-f]{64}$ ]] || return 1
   printf '%s\n' "$h"
 }
