@@ -1,0 +1,173 @@
+{
+  "docs/design/aoa-balance-mode/data/nosubsidy-attribution/counterexample-frame-amsterdam.log": [
+    {
+      "test": "",
+      "line": 3,
+      "proxy_gas": 389218,
+      "implementation_gas": 388818,
+      "subcalls": [
+        "\u2502   \u2502   \u2502   \u2502   \u251c\u2500 [28041] 0xaf0FEd79DEEd925dB5E5e6EbfE71fEE4388474e4::settleCredit(ERC1967Proxy.registry-size: [0x50486B4193eAAdD5af47F0B5617D9A423dB9101C], 0xb53300949c74cb28a674e9ee9ab6370dca7a2b48a4000765ae21d419a79eebd8, 208793322958997403407 [2.087e20])",
+        "\u2502   \u2502   \u2502   \u2502   \u2502   \u251c\u2500 [27857] xPNTsTokenV2.registry-size::settleCredit(ERC1967Proxy.registry-size: [0x50486B4193eAAdD5af47F0B5617D9A423dB9101C], 0xb53300949c74cb28a674e9ee9ab6370dca7a2b48a4000765ae21d419a79eebd8, 208793322958997403407 [2.087e20]) [delegatecall]"
+      ],
+      "opcodes": [
+        {
+          "section": "SP",
+          "opcode": "LOG3",
+          "cost": 2012,
+          "count": 1
+        },
+        {
+          "section": "SP",
+          "opcode": "SLOAD",
+          "cost": 100,
+          "count": 6
+        },
+        {
+          "section": "SP",
+          "opcode": "SLOAD",
+          "cost": 2100,
+          "count": 3
+        },
+        {
+          "section": "SP",
+          "opcode": "SSTORE",
+          "cost": 0,
+          "count": 1
+        },
+        {
+          "section": "SP",
+          "opcode": "SSTORE",
+          "cost": 100,
+          "count": 2
+        },
+        {
+          "section": "SP",
+          "opcode": "SSTORE",
+          "cost": 10100,
+          "count": 1
+        },
+        {
+          "section": "SP",
+          "opcode": "SSTORE",
+          "cost": 108020,
+          "count": 4
+        },
+        {
+          "section": "SP",
+          "opcode": "TSTORE",
+          "cost": 100,
+          "count": 1
+        },
+        {
+          "section": "token",
+          "opcode": "LOG3",
+          "cost": 1756,
+          "count": 1
+        },
+        {
+          "section": "token",
+          "opcode": "SLOAD",
+          "cost": 100,
+          "count": 4
+        },
+        {
+          "section": "token",
+          "opcode": "SLOAD",
+          "cost": 2100,
+          "count": 1
+        },
+        {
+          "section": "token",
+          "opcode": "SSTORE",
+          "cost": 100,
+          "count": 3
+        },
+        {
+          "section": "token",
+          "opcode": "SSTORE",
+          "cost": 10100,
+          "count": 2
+        },
+        {
+          "section": "token",
+          "opcode": "TLOAD",
+          "cost": 100,
+          "count": 1
+        },
+        {
+          "section": "token",
+          "opcode": "TSTORE",
+          "cost": 100,
+          "count": 1
+        }
+      ],
+      "stores": [
+        {
+          "section": "SP",
+          "gas_displayed": 10100,
+          "operation": "0x1: 0x1 \u2192 0x2"
+        },
+        {
+          "section": "SP",
+          "gas_displayed": 108020,
+          "operation": "0x5f321268ec960868153cfc2f04a3464237c4d1c0a52710a73c2c656535797899: 0x0 \u2192 0x56333"
+        },
+        {
+          "section": "SP",
+          "gas_displayed": 108020,
+          "operation": "0x2373b554874cf55bf22ca682c619c248a9b720ce53b145f4ef3b77dc8baf20ee: 0x0 \u2192 0x1"
+        },
+        {
+          "section": "SP",
+          "gas_displayed": 108020,
+          "operation": "0x3e01b629de61268d6db66ca832bdfd0350941bf505dbe6d0a6b8115bf5baff1d: 0x0 \u2192 0x1"
+        },
+        {
+          "section": "token",
+          "gas_displayed": 100,
+          "operation": "0x1714d2849d7bb3b343236b1942010ef3b3639c01741efae56a487c65275791d0: 0x1da0a3fc7dc6b5b6ea \u2192 0x0"
+        },
+        {
+          "section": "token",
+          "gas_displayed": 100,
+          "operation": "0x1714d2849d7bb3b343236b1942010ef3b3639c01741efae56a487c65275791d1: 0xe402e517d2db884c0aaec7843a29e3dbaaa97ca9 \u2192 0x0"
+        },
+        {
+          "section": "token",
+          "gas_displayed": 100,
+          "operation": "0x479b5164b14c5e50b151bc77c79312b780998882b655cad8ad95f1e6a75973bc: 0x4f8ab120a1e6fa508c \u2192 0x31ea0d2424204499a2"
+        },
+        {
+          "section": "token",
+          "gas_displayed": 10100,
+          "operation": "0xafcba155108fa0c9415deb704e736ee0c7c391b1fa3ea86daf01c3ed08bfc67b: 0x0 \u2192 0x1"
+        },
+        {
+          "section": "token",
+          "gas_displayed": 10100,
+          "operation": "0xbe065385f223507be6e3d7c1f3180a62e8e231dd52174f8d104c4ebda9890795: 0x0 \u2192 0xb5196e4ff2c73b70f"
+        },
+        {
+          "section": "SP",
+          "gas_displayed": 0,
+          "operation": "0x61c838ea675bc85b8ddaa80a3790931258e95fbd2605b876b180a3d812e3735c: 0x1da0a3fc7dc6b5b6ea00000000000000000000000000000000000000bf \u2192 0x0"
+        },
+        {
+          "section": "SP",
+          "gas_displayed": 100,
+          "operation": "0x3e01b629de61268d6db66ca832bdfd0350941bf505dbe6d0a6b8115bf5baff19: 0x10000000000000122e5ed77190e17437b \u2192 0x1000000000000013534fa8e97a8594356"
+        },
+        {
+          "section": "SP",
+          "gas_displayed": 108020,
+          "operation": "0x10: 0x0 \u2192 0xb5196e4ff2c73b70f"
+        },
+        {
+          "section": "SP",
+          "gas_displayed": 100,
+          "operation": "0x1: 0x2 \u2192 0x1"
+        }
+      ]
+    }
+  ]
+}

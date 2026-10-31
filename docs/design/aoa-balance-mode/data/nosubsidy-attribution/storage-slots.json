@@ -1,0 +1,18 @@
+{
+  "SP": {
+    "0x1": "ReentrancyGuard._status",
+    "0x5f321268ec960868153cfc2f04a3464237c4d1c0a52710a73c2c656535797899": "userOpState[operator][user].lastTimestamp",
+    "0x2373b554874cf55bf22ca682c619c248a9b720ce53b145f4ef3b77dc8baf20ee": "_settledDebtOps[opHash]",
+    "0x3e01b629de61268d6db66ca832bdfd0350941bf505dbe6d0a6b8115bf5baff1d": "operators[operator].totalTxSponsored",
+    "0x61c838ea675bc85b8ddaa80a3790931258e95fbd2605b876b180a3d812e3735c": "_inflight[opHash]",
+    "0x3e01b629de61268d6db66ca832bdfd0350941bf505dbe6d0a6b8115bf5baff19": "operators[operator].aPNTsBalance (packed)",
+    "0x10": "protocolRevenue"
+  },
+  "token": {
+    "0x1714d2849d7bb3b343236b1942010ef3b3639c01741efae56a487c65275791d0": "_creditRes[opHash][user].amount",
+    "0x1714d2849d7bb3b343236b1942010ef3b3639c01741efae56a487c65275791d1": "_creditRes[opHash][user].locker",
+    "0x479b5164b14c5e50b151bc77c79312b780998882b655cad8ad95f1e6a75973bc": "creditReservedOf[user]",
+    "0xafcba155108fa0c9415deb704e736ee0c7c391b1fa3ea86daf01c3ed08bfc67b": "usedOpHashes[opHash]",
+    "0xbe065385f223507be6e3d7c1f3180a62e8e231dd52174f8d104c4ebda9890795": "debts[user]"
+  }
+}
