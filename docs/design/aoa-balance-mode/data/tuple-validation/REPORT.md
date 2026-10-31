@@ -125,9 +125,10 @@ rejects duplicate keys or incomplete appended suites. The verifier also requires
 `statuses.json` to equal parsed outcomes, checks exit/status consistency, all 24
 trajectories and 80 frames, trajectory arithmetic, the 15% peak/net bounds, and
 penalty arithmetic. File hashes detect unresealed changes; resealing is not proof of
-authenticity. Source hashes still check current recorded sources, except the revised
-runner: its recorded hash is checked against the runner blob at `run/head.txt`'s Git
-revision. The retained manifest and raw logs have not been rewritten.
+authenticity. Recorded source hashes are checked against the tracked files at
+`run/head.txt`'s Git revision (`392a448f`), the same path selection, no extra or missing
+paths. They are not checked against the current tree, so later commits that add or change
+tests do not invalidate this measurement. The retained manifest and raw logs have not been rewritten.
 
 Offline temporary-copy controls reject an unrelated boundary log, a removed suite
 with reduced aggregate counts, empty statuses, an incomplete appended run, and a

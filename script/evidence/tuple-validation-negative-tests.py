@@ -38,6 +38,20 @@ class OfflineControls(unittest.TestCase):
     def test_untouched(self):
         runner.verify(self.run)
 
+    def test_source_hash_not_at_recorded_revision(self):
+        path = self.run / 'source-hashes.json'
+        hashes = json.loads(path.read_text())
+        hashes['foundry.toml'] = '0' * 64
+        path.write_text(json.dumps(hashes, indent=2))
+        self.reject('sources differ from the recorded revision')
+
+    def test_extra_source_not_at_recorded_revision(self):
+        path = self.run / 'source-hashes.json'
+        hashes = json.loads(path.read_text())
+        hashes['contracts/test/v2/NotAtRevision.t.sol'] = '0' * 64
+        path.write_text(json.dumps(hashes, indent=2))
+        self.reject('sources differ from the recorded revision')
+
     def test_unrelated_boundary(self):
         path = self.run / 'boundary-0-469304.log'
         path.write_text(fixture(test='test_unrelated()').replace('FixtureTest', 'UnrelatedTest'))
