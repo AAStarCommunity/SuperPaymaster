@@ -21,8 +21,10 @@ DVT = m.DVT
 COMMITTEE = m.COMMITTEE
 OLD = m.OLD_AGGREGATOR
 ART = dict(commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
-    bytecode='0x60006000f3', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
+    bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
+
+for art in ART['contracts'].values(): art['creationHashes'] = m.creation_hashes(art['bytecode'])
 
 ART['contracts']['BLSAggregator']['storageLayout'] = dict(storage=[dict(label='proposalSignersCommitment', slot='29', offset=0, type='map')],
     types={'map':dict(encoding='mapping', key='uint', value='bytes'), 'uint':dict(label='uint256'), 'bytes':dict(label='bytes32')})
@@ -78,7 +80,7 @@ def input_data(p):
         depositTargetWei=10**18, releaseTag='unit-fixture', registryBaselineCommit='b'*40,
         releaseEvidence={key:'c'*64 for key in m.EVIDENCE_KINDS},
         verifier=dict(commit=m.VERIFIER_COMMIT, artifactPath='unit-fixture', ciSha256='e'*64, buildSha256=m.VERIFIER_SHA256,
-                      artifact=dict(bytecode='0x60006000f3', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
+                      artifact=dict(bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
 
 
 class FakeChain:
@@ -137,12 +139,27 @@ class ManifestTests(unittest.TestCase):
             path.write_text(json.dumps(value))
             return dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         self.file_ref = file_ref
+        self.plan_validator = patch.object(a, 'validate_plan')
+        self.plan_validator.start(); self.addCleanup(self.plan_validator.stop)
+        mock_pin = patch.object(m, 'MOCK_TOKEN_RUNTIME_HASH', a.keccak('0x6000'))
+        mock_pin.start(); self.addCleanup(mock_pin.stop)
         self.data['releaseEvidence'] = {}
         for kind in m.EVIDENCE_KINDS:
             e = dict(kind=kind, subjectCommit=ART['commit'], tool=dict(name='synthetic', version='1'),
                      counts=dict(passed=1, failed=0, skipped=0), result='PASS')
             if kind.startswith('dvt-'):
                 e.update(subjectCommit=m.VERIFIER_COMMIT, spCommit=ART['commit'], aggregatorVersion=m.AGG_VERSION)
+            if kind == 'conformance': e['controls'] = {f'C{i}':'PASS' for i in range(1,10)}
+            if kind == 'mutation': e['controls'] = {k:dict(redTest=v, mutated='FAIL', restored='PASS') for k,v in m.MUTATIONS.items()}
+            if kind.startswith('dvt-'):
+                e['counts']['passed'] = 23
+                e['suites'] = {k:dict(passed=v, failed=0, skipped=0, result='PASS') for k,v in m.DVT_SUITES.items()}
+                e['suites']['CC115GenuinePragueCrossRepo']['env'] = {'FOUNDRY_EVM_VERSION':'prague'}
+            if kind == 'slither':
+                e['tool']['name'] = 'slither'
+                e['findings'] = dict(threshold='Low', aboveThreshold=[], accepted=[])
+            if kind == 'reproducible-build':
+                e['contracts'] = {k:m.creation_hashes('0x60006000f3a00001') for k in (*m.NAMES, 'OverIssueFraudProofVerifier')}
             self.data['releaseEvidence'][kind] = file_ref(kind, e)
         self.data['releaseEvidence']['sourceVerificationPlan'] = file_ref('source-plan', {'synthetic':True})
         rows = []
@@ -151,7 +168,7 @@ class ManifestTests(unittest.TestCase):
             earlier = {'S1':5, 'S2':4, 'S3':3, 'S4':2, 'S5a':2, 'S5b':2}.get(sid, 1)
             rows.append(dict(id=sid, tx={'from': self.pin['senders'][label]['address'],
                 'nonce':hex(self.pin['senders'][label]['nonce']-earlier), 'data':'0x'}))
-        self.data['a3aPlan'] = file_ref('a3a', dict(steps=rows))
+        self.data['a3aPlan'] = file_ref('a3a', dict(steps=rows, pin=dict(senders={label:dict(nonce=min(a.qty(s['tx']['nonce']) for s in rows if s['tx']['from'] == sender['address'])) for label,sender in self.pin['senders'].items() if label != 'anni'})))
         self.data['a3aPlan']['receipts'] = {sid:'0x'+format(i+1, '064x') for i,sid in enumerate(a.STEP_IDS)}
         self.pin['a3aHistory'] = {}
         self.pin['a3aGapReads'] = []
@@ -166,7 +183,7 @@ class ManifestTests(unittest.TestCase):
         self.data['fraudProofFixture'] = file_ref('fraud', self.fraud)
         fixture_artifact = self.data['verifier'].pop('artifact')
         self.real_verifier_artifact = m.verifier_artifact
-        for target, name, value in ((m, 'verifier_artifact', fixture_artifact), (m, 'release_gate', None)):
+        for target, name, value in ((m, 'verifier_artifact', fixture_artifact), (m, 'rebuild_dvt', dict(bytecode=fixture_artifact['bytecode'], creationHashes=m.creation_hashes(fixture_artifact['bytecode']))), (m, 'release_gate', None)):
             mock = patch.object(target, name, return_value=value)
             mock.start()
             self.addCleanup(mock.stop)
@@ -895,7 +912,7 @@ class ManifestTests(unittest.TestCase):
         pin = copy.deepcopy(self.pin)
         pin['a3aGapReads'] = [dict(method='eth_getTransactionByHash', params=[gap['hash']], result=mined)]
         with self.assertRaises(a.Gate) as caught: m.validate_nonce_history(pin, inputs)
-        self.assertEqual(caught.exception.record['gate'], 'nonce_gap_no_calldata_0x1')
+        self.assertEqual(caught.exception.record['gate'], 'a3a_nonce_complete_deployer')
 
     def test_fraud_fixture_schema_and_binding(self):
         mutations = [dict(verifierCommit='f'*40), dict(toolCommit='x'), dict(aggregator=ANNI),
@@ -943,7 +960,7 @@ class ManifestTests(unittest.TestCase):
             with self.assertRaises(a.Gate): m.commitment_slot(layout, self.fraud['pid'])
 
     def test_fraud_rehearsal_valid_invalid_and_restoration(self):
-        for failure in (None, 'event', 'state', 'slot', 'N1', 'N2', 'N3', 'N4', 'runtime', 'domain', 'id', 'restore'):
+        for failure in (None, 'event', 'state', 'slot', 'N1', 'N2', 'N3', 'N4', 'runtime', 'domain', 'id', 'restore', 'message', 'isOverIssued_before', 'isOverIssued_after'):
             with self.subTest(failure=failure):
                 f = self.fraud
                 agg, verifier = f['aggregator'], f['verifier']
@@ -975,7 +992,7 @@ class ManifestTests(unittest.TestCase):
                     return '0x6001' if failure == 'runtime' else '0x6000'
                 def call(rpc, target, signature, *args):
                     if signature == 'domainSeparator()': return a.ZERO32 if failure == 'domain' else f['domainSeparator']
-                    if signature.startswith('slashMessageHash'): return f['messageHash']
+                    if signature.startswith('slashMessageHash'): return a.ZERO32 if failure == 'message' else f['messageHash']
                     if signature.startswith('proposalSignersCommitment'): return state['commitment']
                     if signature.startswith('guardianSlashCases'):
                         return a.cast('abi-encode', 'c(uint256,uint256,uint256,uint256)', int(gh,16),
@@ -983,6 +1000,8 @@ class ManifestTests(unittest.TestCase):
                     raise AssertionError(signature)
                 def word(rpc, target, signature, *args):
                     if signature.startswith('deriveFraudProofId'): return 2 if failure == 'id' else 1
+                    if signature == 'isOverIssued()':
+                        return 1-state['over'] if failure == ('isOverIssued_after' if state['over'] else 'isOverIssued_before') else state['over']
                     if signature == 'over()': return state['over']
                     if signature.startswith('verify'):
                         self.assertFalse(state['queued']); self.assertEqual(state['over'], 0)
@@ -1018,6 +1037,131 @@ class ManifestTests(unittest.TestCase):
                 self.assertFalse(snapshots)
                 self.assertEqual(state['code'], '0x')
                 self.assertFalse(state['queued'])
+
+    def test_named_evidence_required_each_kind(self):
+        for kind in m.EVIDENCE_KINDS:
+            e = json.loads(Path(self.data['releaseEvidence'][kind]['path']).read_text())
+            field = {'conformance':'controls', 'mutation':'controls', 'slither':'findings',
+                     'reproducible-build':'contracts', 'dvt-ci':'suites', 'dvt-conformance-4.12':'suites'}[kind]
+            e[field] = {}
+            with self.subTest(kind=kind), self.assertRaises(a.Gate):
+                m.evidence_file(self.file_ref('missing-detail', e), kind, ART['commit'])
+
+    def test_prague_skipped_counterexample(self):
+        kind = 'dvt-conformance-4.12'
+        e = json.loads(Path(self.data['releaseEvidence'][kind]['path']).read_text())
+        e['counts'] = dict(passed=1, failed=0, skipped=11)
+        with self.assertRaises(a.Gate): m.evidence_file(self.file_ref('skipped', e), kind)
+        e['counts'] = dict(passed=23, failed=0, skipped=0)
+        e['suites']['CC115GenuinePragueCrossRepo']['env'] = {}
+        with self.assertRaises(a.Gate): m.evidence_file(self.file_ref('wrong-evm', e), kind)
+
+    def test_creation_hash_comparison(self):
+        contracts = copy.deepcopy(ART['contracts'])
+        e = dict(contracts={k:v['creationHashes'].copy() for k,v in contracts.items()})
+        self.assertEqual(m.compare_build_evidence(e, contracts), [])
+        name = m.NAMES[0]
+        e['contracts'][name]['fullCreationKeccak'] = a.ZERO32
+        self.assertEqual(m.compare_build_evidence(e, contracts), [name])
+        e['contracts'][name]['strippedCreationKeccak'] = a.ZERO32
+        with self.assertRaises(a.Gate): m.compare_build_evidence(e, contracts)
+        left, right = (m.creation_hashes(x) for x in ('0x6000a16161010004', '0x6000a16161020004'))
+        self.assertEqual(left['strippedCreationKeccak'], right['strippedCreationKeccak'])
+        self.assertNotEqual(left['fullCreationKeccak'], right['fullCreationKeccak'])
+
+    def test_unpinned_and_substituted_mock_refused(self):
+        for digest in (None, a.ZERO32):
+            with patch.object(m, 'MOCK_TOKEN_RUNTIME_HASH', digest), self.assertRaises(a.Gate):
+                m.fraud_fixture(self.data['fraudProofFixture'])
+
+    def history_rpc(self, bad_canonical=False):
+        def rpc(method, params):
+            if method == 'eth_getBlockByNumber': return dict(hash=a.ZERO32 if bad_canonical else base.HASH)
+            for sid, proof in self.pin['a3aHistory'].items():
+                if params == [self.data['a3aPlan']['receipts'][sid]]:
+                    if method == 'eth_getTransactionReceipt': return proof['receipt']
+                    if method == 'eth_getTransactionByHash': return proof['transaction']
+            raise AssertionError((method, params))
+        return rpc
+
+    def test_reconcile_direct_and_canonical_receipt(self):
+        p = copy.deepcopy(self.pin)
+        m.reconcile_nonces(self.history_rpc(), p, self.inputs)
+        self.assertEqual(p['a3aHistory'], self.pin['a3aHistory'])
+        with self.assertRaises(a.Gate) as caught:
+            m.reconcile_nonces(self.history_rpc(True), p, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'a3a_canonical_receipt')
+
+    def test_internal_nonce_hole_refused(self):
+        spec = copy.deepcopy(self.data['a3aPlan'])
+        plan = json.loads(Path(spec['path']).read_text())
+        # S1=100, unrelated nonce=101, remaining deployer steps=102..105.
+        rows = [s for s in plan['steps'] if s['tx']['from'] == u.DEPLOYER]
+        for step,n in zip(rows, (100,102,103,104,105)): step['tx']['nonce'] = hex(n)
+        plan['pin']['senders']['deployer']['nonce'] = 100
+        spec.update(self.file_ref('hole', plan))
+        inputs = copy.deepcopy(self.inputs); inputs['data']['a3aPlan'] = spec
+        p = copy.deepcopy(self.pin); p['senders']['deployer']['nonce'] = 106
+        with self.assertRaises(a.Gate) as caught: m.reconcile_nonces(self.history_rpc(), p, inputs)
+        self.assertEqual(caught.exception.record['gate'], 'a3a_nonce_complete_deployer')
+
+    def test_history_calls_frozen_historical_validator_after_hash(self):
+        with patch.object(a, 'validate_plan', side_effect=a.Gate('relabeled_payload', False, True)) as validate:
+            with self.assertRaises(a.Gate): m.history_steps(self.pin, self.inputs)
+            self.assertEqual(validate.call_args.kwargs, dict(frozen=True, historical=True))
+            bad = copy.deepcopy(self.inputs); bad['data']['a3aPlan']['sha256'] = 'f'*64
+            validate.reset_mock()
+            with self.assertRaises(a.Gate): m.history_steps(self.pin, bad)
+            validate.assert_not_called()
+
+    def test_collect_direct_fake_chain(self):
+        history = self.history_rpc()
+        def rpc(method, params):
+            if method == 'eth_getBalance': return '0x100'
+            if method == 'eth_getStorageAt': return '0x'+ANNI[2:].zfill(64)
+            return history(method, params)
+        def address(rpc, target, sig, block):
+            return u.DEPLOYER if sig == 'owner()' else OLD
+        def word(rpc, target, sig, *args, **kw):
+            if sig == 'MAX_VALIDATORS()': return 13
+            if sig == 'validatorAtSlot(uint8)': return args[0] if args[0] <= 3 else 0
+            raise AssertionError(sig)
+        def call(rpc, target, sig, *args, **kw):
+            if sig == 'version()': return a.cast('abi-encode', 'c(string)', 'Registry-5.8.0')
+            if sig.startswith('getDepositInfo'): return a.cast('abi-encode','c(uint256,bool,uint256,uint256,uint256)', 1, 'true', 1, 86400, 0)
+            raise AssertionError(sig)
+        with patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
+             patch.object(a, 'nonce', return_value=55), patch.object(u, 'code', side_effect=lambda r,t,b:'0x' if t == ANNI else '0x6000'), \
+             patch.object(a, 'call', side_effect=call), patch.object(a, 'word', side_effect=word), \
+             patch.object(a, 'address', side_effect=address), patch.object(m, 'old_activity', return_value={}), \
+             patch.object(m, 'dvt_activity', return_value=[]), patch.object(m, 'balances', return_value={k:self.pin[k] for k in ('totalTrackedBalance','protocolRevenue','operatorBalances')}):
+            collected = m.collect(rpc, '0x100', self.inputs)
+        self.assertEqual(collected['a3aHistory'], self.pin['a3aHistory'])
+        self.assertEqual(collected['guardianInventory'], self.pin['guardianInventory'])
+
+    def test_required_evidence_results_cannot_be_forged_by_totals(self):
+        for kind in ('conformance','mutation','dvt-ci','dvt-conformance-4.12'):
+            original = json.loads(Path(self.data['releaseEvidence'][kind]['path']).read_text())
+            field = 'suites' if kind.startswith('dvt-') else 'controls'
+            for name in original[field]:
+                e = copy.deepcopy(original)
+                if kind == 'conformance': e[field][name] = 'SKIP'
+                elif kind == 'mutation': e[field][name]['restored'] = 'FAIL'
+                else: e[field][name]['skipped'] = 1
+                with self.subTest(kind=kind,name=name), self.assertRaises(a.Gate):
+                    m.evidence_file(self.file_ref('bad-result',e),kind)
+        e = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        e['findings']['aboveThreshold'] = ['unreviewed']
+        with self.assertRaises(a.Gate): m.evidence_file(self.file_ref('finding',e),'slither')
+        e['findings']['accepted'] = [dict(id='unreviewed',reason='reviewed exception')]
+        m.evidence_file(self.file_ref('accepted-finding',e),'slither')
+
+    def test_collect_registry_version_negative(self):
+        with patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
+             patch.object(a, 'nonce', return_value=55), patch.object(u, 'code', return_value='0x'), \
+             patch.object(a, 'call', return_value='0x'):
+            with self.assertRaises(a.Gate) as caught: m.collect(lambda method,params:'0x1', '0x100', self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'registry_version')
 
     def test_sign_send_refused(self):
         self.assertEqual(m.main(['sign']), 3)

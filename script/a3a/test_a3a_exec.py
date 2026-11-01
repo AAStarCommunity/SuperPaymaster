@@ -1231,6 +1231,18 @@ class ExecutorTests(unittest.TestCase):
         ex.budget(plan)
         return plan
 
+    def test_historical_frozen_plan_uses_own_commit_and_refuses_relabel(self):
+        plan = self.measured_plan()
+        fresh = {name:self.artifact(name) for name in ex.CONTRACT_NAMES}
+        with patch.object(ex, 'compile_commit', return_value=(fresh, {})) as compile_, \
+             patch.object(ex, 'validate_artifact', side_effect=lambda art,name:art), \
+             patch.object(ex, 'artifact', side_effect=AssertionError('historical validation must not read working artifacts')):
+            ex.validate_plan(plan, frozen=True, historical=True)
+            compile_.assert_called_with(plan['rebuild']['commit'], 'forge Version: 1.7.1')
+            plan['steps'][0]['tx']['data'] = '0x1234'
+            with self.assertRaises(ex.Gate) as caught: ex.validate_plan(plan, frozen=True, historical=True)
+            self.assertEqual(caught.exception.record['gate'], 'plan_step_S1_data')
+
     def assert_injected_tx_fails(self, key, value):
         plan = self.measured_plan()
         plan['steps'][0]['tx'][key] = value

@@ -24,6 +24,21 @@ COMMITTEE = '0x7ac7e9d471742fa4397beef0b5b11fbd22d196a9'
 OLD_AGGREGATOR = '0xeaec2f512ea50708211fa95533e4dbb60e3d2e5d'
 VERIFIER_COMMIT = '72aca4fa0ba4aaa8c8a96210b1124534431294d6'
 VERIFIER_SHA256 = '4d7e0125094c381a0dca5e2d8dd56efa79b284e43119fd64130dfaa78d33e7d6'
+# Offline archive rebuild of 72aca4fa, Forge 1.7.1 / solc 0.8.33.
+# Raw runtime fixes immutable owner to zero; drill changes only storage slot zero.
+MOCK_TOKEN_RUNTIME_HASH = '0xae01c0c01f84a229b8c6f3591a70f678ea5d48ff956a90661ae669bf1be6d0db'
+
+MUTATIONS = {
+    'remove_B2': 'test_pre_send_real_b2_is_required',
+    'remove_AGGREGATOR_getter': 'test_a12a_getters_are_enforced',
+    'remove_REGISTRY_getter': 'test_a12a_getters_are_enforced',
+    'remove_bound_runtime_loop': 'test_pre_send_bound_runtime_is_required',
+    'remove_isEqualSet': 'VerifierAcceptsGuardianSubset',
+    'subset_comparison': 'VerifierAcceptsGuardianSubset',
+    'length_not_equal_to_less_than': 'VerifierAcceptsGuardianSuperset',
+}
+DVT_SUITES = {'CC115CrossRepoConformance': 7, 'CC115GenuinePragueCrossRepo': 11, 'provenance': 5}
+
 VERIFIER_CREATION = '0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab'
 
 
@@ -80,6 +95,9 @@ def evidence_file(ref, kind, commit=None):
     required(ref, ('path', 'sha256'), 'evidence_reference')
     e = reviewed_file(ref['path'], ref['sha256'], 'evidence_'+kind)
     fields = ['kind', 'subjectCommit', 'tool', 'counts', 'result']
+    fields += {'conformance':['controls'], 'mutation':['controls'], 'slither':['findings'],
+               'reproducible-build':['contracts'], 'dvt-ci':['suites'],
+               'dvt-conformance-4.12':['suites']}[kind]
     if kind.startswith('dvt-'):
         fields += ['spCommit', 'aggregatorVersion']
     a.exact_keys('evidence_fields', e, fields)
@@ -93,12 +111,68 @@ def evidence_file(ref, kind, commit=None):
     a.need('evidence_count_types', all(type(v) is int and v >= 0 for v in e['counts'].values()), True)
     a.need('evidence_passed', e['counts']['passed'] > 0, True)
     a.need('evidence_failed', e['counts']['failed'], 0)
+    a.need('evidence_skipped', e['counts']['skipped'], 0)
+    validate_evidence_details(e, kind)
     if kind.startswith('dvt-'):
         a.need('evidence_dvt_commit', e['subjectCommit'], VERIFIER_COMMIT)
         a.need('evidence_aggregator_version', e['aggregatorVersion'], AGG_VERSION)
     if commit is not None:
         a.need('evidence_release_commit', e['spCommit'] if kind.startswith('dvt-') else e['subjectCommit'], commit)
     return e
+
+
+def validate_evidence_details(e, kind):
+    if kind == 'conformance':
+        a.need('evidence_conformance_controls', e['controls'], {f'C{i}':'PASS' for i in range(1,10)})
+    elif kind == 'mutation':
+        a.exact_keys('evidence_mutations', e['controls'], MUTATIONS)
+        for name, test in MUTATIONS.items():
+            a.need('evidence_mutation_'+name, e['controls'][name],
+                   dict(redTest=test, mutated='FAIL', restored='PASS'))
+    elif kind in ('dvt-ci', 'dvt-conformance-4.12'):
+        a.exact_keys('evidence_suites', e['suites'], DVT_SUITES)
+        for name, count in DVT_SUITES.items():
+            expected = dict(passed=count, failed=0, skipped=0, result='PASS')
+            if name == 'CC115GenuinePragueCrossRepo':
+                expected['env'] = {'FOUNDRY_EVM_VERSION':'prague'}
+            a.need('evidence_suite_'+name, e['suites'][name], expected)
+        a.need('evidence_suite_totals', e['counts'], dict(passed=sum(DVT_SUITES.values()), failed=0, skipped=0))
+    elif kind == 'slither':
+        a.need('evidence_slither_tool', e['tool']['name'], 'slither')
+        f = e['findings']
+        a.exact_keys('evidence_findings', f, ('threshold', 'aboveThreshold', 'accepted'))
+        a.need('evidence_threshold', f['threshold'] in ('Informational', 'Low', 'Medium', 'High'), True)
+        a.need('evidence_findings_list', isinstance(f['aboveThreshold'], list) and isinstance(f['accepted'], list), True)
+        for item in f['accepted']:
+            a.exact_keys('evidence_accepted_finding', item, ('id', 'reason'))
+            a.need('evidence_acceptance_reason', all(isinstance(v,str) and v.strip() for v in item.values()), True)
+        a.need('evidence_unaccepted_findings', sorted(f['aboveThreshold']), sorted(x['id'] for x in f['accepted']))
+    elif kind == 'reproducible-build':
+        a.exact_keys('evidence_contracts', e['contracts'], (*NAMES, 'OverIssueFraudProofVerifier'))
+        for hashes in e['contracts'].values():
+            a.exact_keys('evidence_creation_hashes', hashes, ('fullCreationKeccak', 'strippedCreationKeccak'))
+            for value in hashes.values(): a.typed(value, a.HASH32)
+
+
+def creation_hashes(code):
+    # Solidity's trailing length includes only the CBOR map, not the two length bytes.
+    a.cbor_tail(code)
+    raw = bytes.fromhex(code[2:])
+    length = int.from_bytes(raw[-2:], 'big') + 2
+    return dict(fullCreationKeccak=a.keccak(code), strippedCreationKeccak=a.keccak('0x'+raw[:-length].hex()))
+
+
+def compare_build_evidence(e, contracts):
+    a.exact_keys('reproducible_contracts', e['contracts'], contracts)
+    differences = []
+    for name, art in contracts.items():
+        expected = creation_hashes(art['bytecode'])
+        a.need('rebuild_record_'+name, art['creationHashes'], expected)
+        actual = e['contracts'][name]
+        a.need('reproducible_executable_'+name, actual['strippedCreationKeccak'], expected['strippedCreationKeccak'])
+        if actual['fullCreationKeccak'] != expected['fullCreationKeccak']:
+            differences.append(name)
+    return differences
 
 
 def commitment_slot(layout, pid):
@@ -151,6 +225,8 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     a.need('fraud_token_distinct', token['address'] not in (f['aggregator'], f['verifier'], u.REG, u.SP), True)
     a.typed(token['runtime'], a.HEXDATA)
     a.need('fraud_token_runtime', token['runtime'] != '0x', True)
+    a.need('fraud_token_pin_available', MOCK_TOKEN_RUNTIME_HASH is not None, True)
+    a.need('fraud_token_pinned_runtime', a.keccak(token['runtime']), MOCK_TOKEN_RUNTIME_HASH)
     a.need('fraud_token_hash', token['runtimeHash'], a.keccak(token['runtime']))
     a.need('fraud_token_over', token['over'] is False, True)
     a.exact_keys('fraud_commitment_fields', f['commitment'], ('slot', 'value'))
@@ -217,6 +293,7 @@ def fraud_rehearsal(rpc, plan):
         write(token, a.ZERO32, a.ZERO32, 'setup')  # MockOverIssuableToken.over: slot 0 at 72aca4fa.
         write(agg, f['commitment']['slot'], f['commitment']['value'], 'setup')
         a.need('fraud_commitment_readback', a.call(rpc, agg, 'proposalSignersCommitment(uint256)', f['pid']), f['commitment']['value'])
+        a.need('fraud_is_over_issued_false', a.word(rpc, token, 'isOverIssued()'), 0)
         a.need('fraud_over_readback', a.word(rpc, token, 'over()'), 0)
         for name in ('valid', 'N1', 'N2', 'N3', 'N4'):
             snap = rpc('evm_snapshot', [])
@@ -225,7 +302,9 @@ def fraud_rehearsal(rpc, plan):
                 payload = f['invalid']['N3']['fraudProof'] if name == 'N3' else f['fraudProof']
                 args = (f['fraudProofId'], '['+','.join(guardians)+']', payload)
                 if name == 'N2':
+                    a.need('fraud_N2_before', a.word(rpc, token, 'isOverIssued()'), 0)
                     write(token, a.ZERO32, '0x'+format(1,'064x'), name)
+                    a.need('fraud_N2_is_over_issued', a.word(rpc, token, 'isOverIssued()'), 1)
                     a.need('fraud_N2_readback', a.word(rpc, token, 'over()'), 1)
                 if name == 'N4':
                     a.need('fraud_N4_false', a.word(rpc, verifier, 'verify(bytes32,uint256,address[],bytes)',
@@ -341,9 +420,30 @@ def rebuild():
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
     a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
     return dict(commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
-        bytecode=art['bytecode']['object'], runtimeIdentity=art['runtimeIdentity'],
+        bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']), runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})
+
+
+@lru_cache(maxsize=1)
+def rebuild_dvt():
+    version = subprocess.run([str(a.REBUILD_FORGE), '--version'], capture_output=True, text=True, check=True).stdout
+    a.need('dvt_forge_version', version.splitlines()[0], 'forge Version: 1.7.1')
+    repo = Path('/Users/jason/Dev/aastar/YetAnotherAA-Validator')
+    with tempfile.TemporaryDirectory(prefix='manifest-dvt-') as directory:
+        tree = Path(directory)/'tree'
+        a.archive_commit(repo, VERIFIER_COMMIT, tree)
+        env = {k:os.environ[k] for k in ('HOME','PATH','TMPDIR','USER','LOGNAME','LANG','LC_ALL','SVM_HOME') if k in os.environ}
+        env['FOUNDRY_PROFILE'] = 'default'
+        result = subprocess.run([str(a.REBUILD_FORGE), 'build', '--offline', '--force', '--skip', 'test', '--skip', 'script', '--use', '0.8.33'],
+                                cwd=tree/'contracts', env=env, capture_output=True)
+        a.need('dvt_offline_rebuild', result.returncode, 0)
+        art = a.raw_artifact(tree/'contracts', 'OverIssueFraudProofVerifier')
+        a.need('dvt_rebuilt_creation', a.keccak(art['bytecode']['object']), VERIFIER_CREATION)
+        mock = a.raw_artifact(tree/'contracts', 'MockOverIssuableToken')
+        a.need('dvt_mock_rebuilt_runtime', a.keccak(mock['deployedBytecode']['object']), MOCK_TOKEN_RUNTIME_HASH)
+        return dict(bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']),
+                    mockRuntimeHash=a.keccak(mock['deployedBytecode']['object']))
 
 
 def release_gate(inputs, build, pin):
@@ -356,6 +456,12 @@ def release_gate(inputs, build, pin):
     for kind in EVIDENCE_KINDS:
         evidence_file(data['releaseEvidence'].get(kind), kind, build['commit'])
     evidence_file(dict(path=data['verifier']['ciPath'], sha256=data['verifier']['ciSha256']), 'dvt-ci', build['commit'])
+    verifier = rebuild_dvt()
+    a.need('dvt_artifact_rebuild', verifier['bytecode'], verifier_artifact(data['verifier'])['bytecode'])
+    contracts = dict(build['contracts'], OverIssueFraudProofVerifier=verifier)
+    evidence = evidence_file(data['releaseEvidence']['reproducible-build'], 'reproducible-build', build['commit'])
+    build['metadataOnlyDifferences'] = compare_build_evidence(evidence, contracts)
+    build['verifierCreationHashes'] = verifier['creationHashes']
     tag = subprocess.run(['git', 'rev-parse', '--verify', 'refs/tags/'+data['releaseTag']+'^{commit}'],
                          cwd=u.ROOT, capture_output=True, text=True)
     a.need('release_tag', tag.returncode, 0)
@@ -453,6 +559,13 @@ def history_steps(pin, inputs):
     nonce_expectations(pin, inputs)
     spec = inputs['data']['a3aPlan']
     plan = reviewed_file(spec['path'], spec['sha256'], 'a3a_plan')
+    a.validate_plan(plan, frozen=True, historical=True)
+    for label in ('deployer', 'approver', 'executor'):
+        sender = pin['senders'][label]
+        start = plan['pin']['senders'][label]['nonce']
+        steps = [a.qty(s['tx']['nonce']) for s in plan['steps'] if s['tx']['from'] == sender['address']]
+        gaps = [a.qty(g['nonce']) for source in (plan, spec) for g in source.get('nonceGaps', []) if g['from'] == sender['address']]
+        a.need('a3a_nonce_complete_'+label, sorted(steps+gaps), list(range(start, sender['nonce'])))
     a.need('a3a_all_steps', [s['id'] for s in plan['steps']], list(a.STEP_IDS))
     for gap in plan.get('nonceGaps', []):
         a.need('a3a_gap_sender', gap['from'] in {v['address'] for k,v in pin['senders'].items() if k != 'anni'}, True)
@@ -488,7 +601,10 @@ def validate_nonce_history(pin, inputs):
     def replay(method, params):
         matches = [r['result'] for r in pin['a3aGapReads'] if r['method'] == method and r['params'] == params]
         a.need('gap_proof_read', bool(matches), True)
-        return matches[0]
+        result = matches[0]
+        if method == 'eth_getTransactionByHash' and result is not None:
+            a.need('a3a_gap_mined_before_pin', a.qty(result['blockNumber']) <= a.qty(pin['stateBlock']), True)
+        return result
     history_gaps(replay, pin, spec, plan)
 
 
@@ -507,6 +623,8 @@ def reconcile_nonces(rpc, pin, inputs):
     pin['a3aGapReads'] = []
     def recording(method, params):
         result = rpc(method, params)
+        if method == 'eth_getTransactionByHash' and result is not None:
+            a.need('a3a_gap_mined_before_pin', a.qty(result['blockNumber']) <= a.qty(pin['stateBlock']), True)
         pin['a3aGapReads'].append(dict(method=method, params=params, result=result))
         return result
     history_gaps(recording, pin, spec, plan)

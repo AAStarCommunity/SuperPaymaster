@@ -615,10 +615,10 @@ def compile_commit(commit, forge_version, contract_names=CONTRACT_NAMES, identit
         return artifacts, config
 
 
-def rebuild_artifacts(artifacts):
+def rebuild_artifacts(artifacts, commit=None):
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
     need('rebuild_head', head.returncode, 0)
-    commit = head.stdout.strip()
+    commit = commit or head.stdout.strip()
     try:
         version = subprocess.run([str(REBUILD_FORGE), '--version'], capture_output=True, text=True)
     except OSError as error:
@@ -659,7 +659,10 @@ def artifact(name):
         path = base / (name + '.json')
     if not path.exists():
         raise Gate('build_artifact', name + ' missing', 'local default build artifact')
-    a = json.loads(path.read_text())
+    return validate_artifact(json.loads(path.read_text()), name)
+
+
+def validate_artifact(a, name):
     metadata = a['metadata']
     if isinstance(metadata, str):
         metadata = json.loads(metadata)
@@ -737,7 +740,7 @@ def execution_timestamps(pin):
     return {sid: pin['timestamp']+offset for sid, offset in zip(STEP_IDS, offsets)}
 
 
-def build_plan(state, gaps=()):
+def build_plan(state, gaps=(), rebuild_commit=None):
     for label, who in SENDERS.items():
         need('plan_sender_'+label, state['senders'][label]['address'], who)
     n = state['senders']['deployer']['nonce']
@@ -746,8 +749,13 @@ def build_plan(state, gaps=()):
                  for i in (1, 2)]
     need('plan_predicted_timelock', state['timelock'], tl)
     need('plan_predicted_capped', state['capped'], token)
-    a, t = artifact('APNTsCapped'), artifact('TimelockController')
-    rebuild = rebuild_artifacts({'APNTsCapped': a, 'TimelockController': t})
+    if rebuild_commit is not None:
+        fresh, _ = compile_commit(rebuild_commit, 'forge Version: 1.7.1')
+        a, t = [validate_artifact(copy.deepcopy(fresh[name]), name) for name in ('APNTsCapped', 'TimelockController')]
+        rebuild = rebuild_artifacts(fresh, commit=rebuild_commit)
+    else:
+        a, t = artifact('APNTsCapped'), artifact('TimelockController')
+        rebuild = rebuild_artifacts({'APNTsCapped': a, 'TimelockController': t})
     init_t = t['bytecode']['object'] + cast('abi-encode', 'c(uint256,address[],address[],address)',
                                           172800, '['+SAFE+']', '['+SAFE+']', ZERO)[2:]
     constructor_args = ['AAStar PNTs', 'aPNTs', 10_000_000*10**18, DEPLOYER, SAFE, SAFE]
@@ -1353,10 +1361,11 @@ def check_gaps(remote, plan, tx):
         need('nonce_gap_receipt_status_'+n, receipt.get('status'), '0x1')
 
 
-def validate_plan(plan, frozen=False):
+def validate_plan(plan, frozen=False, historical=False):
     validate_pin(plan['pin'])
     need('plan_step_ids', [s['id'] for s in plan['steps']], list(STEP_IDS))
-    rebuilt = build_plan(plan['pin'], validate_gaps(plan))
+    rebuilt = (build_plan(plan['pin'], validate_gaps(plan), rebuild_commit=plan['rebuild']['commit'])
+               if historical else build_plan(plan['pin'], validate_gaps(plan)))
     exact_keys('plan_keys', plan, set(rebuilt) | ({'budgetsWei', 'budgetWei'} if frozen else set()))
     for key in set(rebuilt)-{'steps'}:
         need('plan_identity_'+key, plan[key], rebuilt[key])

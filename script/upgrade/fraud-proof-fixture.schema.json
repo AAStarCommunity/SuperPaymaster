@@ -99,8 +99,7 @@
           "pattern": "^0x([0-9a-fA-F]{2})+$"
         },
         "runtimeHash": {
-          "type": "string",
-          "pattern": "^0x[0-9a-f]{64}$"
+          "const": "0xae01c0c01f84a229b8c6f3591a70f678ea5d48ff956a90661ae669bf1be6d0db"
         },
         "over": {
           "const": false
@@ -196,5 +195,5 @@
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "DVT read-only --export-fraud-drill input. Executor additionally binds derived A7/A12a, pinned guardians/domain, proof mutations, runtime keccak and independently inspected commitment slot."
+  "description": "DVT read-only --export-fraud-drill input. Executor additionally binds derived A7/A12a, pinned guardians/domain, proof mutations, runtime keccak and independently inspected commitment slot. Mock runtime is independently pinned to the 72aca4fa offline rebuild, with immutable owner zero; self-declared hashes are insufficient."
 }
