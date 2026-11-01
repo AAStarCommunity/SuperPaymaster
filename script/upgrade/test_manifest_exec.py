@@ -24,6 +24,31 @@ ART = dict(commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge V
     bytecode='0x60006000f3', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
 
+ART['contracts']['BLSAggregator']['storageLayout'] = dict(storage=[dict(label='proposalSignersCommitment', slot='29', offset=0, type='map')],
+    types={'map':dict(encoding='mapping', key='uint', value='bytes'), 'uint':dict(label='uint256'), 'bytes':dict(label='bytes32')})
+
+
+def fraud_data(p, agg):
+    guardians = sorted(x['validator'] for x in p['guardianInventory'] if x['validator'] != a.ZERO)
+    pid, mask, token = 2**200+123, 7, '0x'+'ab'*20
+    proof = a.cast('abi-encode', 'c(uint256,address,uint8,uint256,address,uint256,address[])',
+                   pid, u.DEPLOYER, 1, 42, token, mask, '['+','.join(guardians)+']')
+    f = dict(toolCommit='b'*40, verifierCommit=m.VERIFIER_COMMIT, aggregator=agg,
+        verifier=a.create_address(u.DEPLOYER, p['senders']['deployer']['nonce']+23), registry=u.REG,
+        domainSeparator=base.HASH, pinBlockHash=p['blockHash'], pid=pid, fraudProofId=1,
+        guiltyGuardians=guardians, fraudProof=proof, signerMask=mask, messageHash=base.HASH,
+        mockToken=dict(address=token, runtime='0x6000', runtimeHash=a.keccak('0x6000'), over=False))
+    f['commitment'] = dict(slot=m.commitment_slot(ART['contracts']['BLSAggregator']['storageLayout'], pid),
+        value=a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,bytes32,uint256,address[])',
+        f['domainSeparator'], a.keccak('SuperPaymaster.BLS.SignersCommitment.v1'), pid,
+        f['messageHash'], mask, '['+','.join(guardians)+']')))
+    digest = a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,address[])', f['domainSeparator'],
+        a.keccak('SuperPaymaster.BLS.FraudProof.v1'), 1, '['+','.join(guardians)+']'))
+    changed = proof[:2+5*64]+format(mask^1,'064x')+proof[2+6*64:]
+    f['invalid'] = dict(N1=dict(guiltyGuardians=guardians[:-1]), N2=dict(over=True),
+        N3=dict(fraudProof=changed), N4=dict(domainDigest='0x'+format(int(digest,16)^1,'064x')))
+    return f
+
 
 def pin():
     p = base.pin()
@@ -137,9 +162,7 @@ class ManifestTests(unittest.TestCase):
                 transaction=dict(step['tx'], hash=txhash, type='0x2', input='0x', blockNumber='0x1', blockHash=base.HASH))
         ci = self.data['releaseEvidence']['dvt-ci']
         self.data['verifier'].update(ciPath=ci['path'], ciSha256=ci['sha256'])
-        self.fraud = dict(dvtCommit=m.VERIFIER_COMMIT, aggregator=self.data['pop'][0]['aggregator'], registry=u.REG,
-            pinBlockHash=self.pin['blockHash'], setup=[], valid=dict(fraudProofId=1, guiltyGuardians=[ANNI], fraudProof='0x1234'),
-            invalid=[dict(fraudProofId=1, guiltyGuardians=[ANNI], fraudProof='0x1235')])
+        self.fraud = fraud_data(self.pin, self.data['pop'][0]['aggregator'])
         self.data['fraudProofFixture'] = file_ref('fraud', self.fraud)
         fixture_artifact = self.data['verifier'].pop('artifact')
         self.real_verifier_artifact = m.verifier_artifact
@@ -875,59 +898,125 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'], 'nonce_gap_no_calldata_0x1')
 
     def test_fraud_fixture_schema_and_binding(self):
-        for mutation in (dict(invalid=[]), dict(invalid=[self.fraud['valid']]), dict(valid={'fraudProofId':1}),
-                         dict(dvtCommit='f'*40), dict(aggregator=ANNI), dict(pinBlockHash=a.ZERO32), dict(registry=ANNI)):
+        mutations = [dict(verifierCommit='f'*40), dict(toolCommit='x'), dict(aggregator=ANNI),
+            dict(verifier=ANNI), dict(pinBlockHash=a.ZERO32), dict(registry=ANNI),
+            dict(guiltyGuardians=list(reversed(self.fraud['guiltyGuardians']))),
+            dict(guiltyGuardians=sorted([ANNI, *self.fraud['guiltyGuardians'][:2]])),
+            dict(commitment=dict(self.fraud['commitment'], slot=a.ZERO32))]
+        mutations += [dict(invalid={k:v for k,v in self.fraud['invalid'].items() if k != n}) for n in ('N1','N2','N3','N4')]
+        for mutation in mutations:
             with self.subTest(mutation=mutation):
                 ref = self.file_ref('bad-fraud', dict(self.fraud, **mutation))
-                with self.assertRaises(a.Gate): m.fraud_fixture(ref, self.pin, self.plan['addresses']['BLSAggregator'])
+                with self.assertRaises(a.Gate):
+                    m.fraud_fixture(ref, self.pin, self.plan['addresses']['BLSAggregator'],
+                        self.plan['addresses']['OverIssueFraudProofVerifier'], ART['contracts']['BLSAggregator']['storageLayout'])
         bad = copy.deepcopy(self.inputs); del bad['data']['fraudProofFixture']
         with self.assertRaises(a.Gate): m.build_plan(self.pin, bad)
 
+    def test_fraud_tool_revision_is_separate(self):
+        ref = self.file_ref('tool-revision', dict(self.fraud, toolCommit='c'*40))
+        self.assertEqual(m.fraud_fixture(ref)['toolCommit'], 'c'*40)
+        self.assertEqual(m.fraud_fixture(ref)['verifierCommit'], m.VERIFIER_COMMIT)
+
+    def test_fraud_mutations_are_exact(self):
+        for name, value in (('N1', dict(guiltyGuardians=self.fraud['guiltyGuardians'])),
+                            ('N2', dict(over=False)), ('N3', dict(fraudProof=self.fraud['fraudProof'])),
+                            ('N3', dict(fraudProof='0x')), ('N4', dict(domainDigest=a.ZERO32))):
+            with self.subTest(name=name, value=value):
+                f = copy.deepcopy(self.fraud); f['invalid'][name] = value
+                with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('bad-mutation', f))
+
+    def test_fraud_runtime_digest_refusal(self):
+        f = copy.deepcopy(self.fraud); f['mockToken']['runtimeHash'] = a.ZERO32
+        with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('bad-runtime', f))
+
+    def test_fraud_layout_changes_slot(self):
+        layout = copy.deepcopy(ART['contracts']['BLSAggregator']['storageLayout'])
+        layout['storage'][0]['slot'] = '30'
+        with self.assertRaises(a.Gate) as caught:
+            m.fraud_fixture(self.data['fraudProofFixture'], layout=layout)
+        self.assertEqual(caught.exception.record['gate'], 'fraud_commitment_slot')
+
+    def test_fraud_layout_must_be_uint_bytes32_mapping(self):
+        for key, value in (('storage', []), ('types', {'map':dict(encoding='inplace')})):
+            layout = copy.deepcopy(ART['contracts']['BLSAggregator']['storageLayout']); layout[key] = value
+            with self.assertRaises(a.Gate): m.commitment_slot(layout, self.fraud['pid'])
+
     def test_fraud_rehearsal_valid_invalid_and_restoration(self):
-        for failure in (None, 'valid', 'invalid', 'event', 'state', 'out-of-gas'):
+        for failure in (None, 'event', 'state', 'slot', 'N1', 'N2', 'N3', 'N4', 'runtime', 'domain', 'id', 'restore'):
             with self.subTest(failure=failure):
-                calls, sent = [], []
-                fixture = copy.deepcopy(self.fraud)
-                fixture['setup'] = [{'from':ANNI, 'to':u.REG, 'data':'0x12345678'}]
-                self.plan['externalInputs']['data']['fraudProofFixture'] = self.file_ref('fraud-setup', fixture)
-                state = {'queued':False}
+                f = self.fraud
+                agg, verifier = f['aggregator'], f['verifier']
+                token = f['mockToken']['address']
+                state = dict(code='0x', commitment=a.ZERO32, over=0, queued=False)
+                snapshots, calls, sent = {}, [], []
+                gh = a.keccak(a.cast('abi-encode', 'c(address[])', '['+','.join(f['guiltyGuardians'])+']'))
                 def rpc(method, params):
                     calls.append((method, params))
-                    if method == 'debug_traceTransaction': return {'error':'out of gas' if failure == 'out-of-gas' else 'execution reverted'}
-                    if method == 'evm_snapshot': return len(calls)
-                    if method == 'evm_revert': state['queued'] = False; return True
+                    if method == 'evm_snapshot':
+                        sid = str(len(calls)); snapshots[sid] = copy.deepcopy(state); return sid
+                    if method == 'evm_revert':
+                        state.update(snapshots.pop(params[0]))
+                        if failure == 'restore' and not snapshots: state['commitment'] = base.HASH
+                        return True
+                    if method.startswith('anvil_set'):
+                        self.assertTrue(snapshots, 'write outside drill snapshot')
+                        if method == 'anvil_setCode': state['code'] = params[1]
+                        elif params[0] == agg: state['commitment'] = a.ZERO32 if failure == 'slot' else params[2]
+                        else: state['over'] = int(params[2],16)
+                        return None
+                    if method == 'debug_traceTransaction':
+                        name = ('valid','N1','N2','N3')[len(sent)-1]
+                        return dict(error='execution reverted', output='0xdeadbeef' if name == failure else a.calldata('InvalidFraudProof(uint256)', 1))
                     raise AssertionError(method)
                 rpc.local = True
-                agg = self.plan['addresses']['BLSAggregator']
-                verifier = self.plan['addresses']['OverIssueFraudProofVerifier']
-                gh = a.keccak(a.cast('abi-encode', 'c(address[])', '['+ANNI+']'))
-                ph = a.keccak(self.fraud['valid']['fraudProof'])
+                def code(rpc, target, block):
+                    if target == token: return state['code']
+                    return '0x6001' if failure == 'runtime' else '0x6000'
+                def call(rpc, target, signature, *args):
+                    if signature == 'domainSeparator()': return a.ZERO32 if failure == 'domain' else f['domainSeparator']
+                    if signature.startswith('slashMessageHash'): return f['messageHash']
+                    if signature.startswith('proposalSignersCommitment'): return state['commitment']
+                    if signature.startswith('guardianSlashCases'):
+                        return a.cast('abi-encode', 'c(uint256,uint256,uint256,uint256)', int(gh,16),
+                            int(a.keccak(f['fraudProof']),16), 123, int(state['queued'] and failure != 'state'))
+                    raise AssertionError(signature)
+                def word(rpc, target, signature, *args):
+                    if signature.startswith('deriveFraudProofId'): return 2 if failure == 'id' else 1
+                    if signature == 'over()': return state['over']
+                    if signature.startswith('verify'):
+                        self.assertFalse(state['queued']); self.assertEqual(state['over'], 0)
+                        self.assertEqual(args[0], f['invalid']['N4']['domainDigest'])
+                        return int(failure == 'N4')
+                    raise AssertionError(signature)
                 def receipt(rpc, tx, status='0x1'):
-                    if tx['to'] == u.REG:
-                        self.assertFalse(sent)
-                        self.assertEqual(tx['data'], '0x12345678')
-                        return dict(status='0x1', logs=[])
-                    sent.append(tx)
-                    valid = len(sent) == 1
-                    if failure == ('valid' if valid else 'invalid'): raise a.Gate('synthetic_status', 'bad', status)
-                    self.assertEqual(status, '0x1' if valid else '0x0')
-                    state['queued'] = valid
-                    log = dict(address=agg, topics=[a.keccak('GuardianSlashJudgmentFrozen(uint256,address,bytes32,bytes32)'),
-                        '0x'+format(1,'064x'), '0x'+verifier[2:].zfill(64)], data=a.cast('abi-encode', 'c(bytes32,bytes32)', ph, gh))
+                    index = len(sent)
+                    self.assertFalse(state['queued'])
+                    self.assertEqual(state['over'], int(index == 2))
+                    self.assertEqual(status, '0x1' if index == 0 else '0x0')
+                    self.assertEqual(tx['to'], agg)
+                    guardians = f['invalid']['N1']['guiltyGuardians'] if index == 1 else f['guiltyGuardians']
+                    payload = f['invalid']['N3']['fraudProof'] if index == 3 else f['fraudProof']
+                    self.assertEqual(tx['data'], a.calldata(m.FRAUD_SIG, 1, '['+','.join(guardians)+']', payload))
+                    sent.append(tx); state['queued'] = index == 0
+                    log = dict(address=agg, topics=[a.keccak('GuardianSlashQueued(uint256,bytes32,uint256,address[])'), '0x'+format(1,'064x')],
+                        data=a.cast('abi-encode', 'c(bytes32,uint256,address[])', gh, 123, '['+','.join(guardians)+']'))
                     return dict(status=status, transactionHash=base.HASH, logs=[] if failure == 'event' else [log])
-                def call(*args):
-                    values = [int(gh,16), int(ph,16), 0, int(state['queued'] and failure != 'state')]
-                    return a.cast('abi-encode', 'c(uint256,uint256,uint256,uint256)', *values)
                 with patch.object(u, 'fixture_tx', side_effect=lambda rpc,sender,target,data:dict(to=target,data=data)), \
-                     patch.object(u, 'receipt', side_effect=receipt), patch.object(a, 'address', return_value=verifier), \
+                     patch.object(u, 'receipt', side_effect=receipt), patch.object(u, 'code', side_effect=code), \
+                     patch.object(a, 'address', return_value=verifier), patch.object(a, 'word', side_effect=word), \
                      patch.object(a, 'call', side_effect=call):
                     if failure:
                         with self.assertRaises(a.Gate): m.fraud_rehearsal(rpc, self.plan)
                     else:
                         result = m.fraud_rehearsal(rpc, self.plan)
-                        self.assertEqual(len(result['proofs']), 2)
-                        self.assertTrue(all(tx['to'] == agg and tx['data'].startswith(a.keccak(m.FRAUD_SIG)[:10]) for tx in sent))
-                self.assertEqual(calls[-1], ('evm_revert', [1]))
+                        self.assertEqual(len(result['proofs']), 5)
+                        self.assertEqual(len(result['storageWrites']), 3)
+                        self.assertEqual(result['mainReadback'], dict(before=a.ZERO32, after=a.ZERO32))
+                        self.assertEqual(len({x['snapshotId'] for x in result['proofs']}), 5)
+                        self.assertTrue(all(x['revertSelector'] == a.keccak('InvalidFraudProof(uint256)')[:10] for x in result['proofs'][1:4]))
+                self.assertFalse(snapshots)
+                self.assertEqual(state['code'], '0x')
                 self.assertFalse(state['queued'])
 
     def test_sign_send_refused(self):

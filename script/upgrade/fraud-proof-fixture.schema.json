@@ -2,19 +2,36 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "dvtCommit",
+    "toolCommit",
+    "verifierCommit",
     "aggregator",
+    "verifier",
     "registry",
+    "domainSeparator",
     "pinBlockHash",
-    "valid",
-    "invalid",
-    "setup"
+    "pid",
+    "fraudProofId",
+    "guiltyGuardians",
+    "fraudProof",
+    "signerMask",
+    "messageHash",
+    "mockToken",
+    "commitment",
+    "invalid"
   ],
   "properties": {
-    "dvtCommit": {
+    "toolCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "verifierCommit": {
       "const": "72aca4fa0ba4aaa8c8a96210b1124534431294d6"
     },
     "aggregator": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{40}$"
+    },
+    "verifier": {
       "type": "string",
       "pattern": "^0x[0-9a-f]{40}$"
     },
@@ -22,97 +39,162 @@
       "type": "string",
       "pattern": "^0x[0-9a-f]{40}$"
     },
+    "domainSeparator": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{64}$"
+    },
     "pinBlockHash": {
       "type": "string",
       "pattern": "^0x[0-9a-f]{64}$"
     },
-    "valid": {
+    "pid": {
+      "type": "integer",
+      "minimum": 340282366920938463463374607431768211456,
+      "maximum": 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    },
+    "fraudProofId": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    },
+    "guiltyGuardians": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^0x[0-9a-f]{40}$"
+      }
+    },
+    "fraudProof": {
+      "type": "string",
+      "pattern": "^0x([0-9a-fA-F]{2})+$"
+    },
+    "signerMask": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    },
+    "messageHash": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{64}$"
+    },
+    "mockToken": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "fraudProofId",
-        "guiltyGuardians",
-        "fraudProof"
+        "address",
+        "runtime",
+        "runtimeHash",
+        "over"
       ],
       "properties": {
-        "fraudProofId": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 115792089237316195423570985008687907853269984665640564039457584007913129639935
-        },
-        "guiltyGuardians": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "pattern": "^0x[0-9a-f]{40}$"
-          }
-        },
-        "fraudProof": {
+        "address": {
           "type": "string",
-          "pattern": "^0x([0-9a-fA-F]{2})*$"
+          "pattern": "^0x[0-9a-f]{40}$"
+        },
+        "runtime": {
+          "type": "string",
+          "pattern": "^0x([0-9a-fA-F]{2})+$"
+        },
+        "runtimeHash": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{64}$"
+        },
+        "over": {
+          "const": false
+        }
+      }
+    },
+    "commitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "value"
+      ],
+      "properties": {
+        "slot": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{64}$"
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{64}$"
         }
       }
     },
     "invalid": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "fraudProofId",
-          "guiltyGuardians",
-          "fraudProof"
-        ],
-        "properties": {
-          "fraudProofId": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 115792089237316195423570985008687907853269984665640564039457584007913129639935
-          },
-          "guiltyGuardians": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-              "type": "string",
-              "pattern": "^0x[0-9a-f]{40}$"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "N1",
+        "N2",
+        "N3",
+        "N4"
+      ],
+      "properties": {
+        "N1": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "guiltyGuardians"
+          ],
+          "properties": {
+            "guiltyGuardians": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^0x[0-9a-f]{40}$"
+              }
             }
-          },
-          "fraudProof": {
-            "type": "string",
-            "pattern": "^0x([0-9a-fA-F]{2})*$"
           }
-        }
-      }
-    },
-    "setup": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "from",
-          "to",
-          "data"
-        ],
-        "properties": {
-          "from": {
-            "type": "string",
-            "pattern": "^0x[0-9a-f]{40}$"
-          },
-          "to": {
-            "type": "string",
-            "pattern": "^0x[0-9a-f]{40}$"
-          },
-          "data": {
-            "type": "string",
-            "pattern": "^0x([0-9a-fA-F]{2})*$"
+        },
+        "N2": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "over"
+          ],
+          "properties": {
+            "over": {
+              "const": true
+            }
+          }
+        },
+        "N3": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fraudProof"
+          ],
+          "properties": {
+            "fraudProof": {
+              "type": "string",
+              "pattern": "^0x([0-9a-fA-F]{2})+$"
+            }
+          }
+        },
+        "N4": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "domainDigest"
+          ],
+          "properties": {
+            "domainDigest": {
+              "type": "string",
+              "pattern": "^0x[0-9a-f]{64}$"
+            }
           }
         }
       }
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "DVT post-pin input. Executor additionally binds pin, A7, Registry and digest, and requires distinct tampered variants."
+  "description": "DVT read-only --export-fraud-drill input. Executor additionally binds derived A7/A12a, pinned guardians/domain, proof mutations, runtime keccak and independently inspected commitment slot."
 }

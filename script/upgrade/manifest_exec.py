@@ -5,6 +5,8 @@ sys.dont_write_bytecode = True
 import argparse
 import copy
 import hashlib
+import os
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 import subprocess
@@ -99,69 +101,165 @@ def evidence_file(ref, kind, commit=None):
     return e
 
 
-def fraud_fixture(ref, pin=None, aggregator=None):
+def commitment_slot(layout, pid):
+    entries = [x for x in layout.get('storage', []) if x['label'] == 'proposalSignersCommitment']
+    a.need('fraud_layout_entry', len(entries), 1)
+    entry = entries[0]
+    typ = layout['types'][entry['type']]
+    a.need('fraud_layout_mapping', typ['encoding'], 'mapping')
+    a.need('fraud_layout_key', layout['types'][typ['key']]['label'], 'uint256')
+    a.need('fraud_layout_value', layout['types'][typ['value']]['label'], 'bytes32')
+    a.need('fraud_layout_offset', entry['offset'], 0)
+    return a.keccak(a.cast('abi-encode', 'c(uint256,uint256)', pid, int(entry['slot'])))
+
+
+def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     required(ref, ('path', 'sha256'), 'fraud_fixture_required')
     f = reviewed_file(ref['path'], ref['sha256'], 'fraud_fixture')
-    a.exact_keys('fraud_fixture_fields', f, ('dvtCommit', 'aggregator', 'registry', 'pinBlockHash', 'valid', 'invalid', 'setup'))
-    a.need('fraud_dvt_commit', f['dvtCommit'], VERIFIER_COMMIT)
+    a.exact_keys('fraud_fixture_fields', f, ('toolCommit', 'verifierCommit', 'aggregator', 'verifier',
+        'registry', 'domainSeparator', 'pinBlockHash', 'pid', 'fraudProofId', 'guiltyGuardians',
+        'fraudProof', 'signerMask', 'messageHash', 'mockToken', 'commitment', 'invalid'))
+    a.need('fraud_tool_commit', isinstance(f['toolCommit'], str) and len(f['toolCommit']) == 40 and
+           all(c in '0123456789abcdef' for c in f['toolCommit']), True)
+    a.need('fraud_verifier_commit', f['verifierCommit'], VERIFIER_COMMIT)
     a.need('fraud_registry', f['registry'], u.REG)
-    a.typed(f['aggregator'], a.ADDRESS_RX)
-    a.typed(f['pinBlockHash'], a.HASH32)
+    for key in ('aggregator', 'verifier'): a.typed(f[key], a.ADDRESS_RX)
+    for key in ('pinBlockHash', 'domainSeparator', 'messageHash'): a.typed(f[key], a.HASH32)
+    for key in ('pid', 'fraudProofId', 'signerMask'):
+        a.need('fraud_uint_'+key, type(f[key]) is int and 0 < f[key] < 2**256, True)
+    a.need('fraud_large_pid', f['pid'] >= 2**128, True)
+    guardians = f['guiltyGuardians']
+    a.need('fraud_guardians', isinstance(guardians, list) and len(guardians) == 3, True)
+    for who in guardians: a.typed(who, a.ADDRESS_RX)
+    a.need('fraud_guardians_sorted', guardians, sorted(set(guardians)))
     if pin is not None:
         a.need('fraud_pin', f['pinBlockHash'], pin['blockHash'])
         a.need('fraud_aggregator', f['aggregator'], aggregator)
-    a.need('fraud_invalid_required', isinstance(f['invalid'], list) and bool(f['invalid']), True)
-    for proof in [f['valid'], *f['invalid']]:
-        a.exact_keys('fraud_proof_fields', proof, ('fraudProofId', 'guiltyGuardians', 'fraudProof'))
-        a.need('fraud_id', type(proof['fraudProofId']) is int and 0 < proof['fraudProofId'] < 2**256, True)
-        a.need('fraud_guardians', isinstance(proof['guiltyGuardians'], list) and bool(proof['guiltyGuardians']), True)
-        for who in proof['guiltyGuardians']:
-            a.typed(who, a.ADDRESS_RX)
-        a.typed(proof['fraudProof'], a.HEXDATA)
-    a.need('fraud_tampered', all(x != f['valid'] for x in f['invalid']), True)
-    a.need('fraud_setup', isinstance(f['setup'], list), True)
-    for tx in f['setup']:
-        a.exact_keys('fraud_setup_fields', tx, ('from', 'to', 'data'))
-        for key in ('from', 'to'):
-            a.typed(tx[key], a.ADDRESS_RX)
-        a.typed(tx['data'], a.HEXDATA)
+        a.need('fraud_guardians_pinned', guardians,
+               sorted(x['validator'] for x in pin['guardianInventory'] if x['validator'] != a.ZERO))
+    if verifier is not None: a.need('fraud_verifier', f['verifier'], verifier)
+    a.typed(f['fraudProof'], a.HEXDATA)
+    a.exact_keys('fraud_token_fields', f['mockToken'], ('address', 'runtime', 'runtimeHash', 'over'))
+    a.typed(f['mockToken']['address'], a.ADDRESS_RX)
+    words = u.uints(f['fraudProof'])
+    a.need('fraud_proof_encoding', len(words), 11)
+    a.need('fraud_proof_fields', [words[0], words[4], words[5], words[6], words[7], *words[8:]],
+           [f['pid'], int(f['mockToken']['address'], 16), f['signerMask'], 224, 3, *[int(x,16) for x in guardians]])
+    token = f['mockToken']
+    a.exact_keys('fraud_token_fields', token, ('address', 'runtime', 'runtimeHash', 'over'))
+    a.typed(token['address'], a.ADDRESS_RX)
+    a.need('fraud_token_distinct', token['address'] not in (f['aggregator'], f['verifier'], u.REG, u.SP), True)
+    a.typed(token['runtime'], a.HEXDATA)
+    a.need('fraud_token_runtime', token['runtime'] != '0x', True)
+    a.need('fraud_token_hash', token['runtimeHash'], a.keccak(token['runtime']))
+    a.need('fraud_token_over', token['over'] is False, True)
+    a.exact_keys('fraud_commitment_fields', f['commitment'], ('slot', 'value'))
+    for value in f['commitment'].values(): a.typed(value, a.HASH32)
+    if layout is not None:
+        a.need('fraud_commitment_slot', f['commitment']['slot'], commitment_slot(layout, f['pid']))
+    expected = a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,bytes32,uint256,address[])',
+        f['domainSeparator'], a.keccak('SuperPaymaster.BLS.SignersCommitment.v1'), f['pid'],
+        f['messageHash'], f['signerMask'], '['+','.join(guardians)+']'))
+    a.need('fraud_commitment_value', f['commitment']['value'], expected)
+    a.exact_keys('fraud_invalid_cases', f['invalid'], ('N1', 'N2', 'N3', 'N4'))
+    n = f['invalid']
+    a.exact_keys('fraud_N1_fields', n['N1'], ('guiltyGuardians',))
+    a.need('fraud_N1_subset', n['N1']['guiltyGuardians'] in [guardians[:i]+guardians[i+1:] for i in range(3)], True)
+    a.exact_keys('fraud_N2_fields', n['N2'], ('over',))
+    a.need('fraud_N2_over', n['N2']['over'] is True, True)
+    a.exact_keys('fraud_N3_fields', n['N3'], ('fraudProof',))
+    a.typed(n['N3']['fraudProof'], a.HEXDATA)
+    changed = u.uints(n['N3']['fraudProof'])
+    a.need('fraud_N3_only_mask', changed[:5]+changed[6:], words[:5]+words[6:])
+    a.need('fraud_N3_length', len(changed), len(words))
+    delta = changed[5] ^ words[5]
+    a.need('fraud_N3_one_bit', delta > 0 and delta & (delta-1) == 0, True)
+    a.exact_keys('fraud_N4_fields', n['N4'], ('domainDigest',))
+    a.typed(n['N4']['domainDigest'], a.HASH32)
+    digest = a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,address[])', f['domainSeparator'],
+        a.keccak('SuperPaymaster.BLS.FraudProof.v1'), f['fraudProofId'], '['+','.join(guardians)+']'))
+    delta = int(digest,16) ^ int(n['N4']['domainDigest'],16)
+    a.need('fraud_N4_one_bit', delta > 0 and delta & (delta-1) == 0, True)
     return f
 
 
 def fraud_rehearsal(rpc, plan):
     a.need('fraud_local_only', getattr(rpc, 'local', False), True)
-    agg = plan['addresses']['BLSAggregator']
-    f = fraud_fixture(plan['externalInputs']['data']['fraudProofFixture'], plan['pin'], agg)
+    agg, verifier = (plan['addresses'][k] for k in ('BLSAggregator', 'OverIssueFraudProofVerifier'))
+    f = fraud_fixture(plan['externalInputs']['data']['fraudProofFixture'], plan['pin'], agg, verifier,
+                      plan['rebuild']['contracts']['BLSAggregator']['storageLayout'])
+    runtime_hashes = {}
+    for sid, target in (('A7', agg), ('A12a', verifier)):
+        check = next(s for s in plan['steps'] if s['id'] == sid)['readbacks'][0]
+        expected = check['expected'] if isinstance(check['expected'], list) else [check['expected']]
+        actual = a.keccak(u.code(rpc, target, 'latest'))
+        a.need('fraud_runtime_'+sid, actual in [a.keccak(x) for x in expected], True)
+        runtime_hashes[sid] = actual
+    a.need('fraud_active_verifier', a.address(rpc, agg, 'fraudProofVerifier()'), verifier)
+    a.need('fraud_domain', a.call(rpc, agg, 'domainSeparator()'), f['domainSeparator'])
+    a.need('fraud_derived_id', a.word(rpc, verifier, 'deriveFraudProofId(uint256)', f['pid']), f['fraudProofId'])
+    words = u.uints(f['fraudProof'])
+    a.need('fraud_message_hash', a.call(rpc, verifier, 'slashMessageHash(uint256,address,uint8,uint256,address)',
+        f['pid'], u.addr_word(words[1]), words[2], words[3], f['mockToken']['address']), f['messageHash'])
+    before = a.call(rpc, agg, 'proposalSignersCommitment(uint256)', f['pid'])
+    a.need('fraud_unused_pid', before, a.ZERO32)
+    a.need('fraud_unused_case', u.uints(a.call(rpc, agg, 'guardianSlashCases(uint256)', f['fraudProofId']))[3], 0)
+    token = f['mockToken']['address']
+    a.need('fraud_unused_token', u.code(rpc, token, 'latest'), '0x')
     outer = rpc('evm_snapshot', [])
-    records = []
+    records, writes = [], []
+    def write(target, slot, value, case):
+        rpc('anvil_setStorageAt', [target, slot, value])
+        writes.append(dict(address=target, slot=slot, value=value, case=case))
     try:
-        for tx in f['setup']:
-            u.receipt(rpc, u.fixture_tx(rpc, tx['from'], tx['to'], tx['data']))
-        a.need('fraud_active_verifier', a.address(rpc, agg, 'fraudProofVerifier()'), plan['addresses']['OverIssueFraudProofVerifier'])
-        for index, proof in enumerate([f['valid'], *f['invalid']]):
+        rpc('anvil_setCode', [token, f['mockToken']['runtime']])
+        a.need('fraud_mock_code_readback', u.code(rpc, token, 'latest'), f['mockToken']['runtime'])
+        write(token, a.ZERO32, a.ZERO32, 'setup')  # MockOverIssuableToken.over: slot 0 at 72aca4fa.
+        write(agg, f['commitment']['slot'], f['commitment']['value'], 'setup')
+        a.need('fraud_commitment_readback', a.call(rpc, agg, 'proposalSignersCommitment(uint256)', f['pid']), f['commitment']['value'])
+        a.need('fraud_over_readback', a.word(rpc, token, 'over()'), 0)
+        for name in ('valid', 'N1', 'N2', 'N3', 'N4'):
             snap = rpc('evm_snapshot', [])
             try:
-                pid, guardians, payload = proof['fraudProofId'], proof['guiltyGuardians'], proof['fraudProof']
-                a.need('fraud_case_fresh', u.uints(a.call(rpc, agg, 'guardianSlashCases(uint256)', pid))[3], 0)
-                tx = u.fixture_tx(rpc, u.DEPLOYER, agg, a.calldata(FRAUD_SIG, pid, '['+','.join(guardians)+']', payload))
-                receipt = u.receipt(rpc, tx, status='0x1' if index == 0 else '0x0')
-                if index == 0:
-                    case = u.uints(a.call(rpc, agg, 'guardianSlashCases(uint256)', pid))
-                    gh = a.keccak(a.cast('abi-encode', 'c(address[])', '['+','.join(guardians)+']'))
-                    a.need('fraud_frozen_state', case[:2]+[case[3]], [int(gh, 16), int(a.keccak(payload), 16), 1])
-                    expected = dict(address=agg, topics=[a.keccak('GuardianSlashJudgmentFrozen(uint256,address,bytes32,bytes32)'),
-                        '0x'+format(pid, '064x'), '0x'+plan['addresses']['OverIssueFraudProofVerifier'][2:].zfill(64)],
-                        data=a.cast('abi-encode', 'c(bytes32,bytes32)', a.keccak(payload), gh))
-                    a.need('fraud_frozen_event', any(all(log.get(k) == v for k,v in expected.items()) for log in receipt['logs']), True)
+                guardians = f['invalid']['N1']['guiltyGuardians'] if name == 'N1' else f['guiltyGuardians']
+                payload = f['invalid']['N3']['fraudProof'] if name == 'N3' else f['fraudProof']
+                args = (f['fraudProofId'], '['+','.join(guardians)+']', payload)
+                if name == 'N2':
+                    write(token, a.ZERO32, '0x'+format(1,'064x'), name)
+                    a.need('fraud_N2_readback', a.word(rpc, token, 'over()'), 1)
+                if name == 'N4':
+                    a.need('fraud_N4_false', a.word(rpc, verifier, 'verify(bytes32,uint256,address[],bytes)',
+                           f['invalid']['N4']['domainDigest'], *args), 0)
+                    record = dict(result=False)
                 else:
-                    trace = rpc('debug_traceTransaction', [receipt['transactionHash'], {'tracer': 'callTracer'}])
-                    a.need('fraud_invalid_reverted', isinstance(trace, dict) and 'revert' in str(trace.get('error', '')).lower(), True)
-                records.append(dict(valid=index == 0, receipt=receipt))
+                    tx = u.fixture_tx(rpc, u.DEPLOYER, agg, a.calldata(FRAUD_SIG, *args))
+                    receipt = u.receipt(rpc, tx, status='0x1' if name == 'valid' else '0x0')
+                    record = dict(receipt=receipt)
+                    if name == 'valid':
+                        case = u.uints(a.call(rpc, agg, 'guardianSlashCases(uint256)', f['fraudProofId']))
+                        gh = a.keccak(a.cast('abi-encode', 'c(address[])', args[1]))
+                        a.need('fraud_frozen_state', case[:2]+[case[3]], [int(gh,16), int(a.keccak(payload),16), 1])
+                        expected = dict(address=agg, topics=[a.keccak('GuardianSlashQueued(uint256,bytes32,uint256,address[])'),
+                            '0x'+format(f['fraudProofId'],'064x')],
+                            data=a.cast('abi-encode', 'c(bytes32,uint256,address[])', gh, case[2], args[1]))
+                        a.need('fraud_queued_event', any(all(log.get(k) == v for k,v in expected.items()) for log in receipt['logs']), True)
+                    else:
+                        trace = rpc('debug_traceTransaction', [receipt['transactionHash'], {'tracer':'callTracer'}])
+                        expected = a.calldata('InvalidFraudProof(uint256)', f['fraudProofId'])
+                        a.need('fraud_revert_'+name, trace.get('output', '').lower(), expected)
+                        record['revertSelector'] = expected[:10]
+                records.append(dict(name=name, snapshotId=snap, **record))
             finally:
                 a.need('fraud_variant_restore', rpc('evm_revert', [snap]), True)
     finally:
         a.need('fraud_restore', rpc('evm_revert', [outer]), True)
-    return dict(fixtureSha256=plan['externalInputs']['data']['fraudProofFixture']['sha256'], proofs=records, restored=True)
+        restored = a.call(rpc, agg, 'proposalSignersCommitment(uint256)', f['pid'])
+        a.need('fraud_main_readback', restored, before)
+        a.need('fraud_token_restored', u.code(rpc, token, 'latest'), '0x')
+    return dict(fixtureSha256=plan['externalInputs']['data']['fraudProofFixture']['sha256'],
+        toolCommit=f['toolCommit'], verifierCommit=f['verifierCommit'], snapshotId=outer,
+        runtimeHashes=runtime_hashes, codeWrites=[dict(address=token, runtime=f['mockToken']['runtime'], runtimeHash=f['mockToken']['runtimeHash'])],
+        storageWrites=writes, proofs=records, mainReadback=dict(before=before, after=restored), restored=True)
 
 
 def external(path):
@@ -227,6 +325,19 @@ def rebuild():
     version = subprocess.run([str(a.REBUILD_FORGE), '--version'], capture_output=True, text=True, check=True).stdout
     a.need('forge_version', version.splitlines()[0], 'forge Version: 1.7.1')
     arts, cfg = a.compile_commit(head, version, NAMES, tuple(IMMUTABLES.items()))
+    # Inspect the same committed source/configuration in an isolated build tree.
+    with tempfile.TemporaryDirectory(prefix='manifest-layout-') as directory:
+        tree = Path(directory)/'tree'
+        a.archive_commit(u.ROOT, head, tree)
+        env = {k: os.environ[k] for k in ('HOME', 'PATH', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SVM_HOME') if k in os.environ}
+        env['FOUNDRY_PROFILE'] = 'default'
+        result = subprocess.run([str(a.REBUILD_FORGE), 'inspect', 'BLSAggregator', 'storage-layout', '--offline', '--json'],
+            cwd=tree, env=env, capture_output=True, text=True)
+        a.need('fraud_layout_inspect', result.returncode, 0)
+        layout = a.plan_json(result.stdout)
+        a.need('fraud_layout_build_parity', commitment_slot(layout, 1),
+               commitment_slot(arts['BLSAggregator']['storageLayout'], 1))
+        arts['BLSAggregator']['storageLayout'] = layout
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
     a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
     return dict(commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
@@ -593,7 +704,6 @@ def build_plan(pin, inputs=None):
     inventory = pin['guardianInventory']
     a.need('guardian_slots', [x['slot'] for x in inventory], list(range(1, 14)))
     a.need('guardian_inventory', {(x['validator'], x['slot']) for x in inventory if x['validator'] != a.ZERO}, {(x['validator'], x['slot']) for x in d['pop']})
-    fraud_fixture(d['fraudProofFixture'], pin, agg)
     a.need('pop_count', len(d['pop']), 3)
     for i, pop in enumerate(d['pop']):
         a.need('pop_aggregator', pop['aggregator'], agg)
@@ -607,6 +717,7 @@ def build_plan(pin, inputs=None):
     verifier = deploy('A12a', 'OverIssueFraudProofVerifier', 'c(address,address)', (agg, u.REG),
         {'AGGREGATOR': int(agg, 16), 'REGISTRY': int(u.REG, 16)})
     steps[-1]['readbacks'] += [address_pred(verifier, 'AGGREGATOR()', agg), address_pred(verifier, 'REGISTRY()', u.REG), address_pred(agg, 'REGISTRY()', u.REG)]
+    fraud_fixture(d['fraudProofFixture'], pin, agg, verifier, arts['contracts']['BLSAggregator']['storageLayout'])
     call('A12b', agg, 'proposeFraudProofVerifier(address)', (verifier,),
         [address_pred(agg, 'pendingFraudProofVerifier()', verifier),
          dict(kind='eta', target=agg, signature='pendingFraudProofVerifierReadyAt()', delay=4*DAY)])
