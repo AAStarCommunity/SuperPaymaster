@@ -341,3 +341,139 @@ the control therefore also requires `0 < innerHandleOp.gasUsed - E < 20,000`
 (the frame also covers the post-penalty tail). It exits nonzero for missing or
 reverted traces, unsent attempts, live/archive mismatches, a bounded width other than
 one, or a tail outside that range. No keys or transactions are used by this script.
+
+## Formal collector — slice 1 (offline-tested, not an A6 acceptance)
+
+`collector.mjs --formal` selects the formal runtime in `formal.mjs`. The default
+local command and its development setup remain available unchanged. The formal
+path does not import the development key module or run its setup. This slice was
+tested with mocked transports and synthetic test signers only; no public-network
+transaction or real keystore was used.
+
+Command shape for a later authorized window (not executed in slice 1):
+
+```sh
+pnpm exec node script/a6-collector/collector.mjs --formal \
+  --rpc-a-file /private/path/rpc-a.url --rpc-b-file /private/path/rpc-b.url \
+  --formal-config /path/to/frozen-public-config.json \
+  --config /path/to/public-deployment.json --baselines /path/to/public-baselines.json \
+  --count 50 --b-max 1 --out /path/to/new-run.jsonl
+```
+
+Each URL file contains one HTTP(S) URL. URL values, hosts and credentials are not
+printed or written into JSONL; `rpc-a.invalid` / `rpc-b.invalid` are redacted labels,
+not independence evidence. Localhost/loopback and identical normalized host/port
+pairs are refused. Different hosts still do not prove backend independence.
+Development RPC methods are blocked at the transport, including direct `request`
+calls. State reads require fixed numeric block tags; the public-client adapter
+supplies the current A/B-verified pin to calls without an explicit block number.
+
+The public formal config has these fields (addresses below describe fields, not
+usable example accounts):
+
+- `chainId`: target chain ID as an integer.
+- `frozen: true`: explicitly acknowledges that the supplied gas values are frozen.
+  This does not implement or authenticate the later freeze manifest.
+- `operator`, `sender`: full addresses. `sender` must equal the factory's
+  counterfactual `getAddress(owner, salt)` result on A/B.
+- `factory`: optional full address, default
+  `0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985`; `salt`: decimal string.
+- `accounts.owner`, `accounts.bundler`, `accounts.verifyingSigner`: each
+  `{ "name": "foundry-keystore-account-name", "address": "0x…" }`.
+  Owner and bundler must have different names and addresses; the bundler must
+  differ from the operator. VPM's configured signer is checked at the start pin.
+- `task`: `{ "token": "0x…", "recipient": "0x…" }`. The amount is exactly `1`
+  token base unit, encoded as `execute(T, 0, transfer(R, 1))`. An optional `callData`
+  must match that encoding exactly. The sender must hold at least 300 base units
+  and R at least one; the task token must differ from the sponsorship tokens.
+- `fees`: `{ "maxFeePerGas": "5000000000", "maxPriorityFeePerGas": "1000000000" }`.
+  Other values are refused. The same fees also cap the bundler transaction.
+- `gas.SP`, `gas.VPM`, `gas.TPM`: each contains positive decimal-string
+  `callGasLimit`, `verificationGasLimit`, `paymasterVerificationGasLimit`,
+  `paymasterPostOpGasLimit`, and `preVerificationGas`. No pilot values are supplied
+  by this slice. SP post gas must be at least 480000 and at least the start
+  Passport's on-chain `minPostOpGas`.
+- `bundlerGasLimit`: positive decimal string for the outer transaction gas limit.
+
+Keep all config files public-only; do not include private keys, passwords or URLs
+in them. The formal baseline file provides the existing VPM/TPM address/ABI/token
+fields, without the local `signerKey`. Foundry performs digest signing via
+`cast wallet sign --account NAME --no-hash DIGEST`; the collector verifies the
+recovered address, serializes the transaction with viem, and submits it through
+archived RPC A. The collector does not open keystore/password files. Tests can
+inject `createSigner(configAccount, role)` into `formalRuntime`; it returns a viem
+local account implementing `signMessage` and `signTransaction`.
+
+An absent SimpleAccount is created through the configured factory using the
+bundler EOA, then its code, owner and counterfactual address are checked again.
+Existing accounts are also checked. Funding, eligibility, allowances, task token
+provenance and factory/implementation rebuild evidence remain Phase C/window
+prerequisites; this path does not mint or top up during sampling.
+
+Triples rotate SP→VPM→TPM, VPM→TPM→SP, TPM→SP→VPM using the zero-based attempted
+triple index, including unmatched triples. The order is recorded on attempts and
+in the end summary. A base fee above 5 gwei records an unsent attempt with
+`reason` and `failingCheck` equal to `basefee_above_cap`, no transaction/receipt,
+and the observed fee block. Collection stops with `BASEFEE_PAUSED` / exit 10;
+it does not retry in a tight loop or raise the cap. Retain the partial run and
+use a new output file when resuming after the base fee falls.
+
+Two exclusive-create, append-only files accompany the JSONL:
+`<out>.rpc-A.ndjson` and `<out>.rpc-B.ndjson`. Every actual JSON-RPC request is
+archived, including pin lookups, signing preparation, submissions, errors and
+malformed responses. `requestBase64` and `responseBase64` preserve exact JSON-RPC
+body bytes before parsing; `method`, `params`, UTC request/response times, HTTP
+status and block anchors are also recorded. A transport failure has a null
+response and a redacted error. Fixed-block reads fetch/check the block hash before
+and after the call; a changed previously observed hash aborts collection.
+JSONL `rpcArchiveRefs.A/B` contain the newly appended record IDs since the previous
+JSONL row. These stream references are not the deferred per-operation index.
+
+TODOs from **A6-SOP “SP TODO before formal A6”** remain explicit:
+
+- §2: RPC operator/backend identity registry and independent verification.
+- §4: complete per-operation evidence index and exclusion validation in
+  `validate.mjs` (including replacement links).
+- §5–§6: freeze/sampling manifest and DSR independent re-fetch/acceptance.
+
+`protocolConformant` remains false for slice 1. `validate.mjs` is intentionally
+unchanged: its current common-gas Passport schema and NOT_SENT reason whitelist
+have not yet been extended to the new formal per-arm gas shape and fee pause.
+Do not treat a slice-1 JSONL as validator-accepted formal evidence. The collector
+also retains the existing strict isolated-block/consecutive-state checks; busy
+remote blocks may stop a window. A3a go, A4 completion and all other SOP opening
+and acceptance requirements remain prerequisites, not claims made by this code.
+
+Offline verification:
+
+```sh
+pnpm exec node --test script/a6-collector/*.test.mjs
+```
+
+### Formal slice 2 evidence contract
+
+See [EVIDENCE-INDEX.md](EVIDENCE-INDEX.md) and
+[evidence-index.schema.json](evidence-index.schema.json) for the versioned DSR interface.
+Use a fresh window directory; `--out <window>/run.jsonl` defines its root.
+Formal collection additionally requires `--rpc-registry <registry.json>` (shape in
+[rpc-identity.example.json](rpc-identity.example.json)) and `--pins <pins.json>`.
+The example is deliberately invalid until actual evidence paths and hashes are supplied.
+Pins JSON contains nonempty arrays of `{path,sha256}` for collector, validator,
+dependencies, contractSources, abi and config. Input paths resolve against the working
+directory and are recorded as absolute paths. Pin all used files, including dependency
+lockfiles and contract/ABI inventories. Identity evidence must map the public labels to
+the actual service/backend without credentials; different strings are not proof of independence.
+
+The collector archives raw A/B bodies under `raw/{A|B}/YYYYMMDD.ndjson`, saves Passports,
+and appends final attempt indexes after run_end. A crash before finalization leaves an
+incomplete package; never relabel it as complete. Failed/paused windows retain evidence.
+After the validator output and DSR sampling artifact are ready, run:
+
+```sh
+node script/a6-collector/freeze.mjs <window> --sampling <DSR-seed-list-command-file>
+```
+
+This command performs no RPC requests or signing. It refuses repeat freezes, includes
+hidden regular files, rejects symlinks and saves both manifest and manifest digest.
+DSR owns sampling selection, pre-submission and independent chain re-fetch. No formal
+run, real key use, or broadcast is implied by these offline tooling changes.

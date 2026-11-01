@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "a6-rpc-identity/1",
+  "A": {
+    "operatorName": "REPLACE operator A",
+    "backendIdentity": "REPLACE backend A",
+    "upstream": "REPLACE upstream A",
+    "endpointLabel": "registered-A",
+    "registeredAt": "2026-11-01T00:00:00.000Z",
+    "evidence": [{"path": "REPLACE-with-service-or-node-evidence-A", "sha256": "REPLACE-with-file-SHA-256"}]
+  },
+  "B": {
+    "operatorName": "REPLACE operator B",
+    "backendIdentity": "REPLACE backend B",
+    "upstream": "REPLACE upstream B",
+    "endpointLabel": "registered-B",
+    "registeredAt": "2026-11-01T00:00:00.000Z",
+    "evidence": [{"path": "REPLACE-with-service-or-node-evidence-B", "sha256": "REPLACE-with-file-SHA-256"}]
+  }
+}
