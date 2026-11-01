@@ -1,7 +1,7 @@
 import { artifactErrors } from './artifact-validate.mjs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { EXCLUSION_REASONS, armCounts, exclusionReason } from './evidence.mjs';
+import { EXCLUSION_REASONS, armCounts, exclusionReason, replacementReason } from './evidence.mjs';
 const equal = (a,b) => JSON.stringify(a) === JSON.stringify(b);
 const schema = JSON.parse(readFileSync(new URL('./evidence-index.schema.json', import.meta.url)));
 function conforms(v,s) {
@@ -94,15 +94,16 @@ export function windowErrors(rows, trailer, journal = null) {
     if ((journal[0].rehearsal === true) !== (trailer.rehearsal === true) || (journal.at(-1).rehearsal === true) !== (trailer.rehearsal === true)) fail('rehearsal marker mismatch');
     const attempts=journal.filter(r=>r.kind==='attempt'), end=journal.at(-1);
     if (attempts.length !== rows.length) fail('index does not retain every journal attempt');
+    // Preflight labels are bound to raw archives by artifactErrors; this pass checks structure.
     for (let i=0;i<attempts.length;i++) {
       const a=attempts[i], r=rows[i];
-      try { if (exclusionReason(a)!==r?.exclusionReason) fail('unsupported exclusion reason: index/journal mismatch'); } catch(e) { fail(e.message); }
+      try { if ((!a.preflight || a.verdict==='USEROP_SUCCESS') && exclusionReason(a)!==r?.exclusionReason) fail('unsupported exclusion reason: index/journal mismatch'); } catch(e) { fail(e.message); }
       if (!r || a.attemptIndex !== r.attempt || a.tripletIndex !== r.tripleIndex || a.arm !== r.arm || a.verdict !== r.verdict || (a.stoppedBy?.reason ?? null) !== r.stopReason) fail('index/journal attempt mismatch');
     }
     for (const edge of trailer.replacements) {
       const abandoned=attempts.filter(a=>a.tripletIndex===edge.abandoned.tripleIndex);
       try {
-        if (!abandoned.some(a=>{ try { return exclusionReason({...a,verdict:a.verdict==='USEROP_SUCCESS'?'EXCLUDED':a.verdict})===edge.reason; } catch { return false; } })) fail('unsupported replacement exclusion reason');
+        if (!abandoned.some(a=>{ try { return a.preflight && a.verdict!=='USEROP_SUCCESS' ? rows[a.attemptIndex]?.exclusionReason===edge.reason : replacementReason(a)===edge.reason; } catch { return false; } })) fail('unsupported replacement exclusion reason');
       } catch(e) { fail(`unsupported replacement exclusion reason: ${e.message}`); }
     }
     if (end.kind !== 'run_end' || end.stop?.reason !== trailer.stopReason || (end.stop?.code !== 0) !== trailer.void) fail('trailer/journal stop mismatch');

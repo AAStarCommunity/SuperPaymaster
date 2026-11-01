@@ -1,8 +1,8 @@
 import { verifyPassport, verifyPassportIdentity } from './passport-evidence.mjs';
-import { stateCalls, supportsCall } from './state-evidence.mjs';
+import { stateCalls, supportsCall, archivedParamsAllowed } from './state-evidence.mjs';
 import { readFileSync, realpathSync, readdirSync } from 'node:fs';
 import { resolve, isAbsolute } from 'node:path';
-import { evidenceIndex, sha256, stringify, loadRegistry } from './evidence.mjs';
+import { evidenceIndex, sha256, stringify, loadRegistry, replacementReason } from './evidence.mjs';
 import { formalConfig, armOrder, DEFAULT_FACTORY, inclusionErrors } from './formal.mjs';
 import { decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
@@ -80,6 +80,7 @@ export function artifactErrors(window,rows,trailer,journal) {
         if (r.request!==r.requestBase64 || r.response!==r.responseBase64) throw new Error('archive byte aliases disagree');
         const request=JSON.parse(Buffer.from(r.request,'base64').toString());
         if (request.method!==r.method || !eq(request.params,r.params)) throw new Error('raw request metadata mismatch');
+        if (!archivedParamsAllowed(r)) throw new Error(`archived RPC params invalid: ${r.method}`);
         if (r.blockAnchor && r.anchor && (BigInt(r.blockAnchor.number)!==BigInt(r.anchor.number) || r.blockAnchor.hash!==r.anchor.hash)) throw new Error('raw anchor metadata mismatch');
         const fixed={eth_call:1,eth_getCode:1,eth_getBalance:1,eth_getStorageAt:2,eth_getTransactionCount:1}[r.method];
         if (fixed!==undefined && (!r.blockAnchor || BigInt(r.params[fixed])!==BigInt(r.blockAnchor.number))) throw new Error('raw fixed block mismatch');
@@ -136,6 +137,11 @@ export function artifactErrors(window,rows,trailer,journal) {
   const pinnedConfig=hash=>{const pin=start.pins.config.find(p=>p.sha256===hash);return JSON.parse(isAbsolute(pin.path)?readFileSync(pin.path):file(pin.path));};
   const included=new Set(trailer.triples.filter(t=>t.included).flatMap(t=>t.attempts));
   errors.push(...inclusionErrors(attempts));
+  for (const edge of trailer.replacements ?? []) {
+    if (!attempts.filter(a=>a.tripletIndex===edge.abandoned.tripleIndex).some(a=>{
+      try { return replacementReason(a,archives)===edge.reason; } catch { return false; }
+    })) fail('unsupported replacement exclusion reason: raw-bound abandoned evidence required');
+  }
   const windowTransactions=new Set(attempts.filter(a=>a.sent && a.tx).map(a=>lower(a.tx.hash)));
   for (const arc of archives) for (const raw of arc.records) if (['eth_getBlockByNumber','eth_getBlockByHash'].includes(raw.method) && raw.response) {
     const block=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;

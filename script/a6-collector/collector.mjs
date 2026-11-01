@@ -776,9 +776,9 @@ try {
       if (!ok && !rows.some(r => r.reason === 'basefee_above_cap')) {
         const failures = rows.filter(r => r.verdict !== VERDICTS.USEROP_SUCCESS || r.postOpRefreshed === true);
         // Only explicitly classified, non-gas failures permit replacement.
-        if (!failures.length || failures.some(r => !r.postOpRefreshed && exclusionReason(r) === 'not_included')) throw new Stop('UNAPPROVED_ABANDONMENT', 29);
+        if (!failures.length || failures.some(r => !r.postOpRefreshed && exclusionReason(r,formal ? runtime.archives : undefined) === 'not_included')) throw new Stop('UNAPPROVED_ABANDONMENT', 29);
         pendingReplacement = {windowId:runId,tripleIndex:t};
-        pendingReplacementReason = failures[0].postOpRefreshed ? 'tpm_postop_refresh' : exclusionReason(failures[0]);
+        pendingReplacementReason = failures[0].postOpRefreshed ? 'tpm_postop_refresh' : exclusionReason(failures[0],formal ? runtime.archives : undefined);
       }
     }
     if (formal && rows.some(r => r.reason === 'basefee_above_cap')) { stop = { reason: 'BASEFEE_PAUSED', code: 10 }; break; }

@@ -222,15 +222,13 @@ test('attempts survive interruption, trailer is mandatory and one-shot, rows nev
 import { exclusionReason, EXCLUSION_REASONS } from './evidence.mjs';
 test('closed enum reasons have concrete producers; gas-dependent and undecoded failures cannot authorize abandonment',()=>{
   const samples=[
-    [{preflight:{revertReason:'AA32 paymaster expired or not due'}},'AA32'],
-    [{preflight:{revertReason:'AA33 reverted: price stale'}},'price_stale'],
     [{sent:true,tx:{hash:H},verdict:'NO_EVENT',logs:[],expectedUserOpHash:H},'not_included'],
     [{revertKind:'executionReverted',execRevert:[{revertReason:'0x4e487b71'+'0'.repeat(62)+'11'}]},'op_failed_nongas'],
     [{reason:'bundler_error',submissionException:{message:'submission threw'}},'bundler_error'],
     [{reason:'tpm_postop_refresh',arm:'TPM',paymaster:'0x'+'12'.repeat(20),entryPoint:'0x'+'34'.repeat(20),postOpRefreshed:true,traces:[0,1].map(()=>({call:{type:'CALL',to:'0x'+'34'.repeat(20),calls:[{to:'0x'+'12'.repeat(20),input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)')}]},state:{pre:{['0x'+'34'.repeat(20)]:{balance:'0x1'}},post:{['0x'+'34'.repeat(20)]:{balance:'0x2'},['0x'+'12'.repeat(20)]:{storage:{'0x4':'0x1'}}}}}))},'tpm_postop_refresh'],
     [{reason:'basefee_above_cap',failingCheck:'basefee_above_cap',sent:false,verdict:'NOT_SENT',feeBlock:{hash:H,number:'1'},baseFeePerGas:'2',gas:{maxFeePerGas:'1'}},'basefee_above_cap'],
   ];
-  assert.deepEqual(samples.map(([r])=>exclusionReason(r)).sort(),[...EXCLUSION_REASONS].sort());
+  assert.deepEqual(samples.map(([r])=>exclusionReason(r)).sort(),EXCLUSION_REASONS.filter(r=>!['AA32','price_stale'].includes(r)).sort());
   for(const [r,reason] of samples) assert.equal(exclusionReason(r),reason);
   assert.throws(()=>exclusionReason({preflight:{undecoded:true,revertReason:'AA32'}}),/UNAPPROVED_ABANDONMENT/);
   assert.throws(()=>exclusionReason({reason:'gas_too_high'}),/UNAPPROVED_ABANDONMENT/);

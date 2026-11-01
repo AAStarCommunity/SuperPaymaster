@@ -1,3 +1,5 @@
+import { decodeErrorResult, encodeFunctionData, parseAbi } from 'viem';
+import { archivedParamsAllowed } from './state-evidence.mjs';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
 import { feePauseErrors } from './disposition.mjs';
 import { readFileSync, writeFileSync, mkdirSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
@@ -54,7 +56,7 @@ export function evidenceIndex(row, context) {
   const out = { schemaVersion: 'a6-evidence-index/1', windowId, tripleIndex: row.tripletIndex, attempt: row.attemptIndex, arm: row.arm,
     armOrder: row.armOrder ?? ['SP','VPM','TPM'], included: false, verdict: row.verdict,
     failureReason: row.failingCheck ?? null, notSentReason: row.verdict === 'NOT_SENT' ? row.reason ?? row.failingCheck ?? row.stoppedBy?.reason ?? 'unknown failure' : null,
-    exclusionReason: exclusionReason(row),
+    exclusionReason: exclusionReason(row,archives),
     stopReason: row.stoppedBy?.reason ?? (stopReason === 'COMPLETE' ? null : stopReason), replaces: context.replaces ?? null, replacedBy: null };
   for (const k of ['chainId','entryPoint','sender','nonce','paymaster','bundler','packedOp','callDataHash','expectedUserOpHash']) out[k] = value('/'+k, row[k]);
   if (out.chainId != null) out.chainId = String(out.chainId);
@@ -96,7 +98,38 @@ export function writeArtifact(window, path, object) {
 }
 
 export const EXCLUSION_REASONS = ['AA32', 'price_stale', 'not_included', 'op_failed_nongas', 'bundler_error', 'basefee_above_cap', 'tpm_postop_refresh'];
-export function exclusionReason(row) {
+const preflightAbi = parseAbi(['error FailedOp(uint256 opIndex,string reason)', 'error FailedOpWithRevert(uint256 opIndex,string reason,bytes inner)']);
+const simulationAbi = parseAbi(['function handleOps((address sender,uint256 nonce,bytes initCode,bytes callData,bytes32 accountGasLimits,uint256 preVerificationGas,bytes32 gasFees,bytes paymasterAndData,bytes signature)[] ops,address beneficiary)']);
+export function bindPreflight(row,archives) {
+  const fail=()=>{throw new Error('UNAPPROVED_ABANDONMENT: raw preflight evidence missing or inconsistent');};
+  let data;
+  try { data=encodeFunctionData({abi:simulationAbi,functionName:'handleOps',args:[row.bundledOps,row.bundler]}); } catch { fail(); }
+  const lower=v=>typeof v==='string'?v.toLowerCase():null;
+  if (!archives?.[0]?.records.some(raw=>{
+    if (raw.endpoint!=='A' || !(raw.id>row.evidenceStart?.[0] && raw.id<=row.evidenceEnd?.[0]) || raw.method!=='eth_call' || !archivedParamsAllowed(raw)) return false;
+    const call=raw.params[0];
+    if (lower(call.to)!==lower(row.entryPoint) || lower(call.from)!==lower(row.bundler) || lower(call.data)!==lower(data)) return false;
+    try {
+      const request=JSON.parse(Buffer.from(raw.request,'base64'));
+      const response=JSON.parse(Buffer.from(raw.response,'base64'));
+      if (request.method!==raw.method || JSON.stringify(request.params)!==JSON.stringify(raw.params) || response.id!==request.id || !response.error || 'result' in response) return false;
+      let error=response.error;
+      for (let i=0;i<8 && error;i++,error=error.cause) if (typeof error.data==='string') {
+        const decoded=decodeErrorResult({abi:preflightAbi,data:error.data});
+        return decoded.args[1]===row.preflight.revertReason;
+      }
+    } catch {}
+    return false;
+  })) fail();
+}
+export function replacementReason(row,archives) {
+  const reason=exclusionReason(row,archives);
+  // A successful TPM refresh is a measured exclusion, not a preflight failure.
+  return reason ?? (row.arm==='TPM' && row.traces && tpmAttemptRefreshed(row) ? 'tpm_postop_refresh' : null);
+}
+export function exclusionReason(row,archives) {
+  if (row.sent===true && row.verdict==='USEROP_SUCCESS' && (row.preflight || row.failingCheck || row.revertKind || row.execRevert?.length || row.submissionException || (row.reason != null && row.reason!=='tpm_postop_refresh'))) throw new Error('successful attempt contradicts failure evidence');
+  if (row.preflight) bindPreflight(row,archives);
   const unsupported = () => { throw new Error('UNAPPROVED_ABANDONMENT: unsupported exclusion reason'); };
   const preflight = row.preflight?.undecoded ? '' : row.preflight?.revertReason ?? '';
   let reason = null;
