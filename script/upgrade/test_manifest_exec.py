@@ -79,7 +79,7 @@ def pin():
     p['senders']['anni'] = dict(address=ANNI, nonce=55, balance=100*10**18)
     p['pauseList'] = sorted([u.DEPLOYER, ANNI, base.HOLDER])
     p['historicalOperators'] = list(p['pauseList'])
-    p.update(oldAggregator=OLD, oldActivity={}, bindings={DVT:'0x6000', COMMITTEE:'0x6000'},
+    p.update(oldAggregator=OLD, oldActivity={}, bindings={DVT:'0x6000', COMMITTEE:'0x63f2fde38b00'},
         stake=10**17, stakeDelay=86400, withdrawTime=0, entryPointDeposit=10**17,
         totalTrackedBalance=293414*10**16, protocolRevenue=39959*10**16,
         operatorBalances={u.DEPLOYER:169001*10**16, ANNI:84454*10**16, base.HOLDER:0})
@@ -337,6 +337,127 @@ class ManifestTests(unittest.TestCase):
     def step(self, sid):
         return next(s for s in self.plan['steps'] if s['id'] == sid)
 
+    def test_phase_d_calldata_order_and_nonces(self):
+        rows = [s for s in self.plan['steps'] if s['id'].startswith('D.')]
+        expected = [('D.registry.transfer', u.REG, 'transferOwnership(address)', u.TL)]
+        for name, target, owner in m.handover_contracts(self.plan['addresses'])[1:]:
+            if name in ('aggregator', 'old_aggregator'):
+                expected.append(('D.'+name+'.admin', target, 'setSlashPolicyAdmin(address)', u.SAFE))
+            expected.append(('D.'+name+'.transfer', target, 'transferOwnership(address)', owner))
+        direct = [s for s in rows if s['sender'] == 'deployer']
+        self.assertEqual([s['id'] for s in direct], [e[0] for e in expected])
+        for offset, (step, (_, target, sig, owner)) in enumerate(zip(direct, expected), 1):
+            self.assertEqual(step['tx']['to'], target)
+            self.assertEqual(step['tx']['data'], a.calldata(sig, owner))
+            self.assertEqual(a.qty(step['tx']['nonce']), a.qty(self.step('B4')['tx']['nonce'])+offset)
+            self.assertTrue(step['readbacks'])
+        self.assertEqual(self.plan['schema'], '3.1')
+        self.assertEqual([s['id'] for s in rows[1:5]], [
+            'D.registry_schedule_approve', 'D.registry_schedule_exec',
+            'D.registry_execute_approve', 'D.registry_execute_exec'])
+
+    def test_registry_accept_operation_and_readbacks(self):
+        op = self.plan['operations']['registry_accept']
+        self.assertEqual(op['targets'], [u.REG])
+        self.assertEqual(op['data'], [a.calldata('acceptOwnership()')])
+        self.assertEqual(op['predecessor'], self.plan['operations']['activation']['id'])
+        self.assertEqual(op['id'], u.operation_hash(op['targets'], op['data'], op['predecessor'], op['salt'], False))
+        self.assertEqual(u.DELAY, 48*3600)
+        self.assertEqual(self.step('D.registry.transfer')['readbacks'], m.registry_ownership(u.DEPLOYER, u.TL))
+        self.assertEqual(self.step('D.registry_execute_exec')['readbacks'][1:], m.registry_ownership(u.TL, a.ZERO))
+        slot = int(a.keccak(a.cast('abi-encode', 'c(uint256)', int(a.keccak('aastar.storage.Ownership2Step'),16)-1)),16) & ~255
+        self.assertEqual(int(m.PENDING_OWNER_SLOT,16), slot)
+        for i, verb in enumerate(('schedule', 'execute'), 5):
+            for suffix in ('approve', 'exec'):
+                step = self.step('D.registry_'+verb+'_'+suffix)
+                self.assertEqual(step['safeNonce'], self.pin['safeNonce']+i)
+                self.assertEqual(step['inner'], u.op_call(op, verb))
+                self.assertEqual(step['safeHash'], m.safe_hash(step['inner'], step['safeNonce']))
+
+    def test_handover_gates_require_each_completed_step(self):
+        all_ids = {s['id'] for s in self.plan['steps']}
+        for sid in ('D.aggregator.admin', 'D.aggregator.transfer', 'D.old_aggregator.admin', 'D.old_aggregator.transfer'):
+            with patch.object(m, 'check_predicate'):
+                m.handover_gate(None, self.plan, self.step(sid), {'passed':all_ids})
+                for missing in ('A10.0', 'A10.1', 'A10.2', 'A11.min', 'A11.default', 'B4', 'activation_execute_exec'):
+                    with self.subTest(sid=sid, missing=missing), self.assertRaises(a.Gate):
+                        m.handover_gate(None, self.plan, self.step(sid), {'passed':all_ids-{missing}})
+        with patch.object(m, 'check_predicate') as check:
+            for suffix in ('approve', 'exec'):
+                step = self.step('D.registry_schedule_'+suffix)
+                with self.assertRaises(a.Gate):
+                    m.handover_gate(None, self.plan, step, {'passed':all_ids-{'D.registry.transfer'}})
+                m.handover_gate(None, self.plan, step, {'passed':all_ids})
+            self.assertTrue(check.called)
+        bad = copy.deepcopy(self.plan)
+        bad['pin']['bindings'][COMMITTEE] = '0x6000'
+        with self.assertRaises(a.Gate):
+            m.handover_gate(None, bad, self.step('D.committee.transfer'), {'passed':all_ids})
+
+    def test_pending_owner_getter_and_slot_mismatch_stop(self):
+        for bad in ('getter', 'slot'):
+            def rpc(method, params):
+                if method == 'eth_getStorageAt': return hex(0 if bad == 'slot' else int(u.TL,16))
+                raise AssertionError(method)
+            def call(r, target, sig, *args):
+                value = u.DEPLOYER if sig == 'owner()' else (a.ZERO if bad == 'getter' else u.TL)
+                return a.cast('abi-encode', 'c(address)', value)
+            with patch.object(a, 'call', side_effect=call), self.assertRaises(a.Gate):
+                for pred in m.registry_ownership(u.DEPLOYER, u.TL): m.check_predicate(rpc, pred)
+
+    def test_handover_controls_assert_reasons_success_and_restore(self):
+        for failure in (None, 'negative', 'positive', 'readback'):
+            history, negatives, positives = [], [], []
+            def rpc(method, params):
+                history.append(method)
+                return 'snapshot' if method == 'evm_snapshot' else True
+            rpc.local = True
+            def fixture(r, sender, target, data): return {'from':sender, 'to':target, 'data':data}
+            def negative(r, tx, expected, name):
+                self.assertEqual(expected, a.calldata('OwnableUnauthorizedAccount(address)', tx['from']))
+                negatives.append(tx)
+                if failure == 'negative': raise a.Gate('wrong_reason', '0x', expected)
+                return {'control':name}
+            def receipt(r, tx):
+                positives.append(tx)
+                return {'status':'0x0' if failure == 'positive' else '0x1'}
+            with patch.object(u, 'fixture_tx', side_effect=fixture), patch.object(a, 'negative', side_effect=negative), \
+                 patch.object(u, 'receipt', side_effect=receipt), patch.object(m, 'check_predicate',
+                 side_effect=a.Gate('readback', 0, 1) if failure == 'readback' else None):
+                if failure:
+                    with self.assertRaises(a.Gate): m.handover_controls(rpc, self.plan)
+                else:
+                    result = m.handover_controls(rpc, self.plan)
+                    self.assertTrue(result['restored'])
+                    self.assertEqual(len(negatives), 12)
+                    self.assertEqual(len(positives), 9)
+                    for tx in positives:
+                        owner = next(owner for _, target, owner in m.handover_contracts(self.plan['addresses']) if target == tx['to'])
+                        self.assertEqual(tx['from'], owner)
+            self.assertEqual(history[-1], 'evm_revert')
+            self.assertEqual(history.count('evm_snapshot'), history.count('evm_revert'))
+
+    def test_registry_accept_trace_requires_timelock_caller(self):
+        step = self.step('D.registry_execute_exec')
+        trace = {'from':step['tx']['from'], 'to':u.SAFE, 'input':step['tx']['data'], 'calls':[
+            {'from':u.SAFE, 'to':u.TL, 'input':step['inner'], 'calls':[
+                {'from':u.TL, 'to':u.REG, 'input':a.calldata('acceptOwnership()')}]}]}
+        m.handover_trace(lambda *args:trace, self.plan, step, {'transactionHash':base.HASH})
+        for field, value in (('from', u.SAFE), ('error', 'execution reverted'), ('input', '0x')):
+            bad = copy.deepcopy(trace)
+            bad['calls'][0]['calls'][0][field] = value
+            with self.subTest(field=field), self.assertRaises(a.Gate):
+                m.handover_trace(lambda *args:bad, self.plan, step, {'transactionHash':base.HASH})
+
+    def test_frozen_registry_tracks_completed_handover(self):
+        original = copy.deepcopy(self.pin)
+        with patch.object(u, 'assert_frozen') as check:
+            for handed_over in (False, True):
+                m.assert_manifest_frozen(None, self.pin, handed_over)
+                expected = dict(self.pin, registryOwner=u.TL if handed_over else self.pin['registryOwner'])
+                check.assert_called_with(None, expected)
+        self.assertEqual(self.pin, original)
+
     def test_determinism(self):
         self.assertEqual(self.plan, m.build_plan(copy.deepcopy(self.pin), copy.deepcopy(self.inputs)))
         m.validate_plan(self.plan, self.inputs)
@@ -374,7 +495,7 @@ class ManifestTests(unittest.TestCase):
 
     def test_safe_nonces_hashes(self):
         steps = [s for s in self.plan['steps'] if 'safeHash' in s]
-        for i in range(5):
+        for i in range(7):
             approval, execution = steps[2*i:2*i+2]
             n = self.pin['safeNonce']+i
             self.assertEqual(approval['safeNonce'], n)
@@ -411,7 +532,7 @@ class ManifestTests(unittest.TestCase):
         chain.verifier = self.plan['addresses']['OverIssueFraudProofVerifier']
         self.assertFalse(m.b4_needed(chain, self.plan))
         self.assertTrue(all(method == 'eth_call' for method, _ in chain.calls))
-        self.assertEqual(self.plan['steps'][-1]['id'], 'B4')
+        self.assertEqual(self.plan['steps'][-1]['id'], 'D.old_aggregator.transfer')
 
     def test_exact_drains(self):
         for label in ('deployer','anni'):
@@ -574,7 +695,7 @@ class ManifestTests(unittest.TestCase):
 
     def test_all_requested_controls_registered(self):
         self.assertEqual(set(m.CONTROLS), {'early_unpause','factory_binding','early_bls','early_swap',
-            'funded_swap','old_reputation','registry_nonowner','early_verifier','repeat_verifier','verifier_placeholder','verifier_frontrun','verifier_wrong','unbacked_swap'})
+            'funded_swap','old_reputation','registry_nonowner','early_verifier','repeat_verifier','verifier_placeholder','verifier_frontrun','verifier_wrong','unbacked_swap','owner_handover'})
 
 
     def rehearse_fake(self, already_applied=False, solvent=True, frontrun=False):
@@ -629,7 +750,7 @@ class ManifestTests(unittest.TestCase):
         def controls(r, plan, sid, output):
             if sid == 'after_upgrade_execute_exec':
                 self.assertEqual(sent[-1][0], 'upgrade_execute_exec')
-            if sid == 'after_B4': output.extend(dict(control=x) for x in m.CONTROLS)
+            if sid == 'after_B4': output.extend(dict(control=x) for x in m.CONTROLS if x != 'owner_handover')
         patches = [
             patch.object(a, 'process_alive'), patch.object(a, 'nonce', side_effect=lambda r,who,*args:state['nonces'][who]),
             patch.object(a, 'word', side_effect=word),
@@ -640,7 +761,8 @@ class ManifestTests(unittest.TestCase):
             patch.object(m, 'b4_controls', return_value=[]),
             patch.object(u, 'probe', return_value=({'status':'0x1', 'gasUsed':hex(21000)}, None)),
             patch.object(u, 'measure_step', side_effect=measure), patch.object(u, 'receipt', side_effect=receipt),
-            patch.object(m, 'mint_trace'), patch.object(u, 'safe_trace'), patch.object(u, 'safe_exec_events'), patch.object(u, 'check_inventory'),
+            patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}),
+            patch.object(m, 'handover_trace'), patch.object(m, 'mint_trace'), patch.object(u, 'safe_trace'), patch.object(u, 'safe_exec_events'), patch.object(u, 'check_inventory'),
             patch.object(u, 'assert_frozen'), patch.object(m, 'pre_send', side_effect=pre),
             patch.object(m, 'controls_at', side_effect=controls), patch.object(m, 'check_predicate', return_value=True), patch.object(m, 'batch_readback', return_value={}),
             patch.object(m, 'b4_needed', return_value=not already_applied),
@@ -669,8 +791,9 @@ class ManifestTests(unittest.TestCase):
         self.assertGreaterEqual(times['activation_schedule_approve'], times['upgrade_execute_exec']+u.DELAY)
         self.assertGreaterEqual(times['activation_execute_exec'], self.pin['pendingAPNTsTokenEta'])
         self.assertGreaterEqual(times['activation_execute_exec'], times['activation_schedule_exec']+u.DELAY)
+        self.assertGreaterEqual(times['D.registry_execute_exec'], times['D.registry_schedule_exec']+u.DELAY)
         self.assertGreaterEqual(times['B4'], times['A12b']+4*m.DAY)
-        self.assertEqual(gates, [len(sent)-2]*2)
+        self.assertEqual(gates, [[x[0] for x in sent].index('activation_execute_exec')]*2)
         self.assertTrue(waits)
         m.validate_plan(self.plan, self.inputs, frozen=True)
 
@@ -685,13 +808,13 @@ class ManifestTests(unittest.TestCase):
         sent, _, _, state = self.rehearse_fake(frontrun=True)
         result = json.loads((Path(self.tmp.name)/'manifest-simulate.json').read_text())
         self.assertEqual(result['status'], 'PASS')
-        record = result['steps'][-1]
+        record = next(x for x in result['steps'] if x['step'] == 'B4')
         self.assertEqual((record['step'], record['variant'], record['receipt']['status']), ('B4', 'apply', '0x0'))
-        self.assertEqual(state['nonces'][u.DEPLOYER], a.qty(self.step('B4')['tx']['nonce'])+1)
+        self.assertEqual(state['nonces'][u.DEPLOYER], a.qty(self.plan['steps'][-1]['tx']['nonce'])+1)
 
     def test_rehearsal_stops_on_solvency_without_pass_record(self):
         sent, _, _, _ = self.rehearse_fake(solvent=False)
-        self.assertEqual(sent[-1][0], 'B4')
+        self.assertEqual(sent[-1][0], 'D.old_aggregator.transfer')
         self.assertTrue((Path(self.tmp.name)/'manifest-solvency.json').exists())
         self.assertFalse((Path(self.tmp.name)/'manifest-simulate.json').exists())
 
@@ -807,7 +930,7 @@ class ManifestTests(unittest.TestCase):
              patch.object(a, 'word', side_effect=word), \
              patch.object(a, 'address', side_effect=lambda r,t,s,*args: self.pin['capped'] if s == 'pendingAPNTsToken()' else u.DEPLOYER), \
              patch.object(u, 'safe_state', return_value=self.pin['safe']), patch.object(u, 'governance'), \
-             patch.object(u, 'code', return_value='0xdead' if bad_runtime else '0x6000'), \
+             patch.object(u, 'code', side_effect=lambda r,t,*args:'0xdead' if bad_runtime else self.pin['bindings'][t]), \
              patch.object(m, 'old_activity', return_value={}), patch.object(m, 'dvt_activity', return_value=[]), \
              patch.object(u, 'assert_frozen'):
             return m.pre_send(rpc, self.plan, step, dict(frozen=True, upgradeBlock='0x150',
@@ -841,13 +964,13 @@ class ManifestTests(unittest.TestCase):
         original = hashlib.sha256(json.dumps(self.plan, sort_keys=True).encode()).hexdigest()
         for name in ('apply', 'placeholder'):
             bad = copy.deepcopy(self.plan)
-            bad['steps'][-1]['variants'][name]['value'] = '0x1'
+            next(s for s in bad['steps'] if s['id'] == 'B4')['variants'][name]['value'] = '0x1'
             self.assertNotEqual(hashlib.sha256(json.dumps(bad, sort_keys=True).encode()).hexdigest(), original)
             with self.assertRaises(a.Gate): m.validate_plan(bad, self.inputs)
         for field, value in (('to', ANNI), ('data', '0x00'), ('nonce', '0x1'),
                              ('maxFeePerGas', '0x1'), ('maxPriorityFeePerGas', '0x1')):
             bad = copy.deepcopy(self.plan)
-            bad['steps'][-1]['variants']['placeholder'][field] = value
+            next(s for s in bad['steps'] if s['id'] == 'B4')['variants']['placeholder'][field] = value
             with self.assertRaises(a.Gate): m.validate_plan(bad, self.inputs)
         step['variants']['third'] = dict(step['tx'])
         with self.assertRaises(a.Gate): m.validate_plan(self.plan, self.inputs)
