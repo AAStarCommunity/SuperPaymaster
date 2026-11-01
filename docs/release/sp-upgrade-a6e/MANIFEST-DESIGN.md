@@ -35,7 +35,10 @@ Why D4 matters for sampling, and why "sampling does not need the swap" was wrong
 ## 2. Preconditions (all must hold before A1; otherwise STOP)
 
 Release preconditions, needed so that §8's "one tag" claim has evidence:
-- A frozen release tag. A reproducible build of every deployed contract from that tag, compared byte-for-byte with the packet's artifacts.
+- A frozen release tag. A reproducible build of every deployed contract from that tag, compared with the packet's
+  artifacts. The full creation hash includes CBOR metadata, which depends on remapping paths (a symlinked checkout changes
+  only the IPFS hash). So each contract records two hashes, with metadata and with the CBOR tail stripped, built from a
+  fixed build path. A metadata-only difference is reported, not accepted silently. Any difference in executable code is a STOP.
 - On the final tree: the A4 conformance checks C1–C9, the mutation run and Slither, each with results archived.
 - A plan for source verification of every deployed contract after Phase A (results archived).
 
@@ -57,9 +60,22 @@ Chain preconditions at the pin block:
   The sum closes.
 - The Anni key: `PRIVATE_KEY_ANNI` in `.env.sepolia` derives `0xEcAACb91…33c9` (checked 11-01, nothing printed). It is
   imported into a Foundry keystore before the packet is built. The packet references the keystore, never the key.
-- DVT's frozen commit (including `OverIssueFraudProofVerifier`) is available, with a reproducible build of the
-  verifier artifact and the DVT CI pass record that `BLSAggregator.sol:86` requires. If it is not available before the
-  pin, STOP: no packet is built.
+- DVT's frozen commit `72aca4fa` (accepted by DSR 11-01, including `OverIssueFraudProofVerifier`) builds reproducibly
+  under the same two-hash rule, with the DVT CI pass record that `BLSAggregator.sol:86` requires.
+- That verifier source was validated against BLSAggregator 4.11.0 only. DVT's conformance run against 4.12.0 (`fbd74fb1`)
+  must pass before the packet is built. Otherwise STOP. DVT reported on 11-01:
+  - `CC115CrossRepoConformance`: 7 passed;
+  - `CC115GenuinePragueCrossRepo`: 11 passed with `FOUNDRY_EVM_VERSION=prague` (all skip by default);
+  - provenance: 5 passed.
+
+  Re-run if BLSAggregator changes on main before the frozen tag.
+- Verifier pin: DVT `72aca4fa0ba4aaa8c8a96210b1124534431294d6`.
+  - Build: Forge 1.7.1 with the real submodules (no symlinks): `cd contracts && forge build --force --skip test --skip script --use 0.8.33`.
+  - Creation keccak without constructor arguments: `0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab`, 3301 bytes.
+  - DVT's own deploy script pins `BLSAggregator-4.11.0` (`EXPECTED_AGGREGATOR_VERSION`). The packet uses a bare CREATE, so the A12a read-back is mandatory.
+- After the pin, D gives DVT the new aggregator's address, `version()` and the validator slots (current guardians
+  hold slots 1, 2 and 3: `0x5D87…Eca3`, `0x40F0…bd1f`, `0xD904…1601`). DVT exports the PoP data
+  through its reviewed PoP tool (DVT PR).
 - The PoP data from DVT is generated **after** the pin. `popDigest` binds `domainSeparator() = keccak(name, chainid,
   address(this), REGISTRY)`, and the new aggregator's address is fixed by the deployer nonce at the pin.
 
@@ -89,7 +105,7 @@ system half-way (see §6).
 | A9 | D | `Registry.setReputationSource(A7, true)`; `Registry.setReputationSource(old, false)` | A8 | reverse both |
 | A10 | D | three `A7.registerBLSPublicKey(validator, publicKey, slot, popSignature)` (owner path), with the calldata built from the PoP data DVT supplies after the pin | A8 | owner can remove |
 | A11 | D | `A7.setMinThreshold(2)`, then `A7.setDefaultThreshold(2)` (min ≤ default holds at each step: 2 ≤ 7, then 2 ≥ 2) | A10 | owner can reset |
-| A12a | D | CREATE `OverIssueFraudProofVerifier(A7, Registry)` from DVT's frozen commit. The address is fixed by D's nonce; the calldata and artifact are in the packet. | A7 | unused until applied |
+| A12a | D | CREATE `OverIssueFraudProofVerifier(A7, Registry)` from DVT's frozen commit `72aca4fa`. The address is fixed by D's nonce; the calldata and artifact are in the packet. This bare CREATE bypasses DVT's deploy-script identity checks, and a wrong argument would not revert: later proofs would just fail silently. So the read-back must show `A12a.AGGREGATOR() == A7` and `A12a.REGISTRY() == A7.REGISTRY()`, otherwise STOP. | A7 | unused until applied |
 | A12b | D | `A7.proposeFraudProofVerifier(A12a)`; the 4-day delay starts | A12a | owner re-proposes |
 | A13 | D | SP `addStake{value}` until stake ≥ 1 ETH with delay ≥ 86400 (current stake 0.1 ETH); EntryPoint `depositTo(SP)` top-up | pin | `unlockStake`, then 86400 s |
 | A14 | D | `setOperatorPaused(op, true)` for every configured operator (pause **before** draining) | — | unpaused in 6d (sampled operators only) |
@@ -105,9 +121,10 @@ Withdrawing protocol revenue leaves exactly 0.1 ether.
 | Op | Content (in order) | Delay | Read-back |
 | --- | --- | --- | --- |
 | B1 = 5a/5b `upgrade` | `upgradeToAndCall(A1, setGlobalPaused(true))`; `queueGasParams(480000,450000,5000,450000)`; `setXPNTsFactory(A4 factory)`; `queueBLSAggregator(A7)` | 48 h | implementation slot, extension, global pause, queued tuple and ETA, factory, queued aggregator |
-| B2 (before 6d) | read-back gate: `totalTrackedBalance == protocolRevenue ≤ 0.1e18`; no in-flight sponsorship (a stale release returns balance); no pending slash | — | STOP if any differs |
+| B2a (after the 5b read-back passes, before 6c is scheduled) | Safe (A approves, E executes): `APNTsCapped.mint(SP proxy, 0.1e18)`. This is a plain `_mint` (`APNTsCapped.sol:92`), not `transferAndCall`, so it is not recorded as a deposit. The Safe is the minter. Safe nonces are fixed in the order 5a, 5b, B2a, 6c, 6d, so every safeTxHash is computable in advance. If the mint fails, 6c is not scheduled. | — | `APNTsCapped.balanceOf(SP) == 0.1e18` |
+| B2 (before 6d) | read-back gate: `totalTrackedBalance == protocolRevenue ≤ 0.1e18` (old-token accounting); `APNTsCapped.balanceOf(SP) == 0.1e18` **exactly** (more is also a STOP; read independently of the tracked total); no in-flight sponsorship (a stale release returns balance); no pending slash | — | STOP if any differs |
 | B3 = 6c/6d `activation` (predecessor B1) | `executeGasParams()`; `applyBLSAggregator()`; **`executeAPNTsTokenChange()`**; `setOperatorPaused(op, false)` for each **sampled** operator only; `setGlobalPaused(false)` | 6c is scheduled so that 6d runs at ≥ `pendingAPNTsTokenEta` | active tuple, aggregator, `APNTS_TOKEN == APNTsCapped`, sampled operators and global unpaused, unsampled operators still paused |
-| B4 | D: `A7.applyFraudProofVerifier()` once 4 days have passed since A12b. Idempotent: it has no permission gate, and DVT's Apply Verifier Rotation workflow may already have applied it. Read `fraudProofVerifier` first; if it is already A12a, skip (not a STOP). | 4 d | `fraudProofVerifier == A12a` |
+| B4 | D: `A7.applyFraudProofVerifier()` once 4 days have passed since A12b. Only the executor sends it: DVT's Apply Verifier Rotation workflow is hard-wired to the old aggregator, and DVT disables it until the Phase D read-back. The function has no permission gate, so the executor still reads `fraudProofVerifier` first and skips if it is already A12a (not a STOP). | 4 d | `fraudProofVerifier == A12a` |
 
 Timing:
 - `queueBLSAggregator` has a 24 h internal delay, so `applyBLSAggregator` in 6d is in time.
@@ -196,13 +213,23 @@ STOP conditions (each is a hard stop; nothing later is sent):
 | A17 | SP owned by the timelock and unpaused, still on 5.4.2 | every further change goes through Safe → timelock |
 | 5a scheduled, before 5b | nothing executed | Safe cancels the operation (`CANCELLER` = Safe) |
 | after 5b | SP 5.5.0, **globally paused**, tuple queued | Safe → timelock: a corrective operation, or 6c |
+| after B2a, before 6c | as above, plus 0.1 APNTsCapped held by SP and not yet tracked | harmless: it backs the buffer only once the swap runs; if the route is abandoned it stays as untracked new token in SP |
 | 6c scheduled, before 6d | still paused | Safe cancels 6c |
 | after 6d | active and unpaused on APNTsCapped | normal operation |
 | Phase C/D partial | as listed per step | per-step undo above |
 
 ## 7. Rehearsal and controls (before the packet is frozen)
 
-- **Rehearsal.** A full fork rehearsal on the pinned Sepolia state with the Amsterdam engine: every step, every read-back, timelock delays warped. It includes the B2 gate and the swap in 6d.
+- **Rehearsal.** A full fork rehearsal on the pinned Sepolia state with the Amsterdam engine: every step, every read-back, timelock delays warped.
+  - It includes the B2 gate and the swap in 6d.
+  - After B4, one valid fraud proof submitted through A7 is accepted, and one invalid proof is rejected.
+  - This pair runs with the packet's actual verifier creation code, on the fork engine (Amsterdam, a superset of
+    osaka). DVT's conformance tests used SP's compile settings (cancun/prague, runs 500, no metadata hash), not the
+    deployed bytecode (osaka, runs 200), so they do not cover it.
+  - Verifier artifact archived by DSR:
+    `DSR-Research-Flow/docs/report/aoa-closure-2026-10-31/dvt-verifier-72aca4fa/OverIssueFraudProofVerifier-72aca4fa.json`.
+    Its hashes: sha256 `4d7e0125…e7d6`; creation keccak `0x73652062…e3ab`; keccak with the CBOR tail stripped `0x697b9779…8d54`.
+  - The packet uses that creation code, or a real-submodule rebuild compared against it under the two-hash rule. The constructor arguments (A7, Registry) are appended by the builder.
 - **Negative controls.**
   - unpause before 6d rejected;
   - `configureOperator` before `setXPNTsFactory` rejected;
@@ -212,10 +239,18 @@ STOP conditions (each is a hard stop; nothing later is sent):
   - a non-owner Registry upgrade rejected;
   - `applyFraudProofVerifier` before 4 days rejected; a second direct call reverts `NoPendingVerifierRotation` (asserted); the executor, reading `fraudProofVerifier == A12a`, sends no transaction;
   - after Phase D, D can no longer call any owner function on the handed-over contracts.
-- **The 0.1 aPNTs left after the swap.** `protocolRevenue` keeps 0.1e18 of accounting units backed by the old token,
-  while SP holds 0 of the new token right after the swap. The rehearsal reads back `totalTrackedBalance` against the
-  APNTsCapped balance of SP after 6d and after the first deposits. It confirms that later `deposit`,
-  `withdrawProtocolRevenue` and every solvency invariant still hold; the conclusion is recorded here.
+- **The post-swap 0.1 buffer.** `withdrawProtocolRevenue` cannot take `protocolRevenue` below
+  `PROTOCOL_REVENUE_BUFFER` (`SuperPaymasterAdmin.sol:274`). The swap requires `tracked == revenue ≤ 0.1e18` (`:200`).
+  So after the swap the tracked total is exactly 0.1e18, and without B2a SP would hold 0 new token. That violates
+  `invariant_solvency` (`SuperPaymasterFundConservation.invariant.t.sol:91`), and no later deposit or withdrawal closes
+  the gap.
+  - B2a pre-mints the backing.
+  - The rehearsal reads `APNTsCapped.balanceOf(SP)` against `totalTrackedBalance` at three points: after 6d, after the
+    first deposits, after the first revenue withdrawal. Equality is recorded as equality; any difference is explained
+    by its source.
+  - Negative control: 6d without B2a shows the solvency failure, and the executor refuses to build the packet.
+- **The stranded old token.** The old token's 0.1e18 stays in SP permanently, untracked, with no withdrawal path (no
+  recover/rescue function). §9's decision card states this.
 - **On chain.** The G3 pilot checks handleOps admission at 480000 (DSR #4, D6).
 
 ## 8. What changes for the paper
@@ -223,8 +258,13 @@ STOP conditions (each is a hard stop; nothing later is sent):
 - All contract versions are bound to one frozen tag, with the §2 release evidence. After the tag, `contracts/src` does not change.
 - Multisig disclosure: both testnet signers were controlled by one operator.
 - Registry, AOAProtocolRegistry and xPNTsFactoryV2 are governed by the same 48 h timelock. BLSAggregator and DVTValidator are Safe-only.
+- A contract-design constraint, disclosed as an operational precondition: an aPNTs token swap cannot keep SP solvent by
+  itself. The operator must pre-mint the 0.1e18 buffer in the new token (B2a). 5.5.0 is not changed. The G3 matrix and
+  the paper record this, and the next contract version should fix it (noted in DESIGN.md).
 
 ## 9. Decision card for the go (filled in when the packet is built)
+
+B2a (the 0.1 APNTsCapped pre-mint to SP) is listed on its own line, together with the stranded old-token 0.1.
 
 For each phase:
 - the transactions in plain language, and who sends them;
