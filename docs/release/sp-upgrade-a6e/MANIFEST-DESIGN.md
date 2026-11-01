@@ -69,6 +69,11 @@ Chain preconditions at the pin block:
   - provenance: 5 passed.
 
   Re-run if BLSAggregator changes on main before the frozen tag.
+- Guardian-set binding mutation controls (DVT 11-01, on the vendored copy at `fbd74fb1`, mock and real Prague agree).
+  Each mutation turns a test red, and everything passes once reverted:
+  - removing the `_isEqualSet` check: `VerifierAcceptsGuardianSubset` red;
+  - weakening it to a subset comparison: `VerifierAcceptsGuardianSubset` red;
+  - changing the length check from `!=` to `<`: `VerifierAcceptsGuardianSuperset` red.
 - Verifier pin: DVT `72aca4fa0ba4aaa8c8a96210b1124534431294d6`.
   - Build: Forge 1.7.1 with the real submodules (no symlinks): `cd contracts && forge build --force --skip test --skip script --use 0.8.33`.
   - Creation keccak without constructor arguments: `0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab`, 3301 bytes.
