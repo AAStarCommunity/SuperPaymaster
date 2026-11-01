@@ -1,0 +1,12 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/v2/SuperPaymasterTuple480.t.sol:Tuple480AdmissionTest
+[PASS] test_tuple480_sample() (gas: 322642)
+Logs:
+  admission accepted: 1
+  settlement completed: 1
+  sample gas: 537500
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.67ms (189.71µs CPU time)
+
+Ran 1 test suite in 5.86ms (2.67ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

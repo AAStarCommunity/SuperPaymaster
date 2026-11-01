@@ -1,0 +1,4 @@
+forge Version: 1.8.7-nightly
+Commit SHA: 4e8874b2bdc840929585ca73e170993c50a4a531
+Build Timestamp: 2026-10-23T06:12:21.643861000Z (1792735941)
+Build Profile: dist
