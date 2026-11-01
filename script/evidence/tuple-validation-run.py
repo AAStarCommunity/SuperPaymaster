@@ -1,8 +1,9 @@
 """Offline tuple evidence. No source mutations. Output must be empty.
 
---verify validates the complete inventory, command selectors, outcomes and hashes.
+--verify checks recorded command inventory, selected identities, paired full-suite
+inventories, outcomes and hashes.
 The full suites intentionally retain failing floor/frozen tests; acceptance of the
-artifact means complete evidence, not a claim that every property passed.
+artifact does not prove completeness against an independent test discovery.
 """
 import hashlib
 import importlib.util
@@ -44,6 +45,16 @@ def source_hashes():
     paths += [p for p in Path('contracts/test/fixtures').rglob('*') if p.is_file()]
     return {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths) if p.is_file()}
 
+def source_hashes_at(revision):
+    """source_hashes() as it would have read the tree at `revision` (tracked files only)."""
+    names = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', revision], cwd=ROOT, text=True).splitlines()
+    fixed = {'foundry.toml', 'script/evidence/tuple-validation-run.py', 'contracts/test/tuple_validation_evidence_test.py',
+             'script/evidence/tuple-validation-run.sh', 'script/evidence/postop-gas-profile-trace.py'}
+    chosen = [n for n in names if (n.startswith(('contracts/src/', 'contracts/test/')) and n.endswith('.sol'))
+              or n in fixed or n.startswith('contracts/test/fixtures/')]
+    return {n: hashlib.sha256(subprocess.check_output(['git', 'show', f'{revision}:{n}'], cwd=ROOT)).hexdigest()
+            for n in sorted(chosen)}
+
 def selectors(row):
     e = row['engine']
     env = {'TUPLE_CANDIDATE':str(row['candidate']).lower(), 'PROFILE_AMSTERDAM':str(e=='amsterdam').lower()}
@@ -62,18 +73,12 @@ def selectors(row):
         env |= {'TUPLE_DIRECT_GAS':str(row['budget']), 'TUPLE_REAL_EP':str(row['real']).lower(), 'TUPLE_EXPECT_SUCCESS':str(row['success']).lower()}
     return args, env
 
-def statuses(log):
-    result={}
-    suite=None
-    for line in log.splitlines():
-        m=re.match(r'Ran \d+ tests? for (.*)',line)
-        if m: suite=m[1]
-        if line.startswith('Failing tests:'): break
-        if line in ('[PASS]', '[FAIL]', '[SKIP]') and suite:
-            result[suite+'::<invariant-group>']=line[1:-1]
-        m=re.match(r'\[(PASS|FAIL.*|SKIP.*?)\] (\w+\([^)]*\))',line)
-        if m and suite: result[suite+'::'+m[2]]=m[1].split(':')[0]
-    return result
+_parser_spec = importlib.util.spec_from_file_location(
+    'tuple_outcomes', Path(__file__).with_name('tuple-validation-outcomes.py'))
+_parser = importlib.util.module_from_spec(_parser_spec)
+_parser_spec.loader.exec_module(_parser)
+statuses = _parser.parse
+
 
 def seal(out):
     (out/'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in sorted(out.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
@@ -83,6 +88,7 @@ def verify(out):
     wanted=inventory()
     assert len(rows)==len(wanted), 'missing command inventory'
     assert len({r['id'] for r in rows})==len(rows), 'duplicate command'
+    observed = {}
     for row, spec in zip(rows,wanted):
         assert all(row[k]==v for k,v in spec.items()), 'wrong inventory/order'
         args,env=selectors(spec)
@@ -97,9 +103,20 @@ def verify(out):
         log=(out/(row['id']+'.log')).read_text()
         st=statuses(log)
         assert st, 'missing completed tests'
-        summary=re.search(r': (\d+) tests? passed, (\d+) failed, (\d+) skipped',log)
-        assert summary, 'incomplete suite'
-        assert tuple(sum(v==k for v in st.values()) for k in ('PASS','FAIL','SKIP'))==tuple(map(int,summary.groups())), 'test inventory does not match summary'
+        observed[row['id']] = st
+        if spec['kind'] == 'full':
+            peer = out / f"full-{spec['engine']}-{1-int(spec['candidate'])}.log"
+            assert peer.exists(), 'no paired full-suite inventory or recorded forge test --list inventory'
+            expected = statuses(peer.read_text())
+            assert set(st) == set(expected), 'full-suite inventory differs from same-engine peer'
+        else:
+            full = statuses((out / f"full-{spec['engine']}-{int(spec['candidate'])}.log").read_text())
+            contract_pattern = args[args.index('--match-contract') + 1]
+            test_pattern = args[args.index('--match-test') + 1]
+            expected = {key for key in full
+                        if re.search(contract_pattern, key.split('::')[0].rsplit(':', 1)[-1])
+                        and re.search(test_pattern, key.split('::')[1])}
+            assert expected and set(st) == expected, 'selected test identities mismatch'
         assert row['exit']==(1 if 'FAIL' in st.values() else 0), 'inconsistent exit'
         if spec['kind']=='full': assert len(st)>1500, 'truncated full suite'
         elif spec['kind']=='accounting':
@@ -107,6 +124,7 @@ def verify(out):
             assert row['exit']==(0 if spec['candidate'] else 1), 'reimbursement control'
             if not spec['candidate']: assert 'DSR no-subsidy' in log and 'tuple net charge:' in log
         else: assert len(st)==1 and row['exit']==0, 'measurement failed'
+    assert json.loads((out/'statuses.json').read_text()) == observed, 'statuses.json differs from logs'
     numbers=json.loads((out/'numbers.json').read_text())
     required={r['id']:r for r in wanted if r['kind']=='multi'}
     assert set(numbers)==set(required)
@@ -136,7 +154,12 @@ def verify(out):
     manifest={line.split('  ',1)[1]:line.split('  ',1)[0] for line in (out/'SHA256SUMS').read_text().splitlines()}
     assert set(manifest)=={p.name for p in out.iterdir() if p.is_file() and p.name!='SHA256SUMS'}
     for name,digest in manifest.items(): assert hashlib.sha256((out/name).read_bytes()).hexdigest()==digest, name
-    assert json.loads((out/'source-hashes.json').read_text())==source_hashes(), 'sources drifted'
+    # Bind the recorded source hashes to the recorded revision, not to the current tree: later commits may add or
+    # change tests without invalidating a measurement made at that revision.
+    recorded = json.loads((out/'source-hashes.json').read_text())
+    revision = (out/'head.txt').read_text().strip()
+    assert re.fullmatch(r'[0-9a-f]{40}', revision), 'invalid recorded revision'
+    assert recorded == source_hashes_at(revision), 'sources differ from the recorded revision'
     return rows
 
 
@@ -233,7 +256,7 @@ def main(out):
         try: verify(neg)
         except AssertionError as exc: (out/'negative-control.txt').write_text(f'Resealed missing command rejected: {exc}\nexit 1\n')
         else: raise AssertionError('negative control accepted')
-    (out/'verdict.txt').write_text(f'PASS: complete evidence inventory ({len(inventory())} commands); candidate accounting and measurements pass. Full-suite failures retained in statuses.json.\n')
+    (out/'verdict.txt').write_text(f'PASS: checked recorded evidence inventory ({len(inventory())} commands); candidate accounting and measurements pass. Full-suite failures retained in statuses.json.\n')
     seal(out);verify(out)
 
 if __name__=='__main__':
