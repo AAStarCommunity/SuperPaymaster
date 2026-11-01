@@ -1,6 +1,6 @@
 # Pre-sampling manifest: one reviewed hash for every remaining Sepolia write (CC-125 / CC-127)
 
-Status: **design for review, revision 3** (DSR reviews of 57fe7549 and 9defdbd0 applied; DSR: design passes after these). No packet has been built, nothing is
+Status: **design accepted by DSR (revision 3 + two text fixes, 2026-11-01)**. Packet building follows the §2 preconditions. No packet has been built, nothing is
 signed, and nothing below may be sent until the author gives a separate go for the built packet's sha256. Each go
 request carries the decision card in §9.
 
@@ -141,8 +141,8 @@ the G3 matrix.
 | BLSAggregator (A7) | Ownable(msg.sender), single step | Safe | D `transferOwnership(Safe)`; D `setSlashPolicyAdmin(Safe)` first |
 | DVTValidator | Ownable | Safe | D `transferOwnership(Safe)` |
 | committee `0x7ac7…96a9` | single-step `transferOwnership` present; no `acceptOwnership` or `renounceOwnership` (runtime selectors, read 11-01); owner currently D | Safe | D `transferOwnership(Safe)` after A8 |
-| OverIssueFraudProofVerifier (A12a) | **VERIFY** from DVT's source (the old one exposes no `owner()`) | — | — |
-| old BLSAggregator `0xEaeC…2E5D` (retired) | Ownable, owner D | Safe | D `transferOwnership(Safe)`, so no residual EOA power over a retired but still callable contract |
+| OverIssueFraudProofVerifier (A12a) | no Ownable/owner in DVT's current checkout `72aca4f` (DSR 11-01); re-confirmed on the frozen commit | — | — |
+| old BLSAggregator `0xEaeC…2E5D` (retired) | Ownable, owner D; `slashPolicyAdmin` also D (read back) | Safe | D `setSlashPolicyAdmin(Safe)`, then D `transferOwnership(Safe)`, so D keeps no power over a retired but still callable contract |
 | old verifier `0xa134…1cd3` (retired) | no `owner()` (reverts) | — | nothing to hand over; it is bound to the old aggregator only |
 | SP proxy | (already the timelock since A17) | — | — |
 | GlobalTierSource, xPNTsTokenV2 implementation and extension, SuperPaymasterLens | no owner | — | — |
@@ -210,7 +210,7 @@ STOP conditions (each is a hard stop; nothing later is sent):
   - `executeAPNTsTokenChange` before its ETA, or with `totalTrackedBalance ≠ protocolRevenue`, rejected;
   - the old aggregator cannot submit reputation after A9;
   - a non-owner Registry upgrade rejected;
-  - `applyFraudProofVerifier` before 4 days rejected, and a second apply is a no-op skip;
+  - `applyFraudProofVerifier` before 4 days rejected; a second direct call reverts `NoPendingVerifierRotation` (asserted); the executor, reading `fraudProofVerifier == A12a`, sends no transaction;
   - after Phase D, D can no longer call any owner function on the handed-over contracts.
 - **The 0.1 aPNTs left after the swap.** `protocolRevenue` keeps 0.1e18 of accounting units backed by the old token,
   while SP holds 0 of the new token right after the swap. The rehearsal reads back `totalTrackedBalance` against the
