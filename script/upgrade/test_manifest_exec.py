@@ -180,15 +180,20 @@ class Round8Controls(unittest.TestCase):
         with self.assertRaises(a.Gate) as caught: self.dvt_rebuild('runtime')
         self.assertEqual(caught.exception.record['gate'], 'dvt_mock_rebuilt_runtime')
 
-    def swap_control(self, late=False, broken_eta=False, bad_accounting=False, wrong_reason=False):
+    def swap_control(self, late=False, broken_eta=False, bad_accounting=False, wrong_reason=False, old_impl=False):
         p = pin()
         token, old = '0x'+'34'*20, '0x'+'56'*20
         now = p['pendingAPNTsTokenEta'] + (m.DAY if late else -m.DAY)
-        state = dict(time=now, eta=p['pendingAPNTsTokenEta'], pending=token, token=old, nonce=10)
+        replacement = '0x'+'78'*20
+        state = dict(time=now, eta=p['pendingAPNTsTokenEta'], pending=token, token=old, nonce=10,
+                     implementation=p['implementation'] if old_impl else replacement)
         original = copy.deepcopy(state)
         snapshots, attempts = [], []
-        plan = dict(pin=dict(p, capped=token), addresses={'BLSAggregator':OLD})
+        plan = dict(pin=dict(p, capped=token), addresses={'BLSAggregator':OLD}, implementation=replacement)
         def rpc(method, params):
+            if method == 'eth_getStorageAt':
+                self.assertEqual(params, [u.SP, u.IMPL_SLOT, 'latest'])
+                return '0x'+state['implementation'][2:].zfill(64)
             if method == 'evm_snapshot':
                 snapshots.append(copy.deepcopy(state)); return len(snapshots)-1
             if method == 'evm_revert':
@@ -203,8 +208,10 @@ class Round8Controls(unittest.TestCase):
                     'pendingAPNTsTokenEta()':state['eta'], 'nonce()':0,
                     'pendingFraudProofVerifierReadyAt()':now+100}[sig]
         def address(rpc, target, sig):
-            return {'owner()':u.DEPLOYER, 'pendingAPNTsToken()':state['pending'], 'APNTS_TOKEN()':state['token']}[sig]
+            return {'owner()':u.TL, 'pendingAPNTsToken()':state['pending'], 'APNTS_TOKEN()':state['token']}[sig]
         def fixture(rpc, sender, target, data):
+            if data != a.calldata('applyFraudProofVerifier()'):
+                self.assertEqual((sender, target), (u.TL, u.SP))
             return {'from':sender, 'to':target, 'data':data, 'nonce':hex(state['nonce'])}
         def receipt(rpc, tx, status='0x1'):
             self.assertEqual(a.qty(tx['nonce']), state['nonce'])
@@ -215,7 +222,7 @@ class Round8Controls(unittest.TestCase):
             elif tx['data'] == a.calldata('executeAPNTsTokenChange()'):
                 premature = state['time'] < state['eta']
                 attempts.append((premature, tx['data']))
-                if premature and not broken_eta: actual = '0x0'
+                if premature and not (broken_eta and state['implementation'] == replacement): actual = '0x0'
                 else: state.update(token=state['pending'], pending=a.ZERO, eta=0)
             else: raise AssertionError(tx)
             a.need('receipt_status', actual, status)
@@ -231,6 +238,8 @@ class Round8Controls(unittest.TestCase):
                     m.controls_at(rpc, plan, 'A13.stake', [])
                 controls = []
                 m.controls_at(rpc, plan, 'A17', controls)
+                self.assertEqual(controls, [])
+                m.controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
                 self.assertEqual(controls[0]['control'], 'early_swap')
                 self.assertGreater(controls[0]['eta'], now)
                 self.assertEqual(attempts, [(True, a.calldata('executeAPNTsTokenChange()')),
@@ -245,6 +254,10 @@ class Round8Controls(unittest.TestCase):
     def test_early_swap_detects_missing_eta_guard(self):
         with self.assertRaises(a.Gate) as caught: self.swap_control(broken_eta=True)
         self.assertEqual(caught.exception.record['gate'], 'receipt_status')
+
+    def test_early_swap_refuses_old_implementation(self):
+        with self.assertRaises(a.Gate) as caught: self.swap_control(old_impl=True, broken_eta=True)
+        self.assertEqual(caught.exception.record['gate'], 'early_swap_implementation')
 
     def test_early_swap_requires_valid_accounting(self):
         with self.assertRaises(a.Gate) as caught: self.swap_control(bad_accounting=True)
@@ -614,6 +627,8 @@ class ManifestTests(unittest.TestCase):
                 gates.append(len(sent))
             return step['tx']
         def controls(r, plan, sid, output):
+            if sid == 'after_upgrade_execute_exec':
+                self.assertEqual(sent[-1][0], 'upgrade_execute_exec')
             if sid == 'after_B4': output.extend(dict(control=x) for x in m.CONTROLS)
         patches = [
             patch.object(a, 'process_alive'), patch.object(a, 'nonce', side_effect=lambda r,who,*args:state['nonces'][who]),
@@ -637,6 +652,8 @@ class ManifestTests(unittest.TestCase):
             for p in patches: stack.enter_context(p)
             if solvent:
                 m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
+                self.assertEqual(sum(call.args[2] == 'after_upgrade_execute_exec'
+                                     for call in m.controls_at.call_args_list), 1)
                 m.fraud_rehearsal.assert_called_once_with(rpc, self.plan)
             else:
                 with self.assertRaises(a.Gate) as caught:

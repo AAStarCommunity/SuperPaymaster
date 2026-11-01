@@ -1314,20 +1314,22 @@ def unbacked_swap_control(rpc, plan):
 
 
 def early_swap_control(rpc, plan):
-    """Isolate the ETA guard after A15 has established valid swap accounting."""
+    """Isolate the replacement ETA guard after B1, retaining A15 accounting."""
     snap = rpc('evm_snapshot', [])
     try:
+        implementation = u.addr_word(int(rpc('eth_getStorageAt', [u.SP, u.IMPL_SLOT, 'latest']), 16))
+        a.need('early_swap_implementation', implementation, plan['implementation'])
         tracked = a.word(rpc, u.SP, 'totalTrackedBalance()')
         revenue = a.word(rpc, u.SP, 'protocolRevenue()')
         a.need('early_swap_accounting', tracked == revenue <= BUFFER, True)
         token = plan['pin']['capped']
         a.need('early_swap_token', token != a.ZERO, True)
-        a.need('early_swap_owner', a.address(rpc, u.SP, 'owner()'), u.DEPLOYER)
-        u.receipt(rpc, u.fixture_tx(rpc, u.DEPLOYER, u.SP, a.calldata('setAPNTsToken(address)', token)))
+        a.need('early_swap_owner', a.address(rpc, u.SP, 'owner()'), u.TL)
+        u.receipt(rpc, u.fixture_tx(rpc, u.TL, u.SP, a.calldata('setAPNTsToken(address)', token)))
         a.need('early_swap_pending', a.address(rpc, u.SP, 'pendingAPNTsToken()'), token)
         eta = a.word(rpc, u.SP, 'pendingAPNTsTokenEta()')
         a.need('early_swap_future_eta', a.qty(a.block_data(rpc, 'latest')['timestamp'])+1 < eta, True)
-        tx = u.fixture_tx(rpc, u.DEPLOYER, u.SP, a.calldata('executeAPNTsTokenChange()'))
+        tx = u.fixture_tx(rpc, u.TL, u.SP, a.calldata('executeAPNTsTokenChange()'))
         result = a.negative(rpc, tx, a.calldata('InvalidConfiguration()'), 'early_swap')
         # The contract shares this error with its accounting guard. Success with
         # identical state after only advancing time establishes the ETA cause.
@@ -1359,7 +1361,7 @@ def controls_at(rpc, plan, sid, controls):
     if sid == 'A13.stake':
         eta = a.word(rpc, agg, 'pendingFraudProofVerifierReadyAt()')
         negative('early_verifier', u.DEPLOYER, agg, 'applyFraudProofVerifier()', (), 'VerifierRotationNotReady(uint256)', (eta,))
-    if sid == 'A17':
+    if sid == 'after_upgrade_execute_exec':
         controls.append(early_swap_control(rpc, plan))
     if sid == 'upgrade_schedule_approve':
         # Exercise the new implementation before factory wiring, then restore the
@@ -1464,6 +1466,8 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         records.append(record)
         u.log(out, record)
         a.trace_overrides(rpc, r, overrides)
+        if sid == 'upgrade_execute_exec':
+            controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
     controls_at(rpc, plan, 'after_B4', controls)
     a.need('controls_complete', sorted(x['control'] for x in controls), sorted(CONTROLS))
     a.need('steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
