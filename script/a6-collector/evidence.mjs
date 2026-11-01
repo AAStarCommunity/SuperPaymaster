@@ -6,6 +6,7 @@ import { feePauseErrors } from './disposition.mjs';
 import { readFileSync, writeFileSync, mkdirSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
+import { localUserOpHash } from './gauge-lib.mjs';
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export const stringify = x => JSON.stringify(x, (_, v) => typeof v === 'bigint' ? String(v) : v);
 export function verifyPin(pin) {
@@ -117,6 +118,11 @@ export function bindPreflight(row,archives) {
       let error=response.error;
       for (let i=0;i<8 && error;i++,error=error.cause) if (typeof error.data==='string') {
         const decoded=decodeErrorResult({abi:preflightAbi,data:error.data});
+        // The failure must name the selected operation: EntryPoint validates sequentially, so another op's failure in
+        // the same simulated bundle says nothing about this one.
+        const selected=row.bundledOps.findIndex(op=>{ try { return localUserOpHash(op,row.entryPoint,row.chainId).toLowerCase()===String(row.expectedUserOpHash).toLowerCase(); } catch { return false; } });
+        // A bare Panic carries no opIndex: it can only describe the selected op in a single-op bundle (B_max = 1).
+        if (selected<0 || (decoded.errorName==='Panic' ? row.bundledOps.length!==1 : BigInt(decoded.args[0])!==BigInt(selected))) return false;
         const reason=decoded.errorName==='Panic' ? error.data : decoded.args[1];
         const expected={infraFailure:reason.startsWith('AA31'),sponsorshipFailed:!reason.startsWith('AA31'),revertReason:reason,...(decoded.errorName==='FailedOpWithRevert'?{inner:decoded.args[2]}:{})};
         return evidenceEqual(row.preflight,expected);

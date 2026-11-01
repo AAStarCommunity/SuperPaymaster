@@ -175,7 +175,9 @@ export function artifactErrors(window,rows,trailer,journal) {
       })) throw new Error('inclusion block membership missing on A/B');
       const sends=archives[0].records.filter(raw=>raw.method==='eth_sendRawTransaction' && raw.response && lower(JSON.parse(Buffer.from(raw.response,'base64').toString()).result)===lower(a.tx.hash));
       if (sends.length!==1 || sends[0].id<=lastSendId || Date.parse(sends[0].requestedAtUtc)>time) throw new Error('archived send sequence mismatch');
-      if (!archives[0].records.some(raw=>raw.id>a.evidenceStart[0] && raw.id<sends[0].id && raw.method==='eth_blockNumber' && raw.response && BigInt(JSON.parse(Buffer.from(raw.response,'base64')).result)===BigInt(a.tx.headBefore))) throw Error('raw headBefore mismatch');
+      // headBefore is the LAST head read before the send, not any earlier head in the attempt.
+      const heads=archives[0].records.filter(raw=>raw.id>a.evidenceStart[0] && raw.id<sends[0].id && raw.method==='eth_blockNumber' && raw.response);
+      if (!heads.length || BigInt(JSON.parse(Buffer.from(heads.at(-1).response,'base64')).result)!==BigInt(a.tx.headBefore)) throw Error('raw headBefore mismatch');
       if (previousIncluded) for (const archive of archives) {
         const result=raw=>raw.response && JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
         const beforeSend=raw=>Date.parse(raw.receivedAtUtc)<=Date.parse(sends[0].requestedAtUtc);

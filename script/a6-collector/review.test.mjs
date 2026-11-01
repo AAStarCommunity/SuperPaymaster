@@ -8,6 +8,7 @@ import { repairFixture } from './repair-fixture.mjs';
 import { artifactErrors } from './artifact-validate.mjs';
 import { windowErrors } from './evidence-validate.mjs';
 import { exclusionReason, EXCLUSION_REASONS } from './evidence.mjs';
+import { parseAbi, decodeErrorResult, encodeErrorResult } from 'viem';
 const H='0x'+'ab'.repeat(32);
 function temp(fn) {const d=realpathSync(mkdtempSync('/tmp/a6-review-'));try{return fn(d);}finally{rmSync(d,{recursive:true,force:true});}}
 function editRaw(d,path,fn) {
@@ -369,6 +370,8 @@ const rehearsalRpc = {
 };
 const rehearsalAttempt = {
   "attemptIndex": 1,
+  "chainId": 31337,
+  "expectedUserOpHash": "0xdd9bf6bb881b9c98f1d28c1b78a5c8ac0bfcae98ede4041e6a02a6229f0b273a",
   "evidenceStart": [
     558,
     537
@@ -455,6 +458,15 @@ test('H-B real FailedOp binds to the attempt simulation on A, not invented reaso
     r=>{const response=structuredClone(rehearsalRpc.preflight.response);response.result='0x';r.response=Buffer.from(JSON.stringify(response)).toString('base64');},
   ]) {
     const bad=structuredClone(raw);mutate(bad);request(bad);
+    assert.throws(()=>check(bad),/raw preflight evidence/);
+  }
+  // A FailedOp naming another bundle index does not describe the selected operation (round-7 counterexample).
+  {
+    const bad=structuredClone(raw),response=structuredClone(rehearsalRpc.preflight.response);
+    const failedOp=parseAbi(['error FailedOp(uint256 opIndex,string reason)']);
+    const {args}=decodeErrorResult({abi:failedOp,data:response.error.data});
+    response.error.data=encodeErrorResult({abi:failedOp,errorName:'FailedOp',args:[1n,args[1]]});
+    bad.response=Buffer.from(JSON.stringify(response)).toString('base64');request(bad);
     assert.throws(()=>check(bad),/raw preflight evidence/);
   }
   for(const reason of ['price_stale','AA32 invented reason']) {
