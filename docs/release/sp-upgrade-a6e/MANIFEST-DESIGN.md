@@ -246,6 +246,15 @@ STOP conditions (each is a hard stop; nothing later is sent):
     - Scope: this proves A7 plus the deployed verifier bytecode, under the real domain, accept and reject correctly. It does
       **not** prove that A7's `verifyAndExecute` writes the same commitment, and it skips `_checkSignatures`. That part rests
       on source-level tests at `fbd74fb1` (`InnerCommitmentLayoutParity` and the real-precompile Prague tests).
+    - DSR conditions (11-01):
+      - The drill runs on its own snapshot and is reverted afterwards. `anvil_setCode` / `anvil_setStorageAt` state
+        never enters the main rehearsal path, and no main-path read-back comes from a modified fork. The report records
+        both snapshot ids.
+      - The report records the written slots and values, and the runtime hashes of A7 and the verifier under test. Both
+        hashes must equal the packet's expected values.
+      - N1–N3 assert the specific revert reason, not merely "failed", so that a wrong slot cannot pass as a rejection.
+        N4 asserts that `verify` returns false.
+      - Re-run if the tag changes BLSAggregator or the verifier.
     - No real guardian key signs anything for this drill. Such a signature would also be valid on the real A7, so the owner
       could use it to start a real slash. The exported proof is rejected on the real chain: there the commitment is 0 and T has no code.
   - This pair runs with the packet's actual verifier creation code, on the fork engine (Amsterdam, a superset of
@@ -287,6 +296,9 @@ STOP conditions (each is a hard stop; nothing later is sent):
 - All contract versions are bound to one frozen tag, with the §2 release evidence. After the tag, `contracts/src` does not change.
 - Multisig disclosure: both testnet signers were controlled by one operator.
 - Registry, AOAProtocolRegistry and xPNTsFactoryV2 are governed by the same 48 h timelock. BLSAggregator and DVTValidator are Safe-only.
+- Guardian-slash evidence is fork state construction plus source-level tests, not an on-chain end-to-end run. On A7's
+  bytecode, the `verifyAndExecute` → commitment segment has no end-to-end drill. The paper does not claim that the
+  fraud-proof path has been exercised on chain.
 - A contract-design constraint, disclosed as an operational precondition: an aPNTs token swap cannot keep SP solvent by
   itself. The operator must pre-mint the 0.1e18 buffer in the new token (B2a). 5.5.0 is not changed. The G3 matrix and
   the paper record this, and the next contract version should fix it (noted in DESIGN.md).
