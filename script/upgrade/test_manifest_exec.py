@@ -291,6 +291,7 @@ class ManifestTests(unittest.TestCase):
     def test_budget_includes_stake_and_deposit(self):
         for s in self.plan['steps']:
             s['tx']['gas'] = hex(100000)
+            for tx in s.get('variants', {}).values(): tx['gas'] = hex(100000)
         m.budget(self.plan)
         d_steps = [s for s in self.plan['steps'] if s['sender'] == 'deployer']
         self.assertEqual(self.plan['budgetsWei']['deployer'],
@@ -378,10 +379,10 @@ class ManifestTests(unittest.TestCase):
 
     def test_all_requested_controls_registered(self):
         self.assertEqual(set(m.CONTROLS), {'early_unpause','factory_binding','early_bls','early_swap',
-            'funded_swap','old_reputation','registry_nonowner','early_verifier','repeat_verifier','verifier_skip','unbacked_swap'})
+            'funded_swap','old_reputation','registry_nonowner','early_verifier','repeat_verifier','verifier_placeholder','verifier_frontrun','verifier_wrong','unbacked_swap'})
 
 
-    def rehearse_fake(self, already_applied=False, solvent=True):
+    def rehearse_fake(self, already_applied=False, solvent=True, frontrun=False):
         state = dict(now=self.pin['timestamp'], safe=self.pin['safeNonce'], next=None,
                      nonces={v['address']:v['nonce'] for v in self.pin['senders'].values()}, etas={})
         sent, waits, gates = [], [], []
@@ -395,6 +396,7 @@ class ManifestTests(unittest.TestCase):
                 waits.append(state['now'])
                 return '0x0'
             if method == 'eth_getTransactionByHash': return {}
+            if method == 'eth_estimateGas': return hex(21000)
             raise AssertionError((method, params))
         rpc.local = True
         rpc.engine_process = SimpleNamespace()
@@ -410,19 +412,19 @@ class ManifestTests(unittest.TestCase):
                         rrRequired=False, rrWitness=None)
             step['tx']['gas'] = hex(130000)
             return {}
-        def receipt(r, tx):
-            step = next(x for x in self.plan['steps'] if x['tx'] == tx)
+        def receipt(r, tx, status='0x1'):
+            step = next(x for x in self.plan['steps'] if x['tx']['nonce'] == tx['nonce'] and x['tx']['from'] == tx['from'])
             sid = step['id']
             self.assertEqual(state['nonces'][tx['from']], a.qty(tx['nonce']))
             state['nonces'][tx['from']] += 1
-            state['now'] = state['next']
+            state['now'] = state['next'] or state['now']
             state['safe'] += int(sid.endswith('_exec'))
             if sid.endswith('schedule_exec'):
                 state['etas'][self.plan['operations'][step['operation']]['id']] = state['now']+u.DELAY
             if sid == 'A12b': state['verifierEta'] = state['now']+4*m.DAY
             if sid == 'upgrade_execute_exec': state['gasEta'] = state['now']+u.DELAY
             sent.append((sid, state['now']))
-            return dict(status='0x1', gasUsed=hex(90000), blockNumber='0x150', transactionHash='0x'+'12'*32, logs=[])
+            return dict(status='0x0' if sid == 'B4' and frontrun else '0x1', gasUsed=hex(21000 if tx['data'] == '0x' else 90000), blockNumber='0x150', transactionHash='0x'+'12'*32, logs=[])
         def pre(r, plan, step, context, measured=False):
             if step['id'] == 'activation_execute_exec':
                 self.assertIn('upgradeBlock', context)
@@ -438,6 +440,8 @@ class ManifestTests(unittest.TestCase):
             patch.object(a, 'call', side_effect=lambda *args, **kw:a.cast('abi-encode', 'c(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)',
                 *u.GAS, *u.GAS, state['gasEta'])),
             patch.object(a, 'mined_identity'), patch.object(a, 'trace_overrides'),
+            patch.object(m, 'b4_controls', return_value=[]),
+            patch.object(u, 'probe', return_value=({'status':'0x1', 'gasUsed':hex(21000)}, None)),
             patch.object(u, 'measure_step', side_effect=measure), patch.object(u, 'receipt', side_effect=receipt),
             patch.object(m, 'mint_trace'), patch.object(u, 'safe_trace'), patch.object(u, 'safe_exec_events'), patch.object(u, 'check_inventory'),
             patch.object(u, 'assert_frozen'), patch.object(m, 'pre_send', side_effect=pre),
@@ -469,12 +473,20 @@ class ManifestTests(unittest.TestCase):
         self.assertTrue(waits)
         m.validate_plan(self.plan, self.inputs, frozen=True)
 
-    def test_rehearsal_b4_skip_keeps_nonce(self):
+    def test_rehearsal_b4_placeholder_consumes_reserved_nonce(self):
         sent, _, _, state = self.rehearse_fake(already_applied=True)
-        self.assertNotIn('B4', dict(sent))
-        self.assertTrue(self.plan['steps'][-1]['skipped'])
-        self.assertEqual(state['nonces'][u.DEPLOYER], a.qty(self.plan['steps'][-1]['tx']['nonce']))
+        self.assertIn('B4', dict(sent))
+        self.assertFalse(self.plan['steps'][-1]['skipped'])
+        self.assertEqual(state['nonces'][u.DEPLOYER], a.qty(self.plan['steps'][-1]['tx']['nonce'])+1)
         m.validate_plan(self.plan, self.inputs, frozen=True)
+
+    def test_rehearsal_frontrun_status_zero_continues(self):
+        sent, _, _, state = self.rehearse_fake(frontrun=True)
+        result = json.loads((Path(self.tmp.name)/'manifest-simulate.json').read_text())
+        self.assertEqual(result['status'], 'PASS')
+        record = result['steps'][-1]
+        self.assertEqual((record['step'], record['variant'], record['receipt']['status']), ('B4', 'apply', '0x0'))
+        self.assertEqual(state['nonces'][u.DEPLOYER], a.qty(self.step('B4')['tx']['nonce'])+1)
 
     def test_rehearsal_stops_on_solvency_without_pass_record(self):
         sent, _, _, _ = self.rehearse_fake(solvent=False)
@@ -619,17 +631,103 @@ class ManifestTests(unittest.TestCase):
         self.plan['steps'].remove(step)
         with self.assertRaises(a.Gate): m.validate_plan(self.plan, self.inputs)
 
-    def test_frozen_b4_preapplied_pending_design(self):
-        plan = copy.deepcopy(self.plan)
-        plan['steps'] = [self.step('B4')]
-        def rpc(*args): return True
-        rpc.local = True
-        rpc.engine_process = SimpleNamespace()
-        with patch.object(m, 'validate_plan'), patch.object(a, 'process_alive'), \
-             patch.object(m, 'controls_at'), patch.object(m, 'b4_needed', return_value=False):
-            with self.assertRaises(a.Gate) as caught:
-                m.run_manifest(None, rpc, plan, Path(self.tmp.name), calibrate=False)
-        self.assertEqual(caught.exception.record['gate'], 'b4_preapplied_pending_design')
+    def test_b4_exact_variants_and_hash_binding(self):
+        step = self.step('B4')
+        self.assertEqual(set(step['variants']), {'apply', 'placeholder'})
+        self.assertEqual(step['variants']['apply'], step['tx'])
+        self.assertEqual(step['variants']['placeholder'],
+                         dict(step['tx'], to=u.DEPLOYER, value='0x0', data='0x'))
+        original = hashlib.sha256(json.dumps(self.plan, sort_keys=True).encode()).hexdigest()
+        for name in ('apply', 'placeholder'):
+            bad = copy.deepcopy(self.plan)
+            bad['steps'][-1]['variants'][name]['value'] = '0x1'
+            self.assertNotEqual(hashlib.sha256(json.dumps(bad, sort_keys=True).encode()).hexdigest(), original)
+            with self.assertRaises(a.Gate): m.validate_plan(bad, self.inputs)
+        for field, value in (('to', ANNI), ('data', '0x00'), ('nonce', '0x1'),
+                             ('maxFeePerGas', '0x1'), ('maxPriorityFeePerGas', '0x1')):
+            bad = copy.deepcopy(self.plan)
+            bad['steps'][-1]['variants']['placeholder'][field] = value
+            with self.assertRaises(a.Gate): m.validate_plan(bad, self.inputs)
+        step['variants']['third'] = dict(step['tx'])
+        with self.assertRaises(a.Gate): m.validate_plan(self.plan, self.inputs)
+
+    def test_b4_read_selects_only_allowed_variant(self):
+        chain = FakeChain(self.plan)
+        for verifier, variant in ((a.ZERO, 'apply'),
+                (self.plan['addresses']['OverIssueFraudProofVerifier'], 'placeholder'),
+                (ANNI, 'apply')):
+            chain.verifier = verifier
+            name, tx = m.select_b4(chain, self.plan, self.step('B4'))
+            self.assertEqual(name, variant)
+            self.assertEqual(tx, self.step('B4')['variants'][variant])
+
+    def test_b4_poststate_status_exception_is_narrow(self):
+        expected = self.plan['addresses']['OverIssueFraudProofVerifier']
+        for variant in ('apply', 'placeholder', 'third'):
+            for status in (0, 1, 2):
+                for active, pending, eta in ((expected, a.ZERO, 0), (ANNI, a.ZERO, 0),
+                        (expected, ANNI, 0), (expected, a.ZERO, 1)):
+                    values = dict(zip(('fraudProofVerifier()', 'pendingFraudProofVerifier()',
+                                       'pendingFraudProofVerifierReadyAt()'),
+                                      (int(active,16), int(pending,16), eta)))
+                    passes = (variant in ('apply','placeholder') and
+                        (status == 1 or (status == 0 and variant == 'apply')) and
+                        active == expected and pending == a.ZERO and eta == 0)
+                    with self.subTest(variant=variant,status=status,values=values), patch.object(a, 'call',
+                            side_effect=lambda r,t,s,*args: '0x'+format(values[s], '064x')):
+                        if passes: m.b4_post_state(None, self.plan, variant, {'status':hex(status)})
+                        else:
+                            with self.assertRaises(a.Gate):
+                                m.b4_post_state(None, self.plan, variant, {'status':hex(status)})
+
+    def test_b4_frozen_execution_controls_and_receipt_record(self):
+        step = self.step('B4')
+        step['tx']['gas'] = hex(130000)
+        step['variants']['apply'] = dict(step['tx'])
+        step['variants']['placeholder']['gas'] = hex(21000)
+        expected = self.plan['addresses']['OverIssueFraudProofVerifier']
+        for mode in ('preapplied', 'frontrun', 'wrong'):
+            frozen = copy.deepcopy(step)
+            state = dict(verifier=expected if mode == 'preapplied' else a.ZERO,
+                         nonce=a.qty(step['tx']['nonce']))
+            sent, context = [], {}
+            def rpc(method, params):
+                if method == 'eth_estimateGas': return hex(21000)
+                if method == 'eth_getTransactionByHash': return {}
+                raise AssertionError(method)
+            def receipt(rpc, tx, status=None):
+                self.assertIsNone(status)
+                self.assertEqual(a.qty(tx['nonce']), state['nonce'])
+                state['nonce'] += 1
+                sent.append(tx)
+                state['verifier'] = ANNI if mode == 'wrong' else expected
+                return dict(status='0x1' if mode == 'preapplied' else '0x0',
+                    gasUsed=hex(21000), transactionHash='0x'+'12'*32)
+            def call(rpc, target, signature, *args):
+                value = int(state['verifier'], 16) if signature == 'fraudProofVerifier()' else 0
+                return '0x'+format(value, '064x')
+            with patch.object(a, 'block_data', return_value=dict(timestamp='0x100', gasLimit=hex(a.GAS_CAP))), \
+                 patch.object(a, 'call', side_effect=call), \
+                 patch.object(a, 'address', side_effect=lambda *args:state['verifier']), \
+                 patch.object(a, 'nonce', side_effect=lambda *args:state['nonce']), \
+                 patch.object(a, 'word', return_value=step['safeNonce']), \
+                 patch.object(a, 'mined_identity'), patch.object(m, 'pre_send'), \
+                 patch.object(u, 'receipt', side_effect=receipt), \
+                 patch.object(u, 'probe', return_value=({'status':'0x1','gasUsed':hex(21000)}, None)), \
+                 patch.object(u, 'log') as log:
+                if mode == 'wrong':
+                    with self.assertRaises(a.Gate):
+                        m.execute_b4(None, rpc, self.plan, step, context, {}, False, Path(self.tmp.name))
+                else:
+                    result = m.execute_b4(None, rpc, self.plan, step, context, {}, False, Path(self.tmp.name))
+                    self.assertEqual(result['variant'], 'placeholder' if mode == 'preapplied' else 'apply')
+                    self.assertEqual(state['nonce'], a.qty(step['tx']['nonce'])+1)
+                self.assertEqual(len(sent), 1)
+                self.assertEqual(log.call_args.args[1]['receipt'], context['B4Receipt']['receipt'])
+                self.assertEqual(sent[0], step['variants']['placeholder' if mode == 'preapplied' else 'apply'])
+            step.pop('skipped', None)
+            frozen.pop('skipped', None)
+            self.assertEqual(step, frozen)
 
     def test_s7_receipt_status_and_nonce_required_by_builder(self):
         for field in ('status', 'nonce'):

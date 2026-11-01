@@ -62,7 +62,8 @@ IMMUTABLES = dict(SuperPaymaster=u.SP_IMMUTABLES, SuperPaymasterAdmin=u.SP_IMMUT
     SuperPaymasterLens=(), Registry=('__self',), BLSAggregator=('REGISTRY',))
 POP = 'registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))'
 CONTROLS = ['early_unpause', 'factory_binding', 'early_bls', 'early_swap', 'funded_swap',
-            'old_reputation', 'registry_nonowner', 'early_verifier', 'repeat_verifier', 'verifier_skip', 'unbacked_swap']
+            'old_reputation', 'registry_nonowner', 'early_verifier', 'repeat_verifier', 'verifier_placeholder',
+            'verifier_frontrun', 'verifier_wrong', 'unbacked_swap']
 
 
 def required(obj, keys, label):
@@ -540,11 +541,17 @@ def build_plan(pin, inputs=None):
                 checks += [dict(kind=name)]
             add(sid+'_exec', u.SAFE, safe_payload(inner), checks, sender='executor', safeHash=h, inner=inner, operation=name)
             safe_n += 1
-    call('B4', agg, 'applyFraudProofVerifier()', (), [address_pred(agg, 'fraudProofVerifier()', verifier)],
-         skipIf=address_pred(agg, 'fraudProofVerifier()', verifier))
+    b4 = call('B4', agg, 'applyFraudProofVerifier()', (), [
+        address_pred(agg, 'fraudProofVerifier()', verifier),
+        address_pred(agg, 'pendingFraudProofVerifier()', a.ZERO),
+        word_pred(agg, 'pendingFraudProofVerifierReadyAt()', 0)])
+    b4['variants'] = dict(apply=copy.deepcopy(b4['tx']),
+        placeholder=dict(b4['tx'], to=u.DEPLOYER, value='0x0', data='0x'))
     return dict(schema=3, route='manifest-A-B', pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs),
         rebuild=arts, addresses=addresses, implementation=impl, extension=extension, operations=operations,
-        steps=steps, controls=CONTROLS, gasPolicy=copy.deepcopy(u.GAS_POLICY), gasParams=list(u.GAS),
+        steps=steps, controls=CONTROLS,
+        b4Disclosure='B4 always consumes its reserved deployer nonce. If already applied, one empty, zero-value self-transfer costs gas only.',
+        gasPolicy=copy.deepcopy(u.GAS_POLICY), gasParams=list(u.GAS),
         activationScheduleNotBefore=max(0, pin['pendingAPNTsTokenEta']-u.DELAY))
 
 
@@ -579,6 +586,110 @@ def b2_gate(rpc, plan, upgrade_block):
 
 def b4_needed(rpc, plan):
     return a.address(rpc, plan['addresses']['BLSAggregator'], 'fraudProofVerifier()') != plan['addresses']['OverIssueFraudProofVerifier']
+
+
+def b4_post_state(rpc, plan, variant, receipt):
+    a.need('B4_variant', variant in ('apply', 'placeholder'), True)
+    status = a.qty(receipt['status'])
+    a.need('B4_status', status == 1 or (variant == 'apply' and status == 0), True)
+    step = next(s for s in plan['steps'] if s['id'] == 'B4')
+    return [check_predicate(rpc, pred) for pred in step['readbacks']]
+
+
+def select_b4(rpc, plan, step):
+    name = 'apply' if b4_needed(rpc, plan) else 'placeholder'
+    return name, copy.deepcopy(step['variants'][name])
+
+
+def execute_b4(remote, rpc, plan, step, context, overrides, calibrate, out=None):
+    timestamp = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
+    if calibrate:
+        # Calibration requires the unapplied fixture to measure both approved payloads.
+        # Snapshot probes never consume the reserved nonce.
+        u.measure_step(remote, rpc, plan, step, overrides, timestamp, True)
+        step['variants']['apply'] = copy.deepcopy(step['tx'])
+    tx = step['variants']['placeholder']
+    probe = {k: v for k, v in a.tx_rpc(tx).items() if k != 'gas'}
+    gas = a.qty(rpc('eth_estimateGas', [probe, 'latest']))
+    trial, _ = u.probe(rpc, tx, gas, timestamp)
+    a.need('B4_placeholder_probe', trial['status'], '0x1')
+    gas = a.qty(trial['gasUsed'])
+    a.need('B4_intrinsic_floor', gas >= 21000, True)
+    trial, _ = u.probe(rpc, tx, gas, timestamp)
+    a.need('B4_placeholder_exact', (trial['status'], a.qty(trial['gasUsed'])), ('0x1', gas))
+    if calibrate:
+        tx['gas'] = hex(gas)
+    else:
+        a.need('B4_frozen_intrinsic', tx['gas'], hex(gas))
+    # Do not estimate apply after this read: a concurrent apply can legitimately revert.
+    name, tx = select_b4(rpc, plan, step)
+    selected = dict(step, tx=tx)
+    pre_send(rpc, plan, selected, context)
+    a.need('B4_block_gas', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
+    r = u.receipt(rpc, tx, status=None)
+    a.mined_identity(rpc('eth_getTransactionByHash', [r['transactionHash']]), tx, 'B4')
+    a.need('B4_nonce_consumed', a.nonce(rpc, tx['from']), a.qty(tx['nonce'])+1)
+    a.need('B4_safe_nonce', a.word(rpc, u.SAFE, 'nonce()'), step['safeNonce'])
+    a.need('B4_receipt_gas', a.qty(r['gasUsed']) <= a.qty(tx['gas']), True)
+    # Record even a reverted apply before checking whether its post-state permits continuation.
+    record = dict(step='B4', variant=name, transaction=tx, receipt=r)
+    context['B4Receipt'] = record
+    if out is not None:
+        u.log(out, record)
+    observed = b4_post_state(rpc, plan, name, r)
+    step['skipped'] = False
+    return dict(record, readbacks=observed)
+
+
+def b4_controls(rpc, plan, step):
+    results = []
+    agg = plan['addresses']['BLSAggregator']
+    for control in ('verifier_placeholder', 'verifier_frontrun', 'verifier_wrong'):
+        snap = rpc('evm_snapshot', [])
+        try:
+            if not b4_needed(rpc, plan):
+                u.receipt(rpc, u.fixture_tx(rpc, u.DEPLOYER, agg,
+                    a.calldata('emergencyDisarmFraudProofVerifier()')))
+                u.receipt(rpc, u.fixture_tx(rpc, u.DEPLOYER, agg,
+                    a.calldata('proposeFraudProofVerifier(address)', plan['addresses']['OverIssueFraudProofVerifier'])))
+                u.wait_until(rpc, a.word(rpc, agg, 'pendingFraudProofVerifierReadyAt()'))
+            name, tx = select_b4(rpc, plan, step)
+            a.need('B4_control_initial', name, 'apply')
+            if control == 'verifier_wrong':
+                u.receipt(rpc, u.fixture_tx(rpc, u.DEPLOYER, agg,
+                    a.calldata('proposeFraudProofVerifier(address)', plan['pin']['oldAggregator'])))
+                u.wait_until(rpc, a.word(rpc, agg, 'pendingFraudProofVerifierReadyAt()'))
+            # Permissionless apply from another account preserves D's reserved nonce.
+            u.receipt(rpc, u.fixture_tx(rpc, a.EXECUTOR, agg, a.calldata('applyFraudProofVerifier()')))
+            if control == 'verifier_placeholder':
+                name, tx = select_b4(rpc, plan, step)
+                a.need('B4_control_placeholder', name, 'placeholder')
+            tx = dict(tx, gas=tx.get('gas', hex(a.GAS_CAP)))
+            # Owner setup writes are confined to this reverted fixture.
+            tx['nonce'] = hex(a.nonce(rpc, u.DEPLOYER))
+            receipt = u.receipt(rpc, tx, status=None)
+            try:
+                b4_post_state(rpc, plan, name, receipt)
+            except a.Gate as error:
+                if control != 'verifier_wrong':
+                    raise
+                a.need('B4_wrong_gate', error.record['gate'], 'readback_fraudProofVerifier()')
+                a.need('B4_wrong_status', receipt['status'], '0x0')
+                results.append(dict(control=control, stopped=True, receipt=receipt))
+            else:
+                a.need('B4_wrong_must_stop', control != 'verifier_wrong', True)
+                a.need('B4_control_status', a.qty(receipt['status']),
+                       1 if control == 'verifier_placeholder' else 0)
+                next_nonce = a.nonce(rpc, u.DEPLOYER)
+                a.need('B4_next_nonce', next_nonce, a.qty(tx['nonce'])+1)
+                # A later D transaction uses exactly the next nonce in either branch.
+                later = dict(tx, to=u.DEPLOYER, data='0x', value='0x0', nonce=hex(next_nonce))
+                u.receipt(rpc, later)
+                a.need('B4_later_nonce', a.nonce(rpc, u.DEPLOYER), next_nonce+1)
+                results.append(dict(control=control, variant=name, receipt=receipt, nextDeployerNonce=next_nonce))
+        finally:
+            a.need('B4_control_restore', rpc('evm_revert', [snap]), True)
+    return results
 
 
 def check_predicate(rpc, p, timestamp=None):
@@ -632,7 +743,7 @@ def batch_readback(rpc, plan, activated, timestamp):
 def budget(plan):
     result = {}
     for label in plan['pin']['senders']:
-        cost = sum(a.qty(s['tx']['gas'])*a.qty(s['tx']['maxFeePerGas'])+a.qty(s['tx']['value'])
+        cost = sum(max(a.qty(t['gas']) for t in s.get('variants', {'apply': s['tx']}).values())*a.qty(s['tx']['maxFeePerGas'])+a.qty(s['tx']['value'])
                    for s in plan['steps'] if s['sender'] == label and not s.get('skipped', False))
         a.need('budget_'+label, plan['pin']['senders'][label]['balance'] >= cost, True)
         result[label] = cost
@@ -648,16 +759,26 @@ def validate_plan(plan, inputs, frozen=False):
     a.need('manifest_length', len(plan['steps']), len(expected['steps']))
     for actual, derived in zip(plan['steps'], expected['steps']):
         extra = u.MEASURED_KEYS | {'skipped'} if frozen else set()
-        if frozen and actual.get('skipped'):
-            a.need('skip_only_B4', actual['id'], 'B4')
-            extra = {'skipped'}
+        if frozen:
+            a.need('no_skipped_nonce', actual.get('skipped'), False)
         a.exact_keys('manifest_step', actual, set(derived) | extra)
-        for key in set(derived)-{'tx'}:
+        for key in set(derived)-{'tx', 'variants'}:
             a.need('manifest_step_'+key, actual[key], derived[key])
         a.exact_keys('manifest_tx', actual['tx'], set(derived['tx']) | ({'gas'} if frozen and not actual.get('skipped') else set()))
         for key, value in derived['tx'].items():
             a.need('manifest_tx_'+key, actual['tx'][key], value)
-        if frozen and not actual.get('skipped'):
+        if 'variants' in derived:
+            a.exact_keys('B4_variants', actual['variants'], ('apply', 'placeholder'))
+            for name, tx in derived['variants'].items():
+                variant = actual['variants'][name]
+                a.exact_keys('B4_variant_fields', variant, set(tx) | ({'gas'} if frozen else set()))
+                for key, value in tx.items():
+                    a.need('B4_variant_'+key, variant[key], value)
+            a.need('B4_apply_binding', actual['variants']['apply'], actual['tx'])
+            if frozen:
+                a.need('B4_placeholder_intrinsic', a.qty(actual['variants']['placeholder']['gas']) >= 21000, True)
+                a.tx_quantities(actual['variants']['placeholder'])
+        if frozen:
             u.validate_gas(actual)
     if frozen:
         checked = copy.deepcopy(plan)
@@ -811,10 +932,6 @@ def controls_at(rpc, plan, sid, controls):
             a.need('funded_swap_restore', rpc('evm_revert', [snap]), True)
     if sid == 'after_B4':
         negative('repeat_verifier', u.DEPLOYER, agg, 'applyFraudProofVerifier()', (), 'NoPendingVerifierRotation()')
-        before = a.nonce(rpc, u.DEPLOYER)
-        a.need('B4_skip', b4_needed(rpc, plan), False)
-        a.need('B4_skip_nonce', a.nonce(rpc, u.DEPLOYER), before)
-        controls.append(dict(control='verifier_skip', nonce=before, sent=False))
 
 
 def run_manifest(remote, rpc, plan, out, calibrate=True):
@@ -828,13 +945,6 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         a.process_alive(rpc.engine_process)
         sid = step['id']
         controls_at(rpc, plan, sid, controls)
-        if sid == 'B4' and not b4_needed(rpc, plan):
-            if not calibrate:
-                # TODO: resolve keeper-applied nonce handling before implementing a sender.
-                raise a.Gate('b4_preapplied_pending_design', 'already applied', 'sender design decision')
-            step['skipped'] = True
-            records.append(dict(step=sid, skipped=True))
-            continue
         if not calibrate:
             a.need('frozen_step_not_skipped', step['skipped'], False)
         if sid == 'activation_schedule_approve':
@@ -844,6 +954,12 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
             u.wait_until(rpc, a.word(rpc, u.TL, 'getTimestamp(bytes32)', plan['operations'][step['operation']]['id']))
         if sid == 'B4':
             u.wait_until(rpc, a.word(rpc, plan['addresses']['BLSAggregator'], 'pendingFraudProofVerifierReadyAt()'))
+            controls.extend(b4_controls(rpc, plan, step))
+            record = execute_b4(remote, rpc, plan, step, context, overrides, calibrate, out)
+            records.append(record)
+            u.log(out, record)
+            a.trace_overrides(rpc, record['receipt'], overrides)
+            continue
         pre_send(rpc, plan, step, context)
         timestamp = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
         evidence = u.measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate)
