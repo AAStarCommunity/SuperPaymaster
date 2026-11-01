@@ -1,3 +1,4 @@
+import { rehearsalTpmRefresh } from './rehearsal-refresh.mjs';
 import { traceTPM } from './trace-policy.mjs';
 import { revalidateAnchors, requireDecodedPreflight, waitAfterInclusion } from './formal.mjs';
 import { loadPins, loadRegistry, sha256, evidenceIndex, writeArtifact, appendIndex, writeTrailer, armCounts, exclusionReason } from './evidence.mjs';
@@ -145,7 +146,7 @@ const rpcIdentityPin = formal ? { path:'rpc-identity.json', sha256:sha256(readFi
 function savePassport(name, passport) {
   const path = `passports/${name}.json`;
   writeArtifact(windowPath, path, passport);
-  return { path, raw:Object.fromEntries(runtime.archives.map((a,i) => [i?'B':'A', a.records.filter(r=>r.blockAnchor?.number===String(passport.block.number) && r.blockAnchor?.hash===passport.block.hash && ['eth_call','eth_getCode','eth_getStorageAt','eth_getBlockByNumber'].includes(r.method)).map(r => ({path:r.path,id:r.id}))])) };
+  return { path, raw:Object.fromEntries(runtime.archives.map((a,i) => [i?'B':'A', a.records.filter(r=>r.method==='eth_chainId' || r.blockAnchor?.number===String(passport.block.number) && r.blockAnchor?.hash===passport.block.hash && ['eth_call','eth_getCode','eth_getStorageAt','eth_getBlockByNumber'].includes(r.method)).map(r => ({path:r.path,id:r.id}))])) };
 }
 function writeLine(obj) {
   if (formal && obj.kind === 'attempt') {
@@ -562,6 +563,8 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const GAS = gasFor(arm);
   if (formal && previousInclusion) st.row.priorInclusionHeads = await waitAfterInclusion([pubA,pubB], previousInclusion);
   if (formal) {
+    const control = await rehearsalTpmRefresh({rehearsal,config:formalInput,arm,attemptIndex:idx,client:pubA,paymaster:baselines.tokenPaymaster.address,abi:baselines.tokenPaymaster.abi});
+    if (control) st.row.rehearsalControl = control;
     const block = await runtime.refreshPin();
     const p = await readAB(`passport attempt ${idx}`, client => passport(client, block.number));
     st.row.passport = p.A;
@@ -683,7 +686,9 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const previousBlock = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
   checks.push({ id: 'continuity.block', ok: formal ? BigInt(before.A.blockNumber) >= BigInt(previousBlock.blockNumber) : BigInt(before.A.blockNumber) === BigInt(previousBlock.blockNumber) && before.A.blockHash.toLowerCase() === previousBlock.blockHash.toLowerCase() });
   const prior = stateByArm.get(arm);
-  if (prior) for (const f of Object.keys(prior).filter(f => !['blockNumber', 'blockHash', 'operatorBalance', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
+  // A declared rehearsal cache-aging control (rehearsal-refresh.mjs) changes only the TPM cache timestamp between attempts.
+  const aged = rehearsal && st.row.rehearsalControl?.kind === 'tpmCacheAged' && arm === 'TPM' ? ['tpmCachedPriceTimestamp'] : [];
+  if (prior) for (const f of Object.keys(prior).filter(f => ![...aged, 'blockNumber', 'blockHash', 'operatorBalance', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
     checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], prior[f]).length === 0 });
   }
   checks.push(...operatorBalanceContinuity(arm, before.A, after.A, lastAttemptBlock?.operatorBalance ?? passportStart.volatile.operatorBalance));

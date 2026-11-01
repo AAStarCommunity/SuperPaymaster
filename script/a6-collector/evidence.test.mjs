@@ -223,7 +223,7 @@ test('closed enum reasons have concrete producers; gas-dependent and undecoded f
   const samples=[
     [{preflight:{revertReason:'AA32 paymaster expired or not due'}},'AA32'],
     [{preflight:{revertReason:'AA33 reverted: price stale'}},'price_stale'],
-    [{reason:'not_included'},'not_included'],
+    [{sent:true,verdict:'NO_EVENT',logs:[],expectedUserOpHash:H},'not_included'],
     [{revertKind:'executionReverted',execRevert:[{revertReason:'0x4e487b71'+'0'.repeat(62)+'11'}]},'op_failed_nongas'],
     [{reason:'bundler_error'},'bundler_error'],
     [{reason:'tpm_postop_refresh'},'tpm_postop_refresh'],
@@ -231,9 +231,9 @@ test('closed enum reasons have concrete producers; gas-dependent and undecoded f
   ];
   assert.deepEqual(samples.map(([r])=>exclusionReason(r)).sort(),[...EXCLUSION_REASONS].sort());
   for(const [r,reason] of samples) assert.equal(exclusionReason(r),reason);
-  assert.equal(exclusionReason({preflight:{undecoded:true,revertReason:'AA32'}}),'not_included');
-  assert.equal(exclusionReason({reason:'gas_too_high'}),'not_included');
-  assert.equal(exclusionReason({reason:'effect_size'}),'not_included');
+  assert.throws(()=>exclusionReason({preflight:{undecoded:true,revertReason:'AA32'}}),/UNAPPROVED_ABANDONMENT/);
+  assert.throws(()=>exclusionReason({reason:'gas_too_high'}),/UNAPPROVED_ABANDONMENT/);
+  assert.throws(()=>exclusionReason({reason:'effect_size'}),/UNAPPROVED_ABANDONMENT/);
   assert.equal(exclusionReason({verdict:'USEROP_SUCCESS'}),null);
 });
 
@@ -248,3 +248,16 @@ test('inclusion series: pre-inclusion polls only before inclusion; included poll
   assert.equal(inclusionSeriesError([{id:1,result:null},{id:2,result:{...inc,blockNumber:'0x7c'}}],tx),'raw inclusion mismatch');
   assert.equal(inclusionSeriesError([{id:3,result:inc},{id:2,result:inc}],tx),'endpoint raw references out of order');
 });
+
+test('L1 unclassified failure throws instead of inventing not_included',()=>{
+  for(const row of [{verdict:'NOT_SENT'},{verdict:'USEROP_REVERTED',sent:true},{verdict:'TX_FAILED',sent:true},{verdict:'NOT_SENT',reason:'not_included'}]) assert.throws(()=>exclusionReason(row),/UNAPPROVED_ABANDONMENT/);
+  assert.equal(exclusionReason({sent:true,verdict:'NO_EVENT',logs:[],expectedUserOpHash:H}),'not_included');
+  assert.throws(()=>exclusionReason({sent:true,verdict:'NO_EVENT',logs:[{topics:[H,H]}],expectedUserOpHash:H}),/UNAPPROVED_ABANDONMENT/);
+});
+test('validator rejects a declared rehearsal state control in a non-rehearsal run',()=>temp(d=>{
+  const rows=readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').trim().split('\n').map(JSON.parse);
+  const path=join(d,'run.jsonl'), run=()=>{writeFileSync(path,rows.map(x=>JSON.stringify(x)).join('\n')+'\n');return spawnSync(process.execPath,['script/a6-collector/validate.mjs',path],{encoding:'utf8'});};
+  assert.doesNotMatch(run().stdout,/rehearsal control/);
+  rows[1].rehearsalControl={kind:'tpmCacheAged',slots:[3,4]};
+  assert.match(run().stdout,/rehearsal control outside a rehearsal TPM attempt/);
+}));

@@ -1,3 +1,4 @@
+import { tpmAttemptRefreshed } from './trace-policy.mjs';
 import { validateWindow } from './evidence-validate.mjs';
 import { dirname, resolve } from 'node:path';
 import { dispositionErrors, feePauseErrors } from './disposition.mjs';
@@ -481,6 +482,8 @@ try {
   const attempts = lines.slice(1, -1);
   if (isFormal) errors.push(...inclusionErrors(attempts));
   if (report.rehearsal) notes.push('rehearsal: non-compliant / non-evidence');
+  // A declared state intervention (rehearsal-refresh.mjs) is valid only in a rehearsal, and only as the TPM cache-aging control.
+  for (const [i, r] of attempts.entries()) if (r.rehearsalControl != null && (!report.rehearsal || r.rehearsalControl.kind !== 'tpmCacheAged' || r.arm !== 'TPM')) errors.push(`attempt ${i}: rehearsal control outside a rehearsal TPM attempt`);
   const byTriplet = new Map();
   let stoppedRows = 0;
   let previousBlock = { blockNumber: pStart.block.number, blockHash: pStart.block.hash };
@@ -701,7 +704,7 @@ try {
   }
   for (const [tripletIndex, rows] of byTriplet) {
     // A row interrupted by a stop condition never counts, whatever its receipt said.
-    const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
+    const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && (!(isFormal || r.row.traces) || !tpmAttemptRefreshed(r.row)) && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
     const sentRows = rows.filter(r => r.row.sent);
     const same = new Set(sentRows.map((r) => `${r.row.derivedCallDataHash}|${JSON.stringify(isFormal ? {maxFeePerGas:r.row.derivedGas.maxFeePerGas,maxPriorityFeePerGas:r.row.derivedGas.maxPriorityFeePerGas} : r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size <= 1;
     if (!same) errors.push('triplet callData/gas/bundler differ between arms');

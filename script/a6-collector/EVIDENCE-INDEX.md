@@ -91,5 +91,14 @@ Unrelated block transactions are allowed, with the existing state-conservation c
 with literal loopback RPC and chain 31337 only. It uses fixed Anvil development signers.
 The journal, trailer and manifest carry `rehearsal: true`; even structurally valid
 rehearsals are always non-compliant and non-evidence (validator exit 3). Run
-`script/a6-collector/rehearsal-window.sh` for four candidate triples (three matched and one abandoned
-candidate) with an intentionally expired VPM authorization (AA32).
+`script/a6-collector/rehearsal-window.sh` for five candidate triples (three matched and two abandoned
+candidates): an expired VPM authorization (AA32), then a TPM postOp refresh at attempt 4.
+`rehearsalForceTpmRefresh` is honored only with `--rehearsal` on chain 31337; it ages and perturbs the TPM cache while preserving validation lifetime, and the refresh report must contain exactly one refreshed attempt.
+
+### Raw evidence binding
+
+Start, attempt and end Passport on-chain gate fields are re-derived from referenced raw responses on both endpoints: deposit/stake tuples, configuration getters, code hashes/sizes and proxy/clone implementation addresses must match at the Passport anchor. Missing derivations fail closed; chain ID uses referenced `eth_chainId` responses, and root identities are bound to the pinned deployment, baseline and frozen configuration.
+
+Every included transaction receipt, including those in abandoned candidates, must match the journal status and complete ordered logs (address, topics, data, logIndex). Both endpoints must agree on all these fields; extra or missing logs are errors.
+
+TPM trace request bytes must specify `callTracer` with `withLog:true` and `prestateTracer` with `diffMode:true`, including abandoned successful TPM attempts. An empty diff, missing EntryPoint diff or bare postOp root is `TPM trace incomplete`; refresh is re-derived from these bound traces before matching.

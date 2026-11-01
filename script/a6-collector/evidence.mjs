@@ -104,7 +104,9 @@ export function exclusionReason(row) {
   if (row.revertKind === 'executionReverted' && row.execRevert?.some(e =>
     /^0x4e487b71[0-9a-f]{62}(11|12)$/i.test(e.revertReason))) return 'op_failed_nongas';
   // Unknown failures are never converted into an eligible abandonment.
-  return EXCLUSION_REASONS.includes(row.reason) ? row.reason : 'not_included';
+  if (EXCLUSION_REASONS.includes(row.reason) && row.reason!=='not_included') return row.reason;
+  if (row.sent===true && row.verdict==='NO_EVENT' && !row.userOpEvent && Array.isArray(row.logs) && !row.logs.some(l=>l.topics?.[1]?.toLowerCase()===row.expectedUserOpHash?.toLowerCase())) return 'not_included';
+  throw new Error('UNAPPROVED_ABANDONMENT: unclassified failure');
 }
 export function appendIndex(window, row) {
   const fd = openSync(resolve(window, 'index.ndjson'), 'a', 0o600);

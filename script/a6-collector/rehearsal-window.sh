@@ -46,7 +46,7 @@ printf '%s' "$A" > "$D/rpc-a"
 printf '%s' "$B" > "$D/rpc-b"
 # Automine plus periodic empty blocks permits the real dual-head gate to advance.
 cast rpc anvil_setIntervalMining 1 --rpc-url "$A" >/dev/null
-node script/a6-collector/collector.mjs --rehearsal --count 3 --max-attempts 4 --b-max 1 --formal-config "$D/formal-config.json" --config "$D/deployment.json" --baselines "$D/baselines.json" --rpc-a-file "$D/rpc-a" --rpc-b-file "$D/rpc-b" --rpc-registry "$D/rpc-identity.json" --pins "$D/pins.json" --out "$W/run.jsonl" > "$D/collector.log" 2>&1
+node script/a6-collector/collector.mjs --rehearsal --count 3 --max-attempts 5 --b-max 1 --formal-config "$D/formal-config.json" --config "$D/deployment.json" --baselines "$D/baselines.json" --rpc-a-file "$D/rpc-a" --rpc-b-file "$D/rpc-b" --rpc-registry "$D/rpc-identity.json" --pins "$D/pins.json" --out "$W/run.jsonl" > "$D/collector.log" 2>&1
 node --input-type=module - "$W" <<'JS'
 import { readFileSync, writeFileSync } from 'node:fs';
 const window=process.argv[2];
@@ -55,6 +55,7 @@ const rows=attempts.map(r=>({attempt:r.attemptIndex,postOpRefreshed:r.postOpRefr
   oldPolicyWouldRefresh:r.postOpRefreshed || r.traces.some(t=>['pre','post'].some(side=>Object.keys(t.state[side][r.paymaster.toLowerCase()]?.storage ?? {}).length>0))}));
 const report={rehearsal:true,cachedPriceSlots:{cachedPrice:3,cachedPriceTimestamp:4},attempts:rows,
   allTPMFlaggedByOldPolicy:rows.length>0 && rows.every(r=>r.oldPolicyWouldRefresh)};
+if(rows.filter(r=>r.postOpRefreshed===true).length!==1 || !rows.some(r=>r.attempt===4 && r.postOpRefreshed===true)) throw Error('expected exactly the chosen TPM refresh');
 writeFileSync(`${window}/tpm-refresh-report.json`,JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify(report,null,2));
 JS
@@ -66,6 +67,6 @@ V=${PIPESTATUS[0]}
 set -e
 [[ "$V" = 3 ]]
 node -e 'const r=require(process.argv[1]); if(!r.consistent || r.accepted || !r.rehearsal) process.exit(1)' "$D/validator.json"
-node -e 'const t=require(process.argv[1]); if(t.triples.length!==4 || t.replacements.length!==1 || t.replacements[0].reason!=="AA32") process.exit(1)' "$W/trailer.json"
+node -e 'const t=require(process.argv[1]); if(t.triples.length!==5 || t.replacements.length!==2 || t.replacements[0].reason!=="AA32" || t.replacements[1].reason!=="tpm_postop_refresh" || t.replacements.some((r,i)=>r.abandoned.tripleIndex!==i || r.replacement.tripleIndex!==i+1)) process.exit(1)' "$W/trailer.json"
 find "$W" -type f | sort
 printf 'REHEARSAL_WINDOW=%s\n' "$W"

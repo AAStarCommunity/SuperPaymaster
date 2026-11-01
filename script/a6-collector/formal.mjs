@@ -141,7 +141,7 @@ export function guardRequest(method, params) {
 
 /** Transport owns serialization: base64 preserves exact request and response bytes,
  * including whitespace, invalid JSON and error responses. No endpoint URL is stored. */
-export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets = [], secretPatterns = [] }) {
+export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets = [], secretPatterns = [], rehearsal = false }) {
   const credentials = [...credentialFragments([url]), ...secrets];
   const sensitive = bytes => credentials.some(s=>s && bytes.includes(s)) || secretPatterns.some(p=>new RegExp(p).test(bytes));
   let sequence = 0;
@@ -155,7 +155,7 @@ export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets 
     }
   }
   async function perform({ method, params = [] }) {
-    guardRequest(method, params);
+    if (!(rehearsal && ['anvil_setStorageAt','evm_mine'].includes(method))) guardRequest(method, params);
     let anchor = null;
     const tag = method in STATE_TAG ? params[STATE_TAG[method]] : method === 'eth_getBlockByNumber' ? params[0] : null;
     if (tag && /^0x[0-9a-f]+$/i.test(tag) && method !== 'eth_getBlockByNumber') {
@@ -245,7 +245,7 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
   } else resolved = await resolveEndpoints(a, b, resolver);
   const archives = ['A', 'B'].map((endpoint, i) => {
     const archive = rawArchive(dirname(outPath), endpoint);
-    const rpc = archivedRpc({ url: i ? b : a, endpoint, fetchImpl: fetchImpl ?? ((url,options)=>pinnedFetch(url,options,resolved[i])), append: archive.append, secrets: credentialFragments([a,b]), secretPatterns: config.secretPatterns ?? [] });
+    const rpc = archivedRpc({ rehearsal, url: i ? b : a, endpoint, fetchImpl: fetchImpl ?? ((url,options)=>pinnedFetch(url,options,resolved[i])), append: archive.append, secrets: credentialFragments([a,b]), secretPatterns: config.secretPatterns ?? [] });
     return { ...rpc, ...archive };
   });
   let pin;

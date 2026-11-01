@@ -28,7 +28,7 @@ for(const [name,mutate,pattern] of [
   ['registry tampering',(f,d)=>writeFileSync(join(d,'rpc-identity.json'),'{}'),/hash mismatch/],
   ['duplicate raw id',(f,d)=>{const p=join(d,f.rows[0].endpoints.A.receipt[0].path);writeFileSync(p,readFileSync(p,'utf8')+readFileSync(p,'utf8').split('\n')[0]+'\n');},/resolve uniquely/],
   ['raw request method substitution',(f,d)=>{const p=join(d,f.rows[0].endpoints.A.receipt[0].path);const rs=readFileSync(p,'utf8').trim().split('\n').map(JSON.parse);rs[0].method='eth_call';writeFileSync(p,rs.map(JSON.stringify).join('\n'));},/metadata mismatch/],
-  ['raw state return substitution',(f,d)=>{const p=join(d,f.rows[0].endpoints.A.receipt[0].path);const rs=readFileSync(p,'utf8').trim().split('\n').map(JSON.parse);for(const r of rs)if(r.method==='eth_call'){const response=JSON.parse(Buffer.from(r.response,'base64'));response.result='0x'+'0'.repeat(64);r.response=r.responseBase64=Buffer.from(JSON.stringify(response)).toString('base64');}writeFileSync(p,rs.map(JSON.stringify).join('\n'));},/state mismatch|state call/],
+  ['raw state return substitution',(f,d)=>{const p=join(d,f.rows[0].endpoints.A.receipt[0].path);const rs=readFileSync(p,'utf8').trim().split('\n').map(JSON.parse);for(const r of rs)if(r.method==='eth_call'){const response=JSON.parse(Buffer.from(r.response,'base64'));response.result='0x'+'0'.repeat(64);r.response=r.responseBase64=Buffer.from(JSON.stringify(response)).toString('base64');}writeFileSync(p,rs.map(JSON.stringify).join('\n'));},/state mismatch|state call|Passport raw value/],
 ])test(`offline gate rejects ${name}`,()=>temp(d=>{const f=fixture(d);mutate(f,d);assert.match(f.check().join(';'),pattern);}));
 test('frozen recipient/token, tx input, bundle index, gas and fees independently bound',()=>temp(d=>{
   const f=fixture(d),a=f.attempts[0];
@@ -68,10 +68,10 @@ test('freeze rejects window and sampling symlink ancestors before creating lock'
   assert.equal(existsSync(join(real,'window/.freeze-lock')),false);
 }));
 test('TPM requires dual traces, excludes oracle calls/storage writes, refuses failed traces',async()=>{
-  const pm='0x'+'12'.repeat(20),call={type:'CALL',to:pm,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)'),calls:[]},state={pre:{},post:{}};
+  const pm='0x'+'12'.repeat(20),call={type:'CALL',to:'0x'+'34'.repeat(20),calls:[{type:'CALL',to:pm,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)'),calls:[]}]},state={pre:{[call.to]:{balance:'0x1'}},post:{[call.to]:{balance:'0x2'}}};
   assert.equal(postOpRefreshed(call,state,pm),false);
-  assert.equal(postOpRefreshed({...call,calls:[{type:'STATICCALL',input:toFunctionSelector('latestRoundData()')}]},state,pm),true);
-  assert.equal(postOpRefreshed(call,{pre:{[pm]:{storage:{'0x3':'0x2'}}},post:{}},pm),true);
+  assert.equal(postOpRefreshed({...call,calls:[{...call.calls[0],calls:[{type:'STATICCALL',input:toFunctionSelector('latestRoundData()')}]}]},state,pm),true);
+  assert.equal(postOpRefreshed(call,{pre:{...state.pre,[pm]:{storage:{'0x3':'0x2'}}},post:state.post},pm),true);
   await assert.rejects(traceTPM([{request:async()=>{throw Error('trace unavailable');}}],H,pm),/trace unavailable/);
   assert.throws(()=>postOpRefreshed(null,state,pm),/unavailable/);
 });
@@ -132,4 +132,69 @@ test('archived block cannot contain two window handleOps even if journal heights
   }
   writeFileSync(path,records.map(JSON.stringify).join('\n'));
   assert.match(artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]).join(';'),/more than one handleOps/);
+}));
+
+function editRaw(d,path,edit) {const records=readFileSync(join(d,path),'utf8').trim().split('\n').map(JSON.parse);edit(records);writeFileSync(join(d,path),records.map(JSON.stringify).join('\n')+'\n');}
+test('H2 Passport gate values must be rederived even when file and journal agree',()=>temp(d=>{
+  const f=fixture(d),p=f.start.passport, saved=readFileSync(join(d,f.passport.path),'utf8');
+  assert.deepEqual(f.check(),[]);
+  const cases=[];
+  for(const arm of ['SP','VPM','TPM']) for(const field of ['deposit','staked','stake','unstakeDelaySec','withdrawTime']) cases.push([p.volatile.depositInfo[arm],field]);
+  for(const arm of ['SP','VPM','TPM']) for(const field of ['staked','stake','unstakeDelaySec','withdrawTime']) cases.push([p.invariant.stakes[arm],field]);
+  for(const code of Object.values(p.invariant.code)) if(code) for(const field of ['codehash','size','address']) cases.push([code,field]);
+  cases.push([p.invariant.superPaymaster,'version'],[p.invariant.superPaymaster,'paused'],[p.invariant.credit,'policy'],[p.invariant.superPaymaster.cachedPrice,'price'],[p.volatile,'cachedPriceUpdatedAt']);
+  for(const [object,key] of cases) {
+    const old=object[key];object[key]=typeof old==='boolean'?!old:key==='address'?'0x'+'99'.repeat(20):key==='codehash'?H:key==='version'?old.toUpperCase():String(BigInt(old)+1n);
+    writeFileSync(join(d,f.passport.path),JSON.stringify(p));
+    assert.match(f.check().join(';'),/Passport (raw value|identity\/config) mismatch/,key);
+    object[key]=old;
+  }
+  writeFileSync(join(d,f.passport.path),saved);assert.deepEqual(f.check(),[]);
+  f.passport.raw.A=f.passport.raw.A.filter(ref=>!f.archives[0].records.some(r=>r.id===ref.id && r.method==='eth_getCode'));
+  assert.match(f.check().join(';'),/Passport raw value mismatch/);
+}));
+test('H3 complete ordered receipts bind status and every log on both endpoints',()=>temp(d=>{
+  const f=fixture(d);assert.deepEqual(f.check(),[]);
+  for(const endpoint of ['A','B']) for(const mutation of ['status','extra','missing','order','address','topics','data','logIndex']) {
+    const path=f.rows[0].endpoints[endpoint].receipt[0].path, saved=readFileSync(join(d,path));
+    editRaw(d,path,records=>{for(const raw of records) if(raw.method==='eth_getTransactionReceipt') {
+      const response=JSON.parse(Buffer.from(raw.response,'base64')),r=response.result;
+      if(mutation==='status')r.status='0x0';else if(mutation==='extra')r.logs.push({...r.logs[0],logIndex:'0xffff'});else if(mutation==='missing')r.logs.pop();else if(mutation==='order')r.logs.reverse();else r.logs[0][mutation]=mutation==='topics'?[H]:mutation==='address'?'0x'+'99'.repeat(20):mutation==='logIndex'?'0xffff':'0x1234';
+      raw.response=raw.responseBase64=Buffer.from(JSON.stringify(response)).toString('base64');
+    }});
+    assert.match(f.check().join(';'),/raw complete receipt mismatch/,endpoint+mutation);writeFileSync(join(d,path),saved);
+  }
+}));
+test('M1 archived trace requests require withLog and diffMode even on abandoned attempts',()=>temp(d=>{
+  const f=repairFixture(d,3),trailer={finalBlockCheck:f.finalBlockCheck,endPassport:f.passport,triples:[{tripleIndex:0,included:false,attempts:[0,1,2]}]};
+  const check=()=>artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]);assert.deepEqual(check(),[]);
+  for(const endpoint of ['A','B']) for(const tracer of ['callTracer','prestateTracer']) {
+    const path=f.rows[2].trace.raw[endpoint][0].path,saved=readFileSync(join(d,path));
+    editRaw(d,path,records=>{for(const raw of records) if(raw.method==='debug_traceTransaction' && raw.params[1].tracer===tracer) {delete raw.params[1].tracerConfig;const q=JSON.parse(Buffer.from(raw.request,'base64'));q.params=raw.params;raw.request=raw.requestBase64=Buffer.from(JSON.stringify(q)).toString('base64');}});
+    assert.match(check().join(';'),/TPM raw trace missing or inconsistent/);writeFileSync(join(d,path),saved);
+  }
+}));
+test('M1 empty diff and bare postOp cannot prove no refresh',()=>{
+  const pm='0x'+'12'.repeat(20),ep='0x'+'34'.repeat(20),frame={type:'CALL',to:pm,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)')},call={type:'CALL',to:ep,calls:[frame]};
+  for(const root of [frame,call]) assert.throws(()=>postOpRefreshed(root,{pre:{},post:{}},pm),/TPM trace incomplete/);
+  assert.throws(()=>postOpRefreshed(call,{pre:{[pm]:{balance:'0x1'}},post:{[pm]:{balance:'0x2'}}},pm),/TPM trace incomplete/);
+});
+test('L2 endpoint archive ids cannot restart across date files',()=>temp(d=>{
+  const f=fixture(d),refs=f.finalBlockCheck.raw.A,path=refs[0].path;
+  assert.deepEqual(f.check(),[]);
+  const ids=new Map();editRaw(d,path,rs=>rs.forEach((r,i)=>{ids.set(r.id,i+1);r.id=i+1;}));
+  for(const ref of refs) ref.id=ids.get(ref.id);
+  assert.match(f.check().join(';'),/globally strictly increasing/);
+}));
+
+test('H1 archived refresh abandonment and its clean replacement validate together',()=>temp(d=>{
+  const f=repairFixture(d,6),a=f.attempts[2],trailer={finalBlockCheck:f.finalBlockCheck,endPassport:f.passport,triples:[{tripleIndex:0,included:false,attempts:[0,1,2]},{tripleIndex:1,included:true,attempts:[3,4,5]}]};
+  a.postOpRefreshed=true;f.rows[2].trace.postOpRefreshed=true;
+  for(const t of a.traces) {t.postOpRefreshed=true;t.call.calls[0].calls.push({type:'STATICCALL',to:a.tpmOracle,input:toFunctionSelector('latestRoundData()')});}
+  for(const endpoint of ['A','B']) editRaw(d,f.rows[2].trace.raw[endpoint][0].path,records=>{for(const raw of records) if(raw.method==='debug_traceTransaction' && raw.params[0]===a.tx.hash && raw.params[1].tracer==='callTracer') {const r=JSON.parse(Buffer.from(raw.response,'base64'));r.result=a.traces[endpoint==='A'?0:1].call;raw.response=raw.responseBase64=Buffer.from(JSON.stringify(r)).toString('base64');}});
+  const check=()=>artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]);
+  assert.deepEqual(check(),[]);
+  trailer.triples[0].included=true;assert.match(check().join(';'),/included TPM refresh/);
+  trailer.triples[0].included=false;
+  a.postOpRefreshed=false;f.rows[2].trace.postOpRefreshed=false;assert.match(check().join(';'),/TPM trace disagreement/);
 }));

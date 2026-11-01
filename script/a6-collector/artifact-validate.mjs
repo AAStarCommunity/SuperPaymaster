@@ -1,10 +1,11 @@
+import { verifyPassport, verifyPassportIdentity } from './passport-evidence.mjs';
 import { stateCalls, supportsCall } from './state-evidence.mjs';
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, readdirSync } from 'node:fs';
 import { resolve, isAbsolute } from 'node:path';
 import { evidenceIndex, sha256, stringify, loadRegistry } from './evidence.mjs';
 import { formalConfig, armOrder, DEFAULT_FACTORY, inclusionErrors } from './formal.mjs';
 import { decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
-import { postOpRefreshed } from './trace-policy.mjs';
+import { tpmAttemptRefreshed } from './trace-policy.mjs';
 
 // Receipt/transaction polls of one endpoint, in archive order. Polls made before inclusion stay referenced (the index
 // is complete) and return a null receipt or a pending transaction (blockHash null). They may only precede the first
@@ -87,6 +88,11 @@ export function artifactErrors(window,rows,trailer,journal) {
     for (const [key,v] of Object.entries(value)) walk(v,['A','B'].includes(key)?key:endpoint);
   }
   try {
+    for (const endpoint of ['A','B']) for (const name of readdirSync(local('raw/'+endpoint)).sort()) {
+      if (!/^\d{8}\.ndjson$/.test(name)) throw new Error('invalid raw date file');
+      const path=`raw/${endpoint}/${name}`,first=JSON.parse(file(path).toString().trim().split('\n')[0]);
+      reference({path,id:first.id},endpoint);
+    }
     for (const r of rows) { walk(r); for (const category of ['collector','validator','dependencies','contractSources','abi','config']) {
       if (!r.pins?.[category]?.length) throw new Error('required pins missing');
       r.pins[category].forEach(pin);
@@ -95,6 +101,13 @@ export function artifactErrors(window,rows,trailer,journal) {
     }
     walk(trailer.finalBlockCheck);
     walk(trailer.endPassport); JSON.parse(file(trailer.endPassport.path));
+    for (const arc of archives) {
+      let previous=-1;
+      for (const raw of [...arc.records].sort((a,b)=>a.path.localeCompare(b.path))) {
+        if (!Number.isSafeInteger(raw.id) || raw.id<=previous) throw new Error('raw ids must be globally strictly increasing per endpoint (cannot resolve uniquely)');
+        previous=raw.id;
+      }
+    }
   } catch(e) { fail(`artifact verification: ${e.message}`); }
   if (!journal) { fail('formal artifact verification requires journal'); return errors; }
   const attempts=journal.filter(r=>r.kind==='attempt'), start=journal[0];
@@ -106,6 +119,7 @@ export function artifactErrors(window,rows,trailer,journal) {
     if (!eq(frozen,start.frozenConfig)) throw new Error('frozen config differs from pinned file');
     for (const key of ['deploymentConfigSha256','baselineConfigSha256']) if (!start.pins.config.some(p=>p.sha256===start[key])) throw new Error('deployment/baseline config hash is not pinned');
   } catch(e) { fail(e.message); }
+  const pinnedConfig=hash=>{const pin=start.pins.config.find(p=>p.sha256===hash);return JSON.parse(isAbsolute(pin.path)?readFileSync(pin.path):file(pin.path));};
   const included=new Set(trailer.triples.filter(t=>t.included).flatMap(t=>t.attempts));
   errors.push(...inclusionErrors(attempts));
   const windowTransactions=new Set(attempts.filter(a=>a.sent && a.tx).map(a=>lower(a.tx.hash)));
@@ -142,14 +156,17 @@ export function artifactErrors(window,rows,trailer,journal) {
     }
     if (!eq(r.armOrder,a.armOrder)) throw new Error('index/journal armOrder mismatch');
     if (!eq(r.pins,start.pins) || !eq(r.rpcIdentity,start.rpcIdentity)) throw new Error('index/journal pins mismatch');
-    for (const [key,value] of [['start',start.passport],['attempt',a.passport]]) {
-      const artifact=JSON.parse(file(r.passports[key].path));
+    for (const [key,value] of [['start',start.passport],['attempt',a.passport],['end',journal.at(-1)?.kind==='run_end'?journal.at(-1).passport:JSON.parse(file(trailer.endPassport.path))]]) {
+      const passportRef=key==='end'?trailer.endPassport:r.passports[key];
+      const artifact=JSON.parse(file(passportRef.path));
       if (!eq(artifact,value)) throw new Error('Passport/journal mismatch');
+      verifyPassportIdentity(artifact,start.frozenConfig,pinnedConfig(start.deploymentConfigSha256),pinnedConfig(start.baselineConfigSha256));
       for (const e of ['A','B']) {
-        if (!r.passports[key].raw[e].length) throw new Error('Passport raw references missing');
-        for (const ref of r.passports[key].raw[e]) { const raw=reference(ref,e);
-          if (!['eth_call','eth_getCode','eth_getStorageAt','eth_getBlockByNumber'].includes(raw.method) || raw.blockAnchor?.hash!==artifact.block.hash || BigInt(raw.blockAnchor.number)!==BigInt(artifact.block.number)) throw new Error('Passport raw anchor/method mismatch');
+        if (!passportRef.raw[e].length) throw new Error('Passport raw references missing');
+        for (const ref of passportRef.raw[e]) { const raw=reference(ref,e);
+          if (raw.method!=='eth_chainId' && (!['eth_call','eth_getCode','eth_getStorageAt','eth_getBlockByNumber'].includes(raw.method) || raw.blockAnchor?.hash!==artifact.block.hash || BigInt(raw.blockAnchor.number)!==BigInt(artifact.block.number))) throw new Error('Passport raw anchor/method mismatch');
         }
+        verifyPassport(artifact,passportRef.raw[e].map(ref=>reference(ref,e)));
       }
     }
     const inv=start.passport?.invariant;
@@ -170,6 +187,10 @@ export function artifactErrors(window,rows,trailer,journal) {
           if (kind==='transaction' && result) for (const [rawKey,key] of [['input','input'],['gas','gasLimit'],['maxFeePerGas','maxFeePerGas'],['maxPriorityFeePerGas','maxPriorityFeePerGas']]) {
             if (rawKey==='input'?lower(result[rawKey])!==lower(r.tx[key]):BigInt(result[rawKey])!==BigInt(r.tx[key])) throw new Error('raw transaction field mismatch');
           }
+          if ((kind==='receipt' || kind==='logs') && !pending) {
+            const logs=ls=>ls.map(l=>({address:lower(l.address),topics:l.topics.map(lower),data:lower(l.data),logIndex:String(BigInt(l.logIndex))}));
+            if ((result.status==='0x1'?'success':result.status==='0x0'?'reverted':null)!==a.tx.status || !eq(logs(result.logs),logs(a.logs))) throw new Error('raw complete receipt mismatch');
+          }
           if (kind==='logs' && included.has(i) && !pending && !result.logs.some(l=>BigInt(l.logIndex)===BigInt(r.uoe.logIndex) && lower(l.address)===lower(r.uoe.address) && eq(l.topics,r.uoe.topics) && l.data===r.uoe.data)) throw new Error('raw UOE mismatch');
         }
         if (a.sent && kind!=='stateReads') { const e=inclusionSeriesError(observations,r.tx); if (e) throw new Error(e); }
@@ -185,15 +206,15 @@ export function artifactErrors(window,rows,trailer,journal) {
         }
       }
     }
-    if (included.has(i) && r.arm==='TPM') {
+    if (a.sent && a.verdict==='USEROP_SUCCESS' && r.arm==='TPM') {
       if (!a.tpmOracle || lower(a.tpmOracle)!==lower(inv.code.tokenPaymasterOracle.address)) throw new Error('TPM oracle/Passport mismatch');
       for (const [idx,endpoint] of ['A','B'].entries()) {
         const refs=r.trace?.raw?.[endpoint] ?? [];
         for (const [tracer,key] of [['callTracer','call'],['prestateTracer','state']]) {
-          if (!refs.some(ref=>{const raw=reference(ref,endpoint);return raw.method==='debug_traceTransaction' && raw.params[0]===a.tx.hash && raw.params[1]?.tracer===tracer && raw.blockAnchor?.hash===a.tx.blockHash && eq(JSON.parse(Buffer.from(raw.response,'base64').toString()).result,a.traces?.[idx]?.[key]);})) throw new Error('TPM raw trace missing or inconsistent');
+          if (!refs.some(ref=>{const raw=reference(ref,endpoint),request=JSON.parse(Buffer.from(raw.request,'base64').toString());return request.params[1]?.tracerConfig?.[tracer==='callTracer'?'withLog':'diffMode']===true && raw.method==='debug_traceTransaction' && raw.params[0]===a.tx.hash && raw.params[1]?.tracer===tracer && raw.blockAnchor?.hash===a.tx.blockHash && eq(JSON.parse(Buffer.from(raw.response,'base64').toString()).result,a.traces?.[idx]?.[key]);})) throw new Error('TPM raw trace missing or inconsistent');
         }
       }
-      if (a.traces?.length!==2 || a.postOpRefreshed!==false || a.traces.some(t=>postOpRefreshed(t.call,t.state,a.paymaster,a.tpmOracle))) throw new Error('included TPM refresh or trace unavailable');
+      if (tpmAttemptRefreshed(a) && included.has(i)) throw new Error('included TPM refresh or trace unavailable');
     }
   } catch(e) { fail(`attempt ${i}: ${e.message}`); }
   try {
