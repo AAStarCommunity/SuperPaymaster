@@ -230,6 +230,24 @@ STOP conditions (each is a hard stop; nothing later is sent):
 - **Rehearsal.** A full fork rehearsal on the pinned Sepolia state with the Amsterdam engine: every step, every read-back, timelock delays warped.
   - It includes the B2 gate and the swap in 6d.
   - After B4, one valid fraud proof submitted through A7 is accepted, and one invalid proof is rejected.
+    The data comes from DVT's read-only `--export-fraud-drill`, run after the pin. It needs A7 and the verifier address
+    (both fixed by D's nonces); no key material is involved.
+    - Fork state, built on a snapshot: `anvil_setCode` puts `MockOverIssuableToken` (from `72aca4fa`) at DVT's fixed address
+      T, with `over = false`. `anvil_setStorageAt` writes A7's `proposalSignersCommitment[pid]`, using the slot computed
+      from `forge inspect BLSAggregator storage-layout` at the pin. The value is read back and must equal the tool's value
+      (this also catches a wrong slot), otherwise STOP. pid is a large random value, so it cannot collide with a real proposal.
+    - Valid: `A7.queueGuardianSlash(fraudProofId, guiltyGuardians, fraudProof)` succeeds and emits `GuardianSlashQueued`,
+      with `fraudProofId = verifier.deriveFraudProofId(pid)` and the three guardians in ascending order.
+    - Invalid, each rejected:
+      - N1: one guilty guardian missing (`InvalidFraudProof`);
+      - N2: T's `over` set to true, same proof (`InvalidFraudProof`);
+      - N3: one bit of `signerMask` flipped in the proof (commitment mismatch, revert);
+      - N4: one digest bit flipped (A7 computes the digest itself, so this is checked by a direct `verifier.verify`, which must return false).
+    - Scope: this proves A7 plus the deployed verifier bytecode, under the real domain, accept and reject correctly. It does
+      **not** prove that A7's `verifyAndExecute` writes the same commitment, and it skips `_checkSignatures`. That part rests
+      on source-level tests at `fbd74fb1` (`InnerCommitmentLayoutParity` and the real-precompile Prague tests).
+    - No real guardian key signs anything for this drill. Such a signature would also be valid on the real A7, so the owner
+      could use it to start a real slash. The exported proof is rejected on the real chain: there the commitment is 0 and T has no code.
   - This pair runs with the packet's actual verifier creation code, on the fork engine (Amsterdam, a superset of
     osaka). DVT's conformance tests used SP's compile settings (cancun/prague, runs 500, no metadata hash), not the
     deployed bytecode (osaka, runs 200), so they do not cover it.
