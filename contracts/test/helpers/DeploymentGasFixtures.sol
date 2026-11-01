@@ -5,14 +5,14 @@ import {Vm} from "forge-std/Vm.sol";
 import {SuperPaymaster} from "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 
-/// @notice CC-127 deployment tuple; test budgets derive from R-AMS-F2 measured needs.
+/// @notice Accepted tuple-480 deployment parameters; see tuple-480/REPORT.md.
 library DeploymentGasFixtures {
     using SuperPaymasterAdminCalls for SuperPaymaster;
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-    uint32 internal constant MIN_POST = 440_000;
-    uint32 internal constant SETTLE = 420_000;
+    uint32 internal constant MIN_POST = 480_000;
+    uint32 internal constant SETTLE = 450_000;
     uint32 internal constant WRAP = 5_000;
-    uint32 internal constant POSTOP = 340_000;
+    uint32 internal constant POSTOP = 450_000;
     // Fresh SP + SP_RENEW: 998,865 gas, plus 15%, rounded up to 5,000 (R-AMS-F2 §1.1).
     uint128 internal constant PM_VERIFICATION = ((uint128(998_865) * 115 + 499_999) / 500_000) * 5_000;
     // Fresh hit through SimpleAccount: 114,957 charged gas (diagnostic-traces.log).

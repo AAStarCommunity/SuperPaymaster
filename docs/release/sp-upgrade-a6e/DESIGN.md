@@ -68,7 +68,7 @@ Let D, A, E be fresh pending transaction nonces for deployer, approver, and exec
 | 4 | SP owner EOA | SP `transferOwnership(approvedTimelock)` | Next D | Owner equals timelock. Live 5.4.2 is one-step transfer per A6 |
 | 5a | Safe approver, then executor | Safe approval and transaction calling timelock `scheduleBatch` for upgrade plus gas queue | Next A and E; Safe S | Safe hash, approval, nonce, operation id and ETA |
 | Wait | None | External timelock delay at least 172800 seconds | None | Operation Ready at approved block time |
-| 5b and 6a | Safe approver, then executor | Safe transaction calling timelock `executeBatch`; SP upgrade with atomic global pause, then `queueGasParams(440000,420000,5000,340000)` | Next A and E; Safe S+1 | Implementation and extension runtime; global pause; queued tuple and ETA; operation Done |
+| 5b and 6a | Safe approver, then executor | Safe transaction calling timelock `executeBatch`; SP upgrade with atomic global pause, then `queueGasParams(480000,450000,5000,450000)` | Next A and E; Safe S+1 | Implementation and extension runtime; global pause; queued tuple and ETA; operation Done |
 | 6b | None | Wait for internal gas ETA | None | At least 172800 seconds after queue |
 | 6c | Safe approver, then executor | Safe transaction calling timelock `schedule(SP,0,executeGasParams(),upgradeOperationId,activationSalt,172800)` | Next A and E; Safe S+2 | Activation operation id, predecessor, salt, ETA |
 | Wait | None | External activation delay at least 172800 seconds | None | Activation Ready, predecessor Done, internal ETA reached |
@@ -76,6 +76,9 @@ Let D, A, E be fresh pending transaction nonces for deployer, approver, and exec
 | 7 | Read-only | Pre-restore gate | None | All conditions below |
 
 The sequential sequence retains both governance waits and never runs batches in parallel. The rehearsal's 96h and 144h values are model lower bounds to gas activation. Its 96h path overlaps the internal and external activation waits. This package's proposed serial path uses the 144h model lower bound, plus inclusion and verification time. Neither figure includes service restoration.
+
+5a checklist: Any later change of settleGasBound S must re-validate admission margin with boundary = ceil(64*S/63 + C) (Amsterdam C ≈ 12,161; stable ≈ 4,847; docs/design/aoa-balance-mode/data/tuple-480/REPORT.md) and require MIN_POST - boundary >= 10,000 on every engine; _checkGasParams does not enforce this (S + 20,000 stops admitting above S ≈ 493.8k).
+All tuple evidence is local-engine evidence. After 5a/5b land, the G3 pilot must measure the admission boundary on chain through real `handleOps` and confirm 480000 is admitted before sampling starts.
 
 ## Holder and historical operator enumeration
 
@@ -127,7 +130,7 @@ The simulation executes both the failed-pause read-back control and Safe cancell
 
 ## Pre-restore read-back gate
 
-Require active gas tuple `(440000,420000,5000,340000)`, an empty pending queue, the approved owner and guardian, and `paused() == true`. Read ERC-1967 implementation slot `0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc`. Verify implementation and extension runtimes against fresh archive artifacts with immutable bindings. Require every union member paused, Registry freeze still active, unchanged Registry authorities, both operations Done, and no conflicting pending operations.
+Require active gas tuple `(480000,450000,5000,450000)`, an empty pending queue, the approved owner and guardian, and `paused() == true`. Read ERC-1967 implementation slot `0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc`. Verify implementation and extension runtimes against fresh archive artifacts with immutable bindings. Require every union member paused, Registry freeze still active, unchanged Registry authorities, both operations Done, and no conflicting pending operations.
 
 Unpause, Registry reactivation, guardian changes, and service restoration require a separate later package.
 

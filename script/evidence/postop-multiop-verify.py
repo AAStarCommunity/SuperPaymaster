@@ -1,5 +1,5 @@
 """Fail closed: fixed complete inventory, successful tests, trajectories, frozen numbers, hashes."""
-import hashlib, importlib.util, json, pathlib, re, sys
+import hashlib, importlib.util, json, pathlib, re, subprocess, sys
 
 def module(name, path):
     spec = importlib.util.spec_from_file_location(name,path)
@@ -8,8 +8,24 @@ def module(name, path):
 runner = module('runner','script/evidence/postop-multiop-run.py')
 FROZEN = pathlib.Path('contracts/test/fixtures/postop-multiop-expected.json')
 
+def at_revision(revision, path):
+    return subprocess.check_output(['git', 'show', f'{revision}:{path}'])
+
+
+def hashes_at(revision):
+    """runner.hashes() as it would have read the tree at `revision` (tracked files only)."""
+    names = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', revision], text=True).splitlines()
+    fixed = {str(p) for p in runner.hashes()} - {n for n in runner.hashes() if n.startswith('contracts/src/')}
+    chosen = [n for n in names if (n.startswith('contracts/src/') and n.endswith('.sol')) or n in fixed]
+    return {n: hashlib.sha256(at_revision(revision, n)).hexdigest() for n in sorted(chosen)}
+
+
 def verify(out):
-    expected = json.loads(FROZEN.read_text())
+    # Bind the frozen fixture and source hashes to the recorded revision: later commits (landing a new gas tuple
+    # rewrites this fixture for 480000) must not invalidate a measurement made at that revision.
+    revision = (out/'head.txt').read_text().strip()
+    assert re.fullmatch(r'[0-9a-f]{40}', revision), 'invalid recorded revision'
+    expected = json.loads(at_revision(revision, str(FROZEN)))
     records = [json.loads(line) for line in (out/'commands.jsonl').read_text().splitlines()]
     wanted = {runner.case_id(*args): args for args in runner.inventory()}
     worst = max((f['peak'],name,i) for name,fs in expected.items() for i,f in enumerate(fs))
@@ -24,7 +40,7 @@ def verify(out):
         sums[name] = digest
     assert set(sums) == {p.name for p in out.iterdir() if p.is_file() and p.name != 'SHA256SUMS'}, 'manifest inventory'
     for name,digest in sums.items(): assert hashlib.sha256((out/name).read_bytes()).hexdigest() == digest, name
-    assert json.loads((out/'source-hashes.json').read_text()) == runner.hashes(), 'source drift'
+    assert json.loads((out/'source-hashes.json').read_text()) == hashes_at(revision), 'source drift'
     numbers = json.loads((out/'numbers.json').read_text())
     assert numbers == expected, 'frozen per-op gas measurements changed'
     assert set(numbers) == {k for k in wanted if k.startswith('amsterdam-')}

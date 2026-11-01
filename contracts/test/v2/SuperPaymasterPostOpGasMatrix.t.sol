@@ -165,10 +165,10 @@ contract SuperPaymasterPostOpGasMatrixTest is Test {
 
     function _matrix(bool credit, bool revertUser, bool combined) internal {
         (SuperPaymaster.GasParams memory params,) = sp.gasParams();
-        assertEq(params.minPostOpGas, 440_000, "deployment MIN_POST");
-        assertEq(params.settleGasBound, 420_000, "deployment SETTLE");
+        assertEq(params.minPostOpGas, 480_000, "deployment MIN_POST");
+        assertEq(params.settleGasBound, 450_000, "deployment SETTLE");
         assertEq(params.cWrap, 5_000, "deployment C_WRAP");
-        assertEq(params.cPostop, 340_000, "deployment C_POSTOP");
+        assertEq(params.cPostop, 450_000, "deployment C_POSTOP");
         if (!credit) {
             vm.prank(opr[0]);
             IMatrixToken(address(tok[0])).mint(usr[0], 10_000 ether);

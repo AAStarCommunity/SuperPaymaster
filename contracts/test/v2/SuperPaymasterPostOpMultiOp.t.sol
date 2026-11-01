@@ -48,7 +48,7 @@ contract PostOpMultiOpTest is PostOpProfileFixture {
     }
 
     function test_bundle() public {
-        uint256 budget = vm.envOr("PROFILE_BUDGET", uint256(440000));
+        uint256 budget = vm.envOr("PROFILE_BUDGET", uint256(GasFixture.MIN_POST()));
         PackedUserOperation[] memory ops = new PackedUserOperation[](count);
         bytes32[] memory hashes = new bytes32[](count);
         for (uint256 i; i < count; i++) {
@@ -79,12 +79,12 @@ contract PostOpMultiOpTest is PostOpProfileFixture {
         vm.recordLogs();
         try ep.handleOps(ops, payable(stranger)) {}
         catch (bytes memory reason) {
-            assertLt(budget, 440000, "unexpected validation rejection");
+            assertLt(budget, GasFixture.MIN_POST(), "unexpected validation rejection");
             assertEq(reason, abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
             emit log_named_uint("admission rejected", budget);
             return;
         }
-        assertGe(budget, 440000);
+        assertGe(budget, GasFixture.MIN_POST());
         Vm.Log[] memory logs = vm.getRecordedLogs();
         uint256 completed;
         uint256 settled;
