@@ -1,7 +1,7 @@
 import { validateWindow } from './evidence-validate.mjs';
 import { dirname, resolve } from 'node:path';
 import { dispositionErrors, feePauseErrors } from './disposition.mjs';
-import { formalConfig, armOrder } from './formal.mjs';
+import { formalConfig, armOrder, inclusionErrors } from './formal.mjs';
 // A6 gauge validator: re-reads a collector JSONL and recomputes every verdict from the RAW
 // fields (packed op, receipt logs, A/B read-backs), with its own decoder — it does not import
 // gauge-lib.mjs, so a decoding/classification bug in the collector cannot validate itself.
@@ -14,7 +14,7 @@ import { formalConfig, armOrder } from './formal.mjs';
 //       1  INCONSISTENT: a recomputed verdict / conservation / A-B / passport result differs from
 //          the record, or a conservation identity fails on the raw read-backs
 //       2  unreadable input or a required field is missing (fail closed)
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { keccak256, encodeAbiParameters, toBytes, getAddress } from 'viem';
 
 const file = process.argv[2];
@@ -437,6 +437,11 @@ try {
   if (lines.length < 2) throw new Missing('need at least run_start and run_end');
   const start = lines[0], end = lines[lines.length - 1];
   isFormal = start.formal === true;
+  const markerFiles = ['trailer.json','manifest.json'].map(name=>resolve(dirname(file),name));
+  const markers = markerFiles.filter(existsSync).map(path=>JSON.parse(readFileSync(path,'utf8')).rehearsal === true);
+  report.rehearsal = start.rehearsal === true || end.rehearsal === true || markers.some(Boolean);
+  if (report.rehearsal) Object.assign(report,{protocolConformant:false,accepted:false,evidence:false});
+  if (report.rehearsal && (start.rehearsal !== true || end.rehearsal !== true || markers.some(v=>!v))) errors.push('rehearsal marker mismatch');
   if (isFormal) {
     errors.push(...validateWindow(dirname(resolve(file)), lines));
     const frozen = formalConfig(need(start,'frozenConfig'),need(start,'bMax'));
@@ -468,12 +473,14 @@ try {
   const distinctEndpoints = endpointA.host !== endpointB.host && endpointA.host !== 'loopback' && endpointB.host !== 'loopback';
   const localOverride = start.allowSameEndpointLocal === true || pStart.allowSameEndpointLocal === true;
   if (!distinctEndpoints && !(localOverride && endpointA.port !== endpointB.port)) errors.push('RPC identities require different non-loopback hosts or different ports with explicit local override');
-  const conformant = target === 50 && noFixture(fixture) && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
+  const conformant = start.rehearsal !== true && target === 50 && noFixture(fixture) && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
   if (need(start, 'protocolConformant') !== conformant) errors.push('protocolConformant differs from recomputed count/fixture/arms/endpoints/override');
   if (start.protocolConformant && (!distinctEndpoints || localOverride)) errors.push('conformant run requires distinct endpoints without local override');
   // /1 never recorded credit state, so relabelling a run as /1 must not yield a conformant result.
   if (start.protocolConformant && schema !== 'a6-gauge/2') errors.push('conformant run requires a6-gauge/2 (credit OFF recorded)');
   const attempts = lines.slice(1, -1);
+  if (isFormal) errors.push(...inclusionErrors(attempts));
+  if (report.rehearsal) notes.push('rehearsal: non-compliant / non-evidence');
   const byTriplet = new Map();
   let stoppedRows = 0;
   let previousBlock = { blockNumber: pStart.block.number, blockHash: pStart.block.hash };
@@ -630,14 +637,14 @@ try {
       for (const side of ['before', 'after']) {
         if (!deepEq(row.readbacks[side].A, row.readbacks[side].B)) errors.push(`attempt ${i}: A/B read-backs (${side}) disagree in a row that was not stopped`);
       }
-      if (row.tx.blockTxCount !== 1 || big(row.tx.blockNumber) !== big(row.tx.headBefore) + 1n) errors.push(`attempt ${i}: tx block not isolated`);
+      if (isFormal ? big(row.tx.blockNumber) <= big(row.tx.headBefore) : row.tx.blockTxCount !== 1 || big(row.tx.blockNumber) !== big(row.tx.headBefore) + 1n) errors.push(`attempt ${i}: tx block not isolated`);
       const before = row.readbacks.before.A, after = row.readbacks.after.A;
       if (i === attempts.length - 1) need(after, 'operatorBalance');
       for (const [value, seen, label] of [[lc(row.tx.hash), seenTx, 'transaction'], [lc(h), seenOps, 'userOpHash'], [lc(row.tx.blockHash), seenBlocks, 'block']]) {
         if (seen.has(value)) errors.push(`attempt ${i}: reused ${label}`);
         seen.add(value);
       }
-      if (big(need(before, 'blockNumber')) !== big(previousBlock.blockNumber) || lc(need(before, 'blockHash')) !== lc(previousBlock.blockHash)) errors.push(`attempt ${i}: consecutive block continuity failed`);
+      if (isFormal ? big(need(before, 'blockNumber')) < big(previousBlock.blockNumber) : big(need(before, 'blockNumber')) !== big(previousBlock.blockNumber) || lc(need(before, 'blockHash')) !== lc(previousBlock.blockHash)) errors.push(`attempt ${i}: consecutive block continuity failed`);
       const previous = stateByArm.get(row.arm);
       // Other arms use separate deposits/tokens and cannot change these fields. lockXLocked
       // and inflight state are keyed by opHash: a new op starts empty, rather than inheriting the prior reservation.
@@ -753,14 +760,14 @@ try {
   if (allEarlierHashes.has(lc(end.passport.block.hash))) errors.push('end passport reuses earlier block hash');
   if (big(end.passport.volatile.operatorBalance) !== lastAfterBalance) errors.push('end passport balance differs from last after');
   if (big(need(end, 'passport.block.timestamp')) < big(pStart.block.timestamp)) errors.push('end passport timestamp precedes start');
-  if (arms.includes('SP') && attempts.some(r => r.sent)) for (const [label, p] of [['start', pStart]]) {
+  if (!isFormal && arms.includes('SP') && attempts.some(r => r.sent)) for (const [label, p] of [['start', pStart]]) {
     const value = balanceReadbacks.get(lc(p.block.hash));
     if (value === undefined) { if (!errors.length) throw new Missing(`${label} passport requires operatorBalance readback at same block hash`); continue; }
     if (value !== big(p.volatile.operatorBalance)) errors.push(`${label} passport/readback operatorBalance mismatch`);
   }
-  report.protocolConformant = conformant;
+  report.protocolConformant = conformant && errors.length === 0;
   report.consistent = errors.length === 0;
-  report.accepted = report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0 && (target !== 50 || conformant);
+  report.accepted = !report.rehearsal && report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0 && (target !== 50 || conformant);
   exit = !report.consistent ? 1 : report.accepted ? 0 : 3;
 } catch (e) {
   if (e instanceof Missing) { report.missing = e.message; exit = 2; }

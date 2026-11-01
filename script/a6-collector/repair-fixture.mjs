@@ -45,8 +45,10 @@ export function repairFixture(dir,count=3) {
     if (arm==='TPM') {a.tpmOracle=inv.xPNTs.address;a.postOpRefreshed=false;a.traces=[0,1].map(()=>({call:{type:'CALL',to:a.paymaster,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)'),calls:[]},state:{pre:{},post:{}},postOpRefreshed:false}));}
     for(const [endpointIndex,arc] of archives.entries()) {
       const anchor={number:toHex(BigInt(a.tx.blockNumber)),hash:a.tx.blockHash};
+      if (i>0) { const prev=attempts[i-1].tx; append(arc,'eth_getTransactionReceipt',[prev.hash],{blockNumber:toHex(BigInt(prev.blockNumber)),blockHash:prev.blockHash},null); append(arc,'eth_blockNumber',[],toHex(BigInt(prev.blockNumber)+1n),null); }
       if (arc===archives[0]) append(arc,'eth_sendRawTransaction',['0x01'],a.tx.hash,null);
       if (a.traces) for (const [tracer,key] of [['callTracer','call'],['prestateTracer','state']]) append(arc,'debug_traceTransaction',[a.tx.hash,{tracer}],a.traces[endpointIndex][key],anchor);
+      append(arc,'eth_getBlockByNumber',[anchor.number,false],{number:anchor.number,hash:anchor.hash,transactions:[a.tx.hash]},anchor);
       append(arc,'eth_getTransactionByHash',[a.tx.hash],a.tx.raw,anchor);
       append(arc,'eth_getTransactionReceipt',[a.tx.hash],{blockNumber:anchor.number,blockHash:anchor.hash,logs:a.logs.map(l=>({...l,logIndex:toHex(BigInt(l.logIndex))}))},anchor);
       for(const side of ['before','after']) {

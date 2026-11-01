@@ -1,4 +1,3 @@
-import { stateCalls, supportsCall } from './state-evidence.mjs';
 import { readFileSync, writeFileSync, mkdirSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -80,8 +79,7 @@ export function evidenceIndex(row, context) {
     const applicable = ['entryPointDeposit','operatorBalance'].includes(k) || (k.startsWith('tpm') ? row.arm === 'TPM' : k === 'vpmDeposit' ? row.arm === 'VPM' : row.arm === 'SP');
     const s = row.readbacks?.[side]?.A;
     const v = k === 'inflightOf' && s ? { operator:s.inflightOperator, a0:s.inflightA0 } : s?.[source];
-    const calls = applicable && s && row.stateTargets && v != null ? stateCalls(row,k,v) : [];
-    const raw = pair(archives, r => calls.some(call=>supportsCall(r,call,{number:s.blockNumber,hash:s.blockHash})));
+    const raw = pair(archives, r => applicable && s && r.method === 'eth_call' && r.blockAnchor && BigInt(r.blockAnchor.number) === BigInt(s.blockNumber) && r.blockAnchor.hash === s.blockHash && BigInt(r.params[1]) === BigInt(s.blockNumber));
     if (applicable && s) for (const e of ['A','B']) if (!raw[e].length) missing[`/state/${side}/${k}/raw/${e}`] = 'fixed-block raw state response unavailable';
     return [k, value(`/state/${side}/${k}`, applicable && v != null && s ? { value:v, anchor:{ number:s.blockNumber, hash:s.blockHash }, raw } : null, applicable ? 'fixed-block state unavailable' : `not applicable to ${row.arm}`)];
   }))]));

@@ -2,7 +2,7 @@ import { stateCalls, supportsCall } from './state-evidence.mjs';
 import { readFileSync, realpathSync } from 'node:fs';
 import { resolve, isAbsolute } from 'node:path';
 import { evidenceIndex, sha256, stringify, loadRegistry } from './evidence.mjs';
-import { formalConfig, armOrder, DEFAULT_FACTORY } from './formal.mjs';
+import { formalConfig, armOrder, DEFAULT_FACTORY, inclusionErrors } from './formal.mjs';
 import { decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
 import { postOpRefreshed } from './trace-policy.mjs';
 const canonical=v=>Array.isArray(v)?v.map(canonical):v && typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):typeof v==='string' && v.startsWith('0x')?v.toLowerCase():typeof v==='bigint'?String(v):v;
@@ -90,6 +90,13 @@ export function artifactErrors(window,rows,trailer,journal) {
     for (const key of ['deploymentConfigSha256','baselineConfigSha256']) if (!start.pins.config.some(p=>p.sha256===start[key])) throw new Error('deployment/baseline config hash is not pinned');
   } catch(e) { fail(e.message); }
   const included=new Set(trailer.triples.filter(t=>t.included).flatMap(t=>t.attempts));
+  errors.push(...inclusionErrors(attempts));
+  const windowTransactions=new Set(attempts.filter(a=>a.sent && a.tx).map(a=>lower(a.tx.hash)));
+  for (const arc of archives) for (const raw of arc.records) if (['eth_getBlockByNumber','eth_getBlockByHash'].includes(raw.method) && raw.response) {
+    const block=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
+    if (block?.transactions?.filter(tx=>windowTransactions.has(lower(typeof tx==='string'?tx:tx.hash))).length>1) fail('more than one handleOps from window in archived block');
+  }
+  let previousIncluded=null;
   let lastTime=-Infinity, lastSendId=-1;
   for (let i=0;i<rows.length;i++) try {
     const r=rows[i], a=attempts[i];
@@ -98,8 +105,22 @@ export function artifactErrors(window,rows,trailer,journal) {
     if (!Number.isFinite(time) || time<lastTime) throw new Error('journal chronology mismatch');
     lastTime=time;
     if (a.tx) {
+      for (const arc of archives) if (!arc.records.some(raw=>{
+        if (raw.method!=='eth_getBlockByNumber' || !raw.response) return false;
+        const block=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
+        return block?.hash===a.tx.blockHash && BigInt(block.number)===BigInt(a.tx.blockNumber) && block.transactions?.some(tx=>lower(typeof tx==='string'?tx:tx.hash)===lower(a.tx.hash));
+      })) throw new Error('inclusion block membership missing on A/B');
       const sends=archives[0].records.filter(raw=>raw.method==='eth_sendRawTransaction' && raw.response && lower(JSON.parse(Buffer.from(raw.response,'base64').toString()).result)===lower(a.tx.hash));
       if (sends.length!==1 || sends[0].id<=lastSendId || Date.parse(sends[0].requestedAtUtc)>time) throw new Error('archived send sequence mismatch');
+      if (previousIncluded) for (const archive of archives) {
+        const result=raw=>raw.response && JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
+        const beforeSend=raw=>Date.parse(raw.receivedAtUtc)<=Date.parse(sends[0].requestedAtUtc);
+        const receipts=archive.records.filter(raw=>raw.method==='eth_getTransactionReceipt' && lower(raw.params[0])===lower(previousIncluded.hash) && result(raw)?.blockHash===previousIncluded.blockHash && BigInt(result(raw).blockNumber)===BigInt(previousIncluded.blockNumber) && beforeSend(raw));
+        if (!receipts.length) throw new Error('prior inclusion receipt missing before send');
+        const heads=archive.records.filter(raw=>raw.method==='eth_blockNumber' && beforeSend(raw) && result(raw)!=null && BigInt(result(raw))>BigInt(previousIncluded.blockNumber) && receipts.some(rc=>raw.id>rc.id && Date.parse(raw.requestedAtUtc)>=Date.parse(rc.receivedAtUtc)));
+        if (!heads.length) throw new Error('both heads must advance after prior inclusion receipt before send');
+      }
+      previousIncluded=a.tx;
       lastSendId=sends[0].id;
     }
     if (!eq(r.armOrder,a.armOrder)) throw new Error('index/journal armOrder mismatch');
@@ -125,7 +146,7 @@ export function artifactErrors(window,rows,trailer,journal) {
         if (method && (raw.method!==method || lower(raw.params[0])!==lower(r.tx?.txHash))) throw new Error('endpoint raw method/transaction mismatch');
         if (method && raw.response) {
           const result=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
-          if (included.has(i) && (!result || lower(result.blockHash)!==lower(r.tx.blockHash) || BigInt(result.blockNumber)!==BigInt(r.tx.blockNumber))) throw new Error('raw inclusion mismatch');
+          if (a.sent && (!result || lower(result.blockHash)!==lower(r.tx.blockHash) || BigInt(result.blockNumber)!==BigInt(r.tx.blockNumber))) throw new Error('raw inclusion mismatch');
           if (kind==='transaction' && result) for (const [rawKey,key] of [['input','input'],['gas','gasLimit'],['maxFeePerGas','maxFeePerGas'],['maxPriorityFeePerGas','maxPriorityFeePerGas']]) {
             if (rawKey==='input'?lower(result[rawKey])!==lower(r.tx[key]):BigInt(result[rawKey])!==BigInt(r.tx[key])) throw new Error('raw transaction field mismatch');
           }
@@ -136,7 +157,7 @@ export function artifactErrors(window,rows,trailer,journal) {
         if (!state.raw[endpoint].length) throw new Error('state raw references missing');
         const calls=stateCalls(a,key,state.value);
         const records=state.raw[endpoint].map(ref=>reference(ref,endpoint));
-        if (calls.some(call=>!records.some(raw=>supportsCall(raw,call,state.anchor))) || records.some(raw=>!calls.some(call=>supportsCall(raw,call,state.anchor)))) throw new Error('state call/return value mismatch');
+        if (calls.some(call=>!records.some(raw=>supportsCall(raw,call,state.anchor)))) throw new Error('state call/return value mismatch');
         for (const ref of state.raw[endpoint]) {
           const raw=reference(ref,endpoint);
           if (raw.method!=='eth_call' || BigInt(raw.params[1])!==BigInt(state.anchor.number) || !eq(raw.blockAnchor,{number:String(state.anchor.number),hash:state.anchor.hash})) throw new Error('state raw method/anchor mismatch');

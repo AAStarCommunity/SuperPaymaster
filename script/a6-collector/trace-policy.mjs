@@ -1,9 +1,10 @@
 import { toFunctionSelector, keccak256, toBytes } from 'viem';
 const selector = toFunctionSelector('postOp(uint8,bytes,uint256,uint256)');
 const oracleSelector = toFunctionSelector('latestRoundData()');
-const priceUpdated = keccak256(toBytes('TokenPriceUpdated(uint256,uint256,uint48)'));
-// Conservatively exclude any TPM storage change, plus oracle calls under postOp.
-// This includes cachedPrice writes even when the value is refreshed to the same price.
+const priceUpdated = keccak256(toBytes('TokenPriceUpdated(uint256,uint256,uint256)'));
+// v0.7 TokenPaymaster: Ownable slot 0, UniswapHelper slots 1–2,
+// OracleHelper cachedPrice slot 3 and cachedPriceTimestamp slot 4.
+export const TPM_CACHE_SLOTS = [3n, 4n];
 export function postOpRefreshed(call, diff, paymaster, oracle) {
   if (!call || typeof call.type !== 'string' || !diff?.pre || !diff?.post) throw new Error('TPM trace unavailable');
   let found = false, refresh = false;
@@ -15,7 +16,7 @@ export function postOpRefreshed(call, diff, paymaster, oracle) {
   visit(call);
   if (!found) throw new Error('TPM postOp trace missing');
   const address = paymaster.toLowerCase();
-  for (const side of ['pre','post']) if (Object.keys(diff[side][address]?.storage ?? {}).length) refresh = true;
+  for (const side of ['pre','post']) if (Object.keys(diff[side][address]?.storage ?? {}).some(slot=>TPM_CACHE_SLOTS.includes(BigInt(slot)))) refresh = true;
   return refresh;
 }
 export async function traceTPM(clients, hash, paymaster, oracle) {

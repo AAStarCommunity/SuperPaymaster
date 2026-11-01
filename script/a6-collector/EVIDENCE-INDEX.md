@@ -28,7 +28,7 @@ All keys are required. Unknown/unavailable evidence is null (or an empty referen
 
 ## Fixed-block state and Passports
 
-Both `state.before` and `state.after` contain exactly these field names: entryPointDeposit, operatorBalance, protocolRevenue, inflightOf, userXPNTs, totalSupply, lockedOf, debts, creditReservedOf, operatorTotalSpent, operatorTotalTxSponsored, tpmTokenBalances, tpmCachedPriceTimestamp, vpmDeposit. Each applicable field is `{value, anchor:{number,hash}, raw:{A:[{path,id}],B:[{path,id}]}}`. BEFORE is inclusion block minus one; AFTER is inclusion block. A/B must agree on anchor and value. Raw references contain the fixed-block calls needed to derive the field; a shared operators tuple response supports multiple fields. Consumers use method/params in those records to reproduce reads, not guessed ABIs.
+Both `state.before` and `state.after` contain exactly these field names: entryPointDeposit, operatorBalance, protocolRevenue, inflightOf, userXPNTs, totalSupply, lockedOf, debts, creditReservedOf, operatorTotalSpent, operatorTotalTxSponsored, tpmTokenBalances, tpmCachedPriceTimestamp, vpmDeposit. Each applicable field is `{value, anchor:{number,hash}, raw:{A:[{path,id}],B:[{path,id}]}}`. BEFORE is inclusion block minus one; AFTER is inclusion block. A/B must agree on anchor and value. Each state field's raw references contain ALL fixed-block eth_call records at that anchor, not only that field's own read. Consumers match by target and params; a shared operators tuple response supports multiple fields. SP paymasterAndData uses byte offsets operator [52:72], rate [72:104], token [104:124], flags [124] (SuperPaymasterStorage.sol:176-180). Match inflightOf by op hash, and identify the TPM token by the target of balanceOf(TPM).
 
 entryPointDeposit is EntryPoint.balanceOf(current arm paymaster); operatorBalance is SP.operators(operator)[0] on every arm. SP fields are protocolRevenue(), inflightOf(expectedUserOpHash) as {operator,a0}, token balanceOf(sender), totalSupply(), lockedOf(sender), debts(sender), creditReservedOf(sender), and operators()[7]/[8]. TPM equivalents are token balances `{sender,paymaster}` and cachedPriceTimestamp(). VPM deposit is EntryPoint.balanceOf(VPM). Other arm-specific fields are null and explicitly non-applicable. Additional lockOf reads remain available in stateReads; they do not change this fixed field list.
 
@@ -56,8 +56,8 @@ One immediately durable append-only index row identifies each attempt; the one-s
 `exclusionReason: null`; the replacement edge carries this reason and the trailer
 counts all three abandoned arms. TPM attempts require A/B callTracer (with logs)
 and prestateTracer diff evidence. Calls to the pinned TPM oracle or `latestRoundData` within postOp,
-TokenPriceUpdated logs, or TPM storage changes exclude the triple. Storage-change
-classification is conservative: it can reject changes unrelated to price. An
+TokenPriceUpdated logs, or changes to TPM cached-price slots 3 (cachedPrice) and 4
+(cachedPriceTimestamp) exclude the triple. Other TPM storage changes do not count as refreshes. An
 unavailable trace stops the formal window; no trace-less TPM sample is accepted.
 
 The offline gate opens raw references, requires unique endpoint-local IDs, checks
@@ -78,3 +78,18 @@ RPC requests, and prevents freezing. Exact bytes remain on disk for investigatio
 do not distribute a flagged window. Errors never print the matched substring.
 Freeze also rejects symlinked ancestors of the window or sampling file before
 creating its lock.
+
+### Slice 5 timing and rehearsal
+
+Every next attempt waits for the preceding inclusion receipt and heads strictly above
+its inclusion height on both A and B. NOT_SENT attempts retain the last sent
+attempt as the gate anchor, because they have no transaction receipt. Inclusion heights must strictly increase across
+all attempts, including abandoned candidates; duplicate handleOps blocks void compliance.
+Unrelated block transactions are allowed, with the existing state-conservation checks retained.
+
+`--rehearsal` uses the formal archive, index, passport, replacement and freeze paths,
+with literal loopback RPC and chain 31337 only. It uses fixed Anvil development signers.
+The journal, trailer and manifest carry `rehearsal: true`; even structurally valid
+rehearsals are always non-compliant and non-evidence (validator exit 3). Run
+`script/a6-collector/rehearsal-window.sh` for four candidate triples (three matched and one abandoned
+candidate) with an intentionally expired VPM authorization (AA32).

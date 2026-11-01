@@ -25,7 +25,7 @@ export function freeze(window, sampling) {
     }
   }
   walk(window);
-  const manifest = JSON.stringify({ schemaVersion:'a6-freeze/1', frozenAt:new Date().toISOString(), sampling:{ path:'sampling-input.json', sha256:sha256(sample) }, files }, null, 2)+'\n';
+  const manifest = JSON.stringify({ schemaVersion:'a6-freeze/1', rehearsal:existsSync(resolve(window,'trailer.json')) && JSON.parse(readFileSync(resolve(window,'trailer.json'),'utf8')).rehearsal === true, frozenAt:new Date().toISOString(), sampling:{ path:'sampling-input.json', sha256:sha256(sample) }, files }, null, 2)+'\n';
   writeFileSync(resolve(window,'manifest.json'), manifest, { flag:'wx', mode:0o600 });
   writeFileSync(resolve(window,'manifest.sha256'), sha256(manifest)+'  manifest.json\n', { flag:'wx', mode:0o600 });
   return JSON.parse(manifest);

@@ -88,9 +88,10 @@ export function windowErrors(rows, trailer, journal = null) {
     if (!equal(r.replaces,expected)) fail('replacement inverse mismatch');
   }
   const included=trailer.triples.filter(t=>t.included);
-  if (included.length !== 50 || included.reduce((n,t)=>n+t.attempts.length,0) !== 150) fail('requires exactly 50 included triples / 150 included attempts');
+  if (trailer.rehearsal !== true && (included.length !== 50 || included.reduce((n,t)=>n+t.attempts.length,0) !== 150)) fail('requires exactly 50 included triples / 150 included attempts');
   if (!equal(trailer.counts,armCounts(rows,trailer.triples,trailer.replacements))) fail('per-arm counts mismatch');
   if (journal) {
+    if ((journal[0].rehearsal === true) !== (trailer.rehearsal === true) || (journal.at(-1).rehearsal === true) !== (trailer.rehearsal === true)) fail('rehearsal marker mismatch');
     const attempts=journal.filter(r=>r.kind==='attempt'), end=journal.at(-1);
     if (attempts.length !== rows.length) fail('index does not retain every journal attempt');
     for (let i=0;i<attempts.length;i++) {

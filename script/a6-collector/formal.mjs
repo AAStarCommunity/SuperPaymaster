@@ -233,9 +233,16 @@ export function castSigner(config, _role, run = execFileSync) {
     }, signTypedData: async () => { throw new Error('typed data signing is not used by A6'); } });
 }
 
-export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, createSigner = castSigner, fetchImpl, resolver = lookup }) {
+export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
-  const resolved = await resolveEndpoints(a, b, resolver);
+  let resolved;
+  if (rehearsal) {
+    for (const url of [a,b]) if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(url)) throw new Error('rehearsal requires literal loopback RPC');
+    if (config.chainId !== 31337) throw new Error('rehearsal requires chain 31337');
+    resolved = [['127.0.0.1'], ['127.0.0.1']];
+    const { rehearsalSigner } = await import('./rehearsal-signer.mjs');
+    createSigner = rehearsalSigner;
+  } else resolved = await resolveEndpoints(a, b, resolver);
   const archives = ['A', 'B'].map((endpoint, i) => {
     const archive = rawArchive(dirname(outPath), endpoint);
     const rpc = archivedRpc({ url: i ? b : a, endpoint, fetchImpl: fetchImpl ?? ((url,options)=>pinnedFetch(url,options,resolved[i])), append: archive.append, secrets: credentialFragments([a,b]), secretPatterns: config.secretPatterns ?? [] });
@@ -304,3 +311,25 @@ export async function prepareSimpleAccount({ config, runtime, readAB }) {
 }
 
 export function requireDecodedPreflight(error, decoded) { if (!decoded) throw error; }
+
+/** Receipt inclusion is required before polling; both heads must advance before another send. */
+export async function waitAfterInclusion(clients, receipt, {timeoutMs=60000, pollMs=250}={}) {
+  if (receipt?.blockNumber == null || !receipt.blockHash) throw new Error('inclusion receipt required');
+  const deadline=Date.now()+timeoutMs;
+  while (true) {
+    const heads=await Promise.all(clients.map(c=>c.getBlockNumber({cacheTime:0})));
+    if (heads.every(n=>n>BigInt(receipt.blockNumber))) return heads;
+    if (Date.now()>=deadline) throw new Error('both heads must advance past inclusion');
+    await new Promise(r=>setTimeout(r,pollMs));
+  }
+}
+export function inclusionErrors(attempts) {
+  const errors=[]; let previous=-1n; const blocks=new Set();
+  for (const a of attempts) if (a.sent && a.tx?.blockNumber != null) {
+    const n=BigInt(a.tx.blockNumber);
+    if (n<=previous) errors.push('inclusion blocks must be strictly increasing across all attempts');
+    if (blocks.has(n.toString())) errors.push('more than one handleOps from window in a block');
+    blocks.add(n.toString()); previous=n;
+  }
+  return errors;
+}

@@ -1,5 +1,5 @@
 import { traceTPM } from './trace-policy.mjs';
-import { revalidateAnchors, requireDecodedPreflight } from './formal.mjs';
+import { revalidateAnchors, requireDecodedPreflight, waitAfterInclusion } from './formal.mjs';
 import { loadPins, loadRegistry, sha256, evidenceIndex, writeArtifact, appendIndex, writeTrailer, armCounts, exclusionReason } from './evidence.mjs';
 import { decomposeGas } from './gas-decomposition.mjs';
 import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
@@ -48,7 +48,8 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
-const formal = process.argv.includes('--formal');
+const rehearsal = process.argv.includes('--rehearsal');
+const formal = process.argv.includes('--formal') || rehearsal;
 // Do not even load the development key module in formal mode.
 const { clients, send, rpc, ANVIL_KEYS } = formal ? {} : await import('../b-layer/lib.mjs');
 import { checkDepositFloor, opGasLimitSum, depositFloor } from './deposit-guard.mjs';
@@ -114,7 +115,7 @@ if (expectEp !== null && (!/^0x[0-9a-fA-F]{40}$/.test(expectEp) || getAddress(ex
 }
 const SPA = getAddress(cfg.superPaymaster);
 if (new Set([SPA, baselines.verifyingPaymaster.address, baselines.tokenPaymaster.address].map(a => getAddress(a).toLowerCase())).size !== 3) die('SP/VPM/TPM paymasters must be distinct');
-const runtime = formal ? await formalRuntime({ config: formalInput, rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
+const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
 const ctx = formal ? { account: { address: getAddress(formalInput.operator) }, pub: runtime.pubA } : clients(rpcA, ANVIL_KEYS[0]);
 const bundler = formal ? { account: runtime.accounts.bundler, wallet: { writeContract: runtime.writeContract } } : clients(rpcA, ANVIL_KEYS[1]);
 const pubA = ctx.pub;
@@ -307,7 +308,7 @@ async function pmDataFor(arm, { sender, nonce, callData }) {
   }
   if (arm === 'VPM') {
     const vpm = baselines.verifyingPaymaster;
-    const validUntil = 0n, validAfter = 0n;
+    const validUntil = rehearsal && formalInput.rehearsalExpiredVpm && attemptIndex === 2 ? 1n : 0n, validAfter = 0n;
     const partial = { sender, nonce, initCode: '0x', callData,
       accountGasLimits: concat([u128(GAS.verificationGasLimit), u128(GAS.callGasLimit)]),
       preVerificationGas: GAS.preVerificationGas, gasFees: concat([u128(GAS.maxPriorityFeePerGas), u128(GAS.maxFeePerGas)]),
@@ -538,6 +539,7 @@ async function setup() {
 
 // ── one attempt ───────────────────────────────────────────────────────────────────────────
 let attemptIndex = 0;
+let previousInclusion = null;
 /** One attempt = one UserOperation through one arm. Every attempt writes exactly one JSONL line,
  *  including one interrupted by a stop condition (then with `stoppedBy` and whatever was known). */
 async function attempt(arm, tripletIndex, passportStart) {
@@ -556,6 +558,7 @@ async function attempt(arm, tripletIndex, passportStart) {
 }
 async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const GAS = gasFor(arm);
+  if (formal && previousInclusion) st.row.priorInclusionHeads = await waitAfterInclusion([pubA,pubB], previousInclusion);
   if (formal) {
     const block = await runtime.refreshPin();
     const p = await readAB(`passport attempt ${idx}`, client => passport(client, block.number));
@@ -630,6 +633,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   row.tx = { hash: txHash };
   const rdiff = diffPaths(jsonable(rcView(rcA)), jsonable(rcView(rcB)));
   if (rdiff.length) throw new Stop('RECEIPT_DISAGREEMENT', 25, { txHash, diff: rdiff });
+  previousInclusion = rcA;
   const bn = rcA.blockNumber;
   const blocks = await readAB('attempt block', async p => { const b = await p.getBlock({ blockNumber: bn }); return { hash: b.hash, timestamp: b.timestamp, transactions: b.transactions }; });
   const blk = blocks.A;
@@ -667,7 +671,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const after = await readbacks(arm, bn, expectedHash, sender);
   const out = { readbacks: { before, after } };
 
-  if (blk.transactions.length !== 1 || bn !== headBefore + 1n) {
+  if (formal ? bn <= headBefore : blk.transactions.length !== 1 || bn !== headBefore + 1n) {
     finish({ ...out, stoppedBy: { reason: 'BLOCK_NOT_ISOLATED', detail: { bn, txCount: blk.transactions.length, headBefore } }, exclusion: 'BLOCK_NOT_ISOLATED' });
     throw new Stop('BLOCK_NOT_ISOLATED', 24, { bn, txCount: blk.transactions.length, headBefore });
   }
@@ -675,7 +679,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   // Conservation: D1 for every arm whose op produced its event; SP identities on top.
   const checks = [];
   const previousBlock = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
-  checks.push({ id: 'continuity.block', ok: BigInt(before.A.blockNumber) === BigInt(previousBlock.blockNumber) && before.A.blockHash.toLowerCase() === previousBlock.blockHash.toLowerCase() });
+  checks.push({ id: 'continuity.block', ok: formal ? BigInt(before.A.blockNumber) >= BigInt(previousBlock.blockNumber) : BigInt(before.A.blockNumber) === BigInt(previousBlock.blockNumber) && before.A.blockHash.toLowerCase() === previousBlock.blockHash.toLowerCase() });
   const prior = stateByArm.get(arm);
   if (prior) for (const f of Object.keys(prior).filter(f => !['blockNumber', 'blockHash', 'operatorBalance', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
     checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], prior[f]).length === 0 });
@@ -734,10 +738,10 @@ try {
   const epMismatch = Object.entries(passportStart.invariant.armEntryPoints).filter(([, a]) => getAddress(a) !== EP);
   if (epMismatch.length) throw new Stop('ENTRYPOINT_MISMATCH', 26, { EP, epMismatch });
   writeLine({ kind: 'run_start', ...collectorHead(), argv: formal ? ['--formal', '(URL files redacted)'] : process.argv.slice(2), rpcA: formal ? 'https://rpc-a.invalid' : rpcA, rpcB: formal ? 'https://rpc-b.invalid' : rpcB, allowSameEndpointLocal,
-    ...(formal ? { formal: true, formalSlice: 3, frozenConfig: formalInput, configSha256: createHash('sha256').update(readFileSync(argVal('--formal-config'))).digest('hex'),
+    ...(formal ? { formal: true, rehearsal, formalSlice: 5, frozenConfig: formalInput, configSha256: createHash('sha256').update(readFileSync(argVal('--formal-config'))).digest('hex'),
       deploymentConfigSha256: createHash('sha256').update(readFileSync(configPath)).digest('hex'), baselineConfigSha256: createHash('sha256').update(readFileSync(baselinesPath)).digest('hex'), rpcIdentity:rpcIdentityPin, pins:evidencePins, archiveLayout:'raw/{A|B}/YYYYMMDD.ndjson', sopPending:['DSR independent re-fetch and acceptance'] } : {}),
     abTopology: argVal('--ab-topology') ?? 'unspecified', count, bMax, maxAttempts, arms, fixture,
-    protocolConformant: (formal || distinctEndpoints) && count === PROTOCOL_N && noFixture(fixture) && arms.length === 3 && !allowSameEndpointLocal,
+    protocolConformant: !rehearsal && (formal || distinctEndpoints) && count === PROTOCOL_N && noFixture(fixture) && arms.length === 3 && !allowSameEndpointLocal,
     setupLog, passport: passportStart, startedAtUtc: new Date().toISOString() });
   console.log(`A6 gauge ${runId}: N=${count} bMax=${bMax} maxAttempts/arm=${maxAttempts} arms=${arms} fixture=${fixture ?? 'none'}`);
   console.log(`EP=${EP} (canonical v0.7 address: ${passportStart.invariant.entryPoint.isCanonicalV07Address}) sender=${sender}`);
@@ -808,13 +812,13 @@ try {
 }
 exitCode = stop.code;
 writeLine({ kind: 'run_end', stop, exitCode, matchedTriplets: matched, targetTriplets: count, tally, triplets,
-  ...(formal ? {finalBlockCheck} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
+  ...(formal ? {finalBlockCheck, rehearsal} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
 closeSync(fd);
 if (formal) {
   const triples = [...new Set(evidenceRows.map(r => r.tripleIndex))].map(tripleIndex => ({tripleIndex,
     attempts:evidenceRows.filter(r => r.tripleIndex === tripleIndex).map(r => r.attempt),
     included:stop.code === 0 && triplets.some(t => t.tripletIndex === tripleIndex && t.matched)}));
-  writeTrailer(windowPath, {schemaVersion:'a6-evidence-trailer/1', windowId:runId, void:stop.code !== 0,
+  writeTrailer(windowPath, {schemaVersion:'a6-evidence-trailer/1', rehearsal, windowId:runId, void:stop.code !== 0,
     stopReason:stop.reason, stopAttempt:evidenceRows.at(-1)?.attempt ?? null, endPassport:passportRefs.end ?? null,
     finalBlockCheck, triples, replacements, counts:armCounts(evidenceRows, triples, replacements)});
 }

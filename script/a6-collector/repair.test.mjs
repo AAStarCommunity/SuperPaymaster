@@ -71,7 +71,7 @@ test('TPM requires dual traces, excludes oracle calls/storage writes, refuses fa
   const pm='0x'+'12'.repeat(20),call={type:'CALL',to:pm,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)'),calls:[]},state={pre:{},post:{}};
   assert.equal(postOpRefreshed(call,state,pm),false);
   assert.equal(postOpRefreshed({...call,calls:[{type:'STATICCALL',input:toFunctionSelector('latestRoundData()')}]},state,pm),true);
-  assert.equal(postOpRefreshed(call,{pre:{[pm]:{storage:{'0x1':'0x2'}}},post:{}},pm),true);
+  assert.equal(postOpRefreshed(call,{pre:{[pm]:{storage:{'0x3':'0x2'}}},post:{}},pm),true);
   await assert.rejects(traceTPM([{request:async()=>{throw Error('trace unavailable');}}],H,pm),/trace unavailable/);
   assert.throws(()=>postOpRefreshed(null,state,pm),/unavailable/);
 });
@@ -105,4 +105,31 @@ test('included TPM requires archived dual traces and cannot hide refresh classif
   const check=()=>artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]);
   assert.deepEqual(check(),[]);
   f.attempts[2].postOpRefreshed=true;assert.match(check().join(';'),/trace mismatch|included TPM/);
+}));
+
+test('strict send gate requires both archived later heads after prior receipt',()=>temp(d=>{
+  const f=repairFixture(d,3), trailer={finalBlockCheck:f.finalBlockCheck,endPassport:f.passport,triples:[{tripleIndex:0,included:true,attempts:[0,1,2]}]};
+  const check=()=>artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]);
+  assert.deepEqual(check(),[]);
+  const path=join(d,f.rows[0].endpoints.B.receipt[0].path);
+  const records=readFileSync(path,'utf8').trim().split('\n').map(JSON.parse);
+  for(const r of records) if(r.method==='eth_blockNumber') {const response=JSON.parse(Buffer.from(r.response,'base64'));response.result='0x0';r.response=r.responseBase64=Buffer.from(JSON.stringify(response)).toString('base64');}
+  writeFileSync(path,records.map(JSON.stringify).join('\n'));
+  assert.match(check().join(';'),/both heads must advance/);
+}));
+test('each field carries all anchored eth_call records and consumers select target and params',()=>temp(d=>{
+  const f=fixture(d), states=f.rows[0].state.before;
+  assert.deepEqual(states.operatorBalance.raw,states.entryPointDeposit.raw);
+  assert.ok(states.operatorBalance.raw.A.length>1);
+  assert.deepEqual(f.check(),[]);
+}));
+test('archived block cannot contain two window handleOps even if journal heights differ',()=>temp(d=>{
+  const f=repairFixture(d,3),trailer={finalBlockCheck:f.finalBlockCheck,endPassport:f.passport,triples:[{tripleIndex:0,included:true,attempts:[0,1,2]}]};
+  const path=join(d,f.rows[0].endpoints.A.receipt[0].path),records=readFileSync(path,'utf8').trim().split('\n').map(JSON.parse);
+  for(const r of records) if(r.method==='eth_getBlockByNumber') {
+    const response=JSON.parse(Buffer.from(r.response,'base64'));
+    if(response.result.transactions?.includes(f.attempts[0].tx.hash)) {response.result.transactions.push(f.attempts[1].tx.hash);r.response=r.responseBase64=Buffer.from(JSON.stringify(response)).toString('base64');}
+  }
+  writeFileSync(path,records.map(JSON.stringify).join('\n'));
+  assert.match(artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]).join(';'),/more than one handleOps/);
 }));
