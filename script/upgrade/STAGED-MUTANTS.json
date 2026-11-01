@@ -1,0 +1,205 @@
+{
+  "scope": "Offline synthetic unit fixtures; no fork or network",
+  "mutants": [
+    {
+      "guard": "stage_inputs",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_builds",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 0,
+      "errors": 1
+    },
+    {
+      "guard": "stage_steps_complete",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_runner_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "simulation_stage",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_cli_guard",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "stage",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_metadata_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "stage_sources",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_metadata_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "prefix_stage",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_metadata_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "prefix_digest",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_metadata_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "prefix_boundary",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_metadata_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "prefix_exact",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_prefix_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 4,
+      "errors": 0
+    },
+    {
+      "guard": "source_readback_prefix",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_metadata_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "source_domain",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_metadata_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "pop_domain",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_domain_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "fixture_domain",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_domain_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "stage_local",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_domain_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "stage_domain",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_domain_guards",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "prefix_exact",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_timing_prefix",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 4,
+      "errors": 0
+    },
+    {
+      "guard": "source_plan_bytes",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_staged_source_rebuild",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "final_artifact",
+      "mutation": "remove named gate",
+      "test": "ManifestTests.test_stage_artifact_separation",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 1,
+      "errors": 0
+    },
+    {
+      "guard": "stage_sidecar_write",
+      "mutation": "omit stage integrity sidecar write",
+      "test": "ManifestTests.test_stage_artifact_cli_replay",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 0,
+      "errors": 4
+    },
+    {
+      "guard": "stage_not_final",
+      "mutation": "remove loader stage_not_final check",
+      "test": "ManifestTests.test_stage_artifact_loader_rejects_final",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 2,
+      "errors": 0
+    },
+    {
+      "guard": "stage_draft_replay",
+      "mutation": "treat every loaded stage draft as frozen",
+      "test": "ManifestTests.test_stage_artifact_cli_replay",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 2,
+      "errors": 0
+    },
+    {
+      "guard": "plan_hash",
+      "mutation": "remove integrity comparison in real loader",
+      "test": "ManifestTests.test_stage_artifact_tampered_sidecar",
+      "mutated": "FAIL",
+      "restored": "PASS",
+      "failures": 2,
+      "errors": 0
+    }
+  ],
+  "method": "For each guard, replace only its a.need check with a no-op using unittest.mock; run the named unittest, restore a.need, then rerun the same test. Production files are not mutated.",
+  "stageReplayMethod": "Stage replay mutants replace one function in memory with the indicated source edit (no production file mutation); plan_hash uses a named a.need no-op. Tests use real save/load and CLI validation and stop at the mocked RPC/fork boundary. Every selected test is rerun after restoration."
+}

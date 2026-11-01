@@ -412,23 +412,26 @@ def fraud_rehearsal(rpc, plan):
         storageWrites=writes, proofs=records, mainReadback=dict(before=before, after=restored), restored=True)
 
 
-def external(path):
+def external(path, stage="full"):
     a.need('external_inputs_required', path is not None and Path(path).is_file(), True)
     raw = Path(path).read_bytes()
     data = a.plan_json(raw)
-    validate_external(data)
+    validate_external(data, stage)
     return dict(sha256=hashlib.sha256(raw).hexdigest(), data=data)
 
 
-def validate_external(data):
-    required(data, ('verifier', 'pop', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei',
-                    'releaseTag', 'releaseEvidence', 'registryBaselineCommit', 'a3aPlan', 'fraudProofFixture'), 'external_inputs_complete')
+def validate_external(data, stage="full"):
+    a.need("stage", stage in ("a7", "b4", "full"), True)
+    required(data, (() if stage == "a7" else ("pop",)) + (("fraudProofFixture",) if stage == "full" else ()), "stage_inputs")
+    required(data, ('verifier', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei',
+                    'releaseTag', 'releaseEvidence', 'registryBaselineCommit', 'a3aPlan'), 'external_inputs_complete')
     v = data['verifier']
     a.exact_keys('verifier_provenance', v, ('commit', 'ciSha256', 'ciPath', 'artifactPath', 'buildSha256'))
     verifier_artifact(v)
     a.need('verifier_build_identity', v['buildSha256'], VERIFIER_SHA256)
     evidence_file(dict(path=v['ciPath'], sha256=v['ciSha256']), 'dvt-ci')
-    fraud_fixture(data['fraudProofFixture'])
+    if stage == 'full':
+        fraud_fixture(data['fraudProofFixture'])
     a.need('fixed_anni', data['anni'], ANNI)
     required(data['a3aPlan'], ('path', 'sha256', 'receipts'), 'a3a_input')
     reviewed_file(data['a3aPlan']['path'], data['a3aPlan']['sha256'], 'a3a_plan')
@@ -444,19 +447,20 @@ def validate_external(data):
         a.typed(data[key], a.ADDRESS_RX)
         a.need('canonical_'+key, data[key], data[key].lower())
         a.need('nonzero_'+key, data[key] != a.ZERO, True)
-    a.need('pop_three', len(data['pop']), 3)
-    for p in data['pop']:
-        a.exact_keys('pop_fields', p, ('validator', 'slot', 'calldata', 'aggregator', 'pinBlockHash'))
-        a.typed(p['validator'], a.ADDRESS_RX)
-        a.typed(p['calldata'], a.HEXDATA)
-        a.need('pop_selector', p['calldata'][:10], a.keccak(POP)[:10])
-        words = u.uints('0x'+p['calldata'][10:])
-        a.need('pop_words', len(words), 14)
-        a.need('pop_validator', u.addr_word(words[0]), p['validator'])
-        a.need('pop_slot', words[5], p['slot'])
-        a.need('pop_slot_range', 1 <= p['slot'] <= 13, True)
-    for key in ('validator', 'slot'):
-        a.need('pop_unique_'+key, len({p[key] for p in data['pop']}), 3)
+    if stage != 'a7':
+        a.need('pop_three', len(data['pop']), 3)
+        for p in data['pop']:
+            a.exact_keys('pop_fields', p, ('validator', 'slot', 'calldata', 'aggregator', 'pinBlockHash', 'domainSeparator'))
+            a.typed(p['validator'], a.ADDRESS_RX)
+            a.typed(p['calldata'], a.HEXDATA)
+            a.need('pop_selector', p['calldata'][:10], a.keccak(POP)[:10])
+            words = u.uints('0x'+p['calldata'][10:])
+            a.need('pop_words', len(words), 14)
+            a.need('pop_validator', u.addr_word(words[0]), p['validator'])
+            a.need('pop_slot', words[5], p['slot'])
+            a.need('pop_slot_range', 1 <= p['slot'] <= 13, True)
+        for key in ('validator', 'slot'):
+            a.need('pop_unique_'+key, len({p[key] for p in data['pop']}), 3)
     a.need('sampled_unique', data['sampled'], sorted(set(data['sampled'])))
     a.need('sampled_nonempty', bool(data['sampled']), True)
     for who in data['sampled']:
@@ -702,8 +706,8 @@ def reconcile_nonces(rpc, pin, inputs):
     validate_nonce_history(pin, inputs)
 
 
-def collect(rpc, block, inputs):
-    validate_external(inputs['data'])
+def collect(rpc, block, inputs, stage="full"):
+    validate_external(inputs['data'], stage)
     pin = u.collect(rpc, block)
     d = inputs['data']
     block = pin['stateBlock']
@@ -791,20 +795,97 @@ def safe_payload(inner, target=u.TL):
 
 
 
-def build_plan(pin, inputs=None):
+def domain_separator(aggregator):
+    return a.keccak(a.cast('abi-encode', 'c(bytes32,uint256,address,address)',
+        a.keccak('SuperPaymaster.BLSConsensus.v1'), a.CHAIN, aggregator, u.REG))
+
+
+def prefix_payload(plan):
+    steps = copy.deepcopy(plan['steps'])
+    for step in steps:
+        for key in (u.MEASURED_KEYS - {'executionTimestamp'}) | {'skipped'}:
+            step.pop(key, None)
+        step['tx'].pop('gas', None)
+        for tx in step.get('variants', {}).values():
+            tx.pop('gas', None)
+    return dict(pin=plan['pin'], addresses=plan['addresses'], steps=steps,
+                activationScheduleNotBefore=plan['activationScheduleNotBefore'])
+
+
+def bind_timing(plan):
+    """Derive the same mined-block clock used by wait_until and replay."""
+    now = plan['pin']['stateTimestamp']
+    etas, gas_eta, verifier_eta = {}, 0, 0
+    for step in plan['steps']:
+        sid = step['id']
+        target = now
+        if sid == 'activation_schedule_approve':
+            target = max(target, gas_eta, plan['activationScheduleNotBefore'])
+        if sid.endswith('execute_exec'):
+            target = max(target, etas[step['operation']])
+        if sid == 'B4':
+            target = max(target, verifier_eta)
+        step['warpTarget'] = target
+        now = target + 1
+        step['executionTimestamp'] = now
+        if sid.endswith('schedule_exec'):
+            etas[step['operation']] = now + u.DELAY
+        if sid == 'upgrade_execute_exec':
+            gas_eta = now + u.DELAY
+        if sid == 'A12b':
+            verifier_eta = now + 4*DAY
+
+
+def source_plan_bytes(plan):
+    return (json.dumps(plan, sort_keys=True, separators=(',', ':'))+'\n').encode()
+
+
+def stage_source(plan, rpc):
+    # Keep measured gas in stage-<name>.json; source plans are independently
+    # reproducible offline, while their prefix binds the executed fork timing.
+    rebuilt = build_plan(plan['pin'], plan['externalInputs'], plan['stage'], plan['stageSources'])
+    verify_prefix(rebuilt, plan, plan['stage'])
+    return dict(plan=rebuilt, readback=stage_readback(plan, rpc))
+
+
+def prefix_digest(plan):
+    return hashlib.sha256(json.dumps(prefix_payload(plan), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def verify_prefix(plan, prior, stage):
+    a.need('prefix_stage', prior['stage'], stage)
+    a.need('prefix_digest', prior['prefixDigest'], prefix_digest(prior))
+    expected = prefix_payload(plan)
+    expected['steps'] = expected['steps'][:len(prior['steps'])]
+    expected['addresses'] = {k: expected['addresses'].get(k) for k in prior['addresses']}
+    a.need('prefix_boundary', prior['steps'][-1]['id'], 'A7' if stage == 'a7' else 'B4')
+    a.need('prefix_exact', prefix_payload(prior), expected)
+
+
+def stage_readback(plan, rpc):
+    a.need('stage_local', getattr(rpc, 'local', False), True)
+    domain = a.call(rpc, plan['addresses']['BLSAggregator'], 'domainSeparator()')
+    a.need('stage_domain', domain, plan['expectedDomainSeparator'])
+    return dict(prefixDigest=plan['prefixDigest'], domainSeparator=domain)
+
+
+def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     a.need('manifest_inputs_required', inputs is not None, True)
     required(inputs, ('sha256', 'data'), 'external_binding')
     a.typed('0x'+inputs['sha256'], a.HASH32)
     a.need('external_digest_nonzero', int(inputs['sha256'], 16) != 0, True)
     d = inputs['data']
-    validate_external(d)
+    validate_external(d, stage)
+    sources = copy.deepcopy(stage_sources or {})
+    a.need("stage_sources", set(sources), set() if stage == "a7" else ({"a7"} if stage == "b4" else ({"a7", "b4"} if sources else set())))
+    salt_digest = sources["b4"]["plan"]["externalInputs"]["sha256"] if "b4" in sources else inputs["sha256"]
     a.exact_keys('bindings', pin['bindings'], (DVT, COMMITTEE))
     for code in pin['bindings'].values():
         a.typed(code, a.HEXDATA)
         a.need('binding_nonempty', code != '0x', True)
     a.need('fixed_old_aggregator', pin['oldAggregator'], OLD_AGGREGATOR)
     validate_nonce_history(pin, inputs)
-    required(d, ('verifier', 'pop', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei'), 'manifest_external_complete')
+    required(d, ('verifier', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei'), 'manifest_external_complete')
     base_pin = {key: copy.deepcopy(pin[key]) for key in u.PIN_KEYS}
     base_pin['senders'].pop('anni', None)
     u.validate_pin(base_pin)
@@ -828,6 +909,26 @@ def build_plan(pin, inputs=None):
     counters = {label: x['nonce'] for label, x in pin['senders'].items()}
     steps, addresses, runtimes = [], {}, {}
     safe_n = pin['safeNonce']
+    operations = {}
+    def finish():
+        plan = dict(schema='3.1', route='manifest-A-B-D', stage=stage, final=stage == 'full', stageSources=sources,
+            pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs), rebuild=arts,
+            addresses=addresses, implementation=impl, extension=extension, operations=operations,
+            steps=steps, controls=CONTROLS,
+            expectedDomainSeparator=domain_separator(agg),
+            b4Disclosure='B4 always consumes its reserved deployer nonce. If already applied, one empty, zero-value self-transfer costs gas only.',
+            gasPolicy=copy.deepcopy(u.GAS_POLICY), gasParams=list(u.GAS),
+            activationScheduleNotBefore=max(0, pin['pendingAPNTsTokenEta']-u.DELAY))
+        bind_timing(plan)
+        plan['prefixDigest'] = prefix_digest(plan)
+        for name, source in sources.items():
+            rebuilt = build_plan(pin, source['plan']['externalInputs'], name,
+                                 {'a7': sources['a7']} if name == 'b4' else None)
+            a.need('source_plan_bytes', source_plan_bytes(source['plan']) == source_plan_bytes(rebuilt), True)
+            verify_prefix(plan, source['plan'], name)
+            a.need('source_readback_prefix', source['readback']['prefixDigest'], source['plan']['prefixDigest'])
+            a.need('source_domain', source['readback']['domainSeparator'], plan['expectedDomainSeparator'])
+        return plan
     def add(sid, target, data, checks, sender='deployer', value=0, **extra):
         a.need('readback_required', bool(checks), True)
         tx = dict(to=target, data=data, value=hex(value), nonce=hex(counters[sender]),
@@ -884,6 +985,9 @@ def build_plan(pin, inputs=None):
         address_pred(agg, 'SUPERPAYMASTER()', u.SP), address_pred(agg, 'DVT_VALIDATOR()', d['dvt']),
         *[word_pred(agg, 'slashThresholds(uint8)', threshold, severity) for severity, threshold in enumerate((2, 3, 3))]]
     steps[-1]['readbacks'].append(predicate(agg, 'version()', (), a.cast('abi-encode', 'c(string)', AGG_VERSION)))
+    steps[-1]['readbacks'].append(predicate(agg, 'domainSeparator()', (), domain_separator(agg)))
+    if stage == 'a7':
+        return finish()
     for suffix, target, setter, getter in (('registry', u.REG, 'setBLSAggregator', 'blsAggregator'),
         ('dvt', d['dvt'], 'setBLSAggregator', 'BLS_AGGREGATOR'), ('committee', d['committee'], 'setBlsAggregator', 'blsAggregator')):
         call('A8.'+suffix, target, setter+'(address)', (agg,), [address_pred(target, getter+'()', agg)])
@@ -895,6 +999,7 @@ def build_plan(pin, inputs=None):
     a.need('guardian_inventory', {(x['validator'], x['slot']) for x in inventory if x['validator'] != a.ZERO}, {(x['validator'], x['slot']) for x in d['pop']})
     a.need('pop_count', len(d['pop']), 3)
     for i, pop in enumerate(d['pop']):
+        a.need('pop_domain', pop['domainSeparator'], domain_separator(agg))
         a.need('pop_aggregator', pop['aggregator'], agg)
         a.need('pop_pin', pop['pinBlockHash'], pin['blockHash'])
         words = u.uints('0x'+pop['calldata'][10:])
@@ -906,7 +1011,9 @@ def build_plan(pin, inputs=None):
     verifier = deploy('A12a', 'OverIssueFraudProofVerifier', 'c(address,address)', (agg, u.REG),
         {'AGGREGATOR': int(agg, 16), 'REGISTRY': int(u.REG, 16)})
     steps[-1]['readbacks'] += [address_pred(verifier, 'AGGREGATOR()', agg), address_pred(verifier, 'REGISTRY()', u.REG), address_pred(agg, 'REGISTRY()', u.REG)]
-    fraud_fixture(d['fraudProofFixture'], pin, agg, verifier, arts['contracts']['BLSAggregator']['storageLayout'])
+    if stage == 'full':
+        fixture = fraud_fixture(d['fraudProofFixture'], pin, agg, verifier, arts['contracts']['BLSAggregator']['storageLayout'])
+        a.need('fixture_domain', fixture['domainSeparator'], domain_separator(agg))
     call('A12b', agg, 'proposeFraudProofVerifier(address)', (verifier,),
         [address_pred(agg, 'pendingFraudProofVerifier()', verifier),
          dict(kind='eta', target=agg, signature='pendingFraudProofVerifierReadyAt()', delay=4*DAY)])
@@ -955,7 +1062,7 @@ def build_plan(pin, inputs=None):
                 sender='executor', safeHash=h, inner=inner, safeTarget=target)
             safe_n += 1
         op = dict(batch=True, targets=[u.SP]*len(data), data=data, predecessor=predecessor,
-                  salt=a.keccak('manifest-v3/'+pin['blockHash']+'/'+inputs['sha256']+'/'+name))
+                  salt=a.keccak('manifest-v3/'+pin['blockHash']+'/'+salt_digest+'/'+name))
         op['id'] = u.operation_hash(op['targets'], data, predecessor, op['salt'], True)
         operations[name] = op
         predecessor = op['id']
@@ -979,6 +1086,8 @@ def build_plan(pin, inputs=None):
         word_pred(agg, 'pendingFraudProofVerifierReadyAt()', 0)])
     b4['variants'] = dict(apply=copy.deepcopy(b4['tx']),
         placeholder=dict(b4['tx'], to=u.DEPLOYER, value='0x0', data='0x'))
+    if stage == 'b4':
+        return finish()
     # PHASE C INSERTION POINT: funding/sampling is NOT implemented in this slice.
     # Future Phase C steps must precede D and consume these same nonce counters.
     call('D.registry.transfer', u.REG, 'transferOwnership(address)', (u.TL,),
@@ -1009,12 +1118,7 @@ def build_plan(pin, inputs=None):
                  [address_pred(target, 'slashPolicyAdmin()', u.SAFE)])
         call('D.'+name+'.transfer', target, 'transferOwnership(address)', (owner,),
              [address_pred(target, 'owner()', owner)])
-    return dict(schema='3.1', route='manifest-A-B-D', pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs),
-        rebuild=arts, addresses=addresses, implementation=impl, extension=extension, operations=operations,
-        steps=steps, controls=CONTROLS,
-        b4Disclosure='B4 always consumes its reserved deployer nonce. If already applied, one empty, zero-value self-transfer costs gas only.',
-        gasPolicy=copy.deepcopy(u.GAS_POLICY), gasParams=list(u.GAS),
-        activationScheduleNotBefore=max(0, pin['pendingAPNTsTokenEta']-u.DELAY))
+    return finish()
 
 
 def registry_ownership(owner, pending):
@@ -1213,6 +1317,7 @@ def execute_b4(remote, rpc, plan, step, context, overrides, calibrate, out=None)
     selected = dict(step, tx=tx)
     pre_send(rpc, plan, selected, context)
     a.need('B4_block_gas', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
+    rpc('evm_setNextBlockTimestamp', [timestamp])
     r = u.receipt(rpc, tx, status=None)
     a.mined_identity(rpc('eth_getTransactionByHash', [r['transactionHash']]), tx, 'B4')
     a.need('B4_nonce_consumed', a.nonce(rpc, tx['from']), a.qty(tx['nonce'])+1)
@@ -1339,7 +1444,7 @@ def budget(plan):
 
 def validate_plan(plan, inputs, frozen=False):
     a.need('external_inputs_match', plan['externalInputs'], inputs)
-    expected = build_plan(plan['pin'], inputs)
+    expected = build_plan(plan['pin'], inputs, plan.get('stage', 'full'), plan.get('stageSources'))
     a.exact_keys('manifest_keys', plan, set(expected) | ({'budgetsWei'} if frozen else set()))
     for key in set(expected)-{'steps'}:
         a.need('manifest_'+key, plan[key], expected[key])
@@ -1636,6 +1741,13 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         a.trace_overrides(rpc, r, overrides)
         if sid == 'upgrade_execute_exec':
             controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
+    if plan['stage'] != 'full':
+        a.need('stage_steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
+        readback = stage_readback(plan, rpc)
+        a.write_json(out/'stage-readback.json', readback)
+        budget(plan)
+        validate_plan(plan, plan['externalInputs'], frozen=True)
+        return dict(status='PASS', stage=plan['stage'], steps=records, readback=readback)
     controls.append(handover_controls(rpc, plan))
     a.need('controls_complete', sorted(x['control'] for x in controls), sorted(CONTROLS))
     a.need('steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
@@ -1702,11 +1814,38 @@ def solvency_probe(rpc, plan, initial):
                 invariant='APNTsCapped.balanceOf(SP) >= totalTrackedBalance', restored=True)
 
 
+def save_artifact(out, plan):
+    if plan['stage'] in ('a7', 'b4'):
+        a.need('stage_not_final', plan['final'], False)
+        path = out/('stage-'+plan['stage']+'.json')
+        a.write_json(path, plan)
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        path.with_name(path.name+'.sha256').write_text(digest+'  '+path.name+'\n')
+    else:
+        a.require_final_artifact(plan)
+        u.save_plan(out, plan)
+
+
+def load_artifact(path):
+    # Integrity is independent of release eligibility and of the filename.
+    plan = a.load_plan(path)
+    if plan.get('stage') in ('a7', 'b4'):
+        a.need('stage_not_final', plan.get('final'), False)
+    else:
+        a.require_final_artifact(plan)
+    return plan
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     for name in ('plan', 'simulate'):
         p = sub.add_parser(name)
+        p.add_argument('--stage', choices=('a7', 'b4', 'full'), default='full')
+        p.add_argument('--a7-source', type=Path, help='JSON containing plan and readback from A7 fork')
+        p.add_argument('--b4-source', type=Path, help='JSON containing plan and readback from B4 fork')
+        p.add_argument('--dump-state', type=Path)
+        p.add_argument('--hold-fork', action='store_true', help='Keep stage fork alive until Enter')
         p.add_argument('--inputs', type=Path, required=True)
         p.add_argument('--out', type=Path, required=True)
         if name == 'plan':
@@ -1717,38 +1856,58 @@ def main(argv=None):
             p.add_argument('--block', type=lambda x: hex(int(x, 0)), required=True)
             p.add_argument('--plan', type=Path)
     for name in ('sign', 'send'):
-        sub.add_parser(name)
+        sub.add_parser(name).add_argument('--plan', type=Path)
     args = parser.parse_args(argv)
     out = getattr(args, 'out', None)
     try:
         if args.command in ('sign', 'send'):
+            if args.plan:
+                try:
+                    a.require_final_artifact(a.plan_json(args.plan.read_bytes()))
+                except a.Gate as error:
+                    print('STOP: '+error.record['gate'], file=sys.stderr)
+                    return 1
             print('STOP: manifest signing and sending are not implemented', file=sys.stderr)
             return 3
         a.need('output_empty', not out.exists() or (out.is_dir() and not any(out.iterdir())), True)
         out.mkdir(parents=True, exist_ok=True)
-        inputs = external(args.inputs)
+        inputs = external(args.inputs, args.stage)
+        sources = {name: a.plan_json(path.read_bytes()) for name, path in
+                   (('a7', args.a7_source), ('b4', args.b4_source)) if path}
         if args.command == 'plan':
             pin = a.plan_json(args.pin.read_bytes())
-            plan = build_plan(pin, inputs)
+            plan = build_plan(pin, inputs, args.stage, sources)
             # A skeleton is explicitly not a calibrated/reviewable release packet.
-            a.write_json(out/'manifest-draft.json', plan)
+            if args.stage == 'full':
+                a.write_json(out/'manifest-draft.json', plan)
+            else:
+                save_artifact(out, plan)
         else:
             remote = a.RPC(args.rpc_file.read_text().strip())
             secondary = a.RPC(args.rpc_file_secondary.read_text().strip())
-            pin = collect(remote, args.block, inputs)
-            a.need('independent_pin', collect(secondary, args.block, inputs), pin)
-            plan = a.load_plan(args.plan) if args.plan else build_plan(pin, inputs)
+            pin = collect(remote, args.block, inputs, args.stage)
+            a.need('independent_pin', collect(secondary, args.block, inputs, args.stage), pin)
+            plan = load_artifact(args.plan) if args.plan else build_plan(pin, inputs, args.stage, sources)
+            replay_frozen = bool(args.plan) and (plan['stage'] == 'full' or 'budgetsWei' in plan)
             a.need('simulation_pin', plan['pin'], pin)
-            validate_plan(plan, inputs, frozen=bool(args.plan))
+            validate_plan(plan, inputs, frozen=replay_frozen)
+            a.need('simulation_stage', plan['stage'], args.stage)
             frozen = copy.deepcopy(plan)
             with a.fork(remote, pin, out) as local:
-                run_manifest(remote, local, plan, out, calibrate=not bool(args.plan))
+                run_manifest(remote, local, plan, out, calibrate=not replay_frozen)
+                if args.stage != 'full':
+                    a.write_json(out/'stage-source.json', stage_source(plan, local))
+                    if args.dump_state:
+                        a.write_json(args.dump_state, local('anvil_dumpState', []))
+                    print(json.dumps(dict(stage=args.stage, A7=plan['addresses']['BLSAggregator'], forkRPC=local.url)), flush=True)
+                    if args.hold_fork:
+                        input('Stage stopped. Press Enter to terminate the fork: ')
             a.relay_evidence(out)
             a.need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
-            a.need('pin_recheck', collect(remote, args.block, inputs), pin)
-            if args.plan:
+            a.need('pin_recheck', collect(remote, args.block, inputs, args.stage), pin)
+            if replay_frozen:
                 a.need('frozen_plan_unchanged', plan, frozen)
-            u.save_plan(out, plan)
+            save_artifact(out, plan)
         return 0
     except a.Gate as error:
         if error.record['gate'] != 'output_empty':
