@@ -1,0 +1,400 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "One schema per kind; executor additionally binds subjectCommit/spCommit to the clean frozen release commit.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result"
+      ],
+      "properties": {
+        "kind": {
+          "const": "conformance"
+        },
+        "subjectCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result"
+      ],
+      "properties": {
+        "kind": {
+          "const": "mutation"
+        },
+        "subjectCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result"
+      ],
+      "properties": {
+        "kind": {
+          "const": "slither"
+        },
+        "subjectCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result"
+      ],
+      "properties": {
+        "kind": {
+          "const": "reproducible-build"
+        },
+        "subjectCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result",
+        "spCommit",
+        "aggregatorVersion"
+      ],
+      "properties": {
+        "kind": {
+          "const": "dvt-ci"
+        },
+        "subjectCommit": {
+          "const": "72aca4fa0ba4aaa8c8a96210b1124534431294d6"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        },
+        "spCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "aggregatorVersion": {
+          "const": "BLSAggregator-4.12.0"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result",
+        "spCommit",
+        "aggregatorVersion"
+      ],
+      "properties": {
+        "kind": {
+          "const": "dvt-conformance-4.12"
+        },
+        "subjectCommit": {
+          "const": "72aca4fa0ba4aaa8c8a96210b1124534431294d6"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        },
+        "spCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "aggregatorVersion": {
+          "const": "BLSAggregator-4.12.0"
+        }
+      }
+    }
+  ]
+}

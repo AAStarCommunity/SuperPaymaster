@@ -1,0 +1,118 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dvtCommit",
+    "aggregator",
+    "registry",
+    "pinBlockHash",
+    "valid",
+    "invalid",
+    "setup"
+  ],
+  "properties": {
+    "dvtCommit": {
+      "const": "72aca4fa0ba4aaa8c8a96210b1124534431294d6"
+    },
+    "aggregator": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{40}$"
+    },
+    "registry": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{40}$"
+    },
+    "pinBlockHash": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{64}$"
+    },
+    "valid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fraudProofId",
+        "guiltyGuardians",
+        "fraudProof"
+      ],
+      "properties": {
+        "fraudProofId": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 115792089237316195423570985008687907853269984665640564039457584007913129639935
+        },
+        "guiltyGuardians": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{40}$"
+          }
+        },
+        "fraudProof": {
+          "type": "string",
+          "pattern": "^0x([0-9a-fA-F]{2})*$"
+        }
+      }
+    },
+    "invalid": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fraudProofId",
+          "guiltyGuardians",
+          "fraudProof"
+        ],
+        "properties": {
+          "fraudProofId": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 115792089237316195423570985008687907853269984665640564039457584007913129639935
+          },
+          "guiltyGuardians": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^0x[0-9a-f]{40}$"
+            }
+          },
+          "fraudProof": {
+            "type": "string",
+            "pattern": "^0x([0-9a-fA-F]{2})*$"
+          }
+        }
+      }
+    },
+    "setup": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "data"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{40}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{40}$"
+          },
+          "data": {
+            "type": "string",
+            "pattern": "^0x([0-9a-fA-F]{2})*$"
+          }
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "DVT post-pin input. Executor additionally binds pin, A7, Registry and digest, and requires distinct tampered variants."
+}

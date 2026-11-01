@@ -11,6 +11,10 @@ import subprocess
 import sp_upgrade_exec as u
 
 a = u.a
+ANNI = '0xecaacb915f7d92e9916f449f7ad42bd0408733c9'
+AGG_VERSION = 'BLSAggregator-4.12.0'
+FRAUD_SIG = 'queueGuardianSlash(uint256,address[],bytes)'
+EVIDENCE_KINDS = ('conformance', 'mutation', 'slither', 'reproducible-build', 'dvt-ci', 'dvt-conformance-4.12')
 BUFFER = 10**17
 DAY = 86400
 DVT = '0x568b1486bfe036e603ea11f0d03dc47fa62c9e0e'
@@ -70,6 +74,96 @@ def required(obj, keys, label):
     a.need(label, isinstance(obj, dict) and set(keys) <= set(obj), True)
 
 
+def evidence_file(ref, kind, commit=None):
+    required(ref, ('path', 'sha256'), 'evidence_reference')
+    e = reviewed_file(ref['path'], ref['sha256'], 'evidence_'+kind)
+    fields = ['kind', 'subjectCommit', 'tool', 'counts', 'result']
+    if kind.startswith('dvt-'):
+        fields += ['spCommit', 'aggregatorVersion']
+    a.exact_keys('evidence_fields', e, fields)
+    a.need('evidence_kind', e['kind'], kind)
+    a.need('evidence_result', e['result'], 'PASS')
+    a.need('evidence_commit_format', isinstance(e['subjectCommit'], str) and
+           len(e['subjectCommit']) == 40 and all(c in '0123456789abcdef' for c in e['subjectCommit']), True)
+    a.exact_keys('evidence_tool', e['tool'], ('name', 'version'))
+    a.need('evidence_tool_values', all(isinstance(v, str) and bool(v.strip()) for v in e['tool'].values()), True)
+    a.exact_keys('evidence_counts', e['counts'], ('passed', 'failed', 'skipped'))
+    a.need('evidence_count_types', all(type(v) is int and v >= 0 for v in e['counts'].values()), True)
+    a.need('evidence_passed', e['counts']['passed'] > 0, True)
+    a.need('evidence_failed', e['counts']['failed'], 0)
+    if kind.startswith('dvt-'):
+        a.need('evidence_dvt_commit', e['subjectCommit'], VERIFIER_COMMIT)
+        a.need('evidence_aggregator_version', e['aggregatorVersion'], AGG_VERSION)
+    if commit is not None:
+        a.need('evidence_release_commit', e['spCommit'] if kind.startswith('dvt-') else e['subjectCommit'], commit)
+    return e
+
+
+def fraud_fixture(ref, pin=None, aggregator=None):
+    required(ref, ('path', 'sha256'), 'fraud_fixture_required')
+    f = reviewed_file(ref['path'], ref['sha256'], 'fraud_fixture')
+    a.exact_keys('fraud_fixture_fields', f, ('dvtCommit', 'aggregator', 'registry', 'pinBlockHash', 'valid', 'invalid', 'setup'))
+    a.need('fraud_dvt_commit', f['dvtCommit'], VERIFIER_COMMIT)
+    a.need('fraud_registry', f['registry'], u.REG)
+    a.typed(f['aggregator'], a.ADDRESS_RX)
+    a.typed(f['pinBlockHash'], a.HASH32)
+    if pin is not None:
+        a.need('fraud_pin', f['pinBlockHash'], pin['blockHash'])
+        a.need('fraud_aggregator', f['aggregator'], aggregator)
+    a.need('fraud_invalid_required', isinstance(f['invalid'], list) and bool(f['invalid']), True)
+    for proof in [f['valid'], *f['invalid']]:
+        a.exact_keys('fraud_proof_fields', proof, ('fraudProofId', 'guiltyGuardians', 'fraudProof'))
+        a.need('fraud_id', type(proof['fraudProofId']) is int and 0 < proof['fraudProofId'] < 2**256, True)
+        a.need('fraud_guardians', isinstance(proof['guiltyGuardians'], list) and bool(proof['guiltyGuardians']), True)
+        for who in proof['guiltyGuardians']:
+            a.typed(who, a.ADDRESS_RX)
+        a.typed(proof['fraudProof'], a.HEXDATA)
+    a.need('fraud_tampered', all(x != f['valid'] for x in f['invalid']), True)
+    a.need('fraud_setup', isinstance(f['setup'], list), True)
+    for tx in f['setup']:
+        a.exact_keys('fraud_setup_fields', tx, ('from', 'to', 'data'))
+        for key in ('from', 'to'):
+            a.typed(tx[key], a.ADDRESS_RX)
+        a.typed(tx['data'], a.HEXDATA)
+    return f
+
+
+def fraud_rehearsal(rpc, plan):
+    a.need('fraud_local_only', getattr(rpc, 'local', False), True)
+    agg = plan['addresses']['BLSAggregator']
+    f = fraud_fixture(plan['externalInputs']['data']['fraudProofFixture'], plan['pin'], agg)
+    outer = rpc('evm_snapshot', [])
+    records = []
+    try:
+        for tx in f['setup']:
+            u.receipt(rpc, u.fixture_tx(rpc, tx['from'], tx['to'], tx['data']))
+        a.need('fraud_active_verifier', a.address(rpc, agg, 'fraudProofVerifier()'), plan['addresses']['OverIssueFraudProofVerifier'])
+        for index, proof in enumerate([f['valid'], *f['invalid']]):
+            snap = rpc('evm_snapshot', [])
+            try:
+                pid, guardians, payload = proof['fraudProofId'], proof['guiltyGuardians'], proof['fraudProof']
+                a.need('fraud_case_fresh', u.uints(a.call(rpc, agg, 'guardianSlashCases(uint256)', pid))[3], 0)
+                tx = u.fixture_tx(rpc, u.DEPLOYER, agg, a.calldata(FRAUD_SIG, pid, '['+','.join(guardians)+']', payload))
+                receipt = u.receipt(rpc, tx, status='0x1' if index == 0 else '0x0')
+                if index == 0:
+                    case = u.uints(a.call(rpc, agg, 'guardianSlashCases(uint256)', pid))
+                    gh = a.keccak(a.cast('abi-encode', 'c(address[])', '['+','.join(guardians)+']'))
+                    a.need('fraud_frozen_state', case[:2]+[case[3]], [int(gh, 16), int(a.keccak(payload), 16), 1])
+                    expected = dict(address=agg, topics=[a.keccak('GuardianSlashJudgmentFrozen(uint256,address,bytes32,bytes32)'),
+                        '0x'+format(pid, '064x'), '0x'+plan['addresses']['OverIssueFraudProofVerifier'][2:].zfill(64)],
+                        data=a.cast('abi-encode', 'c(bytes32,bytes32)', a.keccak(payload), gh))
+                    a.need('fraud_frozen_event', any(all(log.get(k) == v for k,v in expected.items()) for log in receipt['logs']), True)
+                else:
+                    trace = rpc('debug_traceTransaction', [receipt['transactionHash'], {'tracer': 'callTracer'}])
+                    a.need('fraud_invalid_reverted', isinstance(trace, dict) and 'revert' in str(trace.get('error', '')).lower(), True)
+                records.append(dict(valid=index == 0, receipt=receipt))
+            finally:
+                a.need('fraud_variant_restore', rpc('evm_revert', [snap]), True)
+    finally:
+        a.need('fraud_restore', rpc('evm_revert', [outer]), True)
+    return dict(fixtureSha256=plan['externalInputs']['data']['fraudProofFixture']['sha256'], proofs=records, restored=True)
+
+
 def external(path):
     a.need('external_inputs_required', path is not None and Path(path).is_file(), True)
     raw = Path(path).read_bytes()
@@ -80,17 +174,17 @@ def external(path):
 
 def validate_external(data):
     required(data, ('verifier', 'pop', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei',
-                    'releaseTag', 'releaseEvidence', 'registryBaselineCommit', 'a3aPlan'), 'external_inputs_complete')
+                    'releaseTag', 'releaseEvidence', 'registryBaselineCommit', 'a3aPlan', 'fraudProofFixture'), 'external_inputs_complete')
     v = data['verifier']
     a.exact_keys('verifier_provenance', v, ('commit', 'ciSha256', 'ciPath', 'artifactPath', 'buildSha256'))
     verifier_artifact(v)
     a.need('verifier_build_identity', v['buildSha256'], VERIFIER_SHA256)
-    ci = reviewed_file(v['ciPath'], v['ciSha256'], 'verifier_ci')
-    a.need('verifier_ci_commit', ci.get('commit'), VERIFIER_COMMIT)
-    a.need('verifier_ci_status', ci.get('status'), 'PASS')
+    evidence_file(dict(path=v['ciPath'], sha256=v['ciSha256']), 'dvt-ci')
+    fraud_fixture(data['fraudProofFixture'])
+    a.need('fixed_anni', data['anni'], ANNI)
     required(data['a3aPlan'], ('path', 'sha256', 'receipts'), 'a3a_input')
     reviewed_file(data['a3aPlan']['path'], data['a3aPlan']['sha256'], 'a3a_plan')
-    for sid in ('S7', 'S6a', 'S6b'):
+    for sid in a.STEP_IDS:
         a.typed(data['a3aPlan']['receipts'].get(sid), a.HASH32)
         a.need('a3a_receipt_nonzero', data['a3aPlan']['receipts'][sid] != a.ZERO32, True)
     a.need('fixed_dvt', data['dvt'], DVT)
@@ -120,11 +214,11 @@ def validate_external(data):
     for who in data['sampled']:
         a.typed(who, a.ADDRESS_RX)
     a.need('deposit_target', type(data['depositTargetWei']) is int and data['depositTargetWei'] > 0, True)
-    for key in ('conformance', 'mutation', 'slither', 'sourceVerificationPlan'):
-        evidence = data['releaseEvidence'].get(key)
-        required(evidence, ('path', 'sha256'), 'release_evidence_'+key)
-        raw = reviewed_bytes(evidence['path'], evidence['sha256'], 'release_evidence_'+key)
-        a.need('release_evidence_nonempty_'+key, bool(raw.strip()), True)
+    for kind in EVIDENCE_KINDS:
+        evidence_file(data['releaseEvidence'].get(kind), kind)
+    ref = data['releaseEvidence'].get('sourceVerificationPlan')
+    required(ref, ('path', 'sha256'), 'source_verification_plan')
+    a.need('source_verification_nonempty', bool(reviewed_bytes(ref['path'], ref['sha256'], 'source_verification').strip()), True)
 
 
 @lru_cache(maxsize=1)
@@ -133,7 +227,9 @@ def rebuild():
     version = subprocess.run([str(a.REBUILD_FORGE), '--version'], capture_output=True, text=True, check=True).stdout
     a.need('forge_version', version.splitlines()[0], 'forge Version: 1.7.1')
     arts, cfg = a.compile_commit(head, version, NAMES, tuple(IMMUTABLES.items()))
-    return dict(commit=head, forgeVersion=version.strip(), contracts={name: dict(
+    functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
+    a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
+    return dict(commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
         bytecode=art['bytecode']['object'], runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})
@@ -141,6 +237,14 @@ def rebuild():
 
 def release_gate(inputs, build, pin):
     data = inputs['data']
+    state = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all'], cwd=u.ROOT, capture_output=True, text=True, check=True)
+    a.need('release_clean_tree', state.stdout, '')
+    a.need('built_aggregator_version', build['aggregatorVersion'], AGG_VERSION)
+    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=u.ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    a.need('release_current_head', head, build['commit'])
+    for kind in EVIDENCE_KINDS:
+        evidence_file(data['releaseEvidence'].get(kind), kind, build['commit'])
+    evidence_file(dict(path=data['verifier']['ciPath'], sha256=data['verifier']['ciSha256']), 'dvt-ci', build['commit'])
     tag = subprocess.run(['git', 'rev-parse', '--verify', 'refs/tags/'+data['releaseTag']+'^{commit}'],
                          cwd=u.ROOT, capture_output=True, text=True)
     a.need('release_tag', tag.returncode, 0)
@@ -234,13 +338,32 @@ def nonce_expectations(pin, inputs):
     return last
 
 
+def history_steps(pin, inputs):
+    nonce_expectations(pin, inputs)
+    spec = inputs['data']['a3aPlan']
+    plan = reviewed_file(spec['path'], spec['sha256'], 'a3a_plan')
+    a.need('a3a_all_steps', [s['id'] for s in plan['steps']], list(a.STEP_IDS))
+    for gap in plan.get('nonceGaps', []):
+        a.need('a3a_gap_sender', gap['from'] in {v['address'] for k,v in pin['senders'].items() if k != 'anni'}, True)
+        a.need('a3a_gap_before_pin', a.qty(gap['nonce']) < next(v['nonce'] for v in pin['senders'].values() if v['address'] == gap['from']), True)
+    return plan
+
+
+def history_gaps(rpc, pin, spec, plan):
+    for label in ('deployer', 'approver', 'executor'):
+        sender = pin['senders'][label]
+        tx = {'from': sender['address'], 'nonce': hex(sender['nonce'])}
+        a.check_gaps(rpc, plan, tx)
+        a.check_gaps(rpc, spec, tx)
+
+
 def validate_nonce_history(pin, inputs):
     spec = inputs['data']['a3aPlan']
-    last = nonce_expectations(pin, inputs)
-    required(pin, ('a3aHistory',), 'a3a_history_required')
-    a.exact_keys('a3a_history', pin['a3aHistory'], last)
-    for label, step in last.items():
-        proof = pin['a3aHistory'][label]
+    plan = history_steps(pin, inputs)
+    required(pin, ('a3aHistory', 'a3aGapReads'), 'a3a_history_required')
+    a.exact_keys('a3a_history', pin['a3aHistory'], a.STEP_IDS)
+    for step in plan['steps']:
+        proof = pin['a3aHistory'][step['id']]
         receipt, mined = proof['receipt'], proof['transaction']
         txhash = spec['receipts'][step['id']]
         a.need('a3a_mined_'+step['id'], isinstance(receipt, dict), True)
@@ -251,30 +374,31 @@ def validate_nonce_history(pin, inputs):
         a.need('a3a_block', mined['blockNumber'], receipt['blockNumber'])
         a.need('a3a_block_hash', mined['blockHash'], receipt['blockHash'])
         a.mined_identity(mined, step['tx'], step['id'])
-        def replay(method, params):
-            matches = [r['result'] for r in proof['gapReads'] if r['method'] == method and r['params'] == params]
-            a.need('gap_proof_read', bool(matches), True)
-            return matches[0]
-        a.check_gaps(replay, spec, dict(step['tx'], nonce=hex(pin['senders'][label]['nonce'])))
+    def replay(method, params):
+        matches = [r['result'] for r in pin['a3aGapReads'] if r['method'] == method and r['params'] == params]
+        a.need('gap_proof_read', bool(matches), True)
+        return matches[0]
+    history_gaps(replay, pin, spec, plan)
 
 
 def reconcile_nonces(rpc, pin, inputs):
     spec = inputs['data']['a3aPlan']
+    plan = history_steps(pin, inputs)
     pin['a3aHistory'] = {}
-    for label, step in nonce_expectations(pin, inputs).items():
+    for step in plan['steps']:
         txhash = spec['receipts'][step['id']]
         receipt = rpc('eth_getTransactionReceipt', [txhash])
         a.need('a3a_mined_'+step['id'], isinstance(receipt, dict), True)
         block = rpc('eth_getBlockByNumber', [receipt['blockNumber'], False])
         a.need('a3a_canonical_receipt', receipt['blockHash'], block['hash'])
-        reads = []
-        def recording(method, params):
-            result = rpc(method, params)
-            reads.append(dict(method=method, params=params, result=result))
-            return result
-        a.check_gaps(recording, spec, dict(step['tx'], nonce=hex(pin['senders'][label]['nonce'])))
-        pin['a3aHistory'][label] = dict(receipt=receipt,
-            transaction=rpc('eth_getTransactionByHash', [txhash]), gapReads=reads)
+        pin['a3aHistory'][step['id']] = dict(receipt=receipt,
+            transaction=rpc('eth_getTransactionByHash', [txhash]))
+    pin['a3aGapReads'] = []
+    def recording(method, params):
+        result = rpc(method, params)
+        pin['a3aGapReads'].append(dict(method=method, params=params, result=result))
+        return result
+    history_gaps(recording, pin, spec, plan)
     validate_nonce_history(pin, inputs)
 
 
@@ -294,6 +418,9 @@ def collect(rpc, block, inputs):
     reconcile_nonces(rpc, pin, inputs)
     pin['oldAggregator'] = a.address(rpc, u.REG, 'blsAggregator()', block)
     a.need('fixed_old_aggregator', pin['oldAggregator'], OLD_AGGREGATOR)
+    maximum = a.word(rpc, pin['oldAggregator'], 'MAX_VALIDATORS()', block=block)
+    a.need('guardian_maximum', maximum, 13)
+    pin['guardianInventory'] = [dict(slot=slot, validator=u.addr_word(a.word(rpc, pin['oldAggregator'], 'validatorAtSlot(uint8)', slot, block=block))) for slot in range(1, maximum+1)]
     pin['oldActivity'] = old_activity(rpc, pin['oldAggregator'], block)
     a.need('old_aggregator_owner', a.address(rpc, pin['oldAggregator'], 'owner()', block), u.DEPLOYER)
     pin['oldActivity']['dvtProposals'] = dvt_activity(rpc, d['dvt'], block)
@@ -456,12 +583,17 @@ def build_plan(pin, inputs=None):
     steps[-1]['readbacks'] += [word_pred(agg, 'minThreshold()', 3), word_pred(agg, 'defaultThreshold()', 7),
         address_pred(agg, 'SUPERPAYMASTER()', u.SP), address_pred(agg, 'DVT_VALIDATOR()', d['dvt']),
         *[word_pred(agg, 'slashThresholds(uint8)', threshold, severity) for severity, threshold in enumerate((2, 3, 3))]]
+    steps[-1]['readbacks'].append(predicate(agg, 'version()', (), a.cast('abi-encode', 'c(string)', AGG_VERSION)))
     for suffix, target, setter, getter in (('registry', u.REG, 'setBLSAggregator', 'blsAggregator'),
         ('dvt', d['dvt'], 'setBLSAggregator', 'BLS_AGGREGATOR'), ('committee', d['committee'], 'setBlsAggregator', 'blsAggregator')):
         call('A8.'+suffix, target, setter+'(address)', (agg,), [address_pred(target, getter+'()', agg)])
     for suffix, who, active in (('new', agg, True), ('old', pin['oldAggregator'], False)):
         call('A9.'+suffix, u.REG, 'setReputationSource(address,bool)', (who, str(active).lower()),
             [word_pred(u.REG, 'isReputationSource(address)', int(active), who)])
+    inventory = pin['guardianInventory']
+    a.need('guardian_slots', [x['slot'] for x in inventory], list(range(1, 14)))
+    a.need('guardian_inventory', {(x['validator'], x['slot']) for x in inventory if x['validator'] != a.ZERO}, {(x['validator'], x['slot']) for x in d['pop']})
+    fraud_fixture(d['fraudProofFixture'], pin, agg)
     a.need('pop_count', len(d['pop']), 3)
     for i, pop in enumerate(d['pop']):
         a.need('pop_aggregator', pop['aggregator'], agg)
@@ -1015,13 +1147,15 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     a.need('post_swap_revenue', accounting['protocolRevenue'], BUFFER)
     a.need('post_swap_capped_balance', accounting['cappedBalance'], BUFFER)
     a.need('accounting_unchanged_since_6d', accounting, context['after6d'])
+    fraud = fraud_rehearsal(rpc, plan)
+    a.write_json(out/'manifest-fraud-proof.json', fraud)
     solvency = solvency_probe(rpc, plan, context['after6d'])
     a.write_json(out/'manifest-solvency.json', solvency)
     a.need('post_swap_solvency', solvency['allSolvent'], True)
     budget(plan)
     validate_plan(plan, plan['externalInputs'], frozen=True)
     result = dict(status='PASS', scope='Phases A/B only', steps=records, negativeControls=controls,
-                  B2=context['B2'], postSwapAccounting=accounting)
+                  B2=context['B2'], postSwapAccounting=accounting, fraudProof=fraud)
     a.write_json(out/'manifest-simulate.json', result)
     return result
 

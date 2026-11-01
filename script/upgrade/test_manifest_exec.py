@@ -16,11 +16,11 @@ import test_sp_upgrade_exec as base
 
 a, u = m.a, m.u
 REAL_RELEASE_GATE = m.release_gate
-ANNI = '0x'+'66'*20
+ANNI = m.ANNI
 DVT = m.DVT
 COMMITTEE = m.COMMITTEE
 OLD = m.OLD_AGGREGATOR
-ART = dict(commit='a'*40, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
+ART = dict(commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
     bytecode='0x60006000f3', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
 
@@ -34,6 +34,7 @@ def pin():
         stake=10**17, stakeDelay=86400, withdrawTime=0, entryPointDeposit=10**17,
         totalTrackedBalance=293414*10**16, protocolRevenue=39959*10**16,
         operatorBalances={u.DEPLOYER:169001*10**16, ANNI:84454*10**16, base.HOLDER:0})
+    p['guardianInventory'] = [dict(slot=i, validator=('0x'+format(i, '040x')) if i <= 3 else a.ZERO) for i in range(1, 14)]
     p['pendingAPNTsTokenEta'] = p['timestamp']+7*m.DAY
     return p
 
@@ -50,7 +51,7 @@ def input_data(p):
                          calldata=a.calldata(m.POP, validator, pk, i+1, sig)))
     return dict(anni=ANNI, dvt=DVT, committee=COMMITTEE, sampled=sorted([u.DEPLOYER, ANNI]),
         depositTargetWei=10**18, releaseTag='unit-fixture', registryBaselineCommit='b'*40,
-        releaseEvidence={key:'c'*64 for key in ('conformance','mutation','slither','sourceVerificationPlan')},
+        releaseEvidence={key:'c'*64 for key in m.EVIDENCE_KINDS},
         verifier=dict(commit=m.VERIFIER_COMMIT, artifactPath='unit-fixture', ciSha256='e'*64, buildSha256=m.VERIFIER_SHA256,
                       artifact=dict(bytecode='0x60006000f3', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
 
@@ -106,26 +107,40 @@ class ManifestTests(unittest.TestCase):
         self.path = Path(self.tmp.name)/'external.json'
         self.pin = pin()
         self.data = input_data(self.pin)
-        evidence = Path(self.tmp.name)/'release-evidence.txt'
-        evidence.write_text('Synthetic unit-test release evidence, never a release pass.')
-        self.data['releaseEvidence'] = {key:dict(path=str(evidence), sha256=hashlib.sha256(evidence.read_bytes()).hexdigest())
-            for key in self.data['releaseEvidence']}
-        history = Path(self.tmp.name)/'a3a.json'
-        history.write_text(json.dumps(dict(steps=[dict(id=sid, tx={'from': self.pin['senders'][label]['address'],
-            'nonce': hex(self.pin['senders'][label]['nonce']-1), 'data':'0x'}) for label, sid in
-            (('deployer', 'S7'), ('approver', 'S6a'), ('executor', 'S6b'))])))
-        self.data['a3aPlan'] = dict(path=str(history), sha256=hashlib.sha256(history.read_bytes()).hexdigest())
-        self.data['a3aPlan']['receipts'] = {sid:'0x'+str(i+1)*64 for i, sid in enumerate(('S7','S6a','S6b'))}
+        def file_ref(name, value):
+            path = Path(self.tmp.name)/(name+'.json')
+            path.write_text(json.dumps(value))
+            return dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        self.file_ref = file_ref
+        self.data['releaseEvidence'] = {}
+        for kind in m.EVIDENCE_KINDS:
+            e = dict(kind=kind, subjectCommit=ART['commit'], tool=dict(name='synthetic', version='1'),
+                     counts=dict(passed=1, failed=0, skipped=0), result='PASS')
+            if kind.startswith('dvt-'):
+                e.update(subjectCommit=m.VERIFIER_COMMIT, spCommit=ART['commit'], aggregatorVersion=m.AGG_VERSION)
+            self.data['releaseEvidence'][kind] = file_ref(kind, e)
+        self.data['releaseEvidence']['sourceVerificationPlan'] = file_ref('source-plan', {'synthetic':True})
+        rows = []
+        for sid in a.STEP_IDS:
+            label = 'approver' if sid in ('S5a', 'S6a') else 'executor' if sid in ('S5b', 'S6b') else 'deployer'
+            earlier = {'S1':5, 'S2':4, 'S3':3, 'S4':2, 'S5a':2, 'S5b':2}.get(sid, 1)
+            rows.append(dict(id=sid, tx={'from': self.pin['senders'][label]['address'],
+                'nonce':hex(self.pin['senders'][label]['nonce']-earlier), 'data':'0x'}))
+        self.data['a3aPlan'] = file_ref('a3a', dict(steps=rows))
+        self.data['a3aPlan']['receipts'] = {sid:'0x'+format(i+1, '064x') for i,sid in enumerate(a.STEP_IDS)}
         self.pin['a3aHistory'] = {}
-        rows = json.loads(history.read_text())['steps']
-        for label, step in zip(('deployer','approver','executor'), rows):
+        self.pin['a3aGapReads'] = []
+        for step in rows:
             txhash = self.data['a3aPlan']['receipts'][step['id']]
-            self.pin['a3aHistory'][label] = dict(gapReads=[],
+            self.pin['a3aHistory'][step['id']] = dict(
                 receipt=dict(transactionHash=txhash, status='0x1', blockNumber='0x1', blockHash=base.HASH),
                 transaction=dict(step['tx'], hash=txhash, type='0x2', input='0x', blockNumber='0x1', blockHash=base.HASH))
-        ci = Path(self.tmp.name)/'ci.json'
-        ci.write_text(json.dumps(dict(commit=m.VERIFIER_COMMIT, status='PASS')))
-        self.data['verifier'].update(ciPath=str(ci), ciSha256=hashlib.sha256(ci.read_bytes()).hexdigest())
+        ci = self.data['releaseEvidence']['dvt-ci']
+        self.data['verifier'].update(ciPath=ci['path'], ciSha256=ci['sha256'])
+        self.fraud = dict(dvtCommit=m.VERIFIER_COMMIT, aggregator=self.data['pop'][0]['aggregator'], registry=u.REG,
+            pinBlockHash=self.pin['blockHash'], setup=[], valid=dict(fraudProofId=1, guiltyGuardians=[ANNI], fraudProof='0x1234'),
+            invalid=[dict(fraudProofId=1, guiltyGuardians=[ANNI], fraudProof='0x1235')])
+        self.data['fraudProofFixture'] = file_ref('fraud', self.fraud)
         fixture_artifact = self.data['verifier'].pop('artifact')
         self.real_verifier_artifact = m.verifier_artifact
         for target, name, value in ((m, 'verifier_artifact', fixture_artifact), (m, 'release_gate', None)):
@@ -449,11 +464,13 @@ class ManifestTests(unittest.TestCase):
             patch.object(m, 'b4_needed', return_value=not already_applied),
             patch.object(m, 'balances', return_value=dict(totalTrackedBalance=m.BUFFER, protocolRevenue=m.BUFFER,
                 operatorBalances={x:0 for x in self.pin['pauseList']})),
+            patch.object(m, 'fraud_rehearsal', return_value={'synthetic':True}),
             patch.object(m, 'solvency_probe', return_value={'allSolvent':solvent})]
         with contextlib.ExitStack() as stack:
             for p in patches: stack.enter_context(p)
             if solvent:
                 m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
+                m.fraud_rehearsal.assert_called_once_with(rpc, self.plan)
             else:
                 with self.assertRaises(a.Gate) as caught:
                     m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
@@ -561,7 +578,7 @@ class ManifestTests(unittest.TestCase):
     def test_registry_baseline_rejects_head_and_runtime_mismatch(self):
         for baseline in (ART['commit'], 'b'*40):
             def run(cmd, **kw):
-                return SimpleNamespace(returncode=0, stdout=(ART['commit'] if 'refs/tags/' in cmd[-1] else baseline))
+                return SimpleNamespace(returncode=0, stdout='' if 'status' in cmd else (ART['commit'] if ('refs/tags/' in cmd[-1] or cmd[-1] == 'HEAD') else baseline))
             pin = dict(self.pin, registryImplementation=ANNI, registryImplementationCode='0xdead')
             with patch.object(m.subprocess, 'run', side_effect=run), \
                  patch.object(a, 'compile_commit', return_value=({'Registry':ART['contracts']['Registry']}, {})):
@@ -732,7 +749,7 @@ class ManifestTests(unittest.TestCase):
     def test_s7_receipt_status_and_nonce_required_by_builder(self):
         for field in ('status', 'nonce'):
             bad = copy.deepcopy(self.pin)
-            proof = bad['a3aHistory']['deployer']
+            proof = bad['a3aHistory']['S7']
             if field == 'status': proof['receipt']['status'] = '0x0'
             else: proof['transaction']['nonce'] = '0x0'
             with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
@@ -752,6 +769,166 @@ class ManifestTests(unittest.TestCase):
         bad = copy.deepcopy(self.inputs)
         bad['data']['releaseEvidence']['conformance'] = 'a'*64
         with self.assertRaises(a.Gate): m.build_plan(self.pin, bad)
+
+    def test_evidence_semantics_each_kind(self):
+        for kind in m.EVIDENCE_KINDS:
+            original = json.loads(Path(self.data['releaseEvidence'][kind]['path']).read_text())
+            mutations = [dict(result='FAIL'), dict(counts=dict(passed=0, failed=0, skipped=0)),
+                dict(counts=dict(passed=1, failed=1, skipped=0)), dict(counts=dict(passed=1, failed=0)),
+                dict(subjectCommit='f'*40), dict(tool=dict(name='synthetic', version=''))]
+            if kind.startswith('dvt-'):
+                mutations += [dict(spCommit='f'*40), dict(aggregatorVersion='BLSAggregator-4.11.0')]
+            for mutation in mutations:
+                with self.subTest(kind=kind, mutation=mutation):
+                    ref = self.file_ref('bad-evidence', dict(original, **mutation))
+                    with self.assertRaises(a.Gate): m.evidence_file(ref, kind, ART['commit'])
+
+    def test_stale_tree_evidence_refused(self):
+        with patch.object(m.subprocess, 'run', return_value=SimpleNamespace(stdout=' M contracts/source.sol', returncode=0)):
+            with self.assertRaises(a.Gate) as caught: REAL_RELEASE_GATE(self.inputs, ART, self.pin)
+        self.assertEqual(caught.exception.record['gate'], 'release_clean_tree')
+
+    def test_built_aggregator_version_required(self):
+        build = dict(ART, aggregatorVersion='BLSAggregator-4.11.0')
+        with patch.object(m.subprocess, 'run', return_value=SimpleNamespace(stdout='', returncode=0)):
+            with self.assertRaises(a.Gate) as caught: REAL_RELEASE_GATE(self.inputs, build, self.pin)
+        self.assertEqual(caught.exception.record['gate'], 'built_aggregator_version')
+
+    def test_cached_build_current_head_required(self):
+        def run(cmd, **kwargs):
+            return SimpleNamespace(returncode=0, stdout='' if 'status' in cmd else 'f'*40)
+        with patch.object(m.subprocess, 'run', side_effect=run):
+            with self.assertRaises(a.Gate) as caught: REAL_RELEASE_GATE(self.inputs, ART, self.pin)
+        self.assertEqual(caught.exception.record['gate'], 'release_current_head')
+
+    def registry_layout_fixture(self, change, gate):
+        layout = dict(storage=[dict(label='_owner' if i == 0 else 'v'+str(i), slot=str(i), offset=0, type='struct') for i in range(32)],
+            types={'struct':dict(encoding='inplace', label='S', numberOfBytes='32', members=[dict(label='nested', slot='0', offset=0, type='uint')]),
+                   'uint':dict(encoding='inplace', label='uint256', numberOfBytes='32')})
+        old = copy.deepcopy(ART['contracts']['Registry']); old['storageLayout'] = copy.deepcopy(layout)
+        build = copy.deepcopy(ART); build['contracts']['Registry']['storageLayout'] = layout
+        change(layout, old['storageLayout'])
+        def run(cmd, **kw):
+            return SimpleNamespace(returncode=0, stdout='' if 'status' in cmd else ART['commit'] if ('refs/tags/' in cmd[-1] or cmd[-1] == 'HEAD') else 'b'*40)
+        with patch.object(m.subprocess, 'run', side_effect=run), patch.object(a, 'compile_commit', return_value=({'Registry':old}, {})):
+            with self.assertRaises(a.Gate) as caught:
+                REAL_RELEASE_GATE(self.inputs, build, dict(self.pin, registryImplementation=ANNI, registryImplementationCode='0x6000'))
+        self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_registry_recursive_layout_required(self):
+        self.registry_layout_fixture(lambda new, old:new['types']['struct']['members'][0].update(offset=1), 'registry_layout')
+
+    def test_registry_32_variables_required(self):
+        self.registry_layout_fixture(lambda new, old:(new['storage'].pop(), old['storage'].pop()), 'registry_storage_count')
+
+    def test_registry_owner_slot_required(self):
+        self.registry_layout_fixture(lambda new, old:(new['storage'][0].update(slot='1'), old['storage'][0].update(slot='1')), 'registry_owner_slot')
+
+    def test_b2_single_upgrade_required(self):
+        chain = FakeChain(self.plan)
+        def rpc(method, params):
+            result = chain(method, params)
+            if method == 'eth_getLogs' and params[0]['topics'][0] == a.keccak('Upgraded(address)'):
+                return [result[0], dict(result[0], logIndex='0x1')]
+            return result
+        with self.assertRaises(a.Gate) as caught: m.b2_gate(rpc, self.plan, '0x100')
+        self.assertEqual(caught.exception.record['gate'], 'B2_single_upgrade')
+
+    def test_b2_implementation_identity_required(self):
+        chain = FakeChain(self.plan)
+        def rpc(method, params):
+            result = chain(method, params)
+            if method == 'eth_getLogs' and params[0]['topics'][0] == a.keccak('Upgraded(address)'):
+                result[0]['topics'][1] = '0x'+ANNI[2:].zfill(64)
+            return result
+        with self.assertRaises(a.Gate) as caught: m.b2_gate(rpc, self.plan, '0x100')
+        self.assertEqual(caught.exception.record['gate'], 'B2_upgrade_identity')
+
+    def test_guardian_inventory_and_anni_required(self):
+        bad = copy.deepcopy(self.pin)
+        bad['guardianInventory'][0]['validator'] = ANNI
+        with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
+        bad = copy.deepcopy(self.pin)
+        bad['guardianInventory'][0]['slot'] = 4
+        with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
+        bad = copy.deepcopy(self.data); bad['anni'] = base.HOLDER
+        with self.assertRaises(a.Gate): m.validate_external(bad)
+
+    def test_all_a3a_steps_mined_identity_required(self):
+        for sid in a.STEP_IDS:
+            with self.subTest(step=sid):
+                bad = copy.deepcopy(self.pin)
+                bad['a3aHistory'][sid]['transaction']['input'] = '0x1234'
+                with self.assertRaises(a.Gate): m.validate_nonce_history(bad, self.inputs)
+
+    def test_embedded_a3a_contract_call_gap_refused(self):
+        inputs = copy.deepcopy(self.inputs)
+        spec = inputs['data']['a3aPlan']
+        plan = json.loads(Path(spec['path']).read_text())
+        gap = {'from':u.DEPLOYER, 'nonce':'0x1', 'hash':'0x'+'ab'*32}
+        plan['nonceGaps'] = [gap]
+        spec.update(self.file_ref('gap-plan', plan))
+        mined = dict(gap, blockNumber='0x1', blockHash=base.HASH, type='0x2', input='0x12345678', to=u.REG)
+        pin = copy.deepcopy(self.pin)
+        pin['a3aGapReads'] = [dict(method='eth_getTransactionByHash', params=[gap['hash']], result=mined)]
+        with self.assertRaises(a.Gate) as caught: m.validate_nonce_history(pin, inputs)
+        self.assertEqual(caught.exception.record['gate'], 'nonce_gap_no_calldata_0x1')
+
+    def test_fraud_fixture_schema_and_binding(self):
+        for mutation in (dict(invalid=[]), dict(invalid=[self.fraud['valid']]), dict(valid={'fraudProofId':1}),
+                         dict(dvtCommit='f'*40), dict(aggregator=ANNI), dict(pinBlockHash=a.ZERO32), dict(registry=ANNI)):
+            with self.subTest(mutation=mutation):
+                ref = self.file_ref('bad-fraud', dict(self.fraud, **mutation))
+                with self.assertRaises(a.Gate): m.fraud_fixture(ref, self.pin, self.plan['addresses']['BLSAggregator'])
+        bad = copy.deepcopy(self.inputs); del bad['data']['fraudProofFixture']
+        with self.assertRaises(a.Gate): m.build_plan(self.pin, bad)
+
+    def test_fraud_rehearsal_valid_invalid_and_restoration(self):
+        for failure in (None, 'valid', 'invalid', 'event', 'state', 'out-of-gas'):
+            with self.subTest(failure=failure):
+                calls, sent = [], []
+                fixture = copy.deepcopy(self.fraud)
+                fixture['setup'] = [{'from':ANNI, 'to':u.REG, 'data':'0x12345678'}]
+                self.plan['externalInputs']['data']['fraudProofFixture'] = self.file_ref('fraud-setup', fixture)
+                state = {'queued':False}
+                def rpc(method, params):
+                    calls.append((method, params))
+                    if method == 'debug_traceTransaction': return {'error':'out of gas' if failure == 'out-of-gas' else 'execution reverted'}
+                    if method == 'evm_snapshot': return len(calls)
+                    if method == 'evm_revert': state['queued'] = False; return True
+                    raise AssertionError(method)
+                rpc.local = True
+                agg = self.plan['addresses']['BLSAggregator']
+                verifier = self.plan['addresses']['OverIssueFraudProofVerifier']
+                gh = a.keccak(a.cast('abi-encode', 'c(address[])', '['+ANNI+']'))
+                ph = a.keccak(self.fraud['valid']['fraudProof'])
+                def receipt(rpc, tx, status='0x1'):
+                    if tx['to'] == u.REG:
+                        self.assertFalse(sent)
+                        self.assertEqual(tx['data'], '0x12345678')
+                        return dict(status='0x1', logs=[])
+                    sent.append(tx)
+                    valid = len(sent) == 1
+                    if failure == ('valid' if valid else 'invalid'): raise a.Gate('synthetic_status', 'bad', status)
+                    self.assertEqual(status, '0x1' if valid else '0x0')
+                    state['queued'] = valid
+                    log = dict(address=agg, topics=[a.keccak('GuardianSlashJudgmentFrozen(uint256,address,bytes32,bytes32)'),
+                        '0x'+format(1,'064x'), '0x'+verifier[2:].zfill(64)], data=a.cast('abi-encode', 'c(bytes32,bytes32)', ph, gh))
+                    return dict(status=status, transactionHash=base.HASH, logs=[] if failure == 'event' else [log])
+                def call(*args):
+                    values = [int(gh,16), int(ph,16), 0, int(state['queued'] and failure != 'state')]
+                    return a.cast('abi-encode', 'c(uint256,uint256,uint256,uint256)', *values)
+                with patch.object(u, 'fixture_tx', side_effect=lambda rpc,sender,target,data:dict(to=target,data=data)), \
+                     patch.object(u, 'receipt', side_effect=receipt), patch.object(a, 'address', return_value=verifier), \
+                     patch.object(a, 'call', side_effect=call):
+                    if failure:
+                        with self.assertRaises(a.Gate): m.fraud_rehearsal(rpc, self.plan)
+                    else:
+                        result = m.fraud_rehearsal(rpc, self.plan)
+                        self.assertEqual(len(result['proofs']), 2)
+                        self.assertTrue(all(tx['to'] == agg and tx['data'].startswith(a.keccak(m.FRAUD_SIG)[:10]) for tx in sent))
+                self.assertEqual(calls[-1], ('evm_revert', [1]))
+                self.assertFalse(state['queued'])
 
     def test_sign_send_refused(self):
         self.assertEqual(m.main(['sign']), 3)
