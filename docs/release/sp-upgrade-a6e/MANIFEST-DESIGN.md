@@ -124,7 +124,7 @@ Withdrawing protocol revenue leaves exactly 0.1 ether.
 | B2a (after the 5b read-back passes, before 6c is scheduled) | Safe (A approves, E executes): `APNTsCapped.mint(SP proxy, 0.1e18)`. This is a plain `_mint` (`APNTsCapped.sol:92`), not `transferAndCall`, so it is not recorded as a deposit. The Safe is the minter. Safe nonces are fixed in the order 5a, 5b, B2a, 6c, 6d, so every safeTxHash is computable in advance. If the mint fails, 6c is not scheduled. | — | `APNTsCapped.balanceOf(SP) == 0.1e18` |
 | B2 (before 6d) | read-back gate: `totalTrackedBalance == protocolRevenue ≤ 0.1e18` (old-token accounting); `APNTsCapped.balanceOf(SP) == 0.1e18` **exactly** (more is also a STOP; read independently of the tracked total); no in-flight sponsorship (a stale release returns balance); no pending slash | — | STOP if any differs |
 | B3 = 6c/6d `activation` (predecessor B1) | `executeGasParams()`; `applyBLSAggregator()`; **`executeAPNTsTokenChange()`**; `setOperatorPaused(op, false)` for each **sampled** operator only; `setGlobalPaused(false)` | 6c is scheduled so that 6d runs at ≥ `pendingAPNTsTokenEta` | active tuple, aggregator, `APNTS_TOKEN == APNTsCapped`, sampled operators and global unpaused, unsampled operators still paused |
-| B4 | D: `A7.applyFraudProofVerifier()` once 4 days have passed since A12b. Only the executor sends it: DVT's Apply Verifier Rotation workflow is hard-wired to the old aggregator, and DVT disables it until the Phase D read-back. The function has no permission gate, so the executor still reads `fraudProofVerifier` first and skips if it is already A12a (not a STOP). | 4 d | `fraudProofVerifier == A12a` |
+| B4 | D, at a **reserved nonce that is always used** (DSR 11-01, option d). Read `fraudProofVerifier` just before sending. If it is not yet A12a, send `A7.applyFraudProofVerifier()` (only the executor sends it: DVT's Apply Verifier Rotation workflow is hard-wired to the old aggregator and stays disabled until the Phase D read-back). If it is already A12a, send instead a placeholder at the same nonce: a 0-value self-transfer from D to D with empty data, its gas limit fixed. Both variants are fully specified (to, value, data, gas, fees) in the packet and covered by its hash. No other content is allowed. | 4 d | **Post-state**: `fraudProofVerifier == A12a` and the pending rotation cleared |
 
 Timing:
 - `queueBLSAggregator` has a 24 h internal delay, so `applyBLSAggregator` in 6d is in time.
@@ -199,7 +199,9 @@ STOP conditions (each is a hard stop; nothing later is sent):
 - a read-back differs from the plan (address, codehash, owner, pointer, role set, tuple, pause state, stake, balances);
 - a sender nonce differs from the plan, unless a gap is proven (#571);
 - an estimate exceeds the planned gas limit;
-- a mined status is not 1;
+- a mined status is not 1, with one exception: if B4's `applyFraudProofVerifier` was front-run after the read and
+  mined with status 0, B4 passes only when its post-state holds (`fraudProofVerifier == A12a`, pending cleared). The tx
+  is recorded. If the post-state does not hold, STOP;
 - an in-flight proposal appears on the old aggregator;
 - the B2 gate fails.
 
@@ -237,7 +239,11 @@ STOP conditions (each is a hard stop; nothing later is sent):
   - `executeAPNTsTokenChange` before its ETA, or with `totalTrackedBalance ≠ protocolRevenue`, rejected;
   - the old aggregator cannot submit reputation after A9;
   - a non-owner Registry upgrade rejected;
-  - `applyFraudProofVerifier` before 4 days rejected; a second direct call reverts `NoPendingVerifierRotation` (asserted); the executor, reading `fraudProofVerifier == A12a`, sends no transaction;
+  - `applyFraudProofVerifier` before 4 days rejected; a second direct call reverts `NoPendingVerifierRotation` (asserted);
+  - B4 three ways:
+    1. Applied manually first: B4 takes the placeholder branch, and D's later nonces are not shifted.
+    2. Front-run after the read: the apply mines with status 0, but the post-state holds, so the run continues.
+    3. The verifier was set to another address: STOP.
   - after Phase D, D can no longer call any owner function on the handed-over contracts.
 - **The post-swap 0.1 buffer.** `withdrawProtocolRevenue` cannot take `protocolRevenue` below
   `PROTOCOL_REVENUE_BUFFER` (`SuperPaymasterAdmin.sol:274`). The swap requires `tracked == revenue ≤ 0.1e18` (`:200`).
@@ -264,7 +270,8 @@ STOP conditions (each is a hard stop; nothing later is sent):
 
 ## 9. Decision card for the go (filled in when the packet is built)
 
-B2a (the 0.1 APNTsCapped pre-mint to SP) is listed on its own line, together with the stranded old-token 0.1.
+B2a (the 0.1 APNTsCapped pre-mint to SP) is listed on its own line, together with the stranded old-token 0.1. So is B4's
+possible placeholder transaction: one empty self-transfer, costing gas only.
 
 For each phase:
 - the transactions in plain language, and who sends them;
