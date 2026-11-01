@@ -191,7 +191,11 @@ abstract contract PostOpProfileFixture is Test {
                     }
                     uint256 low = g[0];
                     for (uint256 j; j < 8; j++) {
-                        assertEq(g[j], expected[j], "frozen gasleft checkpoint");
+                        if (vm.envOr("TRAJECTORY_RECORD", false)) {
+                            console.log("checkpoint", j, g[j]);
+                        } else {
+                            assertEq(g[j], expected[j], "frozen gasleft checkpoint");
+                        }
                         emit log_named_uint("checkpoint gasleft", g[j]);
                         if (g[j] < low) low = g[j];
                     }
@@ -289,7 +293,7 @@ abstract contract PostOpProfileTrajectory is PostOpProfileFixture {
     }
 
     function test_trajectory() public {
-        assertTrue(sample(440000, creditMode(), true, true));
+        assertTrue(sample(vm.envOr("TRAJECTORY_BUDGET", uint256(440000)), creditMode(), true, true));
     }
 }
 
