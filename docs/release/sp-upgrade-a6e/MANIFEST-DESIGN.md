@@ -121,7 +121,8 @@ Withdrawing protocol revenue leaves exactly 0.1 ether.
 | Op | Content (in order) | Delay | Read-back |
 | --- | --- | --- | --- |
 | B1 = 5a/5b `upgrade` | `upgradeToAndCall(A1, setGlobalPaused(true))`; `queueGasParams(480000,450000,5000,450000)`; `setXPNTsFactory(A4 factory)`; `queueBLSAggregator(A7)` | 48 h | implementation slot, extension, global pause, queued tuple and ETA, factory, queued aggregator |
-| B2 (before 6d) | read-back gate: `totalTrackedBalance == protocolRevenue ≤ 0.1e18`; no in-flight sponsorship (a stale release returns balance); no pending slash | — | STOP if any differs |
+| B2a (after the 5b read-back passes, before 6c is scheduled) | Safe (A approves, E executes): `APNTsCapped.mint(SP proxy, 0.1e18)`. This is a plain `_mint` (`APNTsCapped.sol:92`), not `transferAndCall`, so it is not recorded as a deposit. The Safe is the minter. Safe nonces are fixed in the order 5a, 5b, B2a, 6c, 6d, so every safeTxHash is computable in advance. If the mint fails, 6c is not scheduled. | — | `APNTsCapped.balanceOf(SP) == 0.1e18` |
+| B2 (before 6d) | read-back gate: `totalTrackedBalance == protocolRevenue ≤ 0.1e18` (old-token accounting); `APNTsCapped.balanceOf(SP) == 0.1e18` **exactly** (more is also a STOP; read independently of the tracked total); no in-flight sponsorship (a stale release returns balance); no pending slash | — | STOP if any differs |
 | B3 = 6c/6d `activation` (predecessor B1) | `executeGasParams()`; `applyBLSAggregator()`; **`executeAPNTsTokenChange()`**; `setOperatorPaused(op, false)` for each **sampled** operator only; `setGlobalPaused(false)` | 6c is scheduled so that 6d runs at ≥ `pendingAPNTsTokenEta` | active tuple, aggregator, `APNTS_TOKEN == APNTsCapped`, sampled operators and global unpaused, unsampled operators still paused |
 | B4 | D: `A7.applyFraudProofVerifier()` once 4 days have passed since A12b. Only the executor sends it: DVT's Apply Verifier Rotation workflow is hard-wired to the old aggregator, and DVT disables it until the Phase D read-back. The function has no permission gate, so the executor still reads `fraudProofVerifier` first and skips if it is already A12a (not a STOP). | 4 d | `fraudProofVerifier == A12a` |
 
@@ -212,6 +213,7 @@ STOP conditions (each is a hard stop; nothing later is sent):
 | A17 | SP owned by the timelock and unpaused, still on 5.4.2 | every further change goes through Safe → timelock |
 | 5a scheduled, before 5b | nothing executed | Safe cancels the operation (`CANCELLER` = Safe) |
 | after 5b | SP 5.5.0, **globally paused**, tuple queued | Safe → timelock: a corrective operation, or 6c |
+| after B2a, before 6c | as above, plus 0.1 APNTsCapped held by SP and not yet tracked | harmless: it backs the buffer only once the swap runs; if the route is abandoned it stays as untracked new token in SP |
 | 6c scheduled, before 6d | still paused | Safe cancels 6c |
 | after 6d | active and unpaused on APNTsCapped | normal operation |
 | Phase C/D partial | as listed per step | per-step undo above |
@@ -237,10 +239,18 @@ STOP conditions (each is a hard stop; nothing later is sent):
   - a non-owner Registry upgrade rejected;
   - `applyFraudProofVerifier` before 4 days rejected; a second direct call reverts `NoPendingVerifierRotation` (asserted); the executor, reading `fraudProofVerifier == A12a`, sends no transaction;
   - after Phase D, D can no longer call any owner function on the handed-over contracts.
-- **The 0.1 aPNTs left after the swap.** `protocolRevenue` keeps 0.1e18 of accounting units backed by the old token,
-  while SP holds 0 of the new token right after the swap. The rehearsal reads back `totalTrackedBalance` against the
-  APNTsCapped balance of SP after 6d and after the first deposits. It confirms that later `deposit`,
-  `withdrawProtocolRevenue` and every solvency invariant still hold; the conclusion is recorded here.
+- **The post-swap 0.1 buffer.** `withdrawProtocolRevenue` cannot take `protocolRevenue` below
+  `PROTOCOL_REVENUE_BUFFER` (`SuperPaymasterAdmin.sol:274`). The swap requires `tracked == revenue ≤ 0.1e18` (`:200`).
+  So after the swap the tracked total is exactly 0.1e18, and without B2a SP would hold 0 new token. That violates
+  `invariant_solvency` (`SuperPaymasterFundConservation.invariant.t.sol:91`), and no later deposit or withdrawal closes
+  the gap.
+  - B2a pre-mints the backing.
+  - The rehearsal reads `APNTsCapped.balanceOf(SP)` against `totalTrackedBalance` at three points: after 6d, after the
+    first deposits, after the first revenue withdrawal. Equality is recorded as equality; any difference is explained
+    by its source.
+  - Negative control: 6d without B2a shows the solvency failure, and the executor refuses to build the packet.
+- **The stranded old token.** The old token's 0.1e18 stays in SP permanently, untracked, with no withdrawal path (no
+  recover/rescue function). §9's decision card states this.
 - **On chain.** The G3 pilot checks handleOps admission at 480000 (DSR #4, D6).
 
 ## 8. What changes for the paper
@@ -248,8 +258,13 @@ STOP conditions (each is a hard stop; nothing later is sent):
 - All contract versions are bound to one frozen tag, with the §2 release evidence. After the tag, `contracts/src` does not change.
 - Multisig disclosure: both testnet signers were controlled by one operator.
 - Registry, AOAProtocolRegistry and xPNTsFactoryV2 are governed by the same 48 h timelock. BLSAggregator and DVTValidator are Safe-only.
+- A contract-design constraint, disclosed as an operational precondition: an aPNTs token swap cannot keep SP solvent by
+  itself. The operator must pre-mint the 0.1e18 buffer in the new token (B2a). 5.5.0 is not changed. The G3 matrix and
+  the paper record this, and the next contract version should fix it (noted in DESIGN.md).
 
 ## 9. Decision card for the go (filled in when the packet is built)
+
+B2a (the 0.1 APNTsCapped pre-mint to SP) is listed on its own line, together with the stranded old-token 0.1.
 
 For each phase:
 - the transactions in plain language, and who sends them;
