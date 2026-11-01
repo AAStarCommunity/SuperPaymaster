@@ -33,6 +33,16 @@ class EvidenceTest(unittest.TestCase):
             self.assertEqual(p.returncode,1)
             self.assertIn('missing command inventory',p.stderr)
 
+    def test_source_hashes_bound_to_recorded_revision(self):
+        with tempfile.TemporaryDirectory(prefix='tuple480-control-',dir='/tmp') as tmp:
+            neg=Path(tmp)/'run';shutil.copytree(RUN,neg)
+            hashes=json.loads((neg/'source-hashes.json').read_text())
+            hashes['contracts/test/v2/NotAtRevision.t.sol']='0'*64
+            (neg/'source-hashes.json').write_text(json.dumps(hashes,indent=2))
+            runner.seal(neg)
+            with self.assertRaisesRegex(AssertionError,'sources differ from the recorded revision'):
+                runner.verify(neg)
+
     def test_outcome_changes_and_reimbursement(self):
         for engine in runner.ENGINES:
             current,candidate=[runner.statuses((RUN/f'full-{engine}-{n}.log').read_text()) for n in (0,1)]
