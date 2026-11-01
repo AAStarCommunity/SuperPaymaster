@@ -63,8 +63,18 @@ Chain preconditions at the pin block:
 - DVT's frozen commit `72aca4fa` (accepted by DSR 11-01, including `OverIssueFraudProofVerifier`) builds reproducibly
   under the same two-hash rule, with the DVT CI pass record that `BLSAggregator.sol:86` requires.
 - That verifier source was validated against BLSAggregator 4.11.0 only. DVT's conformance run against 4.12.0 (`fbd74fb1`)
-  must pass before the packet is built. Otherwise STOP.
-- After the pin, D gives DVT the new aggregator's address, `version()` and the validator slots. DVT exports the PoP data
+  must pass before the packet is built. Otherwise STOP. DVT reported on 11-01:
+  - `CC115CrossRepoConformance`: 7 passed;
+  - `CC115GenuinePragueCrossRepo`: 11 passed with `FOUNDRY_EVM_VERSION=prague` (all skip by default);
+  - provenance: 5 passed.
+
+  Re-run if BLSAggregator changes on main before the frozen tag.
+- Verifier pin: DVT `72aca4fa0ba4aaa8c8a96210b1124534431294d6`.
+  - Build: Forge 1.7.1 with the real submodules (no symlinks): `cd contracts && forge build --force --skip test --skip script --use 0.8.33`.
+  - Creation keccak without constructor arguments: `0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab`, 3301 bytes.
+  - DVT's own deploy script pins `BLSAggregator-4.11.0` (`EXPECTED_AGGREGATOR_VERSION`). The packet uses a bare CREATE, so the A12a read-back is mandatory.
+- After the pin, D gives DVT the new aggregator's address, `version()` and the validator slots (current guardians
+  hold slots 1, 2 and 3: `0x5D87…Eca3`, `0x40F0…bd1f`, `0xD904…1601`). DVT exports the PoP data
   through its reviewed PoP tool (DVT PR).
 - The PoP data from DVT is generated **after** the pin. `popDigest` binds `domainSeparator() = keccak(name, chainid,
   address(this), REGISTRY)`, and the new aggregator's address is fixed by the deployer nonce at the pin.
