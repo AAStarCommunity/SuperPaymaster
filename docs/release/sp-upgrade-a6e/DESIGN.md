@@ -134,6 +134,13 @@ Require active gas tuple `(480000,450000,5000,450000)`, an empty pending queue, 
 
 Unpause, Registry reactivation, guardian changes, and service restoration require a separate later package.
 
+> **Known contract constraint (2026-11-01, fix in the next contract version).** An aPNTs token swap
+> (`executeAPNTsTokenChange`) leaves `totalTrackedBalance == PROTOCOL_REVENUE_BUFFER` (0.1e18) backed by nothing in the
+> new token, because `withdrawProtocolRevenue` cannot go below the buffer. Operations must pre-mint the buffer to SP
+> (MANIFEST-DESIGN.md B2a). The old token's buffer stays stranded in SP; there is no rescue path.
+
+> **Superseded (2026-11-01).** By the author's option ② ([MANIFEST-DESIGN.md](MANIFEST-DESIGN.md) D2/D4), operator and global unpause, together with the aPNTs → APNTsCapped swap, are part of the 6c/6d activation operation. They do not need a separate package. The read-back gate above still applies to the state between 5b and 6d.
+
 ## Measured gas and CREATE reservoir policy
 
 The first operator bootstrap passed A3a on 4e8874b, then failed the upgrade deploy's `pre_send_gas`: its estimate exceeded the old fixed 15,000,000 limit. That limit and the fixed limits for every other upgrade step are removed. Schema 2 starts with a transaction skeleton and freezes gas fields only after fork calibration. Old schema-1 upgrade plans must be regenerated.

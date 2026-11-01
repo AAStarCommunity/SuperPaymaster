@@ -408,7 +408,8 @@ def committed_bytes(repo, path, ref='HEAD'):
     raise Gate('artifact_source_uncommitted', path, 'file bytes reachable from HEAD (including pinned gitlinks)')
 
 
-def source_path(source, remappings):
+def source_path(source, remappings, source_root=None):
+    root = ROOT if source_root is None else source_root.resolve()
     if not isinstance(source, str) or Path(source).is_absolute():
         raise Gate('artifact_source_unresolved', 'invalid source path', 'repository-relative source')
     choices = [source]
@@ -424,24 +425,26 @@ def source_path(source, remappings):
         longest = max(n for n, _ in mappings)
         choices = sorted(set(value for n, value in mappings if n == longest))
         need('artifact_remapping_ambiguous', len(choices), 1)
-    resolved = (ROOT/choices[0]).resolve()
-    if not resolved.is_relative_to(ROOT) or not resolved.is_file():
+    resolved = (root/choices[0]).resolve()
+    if not resolved.is_relative_to(root) or not resolved.is_file():
         raise Gate('artifact_source_unresolved', source, 'existing source inside repository')
-    return resolved.relative_to(ROOT).as_posix()
+    return resolved.relative_to(root).as_posix()
 
 
-def artifact_sources(metadata):
+def artifact_sources(metadata, source_root=None):
+    # An explicit root is a git archive, including its pinned submodules.
+    root = ROOT if source_root is None else source_root.resolve()
     need('artifact_keccak_vector', keccak('0x'), EMPTY_KECCAK)
     sources = metadata.get('sources')
     if not isinstance(sources, dict) or not sources:
         raise Gate('artifact_sources', 'missing sources', 'complete metadata source hashes')
     hashes = {}
     for source, info in sources.items():
-        path = source_path(source, metadata['settings'].get('remappings', []))
-        committed = committed_bytes(ROOT, path)
+        path = source_path(source, metadata['settings'].get('remappings', []), source_root)
+        committed = committed_bytes(ROOT, path) if source_root is None else (root/path).read_bytes()
         expected = keccak('0x'+committed.hex())
         need('artifact_source_metadata', typed(info.get('keccak256'), HASH32).lower(), expected)
-        need('artifact_source_worktree', keccak('0x'+(ROOT/path).read_bytes().hex()), expected)
+        need('artifact_source_worktree', keccak('0x'+(root/path).read_bytes().hex()), expected)
         hashes[source] = dict(path=path, keccak256=expected)
     return hashes
 
@@ -588,7 +591,7 @@ def raw_artifact(root, name):
 
 
 @lru_cache(maxsize=1)
-def compile_commit(commit, forge_version, contract_names=CONTRACT_NAMES, identity_names=()):
+def compile_commit(commit, forge_version, contract_names=CONTRACT_NAMES, identity_names=(), historical=False):
     # Cache only independently rebuilt outputs, never the mutable ignored out/ files.
     # Every verification below re-compares current artifacts to these committed bytes.
     with tempfile.TemporaryDirectory(prefix='a3a-head-rebuild-') as directory:
@@ -612,13 +615,16 @@ def compile_commit(commit, forge_version, contract_names=CONTRACT_NAMES, identit
         for name, allowed in identity_names:
             artifacts[name]['runtimeIdentity'] = immutable_identity(
                 artifacts[name], tree/'out/build-info', name, frozenset(allowed))
+        if historical:
+            for name in contract_names:
+                validate_artifact(artifacts[name], name, source_root=tree, build_info=tree/'out/build-info')
         return artifacts, config
 
 
-def rebuild_artifacts(artifacts):
+def rebuild_artifacts(artifacts, commit=None):
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
     need('rebuild_head', head.returncode, 0)
-    commit = head.stdout.strip()
+    commit = commit or head.stdout.strip()
     try:
         version = subprocess.run([str(REBUILD_FORGE), '--version'], capture_output=True, text=True)
     except OSError as error:
@@ -659,7 +665,10 @@ def artifact(name):
         path = base / (name + '.json')
     if not path.exists():
         raise Gate('build_artifact', name + ' missing', 'local default build artifact')
-    a = json.loads(path.read_text())
+    return validate_artifact(json.loads(path.read_text()), name)
+
+
+def validate_artifact(a, name, source_root=None, build_info=None):
     metadata = a['metadata']
     if isinstance(metadata, str):
         metadata = json.loads(metadata)
@@ -667,8 +676,8 @@ def artifact(name):
     need('artifact_optimizer', metadata['settings']['optimizer']['runs'], 500)
     for field in ('bytecode', 'deployedBytecode'):
         typed(a[field]['object'], HEXDATA, 'artifact_bytecode')
-    a['sourceHashes'] = artifact_sources(metadata)
-    a['runtimeIdentity'] = immutable_identity(a, contract_name=name)
+    a['sourceHashes'] = artifact_sources(metadata, source_root)
+    a['runtimeIdentity'] = immutable_identity(a, build_info, contract_name=name)
     return a
 
 
@@ -737,7 +746,7 @@ def execution_timestamps(pin):
     return {sid: pin['timestamp']+offset for sid, offset in zip(STEP_IDS, offsets)}
 
 
-def build_plan(state, gaps=()):
+def build_plan(state, gaps=(), rebuild_commit=None):
     for label, who in SENDERS.items():
         need('plan_sender_'+label, state['senders'][label]['address'], who)
     n = state['senders']['deployer']['nonce']
@@ -746,8 +755,15 @@ def build_plan(state, gaps=()):
                  for i in (1, 2)]
     need('plan_predicted_timelock', state['timelock'], tl)
     need('plan_predicted_capped', state['capped'], token)
-    a, t = artifact('APNTsCapped'), artifact('TimelockController')
-    rebuild = rebuild_artifacts({'APNTsCapped': a, 'TimelockController': t})
+    if rebuild_commit is not None:
+        fresh, _ = compile_commit(rebuild_commit, 'forge Version: 1.7.1',
+            identity_names=(('APNTsCapped', tuple(sorted(EIP712_IMMUTABLES))), ('TimelockController', ('_minDelay',))),
+            historical=True)
+        a, t = [copy.deepcopy(fresh[name]) for name in ('APNTsCapped', 'TimelockController')]
+        rebuild = rebuild_artifacts(fresh, commit=rebuild_commit)
+    else:
+        a, t = artifact('APNTsCapped'), artifact('TimelockController')
+        rebuild = rebuild_artifacts({'APNTsCapped': a, 'TimelockController': t})
     init_t = t['bytecode']['object'] + cast('abi-encode', 'c(uint256,address[],address[],address)',
                                           172800, '['+SAFE+']', '['+SAFE+']', ZERO)[2:]
     constructor_args = ['AAStar PNTs', 'aPNTs', 10_000_000*10**18, DEPLOYER, SAFE, SAFE]
@@ -1353,10 +1369,11 @@ def check_gaps(remote, plan, tx):
         need('nonce_gap_receipt_status_'+n, receipt.get('status'), '0x1')
 
 
-def validate_plan(plan, frozen=False):
+def validate_plan(plan, frozen=False, historical=False):
     validate_pin(plan['pin'])
     need('plan_step_ids', [s['id'] for s in plan['steps']], list(STEP_IDS))
-    rebuilt = build_plan(plan['pin'], validate_gaps(plan))
+    rebuilt = (build_plan(plan['pin'], validate_gaps(plan), rebuild_commit=plan['rebuild']['commit'])
+               if historical else build_plan(plan['pin'], validate_gaps(plan)))
     exact_keys('plan_keys', plan, set(rebuilt) | ({'budgetsWei', 'budgetWei'} if frozen else set()))
     for key in set(rebuilt)-{'steps'}:
         need('plan_identity_'+key, plan[key], rebuilt[key])

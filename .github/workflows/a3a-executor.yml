@@ -41,3 +41,6 @@ jobs:
       - name: Offline Safe A6e upgrade executor tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_sp_upgrade_exec.py
+      - name: Offline pre-sampling manifest tests
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_exec.py
