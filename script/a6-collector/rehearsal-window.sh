@@ -10,7 +10,8 @@ export FOUNDRY_DISABLE_NIGHTLY_WARNING=1
 export GIT_DIR=/dev/null
 unset PRIVATE_KEY PRIVATE_KEY_ANNI DEPLOYER_ACCOUNT
 export ENV=anvil LOCAL_DEV_GOVERNANCE_ACK=true
-D=$(mktemp -d /private/tmp/a6-rehearsal.XXXXXX)
+# freeze() rejects symlinked ancestors; macOS $TMPDIR and /tmp both resolve through /private.
+D=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/a6-rehearsal.XXXXXX")" && pwd -P)
 W="$D/window"
 mkdir "$W"
 PORT=${A6_REHEARSAL_PORT:-19545}

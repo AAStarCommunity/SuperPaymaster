@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { bindReceiptSummaries, bindArchivedDisposition } from './derived-evidence.mjs';
 import { exclusionReason } from './evidence.mjs';
-// Copied read-only from /private/tmp/a6-rehearsal.en1sH8/window.
+// Captured from an offline rehearsal window.
 const fixture=JSON.parse(readFileSync(new URL('./derived-fixture.json',import.meta.url)));
 const fresh=()=>structuredClone(fixture);
 test('real rehearsal summaries and archived disposition are consistent',()=>{

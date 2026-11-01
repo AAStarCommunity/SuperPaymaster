@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, realpathSync, readFileSync, writeFileSync, chmodSync, mkdirSync, rmSync } from 'node:fs';
@@ -8,8 +9,8 @@ import { artifactErrors } from './artifact-validate.mjs';
 import { publicAddress } from './formal.mjs';
 import { exportRun } from './to-aoa-m3-receive.mjs';
 const legacy=new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/n50-mechanism.jsonl',import.meta.url);
-function temp(fn) {const d=realpathSync(mkdtempSync('/private/tmp/r581-'));try{return fn(d);}finally{rmSync(d,{recursive:true,force:true});}}
-const archiveDir=realpathSync(mkdtempSync('/private/tmp/r581-shared-'));
+function temp(fn) {const d=realpathSync(mkdtempSync(join(tmpdir(),'r581-')));try{return fn(d);}finally{rmSync(d,{recursive:true,force:true});}}
+const archiveDir=realpathSync(mkdtempSync(join(tmpdir(),'r581-shared-')));
 const base=repairFixture(archiveDir,3);
 after(()=>rmSync(archiveDir,{recursive:true,force:true}));
 function fixture() {
@@ -135,3 +136,20 @@ test('M-2 missing frozen target chain is rejected',()=>{
   assert.match(f.check().join(';'),/target chainId required|Passport identity\/config mismatch/);
 });
 for(const ip of ['::ffff:127.0.0.1','::ffff:7f00:1','0:0:0:0:0:ffff:7f00:1','::127.0.0.1','::7f00:1','64:ff9b::127.0.0.1','64:ff9b::7f00:1','0064:ff9b:0:0:0:0:7f00:1','64:ff9b:1::a00:1']) test(`L-4 rejects IPv4 embedding ${ip}`,()=>assert.equal(publicAddress(ip),false));
+
+for (const ip of ['2001:2::1','2001:0002:0000:ffff::1','2001:10::1','2001:1f:ffff::1','2001:20::1','2001:2f:ffff::1']) test(`reserved prefix rejects ${ip}`,()=>assert.equal(publicAddress(ip),false));
+for (const ip of ['2001:2:1::1','2001:30::1','2001:4860:4860::8888']) test(`public prefix permits ${ip}`,()=>assert.equal(publicAddress(ip),true));
+
+import { formalWindowFixture } from './formal-window-fixture.mjs';
+test('complete formal CLI window loses acceptance and export classification without formal',()=>temp(d=>{
+  const rows=formalWindowFixture(d);
+  const positive=cli(d,rows);
+  assert.equal(positive.status,0,JSON.stringify(positive.report));
+  assert.equal(positive.report.accepted,true);
+  assert.equal(exportRun(positive.path,join(d,'positive')).runType,'formal-candidate');
+  delete rows[0].formal;
+  const negative=cli(d,rows);
+  assert.notEqual(negative.status,0);assert.notEqual(negative.report.accepted,true);assert.equal(negative.report.formal,false);
+  assert.notEqual(exportRun(negative.path,join(d,'unchecked'),{validate:false}).runType,'formal-candidate');
+  assert.throws(()=>exportRun(negative.path,join(d,'checked')),/run not shown consistent/);
+}));

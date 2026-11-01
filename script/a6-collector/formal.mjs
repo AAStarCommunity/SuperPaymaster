@@ -38,8 +38,11 @@ export function publicAddress(address) {
   }
   // Accept only global-unicast IPv6; mapped IPv4 and local/reserved ranges fail closed.
   if (isIP(h) !== 6 || !/^[23][0-9a-f]{3}:/.test(h)) return false;
-  const [first, second = '0'] = h.split(':').map(x => x || '0');
-  return !(parseInt(first,16) === 0x2002 || (parseInt(first,16) === 0x2001 && [0,0xdb8].includes(parseInt(second,16))));
+  const [first, second = '0', third = '0'] = h.split(':').map(x => x || '0');
+  return !(parseInt(first,16) === 0x2002 || (parseInt(first,16) === 0x2001 && ([0,0xdb8].includes(parseInt(second,16)) ||
+    (parseInt(second,16) === 2 && parseInt(third,16) === 0) ||
+    (parseInt(second,16) & 0xfff0) === 0x10 ||
+    (parseInt(second,16) & 0xfff0) === 0x20)));
 }
 export async function resolveEndpoints(a,b,resolver = lookup) {
   endpointPair(a,b);

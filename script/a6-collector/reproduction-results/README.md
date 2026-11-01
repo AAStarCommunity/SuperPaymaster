@@ -19,7 +19,7 @@ The script requires a clean tree and extracts the kit with `git archive HEAD`. F
 steps:
 
 1. The manifest check.
-2. 17 unit tests.
+2. Python unit tests (see the runner summary for the current count).
 3. The self-test.
 4. `scripts/gate/stats_from_csv.py --m3-package data/receive.json`, which generates the results.
 5. A same-engine self-compare.
