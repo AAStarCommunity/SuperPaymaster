@@ -1,3 +1,4 @@
+import { loadPins, loadRegistry, sha256, evidenceIndex, writeArtifact } from './evidence.mjs';
 import { decomposeGas } from './gas-decomposition.mjs';
 import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
 // A6 per-UserOperation gauge (CC-125 a71741ed; RDR-6 ①; plan §8.4 SP-owned implementation half).
@@ -41,7 +42,7 @@ import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   concat, pad, toHex, getAddress, encodeAbiParameters, decodeErrorResult, ContractFunctionRevertedError,
-  keccak256, createPublicClient, http, encodeFunctionData,
+  keccak256, createPublicClient, http, encodeFunctionData, decodeFunctionData,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
@@ -92,6 +93,11 @@ if (existsSync(outPath) && statSync(outPath).size > 0) die(`refusing to touch no
 if (formal && (rpcA || rpcB || allowSameEndpointLocal || fixture || arms.join(',') !== 'SP,VPM,TPM')) die('formal mode requires URL files, all arms and no local override/fixtures');
 if (formal && (!argVal('--formal-config') || !argVal('--rpc-a-file') || !argVal('--rpc-b-file') || !argVal('--config') || !argVal('--baselines'))) die('formal mode requires --formal-config, --rpc-a-file, --rpc-b-file, --config and --baselines');
 const formalInput = formal ? JSON.parse(readFileSync(argVal('--formal-config'), 'utf8')) : null;
+if (formal && (!argVal('--rpc-registry') || !argVal('--pins'))) die('formal mode requires --rpc-registry and --pins');
+const evidencePins = formal ? loadPins(argVal('--pins')) : null;
+const registry = formal ? loadRegistry(argVal('--rpc-registry')) : null;
+const windowPath = dirname(resolve(outPath));
+if (formal && (existsSync(resolve(windowPath, 'raw')) || existsSync(resolve(windowPath, 'index.ndjson')) || existsSync(resolve(windowPath, 'manifest.json')))) die('formal window already exists');
 if (formal) formalInput.factory ??= DEFAULT_FACTORY;
 const frozen = formal ? formalConfig(formalInput, bMax) : null;
 const configPath = argVal('--config') ?? resolve(ROOT, 'deployments/config.anvil.json');
@@ -126,7 +132,20 @@ function collectorHead() {
 // ── append-only JSONL ─────────────────────────────────────────────────────────────────────
 const fd = openSync(outPath, 'a');
 const archiveCursor = [0, 0];
+const evidenceRows = [];
+const passportRefs = {};
+if (formal) writeArtifact(windowPath, 'rpc-identity.json', registry);
+const rpcIdentityPin = formal ? { path:'rpc-identity.json', sha256:sha256(readFileSync(resolve(windowPath,'rpc-identity.json'))) } : null;
+function savePassport(name, passport) {
+  const path = `passports/${name}.json`;
+  writeArtifact(windowPath, path, passport);
+  return { path, raw:Object.fromEntries(runtime.archives.map((a,i) => [i?'B':'A', a.records.map(r => ({path:r.path,id:r.id}))])) };
+}
 function writeLine(obj) {
+  if (formal && obj.kind === 'attempt') {
+    obj.evidenceEnd = runtime.archives.map(a => a.ids.length);
+    evidenceRows.push(obj);
+  }
   if (formal) obj = { ...obj, rpcArchiveRefs: Object.fromEntries(runtime.archives.map((a, i) => {
     const ids = a.ids.slice(archiveCursor[i]); archiveCursor[i] = a.ids.length;
     return [i ? 'B' : 'A', ids];
@@ -342,6 +361,14 @@ async function readbacks(arm, blockNumber, expectedHash, sender) {
         lockXLocked: (await t('lockOf', [expectedHash, sender])).xLocked,
       });
     }
+    if (formal && arm === 'TPM') {
+      const tpm = baselines.tokenPaymaster;
+      out.tpmTokenBalances = {
+        sender:await p.readContract({address:tpm.token, abi:TOKEN_ABI, functionName:'balanceOf', args:[sender], ...at}),
+        paymaster:await p.readContract({address:tpm.token, abi:TOKEN_ABI, functionName:'balanceOf', args:[tpm.address], ...at}),
+      };
+      out.tpmCachedPriceTimestamp = await p.readContract({address:tpm.address, abi:[{type:'function',name:'cachedPriceTimestamp',stateMutability:'view',inputs:[],outputs:[{type:'uint48'}]}],functionName:'cachedPriceTimestamp',...at});
+    }
     return out;
   });
   return { A: r.A, B: r.B };
@@ -504,7 +531,7 @@ let attemptIndex = 0;
  *  including one interrupted by a stop condition (then with `stoppedBy` and whatever was known). */
 async function attempt(arm, tripletIndex, passportStart) {
   const idx = attemptIndex++;
-  const st = { row: { kind: 'attempt', attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
+  const st = { row: { kind: 'attempt', attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
   try {
     return await attemptInner(arm, idx, tripletIndex, passportStart, st);
   } catch (e) {
@@ -518,7 +545,12 @@ async function attempt(arm, tripletIndex, passportStart) {
 }
 async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const GAS = gasFor(arm);
-  if (formal) await runtime.refreshPin();
+  if (formal) {
+    const block = await runtime.refreshPin();
+    const p = await readAB(`passport attempt ${idx}`, client => passport(client, block.number));
+    passportRefs[idx] = savePassport(`attempt-${idx}`, p);
+    if (diffPaths(passportStart.invariant, p.A.invariant).length) throw new Stop('PASSPORT_DRIFT',21,{attemptIndex:idx});
+  }
   const pm = pmAddrOf(arm);
   const callData = fixture === 'exec-revert' ? revertingCallData() : defaultCallData();
   const nonceR = await readAB('getNonce', (p) => p.readContract({ address: EP, abi: EP_ABI, functionName: 'getNonce', args: [sender, NONCE_KEY] }));
@@ -561,7 +593,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const pre = await simulateRevert(bundled);
   if (pre) {
     return finish({ sent: false, tx: null, logs: [], preflight: pre, verdict: VERDICTS.NOT_SENT, failingCheck: 'preflight_revert',
-      exclusion: pre.infraFailure ? (pre.undecoded ? 'NOT_SENT:PREFLIGHT_UNDECODED' : 'NOT_SENT:INFRA_AA31') : null });
+      exclusion: 'NOT_SENT:preflight_revert' });
   }
 
   const headBefore = await pubA.getBlockNumber({ cacheTime: 0 });
@@ -580,7 +612,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const rcA = await pubA.waitForTransactionReceipt({ hash: txHash });
   const rcB = await pubB.getTransactionReceipt({ hash: txHash });
   const rcView = (rc) => ({ status: rc.status, blockNumber: rc.blockNumber, blockHash: rc.blockHash, gasUsed: rc.gasUsed,
-    effectiveGasPrice: rc.effectiveGasPrice, logs: rc.logs.map((l) => ({ address: getAddress(l.address), topics: l.topics, data: l.data, logIndex: l.logIndex })) });
+    effectiveGasPrice: rc.effectiveGasPrice, logs: rc.logs.map((l) => ({ address: getAddress(l.address), topics: l.topics, data: l.data, logIndex: l.logIndex, ...(formal ? {transactionHash:l.transactionHash} : {}) })) });
   row.sent = true;
   row.tx = { hash: txHash };
   const rdiff = diffPaths(jsonable(rcView(rcA)), jsonable(rcView(rcB)));
@@ -589,13 +621,19 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const blocks = await readAB('attempt block', async p => { const b = await p.getBlock({ blockNumber: bn }); return { hash: b.hash, timestamp: b.timestamp, transactions: b.transactions }; });
   const blk = blocks.A;
   const rawTx = await readAB('transaction', p => p.getTransaction({ hash: txHash }));
-  const tx = { from: rawTx.A.from, gasLimit: rawTx.A.gas, hash: txHash, status: rcA.status, blockNumber: bn, blockTimestamp: blk.timestamp, blockHash: rcA.blockHash, gasUsed: rcA.gasUsed,
+  if (formal) {
+    const decoded = decodeFunctionData({abi:HANDLE_OPS_ABI,data:rawTx.A.input});
+    if (decoded.functionName !== 'handleOps' || diffPaths(jsonable(decoded.args[0]),jsonable(bundled)).length) throw new Stop('TRANSACTION_BUNDLE_MISMATCH',27,{txHash});
+  }
+  const tx = { raw: rawTx.A, input: rawTx.A.input, handleOpsIndex: bundled.includes(ours.packed) ? bundled.indexOf(ours.packed) : null, maxFeePerGas:rawTx.A.maxFeePerGas, maxPriorityFeePerGas:rawTx.A.maxPriorityFeePerGas, from: rawTx.A.from, gasLimit: rawTx.A.gas, hash: txHash, status: rcA.status, blockNumber: bn, blockTimestamp: blk.timestamp, blockHash: rcA.blockHash, gasUsed: rcA.gasUsed,
     effectiveGasPrice: rcA.effectiveGasPrice, blockTxCount: blk.transactions.length, headBefore };
   const logs = rcView(rcA).logs;
   // The verdict needs only the receipt; it is fixed (and kept on a stop) before any read-back.
   const cls = classifyAttempt({ sent: true, txStatus: rcA.status, logs, entryPoint: EP, expectedHash, sender, nonce, paymaster: pm });
+  const observedUoe = cls.epEvents?.find(e => e.event === 'UserOperationEvent' && e.args.sender.toLowerCase() === sender.toLowerCase() && BigInt(e.args.nonce) === nonce);
+  row.observedUserOpEvent = observedUoe ? {...observedUoe.args, logIndex:observedUoe.logIndex, txHash:rcA.logs.find(l => l.logIndex === observedUoe.logIndex)?.transactionHash} : null;
   Object.assign(row, { sent: true, tx, logs, verdict: cls.verdict, failingCheck: cls.failingCheck,
-    revertKind: cls.revertKind ?? null, userOpEvent: cls.event ?? null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [] });
+    revertKind: cls.revertKind ?? null, userOpEvent: cls.event ? { ...cls.event, logIndex: cls.epEvents.find(e => e.event === 'UserOperationEvent' && e.args.userOpHash === cls.event.userOpHash)?.logIndex } : null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [] });
   if (traceEnabled) {
     try {
       row.gasTrace = { transactionHash: txHash, blockHash: rcA.blockHash,
@@ -649,7 +687,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const conservationOk = evaluated ? checks.every((c) => c.ok) : null;
   const failure = conservationStop(checks);
   const r = finish({ ...out, ...(failure ? { stoppedBy: { reason: failure.reason, detail: { attemptIndex: idx, failed: failure.failed } } } : {}), spMode: sp?.mode ?? null, charge: sp?.charge ?? null, conservation: { evaluated, notEvaluable: sp?.notEvaluable ?? null, ok: conservationOk, checks },
-    exclusion: !noFixture(fixture) ? 'FIXTURE' : null });
+    exclusion: !noFixture(fixture) ? 'FIXTURE' : failure?.reason ?? (cls.verdict !== VERDICTS.USEROP_SUCCESS ? cls.failingCheck ?? cls.verdict : null) });
   if (failure) throw new Stop(failure.reason, failure.code, { attemptIndex: idx, failed: failure.failed });
 
   // Passport drift (code + config) at this block vs. the start.
@@ -673,6 +711,7 @@ try {
   if (formal && chainId !== formalInput.chainId) throw new Error('formal target chainId mismatch');
   await setup();
   passportStart = await passportAB('start');
+  if (formal) passportRefs.start = savePassport('start', passportStart);
   if (formal) {
     requirePostGas(frozen.pmGas.SP.post, passportStart.invariant.superPaymaster.minPostOpGas);
     if (BigInt(passportStart.invariant.credit.policy) !== 0n || BigInt(passportStart.invariant.credit.pendingPolicyEta) !== 0n) throw new Error('formal SP requires credit OFF and no pending policy');
@@ -681,10 +720,10 @@ try {
   const epMismatch = Object.entries(passportStart.invariant.armEntryPoints).filter(([, a]) => getAddress(a) !== EP);
   if (epMismatch.length) throw new Stop('ENTRYPOINT_MISMATCH', 26, { EP, epMismatch });
   writeLine({ kind: 'run_start', ...collectorHead(), argv: formal ? ['--formal', '(URL files redacted)'] : process.argv.slice(2), rpcA: formal ? 'https://rpc-a.invalid' : rpcA, rpcB: formal ? 'https://rpc-b.invalid' : rpcB, allowSameEndpointLocal,
-    ...(formal ? { formal: true, formalSlice: 1, frozenConfig: formalInput, configSha256: createHash('sha256').update(readFileSync(argVal('--formal-config'))).digest('hex'),
-      deploymentConfigSha256: createHash('sha256').update(readFileSync(configPath)).digest('hex'), baselineConfigSha256: createHash('sha256').update(readFileSync(baselinesPath)).digest('hex'), archiveFiles: runtime.archives.map(a => a.path), sopPending: ['RPC identity registry (§2)', 'per-operation index and exclusion validation (§4)', 'freeze/sampling manifest (§5)'] } : {}),
+    ...(formal ? { formal: true, formalSlice: 2, frozenConfig: formalInput, configSha256: createHash('sha256').update(readFileSync(argVal('--formal-config'))).digest('hex'),
+      deploymentConfigSha256: createHash('sha256').update(readFileSync(configPath)).digest('hex'), baselineConfigSha256: createHash('sha256').update(readFileSync(baselinesPath)).digest('hex'), rpcIdentity:rpcIdentityPin, pins:evidencePins, archiveLayout:'raw/{A|B}/YYYYMMDD.ndjson', sopPending:['DSR independent re-fetch and acceptance'] } : {}),
     abTopology: argVal('--ab-topology') ?? 'unspecified', count, bMax, maxAttempts, arms, fixture,
-    protocolConformant: count === PROTOCOL_N && noFixture(fixture) && arms.length === 3 && distinctEndpoints && !allowSameEndpointLocal,
+    protocolConformant: (formal || distinctEndpoints) && count === PROTOCOL_N && noFixture(fixture) && arms.length === 3 && !allowSameEndpointLocal,
     setupLog, passport: passportStart, startedAtUtc: new Date().toISOString() });
   console.log(`A6 gauge ${runId}: N=${count} bMax=${bMax} maxAttempts/arm=${maxAttempts} arms=${arms} fixture=${fixture ?? 'none'}`);
   console.log(`EP=${EP} (canonical v0.7 address: ${passportStart.invariant.entryPoint.isCanonicalV07Address}) sender=${sender}`);
@@ -726,6 +765,7 @@ try {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     passportEnd = await passportAB('end');
+    if (formal) passportRefs.end = savePassport('end',passportEnd);
     const last = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
     const endHeight = BigInt(passportEnd.block.number), lastHeight = BigInt(last.blockNumber);
     const sameHash = passportEnd.block.hash.toLowerCase() === last.blockHash.toLowerCase();
@@ -743,7 +783,17 @@ exitCode = stop.code;
 writeLine({ kind: 'run_end', stop, exitCode, matchedTriplets: matched, targetTriplets: count, tally, triplets,
   passport: passportEnd, endedAtUtc: new Date().toISOString() });
 closeSync(fd);
-if (formal) for (const archive of runtime.archives) closeSync(archive.fd);
+if (formal) {
+  const indexFd = openSync(resolve(windowPath,'index.ndjson'),'wx',0o600);
+  try {
+    for (const row of evidenceRows) {
+      const included = stop.code === 0 && triplets.some(t => t.matched && t.attempts.includes(row.attemptIndex));
+      const index = evidenceIndex(row, {windowId:runId,archives:runtime.archives,pins:evidencePins,rpcIdentity:rpcIdentityPin,
+        passports:{start:passportRefs.start,attempt:passportRefs[row.attemptIndex],end:passportRefs.end},included,stopReason:stop.reason});
+      writeSync(indexFd, JSON.stringify(index)+'\n'); fsyncSync(indexFd);
+    }
+  } finally { closeSync(indexFd); }
+}
 console.log(`stop=${stop.reason} exit=${exitCode} matched=${matched}/${count} ${JSON.stringify(tally)}`);
 if (stop.detail) console.log(`detail: ${JSON.stringify(jsonable(stop.detail)).slice(0, 2000)}`);
 process.exit(exitCode);

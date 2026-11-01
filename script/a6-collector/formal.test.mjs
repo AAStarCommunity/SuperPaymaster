@@ -120,10 +120,10 @@ test('formal runtime uses injected separate signers, archives signed transaction
     baseFeePerGas = '0x12a05f201'; // 5 gwei + 1 wei
     await assert.rejects(runtime.writeContract({ address: address(1), abi: parseAbi(['function go()']), functionName: 'go' }), e => e.pause?.reason === 'basefee_above_cap' && e.pause.baseFeePerGas === 5000000001n);
     assert.equal(calls.filter(r => r.method === 'eth_sendRawTransaction').length, 1, 'pause must not submit a second transaction');
-    for (const a of runtime.archives) assert.equal(readFileSync(a.path, 'utf8').trim().split('\n').length, a.ids.length);
+    for (const a of runtime.archives) assert.equal(readFileSync(join(dir,a.records[0].path), 'utf8').trim().split('\n').length, a.ids.length);
     assert.ok(!calls.some(r => /^(anvil|hardhat)_/.test(r.method)));
     assert.ok(!readFileSync(new URL('./formal.mjs', import.meta.url), 'utf8').includes('ANVIL_KEYS'));
-  } finally { if (runtime) runtime.archives.forEach(a => closeSync(a.fd)); rmSync(dir, { recursive: true, force: true }); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 test('Foundry digest adapter checks the actual recovered signer', async () => {
   const account = privateKeyToAccount(`0x${'4'.repeat(64)}`), message = { raw: hash };

@@ -1,3 +1,5 @@
+import { dispositionErrors, feePauseErrors } from './disposition.mjs';
+import { formalConfig, armOrder } from './formal.mjs';
 // A6 gauge validator: re-reads a collector JSONL and recomputes every verdict from the RAW
 // fields (packed op, receipt logs, A/B read-backs), with its own decoder — it does not import
 // gauge-lib.mjs, so a decoding/classification bug in the collector cannot validate itself.
@@ -169,7 +171,8 @@ function conservation(row, spAddr, tokenAddr, operator, inv) {
       readbacks: { before: { A: { ...b, blockNumber: before.blockNumber, blockHash: before.blockHash } }, after: { A: a } } },
       spAddr, tokenAddr, operator, inv);
     failed.push(...checks.map(c => `receipt.${h}.${c}`));
-    for (const f of fields) {
+    const gasFields = isFormal ? ['SP','VPM','TPM'].flatMap(a => GAS_FIELDS.map(f => `invariant.gas.${a}.${f}`)) : GAS_FIELDS.map(f => `invariant.gas.${f}`);
+  for (const f of [...fields.filter(f => !f.startsWith('invariant.gas.')), ...gasFields]) {
       if (['inflightOperator', 'inflightA0', 'lockXLocked'].includes(f) && h !== lc(row.expectedUserOpHash)) continue;
       projected[f] = a[f];
     }
@@ -368,9 +371,11 @@ const BOOL_FIELDS = new Set(['allowSameEndpointLocal', 'invariant.entryPoint.isC
 const SCHEMAS = ['a6-gauge/1', 'a6-gauge/2'];
 const CREDIT_FIELDS = ['policy', 'hasPendingPolicy', 'pendingPolicy', 'pendingPolicyEta', 'policyEpoch'].map(f => `invariant.credit.${f}`);
 let schema = null;
+let isFormal = false;
 function completePassport(p) {
   const fields = schema === 'a6-gauge/2' ? [...PASSPORT_FIELDS, ...CREDIT_FIELDS] : PASSPORT_FIELDS;
-  for (const f of fields) {
+  const gasFields = isFormal ? ['SP','VPM','TPM'].flatMap(a => GAS_FIELDS.map(f => `invariant.gas.${a}.${f}`)) : GAS_FIELDS.map(f => `invariant.gas.${f}`);
+  for (const f of [...fields.filter(f => !f.startsWith('invariant.gas.')), ...gasFields]) {
     const v = need(p, f);
     let valid;
     if (ADDRESS_FIELDS.has(f)) valid = typeof v === 'string' && /^0x[0-9a-f]{40}$/i.test(v) && !/^0x0{40}$/i.test(v);
@@ -429,6 +434,11 @@ try {
   catch (e) { throw e instanceof Missing ? e : new Missing(`cannot read ${file}: ${e.message}`); }
   if (lines.length < 2) throw new Missing('need at least run_start and run_end');
   const start = lines[0], end = lines[lines.length - 1];
+  isFormal = start.formal === true;
+  if (isFormal) {
+    const frozen = formalConfig(need(start,'frozenConfig'),need(start,'bMax'));
+    for (const key of ['gas','pmGas']) if (!deepEq(JSON.parse(JSON.stringify(frozen[key],(_,v) => typeof v === 'bigint' ? String(v):v)),start.passport?.invariant[key])) errors.push(`formal frozen ${key}/passport mismatch`);
+  }
   if (need(start, 'kind') !== 'run_start') throw new Missing('first line is not run_start');
   if (need(end, 'kind') !== 'run_end') throw new Missing('last line is not run_end (truncated run?)');
   schema = need(start, 'schema');
@@ -480,8 +490,10 @@ try {
     && !p.invariant.xPNTs.emergencyDisabled;
 
   attempts.forEach((row, i) => {
+    errors.push(...dispositionErrors(row).map(e => `attempt ${i}: ${e}`), ...feePauseErrors(row).map(e => `attempt ${i}: ${e}`));
+    if (isFormal && !deepEq(row.armOrder,armOrder(row.tripletIndex))) errors.push(`attempt ${i}: formal armOrder mismatch`);
     if (row.sent === false && (need(row, 'tx') !== null || !Array.isArray(need(row, 'logs')) || row.logs.length !== 0
-        || 'readbacks' in row || !['deposit_floor', 'preflight_revert'].includes(row.failingCheck))) {
+        || 'readbacks' in row || !['deposit_floor', 'preflight_revert', 'basefee_above_cap'].includes(row.failingCheck))) {
       errors.push(`attempt ${i}: NOT_SENT contradicts row evidence or failingCheck`);
     }
     if (row.sent) {
@@ -562,7 +574,7 @@ try {
     row.derivedGas = opGas(row.packedOp);
     if (lc(row.callDataHash) !== lc(row.derivedCallDataHash)) errors.push(`attempt ${i}: callDataHash mismatch`);
     if (GAS_FIELDS.some(f => big(need(row.gas, f)) !== big(row.derivedGas[f]))) errors.push(`attempt ${i}: packed gas mismatch`);
-    if (noFixture(fixture) && (lc(row.derivedCallDataHash) !== lc(inv.callDataHash) || GAS_FIELDS.some(f => big(row.derivedGas[f]) !== big(inv.gas[f])))) errors.push(`attempt ${i}: operation callData/gas passport mismatch`);
+    if (noFixture(fixture) && (lc(row.derivedCallDataHash) !== lc(inv.callDataHash) || GAS_FIELDS.some(f => big(row.derivedGas[f]) !== big((isFormal ? inv.gas[row.arm] : inv.gas)[f])))) errors.push(`attempt ${i}: operation callData/gas passport mismatch`);
     const bundledHashes = row.bundledOps.map((op) => hashOp(op, row.entryPoint, chainId));
     if (!deepEq(bundledHashes, row.bundledUserOpHashes)) errors.push(`attempt ${i}: bundled hashes do not recompute`);
     if (fixture !== 'drop-op' && !row.bundledOps.some(op => deepEq(op, row.packedOp))) errors.push(`attempt ${i}: packedOp absent from bundledOps`);
@@ -681,14 +693,14 @@ try {
     // A row interrupted by a stop condition never counts, whatever its receipt said.
     const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
     const sentRows = rows.filter(r => r.row.sent);
-    const same = new Set(sentRows.map((r) => `${r.row.derivedCallDataHash}|${JSON.stringify(r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size <= 1;
+    const same = new Set(sentRows.map((r) => `${r.row.derivedCallDataHash}|${JSON.stringify(isFormal ? {maxFeePerGas:r.row.derivedGas.maxFeePerGas,maxPriorityFeePerGas:r.row.derivedGas.maxPriorityFeePerGas} : r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size <= 1;
     if (!same) errors.push('triplet callData/gas/bundler differ between arms');
     const distinct = ['paymaster', 'expectedUserOpHash'].every(f => new Set(sentRows.map(r => lc(r.row[f]))).size === sentRows.length)
       && new Set(sentRows.map(r => lc(r.row.tx?.hash))).size === sentRows.length;
     if (!distinct) errors.push('triplet paymasters/transaction hashes/userOpHashes must be distinct');
     const complete = rows.length === arms.length && rows.every(r => r.row.verdict !== 'STOPPED' && !r.row.stoppedBy);
     const ok = noFixture(fixture) && okArms && same && distinct && complete;
-    if (complete) triplets.push({ tripletIndex, matched: ok, attempts: rows.map(r => r.row.attemptIndex) });
+    if (complete || (isFormal && rows.some(r => r.row.reason === 'basefee_above_cap'))) triplets.push({ tripletIndex, ...(isFormal ? {armOrder:armOrder(tripletIndex)}:{}), matched: ok, attempts: rows.map(r => r.row.attemptIndex) });
     if (ok) {
       matched++;
       if (end.stop?.reason === 'COMPLETE' && matched === target && rows.at(-1).row.attemptIndex !== attempts.length - 1) errors.push('attempt after COMPLETE target reached');

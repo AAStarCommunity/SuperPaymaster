@@ -64,8 +64,8 @@
 - 起始、逐尝试和结束 Passport，代码地址、runtime code size/codehash、proxy/implementation 绑定、
   配置 getter、价格与 gas 配置；关联 collector、validator、依赖、合约源码、ABI、配置的版本 pin 和 SHA-256。
 
-现有 JSONL 中的 `tx`、`logs`、`userOpEvent`、`readbacks.before/after` 是选取后的记录，
-不是双端完整 raw response 档案。正式证据包必须补齐原始材料与逐操作索引。
+JSONL 中的 `tx`、`logs`、`userOpEvent`、`readbacks.before/after` 是选取后的记录。
+Slice 2 的 formal 模式另存双端完整 raw response、Passport 文件和 `index.ndjson`；格式见 [EVIDENCE-INDEX.md](EVIDENCE-INDEX.md)。
 未发送操作如实记为无 txHash/receipt，不能补造链上材料，也不能计入 150 个纳入样本。
 
 ## 5. 冻结归档并预先提交抽样材料
@@ -89,7 +89,7 @@
 5. 后续 DSR 全量重取与抽样深查的 raw response、命令、结果和差异单独追加归档，生成关联前版的
    SHA-256 manifest，保留先前冻结包。若签名，签名只证明冻结后的归档未变，不证明链上真实性。
 
-本节是待落实的正式冻结流程。仓库目前没有自动冻结、抽样或预先提交流程，不能声称已有工具执行了这些步骤。
+Slice 2 提供 `freeze.mjs <window> --sampling <DSR-file>` 的逐文件 SHA-256 冻结命令；抽样选择、登记处预先提交和 DSR 深查仍须另行完成。实现和格式见 [EVIDENCE-INDEX.md](EVIDENCE-INDEX.md)。
 
 ## 6. 由 DSR 全量重取并随机深查
 
@@ -132,20 +132,14 @@
 
 ## SP TODO before formal A6
 
-以下能力当前缺失。SP 必须补齐并核对，不能把本 SOP 中的步骤描述当作已实现功能：
+Slice 1/2 已实现 formal keystore transport、固定块 A/B raw 档案、身份 registry 输入、逐操作 index、排除校验和一次性 freeze 命令。见 [EVIDENCE-INDEX.md](EVIDENCE-INDEX.md)。离线测试不构成正式链运行或 A3a go。
 
-- **正式链采集和账户准备。** `collector.mjs` 只接受 `http://127.0.0.1:<port>` 或
-  `http://localhost:<port>`，使用 `ANVIL_KEYS` 签名，并依赖 `anvil_impersonateAccount`、
-  `anvil_setBalance` 准备账户。尚无可原样用于正式 A6 的远端独立 A/B 与真实账户准备路径。
-- **RPC 独立性证据。** 尚无不同运营方、后端与上游身份依据的记录能力。
-  `validate.mjs` 的 host/port 判断只检查归档端点形式。
-- **双端 raw response 档案。** 尚无 A/B 完整原始请求、响应归档能力。
-  `readAB` 对比和 JSONL 中的归一化字段不能替代它。
-- **完整逐操作证据包。** 需补齐原始 receipt/UOE、交易归属、固定块状态、源码/配置 pin 与
-  纳入、失败、排除清单的关联索引；不能假定现有 JSONL 已覆盖全部要求。
-- **排除记录校验。** `validate.mjs` 不读取 `exclusion`，`failingCheck` 只对 NOT_SENT 行核对；
-  排除原因缺失或与失败原因矛盾时校验仍接受。需补校验，或列入 DSR 抽检清单逐条核对。
-- **冻结和抽样流程。** 尚无文件 SHA-256 manifest 冻结、抽样 seed/名单/命令预先提交、
-  深查执行及追加归档流程。
-- **DSR 独立重取工具。** 尚无对全部 150 个纳入样本重取 receipt/UOE/交易归属并核对的工具，
-  也无固定块状态、Passport、守恒的随机深查与结果记录工具。现有 `validate.mjs` 只读离线文件。
+仍须完成：
+
+- 作者 A3a go、A4 完成依据及真实账户准备。当前任务没有使用真实密钥或公开广播。
+- 实际 RPC 运营方、后端和上游独立性的人工核实及证据登记。registry 的字段检查不证明独立性。
+- 提供并核对所有源码、依赖、ABI、配置 pins，以及真实链端到端采集验证。
+- DSR 抽样 seed、名单、准确命令的选择和登记处预先提交。freeze 仅冻结传入材料，不替 DSR 选择样本。
+- DSR 全部 receipt/UOE/交易归属独立重取、随机固定块状态深查及最终验收。
+
+窗口 index 在 run_end 后生成最终纳入判定；进程硬中断可能留下无完整 index 的 journal 和 raw 档案，这种窗口不完整、不得验收。冻结摘要只证明文件完整性，不证明链上真实性。

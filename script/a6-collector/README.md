@@ -449,3 +449,31 @@ Offline verification:
 ```sh
 pnpm exec node --test script/a6-collector/*.test.mjs
 ```
+
+### Formal slice 2 evidence contract
+
+See [EVIDENCE-INDEX.md](EVIDENCE-INDEX.md) and
+[evidence-index.schema.json](evidence-index.schema.json) for the versioned DSR interface.
+Use a fresh window directory; `--out <window>/run.jsonl` defines its root.
+Formal collection additionally requires `--rpc-registry <registry.json>` (shape in
+[rpc-identity.example.json](rpc-identity.example.json)) and `--pins <pins.json>`.
+The example is deliberately invalid until actual evidence paths and hashes are supplied.
+Pins JSON contains nonempty arrays of `{path,sha256}` for collector, validator,
+dependencies, contractSources, abi and config. Input paths resolve against the working
+directory and are recorded as absolute paths. Pin all used files, including dependency
+lockfiles and contract/ABI inventories. Identity evidence must map the public labels to
+the actual service/backend without credentials; different strings are not proof of independence.
+
+The collector archives raw A/B bodies under `raw/{A|B}/YYYYMMDD.ndjson`, saves Passports,
+and appends final attempt indexes after run_end. A crash before finalization leaves an
+incomplete package; never relabel it as complete. Failed/paused windows retain evidence.
+After the validator output and DSR sampling artifact are ready, run:
+
+```sh
+node script/a6-collector/freeze.mjs <window> --sampling <DSR-seed-list-command-file>
+```
+
+This command performs no RPC requests or signing. It refuses repeat freezes, includes
+hidden regular files, rejects symlinks and saves both manifest and manifest digest.
+DSR owns sampling selection, pre-submission and independent chain re-fetch. No formal
+run, real key use, or broadcast is implied by these offline tooling changes.

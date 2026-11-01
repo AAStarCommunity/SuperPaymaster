@@ -1,0 +1,1142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a6:evidence-index:1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "a6-evidence-index/1"
+    },
+    "windowId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tripleIndex": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "arm": {
+      "enum": [
+        "SP",
+        "VPM",
+        "TPM"
+      ]
+    },
+    "armOrder": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "SP",
+          "VPM",
+          "TPM"
+        ]
+      },
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true
+    },
+    "included": {
+      "type": "boolean"
+    },
+    "verdict": {
+      "type": "string",
+      "minLength": 1
+    },
+    "failureReason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "notSentReason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "exclusionReason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stopReason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "replaces": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/link"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "replacedBy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/link"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "chainId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "entryPoint": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sender": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nonce": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "paymaster": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "bundler": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "packedOp": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/packedOp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "bundle": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/packedOp"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "callDataHash": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "gas": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/gas"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tx": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "txHash": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{64}$"
+            },
+            "blockNumber": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "blockHash": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-fA-F]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "raw": {
+              "anyOf": [
+                {},
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "input": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^0x([0-9a-fA-F]{2})*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "handleOpsIndex": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gasLimit": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxFeePerGas": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxPriorityFeePerGas": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "txHash",
+            "blockNumber",
+            "blockHash",
+            "raw",
+            "input",
+            "handleOpsIndex",
+            "gasLimit",
+            "maxFeePerGas",
+            "maxPriorityFeePerGas"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expectedUserOpHash": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "observedUserOpHash": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "uoe": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "txHash": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{64}$"
+            },
+            "logIndex": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "address": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            },
+            "topics": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{64}$"
+              }
+            },
+            "data": {
+              "type": "string",
+              "pattern": "^0x([0-9a-fA-F]{2})*$"
+            }
+          },
+          "required": [
+            "txHash",
+            "logIndex",
+            "address",
+            "topics",
+            "data"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "endpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "A": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "B": {
+          "$ref": "#/$defs/endpoint"
+        }
+      },
+      "required": [
+        "A",
+        "B"
+      ]
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "$ref": "#/$defs/state"
+        },
+        "after": {
+          "$ref": "#/$defs/state"
+        }
+      },
+      "required": [
+        "before",
+        "after"
+      ]
+    },
+    "passports": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/passport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attempt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/passport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/passport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "start",
+        "attempt",
+        "end"
+      ]
+    },
+    "pins": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "collector": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pin"
+          },
+          "minItems": 1
+        },
+        "validator": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pin"
+          },
+          "minItems": 1
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pin"
+          },
+          "minItems": 1
+        },
+        "contractSources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pin"
+          },
+          "minItems": 1
+        },
+        "abi": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pin"
+          },
+          "minItems": 1
+        },
+        "config": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pin"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "collector",
+        "validator",
+        "dependencies",
+        "contractSources",
+        "abi",
+        "config"
+      ]
+    },
+    "rpcIdentity": {
+      "$ref": "#/$defs/pin"
+    },
+    "missing": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "windowId",
+    "tripleIndex",
+    "attempt",
+    "arm",
+    "armOrder",
+    "included",
+    "verdict",
+    "failureReason",
+    "notSentReason",
+    "exclusionReason",
+    "stopReason",
+    "replaces",
+    "replacedBy",
+    "chainId",
+    "entryPoint",
+    "sender",
+    "nonce",
+    "paymaster",
+    "bundler",
+    "packedOp",
+    "bundle",
+    "callDataHash",
+    "gas",
+    "tx",
+    "expectedUserOpHash",
+    "observedUserOpHash",
+    "uoe",
+    "endpoints",
+    "state",
+    "passports",
+    "pins",
+    "rpcIdentity",
+    "missing"
+  ],
+  "$defs": {
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "number": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$"
+        }
+      },
+      "required": [
+        "number",
+        "hash"
+      ]
+    },
+    "rawRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^raw/[AB]/[0-9]{8}\\.ndjson$"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "path",
+        "id"
+      ]
+    },
+    "pair": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "A": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rawRef"
+          }
+        },
+        "B": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rawRef"
+          }
+        }
+      },
+      "required": [
+        "A",
+        "B"
+      ]
+    },
+    "pin": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ]
+    },
+    "passport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw": {
+          "$ref": "#/$defs/pair"
+        }
+      },
+      "required": [
+        "path",
+        "raw"
+      ]
+    },
+    "stateValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value": {},
+        "anchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "raw": {
+          "$ref": "#/$defs/pair"
+        }
+      },
+      "required": [
+        "value",
+        "anchor",
+        "raw"
+      ]
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entryPointDeposit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operatorBalance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "protocolRevenue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inflightOf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "userXPNTs": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "totalSupply": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lockedOf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "debts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creditReservedOf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operatorTotalSpent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operatorTotalTxSponsored": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tpmTokenBalances": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tpmCachedPriceTimestamp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "vpmDeposit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/stateValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "entryPointDeposit",
+        "operatorBalance",
+        "protocolRevenue",
+        "inflightOf",
+        "userXPNTs",
+        "totalSupply",
+        "lockedOf",
+        "debts",
+        "creditReservedOf",
+        "operatorTotalSpent",
+        "operatorTotalTxSponsored",
+        "tpmTokenBalances",
+        "tpmCachedPriceTimestamp",
+        "vpmDeposit"
+      ]
+    },
+    "packedOp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sender": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "initCode": {
+          "type": "string",
+          "pattern": "^0x([0-9a-fA-F]{2})*$"
+        },
+        "callData": {
+          "type": "string",
+          "pattern": "^0x([0-9a-fA-F]{2})*$"
+        },
+        "accountGasLimits": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$"
+        },
+        "preVerificationGas": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "gasFees": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$"
+        },
+        "paymasterAndData": {
+          "type": "string",
+          "pattern": "^0x([0-9a-fA-F]{2})*$"
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^0x([0-9a-fA-F]{2})*$"
+        }
+      },
+      "required": [
+        "sender",
+        "nonce",
+        "initCode",
+        "callData",
+        "accountGasLimits",
+        "preVerificationGas",
+        "gasFees",
+        "paymasterAndData",
+        "signature"
+      ]
+    },
+    "gas": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "callGasLimit": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "verificationGasLimit": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "preVerificationGas": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "paymasterVerificationGasLimit": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "paymasterPostOpGasLimit": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "maxFeePerGas": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "maxPriorityFeePerGas": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        }
+      },
+      "required": [
+        "callGasLimit",
+        "verificationGasLimit",
+        "preVerificationGas",
+        "paymasterVerificationGasLimit",
+        "paymasterPostOpGasLimit",
+        "maxFeePerGas",
+        "maxPriorityFeePerGas"
+      ]
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "receipt": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rawRef"
+          }
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rawRef"
+          }
+        },
+        "transaction": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rawRef"
+          }
+        },
+        "stateReads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rawRef"
+          }
+        }
+      },
+      "required": [
+        "receipt",
+        "logs",
+        "transaction",
+        "stateReads"
+      ]
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "windowId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "windowId",
+        "attempt"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "included": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exclusionReason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "NOT_SENT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "notSentReason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tx": {
+            "type": "null"
+          },
+          "included": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "included": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chainId": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "entryPoint": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "sender": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "nonce": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "paymaster": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "bundler": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "packedOp": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "bundle": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "callDataHash": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "gas": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "tx": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "expectedUserOpHash": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "observedUserOpHash": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "uoe": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "verdict": {
+            "const": "USEROP_SUCCESS"
+          },
+          "exclusionReason": {
+            "type": "null"
+          },
+          "stopReason": {
+            "type": "null"
+          },
+          "failureReason": {
+            "type": "null"
+          },
+          "notSentReason": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

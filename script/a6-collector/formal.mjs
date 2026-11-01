@@ -1,3 +1,5 @@
+import { rawArchive } from './evidence.mjs';
+import { dirname } from 'node:path';
 // Formal-A6 slice 1. TODO(A6-SOP §2, §4, §5): identity registry, per-op
 // evidence index, exclusion validation and freeze/sampling manifest are later slices.
 import { readFileSync, openSync, writeSync, fsyncSync } from 'node:fs';
@@ -164,11 +166,9 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, creat
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
   endpointPair(a, b);
   const archives = ['A', 'B'].map((endpoint, i) => {
-    const path = `${outPath}.rpc-${endpoint}.ndjson`, fd = openSync(path, 'wx', 0o600);
-    const rpc = archivedRpc({ url: i ? b : a, endpoint, fetchImpl, append: row => {
-      writeSync(fd, `${JSON.stringify(row)}\n`); fsyncSync(fd);
-    } });
-    return { ...rpc, path, fd };
+    const archive = rawArchive(dirname(outPath), endpoint);
+    const rpc = archivedRpc({ url: i ? b : a, endpoint, fetchImpl, append: archive.append });
+    return { ...rpc, ...archive };
   });
   let pin;
   const publicClients = archives.map(rpc => createPublicClient({ transport: custom(rpc, { retryCount: 0 }) }));
