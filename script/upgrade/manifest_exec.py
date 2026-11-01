@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase A/B unsigned manifest builder and authenticated fork-only rehearsal."""
+"""Phase A/B/D unsigned manifest builder and authenticated fork-only rehearsal."""
 import sys
 sys.dont_write_bytecode = True
 import argparse
@@ -21,6 +21,7 @@ FRAUD_SIG = 'queueGuardianSlash(uint256,address[],bytes)'
 EVIDENCE_KINDS = ('conformance', 'mutation', 'slither', 'reproducible-build', 'dvt-ci', 'dvt-conformance-4.12')
 BUFFER = 10**17
 DAY = 86400
+PENDING_OWNER_SLOT = '0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d27120286f742a00'
 DVT = '0x568b1486bfe036e603ea11f0d03dc47fa62c9e0e'
 COMMITTEE = '0x7ac7e9d471742fa4397beef0b5b11fbd22d196a9'
 OLD_AGGREGATOR = '0xeaec2f512ea50708211fa95533e4dbb60e3d2e5d'
@@ -88,7 +89,7 @@ IMMUTABLES = dict(SuperPaymaster=u.SP_IMMUTABLES, SuperPaymasterAdmin=u.SP_IMMUT
 POP = 'registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))'
 CONTROLS = ['early_unpause', 'factory_binding', 'early_bls', 'early_swap', 'funded_swap',
             'old_reputation', 'registry_nonowner', 'early_verifier', 'repeat_verifier', 'verifier_placeholder',
-            'verifier_frontrun', 'verifier_wrong', 'unbacked_swap']
+            'verifier_frontrun', 'verifier_wrong', 'unbacked_swap', 'owner_handover']
 
 
 def required(obj, keys, label):
@@ -978,12 +979,167 @@ def build_plan(pin, inputs=None):
         word_pred(agg, 'pendingFraudProofVerifierReadyAt()', 0)])
     b4['variants'] = dict(apply=copy.deepcopy(b4['tx']),
         placeholder=dict(b4['tx'], to=u.DEPLOYER, value='0x0', data='0x'))
-    return dict(schema=3, route='manifest-A-B', pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs),
+    # PHASE C INSERTION POINT: funding/sampling is NOT implemented in this slice.
+    # Future Phase C steps must precede D and consume these same nonce counters.
+    call('D.registry.transfer', u.REG, 'transferOwnership(address)', (u.TL,),
+         registry_ownership(u.DEPLOYER, u.TL))
+    op = dict(batch=False, targets=[u.REG], data=[a.calldata('acceptOwnership()')],
+              predecessor=operations['activation']['id'],
+              salt=a.keccak('manifest-v3.1/'+pin['blockHash']+'/'+inputs['sha256']+'/registry_accept'))
+    op['id'] = u.operation_hash(op['targets'], op['data'], op['predecessor'], op['salt'], False)
+    operations['registry_accept'] = op
+    for verb in ('schedule', 'execute'):
+        inner = u.op_call(op, verb)
+        h = safe_hash(inner, safe_n)
+        sid = 'D.registry_'+verb
+        add(sid+'_approve', u.SAFE, a.calldata('approveHash(bytes32)', h),
+            [word_pred(u.SAFE, 'approvedHashes(address,bytes32)', 1, a.APPROVER, h)],
+            sender='approver', safeHash=h, inner=inner, operation='registry_accept')
+        checks = [word_pred(u.TL, 'getOperationState(bytes32)', 1 if verb == 'schedule' else 3, op['id'])]
+        if verb == 'schedule':
+            checks.append(dict(kind='eta', target=u.TL, signature='getTimestamp(bytes32)', args=[op['id']], delay=u.DELAY))
+        else:
+            checks += registry_ownership(u.TL, a.ZERO)
+        add(sid+'_exec', u.SAFE, safe_payload(inner), checks, sender='executor',
+            safeHash=h, inner=inner, operation='registry_accept')
+        safe_n += 1
+    for name, target, owner in handover_contracts(addresses)[1:]:
+        if name in ('aggregator', 'old_aggregator'):
+            call('D.'+name+'.admin', target, 'setSlashPolicyAdmin(address)', (u.SAFE,),
+                 [address_pred(target, 'slashPolicyAdmin()', u.SAFE)])
+        call('D.'+name+'.transfer', target, 'transferOwnership(address)', (owner,),
+             [address_pred(target, 'owner()', owner)])
+    return dict(schema='3.1', route='manifest-A-B-D', pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs),
         rebuild=arts, addresses=addresses, implementation=impl, extension=extension, operations=operations,
         steps=steps, controls=CONTROLS,
         b4Disclosure='B4 always consumes its reserved deployer nonce. If already applied, one empty, zero-value self-transfer costs gas only.',
         gasPolicy=copy.deepcopy(u.GAS_POLICY), gasParams=list(u.GAS),
         activationScheduleNotBefore=max(0, pin['pendingAPNTsTokenEta']-u.DELAY))
+
+
+def registry_ownership(owner, pending):
+    return [address_pred(u.REG, 'owner()', owner), address_pred(u.REG, 'pendingOwner()', pending),
+            dict(kind='storage', target=u.REG, slot=PENDING_OWNER_SLOT, expected=int(pending, 16))]
+
+
+def handover_contracts(addresses):
+    return [('registry', u.REG, u.TL), ('protocol', addresses['AOAProtocolRegistry'], u.TL),
+            ('factory', addresses['xPNTsFactoryV2'], u.TL),
+            ('aggregator', addresses['BLSAggregator'], u.SAFE), ('dvt', DVT, u.SAFE),
+            ('committee', COMMITTEE, u.SAFE), ('old_aggregator', OLD_AGGREGATOR, u.SAFE)]
+
+
+def handover_gate(rpc, plan, step, context):
+    sid = step['id']
+    if not sid.startswith('D.'):
+        return
+    passed = context.get('passed', set())
+    required_steps = {'activation_execute_exec', 'B4'}
+    if sid.startswith(('D.aggregator.', 'D.old_aggregator.')):
+        required_steps.update(('A10.0', 'A10.1', 'A10.2', 'A11.min', 'A11.default'))
+    if sid.startswith('D.registry_'):
+        required_steps.add('D.registry.transfer')
+        for pred in registry_ownership(u.DEPLOYER, u.TL):
+            check_predicate(rpc, pred)
+    if sid == 'D.committee.transfer':
+        required_steps.add('A8.committee')
+        # Require the transferOwnership dispatch bytes and no acceptOwnership or
+        # pendingOwner selector bytes in the pinned runtime. The post-transfer
+        # owner()==SAFE read-back remains the authoritative ownership check.
+        runtime = plan['pin']['bindings'][COMMITTEE].lower()
+        a.need('committee_transfer_selector', '63f2fde38b' in runtime, True)
+        a.need('committee_no_accept_ownership', '79ba5097' in runtime, False)
+        a.need('committee_no_pending_owner', 'e30c3978' in runtime, False)
+    if sid in ('D.aggregator.transfer', 'D.old_aggregator.transfer'):
+        required_steps.add(sid.replace('.transfer', '.admin'))
+        check_predicate(rpc, address_pred(step['tx']['to'], 'slashPolicyAdmin()', u.SAFE))
+    a.need('handover_dependencies', required_steps <= passed, True)
+
+
+def handover_trace(rpc, plan, step, receipt):
+    # The existing SP trace helper is intentionally SP-specific.
+    trace = rpc('debug_traceTransaction', [receipt['transactionHash'], {'tracer':'callTracer'}])
+    a.need('handover_trace_object', isinstance(trace, dict), True)
+    for key, expected in (('from', step['tx']['from']), ('to', u.SAFE), ('input', step['tx']['data'])):
+        a.need('handover_trace_'+key, trace.get(key, '').lower(), expected.lower())
+    a.need('handover_trace_success', bool(trace.get('error')), False)
+    nodes = list(a.trace_nodes(trace))
+    if step['id'].endswith('_exec'):
+        expected = [(u.SAFE, u.TL, step['inner'])]
+        if 'execute' in step['id']:
+            expected.append((u.TL, u.REG, a.calldata('acceptOwnership()')))
+        for sender, target, data in expected:
+            matches = [n for n in nodes if n.get('to', '').lower() == target and n.get('input') == data]
+            a.need('handover_trace_call_count', len(matches), 1)
+            a.need('handover_trace_caller', matches[0].get('from', '').lower(), sender)
+            a.need('handover_trace_call_success', bool(matches[0].get('error')), False)
+
+
+def handover_controls(rpc, plan):
+    """Exercise actual owner checks; all fixture writes/nonces are snapshot-isolated."""
+    a.need('handover_controls_local', getattr(rpc, 'local', False), True)
+    results = []
+    for name, target, owner in handover_contracts(plan['addresses']):
+        snap = rpc('evm_snapshot', [])
+        try:
+            check_predicate(rpc, address_pred(target, 'owner()', owner))
+            data = a.calldata('transferOwnership(address)', owner)
+            for sender in ((u.DEPLOYER, u.SAFE) if owner == u.TL else (u.DEPLOYER,)):
+                tx = u.fixture_tx(rpc, sender, target, data)
+                results.append(a.negative(rpc, tx, a.calldata('OwnableUnauthorizedAccount(address)', sender),
+                                          'handover_'+name+'_'+sender))
+            receipt = u.receipt(rpc, u.fixture_tx(rpc, owner, target, data))
+            a.need('handover_positive_status', a.qty(receipt['status']), 1)
+            check_predicate(rpc, address_pred(target, 'owner()', owner))
+            if name == 'registry':
+                for pred in registry_ownership(owner, owner):
+                    check_predicate(rpc, pred)
+            if name in ('aggregator', 'old_aggregator'):
+                data = a.calldata('setSlashPolicyAdmin(address)', u.SAFE)
+                results.append(a.negative(rpc, u.fixture_tx(rpc, u.DEPLOYER, target, data),
+                    a.calldata('OwnableUnauthorizedAccount(address)', u.DEPLOYER), 'handover_'+name+'_admin'))
+                receipt = u.receipt(rpc, u.fixture_tx(rpc, u.SAFE, target, data))
+                a.need('handover_admin_status', a.qty(receipt['status']), 1)
+                check_predicate(rpc, address_pred(target, 'slashPolicyAdmin()', u.SAFE))
+            results.append(dict(contract=name, positiveReceipt=receipt, snapshot=snap))
+        finally:
+            a.need('handover_control_restore', rpc('evm_revert', [snap]), True)
+    # Probe setters without retaining policy, balance or nonce changes.
+    probes = [('sp', u.SP, u.TL, 'setProtocolFee(uint256)', 'protocolFeeBPS()', (),
+               (u.DEPLOYER, u.SAFE), 'OwnableUnauthorizedAccount(address)')]
+    for name, target in (('aggregator', plan['addresses']['BLSAggregator']),
+                         ('old_aggregator', OLD_AGGREGATOR)):
+        probes += [(name, target, u.SAFE, setter, getter, args, (u.DEPLOYER,),
+                    'NotSlashPolicyAdmin(address)') for setter, getter, args in (
+                        ('setSlashThreshold(uint8,uint8)', 'slashThresholds(uint8)', (0,)),
+                        ('setGuardianSlashBps(uint16)', 'guardianSlashBps()', ()))]
+    for name, target, admin, setter, getter, args, denied, error in probes:
+        snap = rpc('evm_snapshot', [])
+        try:
+            authority = 'owner()' if name == 'sp' else 'slashPolicyAdmin()'
+            check_predicate(rpc, address_pred(target, authority, admin))
+            current = a.word(rpc, target, getter, *args)
+            data = a.calldata(setter, *args, current)
+            label = 'handover_'+name+'_'+setter.split('(')[0]
+            for sender in denied:
+                results.append(a.negative(rpc, u.fixture_tx(rpc, sender, target, data),
+                    a.calldata(error, sender), label+'_'+sender))
+            receipt = u.receipt(rpc, u.fixture_tx(rpc, admin, target, data))
+            a.need(label+'_status', a.qty(receipt['status']), 1)
+            check_predicate(rpc, word_pred(target, getter, current, *args))
+            results.append(dict(contract=name, setter=setter, currentValue=current,
+                                positiveReceipt=receipt, snapshot=snap))
+        finally:
+            a.need('handover_setter_restore', rpc('evm_revert', [snap]), True)
+        check_predicate(rpc, word_pred(target, getter, current, *args))
+    check_predicate(rpc, address_pred(u.SP, 'owner()', u.TL))
+    for name, target, owner in handover_contracts(plan['addresses']):
+        check_predicate(rpc, address_pred(target, 'owner()', owner))
+        if name in ('aggregator', 'old_aggregator'):
+            check_predicate(rpc, address_pred(target, 'slashPolicyAdmin()', u.SAFE))
+    for pred in registry_ownership(u.TL, a.ZERO):
+        check_predicate(rpc, pred)
+    return dict(control='owner_handover', assertions=results, restored=True)
 
 
 def activation_eta_gate(plan, schedule_timestamp, execute_timestamp):
@@ -1217,8 +1373,14 @@ def validate_plan(plan, inputs, frozen=False):
         a.need('manifest_budget', checked['budgetsWei'], plan['budgetsWei'])
 
 
+def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
+    # Keep the shared role/config checks, but follow the completed owner transition.
+    u.assert_frozen(rpc, dict(pin, registryOwner=u.TL if registry_handed_over else pin['registryOwner']))
+
+
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
+    handover_gate(rpc, plan, step, context)
     tx = step['tx']
     a.need('chain', a.qty(rpc('eth_chainId', [])), a.CHAIN)
     a.need('sender_nonce', a.nonce(rpc, tx['from']), a.qty(tx['nonce']))
@@ -1232,10 +1394,11 @@ def pre_send(rpc, plan, step, context, measured=False):
         a.block_data(rpc, 'latest')['number']), {k:v for k,v in plan['pin']['oldActivity'].items() if k != 'dvtProposals'})
     a.need('dvt_activity_unchanged', dvt_activity(rpc, plan['externalInputs']['data']['dvt'],
         a.block_data(rpc, 'latest')['number']), plan['pin']['oldActivity']['dvtProposals'])
-    a.need('registry_owner', a.address(rpc, u.REG, 'owner()'), u.DEPLOYER)
+    a.need('registry_owner', a.address(rpc, u.REG, 'owner()'),
+           u.TL if 'D.registry_execute_exec' in context.get('passed', set()) else u.DEPLOYER)
     a.need('SP_owner', a.address(rpc, u.SP, 'owner()'), u.TL if context.get('transferred') else u.DEPLOYER)
     if context.get('frozen'):
-        u.assert_frozen(rpc, plan['pin'])
+        assert_manifest_frozen(rpc, plan['pin'], 'D.registry_execute_exec' in context.get('passed', set()))
     else:
         a.need('role_config_unchanged', a.call(rpc, u.REG, 'getRoleConfig(bytes32)', u.role()), plan['pin']['roleConfig'])
     if not context.get('activated'):
@@ -1400,7 +1563,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     validate_plan(plan, plan['externalInputs'], frozen=not calibrate)
     for sender in plan['pin']['senders'].values():
         rpc('anvil_impersonateAccount', [sender['address']])
-    context, records, controls = {}, [], []
+    context, records, controls = {'passed': set()}, [], []
     overrides = copy.deepcopy(getattr(rpc, 'archive_overrides', {}))
     for step in plan['steps']:
         a.process_alive(rpc.engine_process)
@@ -1420,6 +1583,8 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
             records.append(record)
             u.log(out, record)
             a.trace_overrides(rpc, record['receipt'], overrides)
+            context['passed'].add(sid)
+            controls_at(rpc, plan, 'after_B4', controls)
             continue
         pre_send(rpc, plan, step, context)
         timestamp = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
@@ -1457,10 +1622,13 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         if 'safeHash' in step:
             if 'safeTarget' in step:
                 mint_trace(rpc, step, r)
+            elif step.get('operation') == 'registry_accept':
+                handover_trace(rpc, plan, step, r)
             else:
                 u.safe_trace(rpc, plan, step, r)
             if sid.endswith('_exec'):
                 u.safe_exec_events(r['logs'], step['safeHash'])
+        context['passed'].add(sid)
         step['skipped'] = False
         record = dict(step=sid, receipt=r, readbacks=observed, **evidence)
         records.append(record)
@@ -1468,10 +1636,10 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         a.trace_overrides(rpc, r, overrides)
         if sid == 'upgrade_execute_exec':
             controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
-    controls_at(rpc, plan, 'after_B4', controls)
+    controls.append(handover_controls(rpc, plan))
     a.need('controls_complete', sorted(x['control'] for x in controls), sorted(CONTROLS))
     a.need('steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
-    u.assert_frozen(rpc, plan['pin'])
+    assert_manifest_frozen(rpc, plan['pin'], True)
     accounting = balances(rpc, plan['pin']['pauseList'])
     accounting['cappedBalance'] = a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP)
     a.need('post_swap_tracked', accounting['totalTrackedBalance'], BUFFER)
@@ -1485,7 +1653,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     a.need('post_swap_solvency', solvency['allSolvent'], True)
     budget(plan)
     validate_plan(plan, plan['externalInputs'], frozen=True)
-    result = dict(status='PASS', scope='Phases A/B only', steps=records, negativeControls=controls,
+    result = dict(status='PASS', scope='Phases A/B/D; Phase C not implemented', steps=records, negativeControls=controls,
                   B2=context['B2'], postSwapAccounting=accounting, fraudProof=fraud)
     a.write_json(out/'manifest-simulate.json', result)
     return result
