@@ -46,7 +46,7 @@ def command(engine, mode, deps):
            if engine == 'amsterdam' else '~/.foundry/bin/forge')
     cmd = [os.path.expanduser(exe), 'test', '--offline', '-vv',
            '--match-path', SOURCE, '--match-contract',
-           f'^PostOpProfile{mode.title()}TrajectoryTest$', '--match-test', '^test_trajectory$']
+           f'PostOpProfile{mode.title()}TrajectoryTest', '--match-test', 'test_trajectory']
     if engine != 'cancun':
         cmd += ['--evm-version', 'prague']
     if engine == 'amsterdam':
