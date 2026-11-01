@@ -168,7 +168,7 @@ the G3 matrix.
 | old verifier `0xa134…1cd3` (retired) | no `owner()` (reverts) | — | nothing to hand over; it is bound to the old aggregator only |
 | SP proxy | (already the timelock since A17) | — | — |
 | GlobalTierSource, xPNTsTokenV2 implementation and extension, SuperPaymasterLens | no owner | — | — |
-| SP and Registry implementations | used only behind proxies; initializers disabled (**VERIFY**) | — | — |
+| SP and Registry implementations | used only behind proxies; initializers disabled. Their implementation-local storage still has `owner == D`, because the constructor runs `Ownable(msg.sender)` before `_disableInitializers` (`Registry.sol:86`, `BasePaymasterUpgradeable.sol:24`). This does not give D any control of the proxies. It is disclosed, not handed over | — | — |
 
 A10, A11 and B4 must complete before BLSAggregator leaves D. After the Registry handover, an emergency Registry rotation
 also takes 48 h. BLSAggregator and DVTValidator are Safe-only, with no timelock; the matrix records that asymmetry.
