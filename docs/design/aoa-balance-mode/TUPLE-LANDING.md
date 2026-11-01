@@ -1,6 +1,6 @@
 # Accepted gas tuple assertion landing
 
-Changes are uncommitted. Production sources and archived evidence are unchanged.
+Production sources and archived evidence are unchanged.
 
 Evidence paths below are relative to `docs/design/aoa-balance-mode/data/`.
 A = Amsterdam; C/P = stable Cancun/Prague. Old tuple = (440000,420000,5000,340000);
@@ -96,10 +96,8 @@ forge test --no-isolate --evm-version prague --hardfork amsterdam \
   --fuzz-seed 0x747beb88c8834abdd140cd1c6fba159cd533dca858baccb3a8bccd984f6539c3
 ```
 
-Local run logs: [Cancun](/tmp/tland-cancun.log), [Prague](/tmp/tland-prague.log),
-[Amsterdam](/tmp/tland-amsterdam.log), [parent](/tmp/tland-parent.log),
-[cached mainline](/tmp/tland-origin-main.log), [historical trajectories](/tmp/tland-historical.log),
-[Python](/tmp/tland-python.log).
+Full-suite run logs are not retained in the repository. The counts in the PR are from the
+author's runs, and DSR reproduced them independently in a clean clone. Re-run with the commands above.
 
-`git diff --check` passes. No production source, archived data, release evidence,
-or `script/b-layer` file was modified; no changes were committed.
+`git diff --check` passes. No production source, archived data, release evidence or
+`script/b-layer` file is modified by this change.
