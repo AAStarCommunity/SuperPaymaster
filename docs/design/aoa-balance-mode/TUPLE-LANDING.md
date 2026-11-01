@@ -52,18 +52,21 @@ peak, net and terminal field comes directly from that case. Maximum peak remains
 
 ## Verification
 
-Stable Cancun: 162 suites, 1831 passed, 0 failed, 65 skipped (1896 total).
-Stable Prague: 162 suites, 1711 passed, 0 failed, 39 skipped (1750 total).
-Amsterdam: 162 suites, 1696 passed, 7 failed, 39 skipped (1742 total).
-All 14 updated tests pass. Historical 440000 Amsterdam trajectories: 2 passed,
-0 failed, 0 skipped, with TUPLE_480=false, TUPLE_CANDIDATE=false and
-TRAJECTORY_BUDGET=440000. Python executor: 141 passed, 0 failed (Homebrew Python;
-system Python 3.9 lacks required standard-library tomllib).
+Full-suite counts on the final head are in the PR body; they are produced by the author's own runs, not copied.
 
-Archived verification: tuple-land (12 trajectories, six old controls), tuple480,
-and tuple-validation pass. `rr5-lifecycle-run.py` and its run are absent from HEAD;
-only the distinct `rr5-guard-fail-run.sh` archive exists. Lifecycle verification
-cannot be claimed.
+Archived verifiers pass on this head. Each one binds its sources to its own recorded revision, not to this tree:
+- tuple-land: 12 trajectories, six exact 440000 controls, revision `3670d57a`.
+- tuple-480 and tuple-validation: `Evidence verified`.
+- rr5-lifecycle: PASS (156, 4044). Imported helpers are now bound to the recorded revision.
+- postop-multiop-peak: the frozen fixture and source hashes are now read at its recorded revision `6e6ebaa5`.
+  This tree rewrites the fixture for 480000, which the old current-tree check could never satisfy.
+
+`script/evidence/tuple-land-measure.py` is a one-time measurement bound to `3670d57a`. It expects the four frozen
+arrays and the old default tuple for its 440000 controls, so it cannot run at this head. To re-measure, check out
+that revision.
+
+The trajectory regression test `test_trajectory` always asserts all eight checkpoints. Recording lives in a separate
+`test_trajectory_record`, which is skipped unless `TRAJECTORY_RECORD=true`.
 
 ### Amsterdam failures and baseline proof
 

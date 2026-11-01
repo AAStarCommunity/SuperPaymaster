@@ -27,6 +27,8 @@ import {ProfilePaymaster} from "../helpers/ProfilePaymaster.sol";
 /// @dev Every Forge invocation deploys in setUp; no snapshot/revertTo.
 /// Validation and settlement share the test transaction. One sponsored op per bundle.
 abstract contract PostOpProfileFixture is Test {
+    // Set only by test_trajectory_record; the regression test test_trajectory always asserts every checkpoint.
+    bool internal recordCheckpoints;
     /// @dev Revert data of the most recent direct postOp call, so a failure can be classified.
     bytes internal lastDirectRet;
 
@@ -192,7 +194,7 @@ abstract contract PostOpProfileFixture is Test {
                     }
                     uint256 low = g[0];
                     for (uint256 j; j < 8; j++) {
-                        if (vm.envOr("TRAJECTORY_RECORD", false)) {
+                        if (recordCheckpoints) {
                             console.log("checkpoint", j, g[j]);
                         } else {
                             assertEq(g[j], expected[j], "frozen gasleft checkpoint");
@@ -294,6 +296,14 @@ abstract contract PostOpProfileTrajectory is PostOpProfileFixture {
     }
 
     function test_trajectory() public {
+        assertTrue(sample(GasFixture.MIN_POST(), creditMode(), true, true));
+    }
+
+    /// @dev Measurement only (script/evidence/tuple-land-measure.py): logs the eight checkpoints at
+    ///      TRAJECTORY_BUDGET instead of comparing them. Skipped unless TRAJECTORY_RECORD=true.
+    function test_trajectory_record() public {
+        if (!vm.envOr("TRAJECTORY_RECORD", false)) vm.skip(true);
+        recordCheckpoints = true;
         assertTrue(sample(vm.envOr("TRAJECTORY_BUDGET", uint256(GasFixture.MIN_POST())), creditMode(), true, true));
     }
 }

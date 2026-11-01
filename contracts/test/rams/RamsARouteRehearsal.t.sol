@@ -775,18 +775,18 @@ contract RamsARouteRehearsalTest is Test {
         vm.prank(OWNER);
         sp.setGlobalPaused(false);
         PackedUserOperation[] memory rejected = new PackedUserOperation[](1);
-        rejected[0] = _op(OWNER, 439_999, true);
+        rejected[0] = _op(OWNER, 479_999, true);
         _mustReject(
             EP,
             abi.encodeCall(ep.handleOps, (rejected, payable(address(0xBEEF)))),
             abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"),
             "RAMS A5c: MIN-1 admitted"
         );
-        emit log("RAMS A5c: 439,999 rejected with AA34 signature error");
+        emit log("RAMS A5c: 479,999 rejected with AA34 signature error");
         _settleOne(_op(OWNER, 480_000, true));
-        emit log("RAMS A5c: 440,000 executed and settled");
-        _settleOne(_op(OWNER, 440_001, true));
-        emit log("RAMS A5c: 440,001 executed and settled");
+        emit log("RAMS A5c: 480,000 executed and settled");
+        _settleOne(_op(OWNER, 480_001, true));
+        emit log("RAMS A5c: 480,001 executed and settled");
     }
 
     function test_A3b_probeOnly_globalPause() public forkOnly {
