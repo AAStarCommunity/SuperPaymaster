@@ -1,3 +1,5 @@
+import { tpmAttemptRefreshed } from './trace-policy.mjs';
+import { feePauseErrors } from './disposition.mjs';
 import { readFileSync, writeFileSync, mkdirSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -95,18 +97,22 @@ export function writeArtifact(window, path, object) {
 
 export const EXCLUSION_REASONS = ['AA32', 'price_stale', 'not_included', 'op_failed_nongas', 'bundler_error', 'basefee_above_cap', 'tpm_postop_refresh'];
 export function exclusionReason(row) {
-  if (row.verdict === 'USEROP_SUCCESS') return null;
-  if (row.reason === 'basefee_above_cap' || row.failingCheck === 'basefee_above_cap') return 'basefee_above_cap';
+  const unsupported = () => { throw new Error('UNAPPROVED_ABANDONMENT: unsupported exclusion reason'); };
   const preflight = row.preflight?.undecoded ? '' : row.preflight?.revertReason ?? '';
-  if (/^AA32\b/.test(preflight)) return 'AA32';
-  if (/^(?:AA33 reverted: )?(?:price_stale|PriceStale|price stale)$/.test(preflight)) return 'price_stale';
-  // Solidity arithmetic overflow/division-by-zero panics prove a non-gas revert.
-  if (row.revertKind === 'executionReverted' && row.execRevert?.some(e =>
-    /^0x4e487b71[0-9a-f]{62}(11|12)$/i.test(e.revertReason))) return 'op_failed_nongas';
-  // Unknown failures are never converted into an eligible abandonment.
-  if (EXCLUSION_REASONS.includes(row.reason) && row.reason!=='not_included') return row.reason;
-  if (row.sent===true && row.verdict==='NO_EVENT' && !row.userOpEvent && Array.isArray(row.logs) && !row.logs.some(l=>l.topics?.[1]?.toLowerCase()===row.expectedUserOpHash?.toLowerCase())) return 'not_included';
-  throw new Error('UNAPPROVED_ABANDONMENT: unclassified failure');
+  let reason = null;
+  if (row.failingCheck === 'basefee_above_cap' && row.feeBlock && !feePauseErrors(row).length) reason = 'basefee_above_cap';
+  else if (/^AA32/.test(preflight)) reason = 'AA32';
+  else if (/^(?:AA33 reverted: )?(?:price_stale|PriceStale|price stale)$/.test(preflight)) reason = 'price_stale';
+  else if (row.revertKind === 'executionReverted' && row.execRevert?.some(e =>
+    /^0x4e487b71[0-9a-f]{62}(11|12)$/i.test(e.revertReason))) reason = 'op_failed_nongas';
+  else if (row.sent !== true && !row.tx && typeof row.submissionException?.message === 'string' && row.submissionException.message.length) reason = 'bundler_error';
+  else if (row.sent === true && row.tx?.hash && row.tx.blockHash == null && row.tx.blockNumber == null && row.tx.status == null && !row.userOpEvent && !row.observedUserOpEvent && Array.isArray(row.logs) && !row.logs.length) reason = 'not_included';
+  else if (row.arm === 'TPM' && row.traces && tpmAttemptRefreshed(row)) reason = 'tpm_postop_refresh';
+  if (row.reason != null && row.reason !== reason) unsupported();
+  // A successful op may still refresh TPM; the replacement edge carries that exclusion.
+  if (row.verdict === 'USEROP_SUCCESS') return null;
+  if (reason === null) unsupported();
+  return reason;
 }
 export function appendIndex(window, row) {
   const fd = openSync(resolve(window, 'index.ndjson'), 'a', 0o600);

@@ -1,3 +1,4 @@
+import { EXCLUSION_REASONS, exclusionReason } from './evidence.mjs';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
 import { validateWindow } from './evidence-validate.mjs';
 import { dirname, resolve } from 'node:path';
@@ -504,6 +505,9 @@ try {
 
   attempts.forEach((row, i) => {
     errors.push(...dispositionErrors(row).map(e => `attempt ${i}: ${e}`), ...feePauseErrors(row).map(e => `attempt ${i}: ${e}`));
+    if (EXCLUSION_REASONS.includes(row.reason)) {
+      try { exclusionReason(row); } catch (e) { errors.push(`attempt ${i}: ${e.message}`); }
+    }
     if (isFormal && !deepEq(row.armOrder,armOrder(row.tripletIndex))) errors.push(`attempt ${i}: formal armOrder mismatch`);
     if (row.sent === false && (need(row, 'tx') !== null || !Array.isArray(need(row, 'logs')) || row.logs.length !== 0
         || 'readbacks' in row || !['deposit_floor', 'preflight_revert', 'basefee_above_cap'].includes(row.failingCheck))) {
@@ -649,9 +653,13 @@ try {
       }
       if (isFormal ? big(need(before, 'blockNumber')) < big(previousBlock.blockNumber) : big(need(before, 'blockNumber')) !== big(previousBlock.blockNumber) || lc(need(before, 'blockHash')) !== lc(previousBlock.blockHash)) errors.push(`attempt ${i}: consecutive block continuity failed`);
       const previous = stateByArm.get(row.arm);
+      if (report.rehearsal && row.arm === 'TPM' && row.rehearsalControl?.kind === 'tpmCacheAged' && (row.rehearsalControl.cachedPriceTimestamp?.to == null || big(need(before, 'tpmCachedPriceTimestamp')) !== big(row.rehearsalControl.cachedPriceTimestamp.to))) errors.push(`attempt ${i}: rehearsal cache timestamp mismatch`);
       // Other arms use separate deposits/tokens and cannot change these fields. lockXLocked
       // and inflight state are keyed by opHash: a new op starts empty, rather than inheriting the prior reservation.
-      if (previous) for (const f of ['epDeposit', ...(row.arm === 'SP' ? SP_FIELDS.filter(f => !['lockXLocked', 'inflightA0', 'inflightOperator'].includes(f)) : [])]) {
+      if (previous) for (const f of ['epDeposit', ...(row.arm === 'SP' ? SP_FIELDS.filter(f => !['lockXLocked', 'inflightA0', 'inflightOperator'].includes(f)) : row.arm === 'TPM' ? ['tpmCachedPriceTimestamp', 'tpmTokenBalances'].filter(f => isFormal || f in before || f in previous) : [])]) {
+        if (f === 'tpmCachedPriceTimestamp' && report.rehearsal && row.rehearsalControl?.kind === 'tpmCacheAged') {
+          continue;
+        }
         if (!deepEq(need(before, f), need(previous, f))) errors.push(`attempt ${i}: balance continuity failed: ${f}`);
       }
       // Shared SP balance follows chronological attempts, not the previous baseline arm.

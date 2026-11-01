@@ -157,6 +157,10 @@ export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets 
   async function perform({ method, params = [] }) {
     if (!(rehearsal && ['anvil_setStorageAt','evm_mine'].includes(method))) guardRequest(method, params);
     let anchor = null;
+    if (rehearsal && ['anvil_setStorageAt','evm_mine'].includes(method)) {
+      const block = await request({method:'eth_getBlockByNumber',params:['latest',false]});
+      anchor = {number:block.number,hash:block.hash};
+    }
     const tag = method in STATE_TAG ? params[STATE_TAG[method]] : method === 'eth_getBlockByNumber' ? params[0] : null;
     if (tag && /^0x[0-9a-f]+$/i.test(tag) && method !== 'eth_getBlockByNumber') {
       const b = await request({ method: 'eth_getBlockByNumber', params: [tag, false] });

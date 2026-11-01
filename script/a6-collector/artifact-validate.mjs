@@ -25,6 +25,18 @@ export function inclusionSeriesError(observations, tx) {
 
 const canonical=v=>Array.isArray(v)?v.map(canonical):v && typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):typeof v==='string' && v.startsWith('0x')?v.toLowerCase():typeof v==='bigint'?String(v):v;
 const eq=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
+const READ_ONLY_METHODS = new Set(['eth_chainId','eth_blockNumber','eth_getBlockByNumber','eth_getBlockByHash','eth_getTransactionByHash','eth_getTransactionReceipt','eth_getTransactionCount','eth_getBalance','eth_getCode','eth_getStorageAt','eth_getProof','eth_call','eth_estimateGas','eth_getLogs','eth_gasPrice','eth_maxPriorityFeePerGas','eth_feeHistory','debug_traceTransaction','web3_clientVersion','net_version']);
+function archivedMethodAllowed(raw,journal,trailer) {
+  if (READ_ONLY_METHODS.has(raw.method) || raw.method==='eth_sendRawTransaction') return true;
+  if (journal?.[0]?.rehearsal!==true || trailer.rehearsal!==true || !['anvil_setStorageAt','evm_mine'].includes(raw.method)) return false;
+  // Control requests must be inside this endpoint's attempt archive interval and the
+  // inclusive block interval [control.atBlock, readbacks.before.blockNumber].
+  return journal.some(a=>{
+    const c=a.rehearsalControl, endpoint=raw.endpoint==='A'?0:1;
+    if (a.kind!=='attempt' || a.arm!=='TPM' || c?.kind!=='tpmCacheAged' || !raw.blockAnchor || !(raw.id>a.evidenceStart?.[endpoint] && raw.id<=a.evidenceEnd?.[endpoint])) return false;
+    return BigInt(raw.blockAnchor.number)>=BigInt(c.atBlock) && BigInt(raw.blockAnchor.number)<=BigInt(a.readbacks.before[raw.endpoint].blockNumber);
+  });
+}
 const lower=x=>String(x).toLowerCase();
 export const bundleAbi=parseAbi(['function handleOps((address sender,uint256 nonce,bytes initCode,bytes callData,bytes32 accountGasLimits,uint256 preVerificationGas,bytes32 gasFees,bytes paymasterAndData,bytes signature)[] ops,address beneficiary)']);
 export function transactionErrors(row, config) {
@@ -62,6 +74,8 @@ export function artifactErrors(window,rows,trailer,journal) {
       const records=file(ref.path).toString().trim().split('\n').filter(Boolean).map(JSON.parse);
       cache.set(ref.path,records);
       for (const r of records) {
+        if (!archivedMethodAllowed(r,journal,trailer)) throw new Error(`archived RPC method forbidden or outside rehearsal control range: ${r.method}`);
+        if (r.method==='debug_traceTransaction' && !['callTracer','prestateTracer'].some(tracer=>eq(r.params[1],{tracer,tracerConfig:tracer==='callTracer'?{withLog:true}:{diffMode:true}}))) throw new Error('TPM raw trace missing or inconsistent: exact tracer config required');
         if (r.credentialFlag) throw new Error('credential flagged archive');
         if (r.request!==r.requestBase64 || r.response!==r.responseBase64) throw new Error('archive byte aliases disagree');
         const request=JSON.parse(Buffer.from(r.request,'base64').toString());
@@ -172,7 +186,7 @@ export function artifactErrors(window,rows,trailer,journal) {
     const inv=start.passport?.invariant;
     if (!eq(a.stateTargets,{superPaymaster:inv?.code.superPaymasterProxy.address,token:inv?.xPNTs.address,tpmToken:inv?.code.tokenPaymasterToken.address,operator:start.frozenConfig.operator})) throw new Error('state targets/config mismatch');
     const expected=evidenceIndex(a,{windowId:r.windowId,archives:archives.map((arc,i)=>({records:arc.records.filter(x=>x.id<=a.evidenceEnd?.[i])})),pins:r.pins,rpcIdentity:r.rpcIdentity,passports:r.passports,stopReason:a.stoppedBy?.reason??null,replaces:r.replaces});
-    for (const k of ['packedOp','bundle','tx','uoe','state','endpoints','gas','expectedUserOpHash','observedUserOpHash','trace']) if (!eq(r[k],expected[k])) throw new Error(`index/journal ${k} mismatch`);
+    for (const k of ['exclusionReason','packedOp','bundle','tx','uoe','state','endpoints','gas','expectedUserOpHash','observedUserOpHash','trace']) if (!eq(r[k],expected[k])) throw new Error(`index/journal ${k} mismatch`);
     errors.push(...transactionErrors(a,start.frozenConfig).map(e=>`attempt ${i}: ${e}`));
     for (const endpoint of ['A','B']) {
       for (const kind of ['receipt','logs','transaction','stateReads']) {

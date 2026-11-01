@@ -1,7 +1,7 @@
 import { artifactErrors } from './artifact-validate.mjs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { EXCLUSION_REASONS, armCounts } from './evidence.mjs';
+import { EXCLUSION_REASONS, armCounts, exclusionReason } from './evidence.mjs';
 const equal = (a,b) => JSON.stringify(a) === JSON.stringify(b);
 const schema = JSON.parse(readFileSync(new URL('./evidence-index.schema.json', import.meta.url)));
 function conforms(v,s) {
@@ -96,7 +96,14 @@ export function windowErrors(rows, trailer, journal = null) {
     if (attempts.length !== rows.length) fail('index does not retain every journal attempt');
     for (let i=0;i<attempts.length;i++) {
       const a=attempts[i], r=rows[i];
+      try { if (exclusionReason(a)!==r?.exclusionReason) fail('unsupported exclusion reason: index/journal mismatch'); } catch(e) { fail(e.message); }
       if (!r || a.attemptIndex !== r.attempt || a.tripletIndex !== r.tripleIndex || a.arm !== r.arm || a.verdict !== r.verdict || (a.stoppedBy?.reason ?? null) !== r.stopReason) fail('index/journal attempt mismatch');
+    }
+    for (const edge of trailer.replacements) {
+      const abandoned=attempts.filter(a=>a.tripletIndex===edge.abandoned.tripleIndex);
+      try {
+        if (!abandoned.some(a=>{ try { return exclusionReason({...a,verdict:a.verdict==='USEROP_SUCCESS'?'EXCLUDED':a.verdict})===edge.reason; } catch { return false; } })) fail('unsupported replacement exclusion reason');
+      } catch(e) { fail(`unsupported replacement exclusion reason: ${e.message}`); }
     }
     if (end.kind !== 'run_end' || end.stop?.reason !== trailer.stopReason || (end.stop?.code !== 0) !== trailer.void) fail('trailer/journal stop mismatch');
     for (const t of trailer.triples) if (t.included !== (end.stop?.code === 0 && end.triplets?.some(x=>x.tripletIndex === t.tripleIndex && x.matched))) fail('trailer/journal matching mismatch');

@@ -1,3 +1,4 @@
+import { toFunctionSelector } from 'viem';
 import test, { after } from 'node:test';
 import { repairFixture } from './repair-fixture.mjs';
 import assert from 'node:assert/strict';
@@ -47,7 +48,7 @@ test('raw archive exact bytes, UTC rollover and independent monotonically increa
   }
 }));
 test('index records unsent absence, all state fields and rejects malformed structural identities',()=>{
-  const row={attemptIndex:0,tripletIndex:0,arm:'SP',verdict:'NOT_SENT',failingCheck:'basefee_above_cap',chainId:1};
+  const row={attemptIndex:0,tripletIndex:0,arm:'SP',verdict:'NOT_SENT',...feePause({number:'1',hash:H,baseFeePerGas:'2'},'1'),gas:{maxFeePerGas:'1',maxPriorityFeePerGas:'1',callGasLimit:'1',verificationGasLimit:'1',preVerificationGas:'1'},pmGas:{ver:'1',post:'1'},chainId:1};
   const x=evidenceIndex(row,{windowId:'w',archives:[{records:[]},{records:[]}],pins,rpcIdentity:{path:'rpc-identity.json',sha256:'b'.repeat(64)},passports:{},included:false,stopReason:'BASEFEE_PAUSED'});
   assert.ok(conforms(x,schema)); assert.equal(x.tx,null); assert.equal(x.notSentReason,'basefee_above_cap');
   assert.equal(Object.keys(x.state.before).length,14); assert.ok(x.missing['/tx']);
@@ -223,11 +224,11 @@ test('closed enum reasons have concrete producers; gas-dependent and undecoded f
   const samples=[
     [{preflight:{revertReason:'AA32 paymaster expired or not due'}},'AA32'],
     [{preflight:{revertReason:'AA33 reverted: price stale'}},'price_stale'],
-    [{sent:true,verdict:'NO_EVENT',logs:[],expectedUserOpHash:H},'not_included'],
+    [{sent:true,tx:{hash:H},verdict:'NO_EVENT',logs:[],expectedUserOpHash:H},'not_included'],
     [{revertKind:'executionReverted',execRevert:[{revertReason:'0x4e487b71'+'0'.repeat(62)+'11'}]},'op_failed_nongas'],
-    [{reason:'bundler_error'},'bundler_error'],
-    [{reason:'tpm_postop_refresh'},'tpm_postop_refresh'],
-    [{reason:'basefee_above_cap'},'basefee_above_cap'],
+    [{reason:'bundler_error',submissionException:{message:'submission threw'}},'bundler_error'],
+    [{reason:'tpm_postop_refresh',arm:'TPM',paymaster:'0x'+'12'.repeat(20),entryPoint:'0x'+'34'.repeat(20),postOpRefreshed:true,traces:[0,1].map(()=>({call:{type:'CALL',to:'0x'+'34'.repeat(20),calls:[{to:'0x'+'12'.repeat(20),input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)')}]},state:{pre:{['0x'+'34'.repeat(20)]:{balance:'0x1'}},post:{['0x'+'34'.repeat(20)]:{balance:'0x2'},['0x'+'12'.repeat(20)]:{storage:{'0x4':'0x1'}}}}}))},'tpm_postop_refresh'],
+    [{reason:'basefee_above_cap',failingCheck:'basefee_above_cap',sent:false,verdict:'NOT_SENT',feeBlock:{hash:H,number:'1'},baseFeePerGas:'2',gas:{maxFeePerGas:'1'}},'basefee_above_cap'],
   ];
   assert.deepEqual(samples.map(([r])=>exclusionReason(r)).sort(),[...EXCLUSION_REASONS].sort());
   for(const [r,reason] of samples) assert.equal(exclusionReason(r),reason);
@@ -251,7 +252,7 @@ test('inclusion series: pre-inclusion polls only before inclusion; included poll
 
 test('L1 unclassified failure throws instead of inventing not_included',()=>{
   for(const row of [{verdict:'NOT_SENT'},{verdict:'USEROP_REVERTED',sent:true},{verdict:'TX_FAILED',sent:true},{verdict:'NOT_SENT',reason:'not_included'}]) assert.throws(()=>exclusionReason(row),/UNAPPROVED_ABANDONMENT/);
-  assert.equal(exclusionReason({sent:true,verdict:'NO_EVENT',logs:[],expectedUserOpHash:H}),'not_included');
+  assert.equal(exclusionReason({sent:true,tx:{hash:H},verdict:'NO_EVENT',logs:[],expectedUserOpHash:H}),'not_included');
   assert.throws(()=>exclusionReason({sent:true,verdict:'NO_EVENT',logs:[{topics:[H,H]}],expectedUserOpHash:H}),/UNAPPROVED_ABANDONMENT/);
 });
 test('validator rejects a declared rehearsal state control in a non-rehearsal run',()=>temp(d=>{

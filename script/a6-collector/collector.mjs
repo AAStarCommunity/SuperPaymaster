@@ -626,7 +626,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     args: [bundled, bundler.account.address], chain: null });
   } catch (e) {
     if (formal && e.message === 'basefee_above_cap') return finish(e.pause);
-    if (formal) row.reason = 'bundler_error';
+    if (formal) { row.reason = 'bundler_error'; row.submissionException = { message: 'handleOps submission threw' }; }
     throw e;
   }
   if (formal) { row.sent = true; row.tx = { hash: txHash }; }
@@ -797,7 +797,7 @@ try {
     const finalHeight = BigInt(lastAttemptBlock?.blockNumber ?? passportStart.block.number);
     // A local anvil (automine) produces no block after the last tx; mine one explicitly. Only under
     // the local override on chain 31337, which already disqualifies conformance; real chains wait.
-    if (allowSameEndpointLocal && Number(passportStart.chainId) === 31337) await pubA.request({ method: 'evm_mine', params: [] });
+    if (!formal && allowSameEndpointLocal && Number(passportStart.chainId) === 31337) await pubA.request({ method: 'evm_mine', params: [] });
     while (await pubA.getBlockNumber({ cacheTime: 0 }) <= finalHeight) {
       if (Date.now() >= deadline) throw new Stop('END_BLOCK_NOT_ADVANCED', 21, { finalHeight });
       await new Promise(resolve => setTimeout(resolve, 1000));

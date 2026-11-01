@@ -104,7 +104,7 @@ test('included TPM requires archived dual traces and cannot hide refresh classif
   const f=repairFixture(d,3),trailer={finalBlockCheck:f.finalBlockCheck,endPassport:f.passport,triples:[{tripleIndex:0,included:true,attempts:[0,1,2]}]};
   const check=()=>artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]);
   assert.deepEqual(check(),[]);
-  f.attempts[2].postOpRefreshed=true;assert.match(check().join(';'),/trace mismatch|included TPM/);
+  f.attempts[2].postOpRefreshed=true;assert.match(check().join(';'),/trace mismatch|TPM trace disagreement|included TPM/);
 }));
 
 test('strict send gate requires both archived later heads after prior receipt',()=>temp(d=>{
