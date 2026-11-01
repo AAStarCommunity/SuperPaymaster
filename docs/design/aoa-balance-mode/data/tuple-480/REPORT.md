@@ -16,7 +16,16 @@ controls, not substitutes for that engine.
 ## R1: admission margin
 
 The rule is **MIN_POST − maximum admission boundary ≥ 10000**, independently
-for each engine. The boundary is entry-check acceptance, not settlement completion.
+for each engine. Here "accepted" means "returned something other than the exact
+PostOpGasTooLow() payload". It includes successful returns, unrelated reverts and
+empty out-of-gas returns; the classification alone does not prove guard crossing.
+
+Each engine's R1 maximum comes from the 384-byte snapshot paths. Their boundary
+samples complete settlement: the standalone verifier checks completion for every
+sample defining the engine's maximum, in addition to reconstructing adjacent
+boundaries from raw logs and enforcing the 10000-gas margin across eight paths.
+The legacy 352-byte Amsterdam boundaries are non-guard returns without independent
+proof of guard crossing. They are far below the maximum and do not affect R1.
 
 | Engine | Mode | State | Context bytes | Boundary | 480000 − boundary | Completes at boundary |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -51,8 +60,9 @@ for each engine. The boundary is entry-check acceptance, not settlement completi
 | cancun | 461990 | 18010 | PASS |
 | prague | 461990 | 18010 | PASS |
 
-Every boundary has a retained sample at boundary − 1 with the exact
-`PostOpGasTooLow()` revert data. For the candidate, Amsterdam is the limiting
+Every boundary has a retained sample at boundary − 1 classified by the harness
+as the exact `PostOpGasTooLow()` payload. The scan logs retain classification
+flags, not the revert bytes themselves. For the candidate, Amsterdam is the limiting
 engine: the margin is 10695, only **695 above the new rule**. The previous
 470000 minimum has only 695 gas over this same boundary and fails R1.
 
@@ -129,8 +139,23 @@ reimbursement negative control still fails; the candidate reports zero subsidy.
 EntryPoint v0.7 uses `floor(max(0, callGasLimit + postOpGasLimit −
 executionGasUsed) / 10)`, without a 40000-gas waiver. `executionGasUsed` includes
 user execution, postOp and EP overhead since `preOpGas`. The candidate penalty
-operands are extracted directly at the pinned runtime DIV (PC 7838), for all 80
-operations. For the paired 440000/470000/480000 traces, P, preOpGas and whole-proxy
+operands were extracted at the pinned runtime DIV (PC 7838) for all 80
+operations, but the runner discarded the original debug arenas. The retained
+steps contain proxy trajectories, not EntryPoint DIV stacks. Consequently,
+verification checks arithmetic for all 80 records and pins the original
+`penalties.json` SHA256
+`c31eb4f72d25431ab9221e3a34f22d740d52f1ce8d500f190d41217031e22f64`
+to reject edits even after resealing. This pin establishes archival integrity,
+not independent execution proof of those operands.
+
+Only ten operands (the two same-user N=5 single-mode cases) are corroborated
+against the retained `worst-net-480000-{0,1}.log` replays. For each operation,
+the verifier joins innerHandleOp and UserOperationEvent by operation hash and
+checks `unused = max(0, callGasLimit + postOpGasLimit -
+(actualGasUsed - penalty - preOpGas))`. These are separate retained replays of
+those cases, not the discarded DIV stacks. The other 70 operands have arithmetic
+and archive-integrity checks only; independent execution verification of all 80
+is not established. For the paired 440000/470000/480000 traces, P, preOpGas and whole-proxy
 net cost are identical within each mode. Final EP cost rises by exactly 1000 or
 4000 gas, establishing the penalty increments below; the baseline penalties are
 reconstructed from these differences and the candidate DIV operands.
@@ -228,7 +253,7 @@ above the measured Amsterdam requirement `469305 + 10000 = 479305`. The
 SETTLE/C_POSTOP sizing remains the prior 15% whole-frame policy.
 
 This is not an unconditional all-properties sign-off: frozen expectations and
-the retained RR-5 failures remain, legacy entry acceptance is not completion,
+the retained RR-5 failures remain, legacy non-guard returns do not prove guard crossing,
 and finite tests do not establish a universal worst case. Sepolia deployment
 assessment must use **Amsterdam nightly 4e8874b**, not the passing stable baseline.
 
@@ -237,6 +262,15 @@ assessment must use **Amsterdam nightly 4e8874b**, not the passing stable baseli
 Engines are Forge 1.8.7-nightly (`4e8874b`) with
 `--no-isolate --evm-version prague --hardfork amsterdam`, and stable Forge
 1.7.1 (`4072e487`) at default Cancun and explicit `--evm-version prague`.
+The verifier checks all three complete version files byte-for-byte, including
+nightly commit `4e8874b2bdc840929585ca73e170993c50a4a531` and stable commit
+`4072e48705af9d93e3c0f6e29e93b5e9a40caed8`; Cancun and Prague files must be
+identical. The complete manifest covers these files. Every command must use the
+recorded nightly or stable executable path and the matching engine flags,
+including no EVM-version override for Cancun. These are checks of retained
+identity records, not a new attestation of the historical executable bytes.
+Every logged sample budget is checked against its command environment (or the
+pinned harness default of 600000 for full-suite probes).
 The runner fixes fuzz seed `0x5eed`, uses fresh failure-persistence directories,
 and clears ambient experiment overrides. The same seed campaign does not imply
 identical operation hashes or branches after changing the selected minimum.
@@ -253,8 +287,9 @@ this exercises the accepted reader format, not a live upgrade transaction.
 A sample is a guard rejection only when its entire revert data equals
 `abi.encodeWithSelector(PostOpGasTooLow.selector)`. The bisection starts with
 100000 (guard rejection) and 800000 (acceptance) and ends with adjacent integers.
-Acceptance and completion are separate measurements: a call can pass the entry
-check and fail later, particularly with the legacy fixed 160000 guard.
+Acceptance and completion are separate measurements. A non-completing accepted
+sample does not establish whether the call crossed the guard or failed before
+reaching it, particularly for the Amsterdam legacy boundaries.
 
 R1 uses the maximum measured boundary across all eight paths at SETTLE=450000
 for each engine, then computes 480000 minus that boundary. It does not substitute
@@ -271,6 +306,13 @@ The mechanism is not established. This run does not repeat that investigation an
 the tuple fixes those retained tests. An unexpected postOp failure in live sampling is not covered by it.
 
 ## Reproduction
+
+Review repairs used only the existing run: standalone verification, evidence
+tests, and reduction to a temporary file. No measurement was rerun; measurement
+code remains as recorded at `run/head.txt`, and `run/` is unchanged.
+The following runner command is for a new measurement, not needed for offline
+verification of this archive.
+
 
 ```sh
 PROFILE_DEPS_ROOT=/Users/jason/Dev/aastar/SuperPaymaster \
@@ -292,8 +334,7 @@ DeploymentGasFixtures.sol is edited, and nothing is committed or deployed.
 
 Universal reimbursement or completion across arbitrary states, implementations,
 prices, operation values, context producers, bundles larger than five, or future
-engines is not proved by this finite matrix and fuzz campaign. Legacy entry-check
-acceptance alone is not a completion guarantee. Administrative tuple validity is
+engines is not proved by this finite matrix and fuzz campaign. Legacy non-guard returns alone prove neither guard crossing nor completion. Administrative tuple validity is
 not a proof of sufficient admission margin. Prefund and penalty percentages are
 relative to the explicitly reported operation budgets, not universal percentage
 increases for all user operations. No live Sepolia transaction is submitted.
@@ -304,7 +345,9 @@ increases for all user operations. No live Sepolia transaction is submitted.
 | --- | --- |
 | Runner and embedded fail-closed verifier | 0 |
 | Standalone verifier | 0 |
-| Independent Python evidence tests | 0 (5 tests) |
+| Independent Python evidence tests | 0 (11 tests) |
+| Reducer and byte comparison with measurements.json | 0; byte-identical |
+| Resealed engine flags, versions, R1=9999, sample budget, penalty and completion controls | 1 each (required rejection) |
 | Resealed missing-command control | 1 (required rejection) |
 | Nonempty-output control | 1 (required rejection) |
 | Source/default-fixture scope and git whitespace | 0 |

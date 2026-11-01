@@ -101,9 +101,102 @@ def statuses(log):
 def seal(out):
     (out/'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in sorted(out.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
 
+def scan_sample(log, budget):
+    def field(label):
+        values = re.findall(r'^\s*' + re.escape(label) + r': (\d+)\s*$', log, re.M)
+        assert len(values) == 1, 'missing or duplicate ' + label
+        return int(values[0])
+    raw_budget = field('sample gas')
+    assert raw_budget == budget, 'sample gas contradicts command budget'
+    accepted, complete = field('admission accepted'), field('settlement completed')
+    assert accepted in (0, 1) and complete in (0, 1)
+    assert not complete or accepted, 'completion contradicts rejection'
+    return raw_budget, accepted, complete
+
+
+def verify_engines(out):
+    stable = ('forge Version: 1.7.1\n'
+              'Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8\n'
+              'Build Timestamp: 2026-05-08T07:54:31.470926000Z (1778226871)\n'
+              'Build Profile: dist\n')
+    nightly = ('forge Version: 1.8.7-nightly\n'
+               'Commit SHA: 4e8874b2bdc840929585ca73e170993c50a4a531\n'
+               'Build Timestamp: 2026-10-23T06:12:21.643861000Z (1792735941)\n'
+               'Build Profile: dist\n')
+    for engine in ENGINES:
+        assert (out/f'{engine}-version.txt').read_bytes() == (
+            nightly if engine == 'amsterdam' else stable).encode(), 'wrong engine version'
+
+
+def verify_engine_command(row):
+    engine, argv = row['engine'], row['argv']
+    executable = ('/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/forge'
+                  if engine == 'amsterdam' else '/Users/jason/.foundry/bin/forge')
+    assert argv[0] == executable, 'wrong engine executable'
+    for flag, expected in (
+        ('--evm-version', [] if engine == 'cancun' else ['prague']),
+        ('--hardfork', ['amsterdam'] if engine == 'amsterdam' else []),
+    ):
+        values = []
+        for i, arg in enumerate(argv):
+            if arg == flag:
+                assert i + 1 < len(argv), 'missing engine flag value'
+                values.append(argv[i + 1])
+            elif arg.startswith(flag + '='):
+                values.append(arg.split('=', 1)[1])
+        assert values == expected, 'wrong engine flags: ' + flag
+
+
+def verify_boundaries(groups):
+    assert len(groups) == 96, 'missing scan paths'
+    boundaries = {}
+    for key, samples in groups.items():
+        low = max(b for b, a, c in samples if not a)
+        high = min(b for b, a, c in samples if a)
+        assert high == low + 1, 'non-adjacent boundary'
+        boundaries[key] = (high, all(c for b, a, c in samples if b == high))
+    for engine in ENGINES:
+        paths = {k: v for k, v in boundaries.items() if k[0] == engine and k[1] == 450000}
+        assert len(paths) == 8, 'missing R1 paths'
+        maximum = max(b for b, c in paths.values())
+        assert 480000 - maximum >= 10000, 'R1 margin below 10000'
+        assert all(c for b, c in paths.values() if b == maximum), 'R1 maximum did not complete'
+
+
+def verify_penalty_evidence(out, penalties):
+    # Original extraction is pinned because the debug arenas (including DIV stacks)
+    # were discarded. This is archival integrity, not independent execution proof.
+    assert hashlib.sha256((out/'penalties.json').read_bytes()).hexdigest() == (
+        'c31eb4f72d25431ab9221e3a34f22d740d52f1ce8d500f190d41217031e22f64'
+    ), 'penalty extraction differs from pinned archive'
+    # Retained verbose replays corroborate the ten N=5 single-mode operands.
+    for pattern in (0, 1):
+        log = (out/f'worst-net-480000-{pattern}.log').read_text()
+        operations = re.findall(
+            r'::innerHandleOp\(.*?callGasLimit: (\d+).*?paymasterPostOpGasLimit: (\d+)'
+            r'.*?userOpHash: (0x[0-9a-f]+).*?preOpGas: (\d+)', log)
+        events = re.findall(
+            r'emit UserOperationEvent\(userOpHash: (0x[0-9a-f]+).*?actualGasUsed: (\d+)', log)
+        assert len(operations) == len(events) == 5, 'missing penalty execution evidence'
+        for (call, post, op_hash, pre), (event_hash, gas), p in zip(
+                operations, events, penalties[f'multi-5-{pattern}-0']):
+            assert op_hash == event_hash, 'penalty operation mismatch'
+            execution = int(gas) - p['penalty'] - int(pre)
+            assert p['unused'] == max(0, int(call) + int(post) - execution), 'penalty contradicts execution gas'
+
+
 def verify(out):
+    verify_engines(out)
     rows=[json.loads(x) for x in (out/'commands.jsonl').read_text().splitlines()]
-    wanted=inventory()
+    # inventory() is measurement code: redirect its input only during verification.
+    global EVIDENCE
+    previous = globals().get('EVIDENCE')
+    EVIDENCE = out
+    try:
+        wanted = inventory()
+    finally:
+        EVIDENCE = previous
+    groups = {}
     assert wanted[-1]['id'].startswith('scan-prague-500000-1-1-1-'), 'incomplete scans'
     assert (out/(wanted[-1]['id']+'.log')).exists(), 'missing last sample'
     assert len(rows)==len(wanted), 'missing command inventory'
@@ -112,6 +205,7 @@ def verify(out):
         assert all(row[k]==v for k,v in spec.items()), 'wrong inventory/order'
         args,env=selectors(spec)
         assert row['env']==env, 'wrong environment selectors'
+        verify_engine_command(row)
         argv=row['argv']
         assert argv[1:]==row['base_args']+args+row.get('debug_args',[])
         base=row['base_args']
@@ -120,6 +214,13 @@ def verify(out):
         assert '--no-isolate' in base if spec['engine']=='amsterdam' else '--no-isolate' not in base
         if spec['engine']=='amsterdam': assert base[base.index('--hardfork')+1]=='amsterdam'
         log=(out/(row['id']+'.log')).read_text()
+        if spec['kind'] == 'scan':
+            key = tuple(spec[k] for k in ('engine', 'settle', 'credit', 'legacy', 'nonfresh'))
+            groups.setdefault(key, []).append(scan_sample(log, row['budget']))
+        else:
+            # Full suites also log their default admission probe.
+            for budget in re.findall(r'^\s*sample gas: (\d+)\s*$', log, re.M):
+                assert int(budget) == int(row['env'].get('T480_BUDGET', 600000)), 'sample gas contradicts command budget'
         st=statuses(log)
         assert st, 'missing completed tests'
         summary=re.search(r': (\d+) tests? passed, (\d+) failed, (\d+) skipped',log)
@@ -132,6 +233,7 @@ def verify(out):
             assert row['exit']==(0 if spec['candidate'] else 1), 'reimbursement control'
             if not spec['candidate']: assert 'DSR no-subsidy' in log and 'tuple net charge:' in log
         else: assert len(st)==1 and row['exit']==0, 'measurement failed'
+    verify_boundaries(groups)
     numbers=json.loads((out/'numbers.json').read_text())
     required={r['id']:r for r in wanted if r['kind']=='multi'}
     assert set(numbers)==set(required)
@@ -155,6 +257,7 @@ def verify(out):
         for p in ps:
             assert p['pc']==7838 and p['denominator']==100
             assert p['numerator']==p['unused']*10 and p['penalty']==p['numerator']//100
+    verify_penalty_evidence(out, penalties)
     assert sum(len(fs) for fs in numbers.values())==80
     assert max(f['peak'] for fs in numbers.values() for f in fs)*115 <= 450000*100
     assert max(f['net'] for fs in numbers.values() for f in fs)*115 <= 450000*100

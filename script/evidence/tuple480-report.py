@@ -1,4 +1,5 @@
 """Reduce retained tuple480 logs, without substituting expected measurements."""
+import importlib.util
 import json
 import re
 import sys
@@ -6,6 +7,9 @@ import math
 from pathlib import Path
 from fractions import Fraction
 
+spec = importlib.util.spec_from_file_location('tuple480_verifier', Path(__file__).with_name('tuple480-run.py'))
+verifier = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(verifier)
 out = Path(sys.argv[1])
 rows = [json.loads(x) for x in (out/'commands.jsonl').read_text().splitlines()]
 groups = {}
@@ -13,10 +17,8 @@ for row in rows:
     if row['kind'] != 'scan': continue
     key = tuple(row[k] for k in ('engine','settle','credit','legacy','nonfresh'))
     log = (out/(row['id']+'.log')).read_text()
-    accepted = int(re.search(r'admission accepted: (\d)',log)[1])
-    complete = int(re.search(r'settlement completed: (\d)',log)[1])
-    groups.setdefault(key,[]).append((row['budget'],accepted,complete))
-assert len(groups)==96
+    groups.setdefault(key,[]).append(verifier.scan_sample(log, row['budget']))
+verifier.verify_boundaries(groups)
 boundaries=[]
 for key,samples in groups.items():
     lo=max(b for b,a,c in samples if not a)
