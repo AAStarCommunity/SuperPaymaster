@@ -1231,17 +1231,83 @@ class ExecutorTests(unittest.TestCase):
         ex.budget(plan)
         return plan
 
-    def test_historical_frozen_plan_uses_own_commit_and_refuses_relabel(self):
-        plan = self.measured_plan()
-        fresh = {name:self.artifact(name) for name in ex.CONTRACT_NAMES}
-        with patch.object(ex, 'compile_commit', return_value=(fresh, {})) as compile_, \
-             patch.object(ex, 'validate_artifact', side_effect=lambda art,name:art), \
-             patch.object(ex, 'artifact', side_effect=AssertionError('historical validation must not read working artifacts')):
-            ex.validate_plan(plan, frozen=True, historical=True)
-            compile_.assert_called_with(plan['rebuild']['commit'], 'forge Version: 1.7.1')
-            plan['steps'][0]['tx']['data'] = '0x1234'
-            with self.assertRaises(ex.Gate) as caught: ex.validate_plan(plan, frozen=True, historical=True)
-            self.assertEqual(caught.exception.record['gate'], 'plan_step_S1_data')
+    def test_historical_archive_is_independent_of_checkout_and_refuses_tampering(self):
+        import tarfile
+        state = self.measured_plan()['pin']
+        commit = 'a'*40
+        config = b'[profile.default]\nbytecode_hash="none"\n'
+        artifacts = {name:self.artifact(name) for name in ex.CONTRACT_NAMES}
+        _, info = immutable_fixture()
+        metadata = dict(settings=dict(evmVersion='cancun', optimizer={'runs':500}),
+                        sources={'fixture.sol': {'keccak256':ex.EMPTY_KECCAK}})
+        for art in artifacts.values():
+            art.pop('sourceHashes'); art.pop('runtimeIdentity')
+            art['metadata'] = metadata
+            art['rawMetadata'] = json.dumps(metadata)
+            art['deployedBytecode']['object'] += self.metadata_artifact()['deployedBytecode']['object'][4:]
+        info['output']['contracts']['contracts/src/tokens/APNTsCapped.sol']['APNTsCapped']['evm']['deployedBytecode'] = artifacts['APNTsCapped']['deployedBytecode']
+        real_run = ex.subprocess.run
+        tamper = False
+        builds = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root/'historical.tar'
+            with tarfile.open(archive_path, 'w') as archive:
+                for name, content in [('fixture.sol', b''), ('foundry.toml', config)]:
+                    entry = tarfile.TarInfo(name); entry.size = len(content)
+                    archive.addfile(entry, io.BytesIO(content))
+            checkout = root/'checkout'; checkout.mkdir()
+            def archive(repo, ref, tree):
+                self.assertEqual(ref, commit)
+                tree.mkdir(parents=True)
+                with tarfile.open(archive_path) as tar:
+                    tar.extractall(tree)
+            def run(args, **kw):
+                if args[0] == str(ex.REBUILD_FORGE):
+                    if args[1] == '--version':
+                        return SimpleNamespace(returncode=0, stdout='forge Version: 1.7.1\n')
+                    tree = kw['cwd']; builds.append(args)
+                    for name, original in artifacts.items():
+                        art = copy.deepcopy(original)
+                        if tamper: art['metadata']['sources']['fixture.sol']['keccak256'] = '0x'+'11'*32
+                        dest = tree/'out'/(name+'.sol'); dest.mkdir(parents=True)
+                        (dest/(name+'.json')).write_text(json.dumps(art))
+                    if '--ast' in args and '--build-info' in args:
+                        dest = tree/'out/build-info'; dest.mkdir()
+                        (dest/'archive.json').write_text(json.dumps(info))
+                    return SimpleNamespace(returncode=0)
+                if args[0] == 'git':
+                    if args[1:3] == ['rev-parse', 'HEAD']:
+                        return SimpleNamespace(returncode=0, stdout='b'*40+'\n')
+                    self.assertEqual(args, ['git', 'show', commit+':foundry.toml'])
+                    return SimpleNamespace(returncode=0, stdout=config)
+                return real_run(args, **kw)
+            ex.compile_commit.cache_clear()
+            self.addCleanup(ex.compile_commit.cache_clear)
+            with patch.object(ex, 'ROOT', checkout), patch.object(ex, 'archive_commit', side_effect=archive), \
+                 patch.object(ex.subprocess, 'run', side_effect=run), \
+                 patch.object(ex, 'rebuild_artifacts', self.real_rebuild), \
+                 patch.object(ex, 'artifact', side_effect=AssertionError('current artifact read')):
+                plan = ex.build_plan(state, rebuild_commit=commit)
+                for step in plan['steps']:
+                    step.update(estimateGas=100000, localEstimateGas=200000, forkGasUsed=110000)
+                    step['tx']['gas'] = hex(260000)
+                ex.budget(plan)
+                ex.validate_plan(plan, frozen=True, historical=True)
+                self.assertFalse((checkout/'out/build-info').exists())
+                (checkout/'fixture.sol').write_text('changed current HEAD source')
+                ex.compile_commit.cache_clear()
+                ex.validate_plan(plan, frozen=True, historical=True)
+                bad = copy.deepcopy(plan); bad['steps'][0]['tx']['data'] = '0x1234'
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.validate_plan(bad, frozen=True, historical=True)
+                self.assertEqual(caught.exception.record['gate'], 'plan_step_S1_data')
+                tamper = True
+                ex.compile_commit.cache_clear()
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.validate_plan(plan, frozen=True, historical=True)
+                self.assertEqual(caught.exception.record['gate'], 'artifact_source_metadata')
+            self.assertTrue(any('--ast' in args and '--build-info' in args for args in builds))
 
     def assert_injected_tx_fails(self, key, value):
         plan = self.measured_plan()

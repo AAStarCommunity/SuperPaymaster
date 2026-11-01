@@ -149,6 +149,112 @@ class FakeChain:
         raise AssertionError((method, params))
 
 
+class Round8Controls(unittest.TestCase):
+    def dvt_rebuild(self, mutate=None):
+        creation = '0x60006000f3a00001'
+        runtime = '0x6001'
+        arts = {'OverIssueFraudProofVerifier': {'bytecode': {'object':creation}},
+                'MockOverIssuableToken': {'deployedBytecode': {'object':runtime}}}
+        if mutate == 'creation': arts['OverIssueFraudProofVerifier']['bytecode']['object'] += '00'
+        if mutate == 'runtime': arts['MockOverIssuableToken']['deployedBytecode']['object'] += '00'
+        real_run = m.subprocess.run
+        def run(args, **kw):
+            if args[0] == str(a.REBUILD_FORGE):
+                return SimpleNamespace(returncode=0, stdout='forge Version: 1.7.1\n')
+            return real_run(args, **kw)
+        m.rebuild_dvt.cache_clear()
+        self.addCleanup(m.rebuild_dvt.cache_clear)
+        with patch.object(m.subprocess, 'run', side_effect=run), patch.object(a, 'archive_commit'), \
+             patch.object(a, 'raw_artifact', side_effect=lambda root,name:arts[name]), \
+             patch.object(m, 'VERIFIER_CREATION', a.keccak(creation)), \
+             patch.object(m, 'MOCK_TOKEN_RUNTIME_HASH', a.keccak(runtime)):
+            return m.rebuild_dvt()
+
+    def test_dvt_rebuilt_creation_gate(self):
+        self.dvt_rebuild()
+        with self.assertRaises(a.Gate) as caught: self.dvt_rebuild('creation')
+        self.assertEqual(caught.exception.record['gate'], 'dvt_rebuilt_creation')
+
+    def test_dvt_mock_rebuilt_runtime_gate(self):
+        self.dvt_rebuild()
+        with self.assertRaises(a.Gate) as caught: self.dvt_rebuild('runtime')
+        self.assertEqual(caught.exception.record['gate'], 'dvt_mock_rebuilt_runtime')
+
+    def swap_control(self, late=False, broken_eta=False, bad_accounting=False, wrong_reason=False):
+        p = pin()
+        token, old = '0x'+'34'*20, '0x'+'56'*20
+        now = p['pendingAPNTsTokenEta'] + (m.DAY if late else -m.DAY)
+        state = dict(time=now, eta=p['pendingAPNTsTokenEta'], pending=token, token=old, nonce=10)
+        original = copy.deepcopy(state)
+        snapshots, attempts = [], []
+        plan = dict(pin=dict(p, capped=token), addresses={'BLSAggregator':OLD})
+        def rpc(method, params):
+            if method == 'evm_snapshot':
+                snapshots.append(copy.deepcopy(state)); return len(snapshots)-1
+            if method == 'evm_revert':
+                state.clear(); state.update(snapshots[params[0]]); return True
+            if method == 'debug_traceTransaction':
+                return {'output':a.calldata('Unauthorized()' if wrong_reason else 'InvalidConfiguration()')}
+            if method == 'evm_setNextBlockTimestamp': state['next'] = params[0]; return True
+            if method == 'evm_mine': state['time'] = state.pop('next'); return True
+            raise AssertionError((method, params))
+        def word(rpc, target, sig, *args, **kwargs):
+            return {'totalTrackedBalance()':m.BUFFER+int(bad_accounting), 'protocolRevenue()':m.BUFFER,
+                    'pendingAPNTsTokenEta()':state['eta'], 'nonce()':0,
+                    'pendingFraudProofVerifierReadyAt()':now+100}[sig]
+        def address(rpc, target, sig):
+            return {'owner()':u.DEPLOYER, 'pendingAPNTsToken()':state['pending'], 'APNTS_TOKEN()':state['token']}[sig]
+        def fixture(rpc, sender, target, data):
+            return {'from':sender, 'to':target, 'data':data, 'nonce':hex(state['nonce'])}
+        def receipt(rpc, tx, status='0x1'):
+            self.assertEqual(a.qty(tx['nonce']), state['nonce'])
+            state['time'] += 1; state['nonce'] += 1
+            actual = '0x1'
+            if tx['data'] == a.calldata('setAPNTsToken(address)', token):
+                state.update(pending=token, eta=state['time']+7*m.DAY)
+            elif tx['data'] == a.calldata('executeAPNTsTokenChange()'):
+                premature = state['time'] < state['eta']
+                attempts.append((premature, tx['data']))
+                if premature and not broken_eta: actual = '0x0'
+                else: state.update(token=state['pending'], pending=a.ZERO, eta=0)
+            else: raise AssertionError(tx)
+            a.need('receipt_status', actual, status)
+            return dict(status=actual, transactionHash=base.HASH)
+        with patch.object(a, 'word', side_effect=word), patch.object(a, 'address', side_effect=address), \
+             patch.object(a, 'nonce', side_effect=lambda rpc,who:state['nonce']), \
+             patch.object(a, 'block_data', side_effect=lambda *args:dict(timestamp=hex(state['time']))), \
+             patch.object(u, 'fixture_tx', side_effect=fixture), patch.object(u, 'receipt', side_effect=receipt), \
+             patch.object(a, 'receipt', side_effect=receipt):
+            try:
+                # A13 must accept pins on either side of the original S7 ETA.
+                with patch.object(a, 'negative', return_value={'control':'early_verifier'}):
+                    m.controls_at(rpc, plan, 'A13.stake', [])
+                controls = []
+                m.controls_at(rpc, plan, 'A17', controls)
+                self.assertEqual(controls[0]['control'], 'early_swap')
+                self.assertGreater(controls[0]['eta'], now)
+                self.assertEqual(attempts, [(True, a.calldata('executeAPNTsTokenChange()')),
+                                            (False, a.calldata('executeAPNTsTokenChange()'))])
+            finally:
+                self.assertEqual(state, original)
+
+    def test_early_swap_early_pin(self): self.swap_control()
+
+    def test_early_swap_late_pin(self): self.swap_control(late=True)
+
+    def test_early_swap_detects_missing_eta_guard(self):
+        with self.assertRaises(a.Gate) as caught: self.swap_control(broken_eta=True)
+        self.assertEqual(caught.exception.record['gate'], 'receipt_status')
+
+    def test_early_swap_requires_valid_accounting(self):
+        with self.assertRaises(a.Gate) as caught: self.swap_control(bad_accounting=True)
+        self.assertEqual(caught.exception.record['gate'], 'early_swap_accounting')
+
+    def test_early_swap_requires_eta_revert_reason(self):
+        with self.assertRaises(a.Gate) as caught: self.swap_control(wrong_reason=True)
+        self.assertEqual(caught.exception.record['gate'], 'negative_early_swap_reason')
+
+
 class ManifestTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

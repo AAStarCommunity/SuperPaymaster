@@ -1313,6 +1313,34 @@ def unbacked_swap_control(rpc, plan):
         a.need('unbacked_restore', rpc('evm_revert', [snap]), True)
 
 
+def early_swap_control(rpc, plan):
+    """Isolate the ETA guard after A15 has established valid swap accounting."""
+    snap = rpc('evm_snapshot', [])
+    try:
+        tracked = a.word(rpc, u.SP, 'totalTrackedBalance()')
+        revenue = a.word(rpc, u.SP, 'protocolRevenue()')
+        a.need('early_swap_accounting', tracked == revenue <= BUFFER, True)
+        token = plan['pin']['capped']
+        a.need('early_swap_token', token != a.ZERO, True)
+        a.need('early_swap_owner', a.address(rpc, u.SP, 'owner()'), u.DEPLOYER)
+        u.receipt(rpc, u.fixture_tx(rpc, u.DEPLOYER, u.SP, a.calldata('setAPNTsToken(address)', token)))
+        a.need('early_swap_pending', a.address(rpc, u.SP, 'pendingAPNTsToken()'), token)
+        eta = a.word(rpc, u.SP, 'pendingAPNTsTokenEta()')
+        a.need('early_swap_future_eta', a.qty(a.block_data(rpc, 'latest')['timestamp'])+1 < eta, True)
+        tx = u.fixture_tx(rpc, u.DEPLOYER, u.SP, a.calldata('executeAPNTsTokenChange()'))
+        result = a.negative(rpc, tx, a.calldata('InvalidConfiguration()'), 'early_swap')
+        # The contract shares this error with its accounting guard. Success with
+        # identical state after only advancing time establishes the ETA cause.
+        u.wait_until(rpc, eta)
+        receipt = u.receipt(rpc, tx)
+        a.need('early_swap_mature_token', a.address(rpc, u.SP, 'APNTS_TOKEN()'), token)
+        a.need('early_swap_mature_pending', a.address(rpc, u.SP, 'pendingAPNTsToken()'), a.ZERO)
+        a.need('early_swap_mature_eta', a.word(rpc, u.SP, 'pendingAPNTsTokenEta()'), 0)
+        return dict(result, eta=eta, tracked=tracked, revenue=revenue, matureReceipt=receipt)
+    finally:
+        a.need('early_swap_restore', rpc('evm_revert', [snap]), True)
+
+
 def controls_at(rpc, plan, sid, controls):
     agg = plan['addresses']['BLSAggregator']
     def negative(name, sender, target, sig, args, error, error_args=()):
@@ -1331,8 +1359,8 @@ def controls_at(rpc, plan, sid, controls):
     if sid == 'A13.stake':
         eta = a.word(rpc, agg, 'pendingFraudProofVerifierReadyAt()')
         negative('early_verifier', u.DEPLOYER, agg, 'applyFraudProofVerifier()', (), 'VerifierRotationNotReady(uint256)', (eta,))
-        a.need('early_swap_window', a.qty(a.block_data(rpc, 'latest')['timestamp'])+1 < plan['pin']['pendingAPNTsTokenEta'], True)
-        negative('early_swap', u.DEPLOYER, u.SP, 'executeAPNTsTokenChange()', (), 'InvalidConfiguration()')
+    if sid == 'A17':
+        controls.append(early_swap_control(rpc, plan))
     if sid == 'upgrade_schedule_approve':
         # Exercise the new implementation before factory wiring, then restore the
         # old implementation and every fixture nonce. No mock storage writes.
