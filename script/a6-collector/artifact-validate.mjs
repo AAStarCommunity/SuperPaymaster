@@ -1,8 +1,9 @@
+import { bindArchivedDisposition, bindReceiptSummaries } from './derived-evidence.mjs';
 import { verifyPassport, verifyPassportIdentity } from './passport-evidence.mjs';
 import { stateCalls, supportsCall, archivedParamsAllowed } from './state-evidence.mjs';
 import { readFileSync, realpathSync, readdirSync } from 'node:fs';
 import { resolve, isAbsolute } from 'node:path';
-import { evidenceIndex, sha256, stringify, loadRegistry, replacementReason } from './evidence.mjs';
+import { evidenceIndex, sha256, stringify, loadRegistry, replacementReason, bindPreflight } from './evidence.mjs';
 import { formalConfig, armOrder, DEFAULT_FACTORY, inclusionErrors } from './formal.mjs';
 import { decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
@@ -149,9 +150,20 @@ export function artifactErrors(window,rows,trailer,journal) {
   }
   let previousIncluded=null;
   let lastTime=-Infinity, lastSendId=-1;
+  const previousEnd=[0,0];
   for (let i=0;i<rows.length;i++) try {
     const r=rows[i], a=attempts[i];
     if (!a) throw new Error('missing journal attempt');
+    for (const [endpoint,arc] of archives.entries()) {
+      const startId=a.evidenceStart?.[endpoint], endId=a.evidenceEnd?.[endpoint];
+      if (!Number.isSafeInteger(startId) || !Number.isSafeInteger(endId) || startId<previousEnd[endpoint] || endId<startId || endId>arc.records.reduce((max,r)=>Math.max(max,r.id),0)) throw Error('invalid attempt evidence id range');
+      previousEnd[endpoint]=endId;
+    }
+    const preflightErrors=archives[0].records.filter(raw=>raw.id>a.evidenceStart?.[0] && raw.id<=a.evidenceEnd?.[0] && raw.method==='eth_call' && lower(raw.params[0]?.to)===lower(a.entryPoint) && raw.params[0]?.data?.startsWith('0x765e827f') && raw.response && JSON.parse(Buffer.from(raw.response,'base64')).error);
+    if (preflightErrors.length && (a.sent!==false || a.verdict!=='NOT_SENT' || a.failingCheck!=='preflight_revert')) throw Error('derived evidence mismatch: preflight disposition');
+    if (preflightErrors.length || a.preflight || a.failingCheck==='preflight_revert') bindPreflight(a,archives);
+    bindArchivedDisposition(a,archives);
+    bindReceiptSummaries(a);
     const time=Date.parse(a.collectedAtUtc);
     if (!Number.isFinite(time) || time<lastTime) throw new Error('journal chronology mismatch');
     lastTime=time;
@@ -159,10 +171,11 @@ export function artifactErrors(window,rows,trailer,journal) {
       for (const arc of archives) if (!arc.records.some(raw=>{
         if (raw.method!=='eth_getBlockByNumber' || !raw.response) return false;
         const block=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
-        return block?.hash===a.tx.blockHash && BigInt(block.number)===BigInt(a.tx.blockNumber) && block.transactions?.some(tx=>lower(typeof tx==='string'?tx:tx.hash)===lower(a.tx.hash));
+        return block?.hash===a.tx.blockHash && BigInt(block.number)===BigInt(a.tx.blockNumber) && BigInt(block.timestamp)===BigInt(a.tx.blockTimestamp) && block.transactions?.length===a.tx.blockTxCount && block.transactions?.some(tx=>lower(typeof tx==='string'?tx:tx.hash)===lower(a.tx.hash));
       })) throw new Error('inclusion block membership missing on A/B');
       const sends=archives[0].records.filter(raw=>raw.method==='eth_sendRawTransaction' && raw.response && lower(JSON.parse(Buffer.from(raw.response,'base64').toString()).result)===lower(a.tx.hash));
       if (sends.length!==1 || sends[0].id<=lastSendId || Date.parse(sends[0].requestedAtUtc)>time) throw new Error('archived send sequence mismatch');
+      if (!archives[0].records.some(raw=>raw.id>a.evidenceStart[0] && raw.id<sends[0].id && raw.method==='eth_blockNumber' && raw.response && BigInt(JSON.parse(Buffer.from(raw.response,'base64')).result)===BigInt(a.tx.headBefore))) throw Error('raw headBefore mismatch');
       if (previousIncluded) for (const archive of archives) {
         const result=raw=>raw.response && JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
         const beforeSend=raw=>Date.parse(raw.receivedAtUtc)<=Date.parse(sends[0].requestedAtUtc);
@@ -192,7 +205,7 @@ export function artifactErrors(window,rows,trailer,journal) {
     const inv=start.passport?.invariant;
     if (!eq(a.stateTargets,{superPaymaster:inv?.code.superPaymasterProxy.address,token:inv?.xPNTs.address,tpmToken:inv?.code.tokenPaymasterToken.address,operator:start.frozenConfig.operator})) throw new Error('state targets/config mismatch');
     const expected=evidenceIndex(a,{windowId:r.windowId,archives:archives.map((arc,i)=>({records:arc.records.filter(x=>x.id<=a.evidenceEnd?.[i])})),pins:r.pins,rpcIdentity:r.rpcIdentity,passports:r.passports,stopReason:a.stoppedBy?.reason??null,replaces:r.replaces});
-    for (const k of ['exclusionReason','packedOp','bundle','tx','uoe','state','endpoints','gas','expectedUserOpHash','observedUserOpHash','trace']) if (!eq(r[k],expected[k])) throw new Error(`index/journal ${k} mismatch`);
+    for (const k of ['chainId','entryPoint','sender','nonce','paymaster','bundler','callDataHash','failureReason','notSentReason','stopReason','verdict','exclusionReason','packedOp','bundle','tx','uoe','state','endpoints','gas','expectedUserOpHash','observedUserOpHash','trace']) if (!eq(r[k],expected[k])) throw new Error(`index/journal ${k} mismatch`);
     errors.push(...transactionErrors(a,start.frozenConfig).map(e=>`attempt ${i}: ${e}`));
     for (const endpoint of ['A','B']) {
       for (const kind of ['receipt','logs','transaction','stateReads']) {
@@ -204,11 +217,12 @@ export function artifactErrors(window,rows,trailer,journal) {
           const result=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
           observations.push({id:raw.id,result});
           const pending=!result || result.blockHash==null;
+          if (kind==='transaction' && result && lower(result.from)!==lower(a.tx.from)) throw Error('raw transaction from mismatch');
           if (kind==='transaction' && result) for (const [rawKey,key] of [['input','input'],['gas','gasLimit'],['maxFeePerGas','maxFeePerGas'],['maxPriorityFeePerGas','maxPriorityFeePerGas']]) {
             if (rawKey==='input'?lower(result[rawKey])!==lower(r.tx[key]):BigInt(result[rawKey])!==BigInt(r.tx[key])) throw new Error('raw transaction field mismatch');
           }
           if ((kind==='receipt' || kind==='logs') && !pending) {
-            const logs=ls=>ls.map(l=>({address:lower(l.address),topics:l.topics.map(lower),data:lower(l.data),logIndex:String(BigInt(l.logIndex))}));
+            const logs=ls=>ls.map(l=>({address:lower(l.address),topics:l.topics.map(lower),data:lower(l.data),logIndex:String(BigInt(l.logIndex)),...(l.transactionHash?{transactionHash:lower(l.transactionHash)}:{})}));
             if ((result.status==='0x1'?'success':result.status==='0x0'?'reverted':null)!==a.tx.status || !eq(logs(result.logs),logs(a.logs))) throw new Error('raw complete receipt mismatch');
           }
           if (kind==='logs' && included.has(i) && !pending && !result.logs.some(l=>BigInt(l.logIndex)===BigInt(r.uoe.logIndex) && lower(l.address)===lower(r.uoe.address) && eq(l.topics,r.uoe.topics) && l.data===r.uoe.data)) throw new Error('raw UOE mismatch');

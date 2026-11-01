@@ -60,20 +60,21 @@ export function repairFixture(dir,count=3) {
     const a=structuredClone(template), triple=Math.floor(i/3), arm=armOrder(triple)[i%3];
     Object.assign(a,{passport,attemptIndex:i,tripletIndex:triple,arm,armOrder:armOrder(triple),collectedAtUtc:new Date(Date.UTC(2026,10,1,0,0,i,500)).toISOString(),evidenceStart:archives.map(x=>x.ids.length),stateTargets:{superPaymaster:inv.code.superPaymasterProxy.address,token:inv.xPNTs.address,tpmToken:inv.xPNTs.address,operator:config.operator}});
     a.tx.hash='0x'+(i+1).toString(16).padStart(64,'0');
-    a.tx.blockNumber=String(100+i*2); a.tx.blockHash='0x'+(100+i*2).toString(16).padStart(64,'0');
+    a.tx.blockNumber=String(100+i*2); a.tx.headBefore=String(99+i*2); a.tx.blockTxCount=1; a.tx.blockHash='0x'+(100+i*2).toString(16).padStart(64,'0');
     for(const side of ['before','after']) for(const endpoint of ['A','B']) { const n=100+i*2-(side==='before'?1:0); Object.assign(a.readbacks[side][endpoint],{blockNumber:String(n),blockHash:'0x'+n.toString(16).padStart(64,'0')}); }
     a.packedOp.callData=frozen.callData;a.bundledOps=[a.packedOp];
     Object.assign(a.tx,{input:encodeFunctionData({abi:bundleAbi,functionName:'handleOps',args:[[a.packedOp],config.accounts.bundler.address]}),handleOpsIndex:0,gasLimit:'3000000',maxFeePerGas:'5000000000',maxPriorityFeePerGas:'1000000000'});
-    a.tx.raw={hash:a.tx.hash,input:a.tx.input,gas:toHex(BigInt(a.tx.gasLimit)),maxFeePerGas:toHex(BigInt(a.tx.maxFeePerGas)),maxPriorityFeePerGas:toHex(BigInt(a.tx.maxPriorityFeePerGas)),blockNumber:toHex(BigInt(a.tx.blockNumber)),blockHash:a.tx.blockHash};
+    a.tx.raw={from:a.tx.from,hash:a.tx.hash,input:a.tx.input,gas:toHex(BigInt(a.tx.gasLimit)),maxFeePerGas:toHex(BigInt(a.tx.maxFeePerGas)),maxPriorityFeePerGas:toHex(BigInt(a.tx.maxPriorityFeePerGas)),blockNumber:toHex(BigInt(a.tx.blockNumber)),blockHash:a.tx.blockHash};
     const uoe=a.logs.find(l=>l.topics[1]===a.expectedUserOpHash);a.userOpEvent.logIndex=uoe.logIndex;
     for(const side of ['before','after']) for(const e of ['A','B']) Object.assign(a.readbacks[side][e],{tpmTokenBalances:{sender:'5',paymaster:'7'},tpmCachedPriceTimestamp:'10'});
     if (arm==='TPM') {a.tpmOracle=inv.xPNTs.address;a.postOpRefreshed=false;a.traces=[0,1].map(()=>({call:{type:'CALL',to:a.entryPoint,calls:[{type:'CALL',to:a.paymaster,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)'),calls:[]}]},state:{pre:{[a.entryPoint.toLowerCase()]:{storage:{'0x0':'0x1'}}},post:{[a.entryPoint.toLowerCase()]:{storage:{'0x0':'0x2'}}}},postOpRefreshed:false}));}
     for(const [endpointIndex,arc] of archives.entries()) {
       const anchor={number:toHex(BigInt(a.tx.blockNumber)),hash:a.tx.blockHash};
       if (i>0) { const prev=attempts[i-1].tx; append(arc,'eth_getTransactionReceipt',[prev.hash],{blockNumber:toHex(BigInt(prev.blockNumber)),blockHash:prev.blockHash,status:'0x1',logs:attempts[i-1].logs},null); append(arc,'eth_blockNumber',[],toHex(BigInt(prev.blockNumber)+1n),null); }
+      append(arc,'eth_blockNumber',[],toHex(BigInt(a.tx.headBefore)),null);
       if (arc===archives[0]) append(arc,'eth_sendRawTransaction',['0x01'],a.tx.hash,null);
       if (a.traces) for (const [tracer,key] of [['callTracer','call'],['prestateTracer','state']]) append(arc,'debug_traceTransaction',[a.tx.hash,{tracer,tracerConfig:tracer==='callTracer'?{withLog:true}:{diffMode:true}}],a.traces[endpointIndex][key],anchor);
-      append(arc,'eth_getBlockByNumber',[anchor.number,false],{number:anchor.number,hash:anchor.hash,transactions:[a.tx.hash]},anchor);
+      append(arc,'eth_getBlockByNumber',[anchor.number,false],{number:anchor.number,hash:anchor.hash,timestamp:toHex(BigInt(a.tx.blockTimestamp)),transactions:[a.tx.hash]},anchor);
       append(arc,'eth_getTransactionByHash',[a.tx.hash],a.tx.raw,anchor);
       append(arc,'eth_getTransactionReceipt',[a.tx.hash],{blockNumber:anchor.number,blockHash:anchor.hash,status:'0x1',logs:a.logs.map(l=>({...l,logIndex:toHex(BigInt(l.logIndex))}))},anchor);
       for(const side of ['before','after']) {

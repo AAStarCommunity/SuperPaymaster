@@ -326,8 +326,8 @@ const pmAddrOf = (arm) => getAddress(arm === 'SP' ? cfg.superPaymaster : arm ===
 
 // ── revert classification (unchanged semantics from the previous revision: only AA31 is infra) ─
 function classifyRevert(decoded, rawErrorText) {
-  if (decoded && typeof decoded.reason === 'string' && decoded.reason.startsWith('AA31')) return { infraFailure: true, sponsorshipFailed: false, revertReason: decoded.reason };
-  if (decoded && typeof decoded.reason === 'string') return { infraFailure: false, sponsorshipFailed: true, revertReason: decoded.reason };
+  if (decoded && typeof decoded.reason === 'string' && decoded.reason.startsWith('AA31')) return { infraFailure: true, sponsorshipFailed: false, revertReason: decoded.reason, ...(decoded.inner!=null?{inner:decoded.inner}:{}) };
+  if (decoded && typeof decoded.reason === 'string') return { infraFailure: false, sponsorshipFailed: true, revertReason: decoded.reason, ...(decoded.inner!=null?{inner:decoded.inner}:{}) };
   return { infraFailure: true, sponsorshipFailed: false, undecoded: true, revertReason: `UNDECODED: ${(rawErrorText || '').slice(0, 250)}` };
 }
 function rawRevertDataOf(err) {
@@ -342,10 +342,10 @@ async function simulateRevert(ops) {
     return null;
   } catch (e) {
     const reverted = typeof e.walk === 'function' ? e.walk((err) => err instanceof ContractFunctionRevertedError) : null;
-    let decoded = reverted?.data ? { errorName: reverted.data.errorName, reason: reverted.data.args?.[1] } : null;
-    if (!decoded) {
+    let decoded = reverted?.data ? { errorName: reverted.data.errorName, reason: reverted.data.args?.[1], ...(reverted.data.errorName==='FailedOpWithRevert'?{inner:reverted.data.args[2]}:{}) } : null;
+    if (!decoded || typeof decoded.reason!=='string') {
       const raw = rawRevertDataOf(e);
-      if (raw) { try { const d = decodeErrorResult({ abi: ENTRYPOINT_ERRORS_ABI, data: raw }); decoded = { errorName: d.errorName, reason: d.args?.[1] }; } catch { /* undecoded */ } }
+      if (raw) { try { const d = decodeErrorResult({ abi: ENTRYPOINT_ERRORS_ABI, data: raw }); decoded = { errorName: d.errorName, reason: d.errorName==='Panic'?raw:d.args?.[1], ...(d.errorName==='FailedOpWithRevert'?{inner:d.args[2]}:{}) }; } catch { /* undecoded */ } }
     }
     if (formal) requireDecodedPreflight(e,decoded);
     return classifyRevert(decoded, e.shortMessage || e.message || String(e));
@@ -626,7 +626,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     args: [bundled, bundler.account.address], chain: null });
   } catch (e) {
     if (formal && e.message === 'basefee_above_cap') return finish(e.pause);
-    if (formal) { row.reason = 'bundler_error'; row.submissionException = { message: 'handleOps submission threw' }; }
+    if (formal) { row.reason = 'bundler_error'; const raw=runtime.archives[0].records.findLast(r=>r.method==='eth_sendRawTransaction' && r.response); const error=raw && JSON.parse(Buffer.from(raw.response,'base64')).error; if (error) row.submissionException = { message: error.message }; }
     throw e;
   }
   if (formal) { row.sent = true; row.tx = { hash: txHash }; }
@@ -655,7 +655,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const observedUoe = cls.epEvents?.find(e => e.event === 'UserOperationEvent' && e.args.sender.toLowerCase() === sender.toLowerCase() && BigInt(e.args.nonce) === nonce);
   row.observedUserOpEvent = observedUoe ? {...observedUoe.args, logIndex:observedUoe.logIndex, txHash:rcA.logs.find(l => l.logIndex === observedUoe.logIndex)?.transactionHash} : null;
   Object.assign(row, { sent: true, tx, logs, verdict: cls.verdict, failingCheck: cls.failingCheck,
-    revertKind: cls.revertKind ?? null, userOpEvent: cls.event ? { ...cls.event, logIndex: cls.epEvents.find(e => e.event === 'UserOperationEvent' && e.args.userOpHash === cls.event.userOpHash)?.logIndex } : null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [] });
+    revertKind: cls.revertKind ?? null, userOpEvent: cls.event ? { ...cls.event, logIndex: cls.epEvents.find(e => e.event === 'UserOperationEvent' && e.args.userOpHash === cls.event.userOpHash)?.logIndex } : null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [], prefundTooLow: cls.prefundTooLow ?? [] });
   if (formal && arm === 'TPM') Object.assign(row, await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle));
   if (traceEnabled) {
     try {

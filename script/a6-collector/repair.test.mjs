@@ -155,7 +155,7 @@ test('H2 Passport gate values must be rederived even when file and journal agree
 }));
 test('H3 complete ordered receipts bind status and every log on both endpoints',()=>temp(d=>{
   const f=fixture(d);assert.deepEqual(f.check(),[]);
-  for(const endpoint of ['A','B']) for(const mutation of ['status','extra','missing','order','address','topics','data','logIndex']) {
+  for(const endpoint of ['A','B']) for(const mutation of ['status','extra','missing','order','address','topics','data','logIndex','transactionHash']) {
     const path=f.rows[0].endpoints[endpoint].receipt[0].path, saved=readFileSync(join(d,path));
     editRaw(d,path,records=>{for(const raw of records) if(raw.method==='eth_getTransactionReceipt') {
       const response=JSON.parse(Buffer.from(raw.response,'base64')),r=response.result;
@@ -197,4 +197,27 @@ test('H1 archived refresh abandonment and its clean replacement validate togethe
   trailer.triples[0].included=true;assert.match(check().join(';'),/included TPM refresh/);
   trailer.triples[0].included=false;
   a.postOpRefreshed=false;f.rows[2].trace.postOpRefreshed=false;assert.match(check().join(';'),/TPM trace disagreement/);
+}));
+
+test('derived disposition gate rejects receipt, send, fee, trace and inclusion summaries at archive acceptance',()=>temp(d=>{
+  const f=repairFixture(d,3),trailer={finalBlockCheck:f.finalBlockCheck,endPassport:f.passport,triples:[{tripleIndex:0,included:true,attempts:[0,1,2]}]};
+  const check=()=>artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]);
+  assert.deepEqual(check(),[]);
+  for(const [index,mutate] of [
+    [0,a=>{a.execRevert=[{revertReason:'0x1234'}];}],
+    [0,a=>{a.postOpRevert=[{revertReason:'0x1234'}];}],
+    [0,a=>{a.prefundTooLow=[{nonce:'1'}];}],
+    [0,a=>{a.userOpEvent.success=false;}],
+    [0,a=>{a.submissionException={message:'invented'};}],
+    [0,a=>{a.feeBlock={number:'1',hash:H};a.baseFeePerGas='999999999999';}],
+    [0,a=>{a.sent=false;}],
+    [0,a=>{a.tx.from='0x'+'99'.repeat(20);}],
+    [0,a=>{a.tx.blockTimestamp='1';}],
+    [0,a=>{a.tx.blockTxCount=2;}],
+    [0,a=>{a.tx.headBefore='1';}],
+    [2,a=>{a.postOpRefreshed=true;}],
+  ]) {
+    const saved=structuredClone(f.attempts[index]);mutate(f.attempts[index]);
+    assert.ok(check().length,mutate.toString());f.attempts[index]=saved;
+  }
 }));

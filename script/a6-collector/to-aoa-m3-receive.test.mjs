@@ -76,17 +76,16 @@ test('a collector record that disagrees with its own log refuses the export', ()
   }
 });
 
-test('validate.mjs does not read the userOpEvent summary; the export cross-check does', { skip: !hasViem }, () => {
-  // Found 2026-10-27: validate.mjs decodes the receipt logs itself and never compares the collector's
-  // userOpEvent summary, so a tampered summary is still "consistent" there. The exporter refuses it.
+test('validate.mjs and export both reject a fabricated userOpEvent summary', { skip: !hasViem }, () => {
+  // Receipt summaries must equal the independently decoded logs in both consumers.
   const rows = rowsOf('positive.jsonl');
   spRow(rows).userOpEvent.actualGasCost = '1';
   withRun(rows, (src) => {
     let status = 0;
     try { execFileSync('node', [join(HERE, 'validate.mjs'), src], { stdio: 'ignore' }); } catch (e) { status = e.status; }
-    assert.ok(status === 0 || status === 3, `validate.mjs exit ${status}`);
+    assert.equal(status, 1, `validate.mjs exit ${status}`);
   });
-  refused(rows, /disagrees with the collector/, { validate: true });
+  refused(rows, /not shown consistent/, { validate: true });
   const ok = exportRows(rowsOf('positive.jsonl'), { validate: true });
   assert.equal(ok.attempts.filter((a) => a.included).length, 3);
 });

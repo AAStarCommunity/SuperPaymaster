@@ -1,3 +1,4 @@
+import { bindReceiptSummaries, evidenceEqual } from './derived-evidence.mjs';
 import { decodeErrorResult, encodeFunctionData, parseAbi } from 'viem';
 import { archivedParamsAllowed } from './state-evidence.mjs';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
@@ -116,7 +117,9 @@ export function bindPreflight(row,archives) {
       let error=response.error;
       for (let i=0;i<8 && error;i++,error=error.cause) if (typeof error.data==='string') {
         const decoded=decodeErrorResult({abi:preflightAbi,data:error.data});
-        return decoded.args[1]===row.preflight.revertReason;
+        const reason=decoded.errorName==='Panic' ? error.data : decoded.args[1];
+        const expected={infraFailure:reason.startsWith('AA31'),sponsorshipFailed:!reason.startsWith('AA31'),revertReason:reason,...(decoded.errorName==='FailedOpWithRevert'?{inner:decoded.args[2]}:{})};
+        return evidenceEqual(row.preflight,expected);
       }
     } catch {}
     return false;
@@ -128,14 +131,16 @@ export function replacementReason(row,archives) {
   return reason ?? (row.arm==='TPM' && row.traces && tpmAttemptRefreshed(row) ? 'tpm_postop_refresh' : null);
 }
 export function exclusionReason(row,archives) {
-  if (row.sent===true && row.verdict==='USEROP_SUCCESS' && (row.preflight || row.failingCheck || row.revertKind || row.execRevert?.length || row.submissionException || (row.reason != null && row.reason!=='tpm_postop_refresh'))) throw new Error('successful attempt contradicts failure evidence');
-  if (row.preflight) bindPreflight(row,archives);
+  if (row.sent===true && row.verdict==='USEROP_SUCCESS' && (row.preflight || row.failingCheck || row.revertKind || row.execRevert?.length || row.postOpRevert?.length || row.prefundTooLow?.length || row.submissionException || (row.reason != null && row.reason!=='tpm_postop_refresh'))) throw new Error('successful attempt contradicts failure evidence');
+  if (row.preflight || (row.verdict==='NOT_SENT' && row.failingCheck==='preflight_revert')) bindPreflight(row,archives);
+  if (row.logs || row.execRevert || row.postOpRevert || row.prefundTooLow || row.revertKind) bindReceiptSummaries(row);
   const unsupported = () => { throw new Error('UNAPPROVED_ABANDONMENT: unsupported exclusion reason'); };
   const preflight = row.preflight?.undecoded ? '' : row.preflight?.revertReason ?? '';
   let reason = null;
   if (row.failingCheck === 'basefee_above_cap' && row.feeBlock && !feePauseErrors(row).length) reason = 'basefee_above_cap';
   else if (/^AA32/.test(preflight)) reason = 'AA32';
   else if (/^(?:AA33 reverted: )?(?:price_stale|PriceStale|price stale)$/.test(preflight)) reason = 'price_stale';
+  else if (/^0x4e487b71[0-9a-f]{62}(11|12)$/i.test(preflight)) reason = 'op_failed_nongas';
   else if (row.revertKind === 'executionReverted' && row.execRevert?.some(e =>
     /^0x4e487b71[0-9a-f]{62}(11|12)$/i.test(e.revertReason))) reason = 'op_failed_nongas';
   else if (row.sent !== true && !row.tx && typeof row.submissionException?.message === 'string' && row.submissionException.message.length) reason = 'bundler_error';

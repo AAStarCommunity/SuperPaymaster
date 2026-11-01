@@ -1,3 +1,4 @@
+import { bindReceiptSummaries } from './derived-evidence.mjs';
 import { EXCLUSION_REASONS, exclusionReason } from './evidence.mjs';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
 import { validateWindow } from './evidence-validate.mjs';
@@ -504,6 +505,7 @@ try {
     && !p.invariant.xPNTs.emergencyDisabled;
 
   attempts.forEach((row, i) => {
+    try { if (!row.stoppedBy) bindReceiptSummaries(row); } catch (e) { errors.push(`attempt ${i}: ${e.message}`); }
     errors.push(...dispositionErrors(row).map(e => `attempt ${i}: ${e}`), ...feePauseErrors(row).map(e => `attempt ${i}: ${e}`));
     if (EXCLUSION_REASONS.includes(row.reason)) {
       try { exclusionReason(row); } catch (e) { errors.push(`attempt ${i}: ${e.message}`); }
