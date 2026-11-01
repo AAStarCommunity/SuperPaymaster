@@ -1,0 +1,67 @@
+Compiling 109 files with Solc 0.8.33
+Compiling 103 files with Solc 0.8.33
+Solc 0.8.33 finished in 15.68s
+Solc 0.8.33 finished in 25.72s
+Compiler run successful with warnings:
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/paymasters/v4/PaymasterBase.sol:313:9:
+    |
+313 |         PostOpMode mode,
+    |         ^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:230:40:
+    |
+230 |     function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
+    |                                        ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:294:37:
+    |
+294 |     function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
+    |                                     ^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:142:9:
+    |
+142 |         address account = realEP ? realAccount : user;
+    |         ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:106:5:
+    |
+106 |     address account;
+    |     ^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileBalanceTrajectoryTest
+[PASS] test_trajectory() (gas: 539096)
+Logs:
+  checkpoint 0 428353
+  checkpoint gasleft: 428353
+  checkpoint 1 428076
+  checkpoint gasleft: 428076
+  checkpoint 2 406352
+  checkpoint gasleft: 406352
+  checkpoint 3 361565
+  checkpoint gasleft: 361565
+  checkpoint 4 317428
+  checkpoint gasleft: 317428
+  checkpoint 5 317227
+  checkpoint gasleft: 317227
+  checkpoint 6 293948
+  checkpoint gasleft: 293948
+  checkpoint 7 291772
+  checkpoint gasleft: 291772
+  checkpoint peak: 136581
+  checkpoint net: 136581
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 3.43ms (691.46µs CPU time)
+
+Ran 1 test suite in 4.78ms (3.43ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

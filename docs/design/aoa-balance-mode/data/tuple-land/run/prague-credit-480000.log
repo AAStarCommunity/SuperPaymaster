@@ -1,0 +1,27 @@
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol:PostOpProfileCreditTrajectoryTest
+[PASS] test_trajectory() (gas: 527520)
+Logs:
+  checkpoint 0 467728
+  checkpoint gasleft: 467728
+  checkpoint 1 467451
+  checkpoint gasleft: 467451
+  checkpoint 2 445727
+  checkpoint gasleft: 445727
+  checkpoint 3 400940
+  checkpoint gasleft: 400940
+  checkpoint 4 350391
+  checkpoint gasleft: 350391
+  checkpoint 5 350190
+  checkpoint gasleft: 350190
+  checkpoint 6 326911
+  checkpoint gasleft: 326911
+  checkpoint 7 324735
+  checkpoint gasleft: 324735
+  checkpoint peak: 142993
+  checkpoint net: 142993
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 3.46ms (688.96µs CPU time)
+
+Ran 1 test suite in 4.60ms (3.46ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

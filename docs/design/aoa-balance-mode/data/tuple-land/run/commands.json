@@ -1,0 +1,366 @@
+[
+  {
+    "id": "amsterdam-balance-440000",
+    "argv": [
+      "/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileBalanceTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "--evm-version",
+      "prague",
+      "--no-isolate",
+      "--hardfork",
+      "amsterdam",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "true",
+      "TRAJECTORY_BUDGET": "440000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "false",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "amsterdam-balance-480000",
+    "argv": [
+      "/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileBalanceTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "--evm-version",
+      "prague",
+      "--no-isolate",
+      "--hardfork",
+      "amsterdam",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "true",
+      "TRAJECTORY_BUDGET": "480000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "true",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "amsterdam-credit-440000",
+    "argv": [
+      "/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileCreditTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "--evm-version",
+      "prague",
+      "--no-isolate",
+      "--hardfork",
+      "amsterdam",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "true",
+      "TRAJECTORY_BUDGET": "440000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "false",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "amsterdam-credit-480000",
+    "argv": [
+      "/Users/jason/Dev/aastar/tools/foundry-rams/nightly-4e8874b/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileCreditTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "--evm-version",
+      "prague",
+      "--no-isolate",
+      "--hardfork",
+      "amsterdam",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "true",
+      "TRAJECTORY_BUDGET": "480000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "true",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "cancun-balance-440000",
+    "argv": [
+      "/Users/jason/.foundry/bin/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileBalanceTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "false",
+      "TRAJECTORY_BUDGET": "440000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "false",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "cancun-balance-480000",
+    "argv": [
+      "/Users/jason/.foundry/bin/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileBalanceTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "false",
+      "TRAJECTORY_BUDGET": "480000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "true",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "cancun-credit-440000",
+    "argv": [
+      "/Users/jason/.foundry/bin/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileCreditTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "false",
+      "TRAJECTORY_BUDGET": "440000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "false",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "cancun-credit-480000",
+    "argv": [
+      "/Users/jason/.foundry/bin/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileCreditTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "false",
+      "TRAJECTORY_BUDGET": "480000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "true",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "prague-balance-440000",
+    "argv": [
+      "/Users/jason/.foundry/bin/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileBalanceTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "--evm-version",
+      "prague",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "false",
+      "TRAJECTORY_BUDGET": "440000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "false",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "prague-balance-480000",
+    "argv": [
+      "/Users/jason/.foundry/bin/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileBalanceTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "--evm-version",
+      "prague",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "false",
+      "TRAJECTORY_BUDGET": "480000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "true",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "prague-credit-440000",
+    "argv": [
+      "/Users/jason/.foundry/bin/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileCreditTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "--evm-version",
+      "prague",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "false",
+      "TRAJECTORY_BUDGET": "440000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "false",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  },
+  {
+    "id": "prague-credit-480000",
+    "argv": [
+      "/Users/jason/.foundry/bin/forge",
+      "test",
+      "--offline",
+      "-vv",
+      "--match-path",
+      "contracts/test/v2/SuperPaymasterPostOpGasProfile.t.sol",
+      "--match-contract",
+      "PostOpProfileCreditTrajectoryTest",
+      "--match-test",
+      "test_trajectory",
+      "--evm-version",
+      "prague",
+      "-R",
+      "@chainlink/contracts/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/",
+      "-R",
+      "solady/=/Users/jason/Dev/aastar/SuperPaymaster/contracts/lib/solady/src/"
+    ],
+    "env": {
+      "PROFILE_AMSTERDAM": "false",
+      "TRAJECTORY_BUDGET": "480000",
+      "TRAJECTORY_RECORD": "true",
+      "TUPLE_480": "true",
+      "TUPLE_CANDIDATE": "false"
+    },
+    "deps": "/Users/jason/Dev/aastar/SuperPaymaster",
+    "exit": 0
+  }
+]
