@@ -5,7 +5,7 @@ import { readFileSync, realpathSync, readdirSync } from 'node:fs';
 import { resolve, isAbsolute } from 'node:path';
 import { evidenceIndex, sha256, stringify, loadRegistry, replacementReason, bindPreflight } from './evidence.mjs';
 import { formalConfig, armOrder, DEFAULT_FACTORY, inclusionErrors } from './formal.mjs';
-import { decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
+import { formatTransaction, decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
 
 // Receipt/transaction polls of one endpoint, in archive order. Polls made before inclusion stay referenced (the index
@@ -128,6 +128,10 @@ export function artifactErrors(window,rows,trailer,journal) {
   if (!journal) { fail('formal artifact verification requires journal'); return errors; }
   const attempts=journal.filter(r=>r.kind==='attempt'), start=journal[0];
   try {
+    const chainId=BigInt(start.passport.chainId);
+    if (!Number.isSafeInteger(start.frozenConfig?.chainId) || start.frozenConfig.chainId <= 0) throw new Error('target chainId required');
+    if (start.rehearsal === true ? chainId !== 31337n : chainId === 31337n) throw new Error('formal/rehearsal chainId policy mismatch');
+    if (start.rehearsal !== true && chainId !== BigInt(start.frozenConfig.chainId)) throw new Error('formal target chainId mismatch');
     const configPin=start.pins.config.find(p=>p.sha256===start.configSha256);
     if (!configPin) throw new Error('frozen config hash is not pinned');
     const frozen=JSON.parse(isAbsolute(configPin.path)?readFileSync(configPin.path):file(configPin.path));
@@ -163,7 +167,7 @@ export function artifactErrors(window,rows,trailer,journal) {
     if (preflightErrors.length && (a.sent!==false || a.verdict!=='NOT_SENT' || a.failingCheck!=='preflight_revert')) throw Error('derived evidence mismatch: preflight disposition');
     if (preflightErrors.length || a.preflight || a.failingCheck==='preflight_revert') bindPreflight(a,archives);
     bindArchivedDisposition(a,archives);
-    bindReceiptSummaries(a);
+    bindReceiptSummaries(a, {formal:true});
     const time=Date.parse(a.collectedAtUtc);
     if (!Number.isFinite(time) || time<lastTime) throw new Error('journal chronology mismatch');
     lastTime=time;
@@ -175,9 +179,13 @@ export function artifactErrors(window,rows,trailer,journal) {
       })) throw new Error('inclusion block membership missing on A/B');
       const sends=archives[0].records.filter(raw=>raw.method==='eth_sendRawTransaction' && raw.response && lower(JSON.parse(Buffer.from(raw.response,'base64').toString()).result)===lower(a.tx.hash));
       if (sends.length!==1 || sends[0].id<=lastSendId || Date.parse(sends[0].requestedAtUtc)>time) throw new Error('archived send sequence mismatch');
-      // headBefore is the LAST head read before the send, not any earlier head in the attempt.
-      const heads=archives[0].records.filter(raw=>raw.id>a.evidenceStart[0] && raw.id<sends[0].id && raw.method==='eth_blockNumber' && raw.response);
-      if (!heads.length || BigInt(JSON.parse(Buffer.from(heads.at(-1).response,'base64')).result)!==BigInt(a.tx.headBefore)) throw Error('raw headBefore mismatch');
+      // headBefore must be a head actually read in this attempt before the send. The collector reads further heads
+      // (pin refresh, wallet fee lookup) after it, and the chain may advance in between, so the claimed value is not
+      // necessarily the last one. Isolation is therefore checked against the highest head read before the send: the
+      // inclusion block must be newer than every block that already existed when the transaction was sent.
+      const heads=archives[0].records.filter(raw=>raw.id>a.evidenceStart[0] && raw.id<sends[0].id && raw.method==='eth_blockNumber' && raw.response).map(raw=>BigInt(JSON.parse(Buffer.from(raw.response,'base64')).result));
+      if (!heads.some(h=>h===BigInt(a.tx.headBefore))) throw Error('raw headBefore mismatch');
+      if (BigInt(a.tx.blockNumber)<=heads.reduce((m,h)=>h>m?h:m)) throw Error('raw inclusion block not newer than every head read before send');
       if (previousIncluded) for (const archive of archives) {
         const result=raw=>raw.response && JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
         const beforeSend=raw=>Date.parse(raw.receivedAtUtc)<=Date.parse(sends[0].requestedAtUtc);
@@ -219,11 +227,13 @@ export function artifactErrors(window,rows,trailer,journal) {
           const result=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
           observations.push({id:raw.id,result});
           const pending=!result || result.blockHash==null;
+          if (kind==='transaction' && !pending && !eq(a.tx.raw,JSON.parse(stringify(formatTransaction(result))))) throw new Error('raw transaction summary mismatch');
           if (kind==='transaction' && result && lower(result.from)!==lower(a.tx.from)) throw Error('raw transaction from mismatch');
           if (kind==='transaction' && result) for (const [rawKey,key] of [['input','input'],['gas','gasLimit'],['maxFeePerGas','maxFeePerGas'],['maxPriorityFeePerGas','maxPriorityFeePerGas']]) {
             if (rawKey==='input'?lower(result[rawKey])!==lower(r.tx[key]):BigInt(result[rawKey])!==BigInt(r.tx[key])) throw new Error('raw transaction field mismatch');
           }
           if ((kind==='receipt' || kind==='logs') && !pending) {
+            for (const key of ['gasUsed','effectiveGasPrice']) if (a.tx[key] == null || result[key] == null || BigInt(a.tx[key]) !== BigInt(result[key])) throw new Error('raw receipt '+key+' mismatch');
             const logs=ls=>ls.map(l=>({address:lower(l.address),topics:l.topics.map(lower),data:lower(l.data),logIndex:String(BigInt(l.logIndex)),...(l.transactionHash?{transactionHash:lower(l.transactionHash)}:{})}));
             if ((result.status==='0x1'?'success':result.status==='0x0'?'reverted':null)!==a.tx.status || !eq(logs(result.logs),logs(a.logs))) throw new Error('raw complete receipt mismatch');
           }

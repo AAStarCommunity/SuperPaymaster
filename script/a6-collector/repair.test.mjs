@@ -12,8 +12,8 @@ import { postOpRefreshed, traceTPM } from './trace-policy.mjs';
 import { toFunctionSelector } from 'viem';
 const H='0x'+'ab'.repeat(32);
 async function temp(fn) {const d=realpathSync(mkdtempSync('/tmp/a6-repair-'));try{return await fn(d);}finally{rmSync(d,{recursive:true,force:true});}}
-function fixture(d) {
-  const f=repairFixture(d,1),trailer={finalBlockCheck:f.finalBlockCheck,endPassport:f.passport,triples:[{tripleIndex:0,included:true,attempts:[0]}]};
+function fixture(d,options) {
+  const f=repairFixture(d,1,options),trailer={finalBlockCheck:f.finalBlockCheck,endPassport:f.passport,triples:[{tripleIndex:0,included:true,attempts:[0]}]};
   const check=()=>artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]);return {...f,trailer,check};
 }
 test('positive artifact fixture resolves real archives, pins, state values and transaction bundle',()=>temp(d=>assert.deepEqual(fixture(d).check(),[])));
@@ -220,4 +220,27 @@ test('derived disposition gate rejects receipt, send, fee, trace and inclusion s
     const saved=structuredClone(f.attempts[index]);mutate(f.attempts[index]);
     assert.ok(check().length,mutate.toString());f.attempts[index]=saved;
   }
+}));
+
+// These assertions name the archive guard, so another downstream rejection cannot mask its removal.
+test('headBefore accepts an earlier observed head when a later pre-send head advances',()=>temp(d=>{
+  const f=fixture(d,{advanceHeadBeforeSend:true});
+  assert.deepEqual(f.check(),[]);
+}));
+test('headBefore rejects a claimed head absent from the attempt archive',()=>temp(d=>{
+  const f=fixture(d,{advanceHeadBeforeSend:true});
+  f.attempts[0].tx.headBefore='97';
+  assert.match(f.check().join(';'),/raw headBefore mismatch/);
+}));
+for(const delta of [0,1]) test(`headBefore rejects inclusion at or below maximum archived head delta=${delta}`,()=>temp(d=>{
+  const f=fixture(d,{advanceHeadBeforeSend:true}),a=f.attempts[0];
+  // Leave the inclusion and claimed head intact; only raise the later archived head.
+  editRaw(d,f.rows[0].endpoints.A.receipt[0].path,records=>{
+    const send=records.find(r=>r.method==='eth_sendRawTransaction');
+    const head=records.filter(r=>r.method==='eth_blockNumber' && r.id<send.id).at(-1);
+    const response=JSON.parse(Buffer.from(head.response,'base64'));
+    response.result='0x'+(BigInt(a.tx.blockNumber)+BigInt(delta)).toString(16);
+    head.response=head.responseBase64=Buffer.from(JSON.stringify(response)).toString('base64');
+  });
+  assert.match(f.check().join(';'),/raw inclusion block not newer/);
 }));

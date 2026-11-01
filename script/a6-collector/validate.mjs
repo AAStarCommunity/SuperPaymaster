@@ -11,7 +11,7 @@ import { formalConfig, armOrder, inclusionErrors } from './formal.mjs';
 //
 // Fails CLOSED: any missing or malformed field is an error, never a default.
 //
-// Usage: node script/a6-collector/validate.mjs <run.jsonl> [--json <report.json>]
+// Usage: node script/a6-collector/validate.mjs <run.jsonl> [--json <report.json>] [--window <archive-dir>]
 // Exit: 0  consistent AND accepted (N matched triplets, no stop, every conservation check holds)
 //       3  consistent but NOT accepted (fixture run / stopped / attempt budget exhausted)
 //       1  INCONSISTENT: a recomputed verdict / conservation / A-B / passport result differs from
@@ -21,8 +21,11 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { keccak256, encodeAbiParameters, toBytes, getAddress } from 'viem';
 
 const file = process.argv[2];
+// Exporters validate a captured journal while resolving its original archive separately.
+const windowArg = process.argv.indexOf('--window');
+const evidenceDir = windowArg === -1 ? dirname(resolve(file || '.')) : resolve(process.argv[windowArg + 1]);
 const jsonOut = (() => { const i = process.argv.indexOf('--json'); return i === -1 ? null : process.argv[i + 1]; })();
-if (!file) { console.error('usage: validate.mjs <run.jsonl> [--json <report.json>]'); process.exit(2); }
+if (!file) { console.error('usage: validate.mjs <run.jsonl> [--json <report.json>] [--window <archive-dir>]'); process.exit(2); }
 
 class Missing extends Error {}
 const errors = [];      // inconsistencies → exit 1
@@ -431,7 +434,7 @@ function opGas(op) {
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────────────────
-const report = { file, attempts: 0, recomputed: {}, errors, notes };
+const report = { formal: false, file, attempts: 0, recomputed: {}, errors, notes };
 let exit = 0;
 try {
   let lines;
@@ -440,13 +443,14 @@ try {
   if (lines.length < 2) throw new Missing('need at least run_start and run_end');
   const start = lines[0], end = lines[lines.length - 1];
   isFormal = start.formal === true;
-  const markerFiles = ['trailer.json','manifest.json'].map(name=>resolve(dirname(file),name));
+  report.formal = isFormal;
+  const markerFiles = ['trailer.json','manifest.json'].map(name=>resolve(evidenceDir,name));
   const markers = markerFiles.filter(existsSync).map(path=>JSON.parse(readFileSync(path,'utf8')).rehearsal === true);
   report.rehearsal = start.rehearsal === true || end.rehearsal === true || markers.some(Boolean);
   if (report.rehearsal) Object.assign(report,{protocolConformant:false,accepted:false,evidence:false});
   if (report.rehearsal && (start.rehearsal !== true || end.rehearsal !== true || markers.some(v=>!v))) errors.push('rehearsal marker mismatch');
   if (isFormal) {
-    errors.push(...validateWindow(dirname(resolve(file)), lines));
+    errors.push(...validateWindow(evidenceDir, lines));
     const frozen = formalConfig(need(start,'frozenConfig'),need(start,'bMax'));
     for (const key of ['gas','pmGas']) if (!deepEq(JSON.parse(JSON.stringify(frozen[key],(_,v) => typeof v === 'bigint' ? String(v):v)),start.passport?.invariant[key])) errors.push(`formal frozen ${key}/passport mismatch`);
   }
@@ -476,7 +480,7 @@ try {
   const distinctEndpoints = endpointA.host !== endpointB.host && endpointA.host !== 'loopback' && endpointB.host !== 'loopback';
   const localOverride = start.allowSameEndpointLocal === true || pStart.allowSameEndpointLocal === true;
   if (!distinctEndpoints && !(localOverride && endpointA.port !== endpointB.port)) errors.push('RPC identities require different non-loopback hosts or different ports with explicit local override');
-  const conformant = start.rehearsal !== true && target === 50 && noFixture(fixture) && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
+  const conformant = isFormal && start.rehearsal !== true && target === 50 && noFixture(fixture) && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
   if (need(start, 'protocolConformant') !== conformant) errors.push('protocolConformant differs from recomputed count/fixture/arms/endpoints/override');
   if (start.protocolConformant && (!distinctEndpoints || localOverride)) errors.push('conformant run requires distinct endpoints without local override');
   // /1 never recorded credit state, so relabelling a run as /1 must not yield a conformant result.

@@ -3,7 +3,8 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"
-export PATH="$HOME/Dev/aastar/tools/foundry-rams/nightly-4e8874b:$PATH"
+: "${A6_FOUNDRY_NIGHTLY_DIR:?Set A6_FOUNDRY_NIGHTLY_DIR to the Foundry nightly binary directory}"
+export PATH="$A6_FOUNDRY_NIGHTLY_DIR:$PATH"
 export FOUNDRY_DISABLE_NIGHTLY_WARNING=1
 # Forge's automatic submodule installation must never write this worktree's .git.
 export GIT_DIR=/dev/null

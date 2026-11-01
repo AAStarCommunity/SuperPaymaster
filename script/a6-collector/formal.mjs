@@ -37,7 +37,9 @@ export function publicAddress(address) {
     return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127));
   }
   // Accept only global-unicast IPv6; mapped IPv4 and local/reserved ranges fail closed.
-  return isIP(h) === 6 && /^[23][0-9a-f]{3}:/.test(h);
+  if (isIP(h) !== 6 || !/^[23][0-9a-f]{3}:/.test(h)) return false;
+  const [first, second = '0'] = h.split(':').map(x => x || '0');
+  return !(parseInt(first,16) === 0x2002 || (parseInt(first,16) === 0x2001 && [0,0xdb8].includes(parseInt(second,16))));
 }
 export async function resolveEndpoints(a,b,resolver = lookup) {
   endpointPair(a,b);

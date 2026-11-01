@@ -121,8 +121,8 @@ test('an unmatched triplet excludes its successful arms', () => {
   assert.ok(pkg.attempts.every((a) => !a.included && a.exclusionReason === 'TRIPLET_INCOMPLETE'));
 });
 
-// n50 mechanism run with conformant-looking endpoints, as a6-gauge/2 with credit OFF: validate.mjs accepts it
-// (same construction as negative-controls/credit-schema-downgrade.py). Synthetic: proves exporter rules only.
+// Reviewer attack: conformant-looking N50 journal with no formal archive.
+// It must now be refused by validation, regardless of its claimed conformance.
 function conformantV2() {
   const hosts = [['http://127.0.0.1:8545', 'http://10.0.0.1:8545'], ['http://127.0.0.1:8546', 'http://10.0.0.2:8546']];
   const patch = (o) => {
@@ -152,10 +152,10 @@ test('runType is formal-candidate only for a validated, protocolConformant a6-ga
   assert.equal(exportRows(rows).runType, 'rehearsal', 'a /1 run never recorded credit OFF');
   const v2 = conformantV2();
   assert.equal(exportRows(v2).runType, 'rehearsal', 'without validate.mjs the exporter must not mark a run formal');
-  assert.equal(exportRows(v2, {}).runType, 'formal-candidate');
+  refused(v2, /run not shown consistent/, {});
   const unaccepted = structuredClone(v2);
   Object.assign(unaccepted.at(-1), { stop: { reason: 'MAX_ATTEMPTS', code: 10 }, exitCode: 10 }); // consistent, not accepted (exit 3)
-  assert.equal(exportRows(unaccepted, {}).runType, 'rehearsal', 'consistent but not accepted is not a formal candidate');
+  refused(unaccepted, /run not shown consistent/, {});
   for (const r of v2) r.schema = 'a6-gauge/1';
   for (const r of [v2[0], v2.at(-1)]) delete r.passport.invariant.credit;
   refused(v2, /./, {});
@@ -368,7 +368,7 @@ test('N-2 exact reconstruction mismatch flags rehearsal and refuses formal-candi
   assert.match(sp.exclusionReason, /N2_RECONSTRUCTION_MISMATCH/);
   const formal = conformantV2();
   attachTrace(spRow(formal));
-  assert.equal(exportRows(formal, {}).runType, 'formal-candidate');
+  refused(formal, /run not shown consistent/, {});
   spRow(formal).gasDecomposition.executionGasUsed = '106';
-  refused(formal, /N2_RECONSTRUCTION_MISMATCH.*formal-candidate refused/, {});
+  refused(formal, /run not shown consistent/, {});
 });

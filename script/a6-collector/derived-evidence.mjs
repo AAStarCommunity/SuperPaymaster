@@ -14,7 +14,7 @@ const requireEqual = (field, actual, expected) => { if (!evidenceEqual(actual,ex
 
 // Summaries are assertions, never evidence. Absence is allowed only for an empty
 // optional summary in older journals; absence cannot hide a decoded event.
-export function bindReceiptSummaries(row) {
+export function bindReceiptSummaries(row, {formal = false} = {}) {
   const events = [];
   for (const log of row.logs ?? []) {
     if (lower(log.address)!==lower(row.entryPoint)) continue;
@@ -43,10 +43,10 @@ export function bindReceiptSummaries(row) {
   }
   const kind=u && !u.args.success ? (ours.some(e=>e.eventName==='PostOpRevertReason')?'postOpReverted':ours.some(e=>e.eventName==='UserOperationPrefundTooLow')?'prefundTooLow':'executionReverted') : null;
   requireEqual('revertKind',row.revertKind ?? null,kind);
-  if (row.userOpEvent != null || u) requireEqual('userOpEvent',row.userOpEvent,u ? {...u.args,...(('logIndex' in (row.userOpEvent ?? {}) || u.log.transactionHash)?{logIndex:Number(u.log.logIndex)}:{})} : null);
+  if (row.userOpEvent != null || u) requireEqual('userOpEvent',row.userOpEvent,u ? {...u.args,...((formal || 'logIndex' in (row.userOpEvent ?? {}) || u.log.transactionHash)?{logIndex:Number(u.log.logIndex)}:{})} : null);
   const observed=events.find(e=>e.eventName==='UserOperationEvent' && lower(e.args.sender)===lower(row.sender) && String(e.args.nonce)===String(row.nonce));
   // Legacy non-formal journals did not record this summary.
-  if ('observedUserOpEvent' in row || observed?.log.transactionHash) requireEqual('observedUserOpEvent',row.observedUserOpEvent,observed ? {...observed.args,logIndex:Number(observed.log.logIndex),txHash:observed.log.transactionHash} : null);
+  if ((formal && observed) || 'observedUserOpEvent' in row || observed?.log.transactionHash) requireEqual('observedUserOpEvent',row.observedUserOpEvent,observed ? {...observed.args,logIndex:Number(observed.log.logIndex),txHash:observed.log.transactionHash} : null);
 }
 
 export function bindArchivedDisposition(row,archives) {
