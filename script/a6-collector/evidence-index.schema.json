@@ -69,14 +69,14 @@
       ]
     },
     "exclusionReason": {
-      "anyOf": [
-        {
-          "type": "string",
-          "minLength": 1
-        },
-        {
-          "type": "null"
-        }
+      "enum": [
+        null,
+        "AA32",
+        "price_stale",
+        "not_included",
+        "op_failed_nongas",
+        "bundler_error",
+        "basefee_above_cap"
       ]
     },
     "stopReason": {
@@ -101,14 +101,8 @@
       ]
     },
     "replacedBy": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/link"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "type": "null",
+      "description": "Derived by validator from trailer; never written back."
     },
     "chainId": {
       "anyOf": [
@@ -988,14 +982,14 @@
           "type": "string",
           "minLength": 1
         },
-        "attempt": {
+        "tripleIndex": {
           "type": "integer",
           "minimum": 0
         }
       },
       "required": [
         "windowId",
-        "attempt"
+        "tripleIndex"
       ]
     }
   },

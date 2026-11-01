@@ -100,7 +100,7 @@ test('exclusions and fee pauses reject missing or contradictory reasons and fals
   assert.deepEqual(dispositionErrors(row),[]);assert.deepEqual(feePauseErrors(row),[]);
   assert.ok(feePauseErrors({...row,baseFeePerGas:'5000000000'}).length);
 });
-test('validate CLI accepts frozen per-arm formal shapes and a fee-paused partial triple, rejects missing/contradictory exclusion',()=>temp(d=>{
+test('validate CLI refuses unfinalized formal evidence and a fee-paused partial triple, rejects missing/contradictory exclusion',()=>temp(d=>{
   const source=readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').trim().split('\n').map(JSON.parse);
   const start=source[0], row=source[1], end=source.at(-1);
   const config={frozen:true,chainId:start.passport.chainId,operator:address(9),factory:address(8),sender:address(7),salt:'0',bundlerGasLimit:'3000000',accounts:Object.fromEntries(['owner','bundler','verifyingSigner'].map((r,i)=>[r,{name:r,address:address(i+1)}])),fees:{maxFeePerGas:'5000000000',maxPriorityFeePerGas:'1000000000'},task:{token:address(4),recipient:address(5)},gas:Object.fromEntries(armOrder(0).map((arm,i)=>[arm,{callGasLimit:String(100000+i),verificationGasLimit:'300000',preVerificationGas:'60000',paymasterVerificationGasLimit:'450000',paymasterPostOpGasLimit:'480000'}]))};
@@ -117,8 +117,72 @@ test('validate CLI accepts frozen per-arm formal shapes and a fee-paused partial
   end.stop={reason:'BASEFEE_PAUSED',code:10};end.exitCode=10;end.matchedTriplets=0;end.triplets=[{tripletIndex:0,armOrder:armOrder(0),matched:false,attempts:[0]}];end.tally={SP:{attempts:1,verdicts:{NOT_SENT:1}},VPM:{attempts:0,verdicts:{}},TPM:{attempts:0,verdicts:{}}};
   const path=join(d,'run.jsonl');
   const run=()=>{writeFileSync(path,[start,row,end].map(x=>JSON.stringify(x)).join('\n')+'\n');return spawnSync(process.execPath,['script/a6-collector/validate.mjs',path],{encoding:'utf8'});};
-  let result=run();assert.equal(result.status,3,result.stdout+result.stderr);assert.equal(JSON.parse(result.stdout).consistent,true);
+  let result=run();assert.equal(result.status,1,result.stdout+result.stderr);assert.equal(JSON.parse(result.stdout).consistent,false);assert.match(result.stdout,/missing or invalid index/);
   delete row.exclusion;result=run();assert.equal(result.status,1,result.stdout);assert.match(result.stdout,/exclusion reason required/);
   row.exclusion='NOT_SENT:deposit_floor';result=run();assert.equal(result.status,1);assert.match(result.stdout,/contradicts failure/);
   row.exclusion='NOT_SENT:basefee_above_cap';row.gas.callGasLimit='1';result=run();assert.equal(result.status,1);assert.match(result.stdout,/gas mismatch/);
 }));
+
+// Final disposition is a trailer overlay; historical rows are immutable.
+import { appendIndex, writeTrailer, armCounts } from './evidence.mjs';
+import { windowErrors, validateWindow } from './evidence-validate.mjs';
+function windowFixture() {
+  const source=JSON.parse(readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').split('\n')[1]);
+  const p={path:'passports/start.json',raw:{A:[],B:[]}};
+  const base=evidenceIndex(source,{windowId:'w',archives:[{records:[]},{records:[]}],pins,rpcIdentity:{path:'rpc-identity.json',sha256:'b'.repeat(64)},passports:{start:p,attempt:p},included:false,stopReason:null});
+  // Structural fixture: chain authenticity remains the independent journal validator's job.
+  base.missing={'/passports/end':'available in trailer'};
+  const rows=Array.from({length:153},(_,i)=>({...structuredClone(base),attempt:i,tripleIndex:Math.floor(i/3),arm:['SP','VPM','TPM'][i%3],replaces:i>=3 && i<6 ? {windowId:'w',tripleIndex:0}:null}));
+  const triples=Array.from({length:51},(_,i)=>({tripleIndex:i,attempts:[3*i,3*i+1,3*i+2],included:i>0}));
+  const trailer={schemaVersion:'a6-evidence-trailer/1',windowId:'w',void:false,stopReason:'COMPLETE',stopAttempt:152,endPassport:p,triples,replacements:[{abandoned:{windowId:'w',tripleIndex:0},replacement:{windowId:'w',tripleIndex:1},reason:'not_included'}],counts:armCounts(rows,triples)};
+  return {rows,trailer};
+}
+test('complete trailer accepts 50 triples, retains abandoned attempts and counts each arm',()=>{
+  const {rows,trailer}=windowFixture();
+  assert.deepEqual(windowErrors(rows,trailer),[]);
+  for(const c of Object.values(trailer.counts)) assert.deepEqual(c,{attempts:51,included:50,excluded:{not_included:1},notSent:0});
+});
+for(const [name,mutate,pattern] of [
+  ['inverse mismatch',(r,t)=>{r[3].replaces=null;},/inverse mismatch/],
+  ['cycle',(r,t)=>{t.replacements.push({abandoned:{windowId:'w',tripleIndex:1},replacement:{windowId:'w',tripleIndex:0},reason:'not_included'});},/cycle/],
+  ['one-to-one',(r,t)=>{t.replacements.push({...t.replacements[0],replacement:{windowId:'w',tripleIndex:2}});},/one-to-one/],
+  ['included count',(r,t)=>{t.triples[1].included=false;},/exactly 50/],
+  ['row enum',(r,t)=>{r[0].exclusionReason='low_gas';},/enum violation/],
+  ['abandonment enum',(r,t)=>{t.replacements[0].reason='effect_size';},/enum violation/],
+  ['abandoned included',(r,t)=>{t.triples[0].included=true;},/abandoned candidate included/],
+  ['retained attempts',(r,t)=>{r.splice(1,1);},/missing attempt|not retained/],
+  ['replacedBy',(r,t)=>{r[0].replacedBy={windowId:'w',tripleIndex:1};},/replacedBy must be null/],
+  ['replacement after fail-closed stop',(r,t)=>{r[2].stopReason='RPC_DISAGREEMENT';},/replacement after fail-closed stop/],
+  ['reorg void',(r,t)=>{t.void=true;t.stopReason='REORG';},/void window/],
+  ['conservation void',(r,t)=>{t.void=true;t.stopReason='CONSERVATION_FAILURE';},/void window/],
+  ['counts',(r,t)=>{t.counts.SP.notSent=1;},/counts mismatch/],
+]) test(`trailer refuses ${name}`,()=>{const {rows,trailer}=windowFixture();mutate(rows,trailer);assert.match(windowErrors(rows,trailer).join(';'),pattern);});
+test('attempts survive interruption, trailer is mandatory and one-shot, rows never change',()=>temp(d=>{
+  const {rows,trailer}=windowFixture();
+  appendIndex(d,rows[0]);
+  const bytes=readFileSync(join(d,'index.ndjson'),'utf8');
+  assert.deepEqual(JSON.parse(bytes),rows[0]);
+  assert.match(validateWindow(d).join(';'),/interrupted window/);
+  rows.slice(1).forEach(r=>appendIndex(d,r));
+  writeTrailer(d,trailer);
+  assert.deepEqual(validateWindow(d),[]);
+  assert.ok(readFileSync(join(d,'index.ndjson'),'utf8').startsWith(bytes));
+  assert.throws(()=>writeTrailer(d,trailer),/EEXIST/);
+}));
+
+import { exclusionReason, EXCLUSION_REASONS } from './evidence.mjs';
+test('closed enum reasons have concrete producers; gas-dependent and undecoded failures cannot authorize abandonment',()=>{
+  const samples=[
+    [{preflight:{revertReason:'AA32 paymaster expired or not due'}},'AA32'],
+    [{preflight:{revertReason:'AA33 reverted: price stale'}},'price_stale'],
+    [{verdict:'USEROP_SUCCESS'},'not_included'],
+    [{revertKind:'executionReverted',execRevert:[{revertReason:'0x4e487b71'+'0'.repeat(62)+'11'}]},'op_failed_nongas'],
+    [{reason:'bundler_error'},'bundler_error'],
+    [{reason:'basefee_above_cap'},'basefee_above_cap'],
+  ];
+  assert.deepEqual(samples.map(([r])=>exclusionReason(r)).sort(),[...EXCLUSION_REASONS].sort());
+  for(const [r,reason] of samples) assert.equal(exclusionReason(r),reason);
+  assert.equal(exclusionReason({preflight:{undecoded:true,revertReason:'AA32'}}),'not_included');
+  assert.equal(exclusionReason({reason:'gas_too_high'}),'not_included');
+  assert.equal(exclusionReason({reason:'effect_size'}),'not_included');
+});

@@ -1,3 +1,5 @@
+import { validateWindow } from './evidence-validate.mjs';
+import { dirname, resolve } from 'node:path';
 import { dispositionErrors, feePauseErrors } from './disposition.mjs';
 import { formalConfig, armOrder } from './formal.mjs';
 // A6 gauge validator: re-reads a collector JSONL and recomputes every verdict from the RAW
@@ -436,6 +438,7 @@ try {
   const start = lines[0], end = lines[lines.length - 1];
   isFormal = start.formal === true;
   if (isFormal) {
+    errors.push(...validateWindow(dirname(resolve(file)), lines));
     const frozen = formalConfig(need(start,'frozenConfig'),need(start,'bMax'));
     for (const key of ['gas','pmGas']) if (!deepEq(JSON.parse(JSON.stringify(frozen[key],(_,v) => typeof v === 'bigint' ? String(v):v)),start.passport?.invariant[key])) errors.push(`formal frozen ${key}/passport mismatch`);
   }

@@ -52,8 +52,8 @@ export function evidenceIndex(row, context) {
   const out = { schemaVersion: 'a6-evidence-index/1', windowId, tripleIndex: row.tripletIndex, attempt: row.attemptIndex, arm: row.arm,
     armOrder: row.armOrder ?? ['SP','VPM','TPM'], included, verdict: row.verdict,
     failureReason: row.failingCheck ?? null, notSentReason: row.verdict === 'NOT_SENT' ? row.reason ?? row.failingCheck ?? row.stoppedBy?.reason ?? 'unknown failure' : null,
-    exclusionReason: included ? null : row.exclusion ?? row.stoppedBy?.reason ?? row.failingCheck ?? stopReason ?? 'unmatched_triple',
-    stopReason: row.stoppedBy?.reason ?? (stopReason === 'COMPLETE' ? null : stopReason), replaces: null, replacedBy: null };
+    exclusionReason: included ? null : exclusionReason(row),
+    stopReason: row.stoppedBy?.reason ?? (stopReason === 'COMPLETE' ? null : stopReason), replaces: context.replaces ?? null, replacedBy: null };
   for (const k of ['chainId','entryPoint','sender','nonce','paymaster','bundler','packedOp','callDataHash','expectedUserOpHash']) out[k] = value('/'+k, row[k]);
   if (out.chainId != null) out.chainId = String(out.chainId);
   if (out.nonce != null) out.nonce = String(out.nonce);
@@ -85,10 +85,40 @@ export function evidenceIndex(row, context) {
   }))]));
   out.passports = Object.fromEntries(['start','attempt','end'].map(k => [k, value('/passports/'+k, passports[k])]));
   out.pins = pins; out.rpcIdentity = rpcIdentity; out.missing = missing;
-  if (out.included && Object.entries(missing).some(([p,r]) => !r.startsWith('not applicable'))) { out.included = false; out.exclusionReason = 'incomplete_evidence'; }
+  if (out.included && Object.entries(missing).some(([p,r]) => !r.startsWith('not applicable'))) { out.included = false; out.exclusionReason = 'not_included'; }
   return JSON.parse(stringify(out));
 }
 export function writeArtifact(window, path, object) {
   mkdirSync(dirname(resolve(window,path)), { recursive:true });
   writeFileSync(resolve(window,path), stringify(object)+'\n', { flag:'wx', mode:0o600 });
+}
+
+export const EXCLUSION_REASONS = ['AA32', 'price_stale', 'not_included', 'op_failed_nongas', 'bundler_error', 'basefee_above_cap'];
+export function exclusionReason(row) {
+  if (row.reason === 'basefee_above_cap' || row.failingCheck === 'basefee_above_cap') return 'basefee_above_cap';
+  const preflight = row.preflight?.undecoded ? '' : row.preflight?.revertReason ?? '';
+  if (/^AA32\b/.test(preflight)) return 'AA32';
+  if (/^(?:AA33 reverted: )?(?:price_stale|PriceStale|price stale)$/.test(preflight)) return 'price_stale';
+  // Solidity arithmetic overflow/division-by-zero panics prove a non-gas revert.
+  if (row.revertKind === 'executionReverted' && row.execRevert?.some(e =>
+    /^0x4e487b71[0-9a-f]{62}(11|12)$/i.test(e.revertReason))) return 'op_failed_nongas';
+  if (row.verdict === 'USEROP_SUCCESS') return 'not_included';
+  // Unknown failures are never converted into an eligible abandonment.
+  return EXCLUSION_REASONS.includes(row.reason) ? row.reason : 'not_included';
+}
+export function appendIndex(window, row) {
+  const fd = openSync(resolve(window, 'index.ndjson'), 'a', 0o600);
+  try { writeSync(fd, stringify(row) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
+}
+export function armCounts(rows, triples) {
+  const included = new Set(triples.filter(t => t.included).flatMap(t => t.attempts));
+  return Object.fromEntries(['SP','VPM','TPM'].map(arm => {
+    const rs = rows.filter(r => r.arm === arm), excluded = {};
+    for (const r of rs) if (!included.has(r.attempt)) excluded[r.exclusionReason] = (excluded[r.exclusionReason] ?? 0) + 1;
+    return [arm, { attempts:rs.length, included:rs.filter(r => included.has(r.attempt)).length, excluded, notSent:rs.filter(r => r.tx === null).length }];
+  }));
+}
+export function writeTrailer(window, trailer) {
+  const fd = openSync(resolve(window, 'trailer.json'), 'wx', 0o600);
+  try { writeSync(fd, stringify(trailer) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
 }

@@ -1,4 +1,4 @@
-import { loadPins, loadRegistry, sha256, evidenceIndex, writeArtifact } from './evidence.mjs';
+import { loadPins, loadRegistry, sha256, evidenceIndex, writeArtifact, appendIndex, writeTrailer, armCounts, exclusionReason } from './evidence.mjs';
 import { decomposeGas } from './gas-decomposition.mjs';
 import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
 // A6 per-UserOperation gauge (CC-125 a71741ed; RDR-6 ①; plan §8.4 SP-owned implementation half).
@@ -133,6 +133,9 @@ function collectorHead() {
 const fd = openSync(outPath, 'a');
 const archiveCursor = [0, 0];
 const evidenceRows = [];
+const replacements = [];
+let pendingReplacement = null;
+let pendingReplacementReason = null;
 const passportRefs = {};
 if (formal) writeArtifact(windowPath, 'rpc-identity.json', registry);
 const rpcIdentityPin = formal ? { path:'rpc-identity.json', sha256:sha256(readFileSync(resolve(windowPath,'rpc-identity.json'))) } : null;
@@ -144,7 +147,11 @@ function savePassport(name, passport) {
 function writeLine(obj) {
   if (formal && obj.kind === 'attempt') {
     obj.evidenceEnd = runtime.archives.map(a => a.ids.length);
-    evidenceRows.push(obj);
+    const index = evidenceIndex(obj, {windowId:runId, archives:runtime.archives, pins:evidencePins, rpcIdentity:rpcIdentityPin,
+      passports:{start:passportRefs.start, attempt:passportRefs[obj.attemptIndex]}, included:false,
+      stopReason:obj.stoppedBy?.reason ?? null, replaces:pendingReplacement});
+    appendIndex(windowPath, index);
+    evidenceRows.push(index);
   }
   if (formal) obj = { ...obj, rpcArchiveRefs: Object.fromEntries(runtime.archives.map((a, i) => {
     const ids = a.ids.slice(archiveCursor[i]); archiveCursor[i] = a.ids.length;
@@ -606,6 +613,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     args: [bundled, bundler.account.address], chain: null });
   } catch (e) {
     if (formal && e.message === 'basefee_above_cap') return finish(e.pause);
+    if (formal) row.reason = 'bundler_error';
     throw e;
   }
   if (formal) { row.sent = true; row.tx = { hash: txHash }; }
@@ -720,7 +728,7 @@ try {
   const epMismatch = Object.entries(passportStart.invariant.armEntryPoints).filter(([, a]) => getAddress(a) !== EP);
   if (epMismatch.length) throw new Stop('ENTRYPOINT_MISMATCH', 26, { EP, epMismatch });
   writeLine({ kind: 'run_start', ...collectorHead(), argv: formal ? ['--formal', '(URL files redacted)'] : process.argv.slice(2), rpcA: formal ? 'https://rpc-a.invalid' : rpcA, rpcB: formal ? 'https://rpc-b.invalid' : rpcB, allowSameEndpointLocal,
-    ...(formal ? { formal: true, formalSlice: 2, frozenConfig: formalInput, configSha256: createHash('sha256').update(readFileSync(argVal('--formal-config'))).digest('hex'),
+    ...(formal ? { formal: true, formalSlice: 3, frozenConfig: formalInput, configSha256: createHash('sha256').update(readFileSync(argVal('--formal-config'))).digest('hex'),
       deploymentConfigSha256: createHash('sha256').update(readFileSync(configPath)).digest('hex'), baselineConfigSha256: createHash('sha256').update(readFileSync(baselinesPath)).digest('hex'), rpcIdentity:rpcIdentityPin, pins:evidencePins, archiveLayout:'raw/{A|B}/YYYYMMDD.ndjson', sopPending:['DSR independent re-fetch and acceptance'] } : {}),
     abTopology: argVal('--ab-topology') ?? 'unspecified', count, bMax, maxAttempts, arms, fixture,
     protocolConformant: (formal || distinctEndpoints) && count === PROTOCOL_N && noFixture(fixture) && arms.length === 3 && !allowSameEndpointLocal,
@@ -729,6 +737,8 @@ try {
   console.log(`EP=${EP} (canonical v0.7 address: ${passportStart.invariant.entryPoint.isCanonicalV07Address}) sender=${sender}`);
   for (let t = 0; matched < count; t++) {
     if (arms.some((a) => tally[a].attempts >= maxAttempts)) { stop = { reason: 'MAX_ATTEMPTS', code: 10 }; break; }
+    if (formal && pendingReplacement) replacements.push({abandoned:pendingReplacement,
+      replacement:{windowId:runId,tripleIndex:t}, reason:pendingReplacementReason});
     const rows = [];
     for (const arm of (formal ? armOrder(t) : arms)) {
       const r = await attempt(arm, t, passportStart);
@@ -744,6 +754,16 @@ try {
       && new Set(rows.map(r => r.tx.hash.toLowerCase())).size === rows.length;
     triplets.push({ tripletIndex: t, ...(formal ? { armOrder: armOrder(t) } : {}), matched: ok, attempts: rows.map((r) => r.attemptIndex) });
     if (ok) matched++;
+    if (formal) {
+      pendingReplacement = null;
+      if (!ok && !rows.some(r => r.reason === 'basefee_above_cap')) {
+        const failures = rows.filter(r => r.verdict !== VERDICTS.USEROP_SUCCESS);
+        // Only explicitly classified, non-gas failures permit replacement.
+        if (!failures.length || failures.some(r => exclusionReason(r) === 'not_included')) throw new Stop('UNAPPROVED_ABANDONMENT', 29);
+        pendingReplacement = {windowId:runId,tripleIndex:t};
+        pendingReplacementReason = exclusionReason(failures[0]);
+      }
+    }
     if (formal && rows.some(r => r.reason === 'basefee_above_cap')) { stop = { reason: 'BASEFEE_PAUSED', code: 10 }; break; }
   }
   if (!stop) stop = { reason: 'COMPLETE', code: 0 };
@@ -784,15 +804,12 @@ writeLine({ kind: 'run_end', stop, exitCode, matchedTriplets: matched, targetTri
   passport: passportEnd, endedAtUtc: new Date().toISOString() });
 closeSync(fd);
 if (formal) {
-  const indexFd = openSync(resolve(windowPath,'index.ndjson'),'wx',0o600);
-  try {
-    for (const row of evidenceRows) {
-      const included = stop.code === 0 && triplets.some(t => t.matched && t.attempts.includes(row.attemptIndex));
-      const index = evidenceIndex(row, {windowId:runId,archives:runtime.archives,pins:evidencePins,rpcIdentity:rpcIdentityPin,
-        passports:{start:passportRefs.start,attempt:passportRefs[row.attemptIndex],end:passportRefs.end},included,stopReason:stop.reason});
-      writeSync(indexFd, JSON.stringify(index)+'\n'); fsyncSync(indexFd);
-    }
-  } finally { closeSync(indexFd); }
+  const triples = [...new Set(evidenceRows.map(r => r.tripleIndex))].map(tripleIndex => ({tripleIndex,
+    attempts:evidenceRows.filter(r => r.tripleIndex === tripleIndex).map(r => r.attempt),
+    included:stop.code === 0 && triplets.some(t => t.tripletIndex === tripleIndex && t.matched)}));
+  writeTrailer(windowPath, {schemaVersion:'a6-evidence-trailer/1', windowId:runId, void:stop.code !== 0,
+    stopReason:stop.reason, stopAttempt:evidenceRows.at(-1)?.attempt ?? null, endPassport:passportRefs.end ?? null,
+    triples, replacements, counts:armCounts(evidenceRows, triples)});
 }
 console.log(`stop=${stop.reason} exit=${exitCode} matched=${matched}/${count} ${JSON.stringify(tally)}`);
 if (stop.detail) console.log(`detail: ${JSON.stringify(jsonable(stop.detail)).slice(0, 2000)}`);
