@@ -180,14 +180,15 @@ abstract contract PostOpProfileFixture is Test {
                     trajectories++;
                     uint256[8] memory g = abi.decode(logs[i].data, (uint256[8]));
                     uint256[8] memory expected;
+                    // Budget 480000 (accepted MIN_POST): tuple-land/run/checkpoints.json, measured at 3670d57a.
                     if (vm.envOr("PROFILE_AMSTERDAM", false)) {
                         expected = credit
-                            ? [uint256(421153), 420876, 311132, 90305, 157476, 255195, 143896, 141720]
-                            : [uint256(421153), 420876, 311132, 90305, 237508, 335227, 223928, 221752];
+                            ? [uint256(460528), 460251, 350507, 129680, 196851, 294570, 183271, 181095]
+                            : [uint256(460528), 460251, 350507, 129680, 276883, 374602, 263303, 261127];
                     } else {
                         expected = credit
-                            ? [uint256(428353), 428076, 406352, 361565, 311016, 310815, 287536, 285360]
-                            : [uint256(428353), 428076, 406352, 361565, 317428, 317227, 293948, 291772];
+                            ? [uint256(467728), 467451, 445727, 400940, 350391, 350190, 326911, 324735]
+                            : [uint256(467728), 467451, 445727, 400940, 356803, 356602, 333323, 331147];
                     }
                     uint256 low = g[0];
                     for (uint256 j; j < 8; j++) {
@@ -236,15 +237,15 @@ abstract contract PostOpProfileFixture is Test {
 
 abstract contract PostOpProfileBoundary is PostOpProfileFixture {
     function directMinimum() internal returns (uint256) {
-        return vm.envOr("PROFILE_AMSTERDAM", false) ? 438828 : 431514;
+        return vm.envOr("PROFILE_AMSTERDAM", false) ? 469305 : 461990;
     }
 
     function test_entrypoint_minimum() public {
-        assertTrue(sample(440000, creditMode(), true, false));
+        assertTrue(sample(GasFixture.MIN_POST(), creditMode(), true, false));
     }
 
     function test_entrypoint_minimum_minus_one() public {
-        assertFalse(sample(439999, creditMode(), true, false));
+        assertFalse(sample(GasFixture.MIN_POST() - 1, creditMode(), true, false));
     }
 
     function test_direct_minimum() public {
@@ -257,19 +258,19 @@ abstract contract PostOpProfileBoundary is PostOpProfileFixture {
         assertEq(lastDirectRet, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector), "guard, not OOG");
     }
 
-    /// @dev Amsterdam only: the stable-engine guard boundary (431,514) is still rejected by the guard,
+    /// @dev Amsterdam only: the stable-engine guard boundary (461,990) is still rejected by the guard,
     ///      so the window up to the Amsterdam minimum is guard-fail at both ends, not a non-guard band.
     function test_direct_stable_boundary_is_guard_on_amsterdam() public {
         if (!vm.envOr("PROFILE_AMSTERDAM", false)) return;
-        assertFalse(sample(431514, creditMode(), false, false));
+        assertFalse(sample(461990, creditMode(), false, false));
         assertEq(lastDirectRet, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector), "guard, not OOG");
     }
 
     function test_search_sample() public {
-        uint256 budget = vm.envOr("PROFILE_BUDGET", uint256(440000));
+        uint256 budget = vm.envOr("PROFILE_BUDGET", uint256(GasFixture.MIN_POST()));
         bool realEP = vm.envOr("PROFILE_REAL_EP", true);
         bool ok = sample(budget, creditMode(), realEP, false);
-        assertEq(ok, budget >= (realEP ? 440000 : directMinimum()), "frozen completion threshold");
+        assertEq(ok, budget >= (realEP ? GasFixture.MIN_POST() : directMinimum()), "frozen completion threshold");
         emit log_named_uint("sample budget", budget);
         emit log_named_uint("sample completed", ok ? 1 : 0);
     }
@@ -293,7 +294,7 @@ abstract contract PostOpProfileTrajectory is PostOpProfileFixture {
     }
 
     function test_trajectory() public {
-        assertTrue(sample(vm.envOr("TRAJECTORY_BUDGET", uint256(440000)), creditMode(), true, true));
+        assertTrue(sample(vm.envOr("TRAJECTORY_BUDGET", uint256(GasFixture.MIN_POST())), creditMode(), true, true));
     }
 }
 

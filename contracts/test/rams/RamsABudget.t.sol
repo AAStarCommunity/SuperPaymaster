@@ -66,10 +66,10 @@ contract RamsABudgetTest is Test {
         op.preVerificationGas = 60_000;
         // maxFee, not priority fee, determines prefund.
         op.gasFees = bytes32(abi.encodePacked(uint128(0.1 gwei), uint128(1 gwei)));
-        op.paymasterAndData = abi.encodePacked(PAYMASTER, uint128(1_150_000), uint128(440_000));
-        assertEq(RamsBudget.requiredGas(op), 2_550_000);
-        assertEq(RamsBudget.maxCost(op), 0.00255 ether);
-        assertEq(RamsBudget.reservation(RamsBudget.maxCost(op), 2000e8, 8, 0.02 ether, 1000), 306 ether);
+        op.paymasterAndData = abi.encodePacked(PAYMASTER, uint128(1_150_000), uint128(480_000));
+        assertEq(RamsBudget.requiredGas(op), 2_590_000);
+        assertEq(RamsBudget.maxCost(op), 0.00259 ether);
+        assertEq(RamsBudget.reservation(RamsBudget.maxCost(op), 2000e8, 8, 0.02 ether, 1000), 310.8 ether);
         op.paymasterAndData = ""; // Unsponsored admin operation has no paymaster prefund.
         assertEq(RamsBudget.maxCost(op), 0.00096 ether);
     }

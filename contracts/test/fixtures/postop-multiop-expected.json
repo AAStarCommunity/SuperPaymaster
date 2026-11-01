@@ -1,610 +1,610 @@
 {
   "amsterdam-2-balance-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 49103,
+      "initial": 480000,
+      "minimum_remaining": 89103,
       "peak": 390897,
       "net": 211234,
-      "terminal": 228766
+      "terminal": 268766
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     }
   ],
   "amsterdam-2-balance-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 48761,
+      "initial": 480000,
+      "minimum_remaining": 88761,
       "peak": 391239,
       "net": 309496,
-      "terminal": 130504
+      "terminal": 170504
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288943,
+      "initial": 480000,
+      "minimum_remaining": 328943,
       "peak": 151057,
       "net": 57314,
-      "terminal": 382686
+      "terminal": 422686
     }
   ],
   "amsterdam-2-credit-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 67002,
+      "initial": 480000,
+      "minimum_remaining": 107002,
       "peak": 372998,
       "net": 291266,
-      "terminal": 148734
+      "terminal": 188734
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     }
   ],
   "amsterdam-2-credit-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 50814,
+      "initial": 480000,
+      "minimum_remaining": 90814,
       "peak": 389186,
       "net": 389186,
-      "terminal": 50814
+      "terminal": 90814
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     }
   ],
   "amsterdam-2-mixed-bc-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 49103,
+      "initial": 480000,
+      "minimum_remaining": 89103,
       "peak": 390897,
       "net": 211234,
-      "terminal": 228766
+      "terminal": 268766
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     }
   ],
   "amsterdam-2-mixed-bc-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 49103,
+      "initial": 480000,
+      "minimum_remaining": 89103,
       "peak": 390897,
       "net": 211234,
-      "terminal": 228766
+      "terminal": 268766
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 284842,
+      "initial": 480000,
+      "minimum_remaining": 324842,
       "peak": 155158,
       "net": 61426,
-      "terminal": 378574
+      "terminal": 418574
     }
   ],
   "amsterdam-2-mixed-cb-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 67002,
+      "initial": 480000,
+      "minimum_remaining": 107002,
       "peak": 372998,
       "net": 291266,
-      "terminal": 148734
+      "terminal": 188734
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 159023,
+      "initial": 480000,
+      "minimum_remaining": 199023,
       "peak": 280977,
       "net": 89314,
-      "terminal": 350686
+      "terminal": 390686
     }
   ],
   "amsterdam-2-mixed-cb-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 67002,
+      "initial": 480000,
+      "minimum_remaining": 107002,
       "peak": 372998,
       "net": 291266,
-      "terminal": 148734
+      "terminal": 188734
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 266943,
+      "initial": 480000,
+      "minimum_remaining": 306943,
       "peak": 173057,
       "net": 79314,
-      "terminal": 360686
+      "terminal": 400686
     }
   ],
   "amsterdam-3-balance-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 49103,
+      "initial": 480000,
+      "minimum_remaining": 89103,
       "peak": 390897,
       "net": 211234,
-      "terminal": 228766
+      "terminal": 268766
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     }
   ],
   "amsterdam-3-balance-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 48761,
+      "initial": 480000,
+      "minimum_remaining": 88761,
       "peak": 391239,
       "net": 309496,
-      "terminal": 130504
+      "terminal": 170504
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288601,
+      "initial": 480000,
+      "minimum_remaining": 328601,
       "peak": 151399,
       "net": 57656,
-      "terminal": 382344
+      "terminal": 422344
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288943,
+      "initial": 480000,
+      "minimum_remaining": 328943,
       "peak": 151057,
       "net": 57314,
-      "terminal": 382686
+      "terminal": 422686
     }
   ],
   "amsterdam-3-credit-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 67002,
+      "initial": 480000,
+      "minimum_remaining": 107002,
       "peak": 372998,
       "net": 291266,
-      "terminal": 148734
+      "terminal": 188734
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     }
   ],
   "amsterdam-3-credit-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 50814,
+      "initial": 480000,
+      "minimum_remaining": 90814,
       "peak": 389186,
       "net": 389186,
-      "terminal": 50814
+      "terminal": 90814
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     }
   ],
   "amsterdam-3-mixed-bc-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 49103,
+      "initial": 480000,
+      "minimum_remaining": 89103,
       "peak": 390897,
       "net": 211234,
-      "terminal": 228766
+      "terminal": 268766
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     }
   ],
   "amsterdam-3-mixed-bc-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 48761,
+      "initial": 480000,
+      "minimum_remaining": 88761,
       "peak": 391239,
       "net": 309496,
-      "terminal": 130504
+      "terminal": 170504
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 284842,
+      "initial": 480000,
+      "minimum_remaining": 324842,
       "peak": 155158,
       "net": 61426,
-      "terminal": 378574
+      "terminal": 418574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288943,
+      "initial": 480000,
+      "minimum_remaining": 328943,
       "peak": 151057,
       "net": 57314,
-      "terminal": 382686
+      "terminal": 422686
     }
   ],
   "amsterdam-3-mixed-cb-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 67002,
+      "initial": 480000,
+      "minimum_remaining": 107002,
       "peak": 372998,
       "net": 291266,
-      "terminal": 148734
+      "terminal": 188734
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 159023,
+      "initial": 480000,
+      "minimum_remaining": 199023,
       "peak": 280977,
       "net": 89314,
-      "terminal": 350686
+      "terminal": 390686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     }
   ],
   "amsterdam-3-mixed-cb-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 50814,
+      "initial": 480000,
+      "minimum_remaining": 90814,
       "peak": 389186,
       "net": 389186,
-      "terminal": 50814
+      "terminal": 90814
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 266943,
+      "initial": 480000,
+      "minimum_remaining": 306943,
       "peak": 173057,
       "net": 79314,
-      "terminal": 360686
+      "terminal": 400686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     }
   ],
   "amsterdam-5-balance-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 49103,
+      "initial": 480000,
+      "minimum_remaining": 89103,
       "peak": 390897,
       "net": 211234,
-      "terminal": 228766
+      "terminal": 268766
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     }
   ],
   "amsterdam-5-balance-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 48761,
+      "initial": 480000,
+      "minimum_remaining": 88761,
       "peak": 391239,
       "net": 309496,
-      "terminal": 130504
+      "terminal": 170504
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288601,
+      "initial": 480000,
+      "minimum_remaining": 328601,
       "peak": 151399,
       "net": 57656,
-      "terminal": 382344
+      "terminal": 422344
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288601,
+      "initial": 480000,
+      "minimum_remaining": 328601,
       "peak": 151399,
       "net": 57656,
-      "terminal": 382344
+      "terminal": 422344
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288601,
+      "initial": 480000,
+      "minimum_remaining": 328601,
       "peak": 151399,
       "net": 57656,
-      "terminal": 382344
+      "terminal": 422344
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288943,
+      "initial": 480000,
+      "minimum_remaining": 328943,
       "peak": 151057,
       "net": 57314,
-      "terminal": 382686
+      "terminal": 422686
     }
   ],
   "amsterdam-5-credit-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 67002,
+      "initial": 480000,
+      "minimum_remaining": 107002,
       "peak": 372998,
       "net": 291266,
-      "terminal": 148734
+      "terminal": 188734
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     }
   ],
   "amsterdam-5-credit-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 50814,
+      "initial": 480000,
+      "minimum_remaining": 90814,
       "peak": 389186,
       "net": 389186,
-      "terminal": 50814
+      "terminal": 90814
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     }
   ],
   "amsterdam-5-mixed-bc-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 49103,
+      "initial": 480000,
+      "minimum_remaining": 89103,
       "peak": 390897,
       "net": 211234,
-      "terminal": 228766
+      "terminal": 268766
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     }
   ],
   "amsterdam-5-mixed-bc-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 48761,
+      "initial": 480000,
+      "minimum_remaining": 88761,
       "peak": 391239,
       "net": 309496,
-      "terminal": 130504
+      "terminal": 170504
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 284447,
+      "initial": 480000,
+      "minimum_remaining": 324447,
       "peak": 155553,
       "net": 61426,
-      "terminal": 378574
+      "terminal": 418574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288601,
+      "initial": 480000,
+      "minimum_remaining": 328601,
       "peak": 151399,
       "net": 57656,
-      "terminal": 382344
+      "terminal": 422344
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288943,
+      "initial": 480000,
+      "minimum_remaining": 328943,
       "peak": 151057,
       "net": 57314,
-      "terminal": 382686
+      "terminal": 422686
     }
   ],
   "amsterdam-5-mixed-cb-distinct": [
     {
-      "initial": 440000,
-      "minimum_remaining": 67002,
+      "initial": 480000,
+      "minimum_remaining": 107002,
       "peak": 372998,
       "net": 291266,
-      "terminal": 148734
+      "terminal": 188734
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 159023,
+      "initial": 480000,
+      "minimum_remaining": 199023,
       "peak": 280977,
       "net": 89314,
-      "terminal": 350686
+      "terminal": 390686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 171023,
+      "initial": 480000,
+      "minimum_remaining": 211023,
       "peak": 268977,
       "net": 77314,
-      "terminal": 362686
+      "terminal": 402686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 176922,
+      "initial": 480000,
+      "minimum_remaining": 216922,
       "peak": 263078,
       "net": 71426,
-      "terminal": 368574
+      "terminal": 408574
     }
   ],
   "amsterdam-5-mixed-cb-same": [
     {
-      "initial": 440000,
-      "minimum_remaining": 50814,
+      "initial": 480000,
+      "minimum_remaining": 90814,
       "peak": 389186,
       "net": 389186,
-      "terminal": 50814
+      "terminal": 90814
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 266601,
+      "initial": 480000,
+      "minimum_remaining": 306601,
       "peak": 173399,
       "net": 79656,
-      "terminal": 360344
+      "terminal": 400344
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 288943,
+      "initial": 480000,
+      "minimum_remaining": 328943,
       "peak": 151057,
       "net": 57314,
-      "terminal": 382686
+      "terminal": 422686
     },
     {
-      "initial": 440000,
-      "minimum_remaining": 294842,
+      "initial": 480000,
+      "minimum_remaining": 334842,
       "peak": 145158,
       "net": 51426,
-      "terminal": 388574
+      "terminal": 428574
     }
   ]
 }

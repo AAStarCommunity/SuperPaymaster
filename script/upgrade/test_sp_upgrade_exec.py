@@ -156,6 +156,7 @@ class ExecutorTests(unittest.TestCase):
 
     def test_valid_plan_and_numeric_nonce_sequence(self):
         plan = self.plan()
+        self.assertEqual(plan["gasParams"], [480000, 450000, 5000, 450000])
         self.assertIs(ex.validate_plan(plan), plan)
         counters = {v['address']: v['nonce'] for v in plan['pin']['senders'].values()}
         safe = 17

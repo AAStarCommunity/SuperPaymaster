@@ -116,7 +116,9 @@ def verify_sources(out):
             assert hashlib.sha256(measured).hexdigest() == expected, ('harness source', path)
             assert Path(path).read_bytes() == measured.replace(*skip_patch), ('harness source', path)
             continue
-        assert hashlib.sha256(Path(path).read_bytes()).hexdigest() == expected, ('harness source', path)
+        # Imported helpers and build config are bound to the recorded revision, not the current tree: later
+        # commits (e.g. landing a new gas tuple in a shared fixture) must not invalidate this measurement.
+        assert hashlib.sha256(recorded(path)).hexdigest() == expected, ('harness source', path)
     runner = 'script/evidence/rr5-lifecycle-run.py'
     original = recorded(runner)
     if runner in before:
