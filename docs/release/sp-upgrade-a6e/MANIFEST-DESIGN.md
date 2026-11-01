@@ -221,6 +221,13 @@ STOP conditions (each is a hard stop; nothing later is sent):
 - **Rehearsal.** A full fork rehearsal on the pinned Sepolia state with the Amsterdam engine: every step, every read-back, timelock delays warped.
   - It includes the B2 gate and the swap in 6d.
   - After B4, one valid fraud proof submitted through A7 is accepted, and one invalid proof is rejected.
+  - This pair runs with the packet's actual verifier creation code, on the fork engine (Amsterdam, a superset of
+    osaka). DVT's conformance tests used SP's compile settings (cancun/prague, runs 500, no metadata hash), not the
+    deployed bytecode (osaka, runs 200), so they do not cover it.
+  - Verifier artifact archived by DSR:
+    `DSR-Research-Flow/docs/report/aoa-closure-2026-10-31/dvt-verifier-72aca4fa/OverIssueFraudProofVerifier-72aca4fa.json`.
+    Its hashes: sha256 `4d7e0125…e7d6`; creation keccak `0x73652062…e3ab`; keccak with the CBOR tail stripped `0x697b9779…8d54`.
+  - The packet uses that creation code, or a real-submodule rebuild compared against it under the two-hash rule. The constructor arguments (A7, Registry) are appended by the builder.
 - **Negative controls.**
   - unpause before 6d rejected;
   - `configureOperator` before `setXPNTsFactory` rejected;
