@@ -13,7 +13,8 @@
 // is listed with its exclusion reason, so no attempt is dropped.
 //
 // runType is `rehearsal` unless validate.mjs ran and accepted the run (not merely consistent), and the run is protocolConformant
-// and a6-gauge/2 (credit OFF recorded); this view never makes a run formal.
+// and a6-gauge/2 (credit OFF recorded). Both start.formal and report.formal must be true;
+// this view never makes a run formal.
 import { decomposeGas, exactClaimMatches } from './gas-decomposition.mjs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -100,7 +101,7 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
     try {
       writeFileSync(runCopy, raw);
       try {
-        execFileSync('node', [join(HERE, 'validate.mjs'), runCopy, '--json', reportPath], { stdio: 'ignore' });
+        execFileSync('node', [join(HERE, 'validate.mjs'), runCopy, '--window', dirname(resolve(jsonlPath)), '--json', reportPath], { stdio: 'ignore' });
       } catch (e) {
         // 3 = consistent, not accepted. Anything else (1 inconsistent, 2 missing field, or validate.mjs itself
         // could not run, e.g. without node_modules) refuses the export.
@@ -111,7 +112,7 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
       rmSync(scratch, { recursive: true, force: true });
     }
     if (report.consistent !== true) fail('validate.mjs: run is not consistent');
-    accepted = report.accepted === true;
+    accepted = report.accepted === true && report.formal === true;
   }
   const inv = start.passport.invariant;
   if (canon(inv) !== canon(end.passport.invariant)) fail('passport invariant drifted between run_start and run_end');
@@ -214,7 +215,7 @@ export function exportRun(jsonlPath, outDir, { windowId, validate = true } = {})
     });
   }
   const pkg = {
-    schema: 'aoa-m3-receive-v1', runType: accepted && start.protocolConformant && start.schema === 'a6-gauge/2' ? 'formal-candidate' : 'rehearsal',
+    schema: 'aoa-m3-receive-v1', runType: start.formal === true && accepted && start.protocolConformant && start.schema === 'a6-gauge/2' ? 'formal-candidate' : 'rehearsal',
     source: { runId: start.runId, collectorHead: start.head, collectorDirty: start.collectorDirty,
       jsonlSha256: sha256(raw), stop: end.stop, protocolConformant: start.protocolConformant,
       allowSameEndpointLocal: start.allowSameEndpointLocal },

@@ -1,21 +1,31 @@
+import { bindReceiptSummaries } from './derived-evidence.mjs';
+import { EXCLUSION_REASONS, exclusionReason } from './evidence.mjs';
+import { tpmAttemptRefreshed } from './trace-policy.mjs';
+import { validateWindow } from './evidence-validate.mjs';
+import { dirname, resolve } from 'node:path';
+import { dispositionErrors, feePauseErrors } from './disposition.mjs';
+import { formalConfig, armOrder, inclusionErrors } from './formal.mjs';
 // A6 gauge validator: re-reads a collector JSONL and recomputes every verdict from the RAW
 // fields (packed op, receipt logs, A/B read-backs), with its own decoder — it does not import
 // gauge-lib.mjs, so a decoding/classification bug in the collector cannot validate itself.
 //
 // Fails CLOSED: any missing or malformed field is an error, never a default.
 //
-// Usage: node script/a6-collector/validate.mjs <run.jsonl> [--json <report.json>]
+// Usage: node script/a6-collector/validate.mjs <run.jsonl> [--json <report.json>] [--window <archive-dir>]
 // Exit: 0  consistent AND accepted (N matched triplets, no stop, every conservation check holds)
 //       3  consistent but NOT accepted (fixture run / stopped / attempt budget exhausted)
 //       1  INCONSISTENT: a recomputed verdict / conservation / A-B / passport result differs from
 //          the record, or a conservation identity fails on the raw read-backs
 //       2  unreadable input or a required field is missing (fail closed)
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { keccak256, encodeAbiParameters, toBytes, getAddress } from 'viem';
 
 const file = process.argv[2];
+// Exporters validate a captured journal while resolving its original archive separately.
+const windowArg = process.argv.indexOf('--window');
+const evidenceDir = windowArg === -1 ? dirname(resolve(file || '.')) : resolve(process.argv[windowArg + 1]);
 const jsonOut = (() => { const i = process.argv.indexOf('--json'); return i === -1 ? null : process.argv[i + 1]; })();
-if (!file) { console.error('usage: validate.mjs <run.jsonl> [--json <report.json>]'); process.exit(2); }
+if (!file) { console.error('usage: validate.mjs <run.jsonl> [--json <report.json>] [--window <archive-dir>]'); process.exit(2); }
 
 class Missing extends Error {}
 const errors = [];      // inconsistencies → exit 1
@@ -169,7 +179,8 @@ function conservation(row, spAddr, tokenAddr, operator, inv) {
       readbacks: { before: { A: { ...b, blockNumber: before.blockNumber, blockHash: before.blockHash } }, after: { A: a } } },
       spAddr, tokenAddr, operator, inv);
     failed.push(...checks.map(c => `receipt.${h}.${c}`));
-    for (const f of fields) {
+    const gasFields = isFormal ? ['SP','VPM','TPM'].flatMap(a => GAS_FIELDS.map(f => `invariant.gas.${a}.${f}`)) : GAS_FIELDS.map(f => `invariant.gas.${f}`);
+  for (const f of [...fields.filter(f => !f.startsWith('invariant.gas.')), ...gasFields]) {
       if (['inflightOperator', 'inflightA0', 'lockXLocked'].includes(f) && h !== lc(row.expectedUserOpHash)) continue;
       projected[f] = a[f];
     }
@@ -368,9 +379,11 @@ const BOOL_FIELDS = new Set(['allowSameEndpointLocal', 'invariant.entryPoint.isC
 const SCHEMAS = ['a6-gauge/1', 'a6-gauge/2'];
 const CREDIT_FIELDS = ['policy', 'hasPendingPolicy', 'pendingPolicy', 'pendingPolicyEta', 'policyEpoch'].map(f => `invariant.credit.${f}`);
 let schema = null;
+let isFormal = false;
 function completePassport(p) {
   const fields = schema === 'a6-gauge/2' ? [...PASSPORT_FIELDS, ...CREDIT_FIELDS] : PASSPORT_FIELDS;
-  for (const f of fields) {
+  const gasFields = isFormal ? ['SP','VPM','TPM'].flatMap(a => GAS_FIELDS.map(f => `invariant.gas.${a}.${f}`)) : GAS_FIELDS.map(f => `invariant.gas.${f}`);
+  for (const f of [...fields.filter(f => !f.startsWith('invariant.gas.')), ...gasFields]) {
     const v = need(p, f);
     let valid;
     if (ADDRESS_FIELDS.has(f)) valid = typeof v === 'string' && /^0x[0-9a-f]{40}$/i.test(v) && !/^0x0{40}$/i.test(v);
@@ -421,7 +434,7 @@ function opGas(op) {
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────────────────
-const report = { file, attempts: 0, recomputed: {}, errors, notes };
+const report = { formal: false, file, attempts: 0, recomputed: {}, errors, notes };
 let exit = 0;
 try {
   let lines;
@@ -429,6 +442,18 @@ try {
   catch (e) { throw e instanceof Missing ? e : new Missing(`cannot read ${file}: ${e.message}`); }
   if (lines.length < 2) throw new Missing('need at least run_start and run_end');
   const start = lines[0], end = lines[lines.length - 1];
+  isFormal = start.formal === true;
+  report.formal = isFormal;
+  const markerFiles = ['trailer.json','manifest.json'].map(name=>resolve(evidenceDir,name));
+  const markers = markerFiles.filter(existsSync).map(path=>JSON.parse(readFileSync(path,'utf8')).rehearsal === true);
+  report.rehearsal = start.rehearsal === true || end.rehearsal === true || markers.some(Boolean);
+  if (report.rehearsal) Object.assign(report,{protocolConformant:false,accepted:false,evidence:false});
+  if (report.rehearsal && (start.rehearsal !== true || end.rehearsal !== true || markers.some(v=>!v))) errors.push('rehearsal marker mismatch');
+  if (isFormal) {
+    errors.push(...validateWindow(evidenceDir, lines));
+    const frozen = formalConfig(need(start,'frozenConfig'),need(start,'bMax'));
+    for (const key of ['gas','pmGas']) if (!deepEq(JSON.parse(JSON.stringify(frozen[key],(_,v) => typeof v === 'bigint' ? String(v):v)),start.passport?.invariant[key])) errors.push(`formal frozen ${key}/passport mismatch`);
+  }
   if (need(start, 'kind') !== 'run_start') throw new Missing('first line is not run_start');
   if (need(end, 'kind') !== 'run_end') throw new Missing('last line is not run_end (truncated run?)');
   schema = need(start, 'schema');
@@ -455,12 +480,16 @@ try {
   const distinctEndpoints = endpointA.host !== endpointB.host && endpointA.host !== 'loopback' && endpointB.host !== 'loopback';
   const localOverride = start.allowSameEndpointLocal === true || pStart.allowSameEndpointLocal === true;
   if (!distinctEndpoints && !(localOverride && endpointA.port !== endpointB.port)) errors.push('RPC identities require different non-loopback hosts or different ports with explicit local override');
-  const conformant = target === 50 && noFixture(fixture) && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
+  const conformant = isFormal && start.rehearsal !== true && target === 50 && noFixture(fixture) && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
   if (need(start, 'protocolConformant') !== conformant) errors.push('protocolConformant differs from recomputed count/fixture/arms/endpoints/override');
   if (start.protocolConformant && (!distinctEndpoints || localOverride)) errors.push('conformant run requires distinct endpoints without local override');
   // /1 never recorded credit state, so relabelling a run as /1 must not yield a conformant result.
   if (start.protocolConformant && schema !== 'a6-gauge/2') errors.push('conformant run requires a6-gauge/2 (credit OFF recorded)');
   const attempts = lines.slice(1, -1);
+  if (isFormal) errors.push(...inclusionErrors(attempts));
+  if (report.rehearsal) notes.push('rehearsal: non-compliant / non-evidence');
+  // A declared state intervention (rehearsal-refresh.mjs) is valid only in a rehearsal, and only as the TPM cache-aging control.
+  for (const [i, r] of attempts.entries()) if (r.rehearsalControl != null && (!report.rehearsal || r.rehearsalControl.kind !== 'tpmCacheAged' || r.arm !== 'TPM')) errors.push(`attempt ${i}: rehearsal control outside a rehearsal TPM attempt`);
   const byTriplet = new Map();
   let stoppedRows = 0;
   let previousBlock = { blockNumber: pStart.block.number, blockHash: pStart.block.hash };
@@ -480,8 +509,14 @@ try {
     && !p.invariant.xPNTs.emergencyDisabled;
 
   attempts.forEach((row, i) => {
+    try { if (!row.stoppedBy) bindReceiptSummaries(row); } catch (e) { errors.push(`attempt ${i}: ${e.message}`); }
+    errors.push(...dispositionErrors(row).map(e => `attempt ${i}: ${e}`), ...feePauseErrors(row).map(e => `attempt ${i}: ${e}`));
+    if (EXCLUSION_REASONS.includes(row.reason)) {
+      try { exclusionReason(row); } catch (e) { errors.push(`attempt ${i}: ${e.message}`); }
+    }
+    if (isFormal && !deepEq(row.armOrder,armOrder(row.tripletIndex))) errors.push(`attempt ${i}: formal armOrder mismatch`);
     if (row.sent === false && (need(row, 'tx') !== null || !Array.isArray(need(row, 'logs')) || row.logs.length !== 0
-        || 'readbacks' in row || !['deposit_floor', 'preflight_revert'].includes(row.failingCheck))) {
+        || 'readbacks' in row || !['deposit_floor', 'preflight_revert', 'basefee_above_cap'].includes(row.failingCheck))) {
       errors.push(`attempt ${i}: NOT_SENT contradicts row evidence or failingCheck`);
     }
     if (row.sent) {
@@ -562,7 +597,7 @@ try {
     row.derivedGas = opGas(row.packedOp);
     if (lc(row.callDataHash) !== lc(row.derivedCallDataHash)) errors.push(`attempt ${i}: callDataHash mismatch`);
     if (GAS_FIELDS.some(f => big(need(row.gas, f)) !== big(row.derivedGas[f]))) errors.push(`attempt ${i}: packed gas mismatch`);
-    if (noFixture(fixture) && (lc(row.derivedCallDataHash) !== lc(inv.callDataHash) || GAS_FIELDS.some(f => big(row.derivedGas[f]) !== big(inv.gas[f])))) errors.push(`attempt ${i}: operation callData/gas passport mismatch`);
+    if (noFixture(fixture) && (lc(row.derivedCallDataHash) !== lc(inv.callDataHash) || GAS_FIELDS.some(f => big(row.derivedGas[f]) !== big((isFormal ? inv.gas[row.arm] : inv.gas)[f])))) errors.push(`attempt ${i}: operation callData/gas passport mismatch`);
     const bundledHashes = row.bundledOps.map((op) => hashOp(op, row.entryPoint, chainId));
     if (!deepEq(bundledHashes, row.bundledUserOpHashes)) errors.push(`attempt ${i}: bundled hashes do not recompute`);
     if (fixture !== 'drop-op' && !row.bundledOps.some(op => deepEq(op, row.packedOp))) errors.push(`attempt ${i}: packedOp absent from bundledOps`);
@@ -615,18 +650,22 @@ try {
       for (const side of ['before', 'after']) {
         if (!deepEq(row.readbacks[side].A, row.readbacks[side].B)) errors.push(`attempt ${i}: A/B read-backs (${side}) disagree in a row that was not stopped`);
       }
-      if (row.tx.blockTxCount !== 1 || big(row.tx.blockNumber) !== big(row.tx.headBefore) + 1n) errors.push(`attempt ${i}: tx block not isolated`);
+      if (isFormal ? big(row.tx.blockNumber) <= big(row.tx.headBefore) : row.tx.blockTxCount !== 1 || big(row.tx.blockNumber) !== big(row.tx.headBefore) + 1n) errors.push(`attempt ${i}: tx block not isolated`);
       const before = row.readbacks.before.A, after = row.readbacks.after.A;
       if (i === attempts.length - 1) need(after, 'operatorBalance');
       for (const [value, seen, label] of [[lc(row.tx.hash), seenTx, 'transaction'], [lc(h), seenOps, 'userOpHash'], [lc(row.tx.blockHash), seenBlocks, 'block']]) {
         if (seen.has(value)) errors.push(`attempt ${i}: reused ${label}`);
         seen.add(value);
       }
-      if (big(need(before, 'blockNumber')) !== big(previousBlock.blockNumber) || lc(need(before, 'blockHash')) !== lc(previousBlock.blockHash)) errors.push(`attempt ${i}: consecutive block continuity failed`);
+      if (isFormal ? big(need(before, 'blockNumber')) < big(previousBlock.blockNumber) : big(need(before, 'blockNumber')) !== big(previousBlock.blockNumber) || lc(need(before, 'blockHash')) !== lc(previousBlock.blockHash)) errors.push(`attempt ${i}: consecutive block continuity failed`);
       const previous = stateByArm.get(row.arm);
+      if (report.rehearsal && row.arm === 'TPM' && row.rehearsalControl?.kind === 'tpmCacheAged' && (row.rehearsalControl.cachedPriceTimestamp?.to == null || big(need(before, 'tpmCachedPriceTimestamp')) !== big(row.rehearsalControl.cachedPriceTimestamp.to))) errors.push(`attempt ${i}: rehearsal cache timestamp mismatch`);
       // Other arms use separate deposits/tokens and cannot change these fields. lockXLocked
       // and inflight state are keyed by opHash: a new op starts empty, rather than inheriting the prior reservation.
-      if (previous) for (const f of ['epDeposit', ...(row.arm === 'SP' ? SP_FIELDS.filter(f => !['lockXLocked', 'inflightA0', 'inflightOperator'].includes(f)) : [])]) {
+      if (previous) for (const f of ['epDeposit', ...(row.arm === 'SP' ? SP_FIELDS.filter(f => !['lockXLocked', 'inflightA0', 'inflightOperator'].includes(f)) : row.arm === 'TPM' ? ['tpmCachedPriceTimestamp', 'tpmTokenBalances'].filter(f => isFormal || f in before || f in previous) : [])]) {
+        if (f === 'tpmCachedPriceTimestamp' && report.rehearsal && row.rehearsalControl?.kind === 'tpmCacheAged') {
+          continue;
+        }
         if (!deepEq(need(before, f), need(previous, f))) errors.push(`attempt ${i}: balance continuity failed: ${f}`);
       }
       // Shared SP balance follows chronological attempts, not the previous baseline arm.
@@ -679,16 +718,16 @@ try {
   }
   for (const [tripletIndex, rows] of byTriplet) {
     // A row interrupted by a stop condition never counts, whatever its receipt said.
-    const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
+    const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && (!(isFormal || r.row.traces) || !tpmAttemptRefreshed(r.row)) && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
     const sentRows = rows.filter(r => r.row.sent);
-    const same = new Set(sentRows.map((r) => `${r.row.derivedCallDataHash}|${JSON.stringify(r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size <= 1;
+    const same = new Set(sentRows.map((r) => `${r.row.derivedCallDataHash}|${JSON.stringify(isFormal ? {maxFeePerGas:r.row.derivedGas.maxFeePerGas,maxPriorityFeePerGas:r.row.derivedGas.maxPriorityFeePerGas} : r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size <= 1;
     if (!same) errors.push('triplet callData/gas/bundler differ between arms');
     const distinct = ['paymaster', 'expectedUserOpHash'].every(f => new Set(sentRows.map(r => lc(r.row[f]))).size === sentRows.length)
       && new Set(sentRows.map(r => lc(r.row.tx?.hash))).size === sentRows.length;
     if (!distinct) errors.push('triplet paymasters/transaction hashes/userOpHashes must be distinct');
     const complete = rows.length === arms.length && rows.every(r => r.row.verdict !== 'STOPPED' && !r.row.stoppedBy);
     const ok = noFixture(fixture) && okArms && same && distinct && complete;
-    if (complete) triplets.push({ tripletIndex, matched: ok, attempts: rows.map(r => r.row.attemptIndex) });
+    if (complete || (isFormal && rows.some(r => r.row.reason === 'basefee_above_cap'))) triplets.push({ tripletIndex, ...(isFormal ? {armOrder:armOrder(tripletIndex)}:{}), matched: ok, attempts: rows.map(r => r.row.attemptIndex) });
     if (ok) {
       matched++;
       if (end.stop?.reason === 'COMPLETE' && matched === target && rows.at(-1).row.attemptIndex !== attempts.length - 1) errors.push('attempt after COMPLETE target reached');
@@ -738,14 +777,14 @@ try {
   if (allEarlierHashes.has(lc(end.passport.block.hash))) errors.push('end passport reuses earlier block hash');
   if (big(end.passport.volatile.operatorBalance) !== lastAfterBalance) errors.push('end passport balance differs from last after');
   if (big(need(end, 'passport.block.timestamp')) < big(pStart.block.timestamp)) errors.push('end passport timestamp precedes start');
-  if (arms.includes('SP') && attempts.some(r => r.sent)) for (const [label, p] of [['start', pStart]]) {
+  if (!isFormal && arms.includes('SP') && attempts.some(r => r.sent)) for (const [label, p] of [['start', pStart]]) {
     const value = balanceReadbacks.get(lc(p.block.hash));
     if (value === undefined) { if (!errors.length) throw new Missing(`${label} passport requires operatorBalance readback at same block hash`); continue; }
     if (value !== big(p.volatile.operatorBalance)) errors.push(`${label} passport/readback operatorBalance mismatch`);
   }
-  report.protocolConformant = conformant;
+  report.protocolConformant = conformant && errors.length === 0;
   report.consistent = errors.length === 0;
-  report.accepted = report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0 && (target !== 50 || conformant);
+  report.accepted = !report.rehearsal && report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0 && (target !== 50 || conformant);
   exit = !report.consistent ? 1 : report.accepted ? 0 : 3;
 } catch (e) {
   if (e instanceof Missing) { report.missing = e.message; exit = 2; }

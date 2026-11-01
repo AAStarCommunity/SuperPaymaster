@@ -1,0 +1,38 @@
+[
+  {
+    "reverted": "receipt summaries",
+    "exitCode": 1,
+    "failures": [
+      "userOpEvent cannot change decoded success or disappear",
+      "observedUserOpEvent cannot change decoded success or disappear",
+      "verdict must equal receipt classification",
+      "failingCheck must equal receipt classification",
+      "revertKind must equal receipt classification",
+      "missing execRevert cannot hide a raw event",
+      "missing postOpRevert cannot hide a raw event",
+      "missing prefundTooLow cannot hide a raw event"
+    ],
+    "failedTests": 8
+  },
+  {
+    "reverted": "archived disposition",
+    "exitCode": 1,
+    "failures": [
+      "submission exception requires archived send error",
+      "fee pause requires archived baseFee rather than invented numeric inequality",
+      "refresh summaries must equal archived traces",
+      "sent flag must equal archived submission"
+    ],
+    "failedTests": 4
+  },
+  {
+    "reverted": "original missing-preflight / successful-array bypasses",
+    "exitCode": 1,
+    "failures": [
+      "delete row.preflight on a NOT_SENT attempt, add revertKind:\"executionReverted\" and an invented execRevert Panic(0x11) \u2192 op_failed_nongas",
+      "nonempty postOpRevert arrays on a successful included attempt are checked",
+      "nonempty prefundTooLow arrays on a successful included attempt are checked"
+    ],
+    "failedTests": 3
+  }
+]
