@@ -47,14 +47,24 @@ The sampler's current `PM_GAS.SP = {ver: 400_000n, post: 200_000n}` (`collector.
 `validate.mjs:547` once the tuple is active (post must be ≥ the on-chain `minPostOpGas`). It is replaced by the frozen
 values above, read back from chain and recorded in the pin. The `aoa-m3-receive` positive control is updated with it.
 
+## 3a. Fee caps (DSR 2026-11-01; all three arms, pilot included)
+
+| Item | Value | Note |
+| --- | --- | --- |
+| `maxFeePerGas` | **5 gwei** for all three arms; `collector.mjs` `MAX_FEE_CEILING` is changed to match | at the old 20 gwei the SP reservation is about 5,712–6,216 aPNTs, above `maxSingleTxLimit` 5000, so the SP arm would be rejected. At 5 gwei it is about 1,430–1,550 |
+| `maxPriorityFeePerGas` | **1 gwei**, the same for all three arms | Sepolia base fee read at tens of wei; it peaked at about 0.96 gwei roughly 200,000 blocks earlier. 5 gwei leaves about 5× headroom |
+| Rule | if the base fee exceeds the cap and operations cannot be included, pause the window and wait for it to fall. The attempts are kept. The cap is not changed | — |
+
+Fees do not change gas usage, only the reservation and the cost. The paper compares gas only.
+
 ## 4. Funding (computed in Phase C; 100 attempts per arm)
 
 100 attempts per arm = 50 formal + 20 pilot + 30 margin for failures and exclusions.
 
 | Item | Rule | Value |
 | --- | --- | --- |
-| APNTsCapped deposit for the deployer operator | ≥ 100 × maximum single reservation, computed with ceiling arithmetic at SP post = 480000 and ver on the SP_RENEW path | **TBD** |
-| EntryPoint deposits | SP, VPM and TPM: each 100 × that arm's maxCost | **TBD** |
+| APNTsCapped deposit for the deployer operator | ≥ 100 × maximum single reservation, computed with ceiling arithmetic at maxFeePerGas 5 gwei, SP post = 480000 and ver on the SP_RENEW path | **TBD** (≈ 100 × 1,430–1,550) |
+| EntryPoint deposits | SP, VPM and TPM: each 100 × that arm's maxCost at 5 gwei | **TBD** (SP ≈ 1.3 ETH at about 2.59 M gas; all three ≈ 2–3 ETH; the deployer holds 12.16 ETH) |
 | User xPNTs (V2) balance | 100 × maximum single reservation; check `maxSingleTxLimit` (default 5000e18) ≥ the maximum single reservation | **TBD** |
 | Recompute trigger | if the pilot freezes SP post above 480000, recompute. If funds are short, STOP; do not top up mid-sampling | — |
 
