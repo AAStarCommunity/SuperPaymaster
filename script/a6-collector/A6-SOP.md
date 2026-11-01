@@ -143,3 +143,9 @@ Slice 1/2 已实现 formal keystore transport、固定块 A/B raw 档案、身�
 - DSR 全部 receipt/UOE/交易归属独立重取、随机固定块状态深查及最终验收。
 
 窗口 index 在 run_end 后生成最终纳入判定；进程硬中断可能留下无完整 index 的 journal 和 raw 档案，这种窗口不完整、不得验收。冻结摘要只证明文件完整性，不证明链上真实性。
+
+Formal repair addendum: endpoint independence still requires DSR's manual registry
+verification even after DNS/IP guards pass. A credential-flagged raw archive is
+sensitive evidence: preserve exact bytes locally, stop the window, and do not
+freeze or distribute it. `tpm_postop_refresh` abandons a complete candidate triple
+and is counted for every arm in the trailer; both endpoint traces are mandatory.

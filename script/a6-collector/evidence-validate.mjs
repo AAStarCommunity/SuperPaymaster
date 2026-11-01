@@ -1,3 +1,4 @@
+import { artifactErrors } from './artifact-validate.mjs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { EXCLUSION_REASONS, armCounts } from './evidence.mjs';
@@ -50,6 +51,17 @@ export function windowErrors(rows, trailer, journal = null) {
     const rs = groups.get(t.tripleIndex);
     if (!rs || !equal(t.attempts,rs.map(r=>r.attempt))) fail('candidate attempts missing or not retained');
     if (typeof t.included !== 'boolean') fail('invalid inclusion');
+    if (t.included) for (const r of rs ?? []) {
+      if (r.arm==='TPM' && (r.trace?.postOpRefreshed!==false || ['A','B'].some(e=>!r.trace?.raw?.[e]?.length))) fail('included TPM missing trace or refreshed');
+      const required=['packedOp','bundle','tx','uoe','gas','expectedUserOpHash','observedUserOpHash'];
+      if (required.some(k=>r[k]==null) || !r.bundle?.length || ['raw','input','handleOpsIndex','gasLimit','maxFeePerGas','maxPriorityFeePerGas','blockNumber','blockHash'].some(k=>r.tx?.[k]==null)) fail('included attempt missing required evidence');
+      for (const e of ['A','B']) if (['receipt','logs','transaction','stateReads'].some(k=>!r.endpoints?.[e]?.[k]?.length)) fail('included attempt missing required raw references');
+      for (const side of ['before','after']) for (const key of ['entryPointDeposit','operatorBalance',...(r.arm==='SP'?['protocolRevenue','inflightOf','userXPNTs','totalSupply','lockedOf','debts','creditReservedOf','operatorTotalSpent','operatorTotalTxSponsored']:r.arm==='TPM'?['tpmTokenBalances','tpmCachedPriceTimestamp']:['vpmDeposit'])]) {
+        const state=r.state?.[side]?.[key];
+        if (state?.value==null || !state.anchor || ['A','B'].some(e=>!state.raw?.[e]?.length)) fail('included attempt missing required state evidence');
+      }
+    }
+
     if (t.included && (!rs || rs.length !== 3 || new Set(rs.map(r=>r.arm)).size !== 3 || rs.some(r=>r.verdict !== 'USEROP_SUCCESS' || r.stopReason || Object.entries(r.missing).some(([p,why])=>p !== '/passports/end' && !why.startsWith('not applicable'))))) fail('included candidate lacks three successful complete attempts');
   }
   if (triples.size !== groups.size) fail('trailer candidate coverage mismatch');
@@ -96,6 +108,7 @@ export function validateWindow(window, journal) {
   let trailer;
   try { trailer=JSON.parse(readFileSync(resolve(window,'trailer.json'),'utf8')); } catch { return ['missing or invalid trailer: interrupted window']; }
   const errors = windowErrors(rows,trailer,journal);
+  errors.push(...artifactErrors(window,rows,trailer,journal));
   if (journal && trailer.endPassport?.path) {
     const path = resolve(window,trailer.endPassport.path);
     if (!path.startsWith(resolve(window) + '/')) errors.push('end Passport escapes window');

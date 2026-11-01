@@ -1,3 +1,7 @@
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { rawArchive } from './evidence.mjs';
 import { dirname } from 'node:path';
 // Formal-A6 slice 1. TODO(A6-SOP §2, §4, §5): identity registry, per-op
@@ -21,10 +25,64 @@ export function endpointPair(a, b) {
     try { u = new URL(value); } catch { throw new Error('invalid formal RPC URL (redacted)'); }
     const h = u.hostname.toLowerCase().replace(/\.$/, '');
     if (!['http:', 'https:'].includes(u.protocol) || h === 'localhost' || h.endsWith('.localhost') ||
-        /^127\./.test(h) || h === '[::1]' || h === '0.0.0.0' || h.startsWith('[::ffff:7f')) throw new Error('formal RPC must be remote');
+        /^127\./.test(h) || h === '[::]' || h === '[::1]' || h === '0.0.0.0' || h.startsWith('[::ffff:7f')) throw new Error('formal RPC must be remote');
     return `${h}:${u.port || (u.protocol === 'https:' ? '443' : '80')}`;
   };
   if (parse(a) === parse(b)) throw new Error('formal RPC A/B have the same host/port');
+}
+export function publicAddress(address) {
+  const h = address.toLowerCase().replace(/^\[|\]$/g, '');
+  if (isIP(h) === 4) {
+    const [a,b] = h.split('.').map(Number);
+    return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127));
+  }
+  // Accept only global-unicast IPv6; mapped IPv4 and local/reserved ranges fail closed.
+  return isIP(h) === 6 && /^[23][0-9a-f]{3}:/.test(h);
+}
+export async function resolveEndpoints(a,b,resolver = lookup) {
+  endpointPair(a,b);
+  const sets = await Promise.all([a,b].map(async url => {
+    const host = new URL(url).hostname.replace(/^\[|\]$/g,'');
+    const addresses = isIP(host) ? [host] : (await resolver(host,{all:true})).map(r=>r.address);
+    if (!addresses.length || addresses.some(a=>!publicAddress(a))) throw new Error('formal RPC resolved to forbidden address');
+    return [...new Set(addresses.map(a=>a.toLowerCase()))].sort();
+  }));
+  if (sets[0].some(a=>sets[1].includes(a))) throw new Error('formal RPC A/B share resolved address');
+  return sets;
+}
+export function pinnedFetch(url, options, addresses) {
+  return new Promise((resolve,reject)=>{
+    const request = (new URL(url).protocol==='https:'?httpsRequest:httpRequest)(url,{
+      method:options.method,headers:options.headers,signal:options.signal,
+      lookup:(_host,opts,cb)=>{ const records=addresses.map(address=>({address,family:isIP(address)})); if(opts.all) cb(null,records); else cb(null,records[0].address,records[0].family); }
+    },response=>{
+      const chunks=[];response.on('data',chunk=>chunks.push(chunk));response.on('error',reject);
+      response.on('end',()=>resolve({status:response.statusCode,ok:response.statusCode>=200 && response.statusCode<300,arrayBuffer:async()=>Buffer.concat(chunks)}));
+    });
+    request.on('error',()=>reject(new Error('RPC transport failed (redacted)')));request.end(options.body);
+  });
+}
+export function credentialFragments(urls) {
+  return [...new Set(urls.flatMap(value=>{
+    const u=new URL(value);
+    return [u.username,u.password,...u.pathname.split('/'),...u.searchParams.values()].filter(Boolean).flatMap(x=>[x,decodeURIComponent(x)]);
+  }))];
+}
+export async function revalidateAnchors(archives) {
+  const anchors = new Map();
+  for (const archive of archives) for (const r of archive.records) for (const a of [r.blockAnchor,...(r.blockRange ?? [])]) if (a) {
+    const n=BigInt(a.number).toString();
+    if (anchors.has(n) && anchors.get(n)!==a.hash) throw new Error('final anchor disagreement');
+    anchors.set(n,a.hash);
+  }
+  const raw={A:[],B:[]};
+  for (const [number,hash] of anchors) for (const [idx,archive] of archives.entries()) {
+    const b=await archive.request({method:'eth_getBlockByNumber',params:['0x'+BigInt(number).toString(16),false]});
+    if (!b || BigInt(b.number)!==BigInt(number) || b.hash!==hash) throw new Error('final historical block changed or unavailable');
+    const record=archive.records.at(-1);
+    raw[idx?'B':'A'].push({path:record.path,id:record.id});
+  }
+  return {anchors:[...anchors].map(([number,hash])=>({number,hash})),raw};
 }
 export function taskCallData(task, candidate) {
   const T = getAddress(task.token), R = getAddress(task.recipient);
@@ -83,10 +141,20 @@ export function guardRequest(method, params) {
 
 /** Transport owns serialization: base64 preserves exact request and response bytes,
  * including whitespace, invalid JSON and error responses. No endpoint URL is stored. */
-export function archivedRpc({ url, endpoint, append, fetchImpl = fetch }) {
+export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets = [], secretPatterns = [] }) {
+  const credentials = [...credentialFragments([url]), ...secrets];
+  const sensitive = bytes => credentials.some(s=>s && bytes.includes(s)) || secretPatterns.some(p=>new RegExp(p).test(bytes));
   let sequence = 0;
   const ids = [], anchors = new Map();
-  async function request({ method, params = [] }) {
+  let fatalError;
+  async function request(args) {
+    if (fatalError) throw fatalError;
+    try { return await perform(args); } catch (e) {
+      if (!e.data) fatalError = e;
+      throw e;
+    }
+  }
+  async function perform({ method, params = [] }) {
     guardRequest(method, params);
     let anchor = null;
     const tag = method in STATE_TAG ? params[STATE_TAG[method]] : method === 'eth_getBlockByNumber' ? params[0] : null;
@@ -114,7 +182,8 @@ export function archivedRpc({ url, endpoint, append, fetchImpl = fetch }) {
       response = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body, redirect: 'error', signal: AbortSignal.timeout(60000) });
       bytes = Buffer.from(await response.arrayBuffer());
     } catch {
-      append({ id, endpoint, requestedAtUtc: at, receivedAtUtc: new Date().toISOString(), method, params, anchor, blockRange,
+      const credentialFlag = sensitive(body) || sensitive(bytes?.toString('utf8') ?? '');
+    append({ credentialFlag, id, endpoint, requestedAtUtc: at, receivedAtUtc: new Date().toISOString(), method, params, anchor, blockRange,
         requestBase64: Buffer.from(body).toString('base64'), responseBase64: null, transportError: 'RPC transport failed (redacted)' });
       ids.push(id);
       throw new Error(`RPC ${endpoint} transport failed (redacted)`);
@@ -123,9 +192,11 @@ export function archivedRpc({ url, endpoint, append, fetchImpl = fetch }) {
     try { data = JSON.parse(bytes.toString('utf8')); } catch { /* Archive before refusing malformed JSON. */ }
     if (data?.result?.blockHash && data.result.blockNumber) anchor = { number: data.result.blockNumber, hash: data.result.blockHash };
     if (['eth_getBlockByNumber', 'eth_getBlockByHash'].includes(method) && data?.result?.hash) anchor = { number: data.result.number, hash: data.result.hash };
-    append({ id, endpoint, requestedAtUtc: at, receivedAtUtc: new Date().toISOString(), method, params, anchor, blockRange,
+    const credentialFlag = sensitive(body) || sensitive(bytes?.toString('utf8') ?? '');
+    append({ credentialFlag, id, endpoint, requestedAtUtc: at, receivedAtUtc: new Date().toISOString(), method, params, anchor, blockRange,
       requestBase64: Buffer.from(body).toString('base64'), responseBase64: bytes.toString('base64'), httpStatus: response.status });
     ids.push(id);
+    if (credentialFlag) throw new Error('RPC archive credential exposure; window stopped (redacted)');
     if (anchor) {
       if (anchors.has(anchor.number) && anchors.get(anchor.number) !== anchor.hash) throw new Error('recorded block hash changed');
       anchors.set(anchor.number, anchor.hash);
@@ -162,12 +233,12 @@ export function castSigner(config, _role, run = execFileSync) {
     }, signTypedData: async () => { throw new Error('typed data signing is not used by A6'); } });
 }
 
-export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, createSigner = castSigner, fetchImpl }) {
+export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, createSigner = castSigner, fetchImpl, resolver = lookup }) {
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
-  endpointPair(a, b);
+  const resolved = await resolveEndpoints(a, b, resolver);
   const archives = ['A', 'B'].map((endpoint, i) => {
     const archive = rawArchive(dirname(outPath), endpoint);
-    const rpc = archivedRpc({ url: i ? b : a, endpoint, fetchImpl, append: archive.append });
+    const rpc = archivedRpc({ url: i ? b : a, endpoint, fetchImpl: fetchImpl ?? ((url,options)=>pinnedFetch(url,options,resolved[i])), append: archive.append, secrets: credentialFragments([a,b]), secretPatterns: config.secretPatterns ?? [] });
     return { ...rpc, ...archive };
   });
   let pin;
@@ -198,7 +269,7 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, creat
       const block = await refreshPin();
       const pause = feePause(block, config.fees.maxFeePerGas);
       if (pause) { const error = new Error('basefee_above_cap'); error.pause = pause; throw error; }
-      return wallet.writeContract({ ...args, chain: null, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
+      return wallet.writeContract({ ...args, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
         nonce: await pubA.getTransactionCount({ address: accounts.bundler.address }),
         maxFeePerGas: BigInt(config.fees.maxFeePerGas), maxPriorityFeePerGas: BigInt(config.fees.maxPriorityFeePerGas) });
     } };
@@ -231,3 +302,5 @@ export async function prepareSimpleAccount({ config, runtime, readAB }) {
   if (getAddress(actualOwner.value) !== getAddress(owner)) throw new Error('SimpleAccount owner mismatch');
   return { sender, created };
 }
+
+export function requireDecodedPreflight(error, decoded) { if (!decoded) throw error; }

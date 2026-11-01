@@ -78,7 +78,8 @@
         "not_included",
         "op_failed_nongas",
         "bundler_error",
-        "basefee_above_cap"
+        "basefee_above_cap",
+        "tpm_postop_refresh"
       ],
       "description": "Null for successful attempts, including successful operations in abandoned candidates. not_included means only that the operation was not included in a block. Candidate abandonment reasons live in trailer replacements edges."
     },
@@ -533,6 +534,28 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "trace": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "postOpRefreshed",
+            "raw"
+          ],
+          "properties": {
+            "postOpRefreshed": {
+              "type": "boolean"
+            },
+            "raw": {
+              "type": "object"
+            }
+          }
+        }
+      ]
     }
   },
   "required": [

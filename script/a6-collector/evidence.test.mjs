@@ -1,6 +1,7 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
+import { repairFixture } from './repair-fixture.mjs';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync, symlinkSync } from 'node:fs';
+import { realpathSync, mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -11,7 +12,7 @@ import { feePause, formalConfig, armOrder } from './formal.mjs';
 import { localUserOpHash } from './gauge-lib.mjs';
 import { concat, pad, toHex } from 'viem';
 const H = '0x'+'ab'.repeat(32), address = n => '0x'+String(n).padStart(40,'0');
-function temp(fn) { const d=mkdtempSync(join(tmpdir(),'a6-slice2-')); try { return fn(d); } finally { rmSync(d,{recursive:true,force:true}); } }
+function temp(fn) { const d=realpathSync(mkdtempSync(join(tmpdir(),'a6-slice2-'))); try { return fn(d); } finally { rmSync(d,{recursive:true,force:true}); } }
 const categories = ['collector','validator','dependencies','contractSources','abi','config'];
 const pins = Object.fromEntries(categories.map(k => [k,[{path:'/offline/fixture',sha256:'a'.repeat(64)}]]));
 const schema = JSON.parse(readFileSync(new URL('./evidence-index.schema.json',import.meta.url)));
@@ -126,13 +127,12 @@ test('validate CLI refuses unfinalized formal evidence and a fee-paused partial 
 // Final disposition is a trailer overlay; historical rows are immutable.
 import { appendIndex, writeTrailer, armCounts } from './evidence.mjs';
 import { windowErrors, validateWindow } from './evidence-validate.mjs';
+const fixtureDir=realpathSync(mkdtempSync(join(tmpdir(),'a6-archives-')));
+after(()=>rmSync(fixtureDir,{recursive:true,force:true}));
+let fixtureCache;
 function windowFixture() {
-  const source=JSON.parse(readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').split('\n')[1]);
-  const p={path:'passports/start.json',raw:{A:[],B:[]}};
-  const base=evidenceIndex(source,{windowId:'w',archives:[{records:[]},{records:[]}],pins,rpcIdentity:{path:'rpc-identity.json',sha256:'b'.repeat(64)},passports:{start:p,attempt:p},included:false,stopReason:null});
-  // Structural fixture: chain authenticity remains the independent journal validator's job.
-  base.missing={'/passports/end':'available in trailer'};
-  const rows=Array.from({length:153},(_,i)=>({...structuredClone(base),attempt:i,tripleIndex:Math.floor(i/3),arm:['SP','VPM','TPM'][i%3],replaces:i>=3 && i<6 ? {windowId:'w',tripleIndex:0}:null}));
+  fixtureCache ??= repairFixture(fixtureDir,153);
+  const rows=structuredClone(fixtureCache.rows), p=fixtureCache.passport;
   const triples=Array.from({length:51},(_,i)=>({tripleIndex:i,attempts:[3*i,3*i+1,3*i+2],included:i>0}));
   const trailer={schemaVersion:'a6-evidence-trailer/1',windowId:'w',void:false,stopReason:'COMPLETE',stopAttempt:152,endPassport:p,triples,replacements:[{abandoned:{windowId:'w',tripleIndex:0},replacement:{windowId:'w',tripleIndex:1},reason:'not_included'}],counts:armCounts(rows,triples,[{abandoned:{tripleIndex:0},reason:'not_included'}])};
   return {rows,trailer};
@@ -213,7 +213,7 @@ test('attempts survive interruption, trailer is mandatory and one-shot, rows nev
   assert.match(validateWindow(d).join(';'),/interrupted window/);
   rows.slice(1).forEach(r=>appendIndex(d,r));
   writeTrailer(d,trailer);
-  assert.deepEqual(validateWindow(d),[]);
+  assert.match(validateWindow(d).join(';'),/artifact verification/);
   assert.ok(readFileSync(join(d,'index.ndjson'),'utf8').startsWith(bytes));
   assert.throws(()=>writeTrailer(d,trailer),/EEXIST/);
 }));
@@ -226,6 +226,7 @@ test('closed enum reasons have concrete producers; gas-dependent and undecoded f
     [{reason:'not_included'},'not_included'],
     [{revertKind:'executionReverted',execRevert:[{revertReason:'0x4e487b71'+'0'.repeat(62)+'11'}]},'op_failed_nongas'],
     [{reason:'bundler_error'},'bundler_error'],
+    [{reason:'tpm_postop_refresh'},'tpm_postop_refresh'],
     [{reason:'basefee_above_cap'},'basefee_above_cap'],
   ];
   assert.deepEqual(samples.map(([r])=>exclusionReason(r)).sort(),[...EXCLUSION_REASONS].sort());

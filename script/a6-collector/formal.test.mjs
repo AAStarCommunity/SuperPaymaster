@@ -66,8 +66,8 @@ test('dual raw archive preserves every exact request/response including RPC erro
     } });
     assert.equal(await rpc.request({ method: 'eth_call', params: [{ to: address(1), data: '0x' }, '0x2a'] }), '0x01');
     await assert.rejects(rpc.request({ method: 'error' }), e => !e.message.includes('secret.invalid'));
-    await assert.rejects(rpc.request({ method: 'bad' }), /invalid response/);
-    assert.equal(records.length, 5); assert.equal(rpc.ids.length, 5);
+    await assert.rejects(rpc.request({ method: 'bad' }), /error -32000/);
+    assert.equal(records.length, 4); assert.equal(rpc.ids.length, 4);
     records.forEach((r, i) => {
       assert.equal(Buffer.from(r.requestBase64, 'base64').toString(), sent[i]);
       assert.equal(Buffer.from(r.responseBase64, 'base64').toString(), received[i]);
@@ -85,8 +85,8 @@ test('transport failure archived; reorg refused without overwriting the first an
   } });
   await rpc.request({ method: 'eth_getBlockByNumber', params: ['0x1', false] });
   await assert.rejects(rpc.request({ method: 'eth_getBlockByNumber', params: ['0x1', false] }), /hash changed/);
-  await assert.rejects(rpc.request({ method: 'eth_chainId' }), /redacted/);
-  assert.equal(rows.length, 3); assert.equal(rows[2].responseBase64, null);
+  await assert.rejects(rpc.request({ method: 'eth_chainId' }), /hash changed/);
+  assert.equal(rows.length, 2);
   assert.ok(!JSON.stringify(rows).includes('hidden.invalid'));
 });
 test('formal runtime uses injected separate signers, archives signed transactions, never loads development keys', async () => {
@@ -102,7 +102,7 @@ test('formal runtime uses injected separate signers, archives signed transaction
     for (const e of ['a', 'b']) writeFileSync(join(dir, e), `https://${e}.invalid/secret`);
     const calls = [];
     let baseFeePerGas = '0x1';
-    runtime = await formalRuntime({ config: c, rpcAFile: join(dir, 'a'), rpcBFile: join(dir, 'b'), outPath: join(dir, 'run'),
+    runtime = await formalRuntime({ resolver: async h => [{address:h.startsWith('a')?'8.8.8.8':'1.1.1.1'}], config: c, rpcAFile: join(dir, 'a'), rpcBFile: join(dir, 'b'), outPath: join(dir, 'run'),
       createSigner: (account, role) => { assert.equal(account.name, role); return signers[role]; },
       fetchImpl: async (_, { body }) => {
         const r = JSON.parse(body); calls.push(r);

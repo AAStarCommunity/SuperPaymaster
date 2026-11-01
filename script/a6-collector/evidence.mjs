@@ -1,3 +1,4 @@
+import { stateCalls, supportsCall } from './state-evidence.mjs';
 import { readFileSync, writeFileSync, mkdirSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -79,11 +80,13 @@ export function evidenceIndex(row, context) {
     const applicable = ['entryPointDeposit','operatorBalance'].includes(k) || (k.startsWith('tpm') ? row.arm === 'TPM' : k === 'vpmDeposit' ? row.arm === 'VPM' : row.arm === 'SP');
     const s = row.readbacks?.[side]?.A;
     const v = k === 'inflightOf' && s ? { operator:s.inflightOperator, a0:s.inflightA0 } : s?.[source];
-    const raw = pair(archives, r => r.method === 'eth_call' && r.blockAnchor?.number === String(s?.blockNumber) && r.blockAnchor?.hash === s?.blockHash);
+    const calls = applicable && s && row.stateTargets && v != null ? stateCalls(row,k,v) : [];
+    const raw = pair(archives, r => calls.some(call=>supportsCall(r,call,{number:s.blockNumber,hash:s.blockHash})));
     if (applicable && s) for (const e of ['A','B']) if (!raw[e].length) missing[`/state/${side}/${k}/raw/${e}`] = 'fixed-block raw state response unavailable';
     return [k, value(`/state/${side}/${k}`, applicable && v != null && s ? { value:v, anchor:{ number:s.blockNumber, hash:s.blockHash }, raw } : null, applicable ? 'fixed-block state unavailable' : `not applicable to ${row.arm}`)];
   }))]));
   out.passports = Object.fromEntries(['start','attempt','end'].map(k => [k, value('/passports/'+k, passports[k])]));
+  out.trace = row.arm === 'TPM' && row.traces ? {oracle:row.tpmOracle,postOpRefreshed:row.postOpRefreshed,raw:pair(archives,r=>r.method==='debug_traceTransaction' && r.params[0]===row.tx?.hash)} : null;
   out.pins = pins; out.rpcIdentity = rpcIdentity; out.missing = missing;
   return JSON.parse(stringify(out));
 }
@@ -92,7 +95,7 @@ export function writeArtifact(window, path, object) {
   writeFileSync(resolve(window,path), stringify(object)+'\n', { flag:'wx', mode:0o600 });
 }
 
-export const EXCLUSION_REASONS = ['AA32', 'price_stale', 'not_included', 'op_failed_nongas', 'bundler_error', 'basefee_above_cap'];
+export const EXCLUSION_REASONS = ['AA32', 'price_stale', 'not_included', 'op_failed_nongas', 'bundler_error', 'basefee_above_cap', 'tpm_postop_refresh'];
 export function exclusionReason(row) {
   if (row.verdict === 'USEROP_SUCCESS') return null;
   if (row.reason === 'basefee_above_cap' || row.failingCheck === 'basefee_above_cap') return 'basefee_above_cap';

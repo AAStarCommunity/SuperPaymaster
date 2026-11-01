@@ -49,3 +49,32 @@ Run `node script/a6-collector/freeze.mjs <window> --sampling <DSR-file>`. The su
 ## Summary
 
 One immediately durable append-only index row identifies each attempt; the one-shot trailer supplies final disposition, matching, counts and end Passport. Each row records full operation/bundle, transaction membership and observed UOE. Both RPC endpoints have exact-byte raw archives with integer IDs and fixed-block state references. Start/attempt/end Passports, six pin categories and the RPC identity registry complete the reference graph. Missing evidence is explicit; failed and unsent attempts remain visible. The one-shot SHA-256 manifest includes DSR's supplied sampling artifact. DSR must independently re-fetch chain evidence; this format and offline acceptance do not establish formal A6 compliance.
+
+### Formal repair gates
+
+`tpm_postop_refresh` is a closed abandonment reason. Successful attempt rows keep
+`exclusionReason: null`; the replacement edge carries this reason and the trailer
+counts all three abandoned arms. TPM attempts require A/B callTracer (with logs)
+and prestateTracer diff evidence. Calls to the pinned TPM oracle or `latestRoundData` within postOp,
+TokenPriceUpdated logs, or TPM storage changes exclude the triple. Storage-change
+classification is conservative: it can reject changes unrelated to price. An
+unavailable trace stops the formal window; no trace-less TPM sample is accepted.
+
+The offline gate opens raw references, requires unique endpoint-local IDs, checks
+request bytes against method/params, binds state calls and return values to their
+contract and fixed block, hashes pins and the registry, and compares the index
+with the journal. Included evidence cannot be excused by `missing`. Finalization
+records A/B re-reads of every historical anchor in `finalBlockCheck`.
+
+RPC hostnames are resolved before collection; non-public addresses and overlapping
+address sets are refused. Production connections use those vetted addresses while
+retaining the URL hostname for TLS. Different IPs do **not** prove independent
+providers: DSR must manually verify operators, backends and upstreams in the registry.
+
+Archive request/response bytes are scanned against URL userinfo, nonempty path
+segments, query values (including decoded forms), and the frozen configuration's
+`secretPatterns` regular expressions. A match sets `credentialFlag`, stops further
+RPC requests, and prevents freezing. Exact bytes remain on disk for investigation;
+do not distribute a flagged window. Errors never print the matched substring.
+Freeze also rejects symlinked ancestors of the window or sampling file before
+creating its lock.

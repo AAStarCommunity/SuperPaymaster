@@ -1,3 +1,5 @@
+import { traceTPM } from './trace-policy.mjs';
+import { revalidateAnchors, requireDecodedPreflight } from './formal.mjs';
 import { loadPins, loadRegistry, sha256, evidenceIndex, writeArtifact, appendIndex, writeTrailer, armCounts, exclusionReason } from './evidence.mjs';
 import { decomposeGas } from './gas-decomposition.mjs';
 import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
@@ -142,7 +144,7 @@ const rpcIdentityPin = formal ? { path:'rpc-identity.json', sha256:sha256(readFi
 function savePassport(name, passport) {
   const path = `passports/${name}.json`;
   writeArtifact(windowPath, path, passport);
-  return { path, raw:Object.fromEntries(runtime.archives.map((a,i) => [i?'B':'A', a.records.map(r => ({path:r.path,id:r.id}))])) };
+  return { path, raw:Object.fromEntries(runtime.archives.map((a,i) => [i?'B':'A', a.records.filter(r=>r.blockAnchor?.number===String(passport.block.number) && r.blockAnchor?.hash===passport.block.hash && ['eth_call','eth_getCode','eth_getStorageAt','eth_getBlockByNumber'].includes(r.method)).map(r => ({path:r.path,id:r.id}))])) };
 }
 function writeLine(obj) {
   if (formal && obj.kind === 'attempt') {
@@ -341,6 +343,7 @@ async function simulateRevert(ops) {
       const raw = rawRevertDataOf(e);
       if (raw) { try { const d = decodeErrorResult({ abi: ENTRYPOINT_ERRORS_ABI, data: raw }); decoded = { errorName: d.errorName, reason: d.args?.[1] }; } catch { /* undecoded */ } }
     }
+    if (formal) requireDecodedPreflight(e,decoded);
     return classifyRevert(decoded, e.shortMessage || e.message || String(e));
   }
 }
@@ -414,6 +417,7 @@ async function passport(p, blockNumber) {
         verifyingPaymaster: await codehash(baselines.verifyingPaymaster.address),
         tokenPaymaster: await codehash(baselines.tokenPaymaster.address),
         tokenPaymasterToken: await codehash(baselines.tokenPaymaster.token),
+        ...(formal ? {tokenPaymasterOracle:await codehash(baselines.tokenPaymaster.oracle)} : {}),
         priceFeed: await codehash(await spR('ETH_USD_PRICE_FEED')),
       },
       superPaymaster: {
@@ -538,7 +542,7 @@ let attemptIndex = 0;
  *  including one interrupted by a stop condition (then with `stoppedBy` and whatever was known). */
 async function attempt(arm, tripletIndex, passportStart) {
   const idx = attemptIndex++;
-  const st = { row: { kind: 'attempt', attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
+  const st = { row: { kind: 'attempt', ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
   try {
     return await attemptInner(arm, idx, tripletIndex, passportStart, st);
   } catch (e) {
@@ -555,7 +559,8 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   if (formal) {
     const block = await runtime.refreshPin();
     const p = await readAB(`passport attempt ${idx}`, client => passport(client, block.number));
-    passportRefs[idx] = savePassport(`attempt-${idx}`, p);
+    st.row.passport = p.A;
+    passportRefs[idx] = savePassport(`attempt-${idx}`, p.A);
     if (diffPaths(passportStart.invariant, p.A.invariant).length) throw new Stop('PASSPORT_DRIFT',21,{attemptIndex:idx});
   }
   const pm = pmAddrOf(arm);
@@ -642,6 +647,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   row.observedUserOpEvent = observedUoe ? {...observedUoe.args, logIndex:observedUoe.logIndex, txHash:rcA.logs.find(l => l.logIndex === observedUoe.logIndex)?.transactionHash} : null;
   Object.assign(row, { sent: true, tx, logs, verdict: cls.verdict, failingCheck: cls.failingCheck,
     revertKind: cls.revertKind ?? null, userOpEvent: cls.event ? { ...cls.event, logIndex: cls.epEvents.find(e => e.event === 'UserOperationEvent' && e.args.userOpHash === cls.event.userOpHash)?.logIndex } : null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [] });
+  if (formal && arm === 'TPM') Object.assign(row, await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle));
   if (traceEnabled) {
     try {
       row.gasTrace = { transactionHash: txHash, blockHash: rcA.blockHash,
@@ -748,7 +754,7 @@ try {
       if (formal && r.reason === 'basefee_above_cap') break;
       console.log(`  t=${t} ${arm.padEnd(3)} ${r.verdict}${r.failingCheck ? ` (${r.failingCheck})` : ''} hash=${r.expectedUserOpHash?.slice(0, 12)}…${r.tx ? ` tx=${r.tx.hash.slice(0, 12)}… receipt=${r.tx.status}` : ''}`);
     }
-    const ok = noFixture(fixture) && rows.every((r) => r.verdict === VERDICTS.USEROP_SUCCESS && r.conservation?.evaluated && r.conservation.ok)
+    const ok = noFixture(fixture) && rows.every((r) => r.verdict === VERDICTS.USEROP_SUCCESS && r.postOpRefreshed !== true && r.conservation?.evaluated && r.conservation.ok)
       && new Set(rows.map((r) => r.callDataHash)).size === 1
       && ['paymaster', 'expectedUserOpHash'].every(f => new Set(rows.map(r => r[f].toLowerCase())).size === rows.length)
       && new Set(rows.map(r => r.tx.hash.toLowerCase())).size === rows.length;
@@ -757,11 +763,11 @@ try {
     if (formal) {
       pendingReplacement = null;
       if (!ok && !rows.some(r => r.reason === 'basefee_above_cap')) {
-        const failures = rows.filter(r => r.verdict !== VERDICTS.USEROP_SUCCESS);
+        const failures = rows.filter(r => r.verdict !== VERDICTS.USEROP_SUCCESS || r.postOpRefreshed === true);
         // Only explicitly classified, non-gas failures permit replacement.
-        if (!failures.length || failures.some(r => exclusionReason(r) === 'not_included')) throw new Stop('UNAPPROVED_ABANDONMENT', 29);
+        if (!failures.length || failures.some(r => !r.postOpRefreshed && exclusionReason(r) === 'not_included')) throw new Stop('UNAPPROVED_ABANDONMENT', 29);
         pendingReplacement = {windowId:runId,tripleIndex:t};
-        pendingReplacementReason = exclusionReason(failures[0]);
+        pendingReplacementReason = failures[0].postOpRefreshed ? 'tpm_postop_refresh' : exclusionReason(failures[0]);
       }
     }
     if (formal && rows.some(r => r.reason === 'basefee_above_cap')) { stop = { reason: 'BASEFEE_PAUSED', code: 10 }; break; }
@@ -772,6 +778,7 @@ try {
   else { stop = { reason: 'CRASH', code: 1, detail: String(e?.stack ?? e) }; }
 }
 let passportEnd = null;
+let finalBlockCheck = null;
 try {
   if (passportStart && stop.reason !== 'RPC_DISAGREEMENT') {
     // Wait for an independently read later block; never relabel the last receipt block.
@@ -785,7 +792,7 @@ try {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     passportEnd = await passportAB('end');
-    if (formal) passportRefs.end = savePassport('end',passportEnd);
+    if (formal) { finalBlockCheck = await revalidateAnchors(runtime.archives); passportRefs.end = savePassport('end',passportEnd); }
     const last = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
     const endHeight = BigInt(passportEnd.block.number), lastHeight = BigInt(last.blockNumber);
     const sameHash = passportEnd.block.hash.toLowerCase() === last.blockHash.toLowerCase();
@@ -801,7 +808,7 @@ try {
 }
 exitCode = stop.code;
 writeLine({ kind: 'run_end', stop, exitCode, matchedTriplets: matched, targetTriplets: count, tally, triplets,
-  passport: passportEnd, endedAtUtc: new Date().toISOString() });
+  ...(formal ? {finalBlockCheck} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
 closeSync(fd);
 if (formal) {
   const triples = [...new Set(evidenceRows.map(r => r.tripleIndex))].map(tripleIndex => ({tripleIndex,
@@ -809,7 +816,7 @@ if (formal) {
     included:stop.code === 0 && triplets.some(t => t.tripletIndex === tripleIndex && t.matched)}));
   writeTrailer(windowPath, {schemaVersion:'a6-evidence-trailer/1', windowId:runId, void:stop.code !== 0,
     stopReason:stop.reason, stopAttempt:evidenceRows.at(-1)?.attempt ?? null, endPassport:passportRefs.end ?? null,
-    triples, replacements, counts:armCounts(evidenceRows, triples, replacements)});
+    finalBlockCheck, triples, replacements, counts:armCounts(evidenceRows, triples, replacements)});
 }
 console.log(`stop=${stop.reason} exit=${exitCode} matched=${matched}/${count} ${JSON.stringify(tally)}`);
 if (stop.detail) console.log(`detail: ${JSON.stringify(jsonable(stop.detail)).slice(0, 2000)}`);
