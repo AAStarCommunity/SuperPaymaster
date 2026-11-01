@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -136,7 +136,7 @@ contract SuperPaymasterFeeSnapshotTest is Test {
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         if (sponsored) {
             op.paymasterAndData = abi.encodePacked(
-                address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST), operator, type(uint256).max, address(token), uint8(0)
+                address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(GasFixture.MIN_POST()), operator, type(uint256).max, address(token), uint8(0)
             );
         }
         bytes32 h = entryPoint.getUserOpHash(op);

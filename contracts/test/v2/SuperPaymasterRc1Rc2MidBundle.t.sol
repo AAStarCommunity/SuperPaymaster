@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";

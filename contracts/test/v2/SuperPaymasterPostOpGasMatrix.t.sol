@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures} from "../helpers/SelectedGasFixtures.sol";
 import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -84,7 +84,7 @@ contract SuperPaymasterPostOpGasMatrixTest is Test {
         sp = UUPSDeployHelper.deploySuperPaymasterProxy(
             entryPoint, IRegistry(address(registry)), address(feed), owner, address(apnts), treasury, 3600
         );
-        DeploymentGasFixtures.configure(sp);
+        SelectedGasFixtures.configure(sp);
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
         aoa.bootstrapApprove(aoa.KIND_SP(), aoa.spKey(address(sp)));
@@ -151,8 +151,8 @@ contract SuperPaymasterPostOpGasMatrixTest is Test {
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(
             address(sp),
-            uint128(DeploymentGasFixtures.PM_VERIFICATION),
-            uint128(DeploymentGasFixtures.MIN_POST),
+            uint128(SelectedGasFixtures.PM_VERIFICATION),
+            uint128(SelectedGasFixtures.MIN_POST()),
             opr[t],
             type(uint256).max,
             address(tok[t]),

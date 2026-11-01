@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -73,7 +73,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
 
     /// @notice m of the rule C_POSTOP >= W_postop x (1 + m) (DSR: >= 15%; author decides).
     uint256 constant M_BPS = 1_500;
-    uint256 constant MIN_POST_OP_GAS = GasFixture.MIN_POST; // The op's postOpGasLimit at the queued deployment floor.
+    uint256 MIN_POST_OP_GAS = GasFixture.MIN_POST(); // The op's postOpGasLimit at the queued deployment floor.
     uint256 constant OWNER_PK = 0xA0A0;
     uint256 constant CALL_GAS = 200_000;
     uint256 constant P_WEI = 1e14;

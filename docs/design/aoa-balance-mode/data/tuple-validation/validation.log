@@ -1,0 +1,103 @@
+head=392a448f
+START full-amsterdam-0
+END full-amsterdam-0 1
+START full-amsterdam-1
+END full-amsterdam-1 1
+START full-cancun-0
+END full-cancun-0 0
+START full-cancun-1
+END full-cancun-1 1
+START full-prague-0
+END full-prague-0 0
+START full-prague-1
+END full-prague-1 1
+START accounting-0
+END accounting-0 1
+START accounting-1
+END accounting-1 0
+START multi-2-0-0
+END multi-2-0-0 0
+START multi-2-0-1
+END multi-2-0-1 0
+START multi-2-1-0
+END multi-2-1-0 0
+START multi-2-1-1
+END multi-2-1-1 0
+START multi-2-2-0
+END multi-2-2-0 0
+START multi-2-2-1
+END multi-2-2-1 0
+START multi-2-3-0
+END multi-2-3-0 0
+START multi-2-3-1
+END multi-2-3-1 0
+START multi-3-0-0
+END multi-3-0-0 0
+START multi-3-0-1
+END multi-3-0-1 0
+START multi-3-1-0
+END multi-3-1-0 0
+START multi-3-1-1
+END multi-3-1-1 0
+START multi-3-2-0
+END multi-3-2-0 0
+START multi-3-2-1
+END multi-3-2-1 0
+START multi-3-3-0
+END multi-3-3-0 0
+START multi-3-3-1
+END multi-3-3-1 0
+START multi-5-0-0
+END multi-5-0-0 0
+START multi-5-0-1
+END multi-5-0-1 0
+START multi-5-1-0
+END multi-5-1-0 0
+START multi-5-1-1
+END multi-5-1-1 0
+START multi-5-2-0
+END multi-5-2-0 0
+START multi-5-2-1
+END multi-5-2-1 0
+START multi-5-3-0
+END multi-5-3-0 0
+START multi-5-3-1
+END multi-5-3-1 0
+START boundary-0-469305
+END boundary-0-469305 0
+START boundary-0-469304
+END boundary-0-469304 0
+START boundary-0-450001
+END boundary-0-450001 0
+START boundary-0-470000
+END boundary-0-470000 0
+START boundary-1-469305
+END boundary-1-469305 0
+START boundary-1-469304
+END boundary-1-469304 0
+START boundary-1-450001
+END boundary-1-450001 0
+START boundary-1-470000
+END boundary-1-470000 0
+START admission-0-470000
+END admission-0-470000 0
+START admission-0-469999
+END admission-0-469999 0
+START admission-1-470000
+END admission-1-470000 0
+START admission-1-469999
+END admission-1-469999 0
+START worst-net-0
+END worst-net-0 0
+START worst-net-1
+END worst-net-1 0
+runner exit=0
+Evidence verified
+verifier exit=0
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.330s
+
+OK
+regression exit=0
+outcomes exit=0 rows=44

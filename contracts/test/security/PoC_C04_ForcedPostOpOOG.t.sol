@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import {DeploymentGasFixtures as GasFixture} from "../helpers/DeploymentGasFixtures.sol";
+import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
 import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -74,7 +74,7 @@ contract PoC_C04_ForcedPostOpOOG_Test is Test {
     uint256 internal constant ACCOUNT_OWNER_PK = 0xC0400A;
     uint256 internal constant POOR_OWNER_PK = 0xC0400B;
     uint256 internal constant NORMAL_POST_OP_GAS = 1_000_000;
-    uint256 internal constant MIN_POST_OP_GAS = GasFixture.MIN_POST; // Queued deployment floor
+    uint256 internal MIN_POST_OP_GAS = GasFixture.MIN_POST(); // Queued deployment floor
     uint256 internal constant PM_VERIFICATION_GAS = GasFixture.PM_VERIFICATION;
     uint256 internal constant ACCOUNT_VERIFICATION_GAS = 350_000;
     uint256 internal constant CALL_GAS_LIMIT = 0;
