@@ -1,0 +1,1288 @@
+Warning: This is a nightly build of Foundry. It is recommended to use the latest stable version. To mute this warning set `FOUNDRY_DISABLE_NIGHTLY_WARNING` in your environment. 
+
+No files changed, compilation skipped
+
+Ran 1 test for contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest
+[PASS] test_G2_coverage_replay_fixed_seeds() (gas: 58575095)
+Logs:
+  tuple fee: 2246883178
+  tuple call limit: 384893
+  tuple post limit: 480000
+  tuple P: 1591727993426048
+  tuple F: 2129609357407468
+  tuple net charge: 2808392765481268
+  tuple fee: 1414476423
+  tuple call limit: 240897
+  tuple post limit: 483176
+  tuple P: 787901558474421
+  tuple F: 956971096362765
+  tuple net charge: 1533907739776005
+  tuple fee: 2042780984
+  tuple call limit: 462206
+  tuple post limit: 480000
+  tuple P: 1417148665935240
+  tuple F: 1742530992190696
+  tuple net charge: 2539086880748704
+  tuple fee: 2073072335
+  tuple call limit: 68247
+  tuple post limit: 1371577
+  tuple P: 1419843096096830
+  tuple F: 1834671089547335
+  tuple net charge: 2661578182532135
+  tuple fee: 1901988207
+  tuple call limit: 458992
+  tuple post limit: 525715
+  tuple P: 1319471984806731
+  tuple F: 1630511724250269
+  tuple net charge: 2372167299723228
+  tuple fee: 1385345170
+  tuple call limit: 405677
+  tuple post limit: 527283
+  tuple P: 952442813862210
+  tuple F: 1158954833008940
+  tuple net charge: 1712022029192530
+  tuple fee: 2105697584
+  tuple call limit: 243090
+  tuple post limit: 1035402
+  tuple P: 1867378942838048
+  tuple F: 2689607524043200
+  tuple net charge: 3094684779672448
+  tuple fee: 2560461317
+  tuple call limit: 257994
+  tuple post limit: 1199147
+  tuple P: 2144235285769797
+  tuple F: 2936480424169352
+  tuple net charge: 3682342805811452
+  tuple fee: 1534838514
+  tuple call limit: 362000
+  tuple post limit: 480000
+  tuple P: 1210837173371628
+  tuple F: 1743163680343734
+  tuple net charge: 2038422100120428
+  tuple fee: 1176121859
+  tuple call limit: 378061
+  tuple post limit: 504035
+  tuple P: 1043013091485816
+  tuple F: 1455642508375517
+  tuple net charge: 1681894246513206
+  tuple fee: 2141320039
+  tuple call limit: 105253
+  tuple post limit: 480000
+  tuple P: 1491688506888219
+  tuple F: 1755708985056841
+  tuple net charge: 2591312021235733
+  tuple fee: 1706995925
+  tuple call limit: 102142
+  tuple post limit: 484028
+  tuple P: 1179503458248350
+  tuple F: 1727869071170900
+  tuple net charge: 2056245584259075
+  tuple fee: 2347885142
+  tuple call limit: 499907
+  tuple post limit: 480000
+  tuple P: 1966196498120486
+  tuple F: 2812890838028526
+  tuple net charge: 3264555850680208
+  tuple fee: 2498183333
+  tuple call limit: 174212
+  tuple post limit: 1424632
+  tuple P: 1713056773288093
+  tuple F: 2274291146329874
+  tuple net charge: 3249152231999798
+  tuple fee: 1792352098
+  tuple call limit: 278202
+  tuple post limit: 493748
+  tuple P: 1413984777760102
+  tuple F: 1707156225725766
+  tuple net charge: 2367865602555212
+  tuple fee: 1263054825
+  tuple call limit: 407297
+  tuple post limit: 1131904
+  tuple P: 894782140510275
+  tuple F: 1420906364809200
+  tuple net charge: 1663882747604100
+  tuple fee: 1270404264
+  tuple call limit: 273367
+  tuple post limit: 1309872
+  tuple P: 899970895873032
+  tuple F: 1183394275958640
+  tuple net charge: 1679140320686568
+  tuple fee: 2820119888
+  tuple call limit: 495606
+  tuple post limit: 525032
+  tuple P: 1989622782182880
+  tuple F: 2460940958704656
+  tuple net charge: 3560610047471712
+  tuple fee: 2917896662
+  tuple call limit: 353902
+  tuple post limit: 502725
+  tuple P: 1963257164783446
+  tuple F: 2376798987102058
+  tuple net charge: 3540855927750352
+  tuple fee: 1209575117
+  tuple call limit: 458517
+  tuple post limit: 524155
+  tuple P: 1072674195682823
+  tuple F: 1509205017107655
+  tuple net charge: 1741893401515179
+  tuple fee: 2689418706
+  tuple call limit: 438870
+  tuple post limit: 1232267
+  tuple P: 1505840495932578
+  tuple F: 2105276963056800
+  tuple net charge: 3178965524797062
+  tuple fee: 1873550166
+  tuple call limit: 209485
+  tuple post limit: 506579
+  tuple P: 1574415399396108
+  tuple F: 2180930426884458
+  tuple net charge: 2561040031662870
+  tuple fee: 2658335957
+  tuple call limit: 465947
+  tuple post limit: 492378
+  tuple P: 2357492076746310
+  tuple F: 3310401842228487
+  tuple net charge: 3821791246948491
+  tuple fee: 2350159418
+  tuple call limit: 102022
+  tuple post limit: 526940
+  tuple P: 1854452042758350
+  tuple F: 2205394298170036
+  tuple net charge: 3071592554862296
+  tuple fee: 1109862720
+  tuple call limit: 335857
+  tuple post limit: 480000
+  tuple P: 929435667197760
+  tuple F: 1201670564198400
+  tuple net charge: 1524972464671680
+  tuple fee: 1996930529
+  tuple call limit: 413580
+  tuple post limit: 480000
+  tuple P: 1397294226682409
+  tuple F: 1705662235901118
+  tuple net charge: 2484339335587791
+  tuple fee: 1204880110
+  tuple call limit: 321095
+  tuple post limit: 514014
+  tuple P: 824872972107100
+  tuple F: 993042908580240
+  tuple net charge: 1473714165023310
+  tuple fee: 2021318041
+  tuple call limit: 312387
+  tuple post limit: 1024594
+  tuple P: 1389732963273058
+  tuple F: 1772714113819369
+  tuple net charge: 2579680872691717
+  tuple fee: 2240066534
+  tuple call limit: 309640
+  tuple post limit: 519001
+  tuple P: 1520579563944540
+  tuple F: 2073551188195110
+  tuple net charge: 2725432950254450
+  tuple fee: 1756763336
+  tuple call limit: 116944
+  tuple post limit: 503780
+  tuple P: 1557950429264880
+  tuple F: 2128373241227416
+  tuple net charge: 2466325317700408
+  tuple fee: 1727732258
+  tuple call limit: 489802
+  tuple post limit: 510573
+  tuple P: 1363310331481350
+  tuple F: 1685427005930612
+  tuple net charge: 2322267388497154
+  tuple fee: 2362295263
+  tuple call limit: 356792
+  tuple post limit: 1428890
+  tuple P: 1666828450687011
+  tuple F: 2242493821032218
+  tuple net charge: 3163505498170658
+  tuple fee: 2320857934
+  tuple call limit: 360414
+  tuple post limit: 491097
+  tuple P: 1831342578560720
+  tuple F: 2229560024592308
+  tuple net charge: 3084958633326688
+  tuple fee: 2297909087
+  tuple call limit: 437054
+  tuple post limit: 1101320
+  tuple P: 2037836332351514
+  tuple F: 2792327206158920
+  tuple net charge: 3436890705062420
+  tuple fee: 2321645081
+  tuple call limit: 440319
+  tuple post limit: 480000
+  tuple P: 1950999087108512
+  tuple F: 2545525959450992
+  tuple net charge: 3221013239058104
+  tuple fee: 1039760363
+  tuple call limit: 268613
+  tuple post limit: 506724
+  tuple P: 922084444157112
+  tuple F: 1275772448516281
+  tuple net charge: 1475792189306954
+  tuple fee: 2749688120
+  tuple call limit: 171365
+  tuple post limit: 480000
+  tuple P: 1915498736906880
+  tuple F: 2544729117223320
+  tuple net charge: 3345713266579320
+  tuple fee: 2713098312
+  tuple call limit: 461510
+  tuple post limit: 1250082
+  tuple P: 2263665437322264
+  tuple F: 3172173538078584
+  tuple net charge: 3962499076364184
+  tuple fee: 2258246424
+  tuple call limit: 204566
+  tuple post limit: 480000
+  tuple P: 1593222209335512
+  tuple F: 1894743271867992
+  tuple net charge: 2775317107703280
+  tuple fee: 2897046897
+  tuple call limit: 281875
+  tuple post limit: 485412
+  tuple P: 1991748712156470
+  tuple F: 2375613220102764
+  tuple net charge: 3532192561651383
+  tuple fee: 2964836797
+  tuple call limit: 297102
+  tuple post limit: 480000
+  tuple P: 2629273603478743
+  tuple F: 3638323194132926
+  tuple net charge: 4208674778445410
+  tuple fee: 2303423249
+  tuple call limit: 293523
+  tuple post limit: 500412
+  tuple P: 1935635658832170
+  tuple F: 2496252022866786
+  tuple net charge: 3166571222558276
+  tuple fee: 1367987798
+  tuple call limit: 174326
+  tuple post limit: 480000
+  tuple P: 940741952892034
+  tuple F: 1106628257240908
+  tuple net charge: 1652687946568568
+  tuple fee: 2998063253
+  tuple call limit: 359635
+  tuple post limit: 495320
+  tuple P: 2097496018874101
+  tuple F: 2844775276937363
+  tuple net charge: 3717937214867589
+  tuple fee: 1828684043
+  tuple call limit: 193194
+  tuple post limit: 1410865
+  tuple P: 1621770272218593
+  tuple F: 2395367626349098
+  tuple net charge: 2747153404385051
+  tuple fee: 1509066401
+  tuple call limit: 241929
+  tuple post limit: 494436
+  tuple P: 1338273283867622
+  tuple F: 1845719497199887
+  tuple net charge: 2136021618893059
+  tuple fee: 1359188815
+  tuple call limit: 311593
+  tuple post limit: 1120800
+  tuple P: 1134287919348395
+  tuple F: 1671654090869165
+  tuple net charge: 1947409036033995
+  tuple fee: 1272172853
+  tuple call limit: 79486
+  tuple post limit: 512588
+  tuple P: 1128187057324607
+  tuple F: 1537618079642715
+  tuple net charge: 1782348515720031
+  tuple fee: 2480740055
+  tuple call limit: 153809
+  tuple post limit: 1317295
+  tuple P: 1957060790869610
+  tuple F: 2536271421131175
+  tuple net charge: 3450741666125715
+  tuple fee: 1567682519
+  tuple call limit: 478876
+  tuple post limit: 1405990
+  tuple P: 1236747874604138
+  tuple F: 1943954541845342
+  tuple net charge: 2245531195707891
+  tuple fee: 1294748276
+  tuple call limit: 384430
+  tuple post limit: 520336
+  tuple P: 1148213845115424
+  tuple F: 1605397229860680
+  tuple net charge: 1854469250463076
+  tuple fee: 1113514247
+  tuple call limit: 257749
+  tuple post limit: 480000
+  tuple P: 987488931553034
+  tuple F: 1362079578300822
+  tuple net charge: 1576287427510459
+  tuple fee: 2631663138
+  tuple call limit: 197656
+  tuple post limit: 1138925
+  tuple P: 2333808872378022
+  tuple F: 3376702762346628
+  tuple net charge: 3882961063529964
+  tuple fee: 1407893638
+  tuple call limit: 329787
+  tuple post limit: 480000
+  tuple P: 976786750788934
+  tuple F: 1182398353469730
+  tuple net charge: 1731388174990536
+  tuple fee: 2840016097
+  tuple call limit: 328695
+  tuple post limit: 480000
+  tuple P: 2518588755173734
+  tuple F: 3494128604461040
+  tuple net charge: 4040468181073124
+  tuple fee: 2335865837
+  tuple call limit: 98487
+  tuple post limit: 523548
+  tuple P: 1842762222943463
+  tuple F: 2601526194507847
+  tuple net charge: 3050881377303211
+  tuple fee: 2429982729
+  tuple call limit: 71155
+  tuple post limit: 480000
+  tuple P: 2154981583559070
+  tuple F: 2927094015802446
+  tuple net charge: 3394554653345634
+  tuple fee: 1223536724
+  tuple call limit: 220187
+  tuple post limit: 1108687
+  tuple P: 866765650648840
+  tuple F: 1108609919514680
+  tuple net charge: 1586068208247752
+  tuple fee: 1634360243
+  tuple call limit: 71681
+  tuple post limit: 498076
+  tuple P: 1133809634457119
+  tuple F: 1333265324152596
+  tuple net charge: 1970562854227287
+  tuple fee: 1417039320
+  tuple call limit: 307997
+  tuple post limit: 528639
+  tuple P: 1043988131577480
+  tuple F: 1270044163179120
+  tuple net charge: 1807296199845960
+  tuple fee: 2000446099
+  tuple call limit: 170966
+  tuple post limit: 511162
+  tuple P: 1774049612637873
+  tuple F: 2435881200923231
+  tuple net charge: 2820709017433960
+  tuple fee: 2765716880
+  tuple call limit: 374280
+  tuple post limit: 499416
+  tuple P: 1926612207192400
+  tuple F: 3138347446676160
+  tuple net charge: 3426654071398000
+  tuple fee: 1180870830
+  tuple call limit: 225127
+  tuple post limit: 480000
+  tuple P: 657642316547790
+  tuple F: 796484385255870
+  tuple net charge: 1278205289033580
+  tuple fee: 1118557531
+  tuple call limit: 266074
+  tuple post limit: 480000
+  tuple P: 759435687212202
+  tuple F: 905597599787972
+  tuple net charge: 1351832704090050
+  tuple fee: 2958685440
+  tuple call limit: 372343
+  tuple post limit: 480000
+  tuple P: 1656866805085440
+  tuple F: 2164769541143040
+  tuple net charge: 3255252233763840
+  tuple fee: 1398098083
+  tuple call limit: 483176
+  tuple post limit: 501943
+  tuple P: 961214801631828
+  tuple F: 1219702165707283
+  tuple net charge: 1735078867749324
+  tuple fee: 1161504808
+  tuple call limit: 450560
+  tuple post limit: 480000
+  tuple P: 805780022492304
+  tuple F: 1104341348874280
+  tuple net charge: 1442349701545552
+  tuple fee: 2031635010
+  tuple call limit: 446490
+  tuple post limit: 1166414
+  tuple P: 1137288962247900
+  tuple F: 2177581574213370
+  tuple net charge: 2389367334195810
+  tuple fee: 2460617166
+  tuple call limit: 207690
+  tuple post limit: 1223328
+  tuple P: 1706981801014686
+  tuple F: 2219196173375076
+  tuple net charge: 3178681849233618
+  tuple fee: 2436765387
+  tuple call limit: 282395
+  tuple post limit: 1087791
+  tuple P: 1726587172316559
+  tuple F: 2218445828917122
+  tuple net charge: 3169198579962912
+  tuple fee: 2337376950
+  tuple call limit: 347053
+  tuple post limit: 480000
+  tuple P: 1649173705103700
+  tuple F: 1994698790114400
+  tuple net charge: 2905995315380400
+  tuple fee: 2035253083
+  tuple call limit: 170533
+  tuple post limit: 480000
+  tuple P: 1411881521967179
+  tuple F: 1676700512114807
+  tuple net charge: 2470323028793661
+  tuple fee: 2440100775
+  tuple call limit: 286665
+  tuple post limit: 480000
+  tuple P: 1651779857721525
+  tuple F: 1975793519331450
+  tuple net charge: 2949100916463450
+  tuple fee: 1467349871
+  tuple call limit: 256389
+  tuple post limit: 1205789
+  tuple P: 1157750787017968
+  tuple F: 1499043160863729
+  tuple net charge: 2039947941760846
+  tuple fee: 1465276074
+  tuple call limit: 365061
+  tuple post limit: 480000
+  tuple P: 1299434662668606
+  tuple F: 1808083272616596
+  tuple net charge: 2089961361524124
+  tuple fee: 1905049220
+  tuple call limit: 385386
+  tuple post limit: 485541
+  tuple P: 1503230523369940
+  tuple F: 1833800379172000
+  tuple net charge: 2535944370187400
+  tuple fee: 1568646672
+  tuple call limit: 478939
+  tuple post limit: 522976
+  tuple P: 1237566536761008
+  tuple F: 1668552209893008
+  tuple net charge: 2108466619882032
+  tuple fee: 1519864475
+  tuple call limit: 422101
+  tuple post limit: 480104
+  tuple P: 1199027163785400
+  tuple F: 1467424591019075
+  tuple net charge: 2027689192709375
+  tuple fee: 2674988192
+  tuple call limit: 478833
+  tuple post limit: 1369081
+  tuple P: 1489735698971296
+  tuple F: 2109942411239264
+  tuple net charge: 3201171744307360
+  tuple fee: 2073288164
+  tuple call limit: 108404
+  tuple post limit: 487787
+  tuple P: 1526929047158228
+  tuple F: 1990056010656220
+  tuple net charge: 2593884602115908
+  tuple fee: 1159207889
+  tuple call limit: 338713
+  tuple post limit: 499171
+  tuple P: 648999924774985
+  tuple F: 800414500028276
+  tuple net charge: 1273568384081406
+  tuple fee: 2961695536
+  tuple call limit: 395655
+  tuple post limit: 480000
+  tuple P: 2626487873539984
+  tuple F: 3663655880073968
+  tuple net charge: 4233403173725360
+  tuple fee: 2629169844
+  tuple call limit: 316532
+  tuple post limit: 515211
+  tuple P: 1799984887769124
+  tuple F: 2166062609338152
+  tuple net charge: 3214938368563824
+  tuple fee: 2699041764
+  tuple call limit: 273714
+  tuple post limit: 519220
+  tuple P: 2393561518108716
+  tuple F: 3316423276139124
+  tuple net charge: 3835643338363332
+  tuple fee: 2704765413
+  tuple call limit: 353853
+  tuple post limit: 489335
+  tuple P: 2398650882618312
+  tuple F: 3337063833127836
+  tuple net charge: 3857382260392059
+  tuple fee: 1403218582
+  tuple call limit: 182315
+  tuple post limit: 480000
+  tuple P: 1244400899670658
+  tuple F: 1582200515352682
+  tuple net charge: 1975803327603682
+  tuple fee: 1803712625
+  tuple call limit: 151592
+  tuple post limit: 1067184
+  tuple P: 1234965960085000
+  tuple F: 1556023199909750
+  tuple net charge: 2275488091769750
+  tuple fee: 2872673723
+  tuple call limit: 97678
+  tuple post limit: 1156239
+  tuple P: 2266869924925145
+  tuple F: 2875282110740484
+  tuple net charge: 3934146772364561
+  tuple fee: 1932081162
+  tuple call limit: 379900
+  tuple post limit: 506400
+  tuple P: 1322722084316820
+  tuple F: 1602280703890086
+  tuple net charge: 2373059366414880
+  tuple fee: 1717580580
+  tuple call limit: 174864
+  tuple post limit: 480000
+  tuple P: 1175859100229160
+  tuple F: 1384629302147580
+  tuple net charge: 2069837463571620
+  tuple fee: 1619016505
+  tuple call limit: 157088
+  tuple post limit: 502233
+  tuple P: 901808383450050
+  tuple F: 1131376828776525
+  tuple net charge: 1745207508449215
+  tuple fee: 2244180010
+  tuple call limit: 354991
+  tuple post limit: 480000
+  tuple P: 1770767992710490
+  tuple F: 2152121501809790
+  tuple net charge: 2979258928095490
+  tuple fee: 2004656330
+  tuple call limit: 104315
+  tuple post limit: 1345368
+  tuple P: 1378221273438300
+  tuple F: 2195313179577310
+  tuple net charge: 2580952927092070
+  tuple fee: 2172795943
+  tuple call limit: 433021
+  tuple post limit: 497762
+  tuple P: 1714262123964938
+  tuple F: 2104298550896925
+  tuple net charge: 2905125951608435
+  tuple fee: 1455671209
+  tuple call limit: 326418
+  tuple post limit: 480000
+  tuple P: 1214826040457323
+  tuple F: 1699216647635372
+  tuple net charge: 1994544678188501
+  tuple fee: 2007225195
+  tuple call limit: 410088
+  tuple post limit: 500923
+  tuple P: 1456882183809705
+  tuple F: 1792016531267685
+  tuple net charge: 2553031877249595
+  tuple fee: 1728897420
+  tuple call limit: 310559
+  tuple post limit: 507496
+  tuple P: 1364229731686500
+  tuple F: 1655092518037620
+  tuple net charge: 2292312240127020
+  tuple fee: 2956834668
+  tuple call limit: 117017
+  tuple post limit: 483597
+  tuple P: 2069571375503904
+  tuple F: 2439713852913480
+  tuple net charge: 3592524553273320
+  tuple fee: 1599068219
+  tuple call limit: 484435
+  tuple post limit: 516751
+  tuple P: 1099749573207936
+  tuple F: 1363423129975284
+  tuple net charge: 1987422723870997
+  tuple fee: 2568108546
+  tuple call limit: 300529
+  tuple post limit: 480000
+  tuple P: 2026265891988006
+  tuple F: 2448529707772602
+  tuple net charge: 3395203856758944
+  tuple fee: 2746431628
+  tuple call limit: 361487
+  tuple post limit: 480000
+  tuple P: 1937698145797724
+  tuple F: 2619197689969644
+  tuple net charge: 3418434011602296
+  tuple fee: 1017954286
+  tuple call limit: 305596
+  tuple post limit: 514531
+  tuple P: 703388088448852
+  tuple F: 1054217889484464
+  tuple net charge: 1250042773436570
+  tuple fee: 2080610070
+  tuple call limit: 166199
+  tuple post limit: 1429226
+  tuple P: 1424458475274450
+  tuple F: 1873048409416800
+  tuple net charge: 2703082829522460
+  tuple fee: 2694106866
+  tuple call limit: 251628
+  tuple post limit: 496552
+  tuple P: 1844970181653522
+  tuple F: 2251077156527496
+  tuple net charge: 3272356493183910
+  tuple fee: 1006981714
+  tuple call limit: 486122
+  tuple post limit: 480000
+  tuple P: 710604841972092
+  tuple F: 873467015522454
+  tuple net charge: 1266069046176774
+  tuple fee: 2103022072
+  tuple call limit: 89944
+  tuple post limit: 480000
+  tuple P: 1754614405331760
+  tuple F: 2218740861511800
+  tuple net charge: 2831351191085400
+  tuple fee: 2726531280
+  tuple call limit: 199618
+  tuple post limit: 490108
+  tuple P: 1866588767350560
+  tuple F: 2207503332476640
+  tuple net charge: 3295217541726000
+  tuple fee: 2375524643
+  tuple call limit: 450080
+  tuple post limit: 480000
+  tuple P: 1654847478905232
+  tuple F: 2499671936367823
+  tuple net charge: 2956653987466376
+  tuple fee: 1315119035
+  tuple call limit: 110940
+  tuple post limit: 517708
+  tuple P: 908723581042370
+  tuple F: 1220888125904180
+  tuple net charge: 1589777700102645
+  tuple fee: 2960452011
+  tuple call limit: 142347
+  tuple post limit: 480000
+  tuple P: 2446920163363896
+  tuple F: 3408664445465400
+  tuple net charge: 3978169559273481
+  tuple fee: 1084778697
+  tuple call limit: 125815
+  tuple post limit: 480000
+  tuple P: 962005613630934
+  tuple F: 1312616936288304
+  tuple net charge: 1521297983787588
+  tuple fee: 1297861233
+  tuple call limit: 241289
+  tuple post limit: 480000
+  tuple P: 900369166752789
+  tuple F: 1078425345030525
+  tuple net charge: 1584509460642846
+  tuple fee: 1127862038
+  tuple call limit: 233712
+  tuple post limit: 512319
+  tuple P: 770127884649198
+  tuple F: 927651864048506
+  tuple net charge: 1367448131422150
+  tuple fee: 1214848342
+  tuple call limit: 431180
+  tuple post limit: 504114
+  tuple P: 846292511397408
+  tuple F: 1038605433632692
+  tuple net charge: 1512673272434668
+  tuple fee: 2787648522
+  tuple call limit: 150366
+  tuple post limit: 516129
+  tuple P: 2325818791360260
+  tuple F: 3243730121387376
+  tuple net charge: 3779995642861560
+  tuple fee: 1067359326
+  tuple call limit: 83647
+  tuple post limit: 480000
+  tuple P: 946557732201972
+  tuple F: 1287038953040016
+  tuple net charge: 1492367933941962
+  tuple fee: 1716714063
+  tuple call limit: 397974
+  tuple post limit: 480000
+  tuple P: 1175303648667312
+  tuple F: 1422270133770492
+  tuple net charge: 2107132608635586
+  tuple fee: 2393715054
+  tuple call limit: 238247
+  tuple post limit: 480000
+  tuple P: 1674961415880582
+  tuple F: 2239437725054646
+  tuple net charge: 2936030349204132
+  tuple fee: 1091531485
+  tuple call limit: 402906
+  tuple post limit: 480000
+  tuple P: 810486141305170
+  tuple F: 989665400693860
+  tuple net charge: 1403505373322305
+  tuple fee: 1910280776
+  tuple call limit: 411502
+  tuple post limit: 505360
+  tuple P: 1507226814510208
+  tuple F: 1847369499203992
+  tuple net charge: 2551552481099320
+  tuple fee: 1723340764
+  tuple call limit: 467720
+  tuple post limit: 527137
+  tuple P: 1192095123385540
+  tuple F: 1475169353939416
+  tuple net charge: 2147663450252844
+  tuple fee: 2074624452
+  tuple call limit: 394765
+  tuple post limit: 1231368
+  tuple P: 1839845426640516
+  tuple F: 2904895381563756
+  tuple net charge: 3121162532938044
+  tuple fee: 1419283644
+  tuple call limit: 151353
+  tuple post limit: 1121440
+  tuple P: 1037073397238088
+  tuple F: 1465467133775760
+  tuple net charge: 1863493877466408
+  tuple fee: 1901916432
+  tuple call limit: 274661
+  tuple post limit: 1080424
+  tuple P: 1307814796136160
+  tuple F: 1671615273165552
+  tuple net charge: 2430913566480048
+  tuple fee: 2667402724
+  tuple call limit: 159135
+  tuple post limit: 494609
+  tuple P: 2365503416294956
+  tuple F: 3240419511975128
+  tuple net charge: 3753553108796456
+  tuple fee: 2173233789
+  tuple call limit: 201232
+  tuple post limit: 521537
+  tuple P: 1594325599052391
+  tuple F: 1916268452554851
+  tuple net charge: 2740221791614944
+  tuple fee: 2116641325
+  tuple call limit: 195488
+  tuple post limit: 1391375
+  tuple P: 1499771610524650
+  tuple F: 2018596382184675
+  tuple net charge: 2798726875339925
+  tuple fee: 2518520111
+  tuple call limit: 436880
+  tuple post limit: 507098
+  tuple P: 2233479041877242
+  tuple F: 3132658721547239
+  tuple net charge: 3617148953820420
+  tuple fee: 2552954716
+  tuple call limit: 308209
+  tuple post limit: 496372
+  tuple P: 2264184902163808
+  tuple F: 2915231754973980
+  tuple net charge: 3631187481438452
+  tuple fee: 2533764345
+  tuple call limit: 108979
+  tuple post limit: 521035
+  tuple P: 1999322499237840
+  tuple F: 2377947972839880
+  tuple net charge: 3311817497476530
+  tuple fee: 1323272246
+  tuple call limit: 152268
+  tuple post limit: 480000
+  tuple P: 1173506939742212
+  tuple F: 1604703140734788
+  tuple net charge: 1859262345970054
+  tuple fee: 2943300752
+  tuple call limit: 116855
+  tuple post limit: 1154595
+  tuple P: 2015036674232736
+  tuple F: 2554272918405152
+  tuple net charge: 3728464490505776
+  tuple fee: 1015052590
+  tuple call limit: 286890
+  tuple post limit: 1341693
+  tuple P: 698037455406740
+  tuple F: 920018291261250
+  tuple net charge: 1325196833611550
+  tuple fee: 1881103267
+  tuple call limit: 212077
+  tuple post limit: 497875
+  tuple P: 1484126520151922
+  tuple F: 1780261083062664
+  tuple net charge: 2473579314180854
+  tuple fee: 1266970545
+  tuple call limit: 62010
+  tuple post limit: 482336
+  tuple P: 999558673890120
+  tuple F: 1177958262390480
+  tuple net charge: 1644997813482195
+  tuple fee: 2595589024
+  tuple call limit: 257090
+  tuple post limit: 493526
+  tuple P: 2048106622345728
+  tuple F: 2467273485009536
+  tuple net charge: 3423929731585216
+  tuple fee: 2779302010
+  tuple call limit: 462745
+  tuple post limit: 512332
+  tuple P: 2038795899663640
+  tuple F: 2765739016191200
+  tuple net charge: 3574382494604720
+  tuple fee: 2384048995
+  tuple call limit: 215298
+  tuple post limit: 485618
+  tuple P: 1688910373086895
+  tuple F: 2010435140797570
+  tuple net charge: 2940755427969435
+  tuple fee: 1738776593
+  tuple call limit: 66590
+  tuple post limit: 505648
+  tuple P: 1371917335972709
+  tuple F: 1621600438397730
+  tuple net charge: 2262560437545541
+  tuple fee: 2731319186
+  tuple call limit: 181770
+  tuple post limit: 497985
+  tuple P: 2422207599762822
+  tuple F: 3325192647931166
+  tuple net charge: 3850621982380358
+  tuple fee: 2971905430
+  tuple call limit: 194413
+  tuple post limit: 480000
+  tuple P: 2043541611776600
+  tuple F: 2436641486813560
+  tuple net charge: 3596189828436660
+  tuple fee: 1276505247
+  tuple call limit: 159331
+  tuple post limit: 489538
+  tuple P: 1007264760302760
+  tuple F: 1200421704763059
+  tuple net charge: 1670903243649849
+  tuple fee: 2038077429
+  tuple call limit: 182160
+  tuple post limit: 480000
+  tuple P: 1408621291208208
+  tuple F: 1719727696512771
+  tuple net charge: 2470899856441872
+  tuple fee: 1893579001
+  tuple call limit: 428878
+  tuple post limit: 1143520
+  tuple P: 1679267516824822
+  tuple F: 2474322638395691
+  tuple net charge: 2838592324397062
+  tuple fee: 1889313896
+  tuple call limit: 458890
+  tuple post limit: 486200
+  tuple P: 1403047953389208
+  tuple F: 1724988930581504
+  tuple net charge: 2441242943066272
+  tuple fee: 2444252817
+  tuple call limit: 141355
+  tuple post limit: 1165853
+  tuple P: 1444524083813196
+  tuple F: 2138616112003869
+  tuple net charge: 2876174288039253
+  tuple fee: 2420191352
+  tuple call limit: 273807
+  tuple post limit: 504067
+  tuple P: 1909545497876112
+  tuple F: 2306984481318848
+  tuple net charge: 3198994407925488
+  tuple fee: 1290343130
+  tuple call limit: 243316
+  tuple post limit: 480000
+  tuple P: 1144300804203470
+  tuple F: 1576515429371400
+  tuple net charge: 1824740027632630
+  tuple fee: 1000731602
+  tuple call limit: 349192
+  tuple post limit: 480000
+  tuple P: 887566870982636
+  tuple F: 1145233242402392
+  tuple net charge: 1425880414330476
+  tuple fee: 2925669107
+  tuple call limit: 410962
+  tuple post limit: 495902
+  tuple P: 2011932908509081
+  tuple F: 2530118643733600
+  tuple net charge: 3608432506500590
+  tuple fee: 1013985886
+  tuple call limit: 467567
+  tuple post limit: 499547
+  tuple P: 800112940967222
+  tuple F: 985816344101034
+  tuple net charge: 1359541122104054
+  tuple fee: 2135836411
+  tuple call limit: 436754
+  tuple post limit: 1190054
+  tuple P: 1468402483417377
+  tuple F: 2565022058608395
+  tuple net charge: 2787668053600268
+  tuple fee: 2685213055
+  tuple call limit: 421850
+  tuple post limit: 521428
+  tuple P: 1495435428525325
+  tuple F: 1875100387584830
+  tuple net charge: 2970498145602365
+  tuple fee: 2123475477
+  tuple call limit: 362070
+  tuple post limit: 480000
+  tuple P: 1479287338919895
+  tuple F: 2005713897472011
+  tuple net charge: 2624280180446634
+  tuple fee: 2973447776
+  tuple call limit: 443030
+  tuple post limit: 480000
+  tuple P: 2190318941443776
+  tuple F: 2721775156239360
+  tuple net charge: 3817695829591904
+  tuple fee: 2654776802
+  tuple call limit: 482054
+  tuple post limit: 480000
+  tuple P: 1872979545909426
+  tuple F: 2301110091214362
+  tuple net charge: 3336308447832638
+  tuple fee: 2147228720
+  tuple call limit: 273973
+  tuple post limit: 505179
+  tuple P: 1202312807790640
+  tuple F: 1721242161467920
+  tuple net charge: 2346605348338160
+  tuple fee: 1909549770
+  tuple call limit: 428377
+  tuple post limit: 529233
+  tuple P: 1068927770250600
+  tuple F: 1921576114451460
+  tuple net charge: 2120633311125570
+  tuple fee: 1609425107
+  tuple call limit: 136205
+  tuple post limit: 1344756
+  tuple P: 1135465507239570
+  tuple F: 1478528953622583
+  tuple net charge: 2106104960995949
+  tuple fee: 1618290191
+  tuple call limit: 177227
+  tuple post limit: 480000
+  tuple P: 1276672368260282
+  tuple F: 1522807833150618
+  tuple net charge: 2119353291388375
+  tuple fee: 2096315349
+  tuple call limit: 431617
+  tuple post limit: 480000
+  tuple P: 1460326813158984
+  tuple F: 2386728395873715
+  tuple net charge: 2605254596799522
+  tuple fee: 1063491875
+  tuple call limit: 171474
+  tuple post limit: 516648
+  tuple P: 734697409465625
+  tuple F: 982281508441250
+  tuple net charge: 1291768278985000
+  tuple fee: 1128513223
+  tuple call limit: 199482
+  tuple post limit: 524009
+  tuple P: 628485941587045
+  tuple F: 763243962571921
+  tuple net charge: 1223607389736095
+  tuple fee: 2948363598
+  tuple call limit: 186862
+  tuple post limit: 498235
+  tuple P: 2614673702705556
+  tuple F: 3331158489019134
+  tuple net charge: 4158171529894536
+  tuple fee: 1499332045
+  tuple call limit: 288351
+  tuple post limit: 494412
+  tuple P: 839327578123045
+  tuple F: 1026817551018250
+  tuple net charge: 1638886873084510
+  tuple fee: 2252365219
+  tuple call limit: 337722
+  tuple post limit: 1431277
+  tuple P: 1569051668320656
+  tuple F: 2114040713805553
+  tuple net charge: 2992321250206756
+  tuple fee: 1035581860
+  tuple call limit: 83384
+  tuple post limit: 480000
+  tuple P: 733616545442600
+  tuple F: 859036900089060
+  tuple net charge: 1263149938153140
+  tuple fee: 2998656064
+  tuple call limit: 254871
+  tuple post limit: 1373687
+  tuple P: 2088962769832512
+  tuple F: 2772413461283328
+  tuple net charge: 3941700410911296
+  tuple fee: 2249357187
+  tuple call limit: 422898
+  tuple post limit: 505038
+  tuple P: 1540445277230706
+  tuple F: 1875406053375624
+  tuple net charge: 2772629648126184
+  tuple fee: 2444291226
+  tuple call limit: 295069
+  tuple post limit: 1018844
+  tuple P: 2061107023373658
+  tuple F: 2782397809836450
+  tuple net charge: 3494419843970250
+  tuple fee: 1787868137
+  tuple call limit: 465095
+  tuple post limit: 480000
+  tuple P: 1250651307062377
+  tuple F: 1535426519660011
+  tuple net charge: 2233102727025247
+  tuple fee: 2032261352
+  tuple call limit: 92912
+  tuple post limit: 506001
+  tuple P: 1802258141226048
+  tuple F: 2457703072473088
+  tuple net charge: 2848653253280032
+  tuple fee: 1054941889
+  tuple call limit: 154922
+  tuple post limit: 488853
+  tuple P: 832245766115878
+  tuple F: 991278255882628
+  tuple net charge: 1380159374540920
+  tuple fee: 1960727544
+  tuple call limit: 470065
+  tuple post limit: 480000
+  tuple P: 1630192016087568
+  tuple F: 2138014567800936
+  tuple net charge: 2708605890380376
+  tuple fee: 2684082983
+  tuple call limit: 487088
+  tuple post limit: 480000
+  tuple P: 2117728053172085
+  tuple F: 2609213172272198
+  tuple net charge: 3598560791640032
+  tuple fee: 2429661970
+  tuple call limit: 472754
+  tuple post limit: 480000
+  tuple P: 2154704413841010
+  tuple F: 3024290151551890
+  tuple net charge: 3491689084044730
+  tuple fee: 2531631171
+  tuple call limit: 181738
+  tuple post limit: 480000
+  tuple P: 1793440432741623
+  tuple F: 2625848356659936
+  tuple net charge: 3112860776656377
+  tuple fee: 1078864326
+  tuple call limit: 250832
+  tuple post limit: 1295207
+  tuple P: 764483261403600
+  tuple F: 1001222775915084
+  tuple net charge: 1422163269990504
+  tuple fee: 1122904822
+  tuple call limit: 181438
+  tuple post limit: 482358
+  tuple P: 792346346309284
+  tuple F: 939944324827430
+  tuple net charge: 1377806462403644
+  tuple fee: 2359055330
+  tuple call limit: 116464
+  tuple post limit: 514815
+  tuple P: 1861320604978630
+  tuple F: 2214001735868960
+  tuple net charge: 3083613225000870
+  tuple fee: 2285567478
+  tuple call limit: 63460
+  tuple post limit: 480000
+  tuple P: 2026884665272482
+  tuple F: 2751352416611532
+  tuple net charge: 3191029317921870
+  tuple fee: 1335090002
+  tuple call limit: 185030
+  tuple post limit: 480000
+  tuple P: 1183983180483638
+  tuple F: 1623404023021902
+  tuple net charge: 1880236621796644
+  tuple fee: 1357496639
+  tuple call limit: 270433
+  tuple post limit: 504078
+  tuple P: 989191510879632
+  tuple F: 1196999811371030
+  tuple net charge: 1711993311308460
+  tuple fee: 1826064109
+  tuple call limit: 100327
+  tuple post limit: 484808
+  tuple P: 1518249960338197
+  tuple F: 1924556528847133
+  tuple net charge: 2455959445207223
+  tuple fee: 2402856344
+  tuple call limit: 206925
+  tuple post limit: 480000
+  tuple P: 1895764749731272
+  tuple F: 2268503034381584
+  tuple net charge: 3154123797089664
+  tuple fee: 1739279605
+  tuple call limit: 110101
+  tuple post limit: 480000
+  tuple P: 1372435968552215
+  tuple F: 1625398533583020
+  tuple net charge: 2266444817597870
+  tuple fee: 1450039435
+  tuple call limit: 71896
+  tuple post limit: 522365
+  tuple P: 807532761509240
+  tuple F: 961946010902955
+  tuple net charge: 1553472197937985
+  tuple fee: 1540722200
+  tuple call limit: 360258
+  tuple post limit: 480000
+  tuple P: 1215481906468800
+  tuple F: 1478019428626600
+  tuple net charge: 2045971231046000
+  tuple fee: 1596960190
+  tuple call limit: 188188
+  tuple post limit: 480000
+  tuple P: 1126688950208990
+  tuple F: 1337299253986570
+  tuple net charge: 1960013119594600
+  tuple fee: 1270009230
+  tuple call limit: 367679
+  tuple post limit: 480000
+  tuple P: 1126272125367060
+  tuple F: 1679392895262810
+  tuple net charge: 1811782467425700
+  tuple fee: 1589538541
+  tuple call limit: 395222
+  tuple post limit: 504317
+  tuple P: 1409632979391079
+  tuple F: 1970077246792482
+  tuple net charge: 2275858365463193
+  tuple fee: 1025787113
+  tuple call limit: 173743
+  tuple post limit: 480000
+  tuple P: 755594787435800
+  tuple F: 900473881914581
+  tuple net charge: 1289388756363175
+  tuple fee: 2308874373
+  tuple call limit: 63789
+  tuple post limit: 480000
+  tuple P: 2047560589212606
+  tuple F: 2779492236448590
+  tuple net charge: 3223652708456973
+  tuple fee: 1200562967
+  tuple call limit: 159835
+  tuple post limit: 480000
+  tuple P: 829567400063594
+  tuple F: 1221685671841398
+  tuple net charge: 1452640370929122
+  tuple fee: 1395455163
+  tuple call limit: 428604
+  tuple post limit: 1124281
+  tuple P: 1036151972175597
+  tuple F: 1358712828558210
+  tuple net charge: 1887782908147704
+  tuple fee: 2440166277
+  tuple call limit: 298694
+  tuple post limit: 480000
+  tuple P: 1358931039827577
+  tuple F: 1663785893145741
+  tuple net charge: 2659222443852567
+  tuple fee: 2487845396
+  tuple call limit: 402282
+  tuple post limit: 502628
+  tuple P: 1962825430700536
+  tuple F: 2402980013851648
+  tuple net charge: 3319922703609972
+  tuple fee: 1027570259
+  tuple call limit: 223518
+  tuple post limit: 1187837
+  tuple P: 911273967367416
+  tuple F: 1326169845422292
+  tuple net charge: 1523845591286640
+  tuple fee: 2197200623
+  tuple call limit: 306331
+  tuple post limit: 480000
+  tuple P: 1948519259288237
+  tuple F: 2698340338294463
+  tuple net charge: 3121020216542219
+  tuple fee: 2728888611
+  tuple call limit: 383962
+  tuple post limit: 1276369
+  tuple P: 1519690778579790
+  tuple F: 2101206026029446
+  tuple net charge: 3214423388223564
+  tuple fee: 1697921216
+  tuple call limit: 349001
+  tuple post limit: 516303
+  tuple P: 1149198922861632
+  tuple F: 1574563843815168
+  tuple net charge: 2068675896883328
+  tuple fee: 2523467521
+  tuple call limit: 169740
+  tuple post limit: 480000
+  tuple P: 2237871560843304
+  tuple F: 3064567091125467
+  tuple net charge: 3550009061607758
+  tuple fee: 1931067537
+  tuple call limit: 99370
+  tuple post limit: 518431
+  tuple P: 1322055181451088
+  tuple F: 1549617973213779
+  tuple net charge: 2319994194289485
+  tuple fee: 2329183348
+  tuple call limit: 447969
+  tuple post limit: 516060
+  tuple P: 2065564047490012
+  tuple F: 2901815403289148
+  tuple net charge: 3349882733127256
+  tuple fee: 2717737521
+  tuple call limit: 370658
+  tuple post limit: 1316243
+  tuple P: 1828613384579724
+  tuple F: 2439433045637037
+  tuple net charge: 3523641816789735
+  tuple fee: 2205008537
+  tuple call limit: 461079
+  tuple post limit: 1426194
+  tuple P: 1509570894515570
+  tuple F: 2049334934287800
+  tuple net charge: 2928996630021506
+  G2 campaign: seeds 1000 bundles executed 2499
+    campaigns with a low-balance operator 594
+    ops planned / rejected (AA34, verified one by one) 10478 4698
+    rejected: postOpGasLimit == MIN-1 / operator solvency 823 997
+    settled BALANCE / CREDIT 3136 1049
+    exact charge checks (from postOp calldata) 4185
+    settled after mid-bundle ETH move / aPNTs move 772 788
+    injected settle failures (BALANCE / CREDIT) 759 836
+    stale releases lock / credit 759 836
+    ... with a same-user same-token record alive (lock / credit) 50 59
+    bundles with a repeated sender 1137
+    single-op groups settled: per user+token / per token 2747 1397
+    ops at postOpGasLimit == MIN: admitted / settled 1877 1356
+    opReverted settled (of which OOG) 1628 771
+    executions kept 2557
+    events: blacklist / policy / tier 528 414 500
+    events: pause / top-up / E-1 disable 292 316 471
+    events: emergency / rate / price 44 778 686
+    I9 unbacked count / amount 0 0
+    EP deposit delta (wei) / sum G settled / sum G injected 11454196803264098053 8548343471218107203 2905853332045990850
+    sum net charge (ETH wei) over settled ops 11607850184945647639
+    R1-8 overcharge (chargeEthNet - G)/G, all settled ops, ppm; n = 4185
+      mean ppm 382453
+      p95  ppm 664571
+      max  ppm 752484
+      min  ppm 74449
+      median ppm 376485
+    R1-8 overcharge, settled ops with postOpGasLimit <= MIN+50k, ppm; n = 3325
+      mean ppm 389789
+      p95  ppm 684079
+      max  ppm 752484
+      min  ppm 78831
+      median ppm 387451
+    R1-8 overcharge, settled ops with postOpGasLimit in [1.0M, 1.5M], ppm; n = 860
+      mean ppm 354088
+      p95  ppm 604185
+      max  ppm 691302
+      min  ppm 74449
+      median ppm 347543
+    buffer: C_POSTOP / C_WRAP / old formula 450000 5000 0
+    SUBSIDY: ops / total wei / max ppm 0 0 0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 30.19s (30.19s CPU time)
+
+Ran 1 test suite in 30.20s (30.19s CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

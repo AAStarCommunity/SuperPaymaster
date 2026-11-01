@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/Users/jason/Dev/aastar/sp-wt/tuple480/script/evidence/tuple480-run.py", line 260, in <module>
+    if sys.argv[1]=='--verify': verify(Path(sys.argv[2]));print('Evidence verified')
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jason/Dev/aastar/sp-wt/tuple480/script/evidence/tuple480-run.py", line 99, in verify
+    assert len(rows)==len(wanted), 'missing command inventory'
+           ^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: missing command inventory
+
+exit 1
