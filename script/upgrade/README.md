@@ -136,3 +136,65 @@ Repeat with the nightly directory. `.github/workflows/a3a-executor.yml` includes
 
 
 **Engine pin changed 2026-10-24: nightly 926eb1d → 4e8874b.** 926eb1d does not implement the EIP-8037 reservoir split (frame gas uncapped above 2^24, `stateGasReservoir` always 0); it matched real RR txs only on receipt gasUsed (first-step frame gas + reservoir: 0/10). 4e8874b (foundry #17719) matches 10/10 on status, gasUsed and the first step's frame gas and stateGasReservoir, and 14/14 on the R-AMS R0 probe. Later frames were not compared one by one (DSR acceptance 2026-10-25: first-step calibration, not full-frame). Evidence: `docs/design/aoa-balance-mode/data/rams-rr-matrix/frame-calibration/` (PR cc125/rr-matrix). All A3a steps are ≤ 2^24 (R0), so earlier A3a numbers are unaffected, but a fresh plan must be produced under the new pin.
+
+## Pre-sampling manifest, slice 1 (schema 3)
+
+`manifest_exec.py` builds Phase A and Phase B from `MANIFEST-DESIGN.md`. It imports the existing executor's Safe hashes, ABI helpers, receipt checks, measured gas policy (including CREATE reservoir witnesses), and A3a's authenticated Amsterdam fork/read-only relay. It does not change the schema-2 IG-08 route. `sign` and `send` return 3. No wallet, keystore, environment credential, signing, or public transaction submission code is added.
+
+Every multi-call design row is expanded into individual transactions. Ten top-level CREATEs use the deployer's consecutive nonce counter; the SP extension address uses implementation nonce 1. All four sender counters start at the pin. B4 is last and conditional: if already applied, its reserved nonce is not consumed. Foreign nonce changes stop rehearsal; this slice has no nonce-gap amendment command.
+
+`plan` is an offline **draft** builder. It accepts a previously collected pin JSON and the mandatory external-input file. It writes `manifest-draft.json`, without invented gas limits or a release-packet hash:
+
+```sh
+python3 -B script/upgrade/manifest_exec.py plan \
+  --pin /path/to/post-s7-pin.json --inputs /path/to/manifest-inputs.json \
+  --out /private/tmp/manifest-draft
+```
+
+`simulate` collects and cross-checks the actual post-S7 pin using two read-only archive endpoints, derives the plan, and calibrates/rehearses every transaction on the authenticated local fork. Pass `--plan` to independently replay an already calibrated plan and its SHA-256 sidecar. A3a must already be deployed at this pin; combined pre-S7 bootstrap is not exposed by this module.
+
+```sh
+A3A_ENGINE_DIR=/path/to/nightly-4e8874b \
+python3 -B script/upgrade/manifest_exec.py simulate \
+  --rpc-file /path/to/archive-a-url --rpc-file-secondary /path/to/archive-b-url \
+  --block 0xPOST_S7_BLOCK --inputs /path/to/manifest-inputs.json \
+  --out /private/tmp/manifest-rehearsal
+```
+
+The existing clean-tree fork gate is preserved. This delivery remains uncommitted at the user's instruction, so that gate currently prevents a real fork run. No permission bypass or implicit commit is provided.
+
+### Mandatory external-input JSON
+
+The entire file's SHA-256 and parsed content enter the plan. This is a public-data file, never an `.env` or key file. Unknown/missing PoPs and verifier artifacts cannot produce a partial plan. The unit tests' `input_data()` supplies deliberately synthetic fixtures, unsuitable for a fork.
+
+Required fields:
+
+- `anni`, `dvt`, `committee`: full lowercase addresses; DVT/committee ownership, current pointers, and runtime are pinned. Anni must be an undelegated EOA.
+- `sampled`: sorted unique list of configured/inventoried operator addresses. Only these are unpaused by B3.
+- `depositTargetWei`: positive integer target EntryPoint deposit. Stake targets at least 1 ETH and at least 86400 seconds; stake and deposit values enter sender budgets.
+- `releaseTag`: existing local tag resolving to HEAD. `registryBaselineCommit`: locally available 5.8.0 baseline used for recursive storage-layout comparison (32 variables, owner at slot zero).
+- `releaseEvidence`: SHA-256 references named `conformance`, `mutation`, `slither`, `sourceVerificationPlan`. These bind supplied release-evidence attestations; this executor does not rerun the release-analysis tools.
+- `verifier`: `commit` (40 hex characters), `ciSha256`, `buildSha256`, and `artifact`. The artifact contains `bytecode` (hex initcode without constructor arguments) and `runtimeIdentity` in A3a's `{artifactRuntime, ranges}` format. Each immutable range contains `name`, `start`, and `length`; supported bindings are `AGGREGATOR` and `REGISTRY`. Unknown bindings stop the build. Supply this from DVT's reproducible frozen build; this repository does not build DVT's source.
+- `pop`: exactly three objects containing `validator`, `slot`, `calldata`, `aggregator`, `pinBlockHash`. Calldata must be the complete owner-path `registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))` call. Validators and slots must be distinct. The builder validates selector, fixed-width encoding, validator, slot, derived A7 address, and pin hash. The real fork validates the cryptographic PoPs and reads back public keys/slots.
+
+The public pin can be collected with `manifest_exec.collect(read_only_rpc, block, external_inputs)` after S7. It includes the original executor's full pin plus Anni nonce/balance, exact operator balances, revenue, tracked total, EntryPoint stake/deposit, old-aggregator activity, and DVT/committee runtime bindings. The draft builder checks the balance sum and rejects nonzero balances belonging to unhandled senders.
+
+### Timing, controls, and a blocking design finding
+
+B1 contains upgrade-with-atomic-pause, gas queue, factory binding, and aggregator queue. B3 contains gas activation, aggregator application, token swap, sampled operator unpauses, and finally global unpause. Its predecessor is B1. Scheduling waits until both the internal gas ETA and `pendingAPNTsTokenEta - 172800`; the scheduled ETA is independently checked against the swap ETA.
+
+B2 re-reads accounting, every inventoried operator, pending slash flags, and continuous global pause since the first 5.5 upgrade. There is no enumerable in-flight getter. Its no-reservation proof relies on 5.4.2 having no reservation map, B1's atomic pause, no subsequent unpause event, and no intervening implementation change. This is a release-version-specific proof, not a generic “current pause means no in-flight work” assumption.
+
+Controls cover premature/unprivileged unpause, factory binding, premature BLS/swap/verifier application, a paused-state deposit blocking the swap, retired reputation submission, non-owner Registry upgrade, repeated verifier application, and B4's no-send path. All control fixtures use impersonation and snapshots. The final solvency probe mints/deposits on a reverted snapshot, then withdraws protocol revenue, recording backing and tracked accounting after each stage.
+
+**The accepted sequence has a solvency conflict.** It leaves `0.1e18` tracked revenue while the newly selected token balance is zero. `SuperPaymasterFundConservation.invariant.t.sol:91` requires token balance ≥ tracked balance. A subsequent deposit increases both sides equally; withdrawing the residual revenue also reduces both sides equally. The shortfall remains `0.1e18`. The rehearsal writes `manifest-solvency.json` and stops at `post_swap_solvency`; it cannot freeze a PASS packet under that state. No extra funding, accounting change, or contract edit is silently inserted. Resolving this requires a design decision outside slice 1.
+
+Not implemented: Phases C/D, live sending/signing, a manifest nonce-gap amendment command, combined A3a bootstrap, or a fix for this solvency conflict. The reverted solvency fixtures are controls, not Phase C transactions.
+
+Offline tests:
+
+```sh
+A3A_ENGINE_DIR="$HOME/.foundry/bin" python3 -B script/upgrade/test_manifest_exec.py
+```
+
+See [slice-1 report](MANIFEST-SLICE1-REPORT.md) for validation results and interface assumptions.
