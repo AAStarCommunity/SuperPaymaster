@@ -1,6 +1,6 @@
 # Pre-sampling manifest: one reviewed hash for every remaining Sepolia write (CC-125 / CC-127)
 
-Status: **design for review, revision 2** (DSR review of 57fe7549 applied). No packet has been built, nothing is
+Status: **design for review, revision 3** (DSR reviews of 57fe7549 and 9defdbd0 applied; DSR: design passes after these). No packet has been built, nothing is
 signed, and nothing below may be sent until the author gives a separate go for the built packet's sha256. Each go
 request carries the decision card in §9.
 
@@ -25,6 +25,8 @@ Every item marked **VERIFY** is read back from chain at the pin block before the
 | D8 | All pre-sampling writes form one manifest: senders, nonce order, budgets, dependencies and STOP conditions. One go for one sha256. | DSR 10-31 |
 | D9 | DVTValidator `0x568b…9E0e` is frozen. The new BLSAggregator binds it in its constructor. | DVT 10-31 |
 | D10 | DVT supplies only PoP data (public key, slot, signature). The calldata goes into the packet, and the executor sends it from D. DVT's tooling never holds or sends from D. | DSR 11-01 |
+| D11 | Thresholds: `minThreshold = 2`, `defaultThreshold = 2` (2-of-3), the same as the old aggregator `0xEaeC…2E5D`. `slashThresholds` keep their constructor values: WARNING 2, MINOR 3, MAJOR 3. With N = 3, MINOR and MAJOR therefore need all three signatures. | DSR 11-01 |
+| D12 | The fraud-proof verifier is a **new** `OverIssueFraudProofVerifier(A7, Registry)` deployed by D from DVT's frozen commit. It binds `AGGREGATOR` as an immutable and in its domain separator, so the existing `0xa134…1cd3` (AGGREGATOR = old aggregator) cannot be reused. | DSR 11-01 |
 
 Why D4 matters for sampling, and why "sampling does not need the swap" was wrong:
 - Settlement never calls `APNTS_TOKEN`. But validation debits the operator's `aPNTsBalance` (`SuperPaymaster.sol:313`, `:322`), and deposits go through `APNTS_TOKEN` (`:163`).
@@ -55,6 +57,9 @@ Chain preconditions at the pin block:
   The sum closes.
 - The Anni key: `PRIVATE_KEY_ANNI` in `.env.sepolia` derives `0xEcAACb91…33c9` (checked 11-01, nothing printed). It is
   imported into a Foundry keystore before the packet is built. The packet references the keystore, never the key.
+- DVT's frozen commit (including `OverIssueFraudProofVerifier`) is available, with a reproducible build of the
+  verifier artifact and the DVT CI pass record that `BLSAggregator.sol:86` requires. If it is not available before the
+  pin, STOP: no packet is built.
 - The PoP data from DVT is generated **after** the pin. `popDigest` binds `domainSeparator() = keccak(name, chainid,
   address(this), REGISTRY)`, and the new aggregator's address is fixed by the deployer nonce at the pin.
 
@@ -82,18 +87,15 @@ system half-way (see §6).
 | A7 | D | CREATE BLSAggregator 4.12(Registry, SP, DVTValidator `0x568b…`); initial `minThreshold = 3`, `defaultThreshold = 7` | A6 | unused until wired |
 | A8 | D | `Registry.setBLSAggregator(A7)`; `DVTValidator.setBLSAggregator(A7)`; then committee `0x7ac7…96a9.setBlsAggregator(A7)` | A7 | point back to the old aggregator |
 | A9 | D | `Registry.setReputationSource(A7, true)`; `Registry.setReputationSource(old, false)` | A8 | reverse both |
-| A10 | D | three `A7.registerBLSPublicKey(validator, pk, popSig)` (owner path), with the calldata built from the PoP data DVT supplies after the pin | A8 | owner can remove |
+| A10 | D | three `A7.registerBLSPublicKey(validator, publicKey, slot, popSignature)` (owner path), with the calldata built from the PoP data DVT supplies after the pin | A8 | owner can remove |
 | A11 | D | `A7.setMinThreshold(2)`, then `A7.setDefaultThreshold(2)` (min ≤ default holds at each step: 2 ≤ 7, then 2 ≥ 2) | A10 | owner can reset |
-| A12 | D | `A7.proposeFraudProofVerifier(v)`; the 4-day delay starts | A7 | owner re-proposes |
+| A12a | D | CREATE `OverIssueFraudProofVerifier(A7, Registry)` from DVT's frozen commit. The address is fixed by D's nonce; the calldata and artifact are in the packet. | A7 | unused until applied |
+| A12b | D | `A7.proposeFraudProofVerifier(A12a)`; the 4-day delay starts | A12a | owner re-proposes |
 | A13 | D | SP `addStake{value}` until stake ≥ 1 ETH with delay ≥ 86400 (current stake 0.1 ETH); EntryPoint `depositTo(SP)` top-up | pin | `unlockStake`, then 86400 s |
 | A14 | D | `setOperatorPaused(op, true)` for every configured operator (pause **before** draining) | — | unpaused in 6d (sampled operators only) |
 | A15 | D, N | drain: D `withdraw(1690.01e18)`; N `withdraw(844.54e18)`; D `withdrawProtocolRevenue(D, protocolRevenue − 0.1e18)` (exact amounts from the pin) | A14 | re-deposit |
 | A16 | D | Registry role-config freeze (existing executor step) | A6 | existing unfreeze |
 | A17 | D | `SP.transferOwnership(timelock)` (existing executor step) | A1–A16 | only via Safe → timelock afterwards |
-
-**Open, for DSR:** the fraud-proof verifier address `v` (DVT's `IFraudProofVerifier` deployment) and its codehash. If it is
-not delivered before the pin, A12 and B5 are dropped and guardian slashing stays dormant (it fails closed). The decision
-card must say so.
 
 The drain is exact because `executeAPNTsTokenChange` requires `totalTrackedBalance == protocolRevenue ≤ 0.1 ether`.
 Withdrawing protocol revenue leaves exactly 0.1 ether.
@@ -105,7 +107,7 @@ Withdrawing protocol revenue leaves exactly 0.1 ether.
 | B1 = 5a/5b `upgrade` | `upgradeToAndCall(A1, setGlobalPaused(true))`; `queueGasParams(480000,450000,5000,450000)`; `setXPNTsFactory(A4 factory)`; `queueBLSAggregator(A7)` | 48 h | implementation slot, extension, global pause, queued tuple and ETA, factory, queued aggregator |
 | B2 (before 6d) | read-back gate: `totalTrackedBalance == protocolRevenue ≤ 0.1e18`; no in-flight sponsorship (a stale release returns balance); no pending slash | — | STOP if any differs |
 | B3 = 6c/6d `activation` (predecessor B1) | `executeGasParams()`; `applyBLSAggregator()`; **`executeAPNTsTokenChange()`**; `setOperatorPaused(op, false)` for each **sampled** operator only; `setGlobalPaused(false)` | 6c is scheduled so that 6d runs at ≥ `pendingAPNTsTokenEta` | active tuple, aggregator, `APNTS_TOKEN == APNTsCapped`, sampled operators and global unpaused, unsampled operators still paused |
-| B5 | anyone (sent by D): `A7.applyFraudProofVerifier()` once 4 days have passed since A12 | 4 d | `fraudProofVerifier == v` |
+| B4 | D: `A7.applyFraudProofVerifier()` once 4 days have passed since A12b. Idempotent: it has no permission gate, and DVT's Apply Verifier Rotation workflow may already have applied it. Read `fraudProofVerifier` first; if it is already A12a, skip (not a STOP). | 4 d | `fraudProofVerifier == A12a` |
 
 Timing:
 - `queueBLSAggregator` has a 24 h internal delay, so `applyBLSAggregator` in 6d is in time.
@@ -138,11 +140,15 @@ the G3 matrix.
 | xPNTsFactoryV2 | Ownable(msg.sender), single step | timelock | D `transferOwnership(timelock)` |
 | BLSAggregator (A7) | Ownable(msg.sender), single step | Safe | D `transferOwnership(Safe)`; D `setSlashPolicyAdmin(Safe)` first |
 | DVTValidator | Ownable | Safe | D `transferOwnership(Safe)` |
+| committee `0x7ac7…96a9` | single-step `transferOwnership` present; no `acceptOwnership` or `renounceOwnership` (runtime selectors, read 11-01); owner currently D | Safe | D `transferOwnership(Safe)` after A8 |
+| OverIssueFraudProofVerifier (A12a) | **VERIFY** from DVT's source (the old one exposes no `owner()`) | — | — |
+| old BLSAggregator `0xEaeC…2E5D` (retired) | Ownable, owner D | Safe | D `transferOwnership(Safe)`, so no residual EOA power over a retired but still callable contract |
+| old verifier `0xa134…1cd3` (retired) | no `owner()` (reverts) | — | nothing to hand over; it is bound to the old aggregator only |
 | SP proxy | (already the timelock since A17) | — | — |
 | GlobalTierSource, xPNTsTokenV2 implementation and extension, SuperPaymasterLens | no owner | — | — |
 | SP and Registry implementations | used only behind proxies; initializers disabled (**VERIFY**) | — | — |
 
-A10, A11 and B5 must complete before BLSAggregator leaves D. After the Registry handover, an emergency Registry rotation
+A10, A11 and B4 must complete before BLSAggregator leaves D. After the Registry handover, an emergency Registry rotation
 also takes 48 h. BLSAggregator and DVTValidator are Safe-only, with no timelock; the matrix records that asymmetry.
 
 ## 4. Nonce, budget and timing
@@ -184,7 +190,7 @@ STOP conditions (each is a hard stop; nothing later is sent):
 | --- | --- | --- |
 | A1–A5 | unused contracts; nothing pointed at them | none needed; rebuild from a new pin |
 | A6 | Registry on 5.9.0 (same layout) | continue, or re-upgrade to 5.8.0 |
-| A7–A12 | aggregator partially wired | point Registry/DVTValidator/committee back to the old aggregator; restore reputation sources |
+| A7–A12b | aggregator partially wired | point Registry/DVTValidator/committee back to the old aggregator; restore reputation sources |
 | A13 | extra stake | `unlockStake` + 86400 s if it must be reclaimed |
 | A14–A15 | operators paused, balances drained | owner unpauses; operators re-deposit |
 | A17 | SP owned by the timelock and unpaused, still on 5.4.2 | every further change goes through Safe → timelock |
@@ -204,8 +210,12 @@ STOP conditions (each is a hard stop; nothing later is sent):
   - `executeAPNTsTokenChange` before its ETA, or with `totalTrackedBalance ≠ protocolRevenue`, rejected;
   - the old aggregator cannot submit reputation after A9;
   - a non-owner Registry upgrade rejected;
-  - `applyFraudProofVerifier` before 4 days rejected;
+  - `applyFraudProofVerifier` before 4 days rejected, and a second apply is a no-op skip;
   - after Phase D, D can no longer call any owner function on the handed-over contracts.
+- **The 0.1 aPNTs left after the swap.** `protocolRevenue` keeps 0.1e18 of accounting units backed by the old token,
+  while SP holds 0 of the new token right after the swap. The rehearsal reads back `totalTrackedBalance` against the
+  APNTsCapped balance of SP after 6d and after the first deposits. It confirms that later `deposit`,
+  `withdrawProtocolRevenue` and every solvency invariant still hold; the conclusion is recorded here.
 - **On chain.** The G3 pilot checks handleOps admission at 480000 (DSR #4, D6).
 
 ## 8. What changes for the paper
