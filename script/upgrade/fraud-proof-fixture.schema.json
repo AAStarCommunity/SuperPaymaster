@@ -1,0 +1,355 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "toolCommit",
+    "verifierCommit",
+    "export"
+  ],
+  "properties": {
+    "toolCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "verifierCommit": {
+      "const": "72aca4fa0ba4aaa8c8a96210b1124534431294d6"
+    },
+    "export": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purpose",
+        "chainId",
+        "aggregator",
+        "version",
+        "owner",
+        "verifier",
+        "registry",
+        "domainSeparator",
+        "block",
+        "forkState",
+        "valid",
+        "mustReject"
+      ],
+      "properties": {
+        "purpose": {
+          "const": "fork rehearsal only; contains no signature"
+        },
+        "chainId": {
+          "const": 11155111
+        },
+        "aggregator": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        "version": {
+          "const": "BLSAggregator-4.12.0"
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        "verifier": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        "registry": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        "domainSeparator": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{64}$"
+        },
+        "block": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "forkState": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "token",
+            "commitment"
+          ],
+          "properties": {
+            "token": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "address",
+                "runtimeBytecode",
+                "overIssuedStorageSlot"
+              ],
+              "properties": {
+                "address": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-fA-F]{40}$"
+                },
+                "runtimeBytecode": {
+                  "type": "string",
+                  "pattern": "^0x([0-9a-fA-F]{2})+$"
+                },
+                "overIssuedStorageSlot": {
+                  "const": 0
+                }
+              }
+            },
+            "commitment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "mapping",
+                "key",
+                "value",
+                "check"
+              ],
+              "properties": {
+                "mapping": {
+                  "const": "proposalSignersCommitment"
+                },
+                "key": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]{0,77})$"
+                },
+                "value": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "check": {
+                  "const": "proposalSignersCommitment(key) must read back as value, otherwise stop"
+                }
+              }
+            }
+          }
+        },
+        "valid": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "call",
+            "expect",
+            "proposalId",
+            "fraudProofId",
+            "guiltyGuardians",
+            "fraudProof",
+            "domainDigest",
+            "signerMask",
+            "operator",
+            "slashLevel",
+            "epoch"
+          ],
+          "properties": {
+            "call": {
+              "const": "queueGuardianSlash(fraudProofId, guiltyGuardians, fraudProof)"
+            },
+            "expect": {
+              "const": "succeeds and emits GuardianSlashQueued"
+            },
+            "proposalId": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,77})$"
+            },
+            "fraudProofId": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,77})$"
+            },
+            "guiltyGuardians": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{40}$"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "fraudProof": {
+              "type": "string",
+              "pattern": "^0x([0-9a-fA-F]{2})+$"
+            },
+            "domainDigest": {
+              "type": "string",
+              "pattern": "^0x[0-9a-f]{64}$"
+            },
+            "signerMask": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{1,64}$"
+            },
+            "operator": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            },
+            "slashLevel": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,77})$"
+            }
+          }
+        },
+        "mustReject": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "change",
+                "expect",
+                "guiltyGuardians",
+                "fraudProof"
+              ],
+              "properties": {
+                "id": {
+                  "const": "N1"
+                },
+                "change": {
+                  "const": "one guardian removed"
+                },
+                "expect": {
+                  "const": "queueGuardianSlash reverts InvalidFraudProof"
+                },
+                "guiltyGuardians": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "fraudProof": {
+                  "type": "string",
+                  "pattern": "^0x([0-9a-fA-F]{2})+$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "change",
+                "expect",
+                "guiltyGuardians",
+                "fraudProof"
+              ],
+              "properties": {
+                "id": {
+                  "const": "N2"
+                },
+                "change": {
+                  "const": "set token storage slot 0 to 1 (over-issued), same proof"
+                },
+                "expect": {
+                  "const": "queueGuardianSlash reverts InvalidFraudProof"
+                },
+                "guiltyGuardians": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "fraudProof": {
+                  "type": "string",
+                  "pattern": "^0x([0-9a-fA-F]{2})+$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "change",
+                "expect",
+                "guiltyGuardians",
+                "fraudProof"
+              ],
+              "properties": {
+                "id": {
+                  "const": "N3"
+                },
+                "change": {
+                  "const": "signerMask in the proof differs by one bit"
+                },
+                "expect": {
+                  "const": "queueGuardianSlash reverts InvalidFraudProof"
+                },
+                "guiltyGuardians": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "fraudProof": {
+                  "type": "string",
+                  "pattern": "^0x([0-9a-fA-F]{2})+$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "change",
+                "expect",
+                "guiltyGuardians",
+                "fraudProof",
+                "call",
+                "domainDigest"
+              ],
+              "properties": {
+                "id": {
+                  "const": "N4"
+                },
+                "change": {
+                  "const": "digest differs by one bit; call the verifier directly because the aggregator computes its own digest"
+                },
+                "expect": {
+                  "const": "returns false"
+                },
+                "guiltyGuardians": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "fraudProof": {
+                  "type": "string",
+                  "pattern": "^0x([0-9a-fA-F]{2})+$"
+                },
+                "call": {
+                  "const": "verifier.verify(domainDigest, fraudProofId, guiltyGuardians, fraudProof)"
+                },
+                "domainDigest": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            }
+          ],
+          "items": false
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Reviewed wrapper around unchanged DVT --export-fraud-drill output. Both source commits are mandatory. Executor additionally checks runtime hashes, proof semantics, derived addresses, guardians and storage layout."
+}

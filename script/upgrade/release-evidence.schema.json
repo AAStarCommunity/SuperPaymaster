@@ -1,0 +1,762 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Per-kind release evidence. Executor also binds commits, accepts only explicitly reviewed Slither findings, and compares all per-contract creation hashes against its own isolated offline rebuilds.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result",
+        "controls"
+      ],
+      "properties": {
+        "kind": {
+          "const": "conformance"
+        },
+        "subjectCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        },
+        "controls": {
+          "const": {
+            "C1": "PASS",
+            "C2": "PASS",
+            "C3": "PASS",
+            "C4": "PASS",
+            "C5": "PASS",
+            "C6": "PASS",
+            "C7": "PASS",
+            "C8": "PASS",
+            "C9": "PASS"
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result",
+        "controls"
+      ],
+      "properties": {
+        "kind": {
+          "const": "mutation"
+        },
+        "subjectCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        },
+        "controls": {
+          "const": {
+            "remove_B2": {
+              "redTest": "test_pre_send_real_b2_is_required",
+              "mutated": "FAIL",
+              "restored": "PASS"
+            },
+            "remove_AGGREGATOR_getter": {
+              "redTest": "test_a12a_getters_are_enforced",
+              "mutated": "FAIL",
+              "restored": "PASS"
+            },
+            "remove_REGISTRY_getter": {
+              "redTest": "test_a12a_getters_are_enforced",
+              "mutated": "FAIL",
+              "restored": "PASS"
+            },
+            "remove_bound_runtime_loop": {
+              "redTest": "test_pre_send_bound_runtime_is_required",
+              "mutated": "FAIL",
+              "restored": "PASS"
+            },
+            "remove_isEqualSet": {
+              "redTest": "VerifierAcceptsGuardianSubset",
+              "mutated": "FAIL",
+              "restored": "PASS"
+            },
+            "subset_comparison": {
+              "redTest": "VerifierAcceptsGuardianSubset",
+              "mutated": "FAIL",
+              "restored": "PASS"
+            },
+            "length_not_equal_to_less_than": {
+              "redTest": "VerifierAcceptsGuardianSuperset",
+              "mutated": "FAIL",
+              "restored": "PASS"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result",
+        "findings"
+      ],
+      "properties": {
+        "kind": {
+          "const": "slither"
+        },
+        "subjectCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "const": "slither"
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        },
+        "findings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "threshold",
+            "aboveThreshold",
+            "accepted"
+          ],
+          "properties": {
+            "threshold": {
+              "enum": [
+                "Informational",
+                "Low",
+                "Medium",
+                "High"
+              ]
+            },
+            "aboveThreshold": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "accepted": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "reason"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result",
+        "contracts"
+      ],
+      "properties": {
+        "kind": {
+          "const": "reproducible-build"
+        },
+        "subjectCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        },
+        "contracts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "SuperPaymaster",
+            "SuperPaymasterAdmin",
+            "GlobalTierSource",
+            "AOAProtocolRegistry",
+            "xPNTsTokenV2Ext",
+            "xPNTsTokenV2",
+            "xPNTsFactoryV2",
+            "SuperPaymasterLens",
+            "Registry",
+            "BLSAggregator",
+            "OverIssueFraudProofVerifier"
+          ],
+          "properties": {
+            "SuperPaymaster": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "SuperPaymasterAdmin": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "GlobalTierSource": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "AOAProtocolRegistry": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "xPNTsTokenV2Ext": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "xPNTsTokenV2": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "xPNTsFactoryV2": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "SuperPaymasterLens": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "Registry": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "BLSAggregator": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            },
+            "OverIssueFraudProofVerifier": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fullCreationKeccak",
+                "strippedCreationKeccak"
+              ],
+              "properties": {
+                "fullCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                },
+                "strippedCreationKeccak": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-f]{64}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result",
+        "spCommit",
+        "aggregatorVersion",
+        "suites"
+      ],
+      "properties": {
+        "kind": {
+          "const": "dvt-ci"
+        },
+        "subjectCommit": {
+          "const": "72aca4fa0ba4aaa8c8a96210b1124534431294d6"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "const": 23
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        },
+        "spCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "aggregatorVersion": {
+          "const": "BLSAggregator-4.12.0"
+        },
+        "suites": {
+          "const": {
+            "CC115CrossRepoConformance": {
+              "passed": 7,
+              "failed": 0,
+              "skipped": 0,
+              "result": "PASS"
+            },
+            "CC115GenuinePragueCrossRepo": {
+              "passed": 11,
+              "failed": 0,
+              "skipped": 0,
+              "result": "PASS",
+              "env": {
+                "FOUNDRY_EVM_VERSION": "prague"
+              }
+            },
+            "provenance": {
+              "passed": 5,
+              "failed": 0,
+              "skipped": 0,
+              "result": "PASS"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subjectCommit",
+        "tool",
+        "counts",
+        "result",
+        "spCommit",
+        "aggregatorVersion",
+        "suites"
+      ],
+      "properties": {
+        "kind": {
+          "const": "dvt-conformance-4.12"
+        },
+        "subjectCommit": {
+          "const": "72aca4fa0ba4aaa8c8a96210b1124534431294d6"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "properties": {
+            "passed": {
+              "const": 23
+            },
+            "failed": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            }
+          }
+        },
+        "result": {
+          "const": "PASS"
+        },
+        "spCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "aggregatorVersion": {
+          "const": "BLSAggregator-4.12.0"
+        },
+        "suites": {
+          "const": {
+            "CC115CrossRepoConformance": {
+              "passed": 7,
+              "failed": 0,
+              "skipped": 0,
+              "result": "PASS"
+            },
+            "CC115GenuinePragueCrossRepo": {
+              "passed": 11,
+              "failed": 0,
+              "skipped": 0,
+              "result": "PASS",
+              "env": {
+                "FOUNDRY_EVM_VERSION": "prague"
+              }
+            },
+            "provenance": {
+              "passed": 5,
+              "failed": 0,
+              "skipped": 0,
+              "result": "PASS"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
