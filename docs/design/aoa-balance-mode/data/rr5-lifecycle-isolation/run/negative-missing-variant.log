@@ -1,0 +1,9 @@
+exit 1
+Traceback (most recent call last):
+  File "/Users/jason/Dev/aastar/sp-wt/rr5iso/script/evidence/rr5-lifecycle-run.py", line 196, in <module>
+    print('PASS',verify(Path(sys.argv[2])))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jason/Dev/aastar/sp-wt/rr5iso/script/evidence/rr5-lifecycle-run.py", line 35, in verify
+    assert set(manifest) == {f'{e}/{m}/{v}' for e in ENGINES for m in MODES for v in VARIANTS}, 'incomplete variant inventory'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: incomplete variant inventory
