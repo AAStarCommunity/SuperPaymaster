@@ -414,14 +414,18 @@ class ManifestTests(unittest.TestCase):
             rpc.local = True
             def fixture(r, sender, target, data): return {'from':sender, 'to':target, 'data':data}
             def negative(r, tx, expected, name):
-                self.assertEqual(expected, a.calldata('OwnableUnauthorizedAccount(address)', tx['from']))
+                policy = tx['data'][:10] in (a.calldata('setSlashThreshold(uint8,uint8)', 0, 2)[:10],
+                    a.calldata('setGuardianSlashBps(uint16)', 3000)[:10])
+                error = 'NotSlashPolicyAdmin(address)' if policy else 'OwnableUnauthorizedAccount(address)'
+                self.assertEqual(expected, a.calldata(error, tx['from']))
                 negatives.append(tx)
                 if failure == 'negative': raise a.Gate('wrong_reason', '0x', expected)
                 return {'control':name}
             def receipt(r, tx):
                 positives.append(tx)
                 return {'status':'0x0' if failure == 'positive' else '0x1'}
-            with patch.object(u, 'fixture_tx', side_effect=fixture), patch.object(a, 'negative', side_effect=negative), \
+            with patch.object(a, 'word', side_effect=lambda r, t, sig, *args: 2 if sig == 'slashThresholds(uint8)' else 1000), \
+                 patch.object(u, 'fixture_tx', side_effect=fixture), patch.object(a, 'negative', side_effect=negative), \
                  patch.object(u, 'receipt', side_effect=receipt), patch.object(m, 'check_predicate',
                  side_effect=a.Gate('readback', 0, 1) if failure == 'readback' else None):
                 if failure:
@@ -429,10 +433,20 @@ class ManifestTests(unittest.TestCase):
                 else:
                     result = m.handover_controls(rpc, self.plan)
                     self.assertTrue(result['restored'])
-                    self.assertEqual(len(negatives), 12)
-                    self.assertEqual(len(positives), 9)
+                    self.assertEqual(len(negatives), 18)
+                    self.assertEqual(len(positives), 14)
+                    expected_probes = [(u.SP, u.TL, a.calldata('setProtocolFee(uint256)', 1000))]
+                    for target in (self.plan['addresses']['BLSAggregator'], m.OLD_AGGREGATOR):
+                        expected_probes += [(target, u.SAFE, a.calldata(sig, *args)) for sig, args in (
+                            ('setSlashThreshold(uint8,uint8)', (0, 2)),
+                            ('setGuardianSlashBps(uint16)', (1000,)))]
+                    self.assertEqual([(tx['to'], tx['from'], tx['data']) for tx in positives[-5:]], expected_probes)
+                    expected_denied = [(target, sender, data) for target, _, data in expected_probes
+                                       for sender in ((u.DEPLOYER, u.SAFE) if target == u.SP else (u.DEPLOYER,))]
+                    self.assertEqual([(tx['to'], tx['from'], tx['data']) for tx in negatives[-6:]], expected_denied)
+                    self.assertEqual(history.count('evm_snapshot'), 12)
                     for tx in positives:
-                        owner = next(owner for _, target, owner in m.handover_contracts(self.plan['addresses']) if target == tx['to'])
+                        owner = next(owner for _, target, owner in [*m.handover_contracts(self.plan['addresses']), ('sp', u.SP, u.TL)] if target == tx['to'])
                         self.assertEqual(tx['from'], owner)
             self.assertEqual(history[-1], 'evm_revert')
             self.assertEqual(history.count('evm_snapshot'), history.count('evm_revert'))

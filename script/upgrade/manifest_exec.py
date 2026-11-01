@@ -1099,6 +1099,35 @@ def handover_controls(rpc, plan):
             results.append(dict(contract=name, positiveReceipt=receipt, snapshot=snap))
         finally:
             a.need('handover_control_restore', rpc('evm_revert', [snap]), True)
+    # Probe setters without retaining policy, balance or nonce changes.
+    probes = [('sp', u.SP, u.TL, 'setProtocolFee(uint256)', 'protocolFeeBPS()', (),
+               (u.DEPLOYER, u.SAFE), 'OwnableUnauthorizedAccount(address)')]
+    for name, target in (('aggregator', plan['addresses']['BLSAggregator']),
+                         ('old_aggregator', OLD_AGGREGATOR)):
+        probes += [(name, target, u.SAFE, setter, getter, args, (u.DEPLOYER,),
+                    'NotSlashPolicyAdmin(address)') for setter, getter, args in (
+                        ('setSlashThreshold(uint8,uint8)', 'slashThresholds(uint8)', (0,)),
+                        ('setGuardianSlashBps(uint16)', 'guardianSlashBps()', ()))]
+    for name, target, admin, setter, getter, args, denied, error in probes:
+        snap = rpc('evm_snapshot', [])
+        try:
+            authority = 'owner()' if name == 'sp' else 'slashPolicyAdmin()'
+            check_predicate(rpc, address_pred(target, authority, admin))
+            current = a.word(rpc, target, getter, *args)
+            data = a.calldata(setter, *args, current)
+            label = 'handover_'+name+'_'+setter.split('(')[0]
+            for sender in denied:
+                results.append(a.negative(rpc, u.fixture_tx(rpc, sender, target, data),
+                    a.calldata(error, sender), label+'_'+sender))
+            receipt = u.receipt(rpc, u.fixture_tx(rpc, admin, target, data))
+            a.need(label+'_status', a.qty(receipt['status']), 1)
+            check_predicate(rpc, word_pred(target, getter, current, *args))
+            results.append(dict(contract=name, setter=setter, currentValue=current,
+                                positiveReceipt=receipt, snapshot=snap))
+        finally:
+            a.need('handover_setter_restore', rpc('evm_revert', [snap]), True)
+        check_predicate(rpc, word_pred(target, getter, current, *args))
+    check_predicate(rpc, address_pred(u.SP, 'owner()', u.TL))
     for name, target, owner in handover_contracts(plan['addresses']):
         check_predicate(rpc, address_pred(target, 'owner()', owner))
         if name in ('aggregator', 'old_aggregator'):

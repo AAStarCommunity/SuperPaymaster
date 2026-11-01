@@ -143,7 +143,7 @@ Repeat with the nightly directory. `.github/workflows/a3a-executor.yml` includes
 
 Every multi-call design row is expanded into individual transactions. Ten top-level CREATEs use the deployer's consecutive nonce counter; the SP extension address uses implementation nonce 1. All four sender counters start at the pin. B4 is last in this Phase A/B slice and always consumes its reserved deployer nonce. Its packet includes exactly two complete transaction variants: the apply call and a zero-value, empty-data deployer self-transfer with identical nonce and fees. Calibration measures the self-transfer's intrinsic gas on the Amsterdam fork and freezes that exact limit; replay verifies it again. Both payloads and limits are covered by the packet hash, and budgeting uses the more expensive variant. The packet discloses the possible gas-only placeholder (§9).
 
-Immediately before B4, the executor reads the active verifier and chooses apply unless it is already A12a. Every branch requires A12a active, pending verifier zero, and readyAt zero afterwards. Only the apply variant may pass with mined status 0, and only with that complete post-state; its receipt is logged before the post-state check. The placeholder still requires status 1. Reverted-snapshot controls exercise preapplication, a front-run after selection, and a wrong verifier, including a follow-on deployer transaction to check nonce continuity. Phase D itself remains outside this slice. Foreign nonce changes stop rehearsal; this slice has no nonce-gap amendment command.
+Immediately before B4, the executor reads the active verifier and chooses apply unless it is already A12a. Every branch requires A12a active, pending verifier zero, and readyAt zero afterwards. Only the apply variant may pass with mined status 0, and only with that complete post-state; its receipt is logged before the post-state check. The placeholder still requires status 1. Reverted-snapshot controls exercise preapplication, a front-run after selection, and a wrong verifier, including a follow-on deployer transaction to check nonce continuity. Phase D now follows B4 as described below. Foreign nonce changes stop rehearsal; this slice has no nonce-gap amendment command.
 
 `plan` is an offline **draft** builder. It accepts a previously collected pin JSON and the mandatory external-input file. It writes `manifest-draft.json`, without invented gas limits or a release-packet hash:
 
@@ -210,7 +210,7 @@ The solvency probe records the immediate post-6d balance, checks it is unchanged
 
 The old-token 0.1 remains stranded in SP with no rescue path. After B2a but before 6d, the new token is held but untracked; if the route is abandoned it remains untracked. These are explicit §6/§9 recovery and decision-card facts.
 
-Not implemented: Phases C/D, live sending/signing, a manifest nonce-gap amendment command, or combined A3a bootstrap. The reverted solvency fixtures are controls, not Phase C transactions. The full release still requires an authenticated fork and release evidence; local unit tests do not authorize broadcasting.
+Not implemented: Phase C, live sending/signing, a manifest nonce-gap amendment command, or combined A3a bootstrap. The reverted solvency fixtures are controls, not Phase C transactions. The full release still requires an authenticated fork and release evidence; local unit tests do not authorize broadcasting.
 
 Offline tests:
 
@@ -232,3 +232,10 @@ Every SP deployed contract (including the constructor-created admin extension) r
 The mock runtime pin is `0xae01c0c01f84a229b8c6f3591a70f678ea5d48ff956a90661ae669bf1be6d0db`, independently derived from that same DVT archive and compiler configuration. It is the raw runtime with immutable `owner` set to zero; fixture exporters must supply those exact bytes. The drill uses snapshot-scoped storage writes, not its owner setter. It requires `isOverIssued()==false` before N2 and `true` after changing slot zero, before submitting N2. A reverting implementation fails this read-back. No placeholder remains.
 
 B2 is an off-chain observation. Extra tokens sent to SP before 6d only increase backing, which is harmless; under the packet's paused state and enforced controls, nothing can decrease it. This observation is therefore acceptable; the packet still enforces B2's backing check.
+
+
+### Phase D ownership controls and validation limits
+
+Post-Phase-D controls include SP: `setProtocolFee` with the current value must reject D and a directly impersonated Safe with the exact `OwnableUnauthorizedAccount(address)` payload, and succeed from the impersonated timelock. Both A7 and the old `0xEaeC…` aggregator are checked with current-value `setSlashThreshold` and `setGuardianSlashBps` calls: D must revert with the exact `NotSlashPolicyAdmin(D)` payload and the impersonated Safe must succeed. Each setter probe has its own snapshot, success read-back, and restoration.
+
+Phase D unit tests cover sequence construction and dependency gates only. They do not establish compatibility of the pinned bytecode. Compatibility—including single-step committee ownership transfer and exact error selectors/payloads—is established only by the fork rehearsal on the real pin. No such fork rehearsal was run in this fix round.
