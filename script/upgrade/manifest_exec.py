@@ -5,6 +5,8 @@ sys.dont_write_bytecode = True
 import argparse
 import copy
 import hashlib
+import json
+import re
 import os
 import tempfile
 from functools import lru_cache
@@ -26,6 +28,8 @@ VERIFIER_COMMIT = '72aca4fa0ba4aaa8c8a96210b1124534431294d6'
 VERIFIER_SHA256 = '4d7e0125094c381a0dca5e2d8dd56efa79b284e43119fd64130dfaa78d33e7d6'
 # Offline archive rebuild of 72aca4fa, Forge 1.7.1 / solc 0.8.33.
 # Raw runtime fixes immutable owner to zero; drill changes only storage slot zero.
+MOCK_TOKEN_STRIPPED_RUNTIME_HASH = '0xb4dcef54c1bf03ed09b0c6dcd6b78699d4801a3e6baf044ddd531c72acb74a86'
+MOCK_TOKEN_OVER_SELECTOR = '0xbeaf15d9'
 MOCK_TOKEN_RUNTIME_HASH = '0xae01c0c01f84a229b8c6f3591a70f678ea5d48ff956a90661ae669bf1be6d0db'
 
 MUTATIONS = {
@@ -187,18 +191,80 @@ def commitment_slot(layout, pid):
     return a.keccak(a.cast('abi-encode', 'c(uint256,uint256)', pid, int(entry['slot'])))
 
 
+def _fraud_schema(value, schema, path='fixture'):
+    """Validate the closed subset of JSON Schema used by our fixture schema."""
+    if 'const' in schema:
+        a.need('fraud_schema_'+path, type(value) is type(schema['const']) and value == schema['const'], True)
+    kind = schema.get('type')
+    if kind:
+        a.need('fraud_schema_type_'+path, type(value) is {
+            'object':dict, 'array':list, 'integer':int, 'string':str}[kind], True)
+    if kind == 'object':
+        a.exact_keys('fraud_schema_fields_'+path, value, schema['required'])
+        for key, child in schema['properties'].items():
+            _fraud_schema(value[key], child, path+'.'+key)
+    elif kind == 'array':
+        a.need('fraud_schema_length_'+path, schema['minItems'] <= len(value) <= schema['maxItems'], True)
+        for i, item in enumerate(value):
+            child = schema['prefixItems'][i] if 'prefixItems' in schema else schema['items']
+            _fraud_schema(item, child, path+'.'+str(i))
+    elif kind == 'string' and 'pattern' in schema:
+        a.need('fraud_schema_pattern_'+path, re.fullmatch(schema['pattern'], value) is not None, True)
+    elif kind == 'integer':
+        a.need('fraud_schema_range_'+path, schema.get('minimum', 0) <= value <= schema.get('maximum', 2**256-1), True)
+
+
+def fraud_format_only(export):
+    """Parse DVT's wire format, including historical versions; never build a plan."""
+    schema = json.loads(Path(__file__).with_name('fraud-proof-fixture.schema.json').read_text())['properties']['export']
+    schema['properties']['version'] = {'type':'string', 'pattern':r'BLSAggregator-[0-9]+\.[0-9]+\.[0-9]+'}
+    _fraud_schema(export, schema, 'export')
+    return copy.deepcopy(export)
+
+
+def fraud_message_hash(domain, pid, operator, level, epoch, token):
+    evidence = a.keccak(a.cast('abi-encode', 'c(string,address,address,uint256)',
+        'DVT_OVERISSUE_EVIDENCE_V1', token, operator, epoch))
+    return a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,address,uint8,uint256,bytes32)',
+        domain, a.keccak('SuperPaymaster.BLS.ExecuteSlash.v1'), pid, operator, level, epoch, evidence))
+
+
 def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     required(ref, ('path', 'sha256'), 'fraud_fixture_required')
-    f = reviewed_file(ref['path'], ref['sha256'], 'fraud_fixture')
-    a.exact_keys('fraud_fixture_fields', f, ('toolCommit', 'verifierCommit', 'aggregator', 'verifier',
-        'registry', 'domainSeparator', 'pinBlockHash', 'pid', 'fraudProofId', 'guiltyGuardians',
-        'fraudProof', 'signerMask', 'messageHash', 'mockToken', 'commitment', 'invalid'))
+    wrapper = reviewed_file(ref['path'], ref['sha256'], 'fraud_fixture')
+    schema = json.loads(Path(__file__).with_name('fraud-proof-fixture.schema.json').read_text())
+    _fraud_schema(wrapper, schema)
+    e = wrapper['export']
+    v, state = e['valid'], e['forkState']
+    pid, fid, mask, epoch = int(v['proposalId']), int(v['fraudProofId']), int(v['signerMask'], 16), int(v['epoch'])
+    a.need('fraud_epoch', 0 <= epoch < 2**256, True)
+    a.need('fraud_commitment_key', state['commitment']['key'], v['proposalId'])
+    # DVT emits checksummed addresses. Normalize only after validating the wire shape.
+    guardians = [x.lower() for x in v['guiltyGuardians']]
+    token = state['token']
+    negatives = e['mustReject']
+    for n in negatives:
+        if n['id'] != 'N1':
+            a.need('fraud_'+n['id']+'_guardians', [x.lower() for x in n['guiltyGuardians']], guardians)
+        if n['id'] != 'N3':
+            a.need('fraud_'+n['id']+'_proof', n['fraudProof'], v['fraudProof'])
+    f = dict(toolCommit=wrapper['toolCommit'], verifierCommit=wrapper['verifierCommit'],
+        aggregator=e['aggregator'].lower(), verifier=e['verifier'].lower(), registry=e['registry'].lower(),
+        domainSeparator=e['domainSeparator'], block=e['block'], pid=pid, fraudProofId=fid,
+        guiltyGuardians=guardians, fraudProof=v['fraudProof'], signerMask=mask,
+        messageHash=fraud_message_hash(e['domainSeparator'], pid, v['operator'], v['slashLevel'], epoch, token['address']),
+        mockToken=dict(address=token['address'].lower(), runtime=token['runtimeBytecode'],
+                       runtimeHash=MOCK_TOKEN_RUNTIME_HASH, over=False),
+        commitment=dict(value=state['commitment']['value']),
+        invalid=dict(N1=dict(guiltyGuardians=[x.lower() for x in negatives[0]['guiltyGuardians']]),
+                     N2=dict(over=True), N3=dict(fraudProof=negatives[2]['fraudProof']),
+                     N4=dict(domainDigest=negatives[3]['domainDigest'])))
     a.need('fraud_tool_commit', isinstance(f['toolCommit'], str) and len(f['toolCommit']) == 40 and
            all(c in '0123456789abcdef' for c in f['toolCommit']), True)
     a.need('fraud_verifier_commit', f['verifierCommit'], VERIFIER_COMMIT)
     a.need('fraud_registry', f['registry'], u.REG)
     for key in ('aggregator', 'verifier'): a.typed(f[key], a.ADDRESS_RX)
-    for key in ('pinBlockHash', 'domainSeparator', 'messageHash'): a.typed(f[key], a.HASH32)
+    for key in ('domainSeparator', 'messageHash'): a.typed(f[key], a.HASH32)
     for key in ('pid', 'fraudProofId', 'signerMask'):
         a.need('fraud_uint_'+key, type(f[key]) is int and 0 < f[key] < 2**256, True)
     a.need('fraud_large_pid', f['pid'] >= 2**128, True)
@@ -207,11 +273,11 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     for who in guardians: a.typed(who, a.ADDRESS_RX)
     a.need('fraud_guardians_sorted', guardians, sorted(set(guardians)))
     if pin is not None:
-        a.need('fraud_pin', f['pinBlockHash'], pin['blockHash'])
-        a.need('fraud_aggregator', f['aggregator'], aggregator)
+        a.need('fraud_pin_block', f['block'], a.qty(pin['block']) if isinstance(pin['block'], str) else pin['block'])
         a.need('fraud_guardians_pinned', guardians,
                sorted(x['validator'] for x in pin['guardianInventory'] if x['validator'] != a.ZERO))
-    if verifier is not None: a.need('fraud_verifier', f['verifier'], verifier)
+    if aggregator is not None: a.need('fraud_aggregator', f['aggregator'], aggregator.lower())
+    if verifier is not None: a.need('fraud_verifier', f['verifier'], verifier.lower())
     a.typed(f['fraudProof'], a.HEXDATA)
     a.exact_keys('fraud_token_fields', f['mockToken'], ('address', 'runtime', 'runtimeHash', 'over'))
     a.typed(f['mockToken']['address'], a.ADDRESS_RX)
@@ -219,6 +285,7 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     a.need('fraud_proof_encoding', len(words), 11)
     a.need('fraud_proof_fields', [words[0], words[4], words[5], words[6], words[7], *words[8:]],
            [f['pid'], int(f['mockToken']['address'], 16), f['signerMask'], 224, 3, *[int(x,16) for x in guardians]])
+    a.need('fraud_proof_metadata', words[1:4], [int(v['operator'], 16), v['slashLevel'], epoch])
     token = f['mockToken']
     a.exact_keys('fraud_token_fields', token, ('address', 'runtime', 'runtimeHash', 'over'))
     a.typed(token['address'], a.ADDRESS_RX)
@@ -227,12 +294,14 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     a.need('fraud_token_runtime', token['runtime'] != '0x', True)
     a.need('fraud_token_pin_available', MOCK_TOKEN_RUNTIME_HASH is not None, True)
     a.need('fraud_token_pinned_runtime', a.keccak(token['runtime']), MOCK_TOKEN_RUNTIME_HASH)
-    a.need('fraud_token_hash', token['runtimeHash'], a.keccak(token['runtime']))
+    a.need('fraud_token_stripped_runtime', creation_hashes(token['runtime'])['strippedCreationKeccak'], MOCK_TOKEN_STRIPPED_RUNTIME_HASH)
+    raw_runtime = bytes.fromhex(token['runtime'][2:])
+    for offset in (130, 210):
+        a.need('fraud_token_zero_owner_'+str(offset), raw_runtime[offset:offset+32].hex(), '00'*32)
+    a.need('fraud_token_selector', a.calldata('isOverIssued()'), MOCK_TOKEN_OVER_SELECTOR)
     a.need('fraud_token_over', token['over'] is False, True)
-    a.exact_keys('fraud_commitment_fields', f['commitment'], ('slot', 'value'))
-    for value in f['commitment'].values(): a.typed(value, a.HASH32)
     if layout is not None:
-        a.need('fraud_commitment_slot', f['commitment']['slot'], commitment_slot(layout, f['pid']))
+        f['commitment']['slot'] = commitment_slot(layout, f['pid'])
     expected = a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,bytes32,uint256,address[])',
         f['domainSeparator'], a.keccak('SuperPaymaster.BLS.SignersCommitment.v1'), f['pid'],
         f['messageHash'], f['signerMask'], '['+','.join(guardians)+']'))
@@ -254,6 +323,7 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     a.typed(n['N4']['domainDigest'], a.HASH32)
     digest = a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,address[])', f['domainSeparator'],
         a.keccak('SuperPaymaster.BLS.FraudProof.v1'), f['fraudProofId'], '['+','.join(guardians)+']'))
+    a.need('fraud_domain_digest', v['domainDigest'], digest)
     delta = int(digest,16) ^ int(n['N4']['domainDigest'],16)
     a.need('fraud_N4_one_bit', delta > 0 and delta & (delta-1) == 0, True)
     return f

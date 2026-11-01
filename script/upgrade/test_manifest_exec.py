@@ -18,6 +18,7 @@ a, u = m.a, m.u
 REAL_RELEASE_GATE = m.release_gate
 ANNI = m.ANNI
 DVT = m.DVT
+SAMPLE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-fraud-drill-sample-4.11.json').read_text())
 COMMITTEE = m.COMMITTEE
 OLD = m.OLD_AGGREGATOR
 ART = dict(commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
@@ -37,9 +38,9 @@ def fraud_data(p, agg):
                    pid, u.DEPLOYER, 1, 42, token, mask, '['+','.join(guardians)+']')
     f = dict(toolCommit='b'*40, verifierCommit=m.VERIFIER_COMMIT, aggregator=agg,
         verifier=a.create_address(u.DEPLOYER, p['senders']['deployer']['nonce']+23), registry=u.REG,
-        domainSeparator=base.HASH, pinBlockHash=p['blockHash'], pid=pid, fraudProofId=1,
-        guiltyGuardians=guardians, fraudProof=proof, signerMask=mask, messageHash=base.HASH,
-        mockToken=dict(address=token, runtime='0x6000', runtimeHash=a.keccak('0x6000'), over=False))
+        domainSeparator=base.HASH, block=a.qty(p['block']), pid=pid, fraudProofId=1,
+        guiltyGuardians=guardians, fraudProof=proof, signerMask=mask, messageHash=m.fraud_message_hash(base.HASH, pid, u.DEPLOYER, 1, 42, token),
+        mockToken=dict(address=token, runtime=SAMPLE['forkState']['token']['runtimeBytecode'], runtimeHash=m.MOCK_TOKEN_RUNTIME_HASH, over=False))
     f['commitment'] = dict(slot=m.commitment_slot(ART['contracts']['BLSAggregator']['storageLayout'], pid),
         value=a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,bytes32,uint256,address[])',
         f['domainSeparator'], a.keccak('SuperPaymaster.BLS.SignersCommitment.v1'), pid,
@@ -50,6 +51,27 @@ def fraud_data(p, agg):
     f['invalid'] = dict(N1=dict(guiltyGuardians=guardians[:-1]), N2=dict(over=True),
         N3=dict(fraudProof=changed), N4=dict(domainDigest='0x'+format(int(digest,16)^1,'064x')))
     return f
+
+
+def fraud_export(f):
+    """Serialize synthetic drill state in the actual DVT wire format."""
+    e = copy.deepcopy(SAMPLE)
+    for key in ('aggregator', 'verifier', 'registry', 'domainSeparator', 'block'):
+        e[key] = f[key]
+    e['version'] = m.AGG_VERSION
+    e['forkState']['token'].update(address=f['mockToken']['address'], runtimeBytecode=f['mockToken']['runtime'])
+    e['forkState']['commitment'].update(key=str(f['pid']), value=f['commitment']['value'])
+    words = u.uints(f['fraudProof'])
+    e['valid'].update(proposalId=str(f['pid']), fraudProofId=str(f['fraudProofId']),
+        guiltyGuardians=f['guiltyGuardians'], fraudProof=f['fraudProof'], signerMask=hex(f['signerMask']),
+        operator=u.addr_word(words[1]), slashLevel=words[2], epoch=str(words[3]),
+        domainDigest='0x'+format(int(f['invalid']['N4']['domainDigest'],16)^1,'064x'))
+    for n in e['mustReject']:
+        n.update(guiltyGuardians=f['guiltyGuardians'], fraudProof=f['fraudProof'])
+    e['mustReject'][0].update(f['invalid']['N1'])
+    e['mustReject'][2].update(f['invalid']['N3'])
+    e['mustReject'][3].update(f['invalid']['N4'])
+    return dict(toolCommit=f['toolCommit'], verifierCommit=f['verifierCommit'], export=e)
 
 
 def pin():
@@ -141,8 +163,6 @@ class ManifestTests(unittest.TestCase):
         self.file_ref = file_ref
         self.plan_validator = patch.object(a, 'validate_plan')
         self.plan_validator.start(); self.addCleanup(self.plan_validator.stop)
-        mock_pin = patch.object(m, 'MOCK_TOKEN_RUNTIME_HASH', a.keccak('0x6000'))
-        mock_pin.start(); self.addCleanup(mock_pin.stop)
         self.data['releaseEvidence'] = {}
         for kind in m.EVIDENCE_KINDS:
             e = dict(kind=kind, subjectCommit=ART['commit'], tool=dict(name='synthetic', version='1'),
@@ -180,7 +200,8 @@ class ManifestTests(unittest.TestCase):
         ci = self.data['releaseEvidence']['dvt-ci']
         self.data['verifier'].update(ciPath=ci['path'], ciSha256=ci['sha256'])
         self.fraud = fraud_data(self.pin, self.data['pop'][0]['aggregator'])
-        self.data['fraudProofFixture'] = file_ref('fraud', self.fraud)
+        self.export = fraud_export(self.fraud)
+        self.data['fraudProofFixture'] = file_ref('fraud', self.export)
         fixture_artifact = self.data['verifier'].pop('artifact')
         self.real_verifier_artifact = m.verifier_artifact
         for target, name, value in ((m, 'verifier_artifact', fixture_artifact), (m, 'rebuild_dvt', dict(bytecode=fixture_artifact['bytecode'], creationHashes=m.creation_hashes(fixture_artifact['bytecode']))), (m, 'release_gate', None)):
@@ -914,45 +935,99 @@ class ManifestTests(unittest.TestCase):
         with self.assertRaises(a.Gate) as caught: m.validate_nonce_history(pin, inputs)
         self.assertEqual(caught.exception.record['gate'], 'a3a_nonce_complete_deployer')
 
+    def test_fraud_sample_format_only(self):
+        self.assertEqual(m.fraud_format_only(SAMPLE), SAMPLE)
+        wrapped = dict(toolCommit='b'*40, verifierCommit=m.VERIFIER_COMMIT, export=SAMPLE)
+        with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('old-sample', wrapped))
+        with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('bare-sample', SAMPLE))
+
+    def test_fraud_sample_412_schema_and_bindings(self):
+        wrapped = dict(toolCommit='b'*40, verifierCommit=m.VERIFIER_COMMIT, export=copy.deepcopy(SAMPLE))
+        e = wrapped['export']
+        e.update(version=m.AGG_VERSION, aggregator=self.plan['addresses']['BLSAggregator'],
+                 verifier=self.plan['addresses']['OverIssueFraudProofVerifier'])
+        # Address substitution proves format compatibility, not an authenticated fork domain.
+        p = dict(block=e['block'], guardianInventory=[dict(validator=x.lower()) for x in e['valid']['guiltyGuardians']])
+        ref = self.file_ref('sample-412', wrapped)
+        parsed = m.fraud_fixture(ref, p, e['aggregator'], e['verifier'], ART['contracts']['BLSAggregator']['storageLayout'])
+        self.assertEqual(parsed['commitment']['slot'], m.commitment_slot(ART['contracts']['BLSAggregator']['storageLayout'], parsed['pid']))
+        for key in ('aggregator', 'verifier', 'version'):
+            bad = copy.deepcopy(wrapped); bad['export'][key] = SAMPLE[key]
+            with self.subTest(key=key), self.assertRaises(a.Gate):
+                m.fraud_fixture(self.file_ref('old-'+key, bad), p, e['aggregator'], e['verifier'])
+        bad = copy.deepcopy(self.inputs)
+        bad['data']['fraudProofFixture'] = self.file_ref('old-build', dict(wrapped, export=SAMPLE))
+        with self.assertRaises(a.Gate): m.build_plan(self.pin, bad)
+
     def test_fraud_fixture_schema_and_binding(self):
-        mutations = [dict(verifierCommit='f'*40), dict(toolCommit='x'), dict(aggregator=ANNI),
-            dict(verifier=ANNI), dict(pinBlockHash=a.ZERO32), dict(registry=ANNI),
-            dict(guiltyGuardians=list(reversed(self.fraud['guiltyGuardians']))),
-            dict(guiltyGuardians=sorted([ANNI, *self.fraud['guiltyGuardians'][:2]])),
-            dict(commitment=dict(self.fraud['commitment'], slot=a.ZERO32))]
-        mutations += [dict(invalid={k:v for k,v in self.fraud['invalid'].items() if k != n}) for n in ('N1','N2','N3','N4')]
-        for mutation in mutations:
-            with self.subTest(mutation=mutation):
-                ref = self.file_ref('bad-fraud', dict(self.fraud, **mutation))
-                with self.assertRaises(a.Gate):
-                    m.fraud_fixture(ref, self.pin, self.plan['addresses']['BLSAggregator'],
-                        self.plan['addresses']['OverIssueFraudProofVerifier'], ART['contracts']['BLSAggregator']['storageLayout'])
+        changes = [(['verifierCommit'], 'f'*40), (['toolCommit'], 'x'),
+            (['export','aggregator'], ANNI), (['export','verifier'], ANNI),
+            (['export','version'], 'BLSAggregator-4.11.0'), (['export','chainId'], 1),
+            (['export','block'], 0), (['export','registry'], ANNI),
+            (['export','valid','guiltyGuardians'], list(reversed(self.fraud['guiltyGuardians']))),
+            (['export','valid','guiltyGuardians'], sorted([ANNI, *self.fraud['guiltyGuardians'][:2]])),
+            (['export','forkState','commitment','mapping'], 'other'),
+            (['export','forkState','commitment','key'], '1'),
+            (['export','forkState','commitment','value'], a.ZERO32),
+            (['export','forkState','commitment','check'], 'skip readback'),
+            (['export','forkState','token','overIssuedStorageSlot'], 1),
+            (['export','valid','operator'], ANNI), (['export','valid','epoch'], '2'),
+            (['export','valid','slashLevel'], 2), (['export','valid','domainDigest'], a.ZERO32),
+            (['export','valid','proposalId'], str(2**256)), (['export','valid','signerMask'], '0x0')]
+        for path, value in changes:
+            bad = copy.deepcopy(self.export); target = bad
+            for key in path[:-1]: target = target[key]
+            target[path[-1]] = value
+            with self.subTest(path=path), self.assertRaises(a.Gate):
+                m.fraud_fixture(self.file_ref('bad-fraud', bad), self.pin,
+                    self.plan['addresses']['BLSAggregator'], self.plan['addresses']['OverIssueFraudProofVerifier'],
+                    ART['contracts']['BLSAggregator']['storageLayout'])
+        for key in ('toolCommit', 'verifierCommit'):
+            bad = copy.deepcopy(self.export); del bad[key]
+            with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('missing-commit', bad))
+        bad = copy.deepcopy(self.export); bad['export']['forkState']['commitment']['slot'] = a.ZERO32
+        with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('caller-slot', bad))
         bad = copy.deepcopy(self.inputs); del bad['data']['fraudProofFixture']
         with self.assertRaises(a.Gate): m.build_plan(self.pin, bad)
 
     def test_fraud_tool_revision_is_separate(self):
-        ref = self.file_ref('tool-revision', dict(self.fraud, toolCommit='c'*40))
+        ref = self.file_ref('tool-revision', dict(self.export, toolCommit='c'*40))
         self.assertEqual(m.fraud_fixture(ref)['toolCommit'], 'c'*40)
         self.assertEqual(m.fraud_fixture(ref)['verifierCommit'], m.VERIFIER_COMMIT)
 
     def test_fraud_mutations_are_exact(self):
-        for name, value in (('N1', dict(guiltyGuardians=self.fraud['guiltyGuardians'])),
-                            ('N2', dict(over=False)), ('N3', dict(fraudProof=self.fraud['fraudProof'])),
-                            ('N3', dict(fraudProof='0x')), ('N4', dict(domainDigest=a.ZERO32))):
-            with self.subTest(name=name, value=value):
-                f = copy.deepcopy(self.fraud); f['invalid'][name] = value
-                with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('bad-mutation', f))
+        mutations = [(0, 'guiltyGuardians', self.fraud['guiltyGuardians']),
+                     (1, 'change', 'do nothing'), (1, 'fraudProof', '0x00'),
+                     (2, 'fraudProof', self.fraud['fraudProof']), (2, 'fraudProof', '0x'),
+                     (3, 'domainDigest', a.ZERO32), (3, 'call', 'queueGuardianSlash'),
+                     (3, 'guiltyGuardians', [ANNI]*3), (0, 'expect', 'succeeds')]
+        for index, key, value in mutations:
+            f = copy.deepcopy(self.export); f['export']['mustReject'][index][key] = value
+            with self.subTest(index=index, key=key), self.assertRaises(a.Gate):
+                m.fraud_fixture(self.file_ref('bad-mutation', f))
+        for index in range(4):
+            f = copy.deepcopy(self.export); del f['export']['mustReject'][index]
+            with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('missing-negative', f))
+        f = copy.deepcopy(self.export); f['export']['mustReject'].reverse()
+        with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('wrong-order', f))
 
     def test_fraud_runtime_digest_refusal(self):
-        f = copy.deepcopy(self.fraud); f['mockToken']['runtimeHash'] = a.ZERO32
-        with self.assertRaises(a.Gate): m.fraud_fixture(self.file_ref('bad-runtime', f))
+        for offset in (0, 130, 210, 340):
+            f = copy.deepcopy(self.export)
+            raw = bytearray.fromhex(f['export']['forkState']['token']['runtimeBytecode'][2:]); raw[offset] ^= 1
+            f['export']['forkState']['token']['runtimeBytecode'] = '0x'+raw.hex()
+            with self.subTest(offset=offset), self.assertRaises(a.Gate):
+                m.fraud_fixture(self.file_ref('bad-runtime', f))
+        with patch.object(m, 'MOCK_TOKEN_STRIPPED_RUNTIME_HASH', a.ZERO32), self.assertRaises(a.Gate):
+            m.fraud_fixture(self.data['fraudProofFixture'])
+        self.assertEqual(a.calldata('isOverIssued()'), '0xbeaf15d9')
 
     def test_fraud_layout_changes_slot(self):
         layout = copy.deepcopy(ART['contracts']['BLSAggregator']['storageLayout'])
         layout['storage'][0]['slot'] = '30'
-        with self.assertRaises(a.Gate) as caught:
-            m.fraud_fixture(self.data['fraudProofFixture'], layout=layout)
-        self.assertEqual(caught.exception.record['gate'], 'fraud_commitment_slot')
+        actual = m.fraud_fixture(self.data['fraudProofFixture'], layout=layout)['commitment']['slot']
+        self.assertEqual(actual, m.commitment_slot(layout, self.fraud['pid']))
+        self.assertNotEqual(actual, self.fraud['commitment']['slot'])
 
     def test_fraud_layout_must_be_uint_bytes32_mapping(self):
         for key, value in (('storage', []), ('types', {'map':dict(encoding='inplace')})):
