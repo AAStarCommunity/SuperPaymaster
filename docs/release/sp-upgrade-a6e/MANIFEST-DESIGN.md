@@ -35,7 +35,10 @@ Why D4 matters for sampling, and why "sampling does not need the swap" was wrong
 ## 2. Preconditions (all must hold before A1; otherwise STOP)
 
 Release preconditions, needed so that §8's "one tag" claim has evidence:
-- A frozen release tag. A reproducible build of every deployed contract from that tag, compared byte-for-byte with the packet's artifacts.
+- A frozen release tag. A reproducible build of every deployed contract from that tag, compared with the packet's
+  artifacts. The full creation hash includes CBOR metadata, which depends on remapping paths (a symlinked checkout changes
+  only the IPFS hash). So each contract records two hashes, with metadata and with the CBOR tail stripped, built from a
+  fixed build path. A metadata-only difference is reported, not accepted silently. Any difference in executable code is a STOP.
 - On the final tree: the A4 conformance checks C1–C9, the mutation run and Slither, each with results archived.
 - A plan for source verification of every deployed contract after Phase A (results archived).
 
@@ -57,9 +60,12 @@ Chain preconditions at the pin block:
   The sum closes.
 - The Anni key: `PRIVATE_KEY_ANNI` in `.env.sepolia` derives `0xEcAACb91…33c9` (checked 11-01, nothing printed). It is
   imported into a Foundry keystore before the packet is built. The packet references the keystore, never the key.
-- DVT's frozen commit (including `OverIssueFraudProofVerifier`) is available, with a reproducible build of the
-  verifier artifact and the DVT CI pass record that `BLSAggregator.sol:86` requires. If it is not available before the
-  pin, STOP: no packet is built.
+- DVT's frozen commit `72aca4fa` (accepted by DSR 11-01, including `OverIssueFraudProofVerifier`) builds reproducibly
+  under the same two-hash rule, with the DVT CI pass record that `BLSAggregator.sol:86` requires.
+- That verifier source was validated against BLSAggregator 4.11.0 only. DVT's conformance run against 4.12.0 (`fbd74fb1`)
+  must pass before the packet is built. Otherwise STOP.
+- After the pin, D gives DVT the new aggregator's address, `version()` and the validator slots. DVT exports the PoP data
+  through its reviewed PoP tool (DVT PR).
 - The PoP data from DVT is generated **after** the pin. `popDigest` binds `domainSeparator() = keccak(name, chainid,
   address(this), REGISTRY)`, and the new aggregator's address is fixed by the deployer nonce at the pin.
 
@@ -89,7 +95,7 @@ system half-way (see §6).
 | A9 | D | `Registry.setReputationSource(A7, true)`; `Registry.setReputationSource(old, false)` | A8 | reverse both |
 | A10 | D | three `A7.registerBLSPublicKey(validator, publicKey, slot, popSignature)` (owner path), with the calldata built from the PoP data DVT supplies after the pin | A8 | owner can remove |
 | A11 | D | `A7.setMinThreshold(2)`, then `A7.setDefaultThreshold(2)` (min ≤ default holds at each step: 2 ≤ 7, then 2 ≥ 2) | A10 | owner can reset |
-| A12a | D | CREATE `OverIssueFraudProofVerifier(A7, Registry)` from DVT's frozen commit. The address is fixed by D's nonce; the calldata and artifact are in the packet. | A7 | unused until applied |
+| A12a | D | CREATE `OverIssueFraudProofVerifier(A7, Registry)` from DVT's frozen commit `72aca4fa`. The address is fixed by D's nonce; the calldata and artifact are in the packet. This bare CREATE bypasses DVT's deploy-script identity checks, and a wrong argument would not revert: later proofs would just fail silently. So the read-back must show `A12a.AGGREGATOR() == A7` and `A12a.REGISTRY() == A7.REGISTRY()`, otherwise STOP. | A7 | unused until applied |
 | A12b | D | `A7.proposeFraudProofVerifier(A12a)`; the 4-day delay starts | A12a | owner re-proposes |
 | A13 | D | SP `addStake{value}` until stake ≥ 1 ETH with delay ≥ 86400 (current stake 0.1 ETH); EntryPoint `depositTo(SP)` top-up | pin | `unlockStake`, then 86400 s |
 | A14 | D | `setOperatorPaused(op, true)` for every configured operator (pause **before** draining) | — | unpaused in 6d (sampled operators only) |
@@ -107,7 +113,7 @@ Withdrawing protocol revenue leaves exactly 0.1 ether.
 | B1 = 5a/5b `upgrade` | `upgradeToAndCall(A1, setGlobalPaused(true))`; `queueGasParams(480000,450000,5000,450000)`; `setXPNTsFactory(A4 factory)`; `queueBLSAggregator(A7)` | 48 h | implementation slot, extension, global pause, queued tuple and ETA, factory, queued aggregator |
 | B2 (before 6d) | read-back gate: `totalTrackedBalance == protocolRevenue ≤ 0.1e18`; no in-flight sponsorship (a stale release returns balance); no pending slash | — | STOP if any differs |
 | B3 = 6c/6d `activation` (predecessor B1) | `executeGasParams()`; `applyBLSAggregator()`; **`executeAPNTsTokenChange()`**; `setOperatorPaused(op, false)` for each **sampled** operator only; `setGlobalPaused(false)` | 6c is scheduled so that 6d runs at ≥ `pendingAPNTsTokenEta` | active tuple, aggregator, `APNTS_TOKEN == APNTsCapped`, sampled operators and global unpaused, unsampled operators still paused |
-| B4 | D: `A7.applyFraudProofVerifier()` once 4 days have passed since A12b. Idempotent: it has no permission gate, and DVT's Apply Verifier Rotation workflow may already have applied it. Read `fraudProofVerifier` first; if it is already A12a, skip (not a STOP). | 4 d | `fraudProofVerifier == A12a` |
+| B4 | D: `A7.applyFraudProofVerifier()` once 4 days have passed since A12b. Only the executor sends it: DVT's Apply Verifier Rotation workflow is hard-wired to the old aggregator, and DVT disables it until the Phase D read-back. The function has no permission gate, so the executor still reads `fraudProofVerifier` first and skips if it is already A12a (not a STOP). | 4 d | `fraudProofVerifier == A12a` |
 
 Timing:
 - `queueBLSAggregator` has a 24 h internal delay, so `applyBLSAggregator` in 6d is in time.
@@ -202,7 +208,9 @@ STOP conditions (each is a hard stop; nothing later is sent):
 
 ## 7. Rehearsal and controls (before the packet is frozen)
 
-- **Rehearsal.** A full fork rehearsal on the pinned Sepolia state with the Amsterdam engine: every step, every read-back, timelock delays warped. It includes the B2 gate and the swap in 6d.
+- **Rehearsal.** A full fork rehearsal on the pinned Sepolia state with the Amsterdam engine: every step, every read-back, timelock delays warped.
+  - It includes the B2 gate and the swap in 6d.
+  - After B4, one valid fraud proof submitted through A7 is accepted, and one invalid proof is rejected.
 - **Negative controls.**
   - unpause before 6d rejected;
   - `configureOperator` before `setXPNTsFactory` rejected;
