@@ -148,7 +148,7 @@ function writeLine(obj) {
   if (formal && obj.kind === 'attempt') {
     obj.evidenceEnd = runtime.archives.map(a => a.ids.length);
     const index = evidenceIndex(obj, {windowId:runId, archives:runtime.archives, pins:evidencePins, rpcIdentity:rpcIdentityPin,
-      passports:{start:passportRefs.start, attempt:passportRefs[obj.attemptIndex]}, included:false,
+      passports:{start:passportRefs.start, attempt:passportRefs[obj.attemptIndex]},
       stopReason:obj.stoppedBy?.reason ?? null, replaces:pendingReplacement});
     appendIndex(windowPath, index);
     evidenceRows.push(index);
@@ -809,7 +809,7 @@ if (formal) {
     included:stop.code === 0 && triplets.some(t => t.tripletIndex === tripleIndex && t.matched)}));
   writeTrailer(windowPath, {schemaVersion:'a6-evidence-trailer/1', windowId:runId, void:stop.code !== 0,
     stopReason:stop.reason, stopAttempt:evidenceRows.at(-1)?.attempt ?? null, endPassport:passportRefs.end ?? null,
-    triples, replacements, counts:armCounts(evidenceRows, triples)});
+    triples, replacements, counts:armCounts(evidenceRows, triples, replacements)});
 }
 console.log(`stop=${stop.reason} exit=${exitCode} matched=${matched}/${count} ${JSON.stringify(tally)}`);
 if (stop.detail) console.log(`detail: ${JSON.stringify(jsonable(stop.detail)).slice(0, 2000)}`);

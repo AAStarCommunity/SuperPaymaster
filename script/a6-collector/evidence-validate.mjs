@@ -34,7 +34,10 @@ export function windowErrors(rows, trailer, journal = null) {
     if (r.windowId !== trailer.windowId || r.attempt !== i) fail('attempt identity/order mismatch or missing attempt');
     if (r.replacedBy !== null) fail('replacedBy must be null');
     if (r.included !== false || r.passports.end !== null) fail('row contains final disposition or end Passport');
-    if (!EXCLUSION_REASONS.includes(r.exclusionReason)) fail('exclusion enum violation');
+    if (r.exclusionReason !== null && !EXCLUSION_REASONS.includes(r.exclusionReason)) fail('exclusion enum violation');
+    if ((r.verdict === 'USEROP_SUCCESS') !== (r.exclusionReason === null)) fail('success requires null exclusion reason; failures require an enum reason');
+    if (r.exclusionReason === 'not_included' && (r.verdict === 'USEROP_SUCCESS' ||
+      (r.uoe && r.expectedUserOpHash && r.observedUserOpHash?.toLowerCase() === r.expectedUserOpHash.toLowerCase()))) fail('mined op cannot have not_included reason');
     if (r.stopReason) { fail('fail-closed stopped attempt'); if (i !== rows.length-1) fail('replacement/attempt after fail-closed stop'); }
     if (!groups.has(r.tripleIndex)) groups.set(r.tripleIndex,[]);
     groups.get(r.tripleIndex).push(r);
@@ -61,19 +64,20 @@ export function windowErrors(rows, trailer, journal = null) {
     if (triples.get(a)?.included !== false || groups.get(a).some(r=>r.included !== false)) fail('abandoned candidate included');
     if (Math.max(...groups.get(a).map(r=>r.attempt)) >= Math.min(...groups.get(b).map(r=>r.attempt))) fail('replacement precedes abandonment');
     if (groups.get(a).some(r=>r.stopReason)) fail('replacement after fail-closed stop');
-    if (!groups.get(a).some(r=>r.exclusionReason === edge.reason)) fail('replacement reason disagrees with abandoned evidence');
+    if (groups.get(a).some(r=>r.exclusionReason !== null) && !groups.get(a).some(r=>r.exclusionReason === edge.reason)) fail('replacement reason disagrees with abandoned evidence');
   }
   for (const a of forward.keys()) {
     const seen = new Set(); let n=a;
     while (forward.has(n)) { if (seen.has(n)) { fail('replacement cycle'); break; } seen.add(n); n=forward.get(n); }
   }
   for (const [candidate,rs] of groups) for (const r of rs) {
+    if (r.exclusionReason === null && triples.get(candidate)?.included === false && !forward.has(candidate)) fail('abandoned successful attempt requires replacement edge reason');
     const expected=backward.has(candidate) ? {windowId:trailer.windowId,tripleIndex:backward.get(candidate)} : null;
     if (!equal(r.replaces,expected)) fail('replacement inverse mismatch');
   }
   const included=trailer.triples.filter(t=>t.included);
   if (included.length !== 50 || included.reduce((n,t)=>n+t.attempts.length,0) !== 150) fail('requires exactly 50 included triples / 150 included attempts');
-  if (!equal(trailer.counts,armCounts(rows,trailer.triples))) fail('per-arm counts mismatch');
+  if (!equal(trailer.counts,armCounts(rows,trailer.triples,trailer.replacements))) fail('per-arm counts mismatch');
   if (journal) {
     const attempts=journal.filter(r=>r.kind==='attempt'), end=journal.at(-1);
     if (attempts.length !== rows.length) fail('index does not retain every journal attempt');

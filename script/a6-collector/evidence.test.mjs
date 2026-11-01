@@ -134,9 +134,57 @@ function windowFixture() {
   base.missing={'/passports/end':'available in trailer'};
   const rows=Array.from({length:153},(_,i)=>({...structuredClone(base),attempt:i,tripleIndex:Math.floor(i/3),arm:['SP','VPM','TPM'][i%3],replaces:i>=3 && i<6 ? {windowId:'w',tripleIndex:0}:null}));
   const triples=Array.from({length:51},(_,i)=>({tripleIndex:i,attempts:[3*i,3*i+1,3*i+2],included:i>0}));
-  const trailer={schemaVersion:'a6-evidence-trailer/1',windowId:'w',void:false,stopReason:'COMPLETE',stopAttempt:152,endPassport:p,triples,replacements:[{abandoned:{windowId:'w',tripleIndex:0},replacement:{windowId:'w',tripleIndex:1},reason:'not_included'}],counts:armCounts(rows,triples)};
+  const trailer={schemaVersion:'a6-evidence-trailer/1',windowId:'w',void:false,stopReason:'COMPLETE',stopAttempt:152,endPassport:p,triples,replacements:[{abandoned:{windowId:'w',tripleIndex:0},replacement:{windowId:'w',tripleIndex:1},reason:'not_included'}],counts:armCounts(rows,triples,[{abandoned:{tripleIndex:0},reason:'not_included'}])};
   return {rows,trailer};
 }
+test('successful attempt row has null reason and no final inclusion verdict',()=>{
+  const {rows}=windowFixture();
+  assert.equal(rows[3].exclusionReason,null);
+  assert.equal(rows[3].included,false);
+  assert.equal(conforms({...rows[3],included:true},schema),false);
+  assert.ok(conforms(rows[3],schema));
+});
+test('abandoned successful rows with null reasons accept an enum edge reason',()=>{
+  const {rows,trailer}=windowFixture();
+  rows.forEach(r=>{r.exclusionReason=null;});
+  trailer.replacements[0].reason='AA32';
+  trailer.counts=armCounts(rows,trailer.triples,trailer.replacements);
+  assert.deepEqual(windowErrors(rows,trailer),[]);
+});
+test('abandoned successful rows without an edge reason are refused',()=>{
+  const {rows,trailer}=windowFixture();
+  rows.forEach(r=>{r.exclusionReason=null;});
+  delete trailer.replacements[0].reason;
+  trailer.counts=armCounts(rows,trailer.triples,trailer.replacements);
+  assert.match(windowErrors(rows,trailer).join(';'),/abandonment enum violation/);
+});
+test('mined op cannot carry not_included even in an abandoned candidate',()=>{
+  const {rows,trailer}=windowFixture();
+  rows[0].exclusionReason='not_included';
+  assert.match(windowErrors(rows,trailer).join(';'),/mined op.*not_included/);
+});
+test('mixed abandoned candidate preserves successful rows and uses failure edge reason',()=>{
+  const {rows,trailer}=windowFixture();
+  Object.assign(rows[1],{verdict:'NOT_SENT',exclusionReason:'AA32',notSentReason:'AA32',tx:null});
+  trailer.replacements[0].reason='AA32';
+  trailer.counts=armCounts(rows,trailer.triples,trailer.replacements);
+  assert.deepEqual(windowErrors(rows,trailer),[]);
+  assert.equal(rows[0].exclusionReason,null);
+  assert.deepEqual(trailer.counts.SP.excluded,{AA32:1});
+  trailer.replacements[0].reason='price_stale';
+  assert.match(windowErrors(rows,trailer).join(';'),/reason disagrees/);
+});
+test('abandoned successful candidate requires an edge, not just null row reasons',()=>{
+  const {rows,trailer}=windowFixture();
+  trailer.replacements=[];
+  rows.forEach(r=>{r.replaces=null;});
+  assert.match(windowErrors(rows,trailer).join(';'),/requires replacement edge reason/);
+});
+test('mined failed op also refuses not_included',()=>{
+  const {rows,trailer}=windowFixture();
+  Object.assign(rows[0],{verdict:'USEROP_FAILED',exclusionReason:'not_included',uoe:{txHash:rows[0].tx.txHash},observedUserOpHash:rows[0].expectedUserOpHash});
+  assert.match(windowErrors(rows,trailer).join(';'),/mined op.*not_included/);
+});
 test('complete trailer accepts 50 triples, retains abandoned attempts and counts each arm',()=>{
   const {rows,trailer}=windowFixture();
   assert.deepEqual(windowErrors(rows,trailer),[]);
@@ -175,7 +223,7 @@ test('closed enum reasons have concrete producers; gas-dependent and undecoded f
   const samples=[
     [{preflight:{revertReason:'AA32 paymaster expired or not due'}},'AA32'],
     [{preflight:{revertReason:'AA33 reverted: price stale'}},'price_stale'],
-    [{verdict:'USEROP_SUCCESS'},'not_included'],
+    [{reason:'not_included'},'not_included'],
     [{revertKind:'executionReverted',execRevert:[{revertReason:'0x4e487b71'+'0'.repeat(62)+'11'}]},'op_failed_nongas'],
     [{reason:'bundler_error'},'bundler_error'],
     [{reason:'basefee_above_cap'},'basefee_above_cap'],
@@ -185,4 +233,5 @@ test('closed enum reasons have concrete producers; gas-dependent and undecoded f
   assert.equal(exclusionReason({preflight:{undecoded:true,revertReason:'AA32'}}),'not_included');
   assert.equal(exclusionReason({reason:'gas_too_high'}),'not_included');
   assert.equal(exclusionReason({reason:'effect_size'}),'not_included');
+  assert.equal(exclusionReason({verdict:'USEROP_SUCCESS'}),null);
 });

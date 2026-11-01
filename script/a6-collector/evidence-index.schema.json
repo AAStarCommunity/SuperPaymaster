@@ -40,7 +40,9 @@
       "uniqueItems": true
     },
     "included": {
-      "type": "boolean"
+      "type": "boolean",
+      "const": false,
+      "description": "Always false in immutable attempt rows; NOT a final verdict. The validator derives final candidate inclusion exclusively from trailer.json."
     },
     "verdict": {
       "type": "string",
@@ -77,7 +79,8 @@
         "op_failed_nongas",
         "bundler_error",
         "basefee_above_cap"
-      ]
+      ],
+      "description": "Null for successful attempts, including successful operations in abandoned candidates. not_included means only that the operation was not included in a block. Candidate abandonment reasons live in trailer replacements edges."
     },
     "stopReason": {
       "anyOf": [
@@ -997,16 +1000,15 @@
     {
       "if": {
         "properties": {
-          "included": {
-            "const": false
+          "verdict": {
+            "const": "USEROP_SUCCESS"
           }
         }
       },
       "then": {
         "properties": {
           "exclusionReason": {
-            "type": "string",
-            "minLength": 1
+            "type": "null"
           }
         }
       }
@@ -1037,97 +1039,18 @@
     {
       "if": {
         "properties": {
-          "included": {
-            "const": true
+          "verdict": {
+            "not": {
+              "const": "USEROP_SUCCESS"
+            }
           }
         }
       },
       "then": {
         "properties": {
-          "chainId": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "entryPoint": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "sender": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "nonce": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "paymaster": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "bundler": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "packedOp": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "bundle": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "callDataHash": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "gas": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "tx": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "expectedUserOpHash": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "observedUserOpHash": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "uoe": {
-            "not": {
-              "type": "null"
-            }
-          },
-          "verdict": {
-            "const": "USEROP_SUCCESS"
-          },
           "exclusionReason": {
-            "type": "null"
-          },
-          "stopReason": {
-            "type": "null"
-          },
-          "failureReason": {
-            "type": "null"
-          },
-          "notSentReason": {
-            "type": "null"
+            "type": "string",
+            "minLength": 1
           }
         }
       }

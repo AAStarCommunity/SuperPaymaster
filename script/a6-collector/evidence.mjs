@@ -46,13 +46,13 @@ const refs = rs => rs.map(({ path, id }) => ({ path, id }));
 const pair = (archives, predicate) => Object.fromEntries(archives.map((a, i) => [i ? 'B' : 'A', refs(a.records.filter(predicate))]));
 const stateFields = { entryPointDeposit: 'epDeposit', operatorBalance: 'operatorBalance', protocolRevenue: 'protocolRevenue', inflightOf: 'inflightOf', userXPNTs: 'userXPNTs', totalSupply: 'totalSupply', lockedOf: 'lockedOf', debts: 'debts', creditReservedOf: 'creditReservedOf', operatorTotalSpent: 'totalSpent', operatorTotalTxSponsored: 'totalTxSponsored', tpmTokenBalances: 'tpmTokenBalances', tpmCachedPriceTimestamp: 'tpmCachedPriceTimestamp', vpmDeposit: 'epDeposit' };
 export function evidenceIndex(row, context) {
-  const { windowId, archives, pins, rpcIdentity, passports, included, stopReason } = context;
+  const { windowId, archives, pins, rpcIdentity, passports, stopReason } = context;
   const missing = {};
   const value = (path, v, reason = 'not collected before attempt ended') => { if (v == null) { missing[path] = reason; return null; } return v; };
   const out = { schemaVersion: 'a6-evidence-index/1', windowId, tripleIndex: row.tripletIndex, attempt: row.attemptIndex, arm: row.arm,
-    armOrder: row.armOrder ?? ['SP','VPM','TPM'], included, verdict: row.verdict,
+    armOrder: row.armOrder ?? ['SP','VPM','TPM'], included: false, verdict: row.verdict,
     failureReason: row.failingCheck ?? null, notSentReason: row.verdict === 'NOT_SENT' ? row.reason ?? row.failingCheck ?? row.stoppedBy?.reason ?? 'unknown failure' : null,
-    exclusionReason: included ? null : exclusionReason(row),
+    exclusionReason: exclusionReason(row),
     stopReason: row.stoppedBy?.reason ?? (stopReason === 'COMPLETE' ? null : stopReason), replaces: context.replaces ?? null, replacedBy: null };
   for (const k of ['chainId','entryPoint','sender','nonce','paymaster','bundler','packedOp','callDataHash','expectedUserOpHash']) out[k] = value('/'+k, row[k]);
   if (out.chainId != null) out.chainId = String(out.chainId);
@@ -85,7 +85,6 @@ export function evidenceIndex(row, context) {
   }))]));
   out.passports = Object.fromEntries(['start','attempt','end'].map(k => [k, value('/passports/'+k, passports[k])]));
   out.pins = pins; out.rpcIdentity = rpcIdentity; out.missing = missing;
-  if (out.included && Object.entries(missing).some(([p,r]) => !r.startsWith('not applicable'))) { out.included = false; out.exclusionReason = 'not_included'; }
   return JSON.parse(stringify(out));
 }
 export function writeArtifact(window, path, object) {
@@ -95,6 +94,7 @@ export function writeArtifact(window, path, object) {
 
 export const EXCLUSION_REASONS = ['AA32', 'price_stale', 'not_included', 'op_failed_nongas', 'bundler_error', 'basefee_above_cap'];
 export function exclusionReason(row) {
+  if (row.verdict === 'USEROP_SUCCESS') return null;
   if (row.reason === 'basefee_above_cap' || row.failingCheck === 'basefee_above_cap') return 'basefee_above_cap';
   const preflight = row.preflight?.undecoded ? '' : row.preflight?.revertReason ?? '';
   if (/^AA32\b/.test(preflight)) return 'AA32';
@@ -102,7 +102,6 @@ export function exclusionReason(row) {
   // Solidity arithmetic overflow/division-by-zero panics prove a non-gas revert.
   if (row.revertKind === 'executionReverted' && row.execRevert?.some(e =>
     /^0x4e487b71[0-9a-f]{62}(11|12)$/i.test(e.revertReason))) return 'op_failed_nongas';
-  if (row.verdict === 'USEROP_SUCCESS') return 'not_included';
   // Unknown failures are never converted into an eligible abandonment.
   return EXCLUSION_REASONS.includes(row.reason) ? row.reason : 'not_included';
 }
@@ -110,11 +109,15 @@ export function appendIndex(window, row) {
   const fd = openSync(resolve(window, 'index.ndjson'), 'a', 0o600);
   try { writeSync(fd, stringify(row) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
 }
-export function armCounts(rows, triples) {
+export function armCounts(rows, triples, replacements = []) {
+  const abandoned = new Map(replacements.map(e => [e.abandoned.tripleIndex, e.reason]));
   const included = new Set(triples.filter(t => t.included).flatMap(t => t.attempts));
   return Object.fromEntries(['SP','VPM','TPM'].map(arm => {
     const rs = rows.filter(r => r.arm === arm), excluded = {};
-    for (const r of rs) if (!included.has(r.attempt)) excluded[r.exclusionReason] = (excluded[r.exclusionReason] ?? 0) + 1;
+    for (const r of rs) if (!included.has(r.attempt)) {
+      const reason = r.exclusionReason ?? abandoned.get(r.tripleIndex);
+      if (reason != null) excluded[reason] = (excluded[reason] ?? 0) + 1;
+    }
     return [arm, { attempts:rs.length, included:rs.filter(r => included.has(r.attempt)).length, excluded, notSent:rs.filter(r => r.tx === null).length }];
   }));
 }
