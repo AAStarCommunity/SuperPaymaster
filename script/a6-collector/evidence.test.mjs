@@ -236,3 +236,15 @@ test('closed enum reasons have concrete producers; gas-dependent and undecoded f
   assert.equal(exclusionReason({reason:'effect_size'}),'not_included');
   assert.equal(exclusionReason({verdict:'USEROP_SUCCESS'}),null);
 });
+
+import { inclusionSeriesError } from './artifact-validate.mjs';
+test('inclusion series: pre-inclusion polls only before inclusion; included polls match; at least one included',()=>{
+  const tx={blockNumber:'123',blockHash:'0xAB'}, inc={blockNumber:'0x7b',blockHash:'0xab'}, pend={blockNumber:null,blockHash:null};
+  assert.equal(inclusionSeriesError([{id:1,result:null},{id:2,result:pend},{id:3,result:inc},{id:4,result:inc}],tx),null);
+  assert.equal(inclusionSeriesError([{id:1,result:null},{id:2,result:pend}],tx),'raw inclusion missing');
+  assert.equal(inclusionSeriesError([],tx),'raw inclusion missing');
+  assert.equal(inclusionSeriesError([{id:1,result:inc},{id:2,result:null}],tx),'raw inclusion regressed after inclusion');
+  assert.equal(inclusionSeriesError([{id:1,result:{...inc,blockHash:'0xcd'}}],tx),'raw inclusion mismatch');
+  assert.equal(inclusionSeriesError([{id:1,result:null},{id:2,result:{...inc,blockNumber:'0x7c'}}],tx),'raw inclusion mismatch');
+  assert.equal(inclusionSeriesError([{id:3,result:inc},{id:2,result:inc}],tx),'endpoint raw references out of order');
+});

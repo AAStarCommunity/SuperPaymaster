@@ -10,6 +10,20 @@ if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(url)) throw Error('loopback only');
 const ctx=clients(url), cfg=JSON.parse(readFileSync(configPath)), base=JSON.parse(readFileSync(baselinePath));
 if (await ctx.pub.getChainId()!==31337) throw Error('local chain only');
 const abi=parseAbi(['function getAddress(address,uint256) view returns(address)','function mint(address,uint256)']);
+// Operator collateral for the rehearsal: prepare-test leaves the deployer 1,000 aPNTs deposited and none in its wallet,
+// while a0 is ~894 aPNTs per SP op at the rehearsal gas fields, so the second SP op failed operator solvency (AA34).
+// Mint locally and deposit up to 20,000 in chunks (aPNTs maxSingleTxLimit is 5,000 on anvil).
+const E18=10n**18n;
+const spAbi=parseAbi(['function operators(address) view returns(uint128,bool,bool,address)','function deposit(uint256)','function approve(address,uint256) returns(bool)']);
+const opBal=(await ctx.pub.readContract({address:cfg.superPaymaster,abi:spAbi,functionName:'operators',args:[ctx.account.address]}))[0];
+if (opBal<20_000n*E18) {
+  const amt=20_000n*E18-opBal;
+  await send(ctx,cfg.aPNTs,abi,'mint',[ctx.account.address,amt]);
+  await send(ctx,cfg.aPNTs,spAbi,'approve',[cfg.superPaymaster,amt]);
+  for (let left=amt; left>0n;) { const c=left>5_000n*E18?5_000n*E18:left; await send(ctx,cfg.superPaymaster,spAbi,'deposit',[c]); left-=c; }
+}
+const opAfter=(await ctx.pub.readContract({address:cfg.superPaymaster,abi:spAbi,functionName:'operators',args:[ctx.account.address]}))[0];
+if (opAfter<20_000n*E18) throw Error(`operator aPNTs ${opAfter} below 20,000e18 after rehearsal top-up`);
 const sender=await ctx.pub.readContract({address:cfg.simpleAccountFactory,abi,functionName:'getAddress',args:[ctx.account.address,9001n]});
 const task=await deploy(ctx,'F1Fixtures.sol','F1TestToken');
 const recipient=privateKeyToAccount(ANVIL_KEYS[3]).address;
@@ -30,6 +44,6 @@ const proof=pin(resolve(dir,'local-identity.txt'));
 write('rpc-identity.json',{schemaVersion:'a6-rpc-identity/1',...Object.fromEntries(['A','B'].map(e=>[e,{operatorName:`rehearsal-${e}`,backendIdentity:`rehearsal-${e}`,upstream:`rehearsal-${e}`,endpointLabel:`local-${e}`,registeredAt:new Date().toISOString(),evidence:[proof]}]))});
 const src='script/a6-collector/';
 write('pins.json',{
- collector:readdirSync(src).filter(n=>n.endsWith('.mjs')).map(n=>pin(src+n)),validator:[pin(src+'validate.mjs')],dependencies:[pin('package-lock.json')],
+ collector:readdirSync(src).filter(n=>n.endsWith('.mjs')).map(n=>pin(src+n)),validator:[pin(src+'validate.mjs')],dependencies:[pin('pnpm-lock.yaml')],
  contractSources:[pin('contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol'),pin('singleton-paymaster/lib/account-abstraction-v7/contracts/samples/TokenPaymaster.sol'),pin('singleton-paymaster/lib/account-abstraction-v7/contracts/samples/utils/OracleHelper.sol')],
  abi:['TokenPaymaster','VerifyingPaymaster'].map(n=>pin(src+`artifacts/${n}.json`)),config:[configPath,resolve(dir,'formal-config.json'),resolve(dir,'baselines.json')].map(pin)});

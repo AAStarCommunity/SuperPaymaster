@@ -258,8 +258,10 @@ const ENTRYPOINT_ERRORS_ABI = [
 
 // ── op building (identical gas/fees/callData across arms) ────────────────────────────────
 const u128 = (v) => pad(toHex(v), { size: 16 });
+// Fees follow G3-MATRIX §3a (5 gwei / 1 gwei). At the old 20 gwei the SP reservation (~5,712 aPNTs) exceeds the
+// xPNTs V2 default maxSingleTxLimit (5000e18) and validation fails with AA34.
 const LOCAL_GAS = { callGasLimit: 100_000n, verificationGasLimit: 300_000n, preVerificationGas: 60_000n,
-  maxFeePerGas: 20_000_000_000n, maxPriorityFeePerGas: 2_000_000_000n };
+  maxFeePerGas: 5_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n };
 const MAX_FEE_CEILING = formal ? frozen.fees.maxFeePerGas : LOCAL_GAS.maxFeePerGas;
 const gasFor = arm => formal ? frozen.gas[arm] : LOCAL_GAS;
 const PM_GAS = frozen?.pmGas ?? {

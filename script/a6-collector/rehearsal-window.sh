@@ -25,12 +25,17 @@ cleanup() {
 }
 trap cleanup EXIT
 printf 'REHEARSAL_WINDOW=%s\n' "$W"
-anvil --host 127.0.0.1 --port "$PORT" --hardfork amsterdam --disable-code-size-limit > "$D/anvil.log" 2>&1 & P1=$!
+anvil --host 127.0.0.1 --port "$PORT" --hardfork prague --disable-code-size-limit > "$D/anvil.log" 2>&1 & P1=$!
 for _ in {1..50}; do if cast chain-id --rpc-url "$A" >/dev/null 2>&1; then break; fi; sleep .2; done
 if ! kill -0 "$P1" 2>/dev/null; then cat "$D/anvil.log" >&2; exit 1; fi
-forge build --offline > "$D/build.log" 2>&1
-forge script contracts/script/v3/DeployAnvil.s.sol:DeployAnvil --offline --rpc-url "$A" --broadcast --slow --disable-code-size-limit > "$D/deploy.log" 2>&1
-forge script contracts/script/v3/TestAccountPrepare.s.sol:TestAccountPrepare --offline --rpc-url "$A" --broadcast --slow --disable-code-size-limit > "$D/prepare.log" 2>&1
+# Rehearsal only (format integration, never evidence): Prague, because stable forge underestimates Amsterdam state gas
+# and nightly forge fails decoding TimelockController constructor arguments after broadcast. Pilot and formal sampling
+# run on Sepolia (Amsterdam). The chain here is the nightly anvil at --hardfork prague; compiling and deploying use stable forge 1.7.1, because nightly forge
+# fails decoding TimelockController constructor arguments after broadcast.
+FORGE="$HOME/.foundry/bin/forge"
+"$FORGE" build --offline > "$D/build.log" 2>&1
+"$FORGE" script contracts/script/v3/DeployAnvil.s.sol:DeployAnvil --offline --rpc-url "$A" --broadcast --slow --disable-code-size-limit > "$D/deploy.log" 2>&1
+"$FORGE" script contracts/script/v3/TestAccountPrepare.s.sol:TestAccountPrepare --offline --rpc-url "$A" --broadcast --slow --disable-code-size-limit > "$D/prepare.log" 2>&1
 cp deployments/config.anvil.json "$D/deployment.json"
 node script/a6-collector/deploy-baselines.mjs "$A" "$D/baselines-local.json" "$D/deployment.json" > "$D/baselines.log" 2>&1
 node script/a6-collector/rpc-proxy.mjs --listen "$BPORT" --upstream "$A" > "$D/proxy.log" 2>&1 & P2=$!

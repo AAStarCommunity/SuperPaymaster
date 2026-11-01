@@ -5,6 +5,23 @@ import { evidenceIndex, sha256, stringify, loadRegistry } from './evidence.mjs';
 import { formalConfig, armOrder, DEFAULT_FACTORY, inclusionErrors } from './formal.mjs';
 import { decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
 import { postOpRefreshed } from './trace-policy.mjs';
+
+// Receipt/transaction polls of one endpoint, in archive order. Polls made before inclusion stay referenced (the index
+// is complete) and return a null receipt or a pending transaction (blockHash null). They may only precede the first
+// included observation; every included observation must match the recorded block; a sent attempt needs at least one.
+export function inclusionSeriesError(observations, tx) {
+  let seenIncluded=false, lastId=-Infinity;
+  for (const { id, result } of observations) {
+    if (!(id>lastId)) return 'endpoint raw references out of order';
+    lastId=id;
+    const pending=!result || result.blockHash==null;
+    if (pending) { if (seenIncluded) return 'raw inclusion regressed after inclusion'; continue; }
+    if (String(result.blockHash).toLowerCase()!==String(tx.blockHash).toLowerCase() || BigInt(result.blockNumber)!==BigInt(tx.blockNumber)) return 'raw inclusion mismatch';
+    seenIncluded=true;
+  }
+  return seenIncluded ? null : 'raw inclusion missing';
+}
+
 const canonical=v=>Array.isArray(v)?v.map(canonical):v && typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):typeof v==='string' && v.startsWith('0x')?v.toLowerCase():typeof v==='bigint'?String(v):v;
 const eq=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
 const lower=x=>String(x).toLowerCase();
@@ -141,17 +158,21 @@ export function artifactErrors(window,rows,trailer,journal) {
     for (const k of ['packedOp','bundle','tx','uoe','state','endpoints','gas','expectedUserOpHash','observedUserOpHash','trace']) if (!eq(r[k],expected[k])) throw new Error(`index/journal ${k} mismatch`);
     errors.push(...transactionErrors(a,start.frozenConfig).map(e=>`attempt ${i}: ${e}`));
     for (const endpoint of ['A','B']) {
-      for (const kind of ['receipt','logs','transaction','stateReads']) for (const ref of r.endpoints[endpoint][kind]) {
-        const raw=reference(ref,endpoint), method={receipt:'eth_getTransactionReceipt',logs:'eth_getTransactionReceipt',transaction:'eth_getTransactionByHash'}[kind];
-        if (method && (raw.method!==method || lower(raw.params[0])!==lower(r.tx?.txHash))) throw new Error('endpoint raw method/transaction mismatch');
-        if (method && raw.response) {
+      for (const kind of ['receipt','logs','transaction','stateReads']) {
+        const observations=[];
+        for (const ref of r.endpoints[endpoint][kind]) {
+          const raw=reference(ref,endpoint), method={receipt:'eth_getTransactionReceipt',logs:'eth_getTransactionReceipt',transaction:'eth_getTransactionByHash'}[kind];
+          if (method && (raw.method!==method || lower(raw.params[0])!==lower(r.tx?.txHash))) throw new Error('endpoint raw method/transaction mismatch');
+          if (!method || !raw.response) continue;
           const result=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
-          if (a.sent && (!result || lower(result.blockHash)!==lower(r.tx.blockHash) || BigInt(result.blockNumber)!==BigInt(r.tx.blockNumber))) throw new Error('raw inclusion mismatch');
+          observations.push({id:raw.id,result});
+          const pending=!result || result.blockHash==null;
           if (kind==='transaction' && result) for (const [rawKey,key] of [['input','input'],['gas','gasLimit'],['maxFeePerGas','maxFeePerGas'],['maxPriorityFeePerGas','maxPriorityFeePerGas']]) {
             if (rawKey==='input'?lower(result[rawKey])!==lower(r.tx[key]):BigInt(result[rawKey])!==BigInt(r.tx[key])) throw new Error('raw transaction field mismatch');
           }
-          if (kind==='logs' && included.has(i) && !result.logs.some(l=>BigInt(l.logIndex)===BigInt(r.uoe.logIndex) && lower(l.address)===lower(r.uoe.address) && eq(l.topics,r.uoe.topics) && l.data===r.uoe.data)) throw new Error('raw UOE mismatch');
+          if (kind==='logs' && included.has(i) && !pending && !result.logs.some(l=>BigInt(l.logIndex)===BigInt(r.uoe.logIndex) && lower(l.address)===lower(r.uoe.address) && eq(l.topics,r.uoe.topics) && l.data===r.uoe.data)) throw new Error('raw UOE mismatch');
         }
+        if (a.sent && kind!=='stateReads') { const e=inclusionSeriesError(observations,r.tx); if (e) throw new Error(e); }
       }
       for (const side of ['before','after']) for (const [key,state] of Object.entries(r.state[side])) if (state) {
         if (!state.raw[endpoint].length) throw new Error('state raw references missing');
