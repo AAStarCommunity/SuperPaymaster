@@ -1,0 +1,320 @@
+{
+  "schema": 1,
+  "source": "script/upgrade/manifest_exec.py",
+  "source_sha256": "4e25088f5b5a983c136763826ca5855e0eb7bb4d5945234d74ab8303addef0f6",
+  "environment": {
+    "PYTHONPATH": "script/upgrade:script/a3a",
+    "A3A_ENGINE_DIR": "<local Foundry bin directory containing cast>",
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "scope": "Offline unit tests; no git commands, Anvil process, or network. Each mutant applied to the real source in isolation and restored in finally.",
+  "baseline": {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "script/upgrade/test_manifest_exec.py"
+    ],
+    "tests": 104,
+    "failures": 0,
+    "errors": 0,
+    "exit_code": 0
+  },
+  "mutants": [
+    {
+      "id": "L2.1",
+      "description": "registry_accept salt omits inputs hash",
+      "replacement": {
+        "before": "salt=a.keccak('manifest-v3.1/'+pin['blockHash']+'/'+inputs['sha256']+'/registry_accept')",
+        "after": "salt=a.keccak('manifest-v3.1/'+pin['blockHash']+'/registry_accept')"
+      },
+      "test": "test_registry_accept_salt_binds_inputs_hash",
+      "baseline": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_registry_accept_salt_binds_inputs_hash"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 2.066s\n\nOK\n"
+      },
+      "mutated": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_registry_accept_salt_binds_inputs_hash"
+        ],
+        "exit_code": 1,
+        "output": "F\n======================================================================\nFAIL: test_registry_accept_salt_binds_inputs_hash (script.upgrade.test_manifest_exec.ManifestTests.test_registry_accept_salt_binds_inputs_hash)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 399, in test_registry_accept_salt_binds_inputs_hash\n    self.assertEqual(self.plan['operations']['registry_accept']['salt'], expected)\nAssertionError: '0x6e4f91eff7986323f198d682c4da0c5bd822b285f4a04cd5a2f1914b6050e11a' != '0x61518165677e2005dbc589efd422df560c288d1f24fec9eacdbaea0134bc4e42'\n- 0x6e4f91eff7986323f198d682c4da0c5bd822b285f4a04cd5a2f1914b6050e11a\n+ 0x61518165677e2005dbc589efd422df560c288d1f24fec9eacdbaea0134bc4e42\n\n\n----------------------------------------------------------------------\nRan 1 test in 1.532s\n\nFAILED (failures=1)\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_registry_accept_salt_binds_inputs_hash"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 2.057s\n\nOK\n"
+      },
+      "killed": true
+    },
+    {
+      "id": "L2.2",
+      "description": "pre_send always expects DEPLOYER",
+      "replacement": {
+        "before": "u.TL if 'D.registry_execute_exec' in context.get('passed', set()) else u.DEPLOYER",
+        "after": "u.DEPLOYER"
+      },
+      "test": "test_pre_send_registry_owner_follows_completed_accept",
+      "baseline": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_pre_send_registry_owner_follows_completed_accept"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.546s\n\nOK\n"
+      },
+      "mutated": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_pre_send_registry_owner_follows_completed_accept"
+        ],
+        "exit_code": 1,
+        "output": "FE\n======================================================================\nERROR: test_pre_send_registry_owner_follows_completed_accept (script.upgrade.test_manifest_exec.ManifestTests.test_pre_send_registry_owner_follows_completed_accept) (accepted=True, owner='0xccdf8e0d29fb2c3061910d79484a2b653757c34b')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 470, in test_pre_send_registry_owner_follows_completed_accept\n    self.assertEqual(m.pre_send(rpc, self.plan, step, context), step['tx'])\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"script/upgrade/manifest_exec.py\", line 1397, in pre_send\n    a.need('registry_owner', a.address(rpc, u.REG, 'owner()'),\n  File \"script/a3a/a3a_exec.py\", line 92, in need\n    raise Gate(name, observed, expected)\na3a_exec.Gate: registry_owner\n\n======================================================================\nFAIL: test_pre_send_registry_owner_follows_completed_accept (script.upgrade.test_manifest_exec.ManifestTests.test_pre_send_registry_owner_follows_completed_accept) (accepted=True, owner='0xb5600060e6de5e11d3636731964218e53caadf0e')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 474, in test_pre_send_registry_owner_follows_completed_accept\n    self.assertEqual(caught.exception.record['gate'], 'registry_owner')\nAssertionError: 'registry_authority' != 'registry_owner'\n- registry_authority\n+ registry_owner\n\n\n----------------------------------------------------------------------\nRan 1 test in 1.513s\n\nFAILED (failures=1, errors=1)\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_pre_send_registry_owner_follows_completed_accept"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.550s\n\nOK\n"
+      },
+      "killed": true
+    },
+    {
+      "id": "L2.3",
+      "description": "final frozen check uses pre-handover owner",
+      "replacement": {
+        "before": "assert_manifest_frozen(rpc, plan['pin'], True)",
+        "after": "assert_manifest_frozen(rpc, plan['pin'], False)"
+      },
+      "test": "test_run_manifest_final_frozen_check_requires_timelock_owner",
+      "baseline": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_run_manifest_final_frozen_check_requires_timelock_owner"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.598s\n\nOK\n"
+      },
+      "mutated": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_run_manifest_final_frozen_check_requires_timelock_owner"
+        ],
+        "exit_code": 1,
+        "output": "EE\n======================================================================\nERROR: test_run_manifest_final_frozen_check_requires_timelock_owner (script.upgrade.test_manifest_exec.ManifestTests.test_run_manifest_final_frozen_check_requires_timelock_owner) (owner='0xccdf8e0d29fb2c3061910d79484a2b653757c34b')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 494, in test_run_manifest_final_frozen_check_requires_timelock_owner\n    m.run_manifest(None, rpc, plan, Path(self.tmp.name))\n  File \"script/upgrade/manifest_exec.py\", line 1642, in run_manifest\n    assert_manifest_frozen(rpc, plan['pin'], False)\n  File \"script/upgrade/manifest_exec.py\", line 1378, in assert_manifest_frozen\n    u.assert_frozen(rpc, dict(pin, registryOwner=u.TL if registry_handed_over else pin['registryOwner']))\n  File \"script/upgrade/sp_upgrade_exec.py\", line 687, in assert_frozen\n    a.need('registry_authority', a.address(rpc, REG, 'owner()'), pin['registryOwner'])\n  File \"script/a3a/a3a_exec.py\", line 92, in need\n    raise Gate(name, observed, expected)\na3a_exec.Gate: registry_authority\n\n======================================================================\nERROR: test_run_manifest_final_frozen_check_requires_timelock_owner (script.upgrade.test_manifest_exec.ManifestTests.test_run_manifest_final_frozen_check_requires_timelock_owner) (owner='0xb5600060e6de5e11d3636731964218e53caadf0e')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 497, in test_run_manifest_final_frozen_check_requires_timelock_owner\n    m.run_manifest(None, rpc, plan, Path(self.tmp.name))\n  File \"script/upgrade/manifest_exec.py\", line 1643, in run_manifest\n    accounting = balances(rpc, plan['pin']['pauseList'])\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<stdlib>/unittest/mock.py\", line 1124, in __call__\n    return self._mock_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<stdlib>/unittest/mock.py\", line 1128, in _mock_call\n    return self._execute_mock_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<stdlib>/unittest/mock.py\", line 1183, in _execute_mock_call\n    raise effect\nscript.upgrade.test_manifest_exec.ManifestTests.test_run_manifest_final_frozen_check_requires_timelock_owner.<locals>.CheckpointPassed\n\n----------------------------------------------------------------------\nRan 1 test in 1.533s\n\nFAILED (errors=2)\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_run_manifest_final_frozen_check_requires_timelock_owner"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.527s\n\nOK\n"
+      },
+      "killed": true
+    },
+    {
+      "id": "L2.4",
+      "description": "committee gate omits A8.committee dependency",
+      "replacement": {
+        "before": "        required_steps.add('A8.committee')\n",
+        "after": ""
+      },
+      "test": "test_committee_handover_requires_completed_binding",
+      "baseline": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_committee_handover_requires_completed_binding"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.556s\n\nOK\n"
+      },
+      "mutated": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_committee_handover_requires_completed_binding"
+        ],
+        "exit_code": 1,
+        "output": "F\n======================================================================\nFAIL: test_committee_handover_requires_completed_binding (script.upgrade.test_manifest_exec.ManifestTests.test_committee_handover_requires_completed_binding)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 410, in test_committee_handover_requires_completed_binding\n    with self.assertRaises(a.Gate) as caught:\nAssertionError: Gate not raised\n\n----------------------------------------------------------------------\nRan 1 test in 1.504s\n\nFAILED (failures=1)\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_committee_handover_requires_completed_binding"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.540s\n\nOK\n"
+      },
+      "killed": true
+    },
+    {
+      "id": "L2.5",
+      "description": "aggregator transfer omits admin dependency",
+      "replacement": {
+        "before": "        required_steps.add(sid.replace('.transfer', '.admin'))\n",
+        "after": ""
+      },
+      "test": "test_aggregator_transfer_requires_completed_admin",
+      "baseline": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_aggregator_transfer_requires_completed_admin"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.697s\n\nOK\n"
+      },
+      "mutated": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_aggregator_transfer_requires_completed_admin"
+        ],
+        "exit_code": 1,
+        "output": "FF\n======================================================================\nFAIL: test_aggregator_transfer_requires_completed_admin (script.upgrade.test_manifest_exec.ManifestTests.test_aggregator_transfer_requires_completed_admin) (name='aggregator')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 424, in test_aggregator_transfer_requires_completed_admin\n    with self.assertRaises(a.Gate) as caught:\nAssertionError: Gate not raised\n\n======================================================================\nFAIL: test_aggregator_transfer_requires_completed_admin (script.upgrade.test_manifest_exec.ManifestTests.test_aggregator_transfer_requires_completed_admin) (name='old_aggregator')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 424, in test_aggregator_transfer_requires_completed_admin\n    with self.assertRaises(a.Gate) as caught:\nAssertionError: Gate not raised\n\n----------------------------------------------------------------------\nRan 1 test in 1.609s\n\nFAILED (failures=2)\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_aggregator_transfer_requires_completed_admin"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.542s\n\nOK\n"
+      },
+      "killed": true
+    },
+    {
+      "id": "L1.accept",
+      "description": "committee gate permits acceptOwnership selector",
+      "replacement": {
+        "before": "        a.need('committee_no_accept_ownership', '79ba5097' in runtime, False)\n",
+        "after": ""
+      },
+      "test": "test_committee_rejects_two_step_runtime",
+      "baseline": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.569s\n\nOK\n"
+      },
+      "mutated": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime"
+        ],
+        "exit_code": 1,
+        "output": "F\n======================================================================\nFAIL: test_committee_rejects_two_step_runtime (script.upgrade.test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime) (selector='79ba5097')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 437, in test_committee_rejects_two_step_runtime\n    with self.assertRaises(a.Gate) as caught:\nAssertionError: Gate not raised\n\n----------------------------------------------------------------------\nRan 1 test in 1.535s\n\nFAILED (failures=1)\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.536s\n\nOK\n"
+      },
+      "killed": true
+    },
+    {
+      "id": "L1.pending",
+      "description": "committee gate permits pendingOwner selector",
+      "replacement": {
+        "before": "        a.need('committee_no_pending_owner', 'e30c3978' in runtime, False)\n",
+        "after": ""
+      },
+      "test": "test_committee_rejects_two_step_runtime",
+      "baseline": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.519s\n\nOK\n"
+      },
+      "mutated": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime"
+        ],
+        "exit_code": 1,
+        "output": "F\n======================================================================\nFAIL: test_committee_rejects_two_step_runtime (script.upgrade.test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime) (selector='e30c3978')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"script/upgrade/test_manifest_exec.py\", line 437, in test_committee_rejects_two_step_runtime\n    with self.assertRaises(a.Gate) as caught:\nAssertionError: Gate not raised\n\n----------------------------------------------------------------------\nRan 1 test in 1.534s\n\nFAILED (failures=1)\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "-m",
+          "unittest",
+          "script.upgrade.test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime"
+        ],
+        "exit_code": 0,
+        "output": ".\n----------------------------------------------------------------------\nRan 1 test in 1.576s\n\nOK\n"
+      },
+      "killed": true
+    }
+  ],
+  "source_restored": true,
+  "final_suite": {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "script/upgrade/test_manifest_exec.py"
+    ],
+    "tests": 104,
+    "failures": 0,
+    "errors": 0,
+    "exit_code": 0,
+    "output": "......................................................................................STOP: manifest signing and sending are not implemented\nSTOP: manifest signing and sending are not implemented\n..................\n----------------------------------------------------------------------\nRan 104 tests in 55.300s\n\nOK\n"
+  },
+  "test_source_sha256": "71bd0708ddebe5045c14e8b0145688cf3c26db149ede592d2afa8acbe8599298"
+}

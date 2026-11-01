@@ -1043,8 +1043,13 @@ def handover_gate(rpc, plan, step, context):
             check_predicate(rpc, pred)
     if sid == 'D.committee.transfer':
         required_steps.add('A8.committee')
-        # Verify the pinned runtime dispatches the single-step transfer selector.
-        a.need('committee_transfer_selector', '63f2fde38b' in plan['pin']['bindings'][COMMITTEE].lower(), True)
+        # Require the transferOwnership dispatch bytes and no acceptOwnership or
+        # pendingOwner selector bytes in the pinned runtime. The post-transfer
+        # owner()==SAFE read-back remains the authoritative ownership check.
+        runtime = plan['pin']['bindings'][COMMITTEE].lower()
+        a.need('committee_transfer_selector', '63f2fde38b' in runtime, True)
+        a.need('committee_no_accept_ownership', '79ba5097' in runtime, False)
+        a.need('committee_no_pending_owner', 'e30c3978' in runtime, False)
     if sid in ('D.aggregator.transfer', 'D.old_aggregator.transfer'):
         required_steps.add(sid.replace('.transfer', '.admin'))
         check_predicate(rpc, address_pred(step['tx']['to'], 'slashPolicyAdmin()', u.SAFE))

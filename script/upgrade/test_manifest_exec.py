@@ -394,6 +394,110 @@ class ManifestTests(unittest.TestCase):
         with self.assertRaises(a.Gate):
             m.handover_gate(None, bad, self.step('D.committee.transfer'), {'passed':all_ids})
 
+    def test_registry_accept_salt_binds_inputs_hash(self):
+        expected = a.keccak('manifest-v3.1/'+self.pin['blockHash']+'/'+self.inputs['sha256']+'/registry_accept')
+        self.assertEqual(self.plan['operations']['registry_accept']['salt'], expected)
+        changed = copy.deepcopy(self.inputs)
+        changed['sha256'] = 'f'*64
+        other = m.build_plan(self.pin, changed)['operations']['registry_accept']
+        self.assertNotEqual(other['salt'], expected)
+        self.assertNotEqual(other['id'], self.plan['operations']['registry_accept']['id'])
+
+    def test_committee_handover_requires_completed_binding(self):
+        passed = {s['id'] for s in self.plan['steps']}
+        step = self.step('D.committee.transfer')
+        m.handover_gate(None, self.plan, step, {'passed':passed})
+        with self.assertRaises(a.Gate) as caught:
+            m.handover_gate(None, self.plan, step, {'passed':passed-{'A8.committee'}})
+        self.assertEqual(caught.exception.record['gate'], 'handover_dependencies')
+
+    def test_aggregator_transfer_requires_completed_admin(self):
+        passed = {s['id'] for s in self.plan['steps']}
+        for name in ('aggregator', 'old_aggregator'):
+            step = self.step('D.'+name+'.transfer')
+            # Even an already-correct live admin cannot replace the completed step.
+            def call(rpc, target, sig, *args):
+                self.assertEqual((target, sig), (step['tx']['to'], 'slashPolicyAdmin()'))
+                return a.cast('abi-encode', 'c(address)', u.SAFE)
+            with self.subTest(name=name), patch.object(a, 'call', side_effect=call):
+                m.handover_gate(None, self.plan, step, {'passed':passed})
+                with self.assertRaises(a.Gate) as caught:
+                    m.handover_gate(None, self.plan, step, {'passed':passed-{'D.'+name+'.admin'}})
+                self.assertEqual(caught.exception.record['gate'], 'handover_dependencies')
+
+    def test_committee_rejects_two_step_runtime(self):
+        passed = {s['id'] for s in self.plan['steps']}
+        step = self.step('D.committee.transfer')
+        m.handover_gate(None, self.plan, step, {'passed':passed})
+        for selector, gate in (('79ba5097', 'committee_no_accept_ownership'),
+                               ('e30c3978', 'committee_no_pending_owner')):
+            bad = copy.deepcopy(self.plan)
+            bad['pin']['bindings'][COMMITTEE] += ('63'+selector).upper()
+            with self.subTest(selector=selector):
+                with self.assertRaises(a.Gate) as caught:
+                    m.handover_gate(None, bad, step, {'passed':passed})
+                self.assertEqual(caught.exception.record['gate'], gate)
+        self.assertIn(m.address_pred(COMMITTEE, 'owner()', u.SAFE), step['readbacks'])
+
+    def test_pre_send_registry_owner_follows_completed_accept(self):
+        step = self.step('D.committee.transfer')
+        self.plan['pin']['oldActivity'] = {'dvtProposals':[]}
+        def rpc(method, params):
+            self.assertEqual((method, params), ('eth_chainId', []))
+            return hex(a.CHAIN)
+        rpc.local = True
+        for accepted in (False, True):
+            passed = {s['id'] for s in self.plan['steps']}-{'D.registry_execute_exec'}
+            if accepted: passed.add('D.registry_execute_exec')
+            for owner in (u.DEPLOYER, u.TL):
+                def address(r, target, sig, *args):
+                    self.assertEqual(sig, 'owner()')
+                    return owner if target == u.REG else u.TL
+                with self.subTest(accepted=accepted, owner=owner), contextlib.ExitStack() as stack:
+                    for mock in (
+                        patch.object(a, 'nonce', return_value=a.qty(step['tx']['nonce'])),
+                        patch.object(a, 'word', return_value=step['safeNonce']),
+                        patch.object(a, 'address', side_effect=address),
+                        patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])),
+                        patch.object(a, 'block_data', return_value={'number':'0x150'}),
+                        patch.object(u, 'safe_state', return_value=self.pin['safe']),
+                        patch.object(u, 'governance'),
+                        patch.object(u, 'code', side_effect=lambda r,t,*args:self.pin['bindings'][t]),
+                        patch.object(m, 'old_activity', return_value={}),
+                        patch.object(m, 'dvt_activity', return_value=[])):
+                        stack.enter_context(mock)
+                    context = dict(passed=passed, frozen=True, transferred=True, activated=True)
+                    if owner == (u.TL if accepted else u.DEPLOYER):
+                        self.assertEqual(m.pre_send(rpc, self.plan, step, context), step['tx'])
+                    else:
+                        with self.assertRaises(a.Gate) as caught:
+                            m.pre_send(rpc, self.plan, step, context)
+                        self.assertEqual(caught.exception.record['gate'], 'registry_owner')
+
+    def test_run_manifest_final_frozen_check_requires_timelock_owner(self):
+        # Isolate the terminal checkpoint: no transactions or engine are needed.
+        plan = copy.deepcopy(self.plan)
+        plan['steps'] = []
+        plan['pin']['senders'] = {}
+        def rpc(method, params):
+            raise AssertionError((method, params))
+        rpc.local = True
+        class CheckpointPassed(Exception): pass
+        for owner in (u.TL, u.DEPLOYER):
+            with self.subTest(owner=owner), patch.object(m, 'validate_plan'), \
+                 patch.object(m, 'CONTROLS', ['owner_handover']), \
+                 patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}), \
+                 patch.object(a, 'address', return_value=owner), \
+                 patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])), \
+                 patch.object(m, 'balances', side_effect=CheckpointPassed):
+                if owner == u.TL:
+                    with self.assertRaises(CheckpointPassed):
+                        m.run_manifest(None, rpc, plan, Path(self.tmp.name))
+                else:
+                    with self.assertRaises(a.Gate) as caught:
+                        m.run_manifest(None, rpc, plan, Path(self.tmp.name))
+                    self.assertEqual(caught.exception.record['gate'], 'registry_authority')
+
     def test_pending_owner_getter_and_slot_mismatch_stop(self):
         for bad in ('getter', 'slot'):
             def rpc(method, params):
