@@ -1,34 +1,54 @@
-# Manifest executor slice 1 — implementation report
+# Manifest executor slice 1 — round 2 report
 
-Delivered as an uncommitted schema-3 module. No signing, public broadcasting, wallet/key-material access, contract-source edits, or protected data/evidence edits were performed.
+Uncommitted delivery. No signing, public broadcasting, key-material access, sender changes, contract-source edits, or protected data/evidence edits were performed.
 
-## Files
+## Changes
 
-- `script/upgrade/manifest_exec.py`: Phase A/B builder, public external-input validation and SHA-256 binding, HEAD archive rebuild, pin collection, per-sender nonces, derived CREATE addresses, exact drains, Safe batches, read-back predicates, ETA/B2/B4 gates, measured fork execution, negative controls, solvency probe, and refusal CLI.
-- `script/upgrade/test_manifest_exec.py`: 32 offline unittest cases with synthetic artifacts/PoPs and fake chain state; includes full runner orchestration, waits, B2 placement, conditional B4 nonce preservation, and a failing-solvency finalization test.
-- `script/upgrade/README.md`: input format, commands, limitations, timing, and solvency finding.
-- `.github/workflows/a3a-executor.yml`: adds the offline manifest suite.
-- This report.
+- The verifier must come from `artifactPath`, with reviewed SHA-256 `4d7e0125094c381a0dca5e2d8dd56efa79b284e43119fd64130dfaa78d33e7d6`, creation keccak `0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab`, and DVT commit `72aca4fa0ba4aaa8c8a96210b1124534431294d6`. Caller-supplied bytecode/ranges are no longer an input. The pinned artifact authenticates all five immutable ranges (5519: three; 5522: two). AST names or runtime matching with both getters establish AGGREGATOR/REGISTRY order. Runtime comparison permits only those address substitutions. Both verifier getters and A7.REGISTRY are mandatory read-backs.
+- CI evidence is a digest-checked public file carrying the pinned commit and PASS status. Build identity is the pinned artifact digest. Release evidence also requires actual nonempty files with matching digests; bare format-only or all-zero hashes are refused. These checks bind supplied attestations; they do not rerun CI or establish who authored an attestation.
+- Registry baseline commits resolving to HEAD are refused. The baseline is independently rebuilt with immutable identities, compared against the live proxy implementation code collected at the pin, then compared against the candidate's recursive storage layout. The baseline's `__self` is substituted with the live implementation address.
+- DVTValidator, committee and retired aggregator are fixed constants. Binding keys must be exactly DVT and committee, with nonempty code. `build_plan` runs external, release, nonce, sampling and binding validation itself.
+- Amended A3a plan bytes are authenticated by reviewed digest. S7/S6a/S6b must be successful mined transactions at their planned nonces and no later than the pin. D must be exactly S7+1. A/E gaps require the existing A3a plain-transfer and prestate-trace proof. Receipt/transaction/gap-read evidence is retained in the pin and rechecked by the offline builder. An extra pre-pin D transaction is refused.
+- B2a is a Safe approval/execution pair targeting APNTsCapped.mint(SP, 0.1e18), after 5b read-back and before 6c. All five Safe hashes are precomputed in 5a, 5b, B2a, 6c, 6d order. Its target-aware hash, payload, trace and balance read-back are explicit. B2 requires new-token backing exactly equal to 0.1e18, independently of old-token accounting.
+- Rehearsal records accounting immediately after 6d, checks B4 leaves it unchanged, then probes a deposit, queued slash revenue accrual, and withdrawal of only revenue above the retained buffer. The snapshot is restored. A separate snapshot executes the activation timelock operation without B2a, records the deficit and B2 refusal, and restores state. Deterministic plan validation also refuses a removed mint.
+- Frozen B4 replay stops with `b4_preapplied_pending_design` if the verifier is already A12a. TODO: decide keeper-applied nonce handling before implementing a sender. Calibration retains its no-send skip control. `a3a_send.py` is unchanged.
 
 ## Verification
 
-Using Python 3.11.9 and `A3A_ENGINE_DIR=$HOME/.foundry/bin`:
-
 | Suite | Result |
 | --- | --- |
-| Manifest | 32 passed |
-| Existing IG-08 upgrade | 141 passed |
-| Existing A3a executor | 92 passed |
+| Manifest Python | 48 passed |
+| Existing IG-08 Python | 141 passed |
+| Real Solidity proxy/token tests | 2 passed |
+| Requested mutation checks | 4 mutations killed |
 
-These are offline tests, not chain evidence. ABI encoding and keccak use local cast. The orchestrator tests mock the fork helper boundaries; the B2/B4 tests exercise their actual RPC reads against a fake chain. The existing sender/signing suite was not run.
+The two tests in `contracts/test/upgrade/ManifestSolvency.t.sol` use the real SuperPaymaster proxy and extension, APNTsCapped, deposit, slash and revenue-withdrawal implementations. They verify the original buffer-only withdrawal reverts with `InsufficientRevenue`, the B2a-backed route stays exactly solvent through all three stages, and the route without B2a has a 0.1-token deficit. No receipt or withdrawal success is mocked in these tests. Python tests additionally exercise the actual pre-send B2 call, both verifier getter predicates and the bound-runtime loop; runner orchestration fixtures remain synthetic and are not fork evidence.
 
-An actual archive-at-HEAD rebuild was attempted. It stopped at `rebuild_submodule_unavailable` for `contracts/lib/chainlink-brownie-contracts`; the required initialized submodule/local object store is absent. No network fallback was attempted. No real fork was run: frozen external verifier/PoP inputs and RPC files were not supplied, and the inherited clean-tree fork gate deliberately rejects this uncommitted delivery. No release packet, successful fork result, or live execution is claimed.
+Solidity command (in an isolated temporary tree with existing local dependency trees):
 
-## Design finding that blocks packet finalization
+```sh
+FOUNDRY_TEST=script/upgrade forge test --offline \
+  --match-contract ManifestSolvencyTest --match-test test_manifest -vv
+```
 
-After the specified swap, tracked total and protocol revenue are `0.1e18`, while SP's APNTsCapped balance is zero. This violates `contracts/test/invariant/SuperPaymasterFundConservation.invariant.t.sol:91` (`invariant_solvency`). A deposit adds the same amount to tracked total and backing; a revenue withdrawal subtracts the same amount. Neither removes the shortfall.
+The initial worktree Forge attempt encountered missing submodules and attempted automatic installation; filesystem restrictions rejected its `.git` writes. It was not retried in the worktree. The successful run used a temporary archive of HEAD plus the new test and existing local dependency directories; no repository Git metadata was changed. This local contract behavior run is not a release reproducibility check.
 
-The implemented snapshot probe records all three states in `manifest-solvency.json`. An insolvent result produces `post_swap_solvency` FAILURE before a plan/PASS result is frozen. This is a source-derived finding tested with fake chain arithmetic, not a claimed real-fork observation. The accepted A/B transactions were preserved. Resolving this requires a revised design or explicit treatment of the legacy buffer.
+Mutation edits were temporary, applied one at a time and restored in `finally`:
+
+| Removed production behavior | Failing test |
+| --- | --- |
+| Real `b2_gate` call in `pre_send` | `test_pre_send_real_b2_is_required` |
+| A12a `AGGREGATOR()` predicate | `test_a12a_getters_are_enforced` (AGGREGATOR subtest) |
+| A12a `REGISTRY()` predicate | `test_a12a_getters_are_enforced` (REGISTRY subtest) |
+| Entire `bindings` runtime loop | `test_pre_send_bound_runtime_is_required` |
+
+Each mutation failed with an assertion that the expected gate was not raised, rather than an import/syntax error. No mutation is retained.
+
+## Limits and recovery
+
+No authenticated Sepolia fork, reviewed verifier artifact deployment, final packet, or broadcast is claimed. The reviewed external artifact and actual amended plan/PoPs/RPC files were not supplied. The uncommitted tree also retains the inherited clean-tree fork gate. The independent rebuild and full fork gates must still pass on real inputs before release.
+
+The updated design resolves the old buffer deficit through B2a. The old-token 0.1 stays stranded in SP. After B2a but before 6d, the new-token 0.1 is held but untracked; it remains there if the route is abandoned. Phases C/D, signing/sending, source-verification execution and a nonce-gap amendment command remain absent. B4's keeper-applied case remains deliberately blocked in frozen execution pending design.
 
 ## Interface sources and assumptions
 
@@ -56,14 +76,3 @@ The following are the concrete source locations used to resolve ABI and behavior
 | Token swap / pending slash | `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol:200`, `:565` |
 | In-flight proof relies on 5.5 being the first reservation epoch and continuously paused | `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:41`, `:149`; `SuperPaymaster.sol:324`; `SuperPaymasterAdmin.sol:106` in the same directory |
 | Solvency fixture mint authority | `contracts/src/tokens/APNTsCapped.sol:92` |
-
-There are **two external interface assumptions that cannot be confirmed from a local contract function**:
-
-1. Committee `setBlsAggregator(address)`, `blsAggregator()`, and `owner()`. The setter is specified by `docs/release/sp-upgrade-a6e/MANIFEST-DESIGN.md:88`; the camel-case getter is an explicit assumption. There is no committee contract source in this worktree to cite. Pin collection calls the getter, requires the expected old pointer and deployer owner, and binds runtime bytes; a different ABI stops collection.
-2. DVT's `OverIssueFraudProofVerifier(address aggregator,address registry)` constructor, `AGGREGATOR()`/`REGISTRY()` getters, and named runtime immutables. Constructor order comes from `docs/release/sp-upgrade-a6e/MANIFEST-DESIGN.md:92`. The external implementation is absent here, so no contract file:line can honestly be supplied. Unknown immutable bindings stop building; wrong constructor/getter behavior stops rehearsal. The input must come from DVT's frozen reproducible build, with its commit/build/CI hashes.
-
-No alternate selector fallback is attempted for either assumption. These must be checked against the supplied frozen sources before an accepted packet exists.
-
-## Remaining work
-
-Phases C/D, real signing/sending, manifest nonce-gap amendments, combined pre-S7 A3a bootstrap, source-verification execution, and a design-approved solvency resolution are not implemented. Complete release attestations, initialized build dependencies, external verifier/PoP data, and an authorized clean-tree environment are still required for a real fork rehearsal. Keystore-import requirements belong to future sending and are deliberately not probed by this slice.

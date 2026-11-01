@@ -13,6 +13,45 @@ import sp_upgrade_exec as u
 a = u.a
 BUFFER = 10**17
 DAY = 86400
+DVT = '0x568b1486bfe036e603ea11f0d03dc47fa62c9e0e'
+COMMITTEE = '0x7ac7e9d471742fa4397beef0b5b11fbd22d196a9'
+OLD_AGGREGATOR = '0xeaec2f512ea50708211fa95533e4dbb60e3d2e5d'
+VERIFIER_COMMIT = '72aca4fa0ba4aaa8c8a96210b1124534431294d6'
+VERIFIER_SHA256 = '4d7e0125094c381a0dca5e2d8dd56efa79b284e43119fd64130dfaa78d33e7d6'
+VERIFIER_CREATION = '0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab'
+
+
+def reviewed_bytes(path, digest, gate):
+    a.need(gate+'_hash', isinstance(digest, str) and len(digest) == 64 and
+           all(c in '0123456789abcdef' for c in digest) and int(digest, 16) != 0, True)
+    a.need(gate+'_path', isinstance(path, str) and Path(path).is_file(), True)
+    raw = Path(path).read_bytes()
+    a.need(gate, hashlib.sha256(raw).hexdigest(), digest)
+    return raw
+
+
+def reviewed_file(path, digest, gate):
+    return a.plan_json(reviewed_bytes(path, digest, gate))
+
+
+def verifier_artifact(v):
+    a.need('verifier_commit', v['commit'], VERIFIER_COMMIT)
+    art = reviewed_file(v.get('artifactPath'), VERIFIER_SHA256, 'verifier_file')
+    a.need('verifier_creation', a.keccak(art['bytecode']['object']), VERIFIER_CREATION)
+    refs = art['deployedBytecode']['immutableReferences']
+    a.need('verifier_ids', set(refs), {'5519', '5522'})
+    a.need('verifier_range_counts', [len(refs[k]) for k in ('5519', '5522')], [3, 2])
+    names = {str(n.get('id')): n.get('name') for n in a.ast_nodes(art.get('ast', {}))
+             if n.get('nodeType') == 'VariableDeclaration' and n.get('mutability') == 'immutable'}
+    if not names:
+        # Both permutations are checked against the runtime and mandatory getters.
+        names = {'5519': 'AGGREGATOR', '5522': 'REGISTRY'}
+    a.need('verifier_immutable_names', {names.get(k) for k in refs}, {'AGGREGATOR', 'REGISTRY'})
+    ranges = [dict(name=names[k], **r) for k, entries in refs.items() for r in entries]
+    a.need('verifier_range_widths', all(r['length'] == 32 for r in ranges), True)
+    return dict(bytecode=art['bytecode']['object'], runtimeIdentity=dict(
+        artifactRuntime=art['deployedBytecode']['object'], ranges=ranges))
+
 NAMES = ('SuperPaymaster', 'SuperPaymasterAdmin', 'GlobalTierSource', 'AOAProtocolRegistry',
          'xPNTsTokenV2Ext', 'xPNTsTokenV2', 'xPNTsFactoryV2', 'SuperPaymasterLens', 'Registry', 'BLSAggregator')
 IMMUTABLES = dict(SuperPaymaster=u.SP_IMMUTABLES, SuperPaymasterAdmin=u.SP_IMMUTABLES[:-1],
@@ -23,7 +62,7 @@ IMMUTABLES = dict(SuperPaymaster=u.SP_IMMUTABLES, SuperPaymasterAdmin=u.SP_IMMUT
     SuperPaymasterLens=(), Registry=('__self',), BLSAggregator=('REGISTRY',))
 POP = 'registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))'
 CONTROLS = ['early_unpause', 'factory_binding', 'early_bls', 'early_swap', 'funded_swap',
-            'old_reputation', 'registry_nonowner', 'early_verifier', 'repeat_verifier', 'verifier_skip']
+            'old_reputation', 'registry_nonowner', 'early_verifier', 'repeat_verifier', 'verifier_skip', 'unbacked_swap']
 
 
 def required(obj, keys, label):
@@ -34,16 +73,30 @@ def external(path):
     a.need('external_inputs_required', path is not None and Path(path).is_file(), True)
     raw = Path(path).read_bytes()
     data = a.plan_json(raw)
+    validate_external(data)
+    return dict(sha256=hashlib.sha256(raw).hexdigest(), data=data)
+
+
+def validate_external(data):
     required(data, ('verifier', 'pop', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei',
-                    'releaseTag', 'releaseEvidence', 'registryBaselineCommit'), 'external_inputs_complete')
+                    'releaseTag', 'releaseEvidence', 'registryBaselineCommit', 'a3aPlan'), 'external_inputs_complete')
     v = data['verifier']
-    required(v, ('commit', 'ciSha256', 'artifact', 'buildSha256'), 'verifier_provenance')
-    required(v['artifact'], ('bytecode', 'runtimeIdentity'), 'verifier_artifact')
+    a.exact_keys('verifier_provenance', v, ('commit', 'ciSha256', 'ciPath', 'artifactPath', 'buildSha256'))
+    verifier_artifact(v)
+    a.need('verifier_build_identity', v['buildSha256'], VERIFIER_SHA256)
+    ci = reviewed_file(v['ciPath'], v['ciSha256'], 'verifier_ci')
+    a.need('verifier_ci_commit', ci.get('commit'), VERIFIER_COMMIT)
+    a.need('verifier_ci_status', ci.get('status'), 'PASS')
+    required(data['a3aPlan'], ('path', 'sha256', 'receipts'), 'a3a_input')
+    reviewed_file(data['a3aPlan']['path'], data['a3aPlan']['sha256'], 'a3a_plan')
+    for sid in ('S7', 'S6a', 'S6b'):
+        a.typed(data['a3aPlan']['receipts'].get(sid), a.HASH32)
+        a.need('a3a_receipt_nonzero', data['a3aPlan']['receipts'][sid] != a.ZERO32, True)
+    a.need('fixed_dvt', data['dvt'], DVT)
+    a.need('fixed_committee', data['committee'], COMMITTEE)
     for key in ('ciSha256', 'buildSha256'):
-        a.need('verifier_'+key, len(v[key]) == 64 and all(c in '0123456789abcdef' for c in v[key]), True)
+        a.need('verifier_'+key, len(v[key]) == 64 and all(c in '0123456789abcdef' for c in v[key]) and int(v[key], 16) != 0, True)
     a.need('verifier_commit', len(v['commit']) == 40 and all(c in '0123456789abcdef' for c in v['commit']), True)
-    a.typed(v['artifact']['bytecode'], a.HEXDATA)
-    a.need('verifier_bytecode_nonempty', v['artifact']['bytecode'] != '0x', True)
     for key in ('anni', 'dvt', 'committee'):
         a.typed(data[key], a.ADDRESS_RX)
         a.need('canonical_'+key, data[key], data[key].lower())
@@ -67,9 +120,10 @@ def external(path):
         a.typed(who, a.ADDRESS_RX)
     a.need('deposit_target', type(data['depositTargetWei']) is int and data['depositTargetWei'] > 0, True)
     for key in ('conformance', 'mutation', 'slither', 'sourceVerificationPlan'):
-        digest = data['releaseEvidence'].get(key, '')
-        a.need('release_evidence_'+key, len(digest) == 64 and all(c in '0123456789abcdef' for c in digest), True)
-    return dict(sha256=hashlib.sha256(raw).hexdigest(), data=data)
+        evidence = data['releaseEvidence'].get(key)
+        required(evidence, ('path', 'sha256'), 'release_evidence_'+key)
+        raw = reviewed_bytes(evidence['path'], evidence['sha256'], 'release_evidence_'+key)
+        a.need('release_evidence_nonempty_'+key, bool(raw.strip()), True)
 
 
 @lru_cache(maxsize=1)
@@ -84,13 +138,18 @@ def rebuild():
         for name, art in arts.items()})
 
 
-def release_gate(inputs, build):
+def release_gate(inputs, build, pin):
     data = inputs['data']
     tag = subprocess.run(['git', 'rev-parse', '--verify', 'refs/tags/'+data['releaseTag']+'^{commit}'],
                          cwd=u.ROOT, capture_output=True, text=True)
     a.need('release_tag', tag.returncode, 0)
     a.need('release_tag_head', tag.stdout.strip(), build['commit'])
-    old, _ = a.compile_commit(data['registryBaselineCommit'], build['forgeVersion'], ('Registry',))
+    baseline = subprocess.run(['git', 'rev-parse', '--verify', data['registryBaselineCommit']+'^{commit}'],
+                              cwd=u.ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    a.need('registry_baseline_not_head', baseline != build['commit'], True)
+    old, _ = a.compile_commit(baseline, build['forgeVersion'], ('Registry',), (('Registry', ('__self',)),))
+    a.need('registry_baseline_runtime', pin['registryImplementationCode'],
+           runtime_bytes(old['Registry'], {'__self': int(pin['registryImplementation'], 16)}))
     layout = build['contracts']['Registry']['storageLayout']
     def normalized(value):
         def shape(t):
@@ -153,7 +212,73 @@ def drain_gate(pin):
     a.need('drain_senders', all(v == 0 or k in authorized for k, v in pin['operatorBalances'].items()), True)
 
 
+def nonce_expectations(pin, inputs):
+    spec = inputs['data']['a3aPlan']
+    plan = reviewed_file(spec['path'], spec['sha256'], 'a3a_plan')
+    last = {}
+    for label in ('deployer', 'approver', 'executor'):
+        rows = [x for x in plan['steps'] if x['tx']['from'] == pin['senders'][label]['address']]
+        a.need('a3a_sender_history', bool(rows), True)
+        last[label] = max(rows, key=lambda x: a.qty(x['tx']['nonce']))
+        a.need('a3a_last_'+label, last[label]['id'],
+               {'deployer':'S7', 'approver':'S6a', 'executor':'S6b'}[label])
+        start = a.qty(last[label]['tx']['nonce'])+1
+        end = pin['senders'][label]['nonce']
+        gaps = spec.get('nonceGaps', [])
+        supplied = [a.qty(g['nonce']) for g in gaps if g['from'] == pin['senders'][label]['address']]
+        a.need('prepin_nonce_'+label, supplied, list(range(start, end)))
+        a.need('prepin_nonce_floor_'+label, end >= start, True)
+        if label == 'deployer':
+            a.need('post_S7_nonce', end, start)
+    return last
+
+
+def validate_nonce_history(pin, inputs):
+    spec = inputs['data']['a3aPlan']
+    last = nonce_expectations(pin, inputs)
+    required(pin, ('a3aHistory',), 'a3a_history_required')
+    a.exact_keys('a3a_history', pin['a3aHistory'], last)
+    for label, step in last.items():
+        proof = pin['a3aHistory'][label]
+        receipt, mined = proof['receipt'], proof['transaction']
+        txhash = spec['receipts'][step['id']]
+        a.need('a3a_mined_'+step['id'], isinstance(receipt, dict), True)
+        a.need('a3a_receipt_hash', receipt['transactionHash'], txhash)
+        a.need('a3a_transaction_hash', mined['hash'], txhash)
+        a.need('a3a_status_'+step['id'], a.qty(receipt['status']), 1)
+        a.need('a3a_before_pin', a.qty(receipt['blockNumber']) <= a.qty(pin['stateBlock']), True)
+        a.need('a3a_block', mined['blockNumber'], receipt['blockNumber'])
+        a.need('a3a_block_hash', mined['blockHash'], receipt['blockHash'])
+        a.mined_identity(mined, step['tx'], step['id'])
+        def replay(method, params):
+            matches = [r['result'] for r in proof['gapReads'] if r['method'] == method and r['params'] == params]
+            a.need('gap_proof_read', bool(matches), True)
+            return matches[0]
+        a.check_gaps(replay, spec, dict(step['tx'], nonce=hex(pin['senders'][label]['nonce'])))
+
+
+def reconcile_nonces(rpc, pin, inputs):
+    spec = inputs['data']['a3aPlan']
+    pin['a3aHistory'] = {}
+    for label, step in nonce_expectations(pin, inputs).items():
+        txhash = spec['receipts'][step['id']]
+        receipt = rpc('eth_getTransactionReceipt', [txhash])
+        a.need('a3a_mined_'+step['id'], isinstance(receipt, dict), True)
+        block = rpc('eth_getBlockByNumber', [receipt['blockNumber'], False])
+        a.need('a3a_canonical_receipt', receipt['blockHash'], block['hash'])
+        reads = []
+        def recording(method, params):
+            result = rpc(method, params)
+            reads.append(dict(method=method, params=params, result=result))
+            return result
+        a.check_gaps(recording, spec, dict(step['tx'], nonce=hex(pin['senders'][label]['nonce'])))
+        pin['a3aHistory'][label] = dict(receipt=receipt,
+            transaction=rpc('eth_getTransactionByHash', [txhash]), gapReads=reads)
+    validate_nonce_history(pin, inputs)
+
+
 def collect(rpc, block, inputs):
+    validate_external(inputs['data'])
     pin = u.collect(rpc, block)
     d = inputs['data']
     block = pin['stateBlock']
@@ -163,7 +288,11 @@ def collect(rpc, block, inputs):
     a.need('anni_eoa', u.code(rpc, who, block), '0x')
     pin['senders']['anni'] = dict(address=who, nonce=n, balance=a.qty(rpc('eth_getBalance', [who, block])))
     a.need('registry_version', a.call(rpc, u.REG, 'version()', block=block), a.cast('abi-encode', 'c(string)', 'Registry-5.8.0'))
+    pin['registryImplementation'] = u.addr_word(int(rpc('eth_getStorageAt', [u.REG, u.IMPL_SLOT, block]), 16))
+    pin['registryImplementationCode'] = u.code(rpc, pin['registryImplementation'], block)
+    reconcile_nonces(rpc, pin, inputs)
     pin['oldAggregator'] = a.address(rpc, u.REG, 'blsAggregator()', block)
+    a.need('fixed_old_aggregator', pin['oldAggregator'], OLD_AGGREGATOR)
     pin['oldActivity'] = old_activity(rpc, pin['oldAggregator'], block)
     a.need('old_aggregator_owner', a.address(rpc, pin['oldAggregator'], 'owner()', block), u.DEPLOYER)
     pin['oldActivity']['dvtProposals'] = dvt_activity(rpc, d['dvt'], block)
@@ -217,10 +346,36 @@ def token_immutables(target, protocol):
         _name=int.from_bytes(empty, 'big'), _version=int.from_bytes(one, 'big'))
 
 
+def safe_hash(inner, n, target=u.TL):
+    domain = a.keccak(a.cast('abi-encode', 'c(bytes32,uint256,address)',
+                      a.keccak('EIP712Domain(uint256 chainId,address verifyingContract)'), a.CHAIN, u.SAFE))
+    typehash = a.keccak('SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)')
+    h = a.keccak(a.cast('abi-encode', 'c(bytes32,address,uint256,bytes32,uint8,uint256,uint256,uint256,address,address,uint256)',
+                        typehash, target, 0, a.keccak(inner), 0, 0, 0, 0, a.ZERO, a.ZERO, n))
+    return a.keccak('0x1901'+domain[2:]+h[2:])
+
+
+def safe_payload(inner, target=u.TL):
+    # Approved-hash signatures: each r is an owner, s=0, v=1. Safe requires ascending owners.
+    signatures = '0x'+''.join(who[2:].zfill(64)+'0'*64+'01' for who in sorted((a.APPROVER, a.EXECUTOR)))
+    return a.calldata('execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)',
+                      target, 0, inner, 0, 0, 0, 0, a.ZERO, a.ZERO, signatures)
+
+
+
 def build_plan(pin, inputs=None):
     a.need('manifest_inputs_required', inputs is not None, True)
     required(inputs, ('sha256', 'data'), 'external_binding')
+    a.typed('0x'+inputs['sha256'], a.HASH32)
+    a.need('external_digest_nonzero', int(inputs['sha256'], 16) != 0, True)
     d = inputs['data']
+    validate_external(d)
+    a.exact_keys('bindings', pin['bindings'], (DVT, COMMITTEE))
+    for code in pin['bindings'].values():
+        a.typed(code, a.HEXDATA)
+        a.need('binding_nonempty', code != '0x', True)
+    a.need('fixed_old_aggregator', pin['oldAggregator'], OLD_AGGREGATOR)
+    validate_nonce_history(pin, inputs)
     required(d, ('verifier', 'pop', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei'), 'manifest_external_complete')
     base_pin = {key: copy.deepcopy(pin[key]) for key in u.PIN_KEYS}
     base_pin['senders'].pop('anni', None)
@@ -241,6 +396,7 @@ def build_plan(pin, inputs=None):
     for label, who in a.SENDERS.items():
         a.need('sender_'+label, pin['senders'][label]['address'], who)
     arts = copy.deepcopy(rebuild())
+    release_gate(inputs, arts, pin)
     counters = {label: x['nonce'] for label, x in pin['senders'].items()}
     steps, addresses, runtimes = [], {}, {}
     safe_n = pin['safeNonce']
@@ -255,13 +411,16 @@ def build_plan(pin, inputs=None):
     def deploy(sid, name, signature='c()', args=(), values=None):
         target = a.create_address(u.DEPLOYER, counters['deployer'])
         addresses[name] = target
-        art = d['verifier']['artifact'] if name == 'OverIssueFraudProofVerifier' else arts['contracts'][name]
+        art = verifier_artifact(d['verifier']) if name == 'OverIssueFraudProofVerifier' else arts['contracts'][name]
         vals = values(target) if callable(values) else (values or {})
         rt = runtime_bytes(art, vals)
         a.need('nonempty_runtime_'+name, rt != '0x', True)
         runtimes[target] = rt
         add(sid, None, art['bytecode']+a.cast('abi-encode', signature, *args)[2:],
             [dict(kind='code', target=target, expected=rt)], creates=target)
+        if name == 'OverIssueFraudProofVerifier':
+            alternate = runtime_bytes(art, {'AGGREGATOR': vals['REGISTRY'], 'REGISTRY': vals['AGGREGATOR']})
+            steps[-1]['readbacks'][0] = dict(kind='verifierCode', target=target, expected=[rt, alternate])
         if name in ('AOAProtocolRegistry', 'xPNTsFactoryV2', 'BLSAggregator'):
             steps[-1]['readbacks'].append(address_pred(target, 'owner()', u.DEPLOYER))
         return target
@@ -314,7 +473,7 @@ def build_plan(pin, inputs=None):
         call('A11.'+suffix, agg, setter+'(uint256)', (2,), [word_pred(agg, getter+'()', 2)])
     verifier = deploy('A12a', 'OverIssueFraudProofVerifier', 'c(address,address)', (agg, u.REG),
         {'AGGREGATOR': int(agg, 16), 'REGISTRY': int(u.REG, 16)})
-    steps[-1]['readbacks'] += [address_pred(verifier, 'AGGREGATOR()', agg), address_pred(verifier, 'REGISTRY()', u.REG)]
+    steps[-1]['readbacks'] += [address_pred(verifier, 'AGGREGATOR()', agg), address_pred(verifier, 'REGISTRY()', u.REG), address_pred(agg, 'REGISTRY()', u.REG)]
     call('A12b', agg, 'proposeFraudProofVerifier(address)', (verifier,),
         [address_pred(agg, 'pendingFraudProofVerifier()', verifier),
          dict(kind='eta', target=agg, signature='pendingFraudProofVerifierReadyAt()', delay=4*DAY)])
@@ -351,6 +510,17 @@ def build_plan(pin, inputs=None):
     operations = {}
     predecessor = a.ZERO32
     for name, data in (('upgrade', upgrade_data), ('activation', activation_data)):
+        if name == 'activation':
+            inner = a.calldata('mint(address,uint256)', u.SP, BUFFER)
+            target = pin['capped']
+            h = safe_hash(inner, safe_n, target)
+            add('B2a_approve', u.SAFE, a.calldata('approveHash(bytes32)', h),
+                [word_pred(u.SAFE, 'approvedHashes(address,bytes32)', 1, a.APPROVER, h)],
+                sender='approver', safeHash=h, inner=inner, safeTarget=target)
+            add('B2a_exec', u.SAFE, safe_payload(inner, target),
+                [word_pred(target, 'balanceOf(address)', BUFFER, u.SP)],
+                sender='executor', safeHash=h, inner=inner, safeTarget=target)
+            safe_n += 1
         op = dict(batch=True, targets=[u.SP]*len(data), data=data, predecessor=predecessor,
                   salt=a.keccak('manifest-v3/'+pin['blockHash']+'/'+inputs['sha256']+'/'+name))
         op['id'] = u.operation_hash(op['targets'], data, predecessor, op['salt'], True)
@@ -358,7 +528,7 @@ def build_plan(pin, inputs=None):
         predecessor = op['id']
         for verb in ('schedule', 'execute'):
             inner = u.op_call(op, verb)
-            h = u.safe_hash(inner, safe_n)
+            h = safe_hash(inner, safe_n)
             sid = name+'_'+verb
             add(sid+'_approve', u.SAFE, a.calldata('approveHash(bytes32)', h),
                 [word_pred(u.SAFE, 'approvedHashes(address,bytes32)', 1, a.APPROVER, h)],
@@ -368,7 +538,7 @@ def build_plan(pin, inputs=None):
                 checks += [dict(kind='eta', target=u.TL, signature='getTimestamp(bytes32)', args=[op['id']], delay=u.DELAY)]
             else:
                 checks += [dict(kind=name)]
-            add(sid+'_exec', u.SAFE, u.safe_payload(inner), checks, sender='executor', safeHash=h, inner=inner, operation=name)
+            add(sid+'_exec', u.SAFE, safe_payload(inner), checks, sender='executor', safeHash=h, inner=inner, operation=name)
             safe_n += 1
     call('B4', agg, 'applyFraudProofVerifier()', (), [address_pred(agg, 'fraudProofVerifier()', verifier)],
          skipIf=address_pred(agg, 'fraudProofVerifier()', verifier))
@@ -385,6 +555,7 @@ def activation_eta_gate(plan, schedule_timestamp, execute_timestamp):
 
 
 def b2_gate(rpc, plan, upgrade_block):
+    a.need('B2_capped_buffer', a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP), BUFFER)
     observed = balances(rpc, plan['pin']['pauseList'])
     a.need('B2_balances', observed['totalTrackedBalance'], observed['protocolRevenue'])
     a.need('B2_revenue', observed['protocolRevenue'] <= BUFFER, True)
@@ -412,6 +583,10 @@ def b4_needed(rpc, plan):
 
 def check_predicate(rpc, p, timestamp=None):
     kind = p['kind']
+    if kind == 'verifierCode':
+        value = u.code(rpc, p['target'], 'latest')
+        a.need('verifier_bound_runtime', value in p['expected'], True)
+        return value
     if kind == 'code':
         value = u.code(rpc, p['target'], 'latest')
     elif kind == 'storage':
@@ -526,15 +701,64 @@ def pre_send(rpc, plan, step, context, measured=False):
         activation_eta_gate(plan, context['activationScheduledAt'], eta)
     if 'safeHash' in step:
         h = a.call(rpc, u.SAFE, 'getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)',
-            u.TL, 0, step['inner'], 0, 0, 0, 0, a.ZERO, a.ZERO, step['safeNonce'])
+            step.get('safeTarget', u.TL), 0, step['inner'], 0, 0, 0, 0, a.ZERO, a.ZERO, step['safeNonce'])
         a.need('onchain_safe_hash', h, step['safeHash'])
-        u.check_op_hash(rpc, plan['operations'][step['operation']])
+        if 'operation' in step:
+            u.check_op_hash(rpc, plan['operations'][step['operation']])
     if measured:
         u.validate_gas(step)
         probe = {k: v for k, v in a.tx_rpc(tx, gas_cap=u.MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
         a.need('fresh_estimate', a.qty(rpc('eth_estimateGas', [probe, 'latest'])) <= a.qty(tx['gas']), True)
         a.need('block_gas_limit', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
     return tx
+
+
+def mint_trace(rpc, step, receipt):
+    trace = rpc('debug_traceTransaction', [receipt['transactionHash'], {'tracer': 'callTracer'}])
+    a.need('mint_trace_top', (trace.get('from', '').lower(), trace.get('to', '').lower(), trace.get('input')),
+           (step['tx']['from'], u.SAFE, step['tx']['data']))
+    a.need('mint_trace_success', bool(trace.get('error')), False)
+    if step['id'].endswith('_exec'):
+        calls = [n for n in a.trace_nodes(trace) if n.get('to', '').lower() == step['safeTarget']]
+        a.need('mint_trace_count', len(calls), 1)
+        a.need('mint_trace_call', (calls[0].get('from', '').lower(), calls[0].get('input'), bool(calls[0].get('error'))),
+               (u.SAFE, step['inner'], False))
+
+
+def unbacked_swap_control(rpc, plan):
+    """Execute the real 6d operation without B2a on a reverted local snapshot."""
+    snap = rpc('evm_snapshot', [])
+    try:
+        a.need('unbacked_initial', a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP), 0)
+        op = plan['operations']['activation']
+        u.wait_until(rpc, max(plan['activationScheduleNotBefore'],
+                             u.uints(a.call(rpc, u.SP, 'gasParams()'))[8]))
+        u.receipt(rpc, u.fixture_tx(rpc, u.SAFE, u.TL, u.op_call(op, 'schedule')))
+        u.wait_until(rpc, a.word(rpc, u.TL, 'getTimestamp(bytes32)', op['id']))
+        # Deliberately bypass pre_send only for the negative control.
+        u.receipt(rpc, u.fixture_tx(rpc, u.SAFE, u.TL, u.op_call(op, 'execute')))
+        tracked = a.word(rpc, u.SP, 'totalTrackedBalance()')
+        backing = a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP)
+        a.need('unbacked_shortfall', tracked-backing, BUFFER)
+        try:
+            b2_gate(rpc, plan, '0x0')
+        except a.Gate as error:
+            a.need('unbacked_refusal_gate', error.record['gate'], 'B2_capped_buffer')
+        else:
+            raise a.Gate('unbacked_build_refusal', 'accepted', 'B2 rejection')
+        candidate = build_plan(plan['pin'], plan['externalInputs'])
+        candidate['steps'] = [s for s in candidate['steps'] if not s['id'].startswith('B2a_')]
+        try:
+            validate_plan(candidate, plan['externalInputs'])
+        except a.Gate as error:
+            a.need('unbacked_plan_refusal_gate', error.record['gate'], 'manifest_length')
+        else:
+            raise a.Gate('unbacked_plan_refusal', 'accepted', 'missing mint rejection')
+        return dict(control='unbacked_swap', tracked=tracked, backing=backing,
+                    shortfall=tracked-backing, buildRefused=True, gate='B2_capped_buffer',
+                    planGate='manifest_length')
+    finally:
+        a.need('unbacked_restore', rpc('evm_revert', [snap]), True)
 
 
 def controls_at(rpc, plan, sid, controls):
@@ -569,6 +793,8 @@ def controls_at(rpc, plan, sid, controls):
                 (plan['addresses']['xPNTsTokenV2'], u.DEPLOYER), factory_error)
         finally:
             a.need('factory_control_restore', rpc('evm_revert', [snap]), True)
+    if sid == 'B2a_approve':
+        controls.append(unbacked_swap_control(rpc, plan))
     if sid == 'activation_schedule_approve':
         negative('early_unpause', u.DEPLOYER, u.SP, 'setGlobalPaused(bool)', ('false',), 'Unauthorized()')
         negative('early_bls', u.TL, u.SP, 'applyBLSAggregator()', (), 'InvalidConfiguration()')
@@ -604,7 +830,8 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         controls_at(rpc, plan, sid, controls)
         if sid == 'B4' and not b4_needed(rpc, plan):
             if not calibrate:
-                a.need('frozen_B4_skip', step['skipped'], True)
+                # TODO: resolve keeper-applied nonce handling before implementing a sender.
+                raise a.Gate('b4_preapplied_pending_design', 'already applied', 'sender design decision')
             step['skipped'] = True
             records.append(dict(step=sid, skipped=True))
             continue
@@ -640,6 +867,8 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
             context['transferred'] = True
         if sid == 'activation_execute_exec':
             context['activated'] = True
+            context['after6d'] = balances(rpc, plan['pin']['pauseList'])
+            context['after6d']['cappedBalance'] = a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP)
         if sid == 'A16':
             context['frozen'] = True
             u.check_inventory(rpc, plan['pin'])
@@ -649,7 +878,10 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
             context['activationScheduledAt'] = timestamp
             activation_eta_gate(plan, timestamp, a.word(rpc, u.TL, 'getTimestamp(bytes32)', plan['operations']['activation']['id']))
         if 'safeHash' in step:
-            u.safe_trace(rpc, plan, step, r)
+            if 'safeTarget' in step:
+                mint_trace(rpc, step, r)
+            else:
+                u.safe_trace(rpc, plan, step, r)
             if sid.endswith('_exec'):
                 u.safe_exec_events(r['logs'], step['safeHash'])
         step['skipped'] = False
@@ -665,8 +897,9 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     accounting['cappedBalance'] = a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP)
     a.need('post_swap_tracked', accounting['totalTrackedBalance'], BUFFER)
     a.need('post_swap_revenue', accounting['protocolRevenue'], BUFFER)
-    a.need('post_swap_capped_balance', accounting['cappedBalance'], 0)
-    solvency = solvency_probe(rpc, plan, accounting)
+    a.need('post_swap_capped_balance', accounting['cappedBalance'], BUFFER)
+    a.need('accounting_unchanged_since_6d', accounting, context['after6d'])
+    solvency = solvency_probe(rpc, plan, context['after6d'])
     a.write_json(out/'manifest-solvency.json', solvency)
     a.need('post_swap_solvency', solvency['allSolvent'], True)
     budget(plan)
@@ -678,11 +911,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
 
 
 def solvency_probe(rpc, plan, initial):
-    """Observe the design's buffer across real deposits/withdrawal, then revert.
-
-    The manifest is unchanged. A known deficit is evidence and a hard STOP,
-    never an implicit mint/top-up added to the reviewed transaction sequence.
-    """
+    """Observe B2a backing through deposit, real slash accrual and excess withdrawal."""
     a.need('solvency_probe_local', getattr(rpc, 'local', False), True)
     snap = rpc('evm_snapshot', [])
     observations = [dict(stage='after_swap', **initial)]
@@ -700,12 +929,22 @@ def solvency_probe(rpc, plan, initial):
             (u.DEPLOYER, u.SP, 'deposit(uint256)', (10**18,))):
             u.receipt(rpc, u.fixture_tx(rpc, sender, target, a.calldata(sig, *args)))
         observe('after_first_deposit')
+        # Slashing transfers deposited accounting to revenue without changing backing.
+        u.receipt(rpc, u.fixture_tx(rpc, u.TL, u.SP, a.calldata('queueSlash(address)', u.DEPLOYER)))
+        u.wait_until(rpc, a.qty(a.block_data(rpc, 'latest')['timestamp'])+DAY)
+        u.receipt(rpc, u.fixture_tx(rpc, u.TL, u.SP,
+            a.calldata('slashOperator(address,uint8,uint256,string)', u.DEPLOYER, 0, BUFFER, 'solvency fixture')))
+        a.need('fixture_revenue_accrued', a.word(rpc, u.SP, 'protocolRevenue()'), 2*BUFFER)
         u.receipt(rpc, u.fixture_tx(rpc, u.TL, u.SP,
             a.calldata('withdrawProtocolRevenue(address,uint256)', u.DEPLOYER, BUFFER)))
         observe('after_revenue_withdrawal')
     finally:
         a.need('solvency_fixture_restore', rpc('evm_revert', [snap]), True)
     for state in observations:
+        state['difference'] = state['cappedBalance']-state['totalTrackedBalance']
+        state['explanation'] = ('equal' if state['difference'] == 0 else
+                                'missing B2a backing' if state['difference'] == -BUFFER else 'unexpected balance difference')
+        a.need('solvency_difference_explained', state['difference'] in (0, -BUFFER), True)
         state['solvent'] = state['cappedBalance'] >= state['totalTrackedBalance']
         state['shortfall'] = max(0, state['totalTrackedBalance']-state['cappedBalance'])
         a.need('solvency_accounting_sum', state['totalTrackedBalance'],
@@ -739,7 +978,6 @@ def main(argv=None):
         a.need('output_empty', not out.exists() or (out.is_dir() and not any(out.iterdir())), True)
         out.mkdir(parents=True, exist_ok=True)
         inputs = external(args.inputs)
-        release_gate(inputs, rebuild())
         if args.command == 'plan':
             pin = a.plan_json(args.pin.read_bytes())
             plan = build_plan(pin, inputs)

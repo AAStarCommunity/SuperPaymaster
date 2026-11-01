@@ -15,10 +15,11 @@ import manifest_exec as m
 import test_sp_upgrade_exec as base
 
 a, u = m.a, m.u
+REAL_RELEASE_GATE = m.release_gate
 ANNI = '0x'+'66'*20
-DVT = '0x'+'77'*20
-COMMITTEE = '0x'+'88'*20
-OLD = '0x'+'99'*20
+DVT = m.DVT
+COMMITTEE = m.COMMITTEE
+OLD = m.OLD_AGGREGATOR
 ART = dict(commit='a'*40, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
     bytecode='0x60006000f3', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
@@ -50,7 +51,7 @@ def input_data(p):
     return dict(anni=ANNI, dvt=DVT, committee=COMMITTEE, sampled=sorted([u.DEPLOYER, ANNI]),
         depositTargetWei=10**18, releaseTag='unit-fixture', registryBaselineCommit='b'*40,
         releaseEvidence={key:'c'*64 for key in ('conformance','mutation','slither','sourceVerificationPlan')},
-        verifier=dict(commit='d'*40, ciSha256='e'*64, buildSha256='f'*64,
+        verifier=dict(commit=m.VERIFIER_COMMIT, artifactPath='unit-fixture', ciSha256='e'*64, buildSha256=m.VERIFIER_SHA256,
                       artifact=dict(bytecode='0x60006000f3', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
 
 
@@ -60,6 +61,7 @@ class FakeChain:
         self.plan = plan
         self.balances = dict(totalTrackedBalance=m.BUFFER, protocolRevenue=m.BUFFER,
                             operatorBalances={x:0 for x in plan['pin']['pauseList']})
+        self.backing = m.BUFFER
         self.pending = 0
         self.paused = 1
         self.verifier = a.ZERO
@@ -86,6 +88,8 @@ class FakeChain:
             for sig, value in calls.items():
                 if data == a.calldata(sig):
                     return a.cast('abi-encode', 'c(uint256)', value)
+            if data == a.calldata('balanceOf(address)', u.SP):
+                return a.cast('abi-encode', 'c(uint256)', self.backing)
             for who, amount in self.balances['operatorBalances'].items():
                 if data == a.calldata('operators(address)', who):
                     return a.cast('abi-encode', 'c(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)',
@@ -102,6 +106,32 @@ class ManifestTests(unittest.TestCase):
         self.path = Path(self.tmp.name)/'external.json'
         self.pin = pin()
         self.data = input_data(self.pin)
+        evidence = Path(self.tmp.name)/'release-evidence.txt'
+        evidence.write_text('Synthetic unit-test release evidence, never a release pass.')
+        self.data['releaseEvidence'] = {key:dict(path=str(evidence), sha256=hashlib.sha256(evidence.read_bytes()).hexdigest())
+            for key in self.data['releaseEvidence']}
+        history = Path(self.tmp.name)/'a3a.json'
+        history.write_text(json.dumps(dict(steps=[dict(id=sid, tx={'from': self.pin['senders'][label]['address'],
+            'nonce': hex(self.pin['senders'][label]['nonce']-1), 'data':'0x'}) for label, sid in
+            (('deployer', 'S7'), ('approver', 'S6a'), ('executor', 'S6b'))])))
+        self.data['a3aPlan'] = dict(path=str(history), sha256=hashlib.sha256(history.read_bytes()).hexdigest())
+        self.data['a3aPlan']['receipts'] = {sid:'0x'+str(i+1)*64 for i, sid in enumerate(('S7','S6a','S6b'))}
+        self.pin['a3aHistory'] = {}
+        rows = json.loads(history.read_text())['steps']
+        for label, step in zip(('deployer','approver','executor'), rows):
+            txhash = self.data['a3aPlan']['receipts'][step['id']]
+            self.pin['a3aHistory'][label] = dict(gapReads=[],
+                receipt=dict(transactionHash=txhash, status='0x1', blockNumber='0x1', blockHash=base.HASH),
+                transaction=dict(step['tx'], hash=txhash, type='0x2', input='0x', blockNumber='0x1', blockHash=base.HASH))
+        ci = Path(self.tmp.name)/'ci.json'
+        ci.write_text(json.dumps(dict(commit=m.VERIFIER_COMMIT, status='PASS')))
+        self.data['verifier'].update(ciPath=str(ci), ciSha256=hashlib.sha256(ci.read_bytes()).hexdigest())
+        fixture_artifact = self.data['verifier'].pop('artifact')
+        self.real_verifier_artifact = m.verifier_artifact
+        for target, name, value in ((m, 'verifier_artifact', fixture_artifact), (m, 'release_gate', None)):
+            mock = patch.object(target, name, return_value=value)
+            mock.start()
+            self.addCleanup(mock.stop)
         self.path.write_text(json.dumps(self.data))
         self.inputs = m.external(self.path)
         self.patch = patch.object(m, 'rebuild', return_value=ART)
@@ -149,13 +179,13 @@ class ManifestTests(unittest.TestCase):
 
     def test_safe_nonces_hashes(self):
         steps = [s for s in self.plan['steps'] if 'safeHash' in s]
-        for i in range(4):
+        for i in range(5):
             approval, execution = steps[2*i:2*i+2]
             n = self.pin['safeNonce']+i
             self.assertEqual(approval['safeNonce'], n)
             self.assertEqual(execution['safeNonce'], n)
-            self.assertEqual(approval['safeHash'], u.safe_hash(approval['inner'], n))
-            self.assertEqual(execution['tx']['data'], u.safe_payload(execution['inner']))
+            self.assertEqual(approval['safeHash'], m.safe_hash(approval['inner'], n, approval.get('safeTarget', u.TL)))
+            self.assertEqual(execution['tx']['data'], m.safe_payload(execution['inner'], execution.get('safeTarget', u.TL)))
 
     def test_eta_rule(self):
         eta = self.pin['pendingAPNTsTokenEta']
@@ -170,7 +200,7 @@ class ManifestTests(unittest.TestCase):
         self.assertTrue(result['inflightProof']['continuousGlobalPause'])
 
     def test_b2_stop_conditions(self):
-        for mutate in (lambda c:c.balances.update(totalTrackedBalance=m.BUFFER+1),
+        for mutate in (lambda c:setattr(c, 'backing', 0), lambda c:setattr(c, 'backing', m.BUFFER+1), lambda c:c.balances.update(totalTrackedBalance=m.BUFFER+1),
                        lambda c:c.balances.update(totalTrackedBalance=m.BUFFER+1, protocolRevenue=m.BUFFER+1),
                        lambda c:setattr(c, 'pending', 1), lambda c:setattr(c, 'unpause', True),
                        lambda c:setattr(c, 'paused', 0),
@@ -304,32 +334,51 @@ class ManifestTests(unittest.TestCase):
         pauses = {p['args'][0]:p['expected'] for p in checks if p.get('signature') == 'operators(address)'}
         self.assertEqual(pauses, {u.DEPLOYER:0, ANNI:0, base.HOLDER:1})
 
-    def test_solvency_probe_records_deficit_and_restores(self):
-        chain = FakeChain(self.plan)
-        chain.local = True
-        history = []
-        def rpc(method, params):
-            history.append(method)
-            if method == 'evm_snapshot': return 'snap'
-            if method == 'evm_revert': return True
-            raise AssertionError(method)
-        rpc.local = True
-        initial = dict(chain.balances, cappedBalance=0)
-        deposited = dict(totalTrackedBalance=m.BUFFER+10**18, protocolRevenue=m.BUFFER,
-                         operatorBalances={u.DEPLOYER:10**18, ANNI:0, base.HOLDER:0})
-        withdrawn = dict(totalTrackedBalance=10**18, protocolRevenue=0,
-                         operatorBalances=deposited['operatorBalances'])
-        with patch.object(a, 'address', return_value=u.SAFE), patch.object(u, 'fixture_tx', return_value={}), \
-             patch.object(u, 'receipt', return_value={}), patch.object(m, 'balances', side_effect=[deposited, withdrawn]), \
-             patch.object(a, 'word', side_effect=[10**18, 10**18-m.BUFFER]):
-            result = m.solvency_probe(rpc, self.plan, initial)
-        self.assertFalse(result['allSolvent'])
-        self.assertEqual([x['shortfall'] for x in result['observations']], [m.BUFFER]*3)
-        self.assertEqual(history, ['evm_snapshot', 'evm_revert'])
+    def test_solvency_probe_accrues_before_withdrawing(self):
+        for backing in (0, m.BUFFER):
+            state = dict(tracked=m.BUFFER, revenue=m.BUFFER, backing=backing, deposit=0, queued=False)
+            history = []
+            def rpc(method, params):
+                history.append(method)
+                if method == 'evm_snapshot': return 'snap'
+                if method == 'evm_revert': return True
+                raise AssertionError(method)
+            rpc.local = True
+            def balances(*args):
+                return dict(totalTrackedBalance=state['tracked'], protocolRevenue=state['revenue'],
+                            operatorBalances={u.DEPLOYER:state['deposit']})
+            def receipt(r, tx):
+                data = tx
+                if data == a.calldata('deposit(uint256)', 10**18):
+                    state['deposit'] += 10**18
+                    state['backing'] += 10**18
+                    state['tracked'] += 10**18
+                if data == a.calldata('queueSlash(address)', u.DEPLOYER): state['queued'] = True
+                if data.startswith(a.keccak('slashOperator(address,uint8,uint256,string)')[:10]):
+                    self.assertTrue(state['queued'])
+                    state['revenue'] += m.BUFFER
+                    state['deposit'] -= m.BUFFER
+                if data.startswith(a.keccak('withdrawProtocolRevenue(address,uint256)')[:10]):
+                    if state['revenue']-m.BUFFER < m.BUFFER:
+                        raise a.Gate('InsufficientRevenue', state['revenue'], 2*m.BUFFER)
+                    state['revenue'] -= m.BUFFER
+                    state['tracked'] -= m.BUFFER
+                    state['backing'] -= m.BUFFER
+                return {}
+            initial = dict(balances(), cappedBalance=backing)
+            with patch.object(a, 'address', return_value=u.SAFE), \
+                 patch.object(u, 'fixture_tx', side_effect=lambda r,s,t,d:d), \
+                 patch.object(u, 'receipt', side_effect=receipt), patch.object(m, 'balances', side_effect=balances), \
+                 patch.object(a, 'word', side_effect=lambda r,t,s,*args: state['revenue'] if s == 'protocolRevenue()' else state['backing']), \
+                 patch.object(a, 'block_data', return_value={'timestamp':'0x1'}), patch.object(u, 'wait_until'):
+                result = m.solvency_probe(rpc, self.plan, initial)
+            self.assertEqual(result['allSolvent'], backing == m.BUFFER)
+            self.assertEqual([x['shortfall'] for x in result['observations']], [m.BUFFER-backing]*3)
+            self.assertEqual(history, ['evm_snapshot', 'evm_revert'])
 
     def test_all_requested_controls_registered(self):
         self.assertEqual(set(m.CONTROLS), {'early_unpause','factory_binding','early_bls','early_swap',
-            'funded_swap','old_reputation','registry_nonowner','early_verifier','repeat_verifier','verifier_skip'})
+            'funded_swap','old_reputation','registry_nonowner','early_verifier','repeat_verifier','verifier_skip','unbacked_swap'})
 
 
     def rehearse_fake(self, already_applied=False, solvent=True):
@@ -353,7 +402,7 @@ class ManifestTests(unittest.TestCase):
             if sig == 'nonce()': return state['safe']
             if sig == 'getTimestamp(bytes32)': return state['etas'][args[0]]
             if sig == 'pendingFraudProofVerifierReadyAt()': return state['verifierEta']
-            if sig == 'balanceOf(address)': return 0
+            if sig == 'balanceOf(address)': return m.BUFFER
             raise AssertionError(sig)
         def measure(remote, r, plan, step, overrides, ts, calibrate):
             step.update(executionTimestamp=ts, estimateGas=100000, localEstimateGas=100000,
@@ -390,7 +439,7 @@ class ManifestTests(unittest.TestCase):
                 *u.GAS, *u.GAS, state['gasEta'])),
             patch.object(a, 'mined_identity'), patch.object(a, 'trace_overrides'),
             patch.object(u, 'measure_step', side_effect=measure), patch.object(u, 'receipt', side_effect=receipt),
-            patch.object(u, 'safe_trace'), patch.object(u, 'safe_exec_events'), patch.object(u, 'check_inventory'),
+            patch.object(m, 'mint_trace'), patch.object(u, 'safe_trace'), patch.object(u, 'safe_exec_events'), patch.object(u, 'check_inventory'),
             patch.object(u, 'assert_frozen'), patch.object(m, 'pre_send', side_effect=pre),
             patch.object(m, 'controls_at', side_effect=controls), patch.object(m, 'check_predicate', return_value=True), patch.object(m, 'batch_readback', return_value={}),
             patch.object(m, 'b4_needed', return_value=not already_applied),
@@ -452,6 +501,159 @@ class ManifestTests(unittest.TestCase):
             del inputs['data'][key]
             with self.assertRaises(a.Gate):
                 m.build_plan(self.pin, inputs)
+
+    def test_builder_rejects_empty_sample_and_bindings(self):
+        for field in ('sampled', 'bindings'):
+            inputs, pin = copy.deepcopy(self.inputs), copy.deepcopy(self.pin)
+            if field == 'sampled': inputs['data']['sampled'] = []
+            else: pin['bindings'] = {}
+            with self.assertRaises(a.Gate): m.build_plan(pin, inputs)
+
+    def test_zero_attestations_refused(self):
+        for key in ('ciSha256', 'buildSha256'):
+            bad = copy.deepcopy(self.inputs)
+            bad['data']['verifier'][key] = '0'*64
+            with self.assertRaises(a.Gate): m.build_plan(self.pin, bad)
+
+    def test_extra_deployer_transaction_before_pin_refused(self):
+        bad = copy.deepcopy(self.pin)
+        bad['senders']['deployer']['nonce'] += 1
+        with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
+
+    def test_fixed_contract_identities(self):
+        for key in ('dvt', 'committee'):
+            bad = copy.deepcopy(self.inputs)
+            bad['data'][key] = ANNI
+            with self.assertRaises(a.Gate): m.build_plan(self.pin, bad)
+
+    def test_verifier_file_provenance(self):
+        art = dict(bytecode={'object':'0x6000'}, deployedBytecode=dict(object='0x'+'00'*160,
+            immutableReferences={'5519':[dict(start=i, length=32) for i in (0,32,64)],
+                                 '5522':[dict(start=i, length=32) for i in (96,128)]}))
+        path = Path(self.tmp.name)/'verifier.json'
+        path.write_text(json.dumps(art))
+        v = dict(self.data['verifier'], artifactPath=str(path))
+        with self.assertRaises(a.Gate): self.real_verifier_artifact(v)
+        # Exercise parsing using an explicitly synthetic reviewed identity.
+        with patch.object(m, 'VERIFIER_SHA256', hashlib.sha256(path.read_bytes()).hexdigest()), \
+             patch.object(m, 'VERIFIER_CREATION', a.keccak('0x6000')):
+            parsed = self.real_verifier_artifact(v)
+            self.assertEqual(len(parsed['runtimeIdentity']['ranges']), 5)
+            bad = dict(v, commit='0'*40)
+            with self.assertRaises(a.Gate): self.real_verifier_artifact(bad)
+            art['deployedBytecode']['immutableReferences'] = {}
+            path.write_text(json.dumps(art))
+            with patch.object(m, 'VERIFIER_SHA256', hashlib.sha256(path.read_bytes()).hexdigest()):
+                with self.assertRaises(a.Gate): self.real_verifier_artifact(v)
+
+    def test_registry_baseline_rejects_head_and_runtime_mismatch(self):
+        for baseline in (ART['commit'], 'b'*40):
+            def run(cmd, **kw):
+                return SimpleNamespace(returncode=0, stdout=(ART['commit'] if 'refs/tags/' in cmd[-1] else baseline))
+            pin = dict(self.pin, registryImplementation=ANNI, registryImplementationCode='0xdead')
+            with patch.object(m.subprocess, 'run', side_effect=run), \
+                 patch.object(a, 'compile_commit', return_value=({'Registry':ART['contracts']['Registry']}, {})):
+                with self.assertRaises(a.Gate) as caught:
+                    REAL_RELEASE_GATE(self.inputs, ART, pin)
+            self.assertEqual(caught.exception.record['gate'],
+                'registry_baseline_not_head' if baseline == ART['commit'] else 'registry_baseline_runtime')
+
+    def test_a12a_getters_are_enforced(self):
+        step = self.step('A12a')
+        for broken in ('AGGREGATOR()', 'REGISTRY()'):
+            def call(rpc, target, sig, *args):
+                value = ANNI if target == step['creates'] and sig == broken else (
+                    self.plan['addresses']['BLSAggregator'] if sig == 'AGGREGATOR()' else u.REG)
+                return '0x'+value[2:].zfill(64)
+            with patch.object(a, 'call', side_effect=call), patch.object(u, 'code', return_value='0x6000'):
+                with self.subTest(broken=broken), self.assertRaises(a.Gate):
+                    for pred in step['readbacks']: m.check_predicate(None, pred)
+
+    def test_a12a_runtime_is_enforced(self):
+        with patch.object(u, 'code', return_value='0xdead'), self.assertRaises(a.Gate):
+            m.check_predicate(None, self.step('A12a')['readbacks'][0])
+
+    def pre_send_fixture(self, bad_runtime=False, bad_buffer=False):
+        chain = FakeChain(self.plan)
+        chain.local = True
+        if bad_buffer: chain.backing = 0
+        step = copy.deepcopy(self.step('activation_execute_exec'))
+        del step['safeHash']
+        self.plan['pin']['oldActivity'] = {'dvtProposals':[]}
+        real_word = a.word
+        def word(r, t, sig, *args, **kw):
+            if sig == 'nonce()': return step['safeNonce']
+            if sig == 'pendingAPNTsTokenEta()': return self.pin['pendingAPNTsTokenEta']
+            if sig == 'getTimestamp(bytes32)': return self.pin['pendingAPNTsTokenEta']
+            return real_word(r, t, sig, *args, **kw)
+        def rpc(method, params):
+            if method == 'eth_chainId': return hex(a.CHAIN)
+            return chain(method, params)
+        rpc.local = True
+        with patch.object(a, 'nonce', return_value=a.qty(step['tx']['nonce'])), \
+             patch.object(a, 'word', side_effect=word), \
+             patch.object(a, 'address', side_effect=lambda r,t,s,*args: self.pin['capped'] if s == 'pendingAPNTsToken()' else u.DEPLOYER), \
+             patch.object(u, 'safe_state', return_value=self.pin['safe']), patch.object(u, 'governance'), \
+             patch.object(u, 'code', return_value='0xdead' if bad_runtime else '0x6000'), \
+             patch.object(m, 'old_activity', return_value={}), patch.object(m, 'dvt_activity', return_value=[]), \
+             patch.object(u, 'assert_frozen'):
+            return m.pre_send(rpc, self.plan, step, dict(frozen=True, upgradeBlock='0x150',
+                activationScheduledAt=self.pin['pendingAPNTsTokenEta']-u.DELAY))
+
+    def test_pre_send_real_b2_is_required(self):
+        self.pre_send_fixture()
+        with self.assertRaises(a.Gate) as caught: self.pre_send_fixture(bad_buffer=True)
+        self.assertEqual(caught.exception.record['gate'], 'B2_capped_buffer')
+
+    def test_pre_send_bound_runtime_is_required(self):
+        with self.assertRaises(a.Gate) as caught: self.pre_send_fixture(bad_runtime=True)
+        self.assertEqual(caught.exception.record['gate'], 'bound_runtime')
+
+    def test_b2a_order_and_missing_mint_refused(self):
+        ids = [s['id'] for s in self.plan['steps']]
+        self.assertLess(ids.index('upgrade_execute_exec'), ids.index('B2a_approve'))
+        self.assertLess(ids.index('B2a_exec'), ids.index('activation_schedule_approve'))
+        step = self.step('B2a_exec')
+        self.assertEqual(step['safeTarget'], self.pin['capped'])
+        self.assertEqual(step['inner'], a.calldata('mint(address,uint256)', u.SP, m.BUFFER))
+        self.plan['steps'].remove(step)
+        with self.assertRaises(a.Gate): m.validate_plan(self.plan, self.inputs)
+
+    def test_frozen_b4_preapplied_pending_design(self):
+        plan = copy.deepcopy(self.plan)
+        plan['steps'] = [self.step('B4')]
+        def rpc(*args): return True
+        rpc.local = True
+        rpc.engine_process = SimpleNamespace()
+        with patch.object(m, 'validate_plan'), patch.object(a, 'process_alive'), \
+             patch.object(m, 'controls_at'), patch.object(m, 'b4_needed', return_value=False):
+            with self.assertRaises(a.Gate) as caught:
+                m.run_manifest(None, rpc, plan, Path(self.tmp.name), calibrate=False)
+        self.assertEqual(caught.exception.record['gate'], 'b4_preapplied_pending_design')
+
+    def test_s7_receipt_status_and_nonce_required_by_builder(self):
+        for field in ('status', 'nonce'):
+            bad = copy.deepcopy(self.pin)
+            proof = bad['a3aHistory']['deployer']
+            if field == 'status': proof['receipt']['status'] = '0x0'
+            else: proof['transaction']['nonce'] = '0x0'
+            with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
+
+    def test_builder_runs_release_validation(self):
+        with patch.object(m, 'release_gate', side_effect=a.Gate('release_test', False, True)):
+            with self.assertRaises(a.Gate) as caught: m.build_plan(self.pin, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'release_test')
+
+    def test_unproven_approver_executor_gaps_refused(self):
+        for label in ('approver', 'executor'):
+            bad = copy.deepcopy(self.pin)
+            bad['senders'][label]['nonce'] += 1
+            with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
+
+    def test_format_only_release_hash_refused(self):
+        bad = copy.deepcopy(self.inputs)
+        bad['data']['releaseEvidence']['conformance'] = 'a'*64
+        with self.assertRaises(a.Gate): m.build_plan(self.pin, bad)
 
     def test_sign_send_refused(self):
         self.assertEqual(m.main(['sign']), 3)
