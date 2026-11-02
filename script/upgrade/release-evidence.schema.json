@@ -579,7 +579,9 @@
         "result",
         "spCommit",
         "aggregatorVersion",
-        "suites"
+        "suites",
+        "ciRun",
+        "acceptedFailures"
       ],
       "properties": {
         "kind": {
@@ -627,7 +629,8 @@
           }
         },
         "result": {
-          "const": "PASS"
+          "const": "PASS",
+          "description": "PASS refers only to the 23 required suite results, not the overall CI run."
         },
         "spCommit": {
           "type": "string",
@@ -660,8 +663,173 @@
               "result": "PASS"
             }
           }
+        },
+        "ciRun": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "runId",
+            "headSha",
+            "overall",
+            "jobs"
+          ],
+          "properties": {
+            "runId": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "headSha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "overall": {
+              "type": "string",
+              "enum": [
+                "failure",
+                "success"
+              ]
+            },
+            "jobs": {
+              "type": "object",
+              "minProperties": 1,
+              "description": "Exact job names are unique keys; duplicate JSON keys must be rejected before schema validation.",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^\\S(?:[^\\r\\n]*\\S)?$(?![\\s\\S])"
+              },
+              "properties": {
+                "Security Audit": {
+                  "type": "string",
+                  "enum": [
+                    "success",
+                    "skipped",
+                    "failure"
+                  ]
+                },
+                "CI Success": {
+                  "type": "string",
+                  "enum": [
+                    "success",
+                    "skipped",
+                    "failure"
+                  ]
+                }
+              },
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "success",
+                  "skipped"
+                ]
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "overall": {
+                    "const": "success"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "jobs": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "enum": [
+                        "success",
+                        "skipped"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "overall": {
+                    "const": "failure"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "jobs": {
+                    "type": "object",
+                    "required": [
+                      "Security Audit"
+                    ],
+                    "properties": {
+                      "Security Audit": {
+                        "const": "failure"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "acceptedFailures": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 1,
+          "description": "DSR ruling 1 allows only Security Audit (npm). CI Success is derived and is never an acceptance entry.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "reference"
+            ],
+            "properties": {
+              "name": {
+                "const": "Security Audit"
+              },
+              "reference": {
+                "type": "string",
+                "pattern": "^\\S(?:[^\\r\\n]*\\S)?$(?![\\s\\S])",
+                "description": "Reference to DSR's acceptance (2026-11-02, ruling 1)."
+              }
+            }
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ciRun": {
+                "properties": {
+                  "jobs": {
+                    "required": [
+                      "Security Audit"
+                    ],
+                    "properties": {
+                      "Security Audit": {
+                        "const": "failure"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "acceptedFailures": {
+                "type": "array",
+                "minItems": 1,
+                "items": {}
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "type": "object",
