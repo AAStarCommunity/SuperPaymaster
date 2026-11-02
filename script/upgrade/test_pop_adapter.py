@@ -191,9 +191,9 @@ class PopAdapterTests(unittest.TestCase):
     def test_atomic_output_failures(self):
         args, inputs, out = self.cli_files()
         real_replace = p.os.replace
-        real_file = p.tempfile.NamedTemporaryFile
+        real_fdopen = p.os.fdopen
         def partial_file(*args, **kwargs):
-            output = real_file(*args, **kwargs)
+            output = real_fdopen(*args, **kwargs)
             write = output.write
             def fail(text):
                 write(text[:10])
@@ -206,7 +206,7 @@ class PopAdapterTests(unittest.TestCase):
             self.assertEqual(json.loads(Path(src).read_text())['exportBlock'], 999)
             raise OSError('replace failed')
         for existing in (False, True):
-            for target, effect in (('tempfile.NamedTemporaryFile', partial_file),
+            for target, effect in (('os.fdopen', partial_file),
                                    ('os.fsync', OSError('flush failed')),
                                    ('os.replace', fail_replace)):
                 with self.subTest(existing=existing, target=target):
