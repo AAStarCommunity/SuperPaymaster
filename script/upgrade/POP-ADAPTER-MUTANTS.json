@@ -3,7 +3,7 @@
   "scope": "Offline synthetic format/binding checks and real DVT export rejection checks; no pairing or fork evidence",
   "method": "In-memory source mutation: bypass named require gates; run the named test; restore original module and rerun. Compound controls remove redundant calldata checks together.",
   "source": "script/upgrade/pop_adapter.py",
-  "sourceSha256": "1addf8c03fdca9ae32c9b3610ea25b36c0f9e388bff25c0a86a7ceb95efaea12",
+  "sourceSha256": "45c71ddc6543d00bc9c61d09a36f4499276272eea42f06ef8779850d419f247e",
   "mutants": [
     {
       "removedGuards": [
@@ -263,6 +263,112 @@
       "failures": 1,
       "errors": 0,
       "restored": "PASS"
+    },
+    {
+      "mutation": "non_atomic_output",
+      "replacement": {
+        "before": "atomic_write(args.out, json.dumps(result, indent=2)+'\\n')",
+        "after": "Path(args.out).write_text(json.dumps(result, indent=2)+'\\n')"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_atomic_output_failures",
+      "mutated": "FAIL",
+      "failures": 7,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "omit_temporary_cleanup",
+      "replacement": {
+        "before": "temporary.unlink(missing_ok=True)",
+        "after": "pass"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_atomic_output_failures",
+      "mutated": "FAIL",
+      "failures": 6,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "allow_duplicate_keys",
+      "replacement": {
+        "before": "json.loads(raw, object_pairs_hook=unique_object)",
+        "after": "json.loads(raw)"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_duplicate_json_keys",
+      "mutated": "FAIL",
+      "failures": 9,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "uncaught_deep_nesting",
+      "replacement": {
+        "before": "RecursionError",
+        "after": "ZeroDivisionError"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_deep_json_stops",
+      "mutated": "FAIL",
+      "failures": 0,
+      "errors": 4,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "allow_negative_export_block",
+      "replacement": {
+        "before": "export['block'] >= 0",
+        "after": "True"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_block",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "omit_export_block",
+      "replacement": {
+        "before": "exportBlock=export['block']",
+        "after": "exportBlock=None"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_export_block_recorded",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "omit_fork_lower_bound",
+      "replacement": {
+        "before": "export['block'] >= fork_block",
+        "after": "True"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_export_block_fork_boundary",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "allow_invalid_fork_block",
+      "replacement": {
+        "before": "type(fork_block) is int and fork_block >= 0",
+        "after": "True"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_invalid_fork_block",
+      "mutated": "FAIL",
+      "failures": 4,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "overstate_cast_authenticity",
+      "source": "script/upgrade/README.md",
+      "test": "test_pop_adapter.PopAdapterTests.test_readme_trust_boundary",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
     }
-  ]
+  ],
+  "previousSourceSha256": "1addf8c03fdca9ae32c9b3610ea25b36c0f9e388bff25c0a86a7ceb95efaea12"
 }
