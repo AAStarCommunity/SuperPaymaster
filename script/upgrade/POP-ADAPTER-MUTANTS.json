@@ -1,0 +1,268 @@
+{
+  "schema": 1,
+  "scope": "Offline synthetic format/binding checks and real DVT export rejection checks; no pairing or fork evidence",
+  "method": "In-memory source mutation: bypass named require gates; run the named test; restore original module and rerun. Compound controls remove redundant calldata checks together.",
+  "source": "script/upgrade/pop_adapter.py",
+  "sourceSha256": "1addf8c03fdca9ae32c9b3610ea25b36c0f9e388bff25c0a86a7ceb95efaea12",
+  "mutants": [
+    {
+      "removedGuards": [
+        "chain_id"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_chain_id",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "version"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_version",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "aggregator"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_aggregator",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "owner"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_owner",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "domain"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_domain",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "stage_a7"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_stage_a7",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "stage_pin"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_stage_pin",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "stage_prefix"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_stage_prefix",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "stage_domain"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_stage_domain",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "inventory_slots"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_inventory_slots",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "pinned_inventory"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_pinned_inventory",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "guardian_set"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_guardian_set",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "calldata_binding"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_calldata_binding",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "tool_commit"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_tool_commit",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "block"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_block",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "selector",
+        "calldata_binding"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_selector",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "calldata_length",
+        "calldata_binding"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_calldata_length",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "pin_hash_from_export",
+      "replacement": {
+        "before": "pinBlockHash=pin_hash",
+        "after": "pinBlockHash=export['pinBlockHash']"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_happy_path",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "omit_export_sha256",
+      "replacement": {
+        "before": "exportSha256=hashlib.sha256(raw).hexdigest()",
+        "after": "exportSha256='0'*64"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_happy_path",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "mutation": "omit_tool_commit",
+      "replacement": {
+        "before": "toolCommit=tool_commit",
+        "after": "toolCommit='0'*40"
+      },
+      "test": "test_pop_adapter.PopAdapterTests.test_happy_path",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "aggregator"
+      ],
+      "test": "test_pop_adapter.RealDvtExportTests.test_real_export_rejects_different_plan_a7",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "stage_domain"
+      ],
+      "test": "test_pop_adapter.RealDvtExportTests.test_real_export_rejects_different_stage_readback",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "domain"
+      ],
+      "test": "test_pop_adapter.RealDvtExportTests.test_real_export_rejects_different_expected_and_readback_domain",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "guardian_set",
+        "pinned_inventory"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_slot_mapping",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    },
+    {
+      "removedGuards": [
+        "pinned_inventory"
+      ],
+      "test": "test_pop_adapter.PopAdapterTests.test_guard_extra_pinned_guardian",
+      "mutated": "FAIL",
+      "failures": 1,
+      "errors": 0,
+      "restored": "PASS"
+    }
+  ]
+}
