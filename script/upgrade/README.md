@@ -280,22 +280,37 @@ stage `simulate`. All stages retain the release gates.
 
    `DVT_EXPORTER_COMMIT` is the exporter tool's 40-character lowercase commit.
    Copy only `POP-INPUT.json`'s `pop` array into the manifest inputs' `pop` field;
-   archive the wrapper with `exportSha256` (original export file bytes) and
-   `toolCommit` alongside the export. These provenance fields are outside the
+   archive the wrapper with `exportSha256` (original export file bytes),
+   `exportBlock`, and `toolCommit` alongside the export. These fields are outside the
    executor's exact six-field PoP objects. The callable API is
    `pop_adapter.adapt(export_path, pin=pin, stage_source=source, tool_commit=commit)`.
    The adapter requires Sepolia, version 4.12.0, the source plan's A7 address,
    deployer D as owner, and the supplied A7 domain read-back. It re-encodes each
-   registration with the executor's ABI encoder and requires exact calldata bytes,
-   including selector `0xaded17c5` and 14 words. Slots 1–3 must match both the
+   registration from the export's own fields with the executor's cast ABI encoder
+   and requires exact calldata bytes, including selector `0xaded17c5` and 14 words. Slots 1–3 must match both the
    release guardian constants and the pin's complete 13-slot inventory. Every
    output `pinBlockHash` comes from `PIN`; the export's block is not a pin hash.
+   The nonnegative integer export block is
+   recorded as `exportBlock` and must be at least `plan.pin.block` when present
+   in the A7 source (an integer or hexadecimal RPC quantity).
    Validation is offline format/binding validation, not PoP pairing verification
    or authentication of supplied fork evidence. The adapter checks the declared
    chain, owner and domain; it does not prove that a signature was made for them.
    `popDigest` is checked for format only. Relabeling an export cannot substitute
-   for successful registration during stage simulation. Stage simulation checks those
-   registrations on the fork. Invalid input exits with `STOP` and no new output.
+   for successful registration during stage simulation. Cast re-encoding proves only
+   consistency of calldata with the export's own fields,
+   not authenticity of the key or signature. That validation belongs to stage
+   simulate and A10 read-back. Duplicate JSON keys at any depth and excessive
+   nesting exit with `STOP`. Output uses a temporary file in the same directory
+   and atomic replacement; failures preserve the previous output and remove
+   the temporary file (an interrupt in the instant after `mkstemp` returns can
+   leave a dot-prefixed temporary behind; the previous output is still intact).
+   The output is created by `mkstemp`, so it has mode 0600, and a symlinked
+   `--out` is replaced by a regular file rather than written through. JSON
+   inputs deeper than 64 levels are refused before decoding (the interpreter's
+   own recursion limit differs between Python 3.11 and 3.12).
+   Inputs must be strict UTF-8 without a BOM; a BOM, UTF-16 or UTF-32 input
+   is refused (STOP), unlike plain `json.loads(bytes)`, which would accept it.
 
    Preserve guardian addresses and slots exactly.
    Build/simulate `--stage b4 --a7-source A7-RUN/stage-source.json` from the same

@@ -3,9 +3,11 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import sys
+import tempfile
 
 import manifest_exec as m
 
@@ -25,6 +27,70 @@ def require(gate, condition):
         raise Stop('STOP: '+gate)
 
 
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        require('duplicate_json_key', key not in result)
+        result[key] = value
+    return result
+
+
+MAX_JSON_DEPTH = 64
+
+
+def json_depth(raw):
+    """Maximum array/object nesting outside string literals; independent of the interpreter's decoder limits."""
+    depth = deepest = 0
+    in_string = escaped = False
+    for ch in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == '\\':
+                escaped = True
+            elif ch == '"':
+                in_string = False
+        elif ch == '"':
+            in_string = True
+        elif ch in '[{':
+            depth += 1
+            deepest = max(deepest, depth)
+        elif ch in ']}':
+            depth -= 1
+    return deepest
+
+
+def load_json(raw):
+    # Python 3.12's C decoder accepts ~20000 levels before RecursionError, 3.11 far fewer; bound depth explicitly.
+    if isinstance(raw, bytes):
+        try:
+            raw = raw.decode('utf-8')
+        except UnicodeDecodeError as error:
+            raise Stop('STOP: json_encoding') from error
+    require('json_nesting', json_depth(raw) <= MAX_JSON_DEPTH)
+    try:
+        return json.loads(raw, object_pairs_hook=unique_object)
+    except RecursionError as error:
+        raise Stop('STOP: json_nesting') from error
+
+
+def atomic_write(path, text):
+    path = Path(path)
+    # mkstemp returns the name together with the descriptor, so the cleanup path knows the file as soon as it exists.
+    # An interrupt landing between mkstemp's return and this assignment can still leave a dot-prefixed temporary; the
+    # previous output is never touched.
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix='.'+path.name+'.')
+    temporary = Path(name)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as output:
+            output.write(text)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def hex_value(value, size, gate):
     require(gate, isinstance(value, str) and re.fullmatch(r'0x[0-9a-fA-F]{'+str(size*2)+'}', value) is not None)
     return value.lower()
@@ -37,7 +103,7 @@ def encode_registration(validator, public_key, slot, signature):
 
 
 def adapt(export_path, *, pin, stage_source, tool_commit):
-    """Return {pop, exportSha256, toolCommit} bound to a supplied pin/A7 source.
+    """Return {pop, exportSha256, exportBlock, toolCommit} bound to a supplied pin/A7 source.
 
     stage_source is A7-RUN/stage-source.json (plan plus fork readback). This
     offline comparison cannot authenticate a fork; retain simulation evidence.
@@ -45,7 +111,7 @@ def adapt(export_path, *, pin, stage_source, tool_commit):
     """
     try:
         raw = Path(export_path).read_bytes()
-        export = json.loads(raw)
+        export = load_json(raw)
         require('tool_commit', isinstance(tool_commit, str) and re.fullmatch(r'[0-9a-f]{40}', tool_commit) is not None)
         plan, readback = stage_source['plan'], stage_source['readback']
         require('stage_a7', plan['stage'] == 'a7' and plan['final'] is False)
@@ -61,6 +127,14 @@ def adapt(export_path, *, pin, stage_source, tool_commit):
         require('owner', hex_value(export['owner'], 20, 'owner_format') == m.u.DEPLOYER)
         require('domain', hex_value(export['domainSeparator'], 32, 'domain_format') == domain)
         require('block', type(export['block']) is int and export['block'] >= 0)
+
+        if 'block' in plan['pin']:
+            fork_block = plan['pin']['block']
+            if isinstance(fork_block, str):
+                require('fork_block', re.fullmatch(r'0x[0-9a-fA-F]+', fork_block) is not None)
+                fork_block = int(fork_block, 16)
+            require('fork_block', type(fork_block) is int and fork_block >= 0)
+            require('export_block_before_fork', export['block'] >= fork_block)
 
         inventory = pin['guardianInventory']
         require('inventory_slots', isinstance(inventory, list) and
@@ -90,10 +164,10 @@ def adapt(export_path, *, pin, stage_source, tool_commit):
         require('guardian_set', actual == GUARDIANS)
         require('pinned_inventory', actual == pinned)
         return dict(pop=sorted(result, key=lambda item: item['slot']),
-                    exportSha256=hashlib.sha256(raw).hexdigest(), toolCommit=tool_commit)
+                    exportSha256=hashlib.sha256(raw).hexdigest(), exportBlock=export['block'], toolCommit=tool_commit)
     except Stop:
         raise
-    except (KeyError, TypeError, ValueError, OSError, m.a.Gate) as error:
+    except (KeyError, TypeError, ValueError, OSError, RecursionError, m.a.Gate) as error:
         raise Stop('STOP: invalid_pop_input ('+type(error).__name__+')') from error
 
 
@@ -106,10 +180,10 @@ def main(argv=None):
     parser.add_argument('--out', required=True)
     args = parser.parse_args(argv)
     try:
-        result = adapt(args.export_path, pin=json.loads(Path(args.pin).read_text()),
-                       stage_source=json.loads(Path(args.a7_source).read_text()), tool_commit=args.tool_commit)
-        Path(args.out).write_text(json.dumps(result, indent=2)+'\n')
-    except (Stop, OSError, ValueError) as error:
+        result = adapt(args.export_path, pin=load_json(Path(args.pin).read_bytes()),
+                       stage_source=load_json(Path(args.a7_source).read_bytes()), tool_commit=args.tool_commit)
+        atomic_write(args.out, json.dumps(result, indent=2)+'\n')
+    except (Stop, OSError, ValueError, RecursionError) as error:
         print(str(error) if isinstance(error, Stop) else 'STOP: invalid_file', file=sys.stderr)
         return 1
     return 0

@@ -103,6 +103,7 @@ class FakeChain:
         self.snapshots = {}
         self.sent = []
         self.count = 0
+        self.calls = []
         self.selectors = {ex.calldata(sig): sig for sig in (
             'nonce()', 'owner()', 'pendingOwner()', 'APNTS_TOKEN()', 'pendingAPNTsToken()',
             'pendingAPNTsTokenEta()', 'APNTS_TOKEN_TIMELOCK()', 'getMinDelay()', 'cap()',
@@ -111,7 +112,7 @@ class FakeChain:
 
     def block(self):
         s = self.state
-        return dict(number=hex(s['head']), timestamp=hex(s['time']), hash=self.pin['blockHash'], transactions=[])
+        return dict(number=hex(s['head']), timestamp=hex(s['time']), hash=self.pin['blockHash'] if hex(s['head']) == self.pin['block'] else abi_word(s['head']), transactions=[])
 
     def mine(self):
         s = self.state
@@ -121,6 +122,7 @@ class FakeChain:
         s['blocks'][hex(s['head'])] = self.block()
 
     def __call__(self, method, params, error_ok=False):
+        self.calls.append((method, copy.deepcopy(params)))
         s = self.state
         if method == 'eth_chainId': return hex(ex.CHAIN)
         if method == 'web3_clientVersion': return 'anvil/'+ex.COMMIT
@@ -143,14 +145,19 @@ class FakeChain:
             if target == self.pin['timelock']: return self.plan['timelockRuntimeIdentity']['artifactRuntime']
             return '0x6000'
         if method == 'eth_getBlockByNumber':
-            block = copy.deepcopy(self.block() if params[0] == 'latest' else s['blocks'][params[0]])
-            if params[1]:
-                block['transactions'] = [dict(s['txs'][h], hash=h) for h, r in s['receipts'].items()
-                                         if r['blockNumber'] == block['number']]
+            number = hex(s['head']) if params[0] == 'latest' else params[0]
+            block = copy.deepcopy(s['blocks'][number])
+            if not params[1]:
+                block['transactions'] = [tx['hash'] for tx in block['transactions']]
             return block
         if method == 'eth_getLogs':
             topics = params[0].get('topics', [])
             def matches(log):
+                query = params[0]
+                if log['address'].lower() != query['address'].lower(): return False
+                number = int(log['blockNumber'], 16)
+                end = s['head'] if query['toBlock'] == 'latest' else int(query['toBlock'], 16)
+                if not int(query['fromBlock'], 16) <= number <= end: return False
                 for i, wanted in enumerate(topics):
                     if i >= len(log['topics']): return False
                     if wanted is None: continue
@@ -208,17 +215,19 @@ class FakeChain:
                 if sid == 'S7': s['pending'], s['pendingEta'] = self.pin['capped'], s['time']+self.pin['sp']['APNTS_TOKEN_TIMELOCK']
             self.count += 1
             h = abi_word(self.count)
-            s['txs'][h] = dict(tx, input=tx['data'], type='0x2', accessList=[])
+            s['txs'][h] = dict(tx, input=tx['data'], type='0x2', accessList=[],
+                               hash=h, blockNumber=hex(s['head']), blockHash=s['blocks'][hex(s['head'])]['hash'])
+            s['blocks'][hex(s['head'])]['transactions'].append(copy.deepcopy(s['txs'][h]))
             if sid == 'S5b' and reason is None:
                 scheduled = dict(address=self.pin['timelock'], blockNumber=hex(s['head']),
-                    transactionHash=h, transactionIndex='0x0', logIndex='0x0',
+                    transactionHash=h, transactionIndex='0x0', logIndex='0x0', blockHash=s['blocks'][hex(s['head'])]['hash'], removed=False,
                     topics=[ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)'),
                             self.plan['operationId'], ex.ZERO32],
                     data=ex.cast('abi-encode', 'c(address,uint256,bytes,bytes32,uint256)',
                                  self.pin['capped'], 0, ex.calldata('acceptOwnership()'), ex.ZERO32, 172800))
                 s['logs'].append(scheduled)
                 logs.append(scheduled)
-            s['receipts'][h] = dict(transactionHash=h, blockNumber=hex(s['head']), gasUsed=hex(110000),
+            s['receipts'][h] = dict(transactionHash=h, blockNumber=hex(s['head']), blockHash=s['blocks'][hex(s['head'])]['hash'], gasUsed=hex(110000),
                 status='0x0' if reason else '0x1', logs=logs,
                 contractAddress=self.pin['timelock'] if sid == 'S2' else self.pin['capped'] if sid == 'S3' else None,
                 revertOutput=reason)
@@ -1426,10 +1435,11 @@ class ExecutorTests(unittest.TestCase):
         s = chain.state
         h = '0x'+'cd'*32
         s['txs'][h] = {'from': ex.EXECUTOR, 'nonce': hex(s['nonces'][ex.EXECUTOR]), 'to': '0x'+'c2'*20, 'hash': h,
-                       'blockNumber': hex(s['head']), 'blockHash': chain.pin['blockHash'], 'type': '0x2',
+                       'blockNumber': hex(s['head']), 'blockHash': s['blocks'][hex(s['head'])]['hash'], 'type': '0x2',
                        'input': '0x', 'value': hex(10**18)}
-        s['receipts'][h] = dict(blockNumber=hex(s['head']), blockHash=chain.pin['blockHash'], status='0x1',
+        s['receipts'][h] = dict(blockNumber=hex(s['head']), blockHash=s['blocks'][hex(s['head'])]['hash'], status='0x1',
                                 transactionHash=h, logs=[])
+        s['blocks'][hex(s['head'])]['transactions'].append(copy.deepcopy(s['txs'][h]))
         gap = dict(hash=h, nonce=hex(s['nonces'][ex.EXECUTOR]), **{'from': ex.EXECUTOR})
         s['nonces'][ex.EXECUTOR] += 1
         with self.assertRaises(ex.Gate) as caught:
@@ -1804,7 +1814,7 @@ class ExecutorTests(unittest.TestCase):
                 ex.negative(rpc, plan['steps'][7]['tx'], ex.error_string('GS013'), 'early_execute', inner=inner)
             self.assertEqual(chain.state, before)
 
-    def test_schedule_logs_query_uses_exact_receipt_block(self):
+    def test_schedule_logs_query_reuses_indexed_lookup(self):
         chain, plan, _ = self.early_negative_fixture()
         calls = []
         def rpc(method, params):
@@ -1812,10 +1822,167 @@ class ExecutorTests(unittest.TestCase):
             return chain(method, params)
         self.assertEqual(ex.scheduled_eta(rpc, plan), chain.state['eta'])
         self.assertEqual(len(calls), 1)
-        receipt = next(r for r in chain.state['receipts'].values() if any(
-            l['topics'][0] == ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)') for l in r['logs']))
-        self.assertEqual(calls[0]['fromBlock'], receipt['blockNumber'])
-        self.assertEqual(calls[0]['toBlock'], receipt['blockNumber'])
+        self.assertEqual(calls[0]['fromBlock'], hex(int(plan['pin']['block'], 16)+1))
+        self.assertEqual(calls[0]['toBlock'], 'latest')
+
+    def test_indexed_schedule_receipt_bounded_calls(self):
+        chain, plan, _ = self.early_negative_fixture()
+        chain.state['head'] += 7000
+        chain.calls.clear()
+        receipt = ex.find_step_receipt(chain, plan, 5)
+        self.assertEqual(receipt['status'], '0x1')
+        self.assertEqual([m for m, _ in chain.calls], [
+            'eth_getLogs', 'eth_getTransactionByHash', 'eth_getTransactionReceipt', 'eth_getBlockByNumber'])
+        query = chain.calls[0][1][0]
+        self.assertEqual(query, dict(address=plan['pin']['timelock'],
+            fromBlock=hex(int(plan['pin']['block'], 16)+1), toBlock='latest',
+            topics=[ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)'),
+                    plan['operationId'], ex.ZERO32]))
+
+    def test_indexed_schedule_receipt_guards(self):
+        chain, plan, _ = self.early_negative_fixture()
+        baseline = copy.deepcopy(chain.state)
+        cases = [
+            ('missing', 'schedule_receipt_missing'),
+            ('duplicate', 'schedule_log_count'),
+            ('removed', 'schedule_log_removed'),
+            ('from', 'schedule_receipt_missing'),
+            ('nonce', 'schedule_receipt_missing'),
+            ('input', 'schedule_receipt_missing'),
+            ('blockNumber', 'schedule_log_tx_block'),
+            ('blockHash', 'schedule_log_tx_block_hash'),
+            ('hash', 'schedule_log_tx_hash'),
+            ('receipt_status', 'schedule_receipt_status'),
+            ('receipt_blockNumber', 'schedule_receipt_block'),
+            ('receipt_blockHash', 'schedule_receipt_block_hash'),
+            ('receipt_transactionHash', 'schedule_receipt_hash'),
+            # A coherent log/tx/receipt triple from an orphaned block: the canonical header differs.
+            ('orphan', 'schedule_canonical_block'),
+        ]
+        for change, gate in cases:
+            with self.subTest(change=change):
+                chain.state = copy.deepcopy(baseline)
+                log = next(l for l in chain.state['logs'] if l['topics'][0] ==
+                           ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)'))
+                tx = chain.state['txs'][log['transactionHash']]
+                receipt = chain.state['receipts'][log['transactionHash']]
+                if change == 'missing': chain.state['logs'].remove(log)
+                elif change == 'duplicate': chain.state['logs'].append(copy.deepcopy(log))
+                elif change == 'removed': log['removed'] = True
+                elif change == 'orphan': pass  # handled by the canonical-header override below
+                elif change.startswith('receipt_'):
+                    field = change.removeprefix('receipt_')
+                    receipt[field] = ex.ZERO32 if field.endswith('Hash') else '0x0'
+                else:
+                    tx[change] = {'from': ex.ZERO, 'nonce': '0xffff', 'input': '0x',
+                                  'blockNumber': '0x1', 'blockHash': ex.ZERO32, 'hash': ex.ZERO32}[change]
+                remote = chain
+                if change == 'orphan':
+                    # The fake derives log/receipt block hashes from its block table, so change only what the
+                    # canonical header lookup returns: log, transaction and receipt stay mutually consistent.
+                    def remote(method, params, error_ok=False):
+                        result = chain(method, params, error_ok)
+                        if method == 'eth_getBlockByNumber' and params[0] == log['blockNumber']:
+                            result = dict(result, hash='0x'+'c7'*32)
+                        return result
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.find_step_receipt(remote, plan, 5)
+                self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_schedule_canonical_membership_and_identity(self):
+        for change in ('missing', 'identity', 'hash'):
+            chain, plan, _ = self.early_negative_fixture()
+            log = next(l for l in chain.state['logs'] if l['topics'][0] ==
+                       ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)'))
+            block = chain.state['blocks'][log['blockNumber']]
+            if change == 'missing': block['transactions'] = []
+            elif change == 'identity': block['transactions'][0]['input'] = '0x'
+            else: block['hash'] = ex.ZERO32
+            with self.subTest(change=change), self.assertRaises(ex.Gate) as caught:
+                ex.scheduled_eta(chain, plan)
+            self.assertEqual(caught.exception.record['gate'], {
+                'missing': 'schedule_canonical_transaction', 'identity': 'schedule_block_mined_input',
+                'hash': 'schedule_canonical_block'}[change])
+
+    def test_fake_blocks_share_full_and_header_data(self):
+        chain, plan, _ = self.early_negative_fixture()
+        hashes = set()
+        for number in chain.state['blocks']:
+            full = chain('eth_getBlockByNumber', [number, True])
+            header = chain('eth_getBlockByNumber', [number, False])
+            self.assertEqual(header, dict(full, transactions=[t['hash'] for t in full['transactions']]))
+            hashes.add(full['hash'])
+        self.assertEqual(len(hashes), len(chain.state['blocks']))
+        chain.calls.clear()
+        ex.scheduled_eta(chain, plan)
+        self.assertEqual([p for m, p in chain.calls if m == 'eth_getBlockByNumber'],
+                         [[chain.state['logs'][-1]['blockNumber'], True]])
+
+    def test_schedule_filters_foreign_history(self):
+        chain, plan, _ = self.early_negative_fixture()
+        real = chain.state['logs'][-1]
+        foreign = dict(real, transactionHash=abi_word(999), blockNumber=hex(int(real['blockNumber'], 16)-1))
+        chain.state['txs'][foreign['transactionHash']] = dict(chain.state['txs'][real['transactionHash']],
+            **{'from': ex.ZERO, 'hash': foreign['transactionHash']})
+        chain.state['logs'].insert(0, foreign)
+        self.assertEqual(ex.find_step_receipt(chain, plan, 5)['transactionHash'], real['transactionHash'])
+        chain.state['logs'].append(copy.deepcopy(real))
+        with self.assertRaises(ex.Gate) as caught: ex.find_step_receipt(chain, plan, 5)
+        self.assertEqual(caught.exception.record['gate'], 'schedule_log_count')
+        self.assertEqual(caught.exception.record['observed']['ignored'], 1)
+        chain.state['logs'] = [foreign]
+        with self.assertRaises(ex.Gate) as caught: ex.find_step_receipt(chain, plan, 5)
+        self.assertEqual(caught.exception.record['gate'], 'schedule_receipt_missing')
+        self.assertEqual(caught.exception.record['observed'], dict(logs=1, ignored=1, matching=0))
+
+    def test_schedule_log_range_splitting_and_errors(self):
+        for code, message, retry in ((-32005, 'capacity', True), (-32602, 'block range', True),
+                                     (-32000, 'limit exceeded', True), (-32000, 'too many results', True),
+                                     (-32602, 'bad address', False), (-32000, 'backend unavailable', False)):
+            chain, plan, _ = self.early_negative_fixture()
+            calls = []
+            rpc = ex.RPC('http://unused.invalid')
+            def post(q):
+                method, params = q['method'], q['params']
+                if method == 'eth_getLogs':
+                    query = params[0]
+                    start = int(query['fromBlock'], 16)
+                    end = chain.state['head'] if query['toBlock'] == 'latest' else int(query['toBlock'], 16)
+                    calls.append((start, end))
+                    if end-start+1 > 2:
+                        return dict(jsonrpc='2.0', id=q['id'], error=dict(code=code, message=message))
+                return dict(jsonrpc='2.0', id=q['id'], result=chain(method, params))
+            with self.subTest(code=code, message=message), patch.object(rpc, '_post_with_deadline', post):
+                if retry:
+                    self.assertEqual(ex.find_step_receipt(rpc, plan, 5)['status'], '0x1')
+                    self.assertEqual(len(calls), 7)
+                    leaves = [(a, b) for a, b in calls if b-a+1 <= 2]
+                    self.assertEqual(leaves, sorted(leaves))
+                else:
+                    with self.assertRaises(ex.Gate) as caught: ex.find_step_receipt(rpc, plan, 5)
+                    self.assertEqual(caught.exception.record['gate'], 'rpc_fault')
+                    self.assertEqual(len(calls), 1)
+
+    def test_schedule_range_bounds_and_chunk_order(self):
+        fault = ex.Gate('rpc_fault', {}, 'success')
+        fault.log_range_limit = True
+        calls = []
+        def failing(method, params):
+            calls.append(params)
+            raise fault
+        for end in (1, 2**30):
+            calls.clear()
+            with self.assertRaises(ex.Gate):
+                ex.schedule_logs(failing, dict(fromBlock='0x1', toBlock=hex(end)))
+            self.assertEqual(len(calls), 1 if end == 1 else 21)
+        def chunks(method, params):
+            a, b = (int(params[0][k], 16) for k in ('fromBlock', 'toBlock'))
+            if a != b: raise fault
+            return [a]
+        self.assertEqual(ex.schedule_logs(chunks, dict(fromBlock='0x1', toBlock='0x4')), [1, 2, 3, 4])
+        with self.assertRaises(ex.Gate) as caught:
+            ex.schedule_logs(chunks, dict(fromBlock='0x1', toBlock='0x1000'))
+        self.assertEqual(caught.exception.record['gate'], 'schedule_log_query_budget')
 
     @staticmethod
     def metadata_artifact(mode='none', raw='{}'):

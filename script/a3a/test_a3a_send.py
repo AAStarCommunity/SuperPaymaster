@@ -1136,21 +1136,12 @@ class SenderS7Integration(unittest.TestCase):
                 after_mine(chain)
             return h
         readback = mock.Mock(wraps=ex.readback)
-        def remote(method, params, error_ok=False):
-            # FakeChain receipts omit blockHash, which every real receipt carries and the sender validates.
-            value = chain(method, params, error_ok=error_ok)
-            if method == 'eth_getTransactionReceipt' and isinstance(value, dict):
-                value = dict(value, blockHash='0x' + '34' * 32)
-            if method == 'eth_getTransactionByHash' and isinstance(value, dict):
-                rc = chain('eth_getTransactionReceipt', params)
-                value = dict(value, blockHash='0x' + '34' * 32, blockNumber=rc['blockNumber'])
-            return value
         with mock.patch.object(sd, 'signed', fake_signed), mock.patch.object(sd, 'broadcast', fake_broadcast), \
                 mock.patch.object(sd, 'LOCK_PATH', self.lock), mock.patch.object(ex, 'readback', readback), \
                 mock.patch.object(sd, 'fee_fits', lambda remote, tx: None), \
                 mock.patch.object(ex, 'artifact', self.t.artifact), \
                 mock.patch.object(ex, 'validate_plan', lambda plan, frozen=False: None):
-            result = sd.run(self.args, remote, 'unused', confirm=lambda _: 'SEND S7 ' + self.sha[:12])
+            result = sd.run(self.args, chain, 'unused', confirm=lambda _: 'SEND S7 ' + self.sha[:12])
         return result, readback
 
     def test_s7_real_gate_and_final_readback(self):
