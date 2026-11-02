@@ -178,7 +178,7 @@ Required fields:
 - `releaseEvidence`: `{path, sha256}` file references named `conformance`, `mutation`, `slither`, `reproducible-build`, `dvt-ci`, `dvt-conformance-4.12`, plus the nonempty `sourceVerificationPlan`. Evidence JSON must match [the per-kind schema](release-evidence.schema.json): `kind`, `subjectCommit`, `tool: {name, version}`, `counts: {passed, failed, skipped}`, and `result`. Passed must be positive, failed zero, skipped zero, result `PASS`. SP evidence subject commits must equal the frozen tagged build commit. Both DVT kinds additionally require `spCommit` equal to that commit and `aggregatorVersion: "BLSAggregator-4.12.0"`; their subject commit is the pinned DVT verifier commit. The compiled version literal and A7 version read-back must match. A dirty tracked or untracked tree is refused. Every file must match its nonzero SHA-256. Bare digest attestations are refused. These bind supplied release-evidence attestations; this executor does not rerun the release-analysis tools.
 - `verifier`: exactly `commit`, `artifactPath`, `buildSha256`, `ciPath`, `ciSha256`. The public artifact file, not caller-supplied initcode or ranges, is mandatory. Its SHA-256 and `buildSha256` must be `4d7e0125094c381a0dca5e2d8dd56efa79b284e43119fd64130dfaa78d33e7d6`; commit must be `72aca4fa0ba4aaa8c8a96210b1124534431294d6`; creation keccak without arguments must be `0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab`. `ciPath` is a public JSON record whose bytes match `ciSha256`, with the `dvt-ci` evidence schema above, including DVT and SP commit bindings. This binds a supplied CI attestation; it does not rerun DVT CI. Zero hashes are refused. The pinned artifact must have immutable IDs 5519 (three ranges) and 5522 (two), all 32 bytes wide. AST names resolve the mapping when present; otherwise runtime matching plus both mandatory getters disambiguates the two permutations. No other runtime bytes may differ. Read-back requires `AGGREGATOR()==A7` and `REGISTRY()==A7.REGISTRY()==Registry`.
 - `a3aPlan`: `path` and reviewed `sha256` of the amended A3a plan, `receipts` mapping every step `S1`, `S2`, `S3`, `S4`, `S5a`, `S5b`, `S6a`, `S6b`, `S7` to transaction hashes, and optional `nonceGaps` in A3a format. Collection verifies successful mined receipts, canonical blocks at/before the pin, and exact planned transaction identity. D's pinned nonce must equal S7+1. A/E must equal their last planned nonce+1, or every intermediate nonce must pass `a3a_exec.check_gaps` (plain transfer, receipt, codeless recipient and prestate trace). Every embedded amended-plan `nonceGaps` entry is also re-proven with `a3a_exec.check_gaps`. Collected `a3aHistory` includes every receipt and transaction; `a3aGapReads` contains replayable gap RPC evidence; the offline builder revalidates it. No gap is allowed after D's S7.
-- `pop`: exactly three objects containing `validator`, `slot`, `calldata`, `aggregator`, `pinBlockHash`. Calldata must be the complete owner-path `registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))` call. Validators and slots must be distinct and equal exactly the nonempty inventory collected from the OLD aggregator’s `validatorAtSlot(1..MAX_VALIDATORS)` at the pin (all 13 slots are retained). The 2026-11-01 reference inventory is slot 1 `0x5d870e132cc010e882e90f4afaacdc4f19c7eca3`, slot 2 `0x40f0b12128f256b62fa22b36d37012ee004bbd1f`, slot 3 `0xd904a706e355d6b48baedbec472ce94bc6981601`; slots 4–13 empty. The authenticated pin, rather than this dated reference, determines equality. The builder validates selector, fixed-width encoding, validator, slot, derived A7 address, and pin hash. The real fork validates the cryptographic PoPs and reads back public keys/slots.
+- `pop`: exactly three objects containing `validator`, `slot`, `calldata`, `aggregator`, `pinBlockHash`, `domainSeparator`. Calldata must be the complete owner-path `registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))` call. Validators and slots must be distinct and equal exactly the nonempty inventory collected from the OLD aggregator’s `validatorAtSlot(1..MAX_VALIDATORS)` at the pin (all 13 slots are retained). The 2026-11-01 reference inventory is slot 1 `0x5d870e132cc010e882e90f4afaacdc4f19c7eca3`, slot 2 `0x40f0b12128f256b62fa22b36d37012ee004bbd1f`, slot 3 `0xd904a706e355d6b48baedbec472ce94bc6981601`; slots 4–13 empty. The authenticated pin, rather than this dated reference, determines equality. The builder validates selector, fixed-width encoding, validator, slot, derived A7 address, and pin hash. The real fork validates the cryptographic PoPs and reads back public keys/slots.
 
 - `fraudProofFixture`: required `{path, sha256}` reference to a reviewed JSON wrapper matching [the fixture schema](fraud-proof-fixture.schema.json): `{ "toolCommit": "<40 lowercase hex>", "verifierCommit": "72aca4fa0ba4aaa8c8a96210b1124534431294d6", "export": <unchanged DVT output> }`. The SHA-256 covers the entire wrapper, including both required commits. `toolCommit` records the export tool revision independently of the pinned verifier source revision.
 - `export` uses DVT's fields: `purpose`, `chainId`, `aggregator`, `version`, `owner`, `verifier`, `registry`, `domainSeparator`, `block`, `forkState`, `valid`, and `mustReject`. Checksummed addresses are validated then normalized. Decimal-string IDs and epoch and the hex-string signer mask are decoded with uint256 bounds. The production path requires chain 11155111, `BLSAggregator-4.12.0`, Registry, A7/A12a derived from planned nonces, the pinned block number, and exactly the pinned guardians in ascending address order. The authenticated pin retains its block hash; DVT supplies only a block number. Domain and verifier-derived IDs/message hashes are checked on the fork. `owner` is descriptive export metadata, not execution authority.
@@ -247,9 +247,9 @@ complete-input format: PoPs require `domainSeparator`, and plans add stage/sourc
 final-status, domain, prefix, and per-step timing fields. Old input and plan bytes
 are not compatible and must be regenerated. The stricter schema retains the DVT
 PoP export domain for independent fork read-back binding; it is not optional.
-The checked-in DVT fraud export uses `domainSeparator`. **Open item:** the actual
-DVT PoP exporter implementation was not found locally, so its field spelling
-must be confirmed as `domainSeparator` against a real export before packet release.
+DVT's `deploy/reregister-guardians.mjs --export-pop` supplies top-level
+`domainSeparator` and per-registration G1/G2 word arrays and `calldata`.
+`pop_adapter.py` consumes this format; an export without calldata is rejected.
 
 ### Staged manifest forks for DVT exports
 
@@ -257,7 +257,9 @@ Use one pin, release build, constructor inputs and sender nonce inventory throug
 `manifest_exec.py plan` and `simulate` accept `--stage a7|b4|full` (default:
 `full`). Full still requires three PoPs and the reviewed fraud fixture. Each PoP
 entry now also carries the export's `domainSeparator`; it must match the computed
-A7 domain and the stage fork read-back. All stages retain the release gates.
+A7 domain and the supplied stage read-back. Offline builders compare supplied
+read-backs to computed expectations; the actual fork read and check happen in
+stage `simulate`. All stages retain the release gates.
 
 1. Pin the state. Build with `plan --stage a7 --pin PIN --inputs INPUTS --out A7-DRAFT`.
    PoPs and `fraudProofFixture` may be absent. Simulate with `--stage a7`, the same
@@ -265,7 +267,35 @@ A7 domain and the stage fork read-back. All stages retain the release gates.
    `--out A7-RUN --hold-fork`. Execution stops immediately after A7, prints its
    address and the local RPC, and writes `stage-source.json`. Leave it waiting
    while DVT reads domainSeparator/popDigest and dry-runs owner registration.
-2. Add DVT's PoPs to the inputs, preserving guardian addresses and slots exactly.
+2. Convert DVT's PoP export using the same pin and A7 source:
+
+   ```bash
+   PYTHONPATH=script/upgrade:script/a3a A3A_ENGINE_DIR=$HOME/.foundry/bin \
+     python3 script/upgrade/pop_adapter.py --export DVT-POP.json --pin PIN \
+       --a7-source A7-RUN/stage-source.json --tool-commit DVT_EXPORTER_COMMIT \
+       --out POP-INPUT.json
+   ```
+
+   `DVT_EXPORTER_COMMIT` is the exporter tool's 40-character lowercase commit.
+   Copy only `POP-INPUT.json`'s `pop` array into the manifest inputs' `pop` field;
+   archive the wrapper with `exportSha256` (original export file bytes) and
+   `toolCommit` alongside the export. These provenance fields are outside the
+   executor's exact six-field PoP objects. The callable API is
+   `pop_adapter.adapt(export_path, pin=pin, stage_source=source, tool_commit=commit)`.
+   The adapter requires Sepolia, version 4.12.0, the source plan's A7 address,
+   deployer D as owner, and the supplied A7 domain read-back. It re-encodes each
+   registration with the executor's ABI encoder and requires exact calldata bytes,
+   including selector `0xaded17c5` and 14 words. Slots 1–3 must match both the
+   release guardian constants and the pin's complete 13-slot inventory. Every
+   output `pinBlockHash` comes from `PIN`; the export's block is not a pin hash.
+   Validation is offline format/binding validation, not PoP pairing verification
+   or authentication of supplied fork evidence. The adapter checks the declared
+   chain, owner and domain; it does not prove that a signature was made for them.
+   `popDigest` is checked for format only. Relabeling an export cannot substitute
+   for successful registration during stage simulation. Stage simulation checks those
+   registrations on the fork. Invalid input exits with `STOP` and no new output.
+
+   Preserve guardian addresses and slots exactly.
    Build/simulate `--stage b4 --a7-source A7-RUN/stage-source.json` from the same
    pin. The fixture may still be absent. Use `--dump-state B4-STATE.json
    --hold-fork` on simulate. This executes through B4, including time warps,
@@ -282,7 +312,9 @@ A7 domain and the stage fork read-back. All stages retain the release gates.
    `--b4-source B4-RUN/stage-source.json`. The full builder compares exact prefixes
    (pin, addresses, transaction nonces, calldata, execution timestamps, warp targets,
    activation threshold, ETA delays and read-backs), verifies prefix
-   digests and fork-domain evidence, and rejects drift. It retains the B4 input
+   digests, compares supplied domain read-backs to computed expectations, and
+   rejects drift. It does not independently verify that those supplied read-backs
+   came from a fork; the real fork domain check occurs in stage `simulate`. It retains the B4 input
    hash for B-phase operation salts so adding the fixture cannot change them.
    Standalone full builds with complete inputs retain their existing salt behavior.
 
