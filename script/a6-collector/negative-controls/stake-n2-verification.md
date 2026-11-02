@@ -53,9 +53,8 @@ Every archived `*.jsonl` under `docs/design/aoa-balance-mode/data/` was checked 
 
 ## Offline verification
 
-- `node --test script/a6-collector/`: attempted; Node v24.21.0 exits 1 with
-  `MODULE_NOT_FOUND` for the directory. No tests ran successfully through that form.
-- `node --test script/a6-collector/*.test.mjs`: **35 passed, 0 failed, 0 skipped**.
+- Full offline Node suite: `node --test script/a6-collector/*.test.mjs`.
+  Read the TAP summary for the current count; historical subset counts are not suite totals.
   Covers existing export rules, exact positive/zero penalty, missing trace nulls,
   one-gas bounds, an exhaustive 306-value inversion check, trace bindings,
   exporter propagation, and refusal of a validated formal-candidate with a changed

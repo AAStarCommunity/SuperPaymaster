@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { waitAfterInclusion, inclusionErrors, formalRuntime } from './formal.mjs';
@@ -29,7 +30,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { freeze } from './freeze.mjs';
 test('rehearsal runtime rejects remote URLs and nonlocal chains before signing or RPC',async()=>{
-  const d=mkdtempSync('/private/tmp/a6-mode-');
+  const d=mkdtempSync(join(tmpdir(),'a6-mode-'));
   try {
     const a=join(d,'a'),b=join(d,'b');writeFileSync(a,'https://example.com');writeFileSync(b,'http://127.0.0.1:8546');
     const args={rehearsal:true,config:{chainId:31337},rpcAFile:a,rpcBFile:b,outPath:join(d,'run')};
@@ -39,7 +40,7 @@ test('rehearsal runtime rejects remote URLs and nonlocal chains before signing o
   } finally {rmSync(d,{recursive:true,force:true});}
 });
 test('rehearsal marker survives freeze and validator always refuses evidence acceptance',()=>{
-  const d=realpathSync(mkdtempSync('/private/tmp/a6-marker-'));
+  const d=realpathSync(mkdtempSync(join(tmpdir(),'a6-marker-')));
   try {
     const rows=readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').trim().split('\n').map(JSON.parse);
     rows[0].rehearsal=true;rows.at(-1).rehearsal=true;
@@ -68,7 +69,7 @@ test('M2 refresh control ages only chosen rehearsal TPM cache within validation 
   await assert.rejects(rehearsalTpmRefresh({...options,client:{...client,readContract:async()=>[0n,0n,0n,ttl]}}),/valid inclusion interval/);
 });
 test('H1 validator excludes refreshed TPM from matching using traces not row flag',()=>{
-  const d=realpathSync(mkdtempSync('/private/tmp/a6-refresh-match-'));
+  const d=realpathSync(mkdtempSync(join(tmpdir(),'a6-refresh-match-')));
   try {
     const rows=readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').trim().split('\n').map(JSON.parse),tpm=rows.find(r=>r.arm==='TPM'),end=rows.at(-1);
     tpm.traces=[0,1].map(()=>({call:{type:'CALL',to:tpm.entryPoint,calls:[{type:'CALL',to:tpm.paymaster,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)'),calls:[{type:'STATICCALL',input:toFunctionSelector('latestRoundData()')}]}]},state:{pre:{[tpm.entryPoint.toLowerCase()]:{balance:'0x1'}},post:{[tpm.entryPoint.toLowerCase()]:{balance:'0x2'}}}}));tpm.postOpRefreshed=true;
