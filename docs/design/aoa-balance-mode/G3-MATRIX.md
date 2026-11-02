@@ -64,15 +64,24 @@ Fees do not change gas usage, only the reservation and the cost. The paper compa
 ## 4. Funding (computed in Phase C; 100 attempts per arm)
 
 100 attempts per arm = 50 formal + 20 pilot + 30 margin for failures and exclusions.
+The funding rules and symbol definitions come from the **Phase C funding worksheet** in
+[MANIFEST-DESIGN.md](../../release/sp-upgrade-a6e/MANIFEST-DESIGN.md#phase-c--funding-and-sampling-configuration-after-6d).
+That worksheet governs the calculation, deficit funding and read-back predicates; G3 remains the registry of the
+chosen inputs, computed targets, actual balances, pilot consumption and final frozen values. All amounts below
+are integer base units; fee cap is 5 gwei. Register reviewed pre-pilot bounds first, then the pilot recomputation.
 
-| Item | Rule | Value |
+| Item | Rule (Phase C worksheet) | Value |
 | --- | --- | --- |
-| APNTsCapped deposit for the deployer operator | ≥ 100 × maximum single reservation, computed with ceiling arithmetic at maxFeePerGas 5 gwei, SP post = 480000 and ver on the SP_RENEW path | **TBD** (≈ 100 × 1,430–1,550) |
-| EntryPoint deposits | SP, VPM and TPM: each 100 × that arm's maxCost at 5 gwei | **TBD** (SP ≈ 1.3 ETH at about 2.59 M gas; all three ≈ 2–3 ETH; the deployer holds 12.16 ETH) |
-| User xPNTs (V2) balance | 100 × maximum single reservation; check `maxSingleTxLimit` (default 5000e18) ≥ the maximum single reservation | **TBD** |
-| Recompute trigger | if the pilot freezes SP post above 480000, recompute. If funds are short, STOP; do not top up mid-sampling | — |
+| APNTsCapped deposit for the deployer operator | `AD = 100×Amax + beta_A`; use the worksheet's nested ceiling calculation for Amax, approved price bound and SP_RENEW gas bound (initial SP post = 480000). Fund the deficit and check the uint128 bound | **TBD** |
+| EntryPoint deposits | Each j ∈ {SP,VPM,TPM}: `ED_j = 100×M_j + beta_EP_j`, with `beta_EP_j = M_j + extra_EP_j` and nonnegative extra. This preserves the collector's post-send deposit floor `B_max×M_j = M_j`, including attempt 100. Fund deficits; stake is separate | **TBD** (per-arm targets, deficits and read-backs) |
+| User xPNTs (V2) balance | Convert aPNTs reservation units: `Xmax = ceilDiv(Amax×e,10^18)`; `XD = 100×Xmax + beta_X`. Mint deficit only with zero debt/lock/credit reservation; require `X.maxSingleTxLimit() ≥ Amax` (default 5000e18) and the Phase C allowance lifecycle | **TBD** |
+| TPM fee token Q / allowance | `QD = 100×Qmax + beta_Q`, with Qmax computed by the worksheet, including refundPostopCost and cached-price/markup checks. Mint deficit to S and approve TPM for QD; Q is separate from task token T | **TBD** |
+| Task token T | Before pilot, sender S ≥ 301 and recipient R ≥ 1 smallest unit; mint exact deficits. One unit per transfer, across all three arms; R does not return T during the window | **TBD** (balances/read-backs; minimum 301/1) |
+| Bundler ETH | `BD = 100×f×(H_SP+H_VPM+H_TPM) + f×sum(H_aux) + beta_B`; use outer transaction bounds and listed maintenance, without netting beneficiary reimbursements. Fund the deficit | **TBD** |
+| Recompute trigger | After the pilot, apply the worksheet's remaining-attempt checks and collector deposit floor. Recompute all affected reservations, limits and balances if SP post exceeds 480000 or any other bound is exceeded. If short, STOP before formal sampling; additional funding requires a revised reviewed packet/go and read-backs, never a mid-sampling top-up | **TBD** (consumption, remaining targets and surplus) |
 
 The margin is deliberately wide (testnet). The surplus remains and is read back; it does not affect the gas measurement.
+Aggregate ETH estimates are not funding checks; use the worksheet and register the computed values here.
 
 ## 5. Operator configuration (Phase C)
 
