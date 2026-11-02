@@ -1,6 +1,6 @@
 # Pre-sampling manifest: one reviewed hash for every remaining Sepolia write (CC-125 / CC-127)
 
-Status: **design accepted by DSR (revision 3 + two text fixes, 2026-11-01)**. Packet building follows the §2 preconditions. No packet has been built, nothing is
+Status: **design accepted by DSR (revision 3 + two text fixes, 2026-11-01; Phase C rulings 2026-11-02)**. Packet building follows the §2 preconditions. No packet has been built, nothing is
 signed, and nothing below may be sent until the author gives a separate go for the built packet's sha256. Each go
 request carries the decision card in §9.
 
@@ -44,9 +44,10 @@ Release preconditions, needed so that §8's "one tag" claim has evidence:
 
 Chain preconditions at the pin block:
 - A3a S6a, S6b and S7 are mined and read back:
-  - the deployer nonce is the manifest's first nonce;
+  - D's manifest start nonce is **12136**, rechecked at the pin;
   - APNTsCapped is owned by the timelock;
-  - SP `pendingAPNTsToken == APNTsCapped`, and `pendingAPNTsTokenEta` is recorded.
+  - SP `pendingAPNTsToken == APNTsCapped` (`0x9Eb1…e1e7`), and `pendingAPNTsTokenEta == 1794226596` = **2026-11-09 12:16:36 UTC**, from S7 block **12048088**.
+  - DSR 2026-11-02 read-back: S6a/S6b/S7 status 1 on both RPCs; APNTsCapped owner is the timelock. These are read-backs, not authorization for subsequent writes.
 - The three A3a signers have sent nothing outside the plans, or every such transaction is a proven gap (#571).
 - SP is 5.4.2 and owned by the deployer. The timelock `0xCCdF…C34B` has the A3a role sets.
 - Registry is 5.8.0 with storage layout identical to 5.9.0 (32 variables, `_owner` at slot 0). **VERIFY**.
@@ -62,6 +63,9 @@ Chain preconditions at the pin block:
   imported into a Foundry keystore before the packet is built. The packet references the keystore, never the key.
 - DVT's frozen commit `72aca4fa` (accepted by DSR 11-01, including `OverIssueFraudProofVerifier`) builds reproducibly
   under the same two-hash rule, with the DVT CI pass record that `BLSAggregator.sol:86` requires.
+  `result: PASS` covers only the 23 required suites. Bind `ciRun {runId, headSha, overall:"failure", jobs}`
+  and a closed `acceptedFailures` list containing only "Security Audit" (npm). Any other failing job or missing
+  run binding is STOP (DSR 2026-11-02).
 - That verifier source was validated against BLSAggregator 4.11.0 only. DVT's conformance run against 4.12.0 (`fbd74fb1`)
   must pass before the packet is built. Otherwise STOP. DVT reported on 11-01:
   - `CC115CrossRepoConformance`: 7 passed;
@@ -137,7 +141,7 @@ Timing:
 
 ### Phase C — funding and sampling configuration (after 6d)
 
-Revision proposal for DSR/author review; the accepted status above does not imply acceptance of this expansion.
+Resolved by DSR 2026-11-02; these design rulings do not authorize on-chain writes. The author still gives go on the packet hash.
 **D is the only sampled operator.** B3 unpauses D only; N stays paused, receives no V2 token and no funding.
 All amounts below are integer base units. Every symbolic input becomes a literal in the packet before its hash/go;
 no sender chooses an amount, address, branch or nonce at execution time. A row containing several calls expands into
@@ -145,8 +149,9 @@ separate, ordered transactions with separate nonces and read-backs.
 
 Bindings (G3 §2, §6): `F` = A4 factory, `X` = D's new V2 clone, `EP` = v0.7 singleton,
 `S` = one SimpleAccount shared across all arms, `O` = its registered owner keystore, `s` = pinned salt,
-`B` = dedicated bundler EOA, distinct from D/N/A/E, `V` = VPM signer keystore. O and V are bound before the packet;
-neither is an Anvil key. `R` is a fixed nonzero recipient distinct from S. `T` is a new plain ERC-20 task token,
+`B` = dedicated bundler EOA, distinct from D/N/A/E, `V` = VPM signer keystore. B/O/V are freshly generated,
+dedicated keystores; only their addresses enter the packet, never keys. D funds B and O.
+`R = 0x000000000000000000000000000000000000dEaD`, distinct from S. `T` is a new plain ERC-20 task token,
 separate from APNTsCapped, X and TPM's fee token `Q`. `u = 1` smallest T unit. All arms execute exactly
 `S.execute(address,uint256,bytes)(T,0,abi.encodeCall(transfer,(R,u)))`; record its `callDataHash`.
 The existing factory is `0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985`, implementation `0x6864…00C2`;
@@ -156,27 +161,31 @@ full implementation address/runtime and rebuild evidence are pinned, not inferre
 Use `n = 100` attempts **per arm** (50 formal + 20 pilot + 30 failure/exclusion margin), `f = 5×10^9 wei`,
 priority cap `1×10^9 wei`, including the pilot. For arm j, pre-pilot funding bounds are
 `c_j, v_j, pv_j, pp_j, pre_j` for call, account verification, paymaster verification, postOp and preVerification gas.
-`pv_SP` covers **SP_RENEW**, and initial `pp_SP = 480000`. These bounds must be fixed from reviewed calibration
-before the packet, with `g_j = c_j+v_j+pv_j+pp_j+pre_j`, `M_j = g_j×f` (maximum EntryPoint prefund).
+`SP_RENEW` is **never set**, and initial `pp_SP = 480000`. Pre-pilot gas and outer transaction upper bounds
+are the Amsterdam fork rehearsal measurements × 1.5 (rounded up), fixed before the packet, with `g_j = c_j+v_j+pv_j+pp_j+pre_j`, `M_j = g_j×f` (maximum EntryPoint prefund).
 This is the v0.7 sum, with no v0.6 multiplier (`singleton-paymaster/lib/account-abstraction-v7/contracts/core/EntryPoint.sol:402`).
 
-Let `P*` be the approved upper bound for positive cached ETH/USD price, `d` its decimals, `a` the pinned
-`aPNTsPriceUSD`, `b` the pinned `protocolFeeBPS`, `e` the fixed X exchange rate. Price updates must stay within P*;
+Set `P* = 3500e8` (8 decimals, `d = 8`) as the upper bound for positive cached ETH/USD price, `a` the pinned
+`aPNTsPriceUSD`, `b` the pinned `protocolFeeBPS`, and `e = 1e18`. Exceeding P* is **STOP**;
 a pin price alone does not bound future reservations. Source rounding is nested, not one rounded approximation:
 
 | Quantity | Exact funding rule / predicate |
 | --- | --- |
 | Maximum SP reservation in aPNTs units | `A0 = ceilDiv(M_SP×P*×10^18,10^d×a)`; `Amax = ceilDiv(A0×(10000+b+1000),10000)`. The 1000 is `VALIDATION_BUFFER_BPS`; see its declaration at `SuperPaymasterStorage.sol:209` and use at `SuperPaymaster.sol:309`; the initial conversion is at `SuperPaymaster.sol:218–222` (under `contracts/src/paymasters/superpaymaster/v3/`). |
-| D operator deposit | Target `AD = n×Amax + beta_A`; top-up `delta_A = positive(AD − operators(D).aPNTsBalance)`. Mint `delta_m = positive(delta_A − APNTsCapped.balanceOf(D))`. `beta_A` is an explicit nonnegative buffer, TBD before packet freeze. Require final operator balance ≥ AD and ≤ uint128 max. |
-| EP deposits | Each j ∈ {SP,VPM,TPM}: target `ED_j = n×M_j + beta_EP_j`; `delta_EP_j = positive(ED_j − EP.balanceOf(j))`, using post-A13 balance for SP. Set `beta_EP_j = M_j + extra_EP_j` with nonnegative extra: the collector requires post-send deposit ≥ `B_max×M_j = M_j`, even on attempt 100 (`deposit-guard.mjs:40`). Separate stake from spendable deposit. |
-| User V2 balance | `Xmax = ceilDiv(Amax×e,10^18)`; target `XD = n×Xmax + beta_X`; mint `positive(XD−X.balanceOf(S))` only with `debts(S)==0`, `lockedOf(S)==0`, `creditReservedOf(S)==0`. Amax is in aPNTs units; X needs this conversion (equal at e = 1e18), as registered in G3 §4. Require `X.maxSingleTxLimit() ≥ Amax` (default 5000e18). |
+| D operator deposit | Target `AD = n×Amax + beta_A`; top-up `delta_A = positive(AD − operators(D).aPNTsBalance)`. Mint `delta_m = positive(delta_A − APNTsCapped.balanceOf(D))`. `beta_A = 5×Amax`. Require final operator balance ≥ AD and ≤ uint128 max. |
+| EP deposits | Each j ∈ {SP,VPM,TPM}: target `ED_j = n×M_j + beta_EP_j`; `delta_EP_j = positive(ED_j − EP.balanceOf(j))`, using post-A13 balance for SP. Set `beta_EP_j = M_j + extra_EP_j` with `extra_EP_j = 5×M_j`: the collector requires post-send deposit ≥ `B_max×M_j = M_j`, even on attempt 100 (`deposit-guard.mjs:40`). Separate stake from spendable deposit. |
+| User V2 balance | `Xmax = ceilDiv(Amax×e,10^18)`; target `XD = n×Xmax + beta_X`, `beta_X = 5×Xmax`; mint `positive(XD−X.balanceOf(S))` only with `debts(S)==0`, `lockedOf(S)==0`, `creditReservedOf(S)==0`. Amax is in aPNTs units; X needs this conversion (equal at e = 1e18), as registered in G3 §4. Require `Amax ≤ 5000e18` and `X.maxSingleTxLimit() ≥ Amax` (default 5000e18). |
 | Task token | Before pilot: `T.balanceOf(S) ≥ 3×n×u + u = 301`, `T.balanceOf(R) ≥ u = 1`; the extra sender unit keeps both balances nonzero even after 300 successful transfers. Mint the exact deficits. R never sends T back during the window. |
-| TPM fee token / allowance | With Q's 18 decimals, F1Oracle 1:1 and markup 1e26, `Qmax = ceilDiv((M_TPM+40000×f)×10^26,10^26)`; target `QD = n×Qmax + beta_Q`. Mint deficit to S and approve TPM for QD. Require cachedPrice = 1e26; otherwise recompute from `floor(cachedPrice×1e26/markup)` as denominator. Covers the extra refundPostopCost in `singleton-paymaster/lib/account-abstraction-v7/contracts/samples/TokenPaymaster.sol:132`; never use T to pay fees. |
-| Bundler ETH | `BD = n×f×(H_SP+H_VPM+H_TPM) + f×sum(H_aux) + beta_B`. H_j bounds the **outer** single-op handleOps transaction, including overhead; H_aux bounds B's separately listed maintenance transactions. Fund `positive(BD−balance(B))`. Do not net expected beneficiary reimbursements: B must pay even reverted outer transactions. |
+| TPM fee token / allowance | With Q's 18 decimals, F1Oracle 1:1 and markup 1e26, `Qmax = ceilDiv((M_TPM+40000×f)×10^26,10^26)`; target `QD = n×Qmax + beta_Q`, `beta_Q = 5×Qmax`. Mint deficit to S and approve TPM for QD. Require cachedPrice = 1e26; otherwise recompute from `floor(cachedPrice×1e26/markup)` as denominator. Covers the extra refundPostopCost in `singleton-paymaster/lib/account-abstraction-v7/contracts/samples/TokenPaymaster.sol:132`; never use T to pay fees. |
+| Bundler ETH | `BD = n×f×(H_SP+H_VPM+H_TPM) + f×sum(H_aux) + beta_B`. H_j bounds the **outer** single-op handleOps transaction, including overhead; H_aux bounds B's separately listed maintenance transactions; `beta_B = 0.2 ETH`. Fund `positive(BD−balance(B))`. Do not net expected beneficiary reimbursements: B must pay even reverted outer transactions. |
 
-All beta values, P*, calibration bounds, H values, treasury, token metadata/rate, O/V/B/R, salt and balances are
-**TBD at the pin / packet build**, not values to choose during sampling. Actual gas measurements and G3 frozen gas
-values remain **TBD until the pilot**. `maxFeePerGas` and priority are already fixed, not pilot outputs.
+Fixed inputs (Resolved by DSR 2026-11-02): `name = "AOA Research Points"`, `symbol = "xARP"`,
+`communityName = "AOA Research"`, `communityENS = ""`, `e = 1e18`, and
+`treasury = 0x16dF788Ed4ed1fc384e52Dc832a6a6C3A23BdeBf` (test Safe). P*, betas and R are fixed above.
+Measured calibration/H values, generated B/O/V addresses, S/salt and balances are recorded at the pin / packet build.
+Actual pilot measurements and G3 frozen gas values remain **TBD until the pilot**; 5/1 gwei caps are fixed.
+O sends C9, C18's approval and in-window TPM refreshes; D sends C18's mint. SP refresh belongs to the DVT keeper.
+O's ETH target `OD` sums every listed preparation/maintenance gas limit × its fee cap; D funds its deficit.
 
 **Ordering:** Phase C funding precedes Phase D and the pilot. It funds against the fee cap and the above reviewed gas/
 price upper bounds, not an unknown pilot measurement. No separate pilot funding step is needed: its ≤20 attempts per
@@ -185,42 +194,41 @@ cold/warm operations per arm; freeze call/post at `ceilDiv(pilotUpper×115,100)`
 verification/preVerification bounds. If SP post freezes **above 480000**, recompute **all** affected reservations,
 limits and balances (G3 §4); likewise for any other exceeded bound. Initial 480000 funding is not claimed to bound a
 larger post. Compare remaining funds against remaining attempts and the collector deposit floor; archive consumption
-and surplus. With h_j attempts already consumed, require EP deposit ≥ `(100−h_j)×M_j_new + M_j_new + extra_EP_j`, D balance ≥ `(100−h_SP)×Amax_new + beta_A`, and X balance ≥ `(100−h_SP)×Xmax_new + beta_X`; recompute Q/B similarly. If short, **STOP** before formal sampling; any additional funding needs a revised reviewed packet/go and
-new read-backs. Never top up mid-sampling. Exceeding the pilot's 20-attempt allocation also requires a new budget review.
+and surplus. With h_j attempts already consumed, require EP deposit ≥ `(100−h_j)×M_j_new + M_j_new + extra_EP_j`, D balance ≥ `(100−h_SP)×Amax_new + beta_A`, and X balance ≥ `(100−h_SP)×Xmax_new + beta_X`; recompute Q/B similarly, including all 5× buffers from the new per-attempt maxima. If balances suffice, DSR signs off the recomputation without a transaction. If any transaction is needed,
+**STOP** before formal sampling and build a new packet for author go on the new hash, with new read-backs. Never top up mid-sampling. Exceeding the pilot's 20-attempt allocation also requires a new budget review.
 
 **Concrete transactions.** CREATE rows bind full creation bytecode, constructor ABI, arguments and predicted address.
 `pin.*` means an archived value/decision, not a live lookup that silently changes calldata. Zero-deficit and already-
 satisfied conditional rows are omitted **before** nonce assignment; a later discrepancy is STOP, not a skipped nonce.
-Paths below are relative to the repository.
+Paths below are relative to the repository. Step labels are retained; C20 funds O before C9/C18 owner calls,
+and its nonce is assigned in that execution order.
 
 | Step | Sender → target | Exact call / arguments | Preconditions | Read-back predicate | Undo / recovery | G3 row |
 | --- | --- | --- | --- | --- | --- | --- |
 | C1 | Safe (A approves / E executes) → APNTsCapped | `mint(address,uint256)(D,delta_m)` | B3/B4 complete; active gas tuple=(480000,450000,5000,450000), pending gas queue empty, global/D unpaused and N paused; `minter()==Safe`; D≠0; `totalSupply()+delta_m ≤ cap()`; pinned existing D balance | D balance and supply increase exactly delta_m; cap/minter unchanged | D `burn(uint256)(unused)` frees cap; spent mint cannot be undone | §4 operator funding; W1 |
 | C2 | D → APNTsCapped, then SP | `approve(address,uint256)(SP,delta_A)`; `deposit(uint256)(delta_A)` | C1; D has PAYMASTER_SUPER; APNTS_TOKEN is capped token; allowance/balance sufficient; uint128 addition safe | allowance after approve = delta_A; operator balance ≥ AD, tracked and SP token balances each rise delta_A; solvency reconciled | D `withdraw(uint256)(unused)` if no pending slash/inflight; revoke leftover approval | §4 operator funding |
 | C3 | D → F, then SP | `deployxPNTsToken(string,string,string,string,uint256,address)(pin.name,pin.symbol,pin.communityName,pin.communityENS,e,address(0))`; `configureOperator(address,address)(X,pin.treasury)` | F is active SP factory; checks listed below; D roles true | F.getTokenAddress(D)=X; isXPNTs(X); clone/template bindings; operator token=X, treasury exact, configured=true, paused=false; balance/minTxInterval unchanged; X policy=0, pendingPolicyEta=0 | Clone cannot be deleted/redeployed for D in F; stop and review correction. Old V1 cannot simply be restored through this V2-only configure path | §2 operators/BALANCE; §5 |
-| C4 | D → Registry, **only if approved before packet freeze** | `configureRole(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))(keccak256("PAYMASTER_SUPER"),pin.originalSuperConfig with isActive=true)` | All holder enumeration/drain gates complete; D remains Registry owner; exact config/authority pin; author chooses reopening | Complete config equals original, including isActive; membership unchanged | D restore same tuple with isActive=false before handover; afterwards authorized role owner or timelock | W1; §5 (not required for D reconfiguration) |
 | C5 | D → existing SimpleAccount factory | `createAccount(address,uint256)(O,s)` | G3 rebuild evidence; `getAddress(O,s)==S`; pinned factory/implementation/EP; S absent or correct | code/implementation match, `owner()==O`, `entryPoint()==EP`; same S on every arm | No deletion; unused account may remain | §2 Accounts; §6 Senders |
 | C6 | D → GToken | `approve(address,uint256)(Registry.GTOKEN_STAKING(),k+t)` | New ENDUSER S; D token balance ≥ k+t; k=pin ENDUSER minStake, t=pin ticketPrice; lock/stake constraints pass | allowance=k+t | `approve(staking,0)` | W1, §2 Accounts |
 | C7 | D → Registry | `safeMintForRole(bytes32,address,bytes)(keccak256("ENDUSER"),S,abi.encode(D,k))` | C5/C6; ENDUSER active; D COMMUNITY; S lacks ENDUSER; MySBT/Registry/SP pointers and airdrop eligibility valid | Registry.hasRole(ENDUSER,S), MySBT membership, SP.sbtHolders(S) and isEligibleForSponsorship(S) true; stake=k, ticket accounted | O→S `execute(Registry,0,abi.encodeCall(exitRole,(ENDUSER)))` subject to role lock/exit fee; ticket not refunded | W1, §2 Accounts |
 | C8 | D → X | `mint(address,uint256)(S,positive(XD−pin.balanceX))` | C3/C5; communityOwner=D; no user debt/lock/reservation | balance≥XD; supply delta exact; creditPolicy=0, pendingPolicyEta=0 | S owner may burn unused own X; no arbitrary third-party burn | §4 user balance; §5 OFF |
-| C9 | O → S → X | `execute(address,uint256,bytes)(X,0,abi.encodeCall(setAutoAllowance,(SP,L)))`; inner `setAutoAllowance(address,uint256)(SP,L)`; same wrapper for `setUserTotalCap(uint256)(L)`, `setRenewalMode(uint8)(0)`, `renewForSelf(address)(SP)` | L=50000e18; Amax≤min(L,X.maxSingleTxLimit()); no outstanding lock/reservation; O owns S | `autoAllowance(S,SP)=(L,0)`, `userTotal(S)=(L,0)`, renewalMode=0, autoRenewUsed=0; OFF unchanged | Owner restores pinned caps/mode when idle; usage reset not reversible | §3 SP_RENEW; §4 balance; §5 |
-| C10 | D → CREATE T | `F1TestToken.constructor()` from pinned `contracts/test/bundler/F1Fixtures.sol` artifact, separate instance from Q | Author accepts plain fixture token on Sepolia; creation hash/nonce fixed | MINTER=D; 18 decimals; ERC-20 runtime/hash exact | Unused contract remains | §2 Task; §6 T |
+| C20 | D → O | ETH transfer, `data=0x`, `value=positive(OD−pin.balanceO)` | Dedicated O fixed; all C9/C18 preparation and in-window TPM refresh gas budgeted; D full budget passes | balance(O)≥OD | O returns unused ETH after completion | §4 funding; §6 owner/maintenance |
+| C9 | O → S → X | `execute(address,uint256,bytes)(X,0,abi.encodeCall(setAutoAllowance,(SP,L)))`; inner `setAutoAllowance(address,uint256)(SP,L)`; same wrapper for `setUserTotalCap(uint256)(L)`, `setRenewalMode(uint8)(0)` | L=50000e18; Amax≤min(L,X.maxSingleTxLimit()); C20 funding satisfied; fresh X/S used counters zero; no outstanding lock/reservation; O owns S | `autoAllowance(S,SP)=(L,0)`, `userTotal(S)=(L,0)`, renewalMode=0, autoRenewUsed=0; OFF unchanged | Owner restores pinned caps/mode when idle; no renewal | §3 SP_RENEW never; §4 balance; §5 |
+| C10 | D → CREATE T | `F1TestToken.constructor()` from pinned `contracts/test/bundler/F1Fixtures.sol` artifact, separate instance from Q | DSR permits fixture use on Sepolia; source commit/provenance in §9 card; creation hash/nonce fixed | MINTER=D; 18 decimals; ERC-20 runtime/hash exact | Unused contract remains | §2 Task; §6 T |
 | C11 | D → T | `mint(address,uint256)(S,positive(301−pin.balanceT_S))`; `mint(address,uint256)(R,positive(1−pin.balanceT_R))` | C5/C10; fixed R≠S, R≠0 | S≥301, R≥1; hash of identical task calldata recorded | Transfer unused balances only by their holders; no burn in F1TestToken | §2 Task; §6 R/callDataHash |
 | C12 | D → CREATE VPM | `VerifyingPaymaster.constructor(address,address)(EP,V)` | Pinned unchanged v0.7 artifact; real registered V keystore | runtime/immutables, owner=D, entryPoint=EP, verifyingSigner=V | Unused deployment remains | §6 VPM; W1/W6 |
 | C13 | D → CREATE Q, then oracle | `F1TestToken.constructor()`; `F1Oracle.constructor()` | Separate Q≠T; pinned artifacts as C10 | Q.MINTER=D, decimals=18; oracle decimals=8, answer=1e8 | Unused deployments remain | §6 TPM configuration |
 | C14 | D → CREATE TPM | `TokenPaymaster.constructor(address,address,address,address,(uint256,uint128,uint48,uint48),(uint48,uint48,address,address,bool,bool,bool,uint256),(uint256,uint24,uint8),address)(Q,EP,DEAD,DEAD,(1e26,0,40000,864000),(864000,864000,C13.oracle,0,true,false,false,1e25),(1,3000,5),D)`; DEAD=`0x000000000000000000000000000000000000dEaD` | C13; pinned v0.7 artifact and tuples; no swap path (minEntryPointBalance=0) | owner, EP, Q, oracle/config/runtime/immutables match; wrappedNative/uniswap=DEAD | Unused deployment remains; no real swap permitted | §6 TPM; §7 TPM disclosure |
-| C15 | D → TPM | `updateCachedPrice(bool)(true)` | C14; oracle read valid | cachedPrice=1e26, timestamp fresh; recheck W2 before pilot/window | Refresh via registered non-D maintenance sender later; no rollback of time | W2; §4 TPM funding |
+| C15 | D → TPM | `updateCachedPrice(bool)(true)` | C14; oracle read valid | cachedPrice=1e26, timestamp fresh; recheck W2 before pilot/window | Refresh via O later; no rollback of time | W2; §4 TPM funding |
 | C16 | D → VPM, then TPM | each `addStake(uint32)(86400){value:1 ether}` | C12/C14; owner=D; explicit 2 ETH budget | EP.getDepositInfo: stake≥1 ETH, delay≥86400, withdrawTime=0 | Each owner `unlockStake()` then `withdrawStake(address)(D)` after delay | W1; §6 baseline configuration |
 | C17 | D → EP (three transactions) | `depositTo(address)(SP){value:delta_EP_SP}`; same for VPM and TPM | C12/C14; balances at pin plus known earlier effects; D ETH budget passes | EP.balanceOf(j)≥ED_j for all three; stake unchanged | Baseline owner `withdrawTo(address,uint256)(D,unused)`; SP withdrawal requires its timelock owner | §4 EntryPoint deposits |
 | C18 | D → Q, then O → S → Q | `mint(address,uint256)(S,positive(QD−pin.balanceQ))`; `execute(address,uint256,bytes)(Q,0,abi.encodeCall(approve,(TPM,QD)))` | C5/C13/C14; QD worksheet; O owns S | Q.balanceOf(S)≥QD; allowance(S,TPM)=QD | O revokes approval/transfers unused Q | §4 comparator funding; §6 TPM |
-| C19 | D (proposed funder, subject to question 2) → B | ETH transfer, `data=0x`, `value=positive(BD−pin.balanceB)` | Dedicated B identity fixed, distinct from D/N/A/E; D budget covers it | balance(B)≥BD; registered B/beneficiary match | B returns unused ETH after completion | §6 Bundler; §4 funding |
+| C19 | D → B | ETH transfer, `data=0x`, `value=positive(BD−pin.balanceB)` | Dedicated B identity fixed, distinct from D/N/A/E; D budget covers it | balance(B)≥BD; registered B/beneficiary match | B returns unused ETH after completion | §6 Bundler; §4 funding |
 
-**C4 is a registration switch, not an SP pause or SBT switch.** Registry has no `unfreeze()` function.
-A16's freeze uses `configureRole` to set `PAYMASTER_SUPER.isActive=false`; this blocks `registerRole` and
-`safeMintForRole` (`contracts/src/core/Registry.sol:322`, `:421`, `:458`). It does not erase `hasRole`, and neither
-SP configuration nor deposits tests isActive. Default proposal: omit C4 and retain the registration freeze unless
-DSR/author explicitly wants to reopen registration. ENDUSER must independently be active for C7. If S already has
-valid membership, omit C6/C7 at build time after reading both MySBT and SP status. A mismatch is STOP: D cannot call
+**Registration stays frozen (Resolved by DSR 2026-11-02).** No reopening transaction is included.
+A16 sets `PAYMASTER_SUPER.isActive=false`, blocking registration/minting (`Registry.sol:322`, `:421`, `:458`),
+without erasing existing membership. ENDUSER inactive is **STOP**. If S already has valid membership, omit C6/C7
+at build time after reading both MySBT and SP status. Any S status mismatch is **STOP**: D cannot call
 `SP.updateSBTStatus` directly (Registry-only, `SuperPaymasterAdmin.sol:170`); no impersonation/override is a repair.
 
 **In-place configuration is confirmed, not an open choice.** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol:118–146`
@@ -251,19 +259,22 @@ No metadata nonempty check or role isActive check is present. Clone/initializer/
 APNTsCapped mint is Safe-minter-only, capped by supply+amount, and rejects zero recipient via ERC-20 `_mint`
 (`contracts/src/tokens/APNTsCapped.sol:92`). Insufficient cap is STOP, not an implicit raiseCap operation.
 
-**Allowance lifecycle must also be frozen.** C9 does not grant unlimited lifetime spending. V2 user caps are at most
-50000e18; `K=1` permits only one automatic SP renewal between owner renewals (`xPNTsV2Base.sol:29–34`). A 100-attempt
-balance can exceed these caps. Proposed explicit maintenance template: O sends
-`S.execute(address,uint256,bytes)(X,0,abi.encodeCall(renewForSelf,(SP)))` outside measured handleOps, with no live
-lock/credit reservation; read both used counters and autoRenewUsed back as zero (`xPNTsV2Base.sol:302`). It adds
-no tokens/ETH. DSR must freeze its schedule, SP_RENEW flag policy and evidence boundaries before the packet, reserve
-O nonces/gas for every such transaction, and ensure maintenance is not mistaken for an extra formal task. No ad hoc
-renewals during collection. Without an accepted lifecycle supporting all 100 attempts, STOP at packet build.
+**No renewal (Resolved by DSR 2026-11-02, Q5 reversed).** `L = 50000e18`; `SP_RENEW` is **never set**,
+and there is no owner-renewal transaction. Before **every SP attempt**, pilot and formal, read `used` for both
+`autoAllowance(S,SP)` and `userTotal(S)`; if either `L-used < Amax`, **STOP and go through a new packet**.
+Archive the precheck. Never reset usage to continue collection.
+`settleLocked` refunds `aReserved-charge` (`xPNTsTokenV2.sol:250–268`), so used accumulates actual charges,
+roughly 193/attempt at 2 gwei or 481 at 5 gwei (~19k–48k for 100 attempts); these estimates do not replace the precheck.
+Renewal resets used to zero and makes the next SP attempt incur first-write cost, contaminating samples.
+SP uses only lock/settle (`SuperPaymaster.sol:439`); stale `_releaseLock` refunds the full aReserved.
+`_spendV2` (`xPNTsTokenV2.sol:162`) adds the full amount only for auto-approved non-SP spenders calling
+transferFrom/burnFrom; with `paymasterAOA=0` there is none. Source citations are the verified DSR ruling evidence.
 
 **Tooling reconciliation.** `deploy-baselines.mjs` is a local-only recipe (Anvil keys, 10 ETH deposits per baseline),
 not a Sepolia executor. C12–C18 retain its comparator constructor/config values while substituting registered signers
-and computed deposits. Its fixture source also says local-only; approval/provenance for using those plain token/oracle
-artifacts on Sepolia remains required. Current `collector.mjs:264–280` takes formal GAS/PM_GAS/MAX_FEE_CEILING and
+and computed deposits. DSR permits the F1TestToken/F1Oracle artifacts on Sepolia without source changes.
+Record their source commit in the packet and explain the difference from the fixture header's "local only" scope
+in the §9 decision card; this does not authorize the local deployment script or its Anvil defaults. Current `collector.mjs:264–280` takes formal GAS/PM_GAS/MAX_FEE_CEILING and
 calldata from the frozen configuration; its local defaults are not the G3 configuration. Formal preparation checks
 S via the factory and task balances (`:480`), but is not a substitute for these funding transactions. Bind formal
 5/1 gwei, the pilot's frozen gas, `B_max=1`, rotating arms, BALANCE/OFF and identical transfer calldata. Collector,
@@ -272,19 +283,17 @@ W1 additionally requires Phase D/Registry acceptance; W4 (author go/A4), W5 (ind
 (author DVT-freeze decision) are evidence/decision gates, not missing Phase C transactions. Require all W1–W7
 before the G3 freeze, with W3 supplied by the pilot.
 
-Open questions for DSR/author (resolve before packet freeze unless explicitly pilot-derived):
-1. What exact beta buffers, ETH/USD bound P*, pre-pilot gas/outer transaction bounds and contingency are accepted?
-   Pilot results fill final gas limits only; who signs off the recomputation if SP post exceeds 480000?
-2. Does D fund B as proposed in C19, and what are the full B/O/V addresses and keystore bindings? Who pays O's
-   preparation/renewal gas and the non-D W2 maintenance gas? These need explicit sender budgets/transfers if deficient.
-3. Should C4 reopen PAYMASTER_SUPER registration at all? Existing D needs no unfreeze. Confirm ENDUSER activation,
-   chosen S/salt and any existing SBT status; a repair or role-config change needs separately specified calldata.
-4. Confirm X metadata, exchange rate and treasury; R and the one-base-unit task; and permission/provenance to deploy
-   the F1TestToken/F1Oracle artifacts on Sepolia (including a separate T). Code cannot decide these experiment choices.
-5. What owner-renewal schedule and SP_RENEW flag policy preserve the matched sample protocol while covering the
-   50000e18 caps and K=1? Specify pilot and formal maintenance, nonce slots, gas budgets and exclusion boundaries.
-6. Accept the baseline 1 ETH stakes each, their D ownership after Phase D, and the 864000-second TPM cache settings?
-   Freeze W2 keeper/maintenance identities and allowances for refreshes; no D collector/keeper sends during the manifest.
+Resolved by DSR 2026-11-02 (design decisions; presented with the packet hash go):
+1. **Q1:** P*=3500e8; beta_A/extra_EP_j/beta_X/beta_Q are 5× their per-attempt maxima; beta_B=0.2 ETH.
+   Pre-pilot bounds use Amsterdam rehearsal ×1.5; SP post=480000; Amax≤5000e18. DSR signs off a sufficient
+   post-pilot recomputation without a transaction; any needed transaction requires a new packet and author go on its hash.
+2. **Q2:** D funds B/O; B/O/V use fresh dedicated keystores, with only addresses in the packet. O sends C9,
+   C18 approval and in-window TPM refreshes; the DVT keeper refreshes SP.
+3. **Q3:** No registration reopening. ENDUSER inactive or S status mismatch is STOP.
+4. **Q4:** X metadata/rate, test Safe treasury and dead-address R are fixed above. F1 fixtures are permitted with
+   source commit and the local-only-header explanation in §9. No separate author question; include them with hash go.
+5. **Q5 (reversed):** No renewal; SP_RENEW never. Before every SP attempt, `L-used < Amax` is STOP, new packet.
+6. **Q6:** 1 ETH stake each for VPM/TPM, D ownership (disclosed), and 864000-second TPM cache settings accepted.
 
 ### Phase D — owner handover (last)
 
@@ -309,13 +318,19 @@ also takes 48 h. BLSAggregator and DVTValidator are Safe-only, with no timelock;
 ## 4. Nonce, budget and timing
 
 - **Nonces.**
-  - All D steps form one strictly increasing nonce sequence starting at the post-S7 nonce.
-  - N, A and E each have their own sequences. Phase C adds Safe mint nonce(s) after 6d, plus O's account-owner calls; expand every multi-call row before fixing CREATE addresses. Deduplicate sequences if O/V share an authorized sender identity.
-  - B has a separate sequence for pilot/formal handleOps and registered maintenance, beginning only after Phase D. Pin O renewal slots and the account's EntryPoint nonce separately; direct owner execute calls consume EOA nonces, not UserOperation nonces.
+  - All D steps form one strictly increasing nonce sequence starting at **12136**, the post-S7 nonce (rechecked at the pin).
+  - N, A and E each have their own sequences. Phase C adds Safe mint nonce(s) after 6d, plus O's account-owner calls; expand every multi-call row before fixing CREATE addresses. B/O/V are fresh dedicated identities; bind their addresses before assigning nonces.
+  - B has a separate sequence for pilot/formal handleOps and registered maintenance, beginning only after Phase D. Pin O preparation/TPM-refresh slots and the account's EntryPoint nonce separately; direct owner execute calls consume EOA nonces, not UserOperation nonces.
   - No other process may send from D, N, A or E until the manifest completes. The DVT/keeper ban stays in force.
-- **Budget.** The historical 12.16 ETH D balance is not a sufficiency proof. Re-read at the pin and sum stake top-ups (SP plus C16's 2 ETH), Phase C EP deficits, proposed B funding, every CREATE/call gas limit × its packet fee cap, and any approved O/maintenance funding. Avoid counting A13's deposit twice. Safe/A/E/O/B each need a separate budget. Phase C's worksheet binds APNTs cap headroom, GToken stake/ticket, V2/Q/T amounts and integer rounding; no approximate “2–3 ETH” replaces this check. Pilot/formal fees remain 5/1 gwei.
-- **Timing.** The 6d execution time must be ≥ `pendingAPNTsTokenEta`. With S7 on 2026-11-02, that is about
-  2026-11-09 08:04 UTC.
+- **Full budget.** The packet computes the **total ETH required from D**, including all Phase A/B deployments
+  and calls, SP stake top-up and both 1 ETH baseline stakes, every EP deposit (count A13 only once), B and O
+  funding, and all transaction gas at packet fee caps. Re-read D's balance at the pin. If it is short, **STOP and
+  report the exact shortfall; never reduce n** (100 attempts per arm). DSR's rough EP ~3.5 ETH, baseline stakes
+  2 ETH and B worst ~3.75 ETH plus Phase A/B deployments are close to the historical 12.16 ETH balance;
+  they are estimates, not a sufficiency proof. Safe/A/E/O/B each need a separate budget. The worksheet also binds
+  APNTs cap headroom, GToken stake/ticket, V2/Q/T amounts and integer rounding. Pilot/formal fees remain 5/1 gwei.
+- **Timing.** 6d must execute at or after **2026-11-09 12:16:36 UTC**, `pendingAPNTsTokenEta = 1794226596`,
+  from S7 block **12048088**.
   - Critical path: Phase A (about a day) → 5a + 48 h → 5b → 6c, scheduled so that 6d ≥ S7 + 7 d → 6d → Phase C → Phase D (including Registry +48 h acceptance/read-back) → pilot → recomputation/read-back → G3 freeze → formal collection.
   - The Registry acceptance adds 48 h. Phase C must fund the pilot before this handover; pilot → recomputation/read-back → G3 freeze → formal collection follows full Phase D acceptance. Reserve W2 refresh time and D's pinned minTxInterval between SP attempts. A funding shortfall delays the window; no mid-sampling top-up.
   - **2026-11-11/12 remains only a conditional earliest-start estimate**, not a confirmed sampling date. Assume 6d executes on November 9, Phase C and full Phase D acceptance/read-back finish by November 11, and reserve up to one additional day for the pilot (including minTxInterval/W2 waits), recomputation/read-back and DSR's G3 freeze. Under those assumptions formal collection can start late November 11 or on November 12. If the pilot/freeze needs longer, another W1–W7 gate is outstanding, or funding needs a revised packet, move the estimate later; pilot time is not zero.
@@ -340,7 +355,12 @@ STOP conditions (each is a hard stop; nothing later is sent):
   mined with status 0, B4 passes only when its post-state holds (`fraudProofVerifier == A12a`, pending cleared). The tx
   is recorded. If the post-state does not hold, STOP;
 - an in-flight proposal appears on the old aggregator;
-- the B2 gate fails.
+- the B2 gate fails;
+- cached ETH/USD exceeds `P* = 3500e8`, Amax exceeds 5000e18, ENDUSER is inactive or S status mismatches;
+- before any SP attempt, either used counter leaves `L-used < Amax`: STOP, new packet; SP_RENEW is never set;
+- any renewal is proposed, or a required post-pilot transaction is absent from a new reviewed packet/hash go;
+- the full D budget is short: report the shortfall, never reduce n; or B/O/other sender funding is insufficient;
+- the DVT CI run binding is missing or any failing job is outside the closed "Security Audit" (npm) exception.
 
 | Stopped during | State left | Recovery |
 | --- | --- | --- |
@@ -356,8 +376,8 @@ STOP conditions (each is a hard stop; nothing later is sent):
 | 6c scheduled, before 6d | still paused | Safe cancels 6c |
 | after 6d | active and unpaused on APNTsCapped | normal operation |
 | Phase C partial | D may be funded/reconfigured, S prepared, comparators deployed/staked; N remains paused and unfunded | Per-step recovery above; no claim that deployments, tickets or used funding are reversible. SP recovery requiring owner authority goes through timelock. |
-| Phase C/pilot funding or identity gate | Cap headroom, roles/SBT, policy OFF/pending ETA, single reservation/allowance, gas/price bounds, sender budget or identity differs; or allowance lifecycle is unresolved | STOP. Fix the design and obtain a new packet/go for additional writes. If pilot SP post >480000, recompute; any shortfall stops formal collection, never triggers mid-sampling funding. |
-| Formal window funds/cap exhausted | Attempts and surplus/shortfall recorded; no unlisted top-up, cap change or renewal sent | STOP and preserve evidence; a changed configuration requires a new reviewed freeze/window. Fee-cap exclusion follows G3 §3a: pause/wait, keep attempts, never raise the cap. |
+| Phase C/pilot funding or identity gate | Cap headroom, roles/SBT, policy OFF/pending ETA, single reservation/allowance, gas/price bounds, sender budget or identity differs; or the per-attempt used precheck fails | STOP. Fix the design and obtain a new packet/go for additional writes. If pilot SP post >480000, recompute; any shortfall stops formal collection, never triggers mid-sampling funding. |
+| Formal window funds/cap exhausted | Attempts and surplus/shortfall recorded; no unlisted top-up, cap change or renewal sent | STOP and preserve evidence; insufficient `L-used` requires a new packet; a changed configuration requires a new reviewed freeze/window. Fee-cap exclusion follows G3 §3a: pause/wait, keep attempts, never raise the cap. |
 | Phase D partial | ownership partly handed over | Use the actual current owners; no D-only recovery assumed. |
 
 ## 7. Rehearsal and controls (before the packet is frozen)
@@ -400,6 +420,8 @@ STOP conditions (each is a hard stop; nothing later is sent):
     Its hashes: sha256 `4d7e0125…e7d6`; creation keccak `0x73652062…e3ab`; keccak with the CBOR tail stripped `0x697b9779…8d54`.
   - The packet uses that creation code, or a real-submodule rebuild compared against it under the two-hash rule. The constructor arguments (A7, Registry) are appended by the builder.
 - **Negative controls.**
+  - missing DVT CI run binding or a failing job other than "Security Audit" (npm) rejected;
+  - exhausted allowance (`L-used < Amax`), SP_RENEW set, price above P*, and a short full D budget each STOP; n is never reduced;
   - unpause before 6d rejected;
   - `configureOperator` before `setXPNTsFactory` rejected;
   - `applyBLSAggregator` before 24 h rejected;
@@ -453,4 +475,15 @@ For each phase:
 - who reviewed it;
 - the timing.
 
+Resolved by DSR 2026-11-02, Q4 fields (included with hash go, no separate author question):
+- X name **AOA Research Points**, symbol **xARP**, communityName **AOA Research**, communityENS **""**, exchange rate **1e18**;
+- treasury: test Safe **0x16dF788Ed4ed1fc384e52Dc832a6a6C3A23BdeBf**. It is only stored by
+  `configureOperator` (`SuperPaymasterAdmin.sol:142`); settlement never reads or writes it (verified DSR source evidence);
+- task recipient **0x000000000000000000000000000000000000dEaD**, one smallest T unit per identical transfer;
+- **F1 fixture provenance:** record the exact source commit and artifacts for F1TestToken (separate T/Q instances)
+  and F1Oracle. Their header says "local only"; DSR permits these controlled fixtures on Sepolia for this gas experiment,
+  without changing source. Explain that scope difference explicitly; the local Anvil deployment recipe is not used.
+- disclose baseline ownership by D, 1 ETH stakes each, 864000-second cache, no renewal, and the full D budget/shortfall check.
+
+The first Phase C/D executor output on a real pin goes to DSR **before** asking the author for go.
 The packet sha256 comes last, as the identifier.
