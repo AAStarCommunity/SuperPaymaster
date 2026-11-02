@@ -166,12 +166,12 @@ a pin price alone does not bound future reservations. Source rounding is nested,
 
 | Quantity | Exact funding rule / predicate |
 | --- | --- |
-| Maximum SP reservation in aPNTs units | `A0 = ceilDiv(M_SP×P*×10^18,10^d×a)`; `Amax = ceilDiv(A0×(10000+b+1000),10000)`. The 1000 is `VALIDATION_BUFFER_BPS`; see `SuperPaymaster.sol:214`, `:304` (under `contracts/src/paymasters/superpaymaster/v3/`). |
+| Maximum SP reservation in aPNTs units | `A0 = ceilDiv(M_SP×P*×10^18,10^d×a)`; `Amax = ceilDiv(A0×(10000+b+1000),10000)`. The 1000 is `VALIDATION_BUFFER_BPS`; see its declaration at `SuperPaymasterStorage.sol:209` and use at `SuperPaymaster.sol:309`; the initial conversion is at `SuperPaymaster.sol:218–222` (under `contracts/src/paymasters/superpaymaster/v3/`). |
 | D operator deposit | Target `AD = n×Amax + beta_A`; top-up `delta_A = positive(AD − operators(D).aPNTsBalance)`. Mint `delta_m = positive(delta_A − APNTsCapped.balanceOf(D))`. `beta_A` is an explicit nonnegative buffer, TBD before packet freeze. Require final operator balance ≥ AD and ≤ uint128 max. |
 | EP deposits | Each j ∈ {SP,VPM,TPM}: target `ED_j = n×M_j + beta_EP_j`; `delta_EP_j = positive(ED_j − EP.balanceOf(j))`, using post-A13 balance for SP. Set `beta_EP_j = M_j + extra_EP_j` with nonnegative extra: the collector requires post-send deposit ≥ `B_max×M_j = M_j`, even on attempt 100 (`deposit-guard.mjs:40`). Separate stake from spendable deposit. |
-| User V2 balance | `Xmax = ceilDiv(Amax×e,10^18)`; target `XD = n×Xmax + beta_X`; mint `positive(XD−X.balanceOf(S))` only with `debts(S)==0`, `lockedOf(S)==0`, `creditReservedOf(S)==0`. G3's 100 × reservation is in aPNTs units; X needs this conversion (equal at e = 1e18). Require `X.maxSingleTxLimit() ≥ Amax` (default 5000e18). |
+| User V2 balance | `Xmax = ceilDiv(Amax×e,10^18)`; target `XD = n×Xmax + beta_X`; mint `positive(XD−X.balanceOf(S))` only with `debts(S)==0`, `lockedOf(S)==0`, `creditReservedOf(S)==0`. Amax is in aPNTs units; X needs this conversion (equal at e = 1e18), as registered in G3 §4. Require `X.maxSingleTxLimit() ≥ Amax` (default 5000e18). |
 | Task token | Before pilot: `T.balanceOf(S) ≥ 3×n×u + u = 301`, `T.balanceOf(R) ≥ u = 1`; the extra sender unit keeps both balances nonzero even after 300 successful transfers. Mint the exact deficits. R never sends T back during the window. |
-| TPM fee token / allowance | With Q's 18 decimals, F1Oracle 1:1 and markup 1e26, `Qmax = ceilDiv((M_TPM+40000×f)×10^26,10^26)`; target `QD = n×Qmax + beta_Q`. Mint deficit to S and approve TPM for QD. Require cachedPrice = 1e26; otherwise recompute from `floor(cachedPrice×1e26/markup)` as denominator. Covers the extra refundPostopCost in `TokenPaymaster.sol:132`; never use T to pay fees. |
+| TPM fee token / allowance | With Q's 18 decimals, F1Oracle 1:1 and markup 1e26, `Qmax = ceilDiv((M_TPM+40000×f)×10^26,10^26)`; target `QD = n×Qmax + beta_Q`. Mint deficit to S and approve TPM for QD. Require cachedPrice = 1e26; otherwise recompute from `floor(cachedPrice×1e26/markup)` as denominator. Covers the extra refundPostopCost in `singleton-paymaster/lib/account-abstraction-v7/contracts/samples/TokenPaymaster.sol:132`; never use T to pay fees. |
 | Bundler ETH | `BD = n×f×(H_SP+H_VPM+H_TPM) + f×sum(H_aux) + beta_B`. H_j bounds the **outer** single-op handleOps transaction, including overhead; H_aux bounds B's separately listed maintenance transactions. Fund `positive(BD−balance(B))`. Do not net expected beneficiary reimbursements: B must pay even reverted outer transactions. |
 
 All beta values, P*, calibration bounds, H values, treasury, token metadata/rate, O/V/B/R, salt and balances are
@@ -223,7 +223,7 @@ DSR/author explicitly wants to reopen registration. ENDUSER must independently b
 valid membership, omit C6/C7 at build time after reading both MySBT and SP status. A mismatch is STOP: D cannot call
 `SP.updateSBTStatus` directly (Registry-only, `SuperPaymasterAdmin.sol:170`); no impersonation/override is a repair.
 
-**In-place configuration is confirmed, not an open choice.** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol:118–145`
+**In-place configuration is confirmed, not an open choice.** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol:118–146`
 has no already-configured check and writes only xPNTsToken, treasury and isConfigured. It preserves aPNTsBalance,
 pause, reputation, minTxInterval and counters. Record all `operators(D)` fields before/after C3, plus old/new token limits and policy getters. Its complete checks are: D has PAYMASTER_SUPER (helper in
 `SuperPaymasterStorage.sol:311`); D has COMMUNITY; token and treasury nonzero; xpntsFactory nonzero;
@@ -234,11 +234,17 @@ interval and record that cadence in G3. No unlisted `setOperatorLimits` or cap i
 
 `contracts/src/tokens/v2/xPNTsFactoryV2.sol:288–343` checks implementation codehash and its EXTENSION codehash,
 COMMUNITY membership, no prior communityToToken[D], and nonzero exchangeRate. Clone creation must succeed.
-Initialization (`xPNTsTokenV2.sol:72–107`) is initializer-only, requires nonzero community/owner, effective rate in
-[1e14,1e22], approved nonzero genesis SP, approved nonzero tier source; a nonzero genesis spender must differ from
-SP and have an approved implementation (in this plan paymasterAOA=0). Factory then asserts FACTORY=self,
-communityOwner=D, community=D, exchangeRate=e, SUPERPAYMASTER_ADDRESS=SP, creditTierSource=defaultTierSource,
-creditPolicy=0, and autoApprovedSpenders(paymasterAOA) if nonzero. It records the mapping/list/whitelist.
+Initialization (`contracts/src/tokens/v2/xPNTsTokenV2.sol:72–108`) is initializer-only and requires nonzero
+community/owner and effective rate in [1e14,1e22]. Zero superPaymaster and tierSource are allowed; if nonzero,
+they must be approved (`:87–93` and `:102–107`, respectively). A nonzero genesis spender must differ from SP
+and have an approved implementation (`:94–101`; in this plan paymasterAOA=0). Factory then asserts FACTORY=self,
+communityOwner=D, community=D, exchangeRate=e, `SUPERPAYMASTER_ADDRESS()==SUPERPAYMASTER`,
+`creditTierSource()==defaultTierSource`, creditPolicy=0, and autoApprovedSpenders(paymasterAOA) if nonzero
+(`contracts/src/tokens/v2/xPNTsFactoryV2.sol:324–332`; the SP/source equality checks are `:328–329`).
+For this plan, nonzero SP/source bindings follow from those assertions against the pinned nonzero factory configuration,
+not from initialize rejecting zero. The factory constructor permits SUPERPAYMASTER=0 (`:244`), but requires an
+approved nonzero defaultTierSource (`:234–236`); its source setter also enforces that (`:446–452`).
+It records the mapping/list/whitelist.
 No metadata nonempty check or role isActive check is present. Clone/initializer/external getter failures also revert the factory transaction. Read `pendingPolicyEta()==0` additionally; there is
 **no credit queue/execute transaction**. X mint permits only factory/communityOwner and nonzero recipient
 (`xPNTsTokenV2Ext.sol:368`); minting to a debtor repays/burns debt, hence C8's zero-debt gate.
@@ -310,9 +316,9 @@ also takes 48 h. BLSAggregator and DVTValidator are Safe-only, with no timelock;
 - **Budget.** The historical 12.16 ETH D balance is not a sufficiency proof. Re-read at the pin and sum stake top-ups (SP plus C16's 2 ETH), Phase C EP deficits, proposed B funding, every CREATE/call gas limit × its packet fee cap, and any approved O/maintenance funding. Avoid counting A13's deposit twice. Safe/A/E/O/B each need a separate budget. Phase C's worksheet binds APNTs cap headroom, GToken stake/ticket, V2/Q/T amounts and integer rounding; no approximate “2–3 ETH” replaces this check. Pilot/formal fees remain 5/1 gwei.
 - **Timing.** The 6d execution time must be ≥ `pendingAPNTsTokenEta`. With S7 on 2026-11-02, that is about
   2026-11-09 08:04 UTC.
-  - Critical path: Phase A (about a day) → 5a + 48 h → 5b → 6c, scheduled so that 6d ≥ S7 + 7 d → 6d → Phase C → Phase D.
+  - Critical path: Phase A (about a day) → 5a + 48 h → 5b → 6c, scheduled so that 6d ≥ S7 + 7 d → 6d → Phase C → Phase D (including Registry +48 h acceptance/read-back) → pilot → recomputation/read-back → G3 freeze → formal collection.
   - The Registry acceptance adds 48 h. Phase C must fund the pilot before this handover; pilot → recomputation/read-back → G3 freeze → formal collection follows full Phase D acceptance. Reserve W2 refresh time and D's pinned minTxInterval between SP attempts. A funding shortfall delays the window; no mid-sampling top-up.
-  - Expect sampling to start no earlier than about **2026-11-11/12**, roughly 2 days later than the route without the swap.
+  - **2026-11-11/12 remains only a conditional earliest-start estimate**, not a confirmed sampling date. Assume 6d executes on November 9, Phase C and full Phase D acceptance/read-back finish by November 11, and reserve up to one additional day for the pilot (including minTxInterval/W2 waits), recomputation/read-back and DSR's G3 freeze. Under those assumptions formal collection can start late November 11 or on November 12. If the pilot/freeze needs longer, another W1–W7 gate is outstanding, or funding needs a revised packet, move the estimate later; pilot time is not zero.
 
 ## 5. Relation to G3
 
