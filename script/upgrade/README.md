@@ -307,6 +307,8 @@ stage `simulate`. All stages retain the release gates.
    `--out` is replaced by a regular file rather than written through. JSON
    inputs deeper than 64 levels are refused before decoding (the interpreter's
    own recursion limit differs between Python 3.11 and 3.12).
+   Inputs must be strict UTF-8 without a BOM; a BOM, UTF-16 or UTF-32 input
+   is refused (STOP), unlike plain `json.loads(bytes)`, which would accept it.
 
    Preserve guardian addresses and slots exactly.
    Build/simulate `--stage b4 --a7-source A7-RUN/stage-source.json` from the same
