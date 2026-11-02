@@ -239,3 +239,68 @@ B2 is an off-chain observation. Extra tokens sent to SP before 6d only increase 
 Post-Phase-D controls include SP: `setProtocolFee` with the current value must reject D and a directly impersonated Safe with the exact `OwnableUnauthorizedAccount(address)` payload, and succeed from the impersonated timelock. Both A7 and the old `0xEaeC…` aggregator are checked with current-value `setSlashThreshold` and `setGuardianSlashBps` calls: D must revert with the exact `NotSlashPolicyAdmin(D)` payload and the impersonated Safe must succeed. Each setter probe has its own snapshot, success read-back, and restoration.
 
 Phase D unit tests cover sequence construction and dependency gates only. They do not establish compatibility of the pinned bytecode. Compatibility—including single-step committee ownership transfer and exact error selectors/payloads—is established only by the fork rehearsal on the real pin. No such fork rehearsal was run in this fix round.
+
+### Staged manifest format revision
+
+No packet has been released. This revision deliberately changes the default
+complete-input format: PoPs require `domainSeparator`, and plans add stage/source,
+final-status, domain, prefix, and per-step timing fields. Old input and plan bytes
+are not compatible and must be regenerated. The stricter schema retains the DVT
+PoP export domain for independent fork read-back binding; it is not optional.
+The checked-in DVT fraud export uses `domainSeparator`. **Open item:** the actual
+DVT PoP exporter implementation was not found locally, so its field spelling
+must be confirmed as `domainSeparator` against a real export before packet release.
+
+### Staged manifest forks for DVT exports
+
+Use one pin, release build, constructor inputs and sender nonce inventory throughout.
+`manifest_exec.py plan` and `simulate` accept `--stage a7|b4|full` (default:
+`full`). Full still requires three PoPs and the reviewed fraud fixture. Each PoP
+entry now also carries the export's `domainSeparator`; it must match the computed
+A7 domain and the stage fork read-back. All stages retain the release gates.
+
+1. Pin the state. Build with `plan --stage a7 --pin PIN --inputs INPUTS --out A7-DRAFT`.
+   PoPs and `fraudProofFixture` may be absent. Simulate with `--stage a7`, the same
+   inputs, `--block PIN_BLOCK`, both `--rpc-file` and `--rpc-file-secondary`, and
+   `--out A7-RUN --hold-fork`. Execution stops immediately after A7, prints its
+   address and the local RPC, and writes `stage-source.json`. Leave it waiting
+   while DVT reads domainSeparator/popDigest and dry-runs owner registration.
+2. Add DVT's PoPs to the inputs, preserving guardian addresses and slots exactly.
+   Build/simulate `--stage b4 --a7-source A7-RUN/stage-source.json` from the same
+   pin. The fixture may still be absent. Use `--dump-state B4-STATE.json
+   --hold-fork` on simulate. This executes through B4, including time warps,
+   verifies the applied verifier and cleared pending rotation, and stops before
+   handover or the fraud drill. The dump file contains the JSON string returned
+   by `anvil_dumpState`; pass that decoded string to `anvil_loadState`.
+3. Load that state into a **separate** local Anvil instance for DVT's destructive
+   drill-run (`setCode`/`setStorageAt`). Keep the pre-drill B4 instance pristine.
+   Export the drill read-only from the pre-drill instance. Wrap and hash the
+   export with toolCommit `9f4bc99890c4595ddc046961e0c535ca693b1c42` and verifierCommit
+   `72aca4fa0ba4aaa8c8a96210b1124534431294d6`.
+4. Add the fixture reference and build/simulate `--stage full` from the original
+   pin, supplying **both** `--a7-source A7-RUN/stage-source.json` and
+   `--b4-source B4-RUN/stage-source.json`. The full builder compares exact prefixes
+   (pin, addresses, transaction nonces, calldata, execution timestamps, warp targets,
+   activation threshold, ETA delays and read-backs), verifies prefix
+   digests and fork-domain evidence, and rejects drift. It retains the B4 input
+   hash for B-phase operation salts so adding the fixture cannot change them.
+   Standalone full builds with complete inputs retain their existing salt behavior.
+
+Stage sources embed the deterministic source plan and fork domain read-back; archive them with the
+inputs and simulation evidence. Each source is independently rebuilt from the same pin and its stage inputs;
+canonical source plan bytes must match before read-back evidence is accepted.
+Source plans contain derived timing and no gas calibration fields, so the entire
+source plan must match byte for byte in canonical JSON. Gas measurements remain
+in the separate stage simulation artifact. Prefix digests bind the activation
+threshold and every step, including ETA delays and warp targets.
+Stage simulations write `stage-a7.json` or `stage-b4.json`, with `stage` set to
+`a7` or `b4` and `final: false`; they never emit `plan.json` or its hash sidecar.
+Each stage artifact has its own integrity sidecar (`stage-a7.json.sha256` or
+`stage-b4.json.sha256`). Replay it with `simulate --stage a7` (or `b4`) and
+`--plan <stage artifact>` plus the same inputs and RPC arguments. The loader
+verifies the sidecar without granting release eligibility. Saved stage drafts
+are calibrated on replay; calibrated stage artifacts are replayed frozen.
+Signing/sending and final packet writers reject stage content even after renaming. `--hold-fork` waits for Enter after
+printing the RPC; Enter terminates that fork. Without it the fork closes after
+writing evidence (and any requested dump). Stages are rehearsal artifacts, not
+release authorization. Full rehearsal still runs the isolated fraud controls.

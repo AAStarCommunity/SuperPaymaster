@@ -16,6 +16,7 @@ import test_sp_upgrade_exec as base
 
 a, u = m.a, m.u
 REAL_RELEASE_GATE = m.release_gate
+REAL_A3A_VALIDATE_PLAN = a.validate_plan
 ANNI = m.ANNI
 DVT = m.DVT
 SAMPLE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-fraud-drill-sample-4.11.json').read_text())
@@ -38,8 +39,8 @@ def fraud_data(p, agg):
                    pid, u.DEPLOYER, 1, 42, token, mask, '['+','.join(guardians)+']')
     f = dict(toolCommit='b'*40, verifierCommit=m.VERIFIER_COMMIT, aggregator=agg,
         verifier=a.create_address(u.DEPLOYER, p['senders']['deployer']['nonce']+23), registry=u.REG,
-        domainSeparator=base.HASH, block=a.qty(p['block']), pid=pid, fraudProofId=1,
-        guiltyGuardians=guardians, fraudProof=proof, signerMask=mask, messageHash=m.fraud_message_hash(base.HASH, pid, u.DEPLOYER, 1, 42, token),
+        domainSeparator=m.domain_separator(agg), block=a.qty(p['block']), pid=pid, fraudProofId=1,
+        guiltyGuardians=guardians, fraudProof=proof, signerMask=mask, messageHash=m.fraud_message_hash(m.domain_separator(agg), pid, u.DEPLOYER, 1, 42, token),
         mockToken=dict(address=token, runtime=SAMPLE['forkState']['token']['runtimeBytecode'], runtimeHash=m.MOCK_TOKEN_RUNTIME_HASH, over=False))
     f['commitment'] = dict(slot=m.commitment_slot(ART['contracts']['BLSAggregator']['storageLayout'], pid),
         value=a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,bytes32,uint256,address[])',
@@ -96,7 +97,7 @@ def input_data(p):
         validator = '0x'+format(i+1, '040x')
         pk = '('+','.join([a.ZERO32]*4)+')'
         sig = '('+','.join([a.ZERO32]*8)+')'
-        pops.append(dict(validator=validator, slot=i+1, aggregator=agg, pinBlockHash=p['blockHash'],
+        pops.append(dict(validator=validator, slot=i+1, aggregator=agg, domainSeparator=m.domain_separator(agg), pinBlockHash=p['blockHash'],
                          calldata=a.calldata(m.POP, validator, pk, i+1, sig)))
     return dict(anni=ANNI, dvt=DVT, committee=COMMITTEE, sampled=sorted([u.DEPLOYER, ANNI]),
         depositTargetWei=10**18, releaseTag='unit-fixture', registryBaselineCommit='b'*40,
@@ -333,6 +334,254 @@ class ManifestTests(unittest.TestCase):
         self.patch.start()
         self.addCleanup(self.patch.stop)
         self.plan = m.build_plan(self.pin, self.inputs)
+
+    def staged_chain(self):
+        early = copy.deepcopy(self.inputs)
+        early['data'].pop('pop')
+        early['data'].pop('fraudProofFixture')
+        early['sha256'] = '1'*64
+        a7 = m.build_plan(self.pin, early, 'a7')
+        def source(plan):
+            return dict(plan=plan, readback=dict(prefixDigest=plan['prefixDigest'],
+                        domainSeparator=plan['expectedDomainSeparator']))
+        middle = copy.deepcopy(self.inputs)
+        middle['data'].pop('fraudProofFixture')
+        middle['sha256'] = '2'*64
+        sources = dict(a7=source(a7))
+        b4 = m.build_plan(self.pin, middle, 'b4', sources)
+        sources['b4'] = source(b4)
+        return a7, b4, sources
+
+    def test_staged_builds(self):
+        a7, b4, sources = self.staged_chain()
+        self.assertEqual(a7['steps'][-1]['id'], 'A7')
+        self.assertEqual(b4['steps'][-1]['id'], 'B4')
+        full = m.build_plan(self.pin, self.inputs, 'full', sources)
+        m.verify_prefix(full, a7, 'a7')
+        m.verify_prefix(full, b4, 'b4')
+        self.assertEqual(full['operations']['activation'], b4['operations']['activation'])
+        for stage, keys in (('full', ('pop', 'fraudProofFixture')), ('b4', ('pop',))):
+            for key in keys:
+                bad = copy.deepcopy(self.inputs); del bad['data'][key]
+                with self.assertRaises(a.Gate): m.build_plan(self.pin, bad, stage)
+
+    def test_staged_prefix_guards(self):
+        a7, b4, sources = self.staged_chain()
+        full = m.build_plan(self.pin, self.inputs, 'full', sources)
+        for kind in ('constructor', 'nonce', 'address', 'pin'):
+            bad = copy.deepcopy(full)
+            if kind == 'constructor': bad['steps'][0]['tx']['data'] += '00'
+            if kind == 'nonce': bad['steps'][0]['tx']['nonce'] = '0xffff'
+            if kind == 'address': bad['addresses']['BLSAggregator'] = ANNI
+            if kind == 'pin': bad['pin']['blockHash'] = a.ZERO32
+            with self.subTest(kind=kind), self.assertRaises(a.Gate): m.verify_prefix(bad, a7, 'a7')
+
+    def test_staged_timing_prefix(self):
+        a7, b4, sources = self.staged_chain()
+        full = m.build_plan(self.pin, self.inputs, 'full', sources)
+        for field in ('activationScheduleNotBefore', 'executionTimestamp', 'warpTarget', 'delay'):
+            bad = copy.deepcopy(b4)
+            if field == 'activationScheduleNotBefore':
+                bad[field] = 9999999999
+            elif field == 'delay':
+                next(p for s in bad['steps'] for p in s['readbacks'] if p['kind'] == 'eta')['delay'] = 9999999999
+            else:
+                for step in bad['steps']: step[field] = 9999999999
+            bad['prefixDigest'] = m.prefix_digest(bad)
+            with self.subTest(field=field):
+                with self.assertRaises(a.Gate) as caught:
+                    m.verify_prefix(full, bad, 'b4')
+                self.assertEqual(caught.exception.record['gate'], 'prefix_exact')
+
+    def test_staged_source_rebuild(self):
+        _, _, sources = self.staged_chain()
+        for field in ('activationScheduleNotBefore', 'executionTimestamp', 'controls'):
+            bad = copy.deepcopy(sources)
+            plan = bad['b4']['plan']
+            if field == 'executionTimestamp':
+                for step in plan['steps']: step[field] = 9999999999
+            else:
+                plan[field] = 9999999999
+            plan['prefixDigest'] = m.prefix_digest(plan)
+            bad['b4']['readback']['prefixDigest'] = plan['prefixDigest']
+            with self.subTest(field=field), self.assertRaises(a.Gate) as caught:
+                m.build_plan(self.pin, self.inputs, 'full', bad)
+            self.assertEqual(caught.exception.record['gate'], 'source_plan_bytes')
+
+    def test_stage_source_is_exact_rebuild(self):
+        a7, b4, sources = self.staged_chain()
+        for original in (a7, b4):
+            measured = copy.deepcopy(original)
+            for step in measured['steps']:
+                step.update(estimateGas=100000, skipped=False)
+                step['tx']['gas'] = hex(130000)
+            measured['budgetsWei'] = {}
+            with patch.object(a, 'call', return_value=original['expectedDomainSeparator']):
+                source = m.stage_source(measured, SimpleNamespace(local=True))
+            self.assertEqual(m.source_plan_bytes(source['plan']), m.source_plan_bytes(original))
+            sources[original['stage']] = source
+        m.build_plan(self.pin, self.inputs, 'full', sources)
+        sources['b4']['plan']['steps'][0]['estimateGas'] = 100000
+        with self.assertRaisesRegex(a.Gate, 'source_plan_bytes'):
+            m.build_plan(self.pin, self.inputs, 'full', sources)
+
+    def test_stage_artifact_separation(self):
+        a7, b4, sources = self.staged_chain()
+        pin_path = Path(self.tmp.name)/'stage-pin.json'
+        pin_path.write_text(json.dumps(self.pin))
+        source_path = Path(self.tmp.name)/'a7-source.json'
+        source_path.write_text(json.dumps(sources['a7']))
+        for plan in (a7, b4):
+            cli_out = Path(self.tmp.name)/('cli-'+plan['stage'])
+            args = ['plan', '--stage', plan['stage'], '--pin', str(pin_path),
+                    '--inputs', str(self.path), '--out', str(cli_out)]
+            if plan['stage'] == 'b4': args += ['--a7-source', str(source_path)]
+            self.assertEqual(m.main(args), 0)
+            name = 'stage-'+plan['stage']+'.json'
+            self.assertEqual(sorted(p.name for p in cli_out.iterdir()), [name, name+'.sha256'])
+            out = Path(self.tmp.name)/plan['stage']
+            out.mkdir()
+            m.save_artifact(out, plan)
+            self.assertFalse((out/'plan.json').exists())
+            self.assertFalse((out/'plan.json.sha256').exists())
+            artifact = out/('stage-'+plan['stage']+'.json')
+            self.assertFalse(json.loads(artifact.read_text())['final'])
+            renamed = out/'renamed-final.json'
+            renamed.write_bytes(artifact.read_bytes())
+            for command in ('sign', 'send'):
+                self.assertEqual(m.main([command, '--plan', str(renamed)]), 1)
+            with self.assertRaises(a.Gate): u.save_plan(out, plan)
+            with self.assertRaisesRegex(a.Gate, 'final_artifact'):
+                REAL_A3A_VALIDATE_PLAN(plan, frozen=True)
+            with patch.object(a, 'validate_plan', REAL_A3A_VALIDATE_PLAN):
+                with self.assertRaisesRegex(a.Gate, 'final_artifact'):
+                    a.signing_transaction(renamed, hashlib.sha256(renamed.read_bytes()).hexdigest(), 'A7', None)
+            altered = dict(plan, stage='full')
+            with self.assertRaises(a.Gate): m.save_artifact(out, altered)
+
+    def replay_stage_to_fork(self, stage, calibrated=False, tamper=None):
+        # The existing fixture supplies synthetic build artifacts. Loading, input
+        # parsing, rebuilding, and validation stay real; stop at the fork boundary.
+        inputs = m.external(self.path, stage)
+        sources = {'a7': self.staged_chain()[2]['a7']} if stage == 'b4' else None
+        plan = m.build_plan(self.pin, inputs, stage, sources)
+        if calibrated:
+            for step in plan['steps']:
+                step.update(estimateGas=100000, localEstimateGas=100000,
+                            forkGasUsed=90000, skipped=False, rrRequired=False,
+                            rrWitness=None, minedGasMinimum=80000 if step['tx']['to'] is None else None)
+                step['tx']['gas'] = hex(130000)
+                if 'variants' in step:
+                    step['variants']['apply']['gas'] = hex(130000)
+                    step['variants']['placeholder']['gas'] = hex(21000)
+            m.budget(plan)
+        saved = Path(self.tmp.name)/('saved-'+stage+str(calibrated)+str(tamper))
+        saved.mkdir()
+        m.save_artifact(saved, plan)
+        artifact = saved/('stage-'+stage+'.json')
+        sidecar = artifact.with_name(artifact.name+'.sha256')
+        self.assertEqual(sidecar.read_text().split()[0], hashlib.sha256(artifact.read_bytes()).hexdigest())
+        if tamper == 'sidecar':
+            sidecar.write_text('0'*64+'  '+artifact.name+'\n')
+        elif tamper == 'final':
+            bad = dict(plan, final=True)
+            a.write_json(artifact, bad)
+            sidecar.write_text(hashlib.sha256(artifact.read_bytes()).hexdigest()+'\n')
+        out = saved/'replay'
+        rpc_file = saved/'rpc'
+        rpc_file.write_text('https://offline.invalid')
+        with patch.object(a, 'RPC'), patch.object(m, 'collect', return_value=copy.deepcopy(self.pin)), \
+             patch.object(a, 'fork', side_effect=a.Gate('test_fork_boundary', False, True)) as fork:
+            code = m.main(['simulate', '--stage', stage, '--inputs', str(self.path),
+                           '--out', str(out), '--rpc-file', str(rpc_file),
+                           '--rpc-file-secondary', str(rpc_file), '--block', self.pin['block'],
+                           '--plan', str(artifact)])
+        self.assertEqual(code, 1)
+        failure = json.loads((out/'FAILURE.json').read_text())
+        expected = {'sidecar':'plan_hash', 'final':'stage_not_final'}.get(tamper, 'test_fork_boundary')
+        self.assertEqual(failure['gate'], expected)
+        if tamper:
+            fork.assert_not_called()
+        else:
+            fork.assert_called_once()
+            loaded = m.load_artifact(artifact)
+            self.assertEqual(loaded, plan)
+            self.assertIs(loaded['final'], False)
+            with self.assertRaisesRegex(a.Gate, 'final_artifact'):
+                u.save_plan(saved, loaded)
+            for command in ('sign', 'send'):
+                self.assertEqual(m.main([command, '--plan', str(artifact)]), 1)
+
+    def test_stage_artifact_cli_replay(self):
+        for stage in ('a7', 'b4'):
+            for calibrated in (False, True):
+                with self.subTest(stage=stage, calibrated=calibrated):
+                    self.replay_stage_to_fork(stage, calibrated)
+
+    def test_stage_artifact_tampered_sidecar(self):
+        for stage in ('a7', 'b4'):
+            with self.subTest(stage=stage):
+                self.replay_stage_to_fork(stage, tamper='sidecar')
+
+    def test_stage_artifact_loader_rejects_final(self):
+        for stage in ('a7', 'b4'):
+            with self.subTest(stage=stage):
+                self.replay_stage_to_fork(stage, tamper='final')
+
+    def test_staged_metadata_guards(self):
+        a7, b4, sources = self.staged_chain()
+        for field, value in (('stage', 'full'), ('prefixDigest', '0'*64)):
+            bad = copy.deepcopy(a7); bad[field] = value
+            with self.subTest(field=field), self.assertRaises(a.Gate): m.verify_prefix(b4, bad, 'a7')
+        bad = copy.deepcopy(a7); bad['steps'].pop(); bad['prefixDigest'] = m.prefix_digest(bad)
+        with self.assertRaises(a.Gate): m.verify_prefix(b4, bad, 'a7')
+        for field in ('prefixDigest', 'domainSeparator'):
+            bad = copy.deepcopy(sources); bad['a7']['readback'][field] = a.ZERO32
+            with self.subTest(field=field), self.assertRaises(a.Gate): m.build_plan(self.pin, self.inputs, 'full', bad)
+        with self.assertRaises(a.Gate): m.build_plan(self.pin, self.inputs, 'b4')
+        with self.assertRaises(a.Gate): m.build_plan(self.pin, self.inputs, 'invalid')
+
+    def test_staged_domain_guards(self):
+        bad = copy.deepcopy(self.inputs); bad['data']['pop'][0]['domainSeparator'] = a.ZERO32
+        with self.assertRaises(a.Gate): m.build_plan(self.pin, bad)
+        with patch.object(m, 'fraud_fixture', return_value=dict(domainSeparator=a.ZERO32)):
+            with self.assertRaises(a.Gate): m.build_plan(self.pin, self.inputs)
+        rpc = SimpleNamespace(local=True)
+        with patch.object(a, 'call', return_value=a.ZERO32):
+            with self.assertRaises(a.Gate): m.stage_readback(self.plan, rpc)
+        with patch.object(a, 'call', return_value=self.plan['expectedDomainSeparator']):
+            with self.assertRaises(a.Gate): m.stage_readback(self.plan, SimpleNamespace(local=False))
+            self.assertEqual(m.stage_readback(self.plan, rpc)['domainSeparator'], self.plan['expectedDomainSeparator'])
+
+    def test_staged_runner_guards(self):
+        plan = copy.deepcopy(self.plan)
+        plan.update(stage='b4', steps=[self.step('B4')])
+        rpc = unittest.mock.Mock(local=True, archive_overrides={})
+        with contextlib.ExitStack() as stack:
+            for obj, name in ((m, 'validate_plan'), (a, 'process_alive'), (m, 'controls_at'),
+                              (u, 'wait_until'), (a, 'word'), (u, 'log'), (a, 'trace_overrides'),
+                              (m, 'budget'), (a, 'write_json')):
+                stack.enter_context(patch.object(obj, name))
+            stack.enter_context(patch.object(m, 'b4_controls', return_value=[]))
+            execute = stack.enter_context(patch.object(m, 'execute_b4', return_value=dict(step='wrong', receipt={})))
+            stack.enter_context(patch.object(m, 'stage_readback', return_value={}))
+            fraud = stack.enter_context(patch.object(m, 'fraud_rehearsal'))
+            with self.assertRaises(a.Gate): m.run_manifest(None, rpc, plan, Path(self.tmp.name))
+            execute.return_value = dict(step='B4', receipt={})
+            self.assertEqual(m.run_manifest(None, rpc, plan, Path(self.tmp.name))['stage'], 'b4')
+            fraud.assert_not_called()
+
+    def test_staged_cli_guard(self):
+        out = Path(self.tmp.name)/'cli-stage'
+        plan = dict(self.plan, stage='a7', final=False)
+        with patch.object(m, 'external', return_value=self.inputs), \
+             patch.object(m, 'collect', return_value=self.pin), \
+             patch.object(m, 'validate_plan'), patch.object(a, 'load_plan', return_value=plan), \
+             patch.object(a, 'fork', side_effect=RuntimeError('must not start')) as fork:
+            self.assertEqual(m.main(['simulate', '--inputs', str(self.path), '--out', str(out),
+                '--rpc-file', str(self.path), '--rpc-file-secondary', str(self.path),
+                '--block', self.pin['block'], '--plan', str(self.path)]), 1)
+            fork.assert_not_called()
 
     def step(self, sid):
         return next(s for s in self.plan['steps'] if s['id'] == sid)
@@ -1136,6 +1385,9 @@ class ManifestTests(unittest.TestCase):
             def rpc(method, params):
                 if method == 'eth_estimateGas': return hex(21000)
                 if method == 'eth_getTransactionByHash': return {}
+                if method == 'evm_setNextBlockTimestamp':
+                    self.assertEqual(params, [0x101])
+                    return True
                 raise AssertionError(method)
             def receipt(rpc, tx, status=None):
                 self.assertIsNone(status)

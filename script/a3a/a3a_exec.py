@@ -1369,7 +1369,12 @@ def check_gaps(remote, plan, tx):
         need('nonce_gap_receipt_status_'+n, receipt.get('status'), '0x1')
 
 
+def require_final_artifact(plan):
+    need('final_artifact', plan.get('stage') not in ('a7', 'b4') and plan.get('final') is not False, True)
+
+
 def validate_plan(plan, frozen=False, historical=False):
+    require_final_artifact(plan)
     validate_pin(plan['pin'])
     need('plan_step_ids', [s['id'] for s in plan['steps']], list(STEP_IDS))
     rebuilt = (build_plan(plan['pin'], validate_gaps(plan), rebuild_commit=plan['rebuild']['commit'])

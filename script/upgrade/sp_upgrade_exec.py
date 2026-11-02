@@ -1090,6 +1090,7 @@ def run_upgrade(rpc, plan, out, remote=None, calibrate=False):
 
 
 def save_plan(out, plan):
+    a.require_final_artifact(plan)
     a.write_json(out/'plan.json', plan)
     digest = hashlib.sha256((out/'plan.json').read_bytes()).hexdigest()
     (out/'plan.json.sha256').write_text(digest+'  plan.json\n')
