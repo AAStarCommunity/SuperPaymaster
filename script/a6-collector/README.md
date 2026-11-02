@@ -319,8 +319,9 @@ python3 script/a6-collector/negative-controls/stake-gate.py
 python3 script/a6-collector/negative-controls/credit-schema-downgrade.py
 ```
 
-The exact directory-form `node --test script/a6-collector/` does not discover
-these tests on Node 24.21.0; the explicit glob above runs both test files.
+No workflow in `.github/workflows` currently runs the A6 collector suite.
+Use the explicit glob above for the full offline Node suite; its TAP summary
+is the current test count.
 The stake control has one threshold-positive case, nine isolated violations,
 and nine restored positives. The credit-schema control now supplies qualifying
 stakes so its schema downgrade failure remains isolated.
@@ -429,25 +430,16 @@ and after the call; a changed previously observed hash aborts collection.
 JSONL `rpcArchiveRefs.A/B` contain the newly appended record IDs since the previous
 JSONL row. These stream references are not the deferred per-operation index.
 
-TODOs from **A6-SOP “SP TODO before formal A6”** remain explicit:
-
-- §2: RPC operator/backend identity registry and independent verification.
-- §4: complete per-operation evidence index and exclusion validation in
-  `validate.mjs` (including replacement links).
-- §5–§6: freeze/sampling manifest and DSR independent re-fetch/acceptance.
-
-`protocolConformant` remains false for slice 1. `validate.mjs` is intentionally
-unchanged: its current common-gas Passport schema and NOT_SENT reason whitelist
-have not yet been extended to the new formal per-arm gas shape and fee pause.
-Do not treat a slice-1 JSONL as validator-accepted formal evidence. The collector
-also retains the existing strict isolated-block/consecutive-state checks; busy
-remote blocks may stop a window. A3a go, A4 completion and all other SOP opening
-and acceptance requirements remain prerequisites, not claims made by this code.
+The later evidence slices implement the RPC identity registry, per-operation index,
+replacement validation, per-arm gas configuration, fee pauses, and freeze/sampling
+manifest. See the evidence contract below for the current interface. DSR still owns
+independent RPC-provider verification, chain re-fetch, sampling, and acceptance.
+A3a go, A4 completion, and the SOP opening requirements remain prerequisites.
 
 Offline verification:
 
 ```sh
-pnpm exec node --test script/a6-collector/*.test.mjs
+node --test script/a6-collector/*.test.mjs
 ```
 
 ### Formal slice 2 evidence contract
@@ -477,3 +469,9 @@ This command performs no RPC requests or signing. It refuses repeat freezes, inc
 hidden regular files, rejects symlinks and saves both manifest and manifest digest.
 DSR owns sampling selection, pre-submission and independent chain re-fetch. No formal
 run, real key use, or broadcast is implied by these offline tooling changes.
+
+### RPC trace prerequisite
+
+Both RPC A and RPC B must support `debug_traceTransaction` with `callTracer`
+(`withLog: true`) and `prestateTracer` (`diffMode: true`). Missing trace support
+stops a formal window; a standard JSON-RPC endpoint without debug tracing is insufficient.

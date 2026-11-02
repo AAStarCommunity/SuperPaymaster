@@ -68,6 +68,18 @@ block anchors, trace options and credential flags are archive integrity inputs,
 not journal-derived measurements. `missing` explains absent index evidence but
 cannot waive an included candidate's required fields.
 
-Validation and per-finding revert controls for PR #581 are recorded in
-`R581-REVIEW-FIXES.md`. Earlier review controls remain in
-`derived-red-results.json`.
+## Regression coverage
+
+- `r581.test.mjs`: formal-marker CLI/export gates, rehearsal/target chain policy,
+  receipt gas and complete transaction-summary binding, required observed UOE,
+  reserved IPv6 prefixes and public controls, explicit nightly configuration.
+  `formal-window-fixture.mjs` builds a synthetic 50-triplet, non-rehearsal window
+  with chain ID equal to its frozen target; the real CLI and exporter first accept
+  it, then refuse acceptance/formal classification after removing `formal`.
+  This is an offline consistency control, not authenticated chain evidence.
+- `repair.test.mjs`: pre-send head membership and inclusion strictly above every
+  observed pre-send head, including equal/older inclusion failures; freeze rejects
+  symlink ancestors of both the window and sampling input.
+- `derived-evidence.test.mjs`: journal-derived fields against archived responses.
+
+Run the full offline suite with `node --test script/a6-collector/*.test.mjs`.

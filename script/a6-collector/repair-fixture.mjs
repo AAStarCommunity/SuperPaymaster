@@ -8,10 +8,15 @@ import { bundleAbi } from './artifact-validate.mjs';
 import { passportCalls, IMPL_SLOT } from './passport-evidence.mjs';
 import { encodeAbiParameters, keccak256 } from 'viem';
 import { stateCalls } from './state-evidence.mjs';
-export function repairFixture(dir,count=3,{advanceHeadBeforeSend=false}={}) {
-  const source=readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').trim().split('\n').map(JSON.parse);
+export function repairFixture(dir,count=3,{advanceHeadBeforeSend=false, formalSource=null}={}) {
+  const source=formalSource ?? readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').trim().split('\n').map(JSON.parse);
   const template=source[1], inv=source[0].passport.invariant;
   const config={frozen:true,chainId:31337,operator:inv.superPaymaster.operator.address,factory:template.sender,sender:template.sender,salt:'0',bundlerGasLimit:'3000000',accounts:{owner:{name:'owner',address:template.sender},bundler:{name:'bundler',address:template.bundler},verifyingSigner:{name:'verifier',address:inv.verifyingSigner}},fees:{maxFeePerGas:'5000000000',maxPriorityFeePerGas:'1000000000'},task:{token:inv.xPNTs.address,recipient:template.paymaster},gas:Object.fromEntries(['SP','VPM','TPM'].map(arm=>[arm,{callGasLimit:'100000',verificationGasLimit:'300000',preVerificationGas:'60000',paymasterVerificationGasLimit:'450000',paymasterPostOpGasLimit:'480000'}]))};
+  if (formalSource) {
+    config.chainId=source[0].passport.chainId;
+    // Keep the seed SP reservation quote unchanged at the required 5 gwei cap.
+    config.gas.SP.verificationGasLimit='3150000';
+  }
   const frozen=formalConfig(config,1);
   writeFileSync(join(dir,'pin'),'fixture pin');
   const pin={path:join(dir,'pin'),sha256:sha256('fixture pin')};
@@ -38,9 +43,12 @@ export function repairFixture(dir,count=3,{advanceHeadBeforeSend=false}={}) {
   const clone=passport.invariant.code.xPNTsClone.address.toLowerCase();
   codes.set(clone,'0x363d3d373d3d3d363d73'+passport.invariant.code.xPNTsImpl.address.slice(2).toLowerCase()+'5af43d82803e903d91602b57fd5bf3');
   for(const code of Object.values(passport.invariant.code)) if(code) {const bytes=codes.get(code.address.toLowerCase());code.codehash=keccak256(bytes);code.size=(bytes.length-2)/2;}
+  if (formalSource) { passport.invariant.gas=JSON.parse(stringify(frozen.gas)); passport.invariant.pmGas=JSON.parse(stringify(frozen.pmGas)); passport.invariant.callDataHash=keccak256(frozen.callData); }
   writeArtifact(dir,'passports/start.json',passport);
   const p={path:'passports/start.json',raw:{A:[],B:[]}};
+  function archivePassport(passport,p) {
   for(const [idx,arc] of archives.entries()) {
+    const firstRecord=arc.records.length;
     const anchor={number:toHex(BigInt(passport.block.number)),hash:passport.block.hash};
     append(arc,'eth_chainId',[],toHex(passport.chainId),null);
     append(arc,'eth_getBlockByNumber',[anchor.number,false],{number:anchor.number,hash:anchor.hash,timestamp:toHex(BigInt(passport.block.timestamp))},anchor);
@@ -53,18 +61,38 @@ export function repairFixture(dir,count=3,{advanceHeadBeforeSend=false}={}) {
       grouped.get(key).words[c.index]=encodeAbiParameters([{type:c.type}],[c.type==='bool'?c.expected:c.type==='string'||c.type==='address'?c.expected:BigInt(c.expected)]).slice(2);
     }
     for(const c of grouped.values()) append(arc,'eth_call',[{to:c.to,data:c.data},anchor.number],'0x'+Array.from({length:c.words.length},(_,j)=>c.words[j]??'0'.repeat(64)).join(''),anchor);
-    p.raw[idx?'B':'A']=arc.records.map(r=>({path:r.path,id:r.id}));
+    p.raw[idx?'B':'A']=arc.records.slice(firstRecord).map(r=>({path:r.path,id:r.id}));
   }
+  }
+  archivePassport(passport,p);
   for(let i=0;i<count;i++) {
     clock=new Date(Date.UTC(2026,10,1,0,0,i)).toISOString();
-    const a=structuredClone(template), triple=Math.floor(i/3), arm=armOrder(triple)[i%3];
+    const a=structuredClone(formalSource ? source[i+1] : template), triple=Math.floor(i/3), arm=armOrder(triple)[i%3];
     Object.assign(a,{passport,attemptIndex:i,tripletIndex:triple,arm,armOrder:armOrder(triple),collectedAtUtc:new Date(Date.UTC(2026,10,1,0,0,i,500)).toISOString(),evidenceStart:archives.map(x=>x.ids.length),stateTargets:{superPaymaster:inv.code.superPaymasterProxy.address,token:inv.xPNTs.address,tpmToken:inv.xPNTs.address,operator:config.operator}});
     a.tx.hash='0x'+(i+1).toString(16).padStart(64,'0');
     a.tx.blockNumber=String(100+i*2); a.tx.headBefore=String((advanceHeadBeforeSend?98:99)+i*2); a.tx.blockTxCount=1; a.tx.blockHash='0x'+(100+i*2).toString(16).padStart(64,'0');
     for(const side of ['before','after']) for(const endpoint of ['A','B']) { const n=100+i*2-(side==='before'?1:0); Object.assign(a.readbacks[side][endpoint],{blockNumber:String(n),blockHash:'0x'+n.toString(16).padStart(64,'0')}); }
-    a.packedOp.callData=frozen.callData;a.bundledOps=[a.packedOp];
+    a.packedOp.callData=frozen.callData;
+    if (formalSource) {
+      const oldHash=a.expectedUserOpHash;
+      a.chainId=config.chainId;a.nonce=String(13+i);a.packedOp.nonce=a.nonce;
+      a.gas=JSON.parse(stringify(frozen.gas[arm]));a.pmGas=JSON.parse(stringify(frozen.pmGas[arm]));
+      a.packedOp.accountGasLimits=toHex((frozen.gas[arm].verificationGasLimit<<128n)|frozen.gas[arm].callGasLimit,{size:32});
+      a.packedOp.gasFees=toHex((frozen.fees.maxPriorityFeePerGas<<128n)|frozen.fees.maxFeePerGas,{size:32});
+      a.packedOp.paymasterAndData=a.packedOp.paymasterAndData.slice(0,42)+toHex(frozen.pmGas[arm].ver,{size:16}).slice(2)+toHex(frozen.pmGas[arm].post,{size:16}).slice(2)+a.packedOp.paymasterAndData.slice(106);
+      const op=a.packedOp;
+      const encoded=encodeAbiParameters(['address','uint256','bytes32','bytes32','bytes32','uint256','bytes32','bytes32'].map(type=>({type})),[op.sender,BigInt(op.nonce),keccak256(op.initCode),keccak256(op.callData),op.accountGasLimits,BigInt(op.preVerificationGas),op.gasFees,keccak256(op.paymasterAndData)]);
+      const hash=keccak256(encodeAbiParameters([{type:'bytes32'},{type:'address'},{type:'uint256'}],[keccak256(encoded),a.entryPoint,BigInt(config.chainId)]));
+      for (const key of ['expectedUserOpHash','epUserOpHash','localUserOpHash']) a[key]=hash;
+      a.bundledUserOpHashes=[hash];a.callDataHash=keccak256(op.callData);
+      a.logs=JSON.parse(JSON.stringify(a.logs).replaceAll(oldHash,hash));
+      const event=a.logs.find(l=>l.topics[0]===keccak256(new TextEncoder().encode('UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)')));
+      event.data=toHex(BigInt(a.nonce),{size:32})+event.data.slice(66);
+      a.userOpEvent.userOpHash=hash;a.userOpEvent.nonce=a.nonce;
+    }
+    a.bundledOps=[a.packedOp];
     Object.assign(a.tx,{input:encodeFunctionData({abi:bundleAbi,functionName:'handleOps',args:[[a.packedOp],config.accounts.bundler.address]}),handleOpsIndex:0,gasLimit:'3000000',maxFeePerGas:'5000000000',maxPriorityFeePerGas:'1000000000'});
-    a.tx.raw={type:'0x2',chainId:'0x7a69',nonce:'0x0',value:'0x0',transactionIndex:'0x0',v:'0x1',r:'0x'+'11'.repeat(32),s:'0x'+'22'.repeat(32),accessList:[],gasPrice:'0x3b9aca00',to:a.entryPoint,from:a.tx.from,hash:a.tx.hash,input:a.tx.input,gas:toHex(BigInt(a.tx.gasLimit)),maxFeePerGas:toHex(BigInt(a.tx.maxFeePerGas)),maxPriorityFeePerGas:toHex(BigInt(a.tx.maxPriorityFeePerGas)),blockNumber:toHex(BigInt(a.tx.blockNumber)),blockHash:a.tx.blockHash};
+    a.tx.raw={type:'0x2',chainId:toHex(config.chainId),nonce:'0x0',value:'0x0',transactionIndex:'0x0',v:'0x1',r:'0x'+'11'.repeat(32),s:'0x'+'22'.repeat(32),accessList:[],gasPrice:'0x3b9aca00',to:a.entryPoint,from:a.tx.from,hash:a.tx.hash,input:a.tx.input,gas:toHex(BigInt(a.tx.gasLimit)),maxFeePerGas:toHex(BigInt(a.tx.maxFeePerGas)),maxPriorityFeePerGas:toHex(BigInt(a.tx.maxPriorityFeePerGas)),blockNumber:toHex(BigInt(a.tx.blockNumber)),blockHash:a.tx.blockHash};
     const archivedTx=structuredClone(a.tx.raw);a.tx.raw=JSON.parse(stringify(formatTransaction(archivedTx)));
     const uoe=a.logs.find(l=>l.topics[1]===a.expectedUserOpHash);a.userOpEvent.logIndex=uoe.logIndex;a.observedUserOpEvent={...a.userOpEvent};
     for(const side of ['before','after']) for(const e of ['A','B']) Object.assign(a.readbacks[side][e],{tpmTokenBalances:{sender:'5',paymaster:'7'},tpmCachedPriceTimestamp:'10'});
@@ -87,12 +115,19 @@ export function repairFixture(dir,count=3,{advanceHeadBeforeSend=false}={}) {
       }
     }
     a.evidenceEnd=archives.map(x=>x.ids.length);
-    const row=evidenceIndex(a,{windowId:'w',archives,pins,rpcIdentity,passports:{start:p,attempt:p},stopReason:null,replaces:triple===1?{windowId:'w',tripleIndex:0}:null});
+    const row=evidenceIndex(a,{windowId:'w',archives,pins,rpcIdentity,passports:{start:p,attempt:p},stopReason:null,replaces:!formalSource && triple===1?{windowId:'w',tripleIndex:0}:null});
     rows.push(row);attempts.push(a);
+  }
+  let endPassport, endPassportRef;
+  if (formalSource) {
+    endPassport=structuredClone(source.at(-1).passport);endPassport.invariant=structuredClone(passport.invariant);
+    endPassport.volatile.depositInfo=passport.volatile.depositInfo;
+    writeArtifact(dir,'passports/end.json',endPassport);
+    endPassportRef={path:'passports/end.json',raw:{A:[],B:[]}};archivePassport(endPassport,endPassportRef);
   }
   const anchors=[...new Map(archives.flatMap(a=>a.records.filter(r=>r.blockAnchor).map(r=>[r.blockAnchor.number,r.blockAnchor.hash])))].map(([number,hash])=>({number,hash}));
   clock='2026-11-02T00:00:00.000Z';
   const finalBlockCheck={anchors,raw:{A:[],B:[]}};
   for (const [idx,arc] of archives.entries()) for (const anchor of anchors) { append(arc,'eth_getBlockByNumber',[toHex(BigInt(anchor.number)),false],{number:toHex(BigInt(anchor.number)),hash:anchor.hash},anchor); const record=arc.records.at(-1);finalBlockCheck.raw[idx?'B':'A'].push({path:record.path,id:record.id}); }
-  return {finalBlockCheck,rows,attempts,archives,passport:p,start:{kind:'run_start',formal:true,rehearsal:true,configSha256:configPin.sha256,deploymentConfigSha256:configPins[0].sha256,baselineConfigSha256:configPins[1].sha256,pins,rpcIdentity,frozenConfig:config,passport},config};
+  return {endPassport,endPassportRef,finalBlockCheck,rows,attempts,archives,passport:p,start:{kind:'run_start',formal:true,rehearsal:true,configSha256:configPin.sha256,deploymentConfigSha256:configPins[0].sha256,baselineConfigSha256:configPins[1].sha256,pins,rpcIdentity,frozenConfig:config,passport},config};
 }

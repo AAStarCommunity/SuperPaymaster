@@ -88,7 +88,7 @@ selects an alternate recorded input archive without rewriting it. Test fixtures
 remain explicitly synthetic. During the earlier shared-balance repair, local regeneration was attempted but
 the sandbox denied Anvil's socket bind and loopback RPC connections (`Operation
 not permitted`). The full offline run uses an exact copy of the tracked HEAD
-archive at `/private/tmp/a6-offline-input`; it is not a fresh chain run.
+archive in a temporary input directory; it is not a fresh chain run.
 
 Verified results: 116 base controls (112 newly rejected), library checks, 57 round-2,
 44 round-3, 36 round-4, and all three shared-balance controls passed.
