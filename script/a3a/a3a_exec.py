@@ -165,7 +165,11 @@ class RPC:
             if error_ok and classify(e, method) == 'evm-failure':
                 # Do not persist provider messages, which can contain credentials or URLs.
                 return {'revert': e.get('data')}
-            raise Gate('rpc_fault', {'method': method, 'code': e['code']}, 'successful RPC')
+            fault = Gate('rpc_fault', {'method': method, 'code': e['code']}, 'successful RPC')
+            # Classify before discarding provider text; never persist possible credentials.
+            fault.log_range_limit = method == 'eth_getLogs' and (e['code'] == -32005 or
+                any(term in e['message'].lower() for term in ('range', 'limit exceeded', 'too many results')))
+            raise fault
         return d['result']
 
 
@@ -1405,29 +1409,84 @@ def validate_plan(plan, frozen=False, historical=False):
 
 
 def find_step_receipt(remote, plan, step_index):
-    # Locate by sender+planned nonce in mined blocks; never trust a plan-supplied tx hash.
+    return find_step_schedule(remote, plan, step_index)[0]
+
+
+def schedule_logs(remote, query):
+    # A silently truncated getLogs response cannot be detected; identity checks still apply.
+    # Resolve latest only on a range failure, then bisect left-to-right with fixed bounds.
+    calls = 0
+
+    def fetch(start, end, depth=0):
+        nonlocal calls
+        calls += 1
+        need('schedule_log_query_budget', calls <= 1024, True)
+        try:
+            return remote('eth_getLogs', [dict(query, fromBlock=hex(start), toBlock=end)])
+        except Gate as fault:
+            if not getattr(fault, 'log_range_limit', False):
+                raise
+            stop = qty(remote('eth_getBlockByNumber', ['latest', False])['number']) if end == 'latest' else qty(end)
+            if start >= stop or depth >= 20:
+                raise
+            middle = (start + stop) // 2
+            return fetch(start, hex(middle), depth+1) + fetch(middle+1, hex(stop), depth+1)
+
+    return fetch(qty(query['fromBlock']), query['toBlock'])
+
+
+def find_step_schedule(remote, plan, step_index, *, with_block=False):
+    # Discover the hash from the chain's event index, never from the plan.
     expected = plan['steps'][step_index]['tx']
-    head = qty(block_data(remote, 'latest')['number'])
-    for number in range(int(plan['pin']['block'], 16)+1, head+1):
-        block = remote('eth_getBlockByNumber', [hex(number), True])
-        for tx in block['transactions']:
-            if tx.get('from', '').lower() == expected['from'] and tx.get('nonce') == expected['nonce']:
-                mined_identity(tx, expected, 'schedule')
-                r = remote('eth_getTransactionReceipt', [typed(tx['hash'], HASH32)])
-                need('schedule_receipt_status', r['status'], '0x1')
-                need('schedule_receipt_block', r['blockNumber'], hex(number))
-                return r
-    raise Gate('schedule_receipt_missing', 'no matching mined S5b', 'planned sender, nonce and full identity')
+    topic = keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)')
+    logs = schedule_logs(remote, dict(address=plan['pin']['timelock'],
+                  fromBlock=hex(qty(plan['pin']['block'])+1), toBlock='latest',
+                  topics=[topic, plan['operationId'], ZERO32]))
+    matches, ignored = [], 0
+    for log in logs:
+        h = typed(log.get('transactionHash'), HASH32, gate='schedule_log_tx_hash')
+        tx = remote('eth_getTransactionByHash', [h])
+        need('schedule_receipt_missing', isinstance(tx, dict), True)
+        try:
+            mined_identity(tx, expected, 'schedule')
+        except Gate:
+            ignored += 1
+            continue
+        matches.append((log, tx))
+    diagnostics = dict(logs=len(logs), ignored=ignored, matching=len(matches))
+    if not matches:
+        raise Gate('schedule_receipt_missing', diagnostics, 'planned sender, nonce and full identity')
+    if len(matches) != 1:
+        raise Gate('schedule_log_count', diagnostics, 'exactly one matching mined S5b')
+    log, tx = matches[0]
+    need('schedule_log_removed', log.get('removed', False), False)
+    h = log['transactionHash']
+    number = typed(log.get('blockNumber'), QTY, gate='schedule_log_tx_block')
+    block_hash = typed(log.get('blockHash'), HASH32, gate='schedule_log_tx_block_hash')
+    need('schedule_log_tx_hash', tx.get('hash'), h)
+    need('schedule_log_tx_block', tx.get('blockNumber'), number)
+    need('schedule_log_tx_block_hash', tx.get('blockHash'), block_hash)
+    r = remote('eth_getTransactionReceipt', [h])
+    need('schedule_receipt_missing', isinstance(r, dict), True)
+    need('schedule_receipt_status', r.get('status'), '0x1')
+    need('schedule_receipt_hash', r.get('transactionHash'), h)
+    need('schedule_receipt_block', r.get('blockNumber'), number)
+    need('schedule_receipt_block_hash', r.get('blockHash'), block_hash)
+    # A coherent log/tx/receipt triple may be orphaned or absent from the canonical block.
+    block = remote('eth_getBlockByNumber', [number, True])
+    need('schedule_canonical_block', isinstance(block, dict), True)
+    need('schedule_canonical_block', str(block.get('hash', '')).lower(), block_hash.lower())
+    members = [t for t in block.get('transactions', []) if isinstance(t, dict) and t.get('hash') == h]
+    need('schedule_canonical_transaction', len(members), 1)
+    mined_identity(members[0], expected, 'schedule_block')
+    return (r, log, block) if with_block else (r, log)
 
 
 def scheduled_eta(remote, plan, done=False):
     tl, op = plan['pin']['timelock'], plan['operationId']
     topic = keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)')
-    r = find_step_receipt(remote, plan, 5)
-    logs = remote('eth_getLogs', [dict(address=tl, fromBlock=r['blockNumber'],
-                  toBlock=r['blockNumber'], topics=[topic, op, ZERO32])])
-    need('schedule_log_count', len(logs), 1)
-    log = logs[0]
+    r, log, block = find_step_schedule(remote, plan, 5, with_block=True)
+    # Reuse the indexed log; retain the independent ETA/event payload checks.
     need('schedule_log_removed', log.get('removed', False), False)
     need('schedule_log_topics', log['topics'], [topic, op, ZERO32])
     need('schedule_log_address', log['address'].lower(), tl)
@@ -1440,9 +1499,7 @@ def scheduled_eta(remote, plan, done=False):
     need('schedule_receipt_block', r['blockNumber'], log['blockNumber'])
     need('schedule_receipt_log', any(x.get('address', '').lower() == tl and x.get('topics') == log['topics']
                                    and x.get('data') == log['data'] for x in r['logs']), True)
-    mined = remote('eth_getTransactionByHash', [r['transactionHash']])
-    mined_identity(mined, plan['steps'][5]['tx'], 'schedule')
-    eta = qty(block_data(remote, r['blockNumber'])['timestamp'])+delay
+    eta = qty(block['timestamp'])+delay
     need('schedule_chain_eta', word(remote, tl, 'getTimestamp(bytes32)', op), 1 if done else eta)
     return eta
 

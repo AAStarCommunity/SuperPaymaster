@@ -126,6 +126,132 @@ class PopAdapterTests(unittest.TestCase):
             self.assertIn('STOP:', stderr.getvalue())
         self.assertFalse(out.exists())
 
+    def cli_files(self):
+        self.path.write_text(json.dumps(self.export))
+        pin, source, out = [Path(self.tmp.name)/name for name in ('pin.json', 'source.json', 'out.json')]
+        pin.write_text(json.dumps(self.pin))
+        source.write_text(json.dumps(self.source))
+        args = ['--export', str(self.path), '--pin', str(pin), '--a7-source', str(source),
+                '--tool-commit', self.commit, '--out', str(out)]
+        return args, (self.path, pin, source), out
+
+    def test_duplicate_json_keys(self):
+        args, inputs, out = self.cli_files()
+        for path in inputs:
+            original = path.read_text()
+            for extra in ('"duplicate":1,"duplicate":2,',
+                          '"extra":{"nested":[{"x":1,"x":2}]},',
+                          '"extra":{"x":1,"\\u0078":2},'):
+                with self.subTest(path=path.name, extra=extra):
+                    path.write_text('{'+extra+original[1:])
+                    with patch('sys.stderr', new_callable=io.StringIO) as stderr:
+                        self.assertEqual(p.main(args), 1)
+                        self.assertIn('STOP: duplicate_json_key', stderr.getvalue())
+                    self.assertFalse(out.exists())
+            path.write_text(original)
+
+    def test_deep_json_stops(self):
+        args, inputs, out = self.cli_files()
+        for path in inputs:
+            original = path.read_text()
+            path.write_text('{"extra":'+'['*100+'0'+']'*100+','+original[1:])
+            with self.subTest(path=path.name), patch('sys.stderr', new_callable=io.StringIO) as stderr:
+                self.assertEqual(p.main(args), 1)
+                self.assertIn('STOP:', stderr.getvalue())
+                self.assertNotIn('Traceback', stderr.getvalue())
+                self.assertFalse(out.exists())
+            path.write_text(original)
+        self.path.write_text('['*2000+'0'+']'*2000)
+        with self.assertRaisesRegex(p.Stop, 'STOP:'):
+            p.adapt(self.path, pin=self.pin, stage_source=self.source, tool_commit=self.commit)
+
+    def test_json_depth_bound_is_interpreter_independent(self):
+        # 3.12's decoder parses this without RecursionError; the explicit bound must still stop it.
+        for depth, ok in ((p.MAX_JSON_DEPTH, True), (p.MAX_JSON_DEPTH+1, False), (25000, False)):
+            raw = '['*depth+'0'+']'*depth
+            with self.subTest(depth=depth):
+                if ok:
+                    self.assertEqual(p.json_depth(raw), depth)
+                    p.load_json(raw)
+                else:
+                    with self.assertRaisesRegex(p.Stop, '^STOP: json_nesting$'):
+                        p.load_json(raw)
+        # Brackets inside strings, including escaped quotes, do not count.
+        self.assertEqual(p.json_depth('{"a":"[[[\\"[[[","b":[1]}'), 2)
+        with self.assertRaisesRegex(p.Stop, '^STOP: json_encoding$'):
+            p.load_json(b'\xff')
+
+    def test_mutants_record_matches_source(self):
+        record = json.loads((Path(p.__file__).parent/'POP-ADAPTER-MUTANTS.json').read_text())
+        self.assertEqual(record['sourceSha256'], hashlib.sha256(Path(p.__file__).read_bytes()).hexdigest())
+
+    def test_export_block_recorded(self):
+        for block in (0, 999):
+            self.export['block'] = block
+            self.assertEqual(self.run_adapter().get('exportBlock'), block)
+
+    def test_export_block_fork_boundary(self):
+        for block in (999, '0x3e7'):
+            self.pin['block'] = block
+            self.source['plan']['pin'] = copy.deepcopy(self.pin)
+            for exported in (999, 1000):
+                self.export['block'] = exported
+                self.run_adapter()
+            self.export['block'] = 998
+            with self.assertRaisesRegex(p.Stop, 'STOP: export_block_before_fork'):
+                self.run_adapter()
+
+    def test_invalid_fork_block(self):
+        for block in (-1, True, 1.5, None, 'bad'):
+            self.pin['block'] = block
+            self.source['plan']['pin'] = copy.deepcopy(self.pin)
+            with self.subTest(block=block), self.assertRaisesRegex(p.Stop, 'STOP: fork_block'):
+                self.run_adapter()
+
+    def test_atomic_output_failures(self):
+        args, inputs, out = self.cli_files()
+        real_replace = p.os.replace
+        real_fdopen = p.os.fdopen
+        def partial_file(*args, **kwargs):
+            output = real_fdopen(*args, **kwargs)
+            write = output.write
+            def fail(text):
+                write(text[:10])
+                output.flush()
+                raise OSError('partial write')
+            output.write = fail
+            return output
+        def fail_replace(src, dst):
+            self.assertEqual(Path(src).parent, out.parent)
+            self.assertEqual(json.loads(Path(src).read_text())['exportBlock'], 999)
+            raise OSError('replace failed')
+        for existing in (False, True):
+            for target, effect in (('os.fdopen', partial_file),
+                                   ('os.fsync', OSError('flush failed')),
+                                   ('os.replace', fail_replace)):
+                with self.subTest(existing=existing, target=target):
+                    out.unlink(missing_ok=True)
+                    if existing:
+                        out.write_bytes(b'previous output')
+                    before = set(out.parent.iterdir())
+                    with patch('pop_adapter.'+target, side_effect=effect), \
+                         patch('sys.stderr', new_callable=io.StringIO) as stderr:
+                        self.assertEqual(p.main(args), 1)
+                        self.assertIn('STOP:', stderr.getvalue())
+                    self.assertEqual(set(out.parent.iterdir()), before)
+                    self.assertEqual(out.read_bytes() if existing else out.exists(),
+                                     b'previous output' if existing else False)
+        with patch('pop_adapter.os.replace', wraps=real_replace) as replace:
+            self.assertEqual(p.main(args), 0)
+            self.assertEqual(replace.call_count, 1)
+        self.assertEqual(json.loads(out.read_text())['exportBlock'], 999)
+
+    def test_readme_trust_boundary(self):
+        readme = ' '.join(Path(__file__).with_name('README.md').read_text().split())
+        self.assertIn("consistency of calldata with the export's own fields", readme)
+        self.assertIn('not authenticity of the key or signature', readme)
+        self.assertIn('stage simulate and A10 read-back', readme)
+
     def test_missing_fields(self):
         original = copy.deepcopy(self.export)
         for key in original:
