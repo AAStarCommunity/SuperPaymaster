@@ -103,6 +103,7 @@ class FakeChain:
         self.snapshots = {}
         self.sent = []
         self.count = 0
+        self.calls = []
         self.selectors = {ex.calldata(sig): sig for sig in (
             'nonce()', 'owner()', 'pendingOwner()', 'APNTS_TOKEN()', 'pendingAPNTsToken()',
             'pendingAPNTsTokenEta()', 'APNTS_TOKEN_TIMELOCK()', 'getMinDelay()', 'cap()',
@@ -121,6 +122,7 @@ class FakeChain:
         s['blocks'][hex(s['head'])] = self.block()
 
     def __call__(self, method, params, error_ok=False):
+        self.calls.append((method, copy.deepcopy(params)))
         s = self.state
         if method == 'eth_chainId': return hex(ex.CHAIN)
         if method == 'web3_clientVersion': return 'anvil/'+ex.COMMIT
@@ -151,6 +153,11 @@ class FakeChain:
         if method == 'eth_getLogs':
             topics = params[0].get('topics', [])
             def matches(log):
+                query = params[0]
+                if log['address'].lower() != query['address'].lower(): return False
+                number = int(log['blockNumber'], 16)
+                end = s['head'] if query['toBlock'] == 'latest' else int(query['toBlock'], 16)
+                if not int(query['fromBlock'], 16) <= number <= end: return False
                 for i, wanted in enumerate(topics):
                     if i >= len(log['topics']): return False
                     if wanted is None: continue
@@ -208,17 +215,18 @@ class FakeChain:
                 if sid == 'S7': s['pending'], s['pendingEta'] = self.pin['capped'], s['time']+self.pin['sp']['APNTS_TOKEN_TIMELOCK']
             self.count += 1
             h = abi_word(self.count)
-            s['txs'][h] = dict(tx, input=tx['data'], type='0x2', accessList=[])
+            s['txs'][h] = dict(tx, input=tx['data'], type='0x2', accessList=[],
+                               hash=h, blockNumber=hex(s['head']), blockHash=self.pin['blockHash'])
             if sid == 'S5b' and reason is None:
                 scheduled = dict(address=self.pin['timelock'], blockNumber=hex(s['head']),
-                    transactionHash=h, transactionIndex='0x0', logIndex='0x0',
+                    transactionHash=h, transactionIndex='0x0', logIndex='0x0', blockHash=self.pin['blockHash'], removed=False,
                     topics=[ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)'),
                             self.plan['operationId'], ex.ZERO32],
                     data=ex.cast('abi-encode', 'c(address,uint256,bytes,bytes32,uint256)',
                                  self.pin['capped'], 0, ex.calldata('acceptOwnership()'), ex.ZERO32, 172800))
                 s['logs'].append(scheduled)
                 logs.append(scheduled)
-            s['receipts'][h] = dict(transactionHash=h, blockNumber=hex(s['head']), gasUsed=hex(110000),
+            s['receipts'][h] = dict(transactionHash=h, blockNumber=hex(s['head']), blockHash=self.pin['blockHash'], gasUsed=hex(110000),
                 status='0x0' if reason else '0x1', logs=logs,
                 contractAddress=self.pin['timelock'] if sid == 'S2' else self.pin['capped'] if sid == 'S3' else None,
                 revertOutput=reason)
@@ -1804,7 +1812,7 @@ class ExecutorTests(unittest.TestCase):
                 ex.negative(rpc, plan['steps'][7]['tx'], ex.error_string('GS013'), 'early_execute', inner=inner)
             self.assertEqual(chain.state, before)
 
-    def test_schedule_logs_query_uses_exact_receipt_block(self):
+    def test_schedule_logs_query_reuses_indexed_lookup(self):
         chain, plan, _ = self.early_negative_fixture()
         calls = []
         def rpc(method, params):
@@ -1812,10 +1820,72 @@ class ExecutorTests(unittest.TestCase):
             return chain(method, params)
         self.assertEqual(ex.scheduled_eta(rpc, plan), chain.state['eta'])
         self.assertEqual(len(calls), 1)
-        receipt = next(r for r in chain.state['receipts'].values() if any(
-            l['topics'][0] == ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)') for l in r['logs']))
-        self.assertEqual(calls[0]['fromBlock'], receipt['blockNumber'])
-        self.assertEqual(calls[0]['toBlock'], receipt['blockNumber'])
+        self.assertEqual(calls[0]['fromBlock'], hex(int(plan['pin']['block'], 16)+1))
+        self.assertEqual(calls[0]['toBlock'], 'latest')
+
+    def test_indexed_schedule_receipt_bounded_calls(self):
+        chain, plan, _ = self.early_negative_fixture()
+        chain.state['head'] += 7000
+        chain.calls.clear()
+        receipt = ex.find_step_receipt(chain, plan, 5)
+        self.assertEqual(receipt['status'], '0x1')
+        self.assertEqual([m for m, _ in chain.calls], [
+            'eth_getLogs', 'eth_getTransactionByHash', 'eth_getTransactionReceipt', 'eth_getBlockByNumber'])
+        query = chain.calls[0][1][0]
+        self.assertEqual(query, dict(address=plan['pin']['timelock'],
+            fromBlock=hex(int(plan['pin']['block'], 16)+1), toBlock='latest',
+            topics=[ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)'),
+                    plan['operationId'], ex.ZERO32]))
+
+    def test_indexed_schedule_receipt_guards(self):
+        chain, plan, _ = self.early_negative_fixture()
+        baseline = copy.deepcopy(chain.state)
+        cases = [
+            ('missing', 'schedule_receipt_missing'),
+            ('duplicate', 'schedule_log_count'),
+            ('removed', 'schedule_log_removed'),
+            ('from', 'schedule_mined_from'),
+            ('nonce', 'schedule_mined_nonce'),
+            ('input', 'schedule_mined_input'),
+            ('blockNumber', 'schedule_log_tx_block'),
+            ('blockHash', 'schedule_log_tx_block_hash'),
+            ('hash', 'schedule_log_tx_hash'),
+            ('receipt_status', 'schedule_receipt_status'),
+            ('receipt_blockNumber', 'schedule_receipt_block'),
+            ('receipt_blockHash', 'schedule_receipt_block_hash'),
+            ('receipt_transactionHash', 'schedule_receipt_hash'),
+            # A coherent log/tx/receipt triple from an orphaned block: the canonical header differs.
+            ('orphan', 'schedule_canonical_block'),
+        ]
+        for change, gate in cases:
+            with self.subTest(change=change):
+                chain.state = copy.deepcopy(baseline)
+                log = next(l for l in chain.state['logs'] if l['topics'][0] ==
+                           ex.keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)'))
+                tx = chain.state['txs'][log['transactionHash']]
+                receipt = chain.state['receipts'][log['transactionHash']]
+                if change == 'missing': chain.state['logs'].remove(log)
+                elif change == 'duplicate': chain.state['logs'].append(copy.deepcopy(log))
+                elif change == 'removed': log['removed'] = True
+                elif change == 'orphan': pass  # handled by the canonical-header override below
+                elif change.startswith('receipt_'):
+                    field = change.removeprefix('receipt_')
+                    receipt[field] = ex.ZERO32 if field.endswith('Hash') else '0x0'
+                else:
+                    tx[change] = {'from': ex.ZERO, 'nonce': '0xffff', 'input': '0x',
+                                  'blockNumber': '0x1', 'blockHash': ex.ZERO32, 'hash': ex.ZERO32}[change]
+                remote = chain
+                if change == 'orphan':
+                    # The fake derives log/receipt block hashes from its block table, so change only what the
+                    # canonical header lookup returns: log, transaction and receipt stay mutually consistent.
+                    def remote(method, params, error_ok=False):
+                        result = chain(method, params, error_ok)
+                        if method == 'eth_getBlockByNumber' and params[0] == log['blockNumber']:
+                            result = dict(result, hash='0x'+'c7'*32)
+                        return result
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.find_step_receipt(remote, plan, 5)
+                self.assertEqual(caught.exception.record['gate'], gate)
 
     @staticmethod
     def metadata_artifact(mode='none', raw='{}'):

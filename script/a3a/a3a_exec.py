@@ -1405,29 +1405,48 @@ def validate_plan(plan, frozen=False, historical=False):
 
 
 def find_step_receipt(remote, plan, step_index):
-    # Locate by sender+planned nonce in mined blocks; never trust a plan-supplied tx hash.
+    return find_step_schedule(remote, plan, step_index)[0]
+
+
+def find_step_schedule(remote, plan, step_index):
+    # Discover the hash from the chain's event index, never from the plan. The
+    # event is only a locator: the mined transaction must still match every field.
     expected = plan['steps'][step_index]['tx']
-    head = qty(block_data(remote, 'latest')['number'])
-    for number in range(int(plan['pin']['block'], 16)+1, head+1):
-        block = remote('eth_getBlockByNumber', [hex(number), True])
-        for tx in block['transactions']:
-            if tx.get('from', '').lower() == expected['from'] and tx.get('nonce') == expected['nonce']:
-                mined_identity(tx, expected, 'schedule')
-                r = remote('eth_getTransactionReceipt', [typed(tx['hash'], HASH32)])
-                need('schedule_receipt_status', r['status'], '0x1')
-                need('schedule_receipt_block', r['blockNumber'], hex(number))
-                return r
-    raise Gate('schedule_receipt_missing', 'no matching mined S5b', 'planned sender, nonce and full identity')
+    topic = keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)')
+    logs = remote('eth_getLogs', [dict(address=plan['pin']['timelock'],
+                  fromBlock=hex(qty(plan['pin']['block'])+1), toBlock='latest',
+                  topics=[topic, plan['operationId'], ZERO32])])
+    if not logs:
+        raise Gate('schedule_receipt_missing', 'no matching mined S5b', 'planned sender, nonce and full identity')
+    need('schedule_log_count', len(logs), 1)
+    log = logs[0]
+    need('schedule_log_removed', log.get('removed', False), False)
+    h = typed(log.get('transactionHash'), HASH32, gate='schedule_log_tx_hash')
+    number = typed(log.get('blockNumber'), QTY, gate='schedule_log_tx_block')
+    block_hash = typed(log.get('blockHash'), HASH32, gate='schedule_log_tx_block_hash')
+    tx = remote('eth_getTransactionByHash', [h])
+    need('schedule_receipt_missing', isinstance(tx, dict), True)
+    need('schedule_log_tx_hash', tx.get('hash'), h)
+    need('schedule_log_tx_block', tx.get('blockNumber'), number)
+    need('schedule_log_tx_block_hash', tx.get('blockHash'), block_hash)
+    mined_identity(tx, expected, 'schedule')
+    r = remote('eth_getTransactionReceipt', [h])
+    need('schedule_receipt_missing', isinstance(r, dict), True)
+    need('schedule_receipt_status', r.get('status'), '0x1')
+    need('schedule_receipt_hash', r.get('transactionHash'), h)
+    need('schedule_receipt_block', r.get('blockNumber'), number)
+    need('schedule_receipt_block_hash', r.get('blockHash'), block_hash)
+    # Log, transaction and receipt agreeing with each other does not make them canonical: a lagging backend can
+    # serve a coherent orphaned triple. The canonical header at that height must carry the same hash.
+    need('schedule_canonical_block', str(block_data(remote, number).get('hash', '')).lower(), block_hash.lower())
+    return r, log
 
 
 def scheduled_eta(remote, plan, done=False):
     tl, op = plan['pin']['timelock'], plan['operationId']
     topic = keccak('CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)')
-    r = find_step_receipt(remote, plan, 5)
-    logs = remote('eth_getLogs', [dict(address=tl, fromBlock=r['blockNumber'],
-                  toBlock=r['blockNumber'], topics=[topic, op, ZERO32])])
-    need('schedule_log_count', len(logs), 1)
-    log = logs[0]
+    r, log = find_step_schedule(remote, plan, 5)
+    # Reuse the indexed log; retain the independent ETA/event payload checks.
     need('schedule_log_removed', log.get('removed', False), False)
     need('schedule_log_topics', log['topics'], [topic, op, ZERO32])
     need('schedule_log_address', log['address'].lower(), tl)
