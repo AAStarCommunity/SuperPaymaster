@@ -154,7 +154,7 @@ class PopAdapterTests(unittest.TestCase):
         args, inputs, out = self.cli_files()
         for path in inputs:
             original = path.read_text()
-            path.write_text('{"extra":'+'['*2000+'0'+']'*2000+','+original[1:])
+            path.write_text('{"extra":'+'['*100+'0'+']'*100+','+original[1:])
             with self.subTest(path=path.name), patch('sys.stderr', new_callable=io.StringIO) as stderr:
                 self.assertEqual(p.main(args), 1)
                 self.assertIn('STOP:', stderr.getvalue())
@@ -164,6 +164,26 @@ class PopAdapterTests(unittest.TestCase):
         self.path.write_text('['*2000+'0'+']'*2000)
         with self.assertRaisesRegex(p.Stop, 'STOP:'):
             p.adapt(self.path, pin=self.pin, stage_source=self.source, tool_commit=self.commit)
+
+    def test_json_depth_bound_is_interpreter_independent(self):
+        # 3.12's decoder parses this without RecursionError; the explicit bound must still stop it.
+        for depth, ok in ((p.MAX_JSON_DEPTH, True), (p.MAX_JSON_DEPTH+1, False), (25000, False)):
+            raw = '['*depth+'0'+']'*depth
+            with self.subTest(depth=depth):
+                if ok:
+                    self.assertEqual(p.json_depth(raw), depth)
+                    p.load_json(raw)
+                else:
+                    with self.assertRaisesRegex(p.Stop, '^STOP: json_nesting$'):
+                        p.load_json(raw)
+        # Brackets inside strings, including escaped quotes, do not count.
+        self.assertEqual(p.json_depth('{"a":"[[[\\"[[[","b":[1]}'), 2)
+        with self.assertRaisesRegex(p.Stop, '^STOP: json_encoding$'):
+            p.load_json(b'\xff')
+
+    def test_mutants_record_matches_source(self):
+        record = json.loads((Path(p.__file__).parent/'POP-ADAPTER-MUTANTS.json').read_text())
+        self.assertEqual(record['sourceSha256'], hashlib.sha256(Path(p.__file__).read_bytes()).hexdigest())
 
     def test_export_block_recorded(self):
         for block in (0, 999):

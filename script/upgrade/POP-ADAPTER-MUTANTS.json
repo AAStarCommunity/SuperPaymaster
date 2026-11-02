@@ -3,7 +3,7 @@
   "scope": "Offline synthetic format/binding checks and real DVT export rejection checks; no pairing or fork evidence",
   "method": "In-memory source mutation: bypass named require gates; run the named test; restore original module and rerun. Compound controls remove redundant calldata checks together.",
   "source": "script/upgrade/pop_adapter.py",
-  "sourceSha256": "45c71ddc6543d00bc9c61d09a36f4499276272eea42f06ef8779850d419f247e",
+  "sourceSha256": "ec465a75d669edfdad3dab0fe3fcbb5823eca8761a3e22a82836e0dba3fd0ad0",
   "mutants": [
     {
       "removedGuards": [
@@ -370,5 +370,8 @@
       "restored": "PASS"
     }
   ],
-  "previousSourceSha256": "1addf8c03fdca9ae32c9b3610ea25b36c0f9e388bff25c0a86a7ceb95efaea12"
+  "previousSourceSha256": "1addf8c03fdca9ae32c9b3610ea25b36c0f9e388bff25c0a86a7ceb95efaea12",
+  "notes": [
+    "sourceSha256 re-recorded on the final source after the explicit JSON depth bound (review F2 on #585); test_mutants_record_matches_source asserts it."
+  ]
 }

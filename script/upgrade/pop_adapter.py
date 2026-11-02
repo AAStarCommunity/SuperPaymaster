@@ -35,7 +35,39 @@ def unique_object(pairs):
     return result
 
 
+MAX_JSON_DEPTH = 64
+
+
+def json_depth(raw):
+    """Maximum array/object nesting outside string literals; independent of the interpreter's decoder limits."""
+    depth = deepest = 0
+    in_string = escaped = False
+    for ch in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == '\\':
+                escaped = True
+            elif ch == '"':
+                in_string = False
+        elif ch == '"':
+            in_string = True
+        elif ch in '[{':
+            depth += 1
+            deepest = max(deepest, depth)
+        elif ch in ']}':
+            depth -= 1
+    return deepest
+
+
 def load_json(raw):
+    # Python 3.12's C decoder accepts ~20000 levels before RecursionError, 3.11 far fewer; bound depth explicitly.
+    if isinstance(raw, bytes):
+        try:
+            raw = raw.decode('utf-8')
+        except UnicodeDecodeError as error:
+            raise Stop('STOP: json_encoding') from error
+    require('json_nesting', json_depth(raw) <= MAX_JSON_DEPTH)
     try:
         return json.loads(raw, object_pairs_hook=unique_object)
     except RecursionError as error:

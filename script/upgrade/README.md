@@ -303,6 +303,10 @@ stage `simulate`. All stages retain the release gates.
    and atomic replacement; failures preserve the previous output and remove
    the temporary file (an interrupt in the instant after `mkstemp` returns can
    leave a dot-prefixed temporary behind; the previous output is still intact).
+   The output is created by `mkstemp`, so it has mode 0600, and a symlinked
+   `--out` is replaced by a regular file rather than written through. JSON
+   inputs deeper than 64 levels are refused before decoding (the interpreter's
+   own recursion limit differs between Python 3.11 and 3.12).
 
    Preserve guardian addresses and slots exactly.
    Build/simulate `--stage b4 --a7-source A7-RUN/stage-source.json` from the same
