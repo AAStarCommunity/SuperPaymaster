@@ -1,0 +1,315 @@
+{
+  "schema": 1,
+  "scope": "Offline supplied DVT CI evidence validation; no CI service authentication",
+  "method": "In-memory schema or parser mutation; compound mutations remove redundant schema and executor guards together. Each test runs before removal, with removal, and after restoration.",
+  "command": "PYTHONPATH=script/upgrade:script/a3a python3 script/upgrade/check_dvt_ci_mutants.py",
+  "sources": {
+    "script/upgrade/manifest_exec.py": "fe0aa3830c529524d8a8923544051d3b151080af3ae101ff32ad2e53cca06bd5",
+    "script/upgrade/release-evidence.schema.json": "bd5caa5403e8564496d4681a2867c7b10cde34448a4dbaf59fe1b8c8dbb19ab0",
+    "script/upgrade/test_manifest_exec.py": "641009c398d02672426e877b28e4c29910ee29ff4d4f6612b6c983f3f359e1a8",
+    "script/a3a/a3a_exec.py": "ecb1bd1c7e2dd62ffcdd533af4c6e732fdbb83d91e240816d973b959ae361394"
+  },
+  "mutants": [
+    {
+      "guard": "duplicate JSON key rejection",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_duplicate_job_names_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 7,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "renamed failed job collides with exempt name",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_renamed_failed_job_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 2,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "exempt conclusion enums",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_exempt_conclusions_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 7,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "single-line acceptance reference",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_reference_single_line_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 5,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "nonempty jobs",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_empty_job_map_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "job name pattern",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_job_name_single_line_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 4,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "accepted failure name const",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_wrong_acceptance_schema_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "acceptance list bound",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_duplicate_acceptance_schema_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "unaccepted job rejection (schema and semantic gate)",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_unaccepted_job_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "overall success consistency (schema and semantic gate)",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_success_with_failure_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "derived failure needs accepted direct failure (schema and semantic gate)",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_derived_failure_alone_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "failed audit needs acceptance (schema and semantic gates)",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_failure_without_acceptance_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    },
+    {
+      "guard": "run head binding",
+      "test": "test_manifest_exec.DvtCiEvidenceTests.test_head_mismatch_stop",
+      "baseline": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "mutated": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "status": "FAIL"
+      },
+      "restored": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS"
+      },
+      "killed": true
+    }
+  ],
+  "total": 13,
+  "killed": 13
+}

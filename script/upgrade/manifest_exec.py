@@ -101,7 +101,7 @@ def evidence_file(ref, kind, commit=None):
     e = reviewed_file(ref['path'], ref['sha256'], 'evidence_'+kind)
     fields = ['kind', 'subjectCommit', 'tool', 'counts', 'result']
     fields += {'conformance':['controls'], 'mutation':['controls'], 'slither':['findings'],
-               'reproducible-build':['contracts'], 'dvt-ci':['suites'],
+               'reproducible-build':['contracts'], 'dvt-ci':['suites', 'ciRun', 'acceptedFailures'],
                'dvt-conformance-4.12':['suites']}[kind]
     if kind.startswith('dvt-'):
         fields += ['spCommit', 'aggregatorVersion']
@@ -117,6 +117,8 @@ def evidence_file(ref, kind, commit=None):
     a.need('evidence_passed', e['counts']['passed'] > 0, True)
     a.need('evidence_failed', e['counts']['failed'], 0)
     a.need('evidence_skipped', e['counts']['skipped'], 0)
+    if kind == 'dvt-ci':
+        validate_ci_run(e)
     validate_evidence_details(e, kind)
     if kind.startswith('dvt-'):
         a.need('evidence_dvt_commit', e['subjectCommit'], VERIFIER_COMMIT)
@@ -124,6 +126,23 @@ def evidence_file(ref, kind, commit=None):
     if commit is not None:
         a.need('evidence_release_commit', e['spCommit'] if kind.startswith('dvt-') else e['subjectCommit'], commit)
     return e
+
+
+def validate_ci_run(e):
+    schema = json.loads(Path(__file__).with_name('release-evidence.schema.json').read_text())
+    branch = next(b for b in schema['oneOf'] if b['properties']['kind']['const'] == 'dvt-ci')
+    for field in ('ciRun', 'acceptedFailures'):
+        _fraud_schema(e[field], branch['properties'][field], 'dvt-ci.'+field)
+    for rule in branch.get('allOf', []):
+        _fraud_schema(e, rule, 'dvt-ci')
+    run = e['ciRun']
+    a.need('evidence_ci_head', run['headSha'], e['subjectCommit'])
+    accepted = {item['name'] for item in e['acceptedFailures']}
+    failing = {name for name, conclusion in run['jobs'].items() if conclusion == 'failure'}
+    # CI Success is a derived job, never an independent accepted failure.
+    direct = failing - {'CI Success'}
+    a.need('evidence_ci_unaccepted', direct <= accepted, True)
+    a.need('evidence_ci_overall', not failing if run['overall'] == 'success' else bool(direct & accepted), True)
 
 
 def validate_evidence_details(e, kind):
@@ -194,18 +213,36 @@ def commitment_slot(layout, pid):
 
 def _fraud_schema(value, schema, path='fixture'):
     """Validate the closed subset of JSON Schema used by our fixture schema."""
+    for child in schema.get('allOf', []):
+        _fraud_schema(value, child, path)
+    if 'if' in schema:
+        try:
+            _fraud_schema(value, schema['if'], path)
+        except a.Gate:
+            pass
+        else:
+            _fraud_schema(value, schema['then'], path)
     if 'const' in schema:
         a.need('fraud_schema_'+path, type(value) is type(schema['const']) and value == schema['const'], True)
+    if 'enum' in schema:
+        a.need('fraud_schema_enum_'+path, value in schema['enum'], True)
     kind = schema.get('type')
     if kind:
         a.need('fraud_schema_type_'+path, type(value) is {
             'object':dict, 'array':list, 'integer':int, 'string':str}[kind], True)
-    if kind == 'object':
-        a.exact_keys('fraud_schema_fields_'+path, value, schema['required'])
-        for key, child in schema['properties'].items():
-            _fraud_schema(value[key], child, path+'.'+key)
+    if isinstance(value, dict) and (kind == 'object' or 'properties' in schema):
+        properties = schema.get('properties', {})
+        a.need('fraud_schema_required_'+path, set(schema.get('required', [])) <= set(value), True)
+        a.need('fraud_schema_properties_'+path, len(value) >= schema.get('minProperties', 0), True)
+        for key, item in value.items():
+            if 'propertyNames' in schema:
+                _fraud_schema(key, schema['propertyNames'], path+'.name')
+            child = properties.get(key, schema.get('additionalProperties', True))
+            a.need('fraud_schema_fields_'+path, child is not False, True)
+            if isinstance(child, dict):
+                _fraud_schema(item, child, path+'.'+key)
     elif kind == 'array':
-        a.need('fraud_schema_length_'+path, schema['minItems'] <= len(value) <= schema['maxItems'], True)
+        a.need('fraud_schema_length_'+path, schema.get('minItems', 0) <= len(value) <= schema.get('maxItems', 2**256-1), True)
         for i, item in enumerate(value):
             child = schema['prefixItems'][i] if 'prefixItems' in schema else schema['items']
             _fraud_schema(item, child, path+'.'+str(i))

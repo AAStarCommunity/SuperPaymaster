@@ -150,6 +150,154 @@ class FakeChain:
         raise AssertionError((method, params))
 
 
+def dvt_ci_run():
+    # Supplied run metadata; no network lookup. Other job names are fixture examples.
+    return dict(runId=41262513958, headSha=m.VERIFIER_COMMIT, overall='failure', jobs={
+        'Security Audit': 'failure', 'CI Success': 'failure',
+        **{name: 'success' for name in m.DVT_SUITES}})
+
+
+def dvt_accepted_failures():
+    return [dict(name='Security Audit', reference='dsr-rulings.md: 2026-11-02 ruling 1 (npm)')]
+
+
+class DvtCiEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.e = dict(kind='dvt-ci', subjectCommit=m.VERIFIER_COMMIT, spCommit=ART['commit'],
+            aggregatorVersion=m.AGG_VERSION, tool=dict(name='CI', version='1'),
+            counts=dict(passed=23, failed=0, skipped=0), result='PASS',
+            suites={k:dict(passed=v, failed=0, skipped=0, result='PASS') for k,v in m.DVT_SUITES.items()},
+            ciRun=dvt_ci_run(), acceptedFailures=dvt_accepted_failures())
+        self.e['suites']['CC115GenuinePragueCrossRepo']['env'] = {'FOUNDRY_EVM_VERSION':'prague'}
+
+    def validate(self, raw=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/'ci.json'
+            path.write_text(json.dumps(self.e) if raw is None else raw)
+            return m.evidence_file(dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest()),
+                                   'dvt-ci', ART['commit'])
+
+    def test_real_run_accepted(self):
+        self.assertEqual(self.validate(), self.e)
+
+    def test_unaccepted_job_stop(self):
+        self.e['ciRun']['jobs']['Build'] = 'failure'
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_missing_ci_run_stop(self):
+        del self.e['ciRun']
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_head_mismatch_stop(self):
+        self.e['ciRun']['headSha'] = 'f'*40
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_extra_acceptance_schema_stop(self):
+        self.e['acceptedFailures'].append(dict(name='Build', reference='unapproved'))
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_duplicate_acceptance_schema_stop(self):
+        self.e['acceptedFailures'] *= 2
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_wrong_acceptance_schema_stop(self):
+        for name in self.e['ciRun']['jobs']: self.e['ciRun']['jobs'][name] = 'success'
+        self.e['ciRun']['overall'] = 'success'
+        self.e['acceptedFailures'][0]['name'] = 'Build'
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_success_with_failure_stop(self):
+        self.e['ciRun']['overall'] = 'success'
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_derived_failure_alone_stop(self):
+        self.e['ciRun']['jobs']['Security Audit'] = 'success'
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_failure_without_failed_job_stop(self):
+        for name in self.e['ciRun']['jobs']: self.e['ciRun']['jobs'][name] = 'success'
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_success_without_acceptances(self):
+        for name in self.e['ciRun']['jobs']: self.e['ciRun']['jobs'][name] = 'success'
+        self.e['ciRun']['overall'] = 'success'
+        self.e['acceptedFailures'] = []
+        self.assertEqual(self.validate(), self.e)
+
+    def test_ci_schema_fields_stop(self):
+        original = copy.deepcopy(self.e)
+        for field, value in [('runId', True), ('headSha', 'z'*40), ('overall', 'cancelled'),
+                             ('jobs', []), ('jobs', [dict(name='Build', conclusion='')])]:
+            with self.subTest(field=field):
+                self.e = copy.deepcopy(original)
+                self.e['ciRun'][field] = value
+                with self.assertRaises(a.Gate): self.validate()
+        self.e = copy.deepcopy(original)
+        self.e['acceptedFailures'][0]['reference'] = ' '
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_duplicate_job_names_stop(self):
+        for name in ('Security Audit', 'CI Success', 'Build'):
+            for first, second in (('failure', 'failure'), ('success', 'failure'), ('failure', 'success')):
+                with self.subTest(name=name, first=first, second=second):
+                    raw = json.dumps(self.e).replace('"jobs": {', '"jobs": {' +
+                        json.dumps(name) + ': ' + json.dumps(first) + ', ' +
+                        json.dumps(name) + ': ' + json.dumps(second) + ', ')
+                    with self.assertRaises(a.Gate): self.validate(raw)
+
+    def test_renamed_failed_job_stop(self):
+        raw = json.dumps(self.e).replace('"jobs": {', '"jobs": {"Build": "failure", ')
+        with self.assertRaises(a.Gate): self.validate(raw)
+        for name in ('Security Audit', 'CI Success'):
+            with self.subTest(name=name):
+                with self.assertRaises(a.Gate):
+                    self.validate(raw.replace('"Build"', json.dumps(name)))
+
+    def test_exempt_conclusions_stop(self):
+        for name in ('Security Audit', 'CI Success'):
+            for conclusion in ('cancelled', 'timed_out', 'action_required', 'neutral',
+                               'startup_failure', 'unknown', 'bogus'):
+                with self.subTest(name=name, conclusion=conclusion):
+                    self.e['ciRun'] = dvt_ci_run()
+                    self.e['ciRun']['jobs'][name] = conclusion
+                    with self.assertRaises(a.Gate): self.validate()
+
+    def test_reference_single_line_stop(self):
+        for reference in ('DSR\nruling 1', 'DSR\rruling 1', 'DSR ruling 1\n',
+                          ' DSR ruling 1', 'DSR ruling 1 '):
+            with self.subTest(reference=repr(reference)):
+                self.e['acceptedFailures'][0]['reference'] = reference
+                with self.assertRaises(a.Gate): self.validate()
+
+    def test_failure_without_acceptance_stop(self):
+        self.e['acceptedFailures'] = []
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_skipped_exempt_jobs_and_single_character_reference(self):
+        self.e['ciRun']['jobs'] = {'Security Audit': 'skipped', 'CI Success': 'skipped'}
+        self.e['ciRun']['overall'] = 'success'
+        self.e['acceptedFailures'][0]['reference'] = 'R'
+        self.assertEqual(self.validate(), self.e)
+
+    def test_empty_job_map_stop(self):
+        self.e['ciRun'].update(jobs={}, overall='success')
+        with self.assertRaises(a.Gate): self.validate()
+
+    def test_job_name_single_line_stop(self):
+        for name in ('', ' ', 'Build\njob', 'Build\n'):
+            with self.subTest(name=repr(name)):
+                self.e['ciRun'] = dvt_ci_run()
+                self.e['ciRun']['jobs'][name] = 'success'
+                with self.assertRaises(a.Gate): self.validate()
+
+    def test_exact_exemption_names_stop(self):
+        for name in ('security audit', 'Security Audit ', 'ci success'):
+            with self.subTest(name=name):
+                self.e['ciRun'] = dvt_ci_run()
+                self.e['ciRun']['jobs'][name] = 'failure'
+                with self.assertRaises(a.Gate): self.validate()
+
+
 class Round8Controls(unittest.TestCase):
     def dvt_rebuild(self, mutate=None):
         creation = '0x60006000f3a00001'
@@ -295,6 +443,8 @@ class ManifestTests(unittest.TestCase):
                 e['counts']['passed'] = 23
                 e['suites'] = {k:dict(passed=v, failed=0, skipped=0, result='PASS') for k,v in m.DVT_SUITES.items()}
                 e['suites']['CC115GenuinePragueCrossRepo']['env'] = {'FOUNDRY_EVM_VERSION':'prague'}
+            if kind == 'dvt-ci':
+                e.update(ciRun=dvt_ci_run(), acceptedFailures=dvt_accepted_failures())
             if kind == 'slither':
                 e['tool']['name'] = 'slither'
                 e['findings'] = dict(threshold='Low', aboveThreshold=[], accepted=[])
