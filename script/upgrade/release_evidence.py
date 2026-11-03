@@ -327,36 +327,55 @@ def mutation(tree, forge, details):
 
 
 def compiled_scope(tree):
-    """Resolve release roots and inheritance from the fresh Forge AST artifacts."""
-    nodes = {}
-    for path in (tree / 'out').rglob('*.json'):
-        artifact = json.loads(path.read_text(), object_pairs_hook=unique_object)
-        ast = artifact.get('ast', {})
-        source = ast.get('absolutePath')
-        if not source:
-            continue
-        for node in ast.get('nodes', []):
-            if node.get('nodeType') == 'ContractDefinition':
-                entry = (source, node)
-                require(node['id'] not in nodes or nodes[node['id']] == entry, 'conflicting compiler AST IDs')
-                nodes[node['id']] = entry
-    roots = {}
-    # AdminCalls is the explicitly required Solidity facade, not an inherited base.
-    for name in (*m.NAMES, 'SuperPaymasterAdminCalls'):
-        matches = [n for n in nodes.values() if n[1]['name'] == name and n[0].startswith('contracts/src/')]
-        require(len(matches) == 1, 'missing or ambiguous compiled scope root: ' + name)
-        roots[name] = matches[0]
+    """Resolve inheritance in each build-info unit: solc IDs are unit-local."""
+    roots, root_nodes, signatures = {}, {}, {}
     files = set()
-    for source, node in roots.values():
-        files.add(source)
-        for base in node['linearizedBaseContracts']:
-            require(base in nodes, 'missing compiled base AST')
-            path, definition = nodes[base]
-            if path.startswith('contracts/src/') and definition['contractKind'] != 'interface':
-                files.add(path)
+    units = sorted((tree / 'out/build-info').glob('*.json'))
+    require(units, 'missing compiled scope build-info')
+    for unit in units:
+        data = json.loads(unit.read_text(), object_pairs_hook=unique_object)
+        sources = data.get('output', {}).get('sources', {})
+        require(sources, 'missing compiled scope build-info sources')
+        nodes = {}
+        for source, output in sources.items():
+            ast = output.get('ast', {})
+            require(ast.get('absolutePath') == source, 'missing or invalid compiled source AST')
+            for node in ast.get('nodes', []):
+                if node.get('nodeType') == 'ContractDefinition':
+                    require(node['id'] not in nodes, 'conflicting compiler AST IDs within unit')
+                    nodes[node['id']] = (source, node)
+        # AdminCalls is the explicitly required Solidity facade, not an inherited base.
+        for name in (*m.NAMES, 'SuperPaymasterAdminCalls'):
+            matches = [n for n in nodes.values()
+                       if n[1]['name'] == name and n[0].startswith('contracts/src/')]
+            require(len(matches) <= 1, 'ambiguous compiled scope root: ' + name)
+            if not matches:
+                continue
+            source, node = matches[0]
+            chain = []
+            unit_files = {source}
+            for base in node['linearizedBaseContracts']:
+                require(base in nodes, 'missing compiled base AST in unit: ' + unit.name)
+                path, definition = nodes[base]
+                content = data.get('input', {}).get('sources', {}).get(path, {}).get('content')
+                require(isinstance(content, str), 'missing compiled source content: ' + path)
+                chain.append((path, definition['name'], definition['contractKind'], content))
+                if path.startswith('contracts/src/') and definition['contractKind'] != 'interface':
+                    unit_files.add(path)
+            # IDs and source indices differ between units. Compare source identity,
+            # exact contents and ordered inheritance instead of numeric AST IDs.
+            signature = (source, chain)
+            require(name not in signatures or signatures[name] == signature,
+                    'non-identical duplicate compiled scope root: ' + name)
+            signatures[name] = signature
+            roots[name] = (source, node)
+            root_nodes[name] = nodes
+            files.update(unit_files)
+    for name in (*m.NAMES, 'SuperPaymasterAdminCalls'):
+        require(name in roots, 'missing compiled scope root: ' + name)
     require(all((tree / f).resolve().is_relative_to(tree.resolve()) and (tree / f).is_file()
                 for f in files), 'invalid compiled scope path')
-    return dict(contracts=list(m.NAMES), files=sorted(files)), roots, nodes
+    return dict(contracts=list(m.NAMES), files=sorted(files)), roots, root_nodes
 
 
 def layout_table(data):
@@ -428,7 +447,7 @@ def storage_consistency(tree, forge, roots, nodes, details):
             r = run([forge, 'inspect', target, 'storageLayout', '--json', '--offline'], tree, environment(forge))
             require(r.returncode == 0, 'storage layout inspect failed: ' + name)
             table = layout_table(json.loads(r.stdout, object_pairs_hook=unique_object))
-            tables.append(dict(storage=table, namespaces=namespace_table(tree, roots[name], nodes)))
+            tables.append(dict(storage=table, namespaces=namespace_table(tree, roots[name], nodes[name])))
         refs = []
         test_path = 'contracts/test/v2/SuperPaymasterD5bGov2.t.sol'
         test_name = 'test_gov2_sp_pendingOwner_erc7201_slot'

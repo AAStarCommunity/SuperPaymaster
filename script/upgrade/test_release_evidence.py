@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Mocked tools only: no Forge builds/suites, git commands, or network access."""
+"""Evidence tests, including a real offline multi-unit Forge build; no git or network."""
 import sys
 sys.dont_write_bytecode = True
+import os
 import hashlib
 import json
 from pathlib import Path
@@ -37,6 +38,7 @@ def forge_json(statuses=('Success',), reason=None):
 def compiled_fixture(tree):
     out = tree / 'out'
     out.mkdir(exist_ok=True)
+    sources = {}
     names = (*e.m.NAMES, 'SuperPaymasterAdminCalls', 'SuperPaymasterStorage', 'xPNTsV2Base')
     for i, name in enumerate(names, 1):
         source = 'contracts/src/' + name + '.sol'
@@ -49,7 +51,12 @@ def compiled_fixture(tree):
         if name in ('xPNTsTokenV2', 'xPNTsTokenV2Ext'):
             bases += [13]
         node = dict(id=i, name=name, nodeType='ContractDefinition', contractKind='contract', linearizedBaseContracts=bases)
-        (out / (name + '.json')).write_text(json.dumps(dict(ast=dict(absolutePath=source, nodes=[node]))))
+        sources[source] = dict(ast=dict(absolutePath=source, nodes=[node]))
+    build_info = out / 'build-info'
+    build_info.mkdir(exist_ok=True)
+    (build_info / 'unit.json').write_text(json.dumps(dict(
+        input=dict(sources={p: dict(content='// compiler fixture') for p in sources}),
+        output=dict(sources=sources))))
 
 
 def layout_fixture():
@@ -59,6 +66,126 @@ def layout_fixture():
 
 def finding(identity, file='contracts/src/SuperPaymaster.sol', impact='High'):
     return dict(id=identity, impact=impact, elements=[dict(source_mapping=dict(filename_relative=file))])
+
+
+class CompiledScopeTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix='sp-scope-test-')
+        self.addCleanup(self.tmp.cleanup)
+        self.tree = Path(self.tmp.name)
+
+    def synthetic_units(self):
+        compiled_fixture(self.tree)
+        path = self.tree / 'out/build-info/unit.json'
+        data = json.loads(path.read_text())
+        registry = 'contracts/src/Registry.sol'
+        output = data['output']['sources'].pop(registry)
+        # Reuse SuperPaymaster's ID in a different unit, with its own base.
+        node = output['ast']['nodes'][0]
+        node.update(id=1, linearizedBaseContracts=[1, 2])
+        base = 'contracts/src/RegistryBase.sol'
+        (self.tree / base).write_text('// registry base')
+        other = dict(input=dict(sources={registry: dict(content='// compiler fixture'),
+                                        base: dict(content='// registry base')}),
+                     output=dict(sources={registry: output, base: dict(ast=dict(absolutePath=base, nodes=[
+                         dict(id=2, name='RegistryBase', nodeType='ContractDefinition',
+                              contractKind='contract', linearizedBaseContracts=[2])]))}))
+        path.write_text(json.dumps(data))
+        second = path.with_name('registry.json')
+        second.write_text(json.dumps(other))
+        return second, other
+
+    def test_synthetic_multi_unit_scope_and_namespace_ids(self):
+        self.synthetic_units()
+        scope, roots, nodes = e.compiled_scope(self.tree)
+        self.assertEqual(len(scope['files']), 14)
+        self.assertIn('contracts/src/RegistryBase.sol', scope['files'])
+        self.assertEqual(nodes['Registry'][2][1]['name'], 'RegistryBase')
+        self.assertEqual(nodes['SuperPaymaster'][2][1]['name'], 'SuperPaymasterAdmin')
+        self.assertEqual(roots['Registry'][1]['id'], roots['SuperPaymaster'][1]['id'])
+
+    def test_duplicate_root_identical_across_units(self):
+        path, data = self.synthetic_units()
+        for output in data['output']['sources'].values():
+            for node in output['ast']['nodes']:
+                node['id'] += 100
+                node['linearizedBaseContracts'] = [i + 100 for i in node['linearizedBaseContracts']]
+        path.with_name('duplicate.json').write_text(json.dumps(data))
+        self.assertEqual(len(e.compiled_scope(self.tree)[0]['files']), 14)
+        data['input']['sources']['contracts/src/RegistryBase.sol']['content'] += ' changed'
+        path.with_name('duplicate.json').write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'non-identical duplicate'):
+            e.compiled_scope(self.tree)
+
+    def test_base_must_exist_in_own_unit(self):
+        path, data = self.synthetic_units()
+        data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]['linearizedBaseContracts'].append(12)
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'missing compiled base AST in unit'):
+            e.compiled_scope(self.tree)
+
+    def test_missing_build_info_stops(self):
+        with self.assertRaisesRegex(e.Stop, 'missing compiled scope build-info'):
+            e.compiled_scope(self.tree)
+
+    def test_missing_facade_stops(self):
+        compiled_fixture(self.tree)
+        path = self.tree / 'out/build-info/unit.json'
+        data = json.loads(path.read_text())
+        del data['output']['sources']['contracts/src/SuperPaymasterAdminCalls.sol']
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'missing compiled scope root: SuperPaymasterAdminCalls'):
+            e.compiled_scope(self.tree)
+
+    def test_ambiguous_root_in_unit_stops(self):
+        path, data = self.synthetic_units()
+        source = 'contracts/src/OtherRegistry.sol'
+        data['output']['sources'][source] = dict(ast=dict(absolutePath=source, nodes=[
+            dict(id=3, name='Registry', nodeType='ContractDefinition',
+                 contractKind='contract', linearizedBaseContracts=[3])]))
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'ambiguous compiled scope root: Registry'):
+            e.compiled_scope(self.tree)
+
+    def test_real_offline_two_unit_build(self):
+        forge = Path(os.environ.get('A3A_ENGINE_DIR', str(Path.home() / '.foundry/bin'))) / 'forge'
+        self.assertTrue(forge.is_file(), 'real offline scope test requires Forge')
+        (self.tree / 'foundry.toml').write_text('''[profile.default]
+src = "contracts/src"
+solc_version = "0.8.33"
+optimizer = true
+optimizer_runs = 500
+[[profile.default.additional_compiler_profiles]]
+name = "registry-size"
+optimizer_runs = 200
+[[profile.default.compilation_restrictions]]
+paths = "contracts/src/Registry.sol"
+max_optimizer_runs = 200
+[[profile.default.compilation_restrictions]]
+paths = "contracts/src/Roots.sol"
+min_optimizer_runs = 500
+''')
+        src = self.tree / 'contracts/src'
+        src.mkdir(parents=True)
+        header = '// SPDX-License-Identifier: MIT\npragma solidity 0.8.33;\n'
+        (src / 'Base.sol').write_text(header + 'contract Base { uint256 public value; }')
+        (src / 'Registry.sol').write_text(header + 'import "./Base.sol"; contract Registry is Base {}')
+        names = (*e.m.NAMES, 'SuperPaymasterAdminCalls')
+        (src / 'Roots.sol').write_text(header + 'import "./Base.sol";\n' +
+            '\n'.join('contract ' + name + ' is Base {}' for name in names if name != 'Registry'))
+        env = dict(os.environ, FOUNDRY_PROFILE='default', FOUNDRY_OFFLINE='true')
+        build = subprocess.run([str(forge), 'build', '--offline', '--ast', '--build-info',
+                                '--out', str(self.tree / 'out')], cwd=self.tree, env=env,
+                               text=True, capture_output=True)
+        self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+        units = [json.loads(p.read_text()) for p in (self.tree / 'out/build-info').glob('*.json')]
+        self.assertEqual(len(units), 2)
+        self.assertEqual({u['input']['settings']['optimizer']['runs'] for u in units}, {200, 500})
+        scope, roots, nodes = e.compiled_scope(self.tree)
+        self.assertEqual(scope['files'], ['contracts/src/Base.sol', 'contracts/src/Registry.sol', 'contracts/src/Roots.sol'])
+        self.assertEqual(set(roots), set(names))
+        for name, root in roots.items():
+            self.assertEqual([nodes[name][i][1]['name'] for i in root[1]['linearizedBaseContracts']], [name, 'Base'])
 
 
 class EvidenceTests(unittest.TestCase):
@@ -189,6 +316,8 @@ class EvidenceTests(unittest.TestCase):
         self.assertIn('contracts/src/SuperPaymasterStorage.sol', value['scope']['files'])
         self.assertIn('contracts/src/SuperPaymasterAdminCalls.sol', value['scope']['files'])
         self.assertEqual(len(value['storageLayout']), 2)
+        builds = [c for c, _ in self.calls if 'build' in c]
+        self.assertTrue(any('--ast' in c and '--build-info' in c for c in builds))
         inspections = [(c, kw) for c, kw in self.calls if 'inspect' in c]
         self.assertEqual(len(inspections), 4)
         self.assertTrue(all('--offline' in c and kw['env']['FOUNDRY_OFFLINE'] == 'true'
@@ -231,16 +360,19 @@ class EvidenceTests(unittest.TestCase):
 
     def test_scope_uses_inheritance_excludes_libraries_and_unrelated(self):
         compiled_fixture(self.tree)
-        path = self.tree / 'out/SuperPaymaster.json'
+        path = self.tree / 'out/build-info/unit.json'
         data = json.loads(path.read_text())
-        data['ast']['nodes'][0]['linearizedBaseContracts'].append(100)
+        sources = data['output']['sources']
+        sources['contracts/src/SuperPaymaster.sol']['ast']['nodes'][0]['linearizedBaseContracts'].append(100)
+        sources['contracts/lib/Base.sol'] = dict(ast=dict(absolutePath='contracts/lib/Base.sol', nodes=[
+            dict(id=100, name='Base', nodeType='ContractDefinition', contractKind='contract', linearizedBaseContracts=[100])]))
+        data['input']['sources']['contracts/lib/Base.sol'] = dict(content='// external base')
         path.write_text(json.dumps(data))
-        (self.tree / 'out/lib.json').write_text(json.dumps(dict(ast=dict(absolutePath='contracts/lib/Base.sol', nodes=[
-            dict(id=100, name='Base', nodeType='ContractDefinition', contractKind='contract', linearizedBaseContracts=[100])]))))
         scope, _, _ = e.compiled_scope(self.tree)
         self.assertNotIn('contracts/lib/Base.sol', scope['files'])
         self.assertEqual(len(scope['files']), 13)
-        (self.tree / 'out/SuperPaymaster.json').unlink()
+        del sources['contracts/src/SuperPaymaster.sol']
+        path.write_text(json.dumps(data))
         with self.assertRaisesRegex(e.Stop, 'scope root'):
             e.compiled_scope(self.tree)
 
