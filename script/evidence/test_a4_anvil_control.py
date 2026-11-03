@@ -36,7 +36,10 @@ remappings = ["src/=contracts/src/", "@openzeppelin-v5.0.2/=singleton-paymaster/
 ''')
             version=subprocess.check_output([str(BIN/'forge'),'--version'],text=True).splitlines()[0]
             self.assertIn('1.7.1',version)
-            subprocess.run([str(BIN/'forge'),'build','--offline','--root',str(root)],check=True,capture_output=True)
+            # No --offline: CI runners have no cached solc 0.8.33. The temporary root has no .gitmodules, so Forge
+            # has no submodules to auto-install there.
+            build=subprocess.run([str(BIN/'forge'),'build','--root',str(root)],capture_output=True,text=True)
+            self.assertEqual(build.returncode,0,'forge build failed:\n'+build.stdout[-2000:]+build.stderr[-2000:])
             artifact=json.loads((root/'out/A4CreditControl.sol/A4CreditControl.json').read_text())
             with socket.socket() as sock:
                 try:
