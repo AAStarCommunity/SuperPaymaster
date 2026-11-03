@@ -1,6 +1,9 @@
 {
   "scope": "checker-logic-offline",
-  "result": "BLOCKED",
+  "testedHead": "de25eeedbafbbb27450f53f2dcd2702bd40fe5d8",
+  "trackedTreeClean": true,
+  "result": "PASS",
+  "blockers": [],
   "suites": [
     {
       "suite": "script/upgrade/test_manifest_exec.py",
@@ -11,17 +14,25 @@
       "skipped": 0
     },
     {
+      "suite": "script/upgrade/test_release_evidence.py",
+      "run": 33,
+      "passed": 33,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
       "suite": "script/evidence/test_a4_credit_logscan.py",
-      "run": 45,
-      "passed": 45,
+      "run": 56,
+      "passed": 56,
       "failed": 0,
       "errors": 0,
       "skipped": 0
     },
     {
       "suite": "script/evidence/test_a4_state_check.py",
-      "run": 32,
-      "passed": 32,
+      "run": 51,
+      "passed": 51,
       "failed": 0,
       "errors": 0,
       "skipped": 0
@@ -37,21 +48,26 @@
     {
       "suite": "script/evidence/test_a4_anvil_control.py",
       "run": 1,
-      "passed": 0,
+      "passed": 1,
       "failed": 0,
-      "errors": 1,
+      "errors": 0,
       "skipped": 0
     }
   ],
-  "blockers": [
-    "Localhost socket bind denied by sandbox; no Anvil control result available.",
-    "Release tag commit not supplied; template subjectCommit remains null."
-  ],
   "mutations": {
     "report": "a4-guard-mutations.json",
-    "total": 93,
-    "killed": 90,
-    "survived": 3,
+    "total": 96,
+    "killed": 93,
+    "survivors": [
+      "logscan.log_hash",
+      "logscan.missing_chunk_log",
+      "logscan.outside_filter"
+    ],
+    "doubleMutants": {
+      "logscan.missing_chunk_log_double": true,
+      "logscan.log_hash_double": true,
+      "logscan.outside_filter_double": true
+    },
     "errors": 0
   },
   "mappingDiscrepancies": [
@@ -68,53 +84,5 @@
     "No contracts/src edits.",
     "Initial root Forge offline build attempted submodule initialization and failed on protected filesystem writes; subsequent build isolated from repository metadata.",
     "A6 dependency resolution used an existing local viem installation without downloading."
-  ],
-  "p1FixValidation": {
-    "suitesRun": [
-      "script/evidence/test_a4_state_check.py",
-      "script/evidence/test_a4_credit_logscan.py",
-      "script/upgrade/test_manifest_exec.py"
-    ],
-    "passed": 211,
-    "networkUsed": false,
-    "anvilRun": false,
-    "gitCommandsRun": false,
-    "note": "Historical P1 run; A6 and Anvil entries are prior-run evidence. The C9 discovery gap recorded at that time is superseded by c9EntryPointValidation."
-  },
-  "c9EntryPointValidation": {
-    "suitesRun": {
-      "script/evidence/test_a4_state_check.py": 32,
-      "script/evidence/test_a4_credit_logscan.py": 45
-    },
-    "passed": 77,
-    "failed": 0,
-    "errors": 0,
-    "networkUsed": false,
-    "gitCommandsRun": false,
-    "mutations": {
-      "total": 70,
-      "killed": 67,
-      "survived": 3,
-      "errors": 0
-    },
-    "note": "Offline fixture validation only. C9 now uses receipt-verified EntryPoint v0.7 logs with a reviewed start-block hash and provenance; no live state or release outcome claimed."
-  },
-  "dsr20261103Validation": {
-    "suitesRun": {
-      "script/evidence/test_a4_credit_logscan.py": 56,
-      "script/evidence/test_a4_state_check.py": 48
-    },
-    "passed": 104,
-    "failed": 0,
-    "errors": 0,
-    "networkUsed": false,
-    "gitCommandsRun": false,
-    "mutations": {
-      "total": 93,
-      "killed": 90,
-      "survived": 3,
-      "errors": 0
-    },
-    "note": "Offline mocked validation only; nine-hit positive-control fixture is synthetic, not live DSR hashes. Prior suite and release blockers remain historical evidence."
-  }
+  ]
 }
