@@ -50,6 +50,14 @@ jobs:
       - name: Offline pre-sampling manifest tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_exec.py
+      - name: Offline PoP adapter tests
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_pop_adapter.py
+      - name: Install jsonschema (release-evidence schema validation)
+        run: python3 -m pip install --quiet 'jsonschema==4.23.0'
+      - name: Offline release-evidence generator tests
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_release_evidence.py
       - uses: pnpm/action-setup@v6
         with:
           version: 9
