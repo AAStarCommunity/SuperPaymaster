@@ -4,10 +4,15 @@
 URLs are read only from files; output identifies hosts only. Agreement cannot prove
 provider independence or detect identical omissions. Run a known-event positive control
 before using live evidence. No C1/C2/C3/C5/C6/C8/C9 claim is made here.
-Only eth_chainId, eth_getBlockByNumber, eth_getCode and eth_getLogs are used.
+Only eth_chainId, eth_getBlockByNumber, eth_getCode, eth_getLogs and eth_getBlockReceipts are used.
 Exit 0: both pass; 1: fail or unverified; command/output-file errors are nonzero.
 """
-import argparse, hashlib, json, sys, urllib.parse, urllib.request
+import argparse, hashlib, json, sys, urllib.parse, urllib.request, urllib.error
+import socket
+import time
+import math
+from contextvars import ContextVar
+from functools import wraps
 from pathlib import Path
 
 # Baseline: contracts/src/tokens/v2/xPNTsV2Base.sol. Computed with cast keccak
@@ -31,18 +36,88 @@ class RpcFailure(Exception):
     pass
 
 
+class RetryExhausted(RpcFailure):
+    pass
+
+
+COVERAGE = ("Receipts are cross-checked only for hit blocks plus seeded samples; "
+            "full completeness relies on dual-endpoint agreement + split consistency; "
+            "per-block coverage is NOT claimed. Identical omissions remain possible.")
+_RPC_SESSION = ContextVar("a4_rpc_session", default=None)
+
+
+def rpc_recorded(fn):
+    """Share pacing across nested scans, retaining only endpoint labels in evidence."""
+    @wraps(fn)
+    def wrapped(urls, *args, **kwargs):
+        session = _RPC_SESSION.get()
+        token = None
+        if session is None:
+            config = args[0] if args and isinstance(args[0], dict) else {}
+            interval = kwargs.get('min_interval', config.get('rpcMinInterval', 0.25))
+            retries = kwargs.get('max_retries', config.get('rpcMaxRetries', 5))
+            if not isinstance(interval, (int, float)) or not math.isfinite(interval) or interval < 0:
+                raise RpcFailure('invalid RPC minimum interval')
+            if type(retries) is not int or not 0 <= retries <= 5:
+                raise RpcFailure('invalid RPC retry limit (0..5)')
+            session = dict(labels=dict(zip(urls, ('A', 'B'))), last={}, calls=[],
+                           interval=interval, retries=retries)
+            token = _RPC_SESSION.set(session)
+        offset = len(session['calls'])
+        try:
+            out = fn(urls, *args, **kwargs)
+            out['rpcCalls'] = session['calls'][offset:]
+            out['rpcPolicy'] = dict(minInterval=session['interval'], maxRetries=session['retries'])
+            out['coverage'] = COVERAGE
+            return out
+        finally:
+            if token is not None:
+                _RPC_SESSION.reset(token)
+    return wrapped
+
+
 def rpc(url, method, params):
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
-    try:
-        req = urllib.request.Request(url, body, {"Content-Type": "application/json", "User-Agent": "a4-credit-logscan"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            d = json.load(r)
-    except Exception:  # Exceptions and provider messages may contain credentials.
-        raise RpcFailure(f"{method}: transport or JSON error") from None
-    if not isinstance(d, dict) or d.get("jsonrpc") != "2.0" or type(d.get("id")) is not int \
-            or d["id"] != 1 or "error" in d or d.get("result") is None:
-        raise RpcFailure(f"{method}: rpc error or malformed envelope")
-    return d["result"]
+    session = _RPC_SESSION.get()
+    retries = session['retries'] if session else 5
+    for retry in range(retries + 1):
+        if session:
+            delay = session['last'].get(url, -float('inf')) + session['interval'] - time.monotonic()
+            if delay > 0:
+                time.sleep(delay)
+            session['last'][url] = time.monotonic()
+        started = time.monotonic()
+        record = dict(method=method, endpoint=session['labels'].get(url, 'redacted') if session else 'redacted',
+                      retryCount=retry, status='failure')
+        transient = False
+        try:
+            req = urllib.request.Request(url, body, {"Content-Type": "application/json", "User-Agent": "a4-credit-logscan"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                d = json.load(r)
+            if not isinstance(d, dict) or d.get("jsonrpc") != "2.0" or type(d.get("id")) is not int \
+                    or d["id"] != 1 or "error" in d or d.get("result") is None:
+                raise RpcFailure(f"{method}: rpc error or malformed envelope")
+            record['status'] = 'success'
+            return d['result']
+        except urllib.error.HTTPError as e:
+            transient = e.code == 429 or 500 <= e.code <= 599
+            record['httpStatus'] = e.code
+        except (TimeoutError, socket.timeout):
+            transient = True
+        except urllib.error.URLError as e:
+            transient = isinstance(e.reason, (TimeoutError, socket.timeout))
+        except Exception:
+            pass  # Never retain exception text, URLs, or provider credentials.
+        finally:
+            record['latencySeconds'] = time.monotonic() - started
+            if session:
+                session['calls'].append(record)
+        if not transient:
+            raise RpcFailure(f"{method}: transport, JSON or RPC error") from None
+        if retry == retries:
+            raise RetryExhausted(f"{method}: transient retries exhausted") from None
+        record['backoffSeconds'] = min(0.25 * 2 ** retry, 8.0)
+        time.sleep(record['backoffSeconds'])
 
 
 def hexstr(v, nbytes=None):
@@ -105,7 +180,7 @@ def decode(log):
     return e
 
 
-def logset(raw, token, lo, hi):
+def logset(raw, token, lo, hi, decoder=decode):
     if not isinstance(raw, list):
         raise RpcFailure("malformed log array")
     result, seen = [], set()
@@ -121,7 +196,7 @@ def logset(raw, token, lo, hi):
         if key in seen:
             raise RpcFailure("duplicate log position")
         seen.add(key)
-        decode(v)
+        decoder(v)
         result.append(v)
     return sorted(result, key=order)
 
@@ -163,17 +238,49 @@ def endpoint_file(path):
         raise RpcFailure("invalid or unreadable RPC URL file") from None
 
 
-def scan(urls, tokens, start, end, chunk_size=2000, hosts=None):
+def receipt_sample(lo, hi, end_hash, log_blocks, k):
+    """Sample without enumerating empty blocks; the seed pins the scan's B hash."""
+    seed = hashlib.sha256(canonical([lo, hi, end_hash])).hexdigest()
+    present = sorted(log_blocks)
+    ranked = sorted(present, key=lambda n: (hashlib.sha256(f"{seed}:{n}".encode()).hexdigest(), n))
+    matching = sorted(ranked[:k])
+    empty = []
+    if hi - lo + 1 > len(present):
+        # Select a rank in the complement, then skip only known occupied positions.
+        n = lo + int(seed, 16) % (hi - lo + 1 - len(present))
+        for occupied in present:
+            if occupied > n:
+                break
+            n += 1
+        empty = [n]
+    return seed, matching, empty
+
+
+@rpc_recorded
+def scan(urls, tokens, start, end, chunk_size=None, hosts=None, max_logs=10000, event_topics=None, decoder=decode, deployment_check=True, indexed_topics=None, receipt_sample_size=2, min_interval=0.25, max_retries=5):
     out = {"tool": "a4-credit-logscan", "fromBlock": start, "toBlock": end,
            "endpoints": dict(zip(("A", "B"), hosts or ("redacted", "redacted"))),
            "chainId": None, "blockHashes": {}, "deployBlocks": {}, "archiveProbes": [],
            "chunks": [], "logs": [], "canonicalLogsSha256": None, "complete": False,
            "scope": "C4/C7 only; conditional on C1, independent archive providers and known-event positive control. "
                     "Identical omissions and provider independence cannot be established by this scan."}
+    chunk_size = (50000 if indexed_topics else 2000) if chunk_size is None else chunk_size
+    if indexed_topics:
+        chunk_size = min(chunk_size, 50000)
+    out["chunkSize"] = chunk_size
+    event_topics = TOPICS if event_topics is None else event_topics
+    indexed_topics = indexed_topics or {}
+    def matches_indexed(log):
+        topics = log.get("topics", [])
+        return all(len(topics) > i and hexstr(topics[i], 32) == value for i, value in indexed_topics.items())
     try:
+        event_topics = {name: hexstr(value, 32) for name, value in event_topics.items()}
+        indexed_topics = {i: hexstr(value, 32) for i, value in indexed_topics.items()}
+        if any(type(i) is not int or i < 1 or i > 3 for i in indexed_topics):
+            raise RpcFailure("invalid indexed topic filter")
         if len(urls) != 2 or urls[0] == urls[1]:
             raise RpcFailure("two distinct endpoints required")
-        if start < 1 or end < start or chunk_size < 1:
+        if start < 1 or end < start or chunk_size < 1 or max_logs < 1 or type(receipt_sample_size) is not int or receipt_sample_size < 1:
             raise RpcFailure("invalid range; from-block must be >= 1 (genesis deployments unsupported)")
         tokens = sorted(set(hexstr(t, 20) for t in tokens))
         if not tokens:
@@ -211,45 +318,109 @@ def scan(urls, tokens, start, end, chunk_size=2000, hosts=None):
             return pair[0] != "0x"
 
         for token in tokens:
-            at_start, before = code(token, start), code(token, start - 1)
-            out["archiveProbes"].append({"token": token, "blocks": [start - 1, start], "bothSucceeded": True})
-            if before:
-                raise RpcFailure("from-block is after deployment; history incomplete")
-            if at_start:
-                deploy = start
-            else:
-                if not code(token, end):
-                    raise RpcFailure("token has no code at to-block")
-                lo, hi = start, end
-                while hi - lo > 1:
-                    mid = (lo + hi) // 2
-                    if code(token, mid):
-                        hi = mid
-                    else:
-                        lo = mid
-                deploy = hi
-            # Bisection assumes persistent code, appropriate only after C1 verifies xPNTs v2.
-            if not code(token, deploy) or code(token, deploy - 1):
-                raise RpcFailure("deployment boundary unverified")
-            out["deployBlocks"][token] = deploy
+            deploy = start
+            if deployment_check:
+                at_start, before = code(token, start), code(token, start - 1)
+                out["archiveProbes"].append({"token": token, "blocks": [start - 1, start], "bothSucceeded": True})
+                if before:
+                    raise RpcFailure("from-block is after deployment; history incomplete")
+                if at_start:
+                    deploy = start
+                else:
+                    if not code(token, end):
+                        raise RpcFailure("token has no code at to-block")
+                    lo, hi = start, end
+                    while hi - lo > 1:
+                        mid = (lo + hi) // 2
+                        if code(token, mid):
+                            hi = mid
+                        else:
+                            lo = mid
+                    deploy = hi
+                # Bisection assumes persistent code, appropriate only after C1 verifies xPNTs v2.
+                if not code(token, deploy) or code(token, deploy - 1):
+                    raise RpcFailure("deployment boundary unverified")
+                out["deployBlocks"][token] = deploy
             lo, size = start, chunk_size
             while lo <= end:
                 hi = min(lo + size - 1, end)
-                attempt = {"token": token, "fromBlock": lo, "toBlock": hi}
+                attempt = {"token": token, "fromBlock": lo, "toBlock": hi, "halvesChecked": False,
+                           "sampledBlocks": [], "sampleSeed": None}
                 out["chunks"].append(attempt)
-                filt = {"address": token, "fromBlock": hex(lo), "toBlock": hex(hi), "topics": [list(TOPICS.values())]}
+                filt = {"address": token, "fromBlock": hex(lo), "toBlock": hex(hi), "topics": [list(event_topics.values())]}
+                for i, value in sorted(indexed_topics.items()):
+                    while len(filt["topics"]) <= i:
+                        filt["topics"].append(None)
+                    filt["topics"][i] = value
+                mid = (lo + hi) // 2
+                halves = [(lo, mid), (mid + 1, hi)] if lo < hi else []
+                def query_range(a, b):
+                    query = dict(filt, fromBlock=hex(a), toBlock=hex(b))
+                    raw = [rpc(u, "eth_getLogs", [query]) for u in urls]
+                    if any(isinstance(r, list) and (len(r) in (1000, 5000, 10000) or len(r) > max_logs) for r in raw):
+                        raise RpcFailure("possible provider cap")
+                    return raw
                 try:
-                    raw = [rpc(u, "eth_getLogs", [filt]) for u in urls]
+                    raw = query_range(lo, hi)
+                    split_raw = [query_range(a, b) for a, b in halves]
+                except RetryExhausted:
+                    attempt["status"] = "retries exhausted; stopped"
+                    raise
                 except RpcFailure:
                     attempt["status"] = "rpc error; shrinking" if hi > lo else "rpc error; stopped"
                     if hi == lo:
                         raise RpcFailure("eth_getLogs failed at minimum chunk") from None
                     size = max(1, (hi - lo + 1) // 2)
                     continue
-                pair = [logset(r, token, lo, hi) for r in raw]
+                pair = [logset(r, token, lo, hi, decoder) for r in raw]
+                if any(not matches_indexed(v) for rows in pair for v in rows):
+                    raise RpcFailure("log outside indexed filter")
                 if pair[0] != pair[1]:
                     raise RpcFailure("endpoint log disagreement")
+                if halves:
+                    split = [logset(split_raw[0][i], token, lo, mid, decoder) +
+                             logset(split_raw[1][i], token, mid + 1, hi, decoder) for i in range(2)]
+                    attempt["halvesChecked"] = True
+                    attempt["halfRanges"] = halves
+                    attempt["halfCounts"] = [[len(rows[i]) for rows in split_raw] for i in range(2)]
+                    if split != pair:
+                        attempt["status"] = "split disagreement; shrinking"
+                        size = max(1, (hi - lo + 1) // 2)
+                        continue
+                else:
+                    attempt["halvesReason"] = "single block; cannot split"
                 hashes = {n: agreed_block(n) for n in sorted({lo, hi} | {v["blockNumber"] for v in pair[0]})}
+                seed, matching, empty = receipt_sample(lo, hi, out["blockHashes"]["to"]["B"],
+                                                       {v["blockNumber"] for v in pair[0]}, receipt_sample_size)
+                sampled = sorted({v["blockNumber"] for v in pair[0]} | set(matching + empty))
+                attempt.update(sampleSeed=seed, sampledBlocks=sampled,
+                               sampledLogBlocks=matching, sampledEmptyBlocks=empty)
+                for n in sampled:
+                    receipt_logs = []
+                    for u in urls:
+                        receipts = rpc(u, "eth_getBlockReceipts", [hex(n)])
+                        if not isinstance(receipts, list):
+                            raise RpcFailure("malformed block receipts")
+                        selected = []
+                        for receipt in receipts:
+                            if not isinstance(receipt, dict) or not isinstance(receipt.get("logs"), list):
+                                raise RpcFailure("malformed receipt")
+                            for log in receipt["logs"]:
+                                if not isinstance(log, dict):
+                                    raise RpcFailure("malformed receipt log")
+                                log = dict(log, address=hexstr(log.get("address"), 20),
+                                           topics=[hexstr(t, 32) for t in log.get("topics", [])],
+                                           data=hexstr(log.get("data")))
+                                if log["address"] == token and log.get("topics") and log["topics"][0] in event_topics.values() and matches_indexed(log):
+                                    selected.append(log)
+                        normalized = logset(selected, token, n, n, decoder)
+                        if n in hashes and any(v["blockHash"] != hashes[n] for v in normalized):
+                            raise RpcFailure("receipt block mismatch")
+                        receipt_logs.append(normalized)
+                    expected = [v for v in pair[0] if v["blockNumber"] == n]
+                    if receipt_logs != [expected, expected]:
+                        raise RpcFailure("receipt/log content disagreement")
+                attempt["receiptCountCheckedBlocks"] = sampled
                 if any(v["blockHash"] != hashes[v["blockNumber"]] or v["blockNumber"] < deploy for v in pair[0]):
                     raise RpcFailure("log block inconsistent with history")
                 attempt.update(status="agreed", count=len(pair[0]), boundaryHashes={"from": hashes[lo], "to": hashes[hi]})
@@ -260,7 +431,8 @@ def scan(urls, tokens, start, end, chunk_size=2000, hosts=None):
                 raise RpcFailure("pinned block changed during scan")
         out["logs"].sort(key=order)
         out["canonicalLogsSha256"] = hashlib.sha256(canonical(out["logs"])).hexdigest()
-        out.update(replay(out["logs"]))
+        if event_topics == TOPICS:
+            out.update(replay(out["logs"]))
         out["complete"] = True
     except (RpcFailure, ValueError, TypeError, KeyError, IndexError, AttributeError) as e:
         reason = str(e) if isinstance(e, RpcFailure) else "malformed RPC answer"
@@ -275,13 +447,19 @@ def main():
     p.add_argument("--token", required=True, nargs="+", action="extend")
     p.add_argument("--from-block", required=True, type=int)
     p.add_argument("--to-block", required=True, type=int)
-    p.add_argument("--chunk-size", type=int, default=2000)
+    p.add_argument("--chunk-size", type=int, default=None)
+    p.add_argument("--max-logs", type=int, default=10000)
+    p.add_argument("--receipt-sample-size", type=int, default=2)
+    p.add_argument("--min-interval", type=float, default=0.25)
+    p.add_argument("--max-retries", type=int, default=5)
     p.add_argument("--out", required=True)
     args = p.parse_args()
     try:
         endpoints = [endpoint_file(f) for f in (args.rpc_a_file, args.rpc_b_file)]
         out = scan([e[0] for e in endpoints], args.token, args.from_block, args.to_block,
-                   args.chunk_size, [e[1] for e in endpoints])
+                   args.chunk_size, [e[1] for e in endpoints], args.max_logs,
+                   receipt_sample_size=args.receipt_sample_size,
+                   min_interval=args.min_interval, max_retries=args.max_retries)
     except RpcFailure as e:
         out = {c: {"verdict": UNVERIFIED, "reason": str(e)} for c in ("C4", "C7")}
     try:

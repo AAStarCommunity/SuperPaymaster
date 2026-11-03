@@ -1,0 +1,57 @@
+{
+  "description": "C9 regression positive control: every EntryPoint v0.7 UserOperationEvent with paymaster == SP proxy on Sepolia from SP creation to `head`. A later scan must contain all of these; extra hits must be explained.",
+  "chainId": 11155111,
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "paymaster": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+  "fromBlock": 11151016,
+  "head": 12052131,
+  "endpoints": [
+    "Alchemy (archive)",
+    "Tenderly public gateway (archive)"
+  ],
+  "scan": {
+    "complete": true,
+    "chunks": 19,
+    "seconds": 234.6,
+    "chunkSize": 50000
+  },
+  "independentCheck": "DSR measured the same 9 hits on the Tenderly gateway on 2026-11-03 (first 11155147, last 11612063).",
+  "hits": [
+    {
+      "block": 11155147,
+      "opHash": "0x7825f76986100eb263154ec112e19bff47e2a454d6c0412cd40ae5ff72796e96"
+    },
+    {
+      "block": 11155148,
+      "opHash": "0xa04efe77d141e9ab76aa928825cefdda164b7645705a6ac87d62cb770aafea67"
+    },
+    {
+      "block": 11155149,
+      "opHash": "0xbebbe2a5f4ab9fe9c1da90d1b46667f3777ed5c7f07b944732591aa9dcd5c4d2"
+    },
+    {
+      "block": 11228356,
+      "opHash": "0xadbef150ffd76549966a0604a5ca978706c23e1784ea7336efd6cc3f54ba68a4"
+    },
+    {
+      "block": 11228357,
+      "opHash": "0x452dd9a0a9fa20d9f2b1b276d2479838aaf25cfdd30d19391c806c04e7747113"
+    },
+    {
+      "block": 11228364,
+      "opHash": "0xa1fa9269b277cb608e9b6003f06c20733e4e044d74f3efb3a94f7876cc92f5c4"
+    },
+    {
+      "block": 11612056,
+      "opHash": "0x66b8a8fa7f0e2e6cb5252d5f0ac9f4698e95d9bf878a9a29a745ee4fc4d35f15"
+    },
+    {
+      "block": 11612057,
+      "opHash": "0xaea8271ed00202e576554e6bd05573a5bdd7d51535d71b1ba95d98c17ce43bf1"
+    },
+    {
+      "block": 11612063,
+      "opHash": "0x5fb136f9bfffed341a4f287852c0f32ca7969b416d52e76218159a01cf340698"
+    }
+  ]
+}
