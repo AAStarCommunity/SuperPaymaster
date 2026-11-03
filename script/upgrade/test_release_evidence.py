@@ -44,11 +44,15 @@ class EvidenceTests(unittest.TestCase):
         self.tree.mkdir()
         self.out.mkdir()
         self.schema = json.loads(Path(e.__file__).with_name('release-evidence.schema.json').read_text())
-        self.suites = {f'C{i}': dict(path=f'contracts/test/C{i}.t.sol', contract=f'Control{i}', evm='cancun') for i in range(1, 10)}
-        for spec in self.suites.values():
-            p = self.tree / spec['path']
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text('// fixture')
+        self.template = json.loads((e.m.u.ROOT / e.CONFORMANCE_MAP).read_text())
+        mapping = self.tree / e.CONFORMANCE_MAP
+        mapping.parent.mkdir(parents=True)
+        mapping.write_text(json.dumps(self.template))
+        for spec in self.template['controls'].values():
+            for ref in [spec] + spec['positiveControl'] + spec['negativeControl']:
+                p = self.tree / ref['suite']
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text('# fixture')
         for path in (e.MANIFEST, e.VENDOR):
             p = self.tree / path
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -63,6 +67,12 @@ class EvidenceTests(unittest.TestCase):
     def fake_run(self, command, **kwargs):
         command = [str(x) for x in command]
         self.calls.append((command, kwargs))
+        if '-c' in command and e.CHECKER_RUNNER in command:
+            name = command[-2]
+            failed, skipped = int(self.fail_suite), int(self.skip_suite)
+            Path(command[-1]).write_text(json.dumps(dict(test='Controls.' + name,
+                run=1, passed=1-failed-skipped, failed=failed, skipped=skipped)))
+            return result(code=failed)
         if '--version' in command:
             return result('0.11.5' if command[0].endswith('slither') else 'forge Version: 1.7.1')
         if command[0].endswith('slither'):
@@ -98,7 +108,7 @@ class EvidenceTests(unittest.TestCase):
 
     def generate(self, kind, **kwargs):
         with patch.object(e.subprocess, 'run', side_effect=self.fake_run), patch.object(e.shutil, 'which', return_value='/mock/bin/slither'):
-            e.generate(kind, COMMIT, self.tree, self.out, FORGE, self.suites, **kwargs)
+            e.generate(kind, COMMIT, self.tree, self.out, FORGE, **kwargs)
         path = self.out / (kind + '.json')
         value = json.loads(path.read_text())
         jsonschema.Draft202012Validator(self.schema).validate(value)
@@ -108,12 +118,14 @@ class EvidenceTests(unittest.TestCase):
 
     def test_conformance_schema_and_executor(self):
         value = self.generate('conformance')
-        self.assertEqual(value['counts']['passed'], 41)
+        self.assertEqual(value['counts']['passed'], 36)
+        self.assertEqual(value['scope'], 'checker-logic-offline')
+        self.assertTrue(all(c['result'] == 'PASS' for c in value['controls'].values()))
         self.assertEqual(len(value['controls']), 9)
-        prague = [kw['env'] for cmd, kw in self.calls if any('GenuinePrague' in arg for arg in cmd)]
-        self.assertEqual(prague[0]['FOUNDRY_EVM_VERSION'], 'prague')
         audit = json.loads((self.out / 'conformance.audit.json').read_text())
-        self.assertTrue(any('counts' in cmd and cmd['exitCode'] == 0 for cmd in audit['commands']))
+        self.assertEqual(sum(len(v) for v in audit['controls'].values()), value['counts']['passed'])
+        self.assertTrue(all(Path(cmd[-3]).resolve().is_relative_to(self.tree.resolve())
+                            for cmd, _ in self.calls if '-c' in cmd))
 
     def test_mutation_schema_and_executor_and_restoration(self):
         value = self.generate('mutation')
@@ -177,7 +189,7 @@ class EvidenceTests(unittest.TestCase):
     def test_missing_forge_has_no_pass(self):
         with patch.object(e.subprocess, 'run', side_effect=FileNotFoundError('forge')):
             with self.assertRaisesRegex(e.Stop, 'tool unavailable'):
-                e.generate('conformance', COMMIT, self.tree, self.out, FORGE, self.suites)
+                e.generate('conformance', COMMIT, self.tree, self.out, FORGE)
         self.assertFalse((self.out / 'conformance.json').exists())
 
     def test_failed_and_skipped_suite_have_no_pass(self):
@@ -229,7 +241,7 @@ class EvidenceTests(unittest.TestCase):
                        'Suite result: ok. 1 passed; 0 failed; 0 skipped;'):
             with self.subTest(output=output), patch.object(e.subprocess, 'run', return_value=result(output)):
                 with self.assertRaises(e.Stop):
-                    e.generate('conformance', COMMIT, self.tree, self.out, FORGE, self.suites)
+                    e.forge_test(FORGE, self.tree, 'contracts/test/Example.t.sol')
                 self.assertFalse((self.out / 'conformance.json').exists())
 
     def test_forge_final_summary_must_agree(self):
@@ -258,9 +270,8 @@ class EvidenceTests(unittest.TestCase):
                 with self.subTest(marker=marker, stream=stream), \
                      patch.object(e.subprocess, 'run', return_value=output):
                     with self.assertRaisesRegex(e.Stop, 'failure or skip markers'):
-                        e.generate('conformance', COMMIT, self.tree, self.out, FORGE, self.suites)
+                        e.forge_test(FORGE, self.tree, 'contracts/test/Example.t.sol')
                 self.assertFalse((self.out / 'conformance.json').exists())
-                self.assertEqual(json.loads((self.out / 'conformance.audit.json').read_text())['result'], 'STOP')
 
     def test_forge_pass_count_must_equal_listed_tests(self):
         with patch.object(e, 'run', return_value=result(forge_json(('Success', 'Success')))), \
@@ -292,9 +303,8 @@ class EvidenceTests(unittest.TestCase):
         for output in outputs:
             with self.subTest(output=output), patch.object(e.subprocess, 'run', return_value=result(output)):
                 with self.assertRaisesRegex(e.Stop, 'duplicate JSON key'):
-                    e.generate('conformance', COMMIT, self.tree, self.out, FORGE, self.suites)
+                    e.forge_test(FORGE, self.tree, 'contracts/test/Example.t.sol')
             self.assertFalse((self.out / 'conformance.json').exists())
-            self.assertEqual(json.loads((self.out / 'conformance.audit.json').read_text())['result'], 'STOP')
 
     def test_slither_duplicate_keys_stop_at_every_level(self):
         reports = [
@@ -330,7 +340,10 @@ class EvidenceTests(unittest.TestCase):
         self.assertIsNone(selection['detectors_to_exclude'])
         commands = [cmd for cmd, _ in self.calls if '--config-file' in cmd]
         self.assertEqual(len(commands), 1)
-        self.assertEqual(json.loads(Path(commands[0][commands[0].index('--config-file') + 1]).read_text()), selection)
+        for flag in ('--config-file', '--json'):
+            scratch = Path(commands[0][commands[0].index(flag) + 1])
+            self.assertFalse(scratch.is_relative_to(self.tree))
+            self.assertFalse(scratch.exists())
 
     def test_slither_incomplete_unsuccessful_or_changed_selection_refused(self):
         for failure in ('success', 'marker', 'count', 'selection'):
@@ -356,28 +369,94 @@ class EvidenceTests(unittest.TestCase):
                     e.generate('slither', COMMIT, self.tree, self.out, FORGE, threshold='Informational')
                 self.assertFalse((self.out / 'slither.json').exists())
 
-    def test_main_forge_invalid_results_exit_nonzero(self):
-        mapping = self.root / 'suites.json'
-        mapping.write_text(json.dumps(self.suites))
-        for output in (forge_json(('Failure',)), forge_json(('Skipped',)), 'not JSON'):
-            def archive(repo, commit, tree):
-                tree.mkdir(parents=True)
-                for spec in self.suites.values():
-                    path = tree / spec['path']
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_text('// fixture')
-            def fake(command, **kwargs):
-                return result(output) if 'test' in command else self.fake_run(command, **kwargs)
-            with tempfile.TemporaryDirectory() as out, patch.object(e, 'clean_commit', return_value=COMMIT), \
-                 patch.object(e.a, 'archive_commit', side_effect=archive), \
-                 patch.object(e.subprocess, 'run', side_effect=fake):
-                self.assertEqual(e.main(['conformance', '--commit', 'v1', '--out', out,
-                                         '--suite-map', str(mapping)]), 1)
-                self.assertFalse((Path(out) / 'conformance.json').exists())
+    def test_main_conformance_uses_archived_mapping(self):
+        def archive(repo, commit, tree):
+            import shutil
+            shutil.copytree(self.tree, tree)
+            template = json.loads((tree / e.CONFORMANCE_MAP).read_text())
+            # A valid reviewed change present only in the selected archive.
+            template['controls']['C1']['test'] = 'test_all_positive'
+            (tree / e.CONFORMANCE_MAP).write_text(json.dumps(template))
+        with patch.object(e, 'clean_commit', return_value=COMMIT), \
+             patch.object(e.a, 'archive_commit', side_effect=archive) as archived, \
+             patch.object(e.subprocess, 'run', side_effect=self.fake_run):
+            self.assertEqual(e.main(['conformance', '--commit', 'v1', '--out', str(self.out)]), 0)
+        self.assertEqual(archived.call_args.args[1], COMMIT)
+        value = json.loads((self.out / 'conformance.json').read_text())
+        self.assertEqual(value['controls']['C1']['test'], 'test_all_positive')
+        jsonschema.Draft202012Validator(self.schema).validate(value)
+        e.m.validate_evidence_details(value, 'conformance')
+        self.assertTrue((self.out / 'SHA256SUMS').is_file())
+
+    def test_main_failed_kind_has_no_checksums(self):
+        def archive(repo, commit, tree):
+            import shutil
+            shutil.copytree(self.tree, tree)
+        self.fail_suite = True
+        with patch.object(e, 'clean_commit', return_value=COMMIT), \
+             patch.object(e.a, 'archive_commit', side_effect=archive) as archived, \
+             patch.object(e.subprocess, 'run', side_effect=self.fake_run):
+            self.assertEqual(e.main(['conformance', '--commit', 'v1', '--out', str(self.out)]), 1)
+        self.assertEqual(archived.call_args.args[1], COMMIT)
+        self.assertFalse((self.out / 'conformance.json').exists())
+        self.assertFalse((self.out / 'SHA256SUMS').exists())
 
     def test_missing_mapping_is_not_attested(self):
+        (self.tree / e.CONFORMANCE_MAP).unlink()
         with self.assertRaisesRegex(e.Stop, 'mapping required'):
-            e.conformance(self.tree, FORGE, None, {})
+            e.conformance(self.tree, FORGE, {})
+
+    def test_missing_negative_control_rejected(self):
+        self.template['controls']['C1']['negativeControl'] = []
+        (self.tree / e.CONFORMANCE_MAP).write_text(json.dumps(self.template))
+        with self.assertRaisesRegex(e.Stop, 'missing negativeControl'):
+            self.generate('conformance')
+        self.assertFalse((self.out / 'conformance.json').exists())
+        self.template['subjectCommit'] = COMMIT
+        self.template['result'] = 'PASS'
+        self.template['counts'] = dict(passed=36, failed=0, skipped=0)
+        for c in self.template['controls'].values():
+            c['result'] = 'PASS'
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.Draft202012Validator(self.schema).validate(self.template)
+        with self.assertRaises(e.a.Gate):
+            e.m.validate_evidence_details(self.template, 'conformance')
+
+    def test_one_failing_named_control_prevents_pass(self):
+        def fake(command, **kwargs):
+            if e.CHECKER_RUNNER in command and command[-2] == 'test_c9_inflight':
+                Path(command[-1]).write_text(json.dumps(dict(test='Controls.test_c9_inflight',
+                    run=1, passed=0, failed=1, skipped=0)))
+                return result(code=1)
+            return self.fake_run(command, **kwargs)
+        with patch.object(e.subprocess, 'run', side_effect=fake):
+            with self.assertRaisesRegex(e.Stop, 'test_c9_inflight'):
+                e.generate('conformance', COMMIT, self.tree, self.out, FORGE)
+        self.assertFalse((self.out / 'conformance.json').exists())
+
+    def test_all_partial_failure_has_no_checksums(self):
+        def generate(kind, commit, tree, out, *args):
+            if kind == 'mutation':
+                raise e.Stop('failed mutation')
+            e.write_json(out / (kind + '.json'), dict(result='PASS'))
+        with patch.object(e, 'clean_commit', return_value=COMMIT), \
+             patch.object(e.a, 'archive_commit', side_effect=lambda repo, commit, tree: tree.mkdir()), \
+             patch.object(e, 'generate', side_effect=generate):
+            self.assertEqual(e.main(['all', '--commit', 'v1', '--out', str(self.out)]), 1)
+        self.assertTrue((self.out / 'conformance.json').is_file())
+        self.assertFalse((self.out / 'SHA256SUMS').exists())
+
+    def test_real_named_runner_outcomes(self):
+        path = self.tree / 'controls.py'
+        path.write_text("import unittest\nclass Controls(unittest.TestCase):\n"
+                        "    def test_ok(self): pass\n"
+                        "    def test_bad(self): self.fail('negative control failed')\n"
+                        "    @unittest.skip('skip')\n    def test_skip(self): pass\n")
+        self.assertEqual(e.checker_test(self.tree, FORGE,
+            dict(suite='controls.py', test='test_ok'))['passed'], 1)
+        for name in ('test_bad', 'test_skip', 'test_missing'):
+            with self.subTest(name=name), self.assertRaises(e.Stop):
+                e.checker_test(self.tree, FORGE, dict(suite='controls.py', test=name))
 
     def test_main_writes_sha_manifest(self):
         with patch.object(e, 'clean_commit', return_value=COMMIT), patch.object(e.a, 'archive_commit', side_effect=lambda repo, commit, tree: tree.mkdir(parents=True)), \
@@ -388,6 +467,41 @@ class EvidenceTests(unittest.TestCase):
             digest, name = line.split('  ')
             self.assertEqual(digest, hashlib.sha256((self.out / name).read_bytes()).hexdigest())
 
+
+
+class CheckerRunnerModuleFixtures(unittest.TestCase):
+    """The real CHECKER_RUNNER (no mocks) must honour setUpModule: a module-level skip or failure is never PASS."""
+    def run_runner(self, fixture):
+        with tempfile.TemporaryDirectory() as tmp:
+            module = Path(tmp)/'fixture_mod.py'
+            module.write_text(fixture)
+            out = Path(tmp)/'result.json'
+            proc = subprocess.run([sys.executable, '-I', '-c', e.CHECKER_RUNNER, str(module), 'test_ok', str(out)],
+                                  capture_output=True, text=True)
+            return proc.returncode, (json.loads(out.read_text()) if out.exists() else None)
+
+    def test_module_skip_is_not_pass(self):
+        code, result = self.run_runner(
+            'import unittest\n'
+            'def setUpModule():\n    raise unittest.SkipTest("prerequisite missing")\n'
+            'class T(unittest.TestCase):\n    def test_ok(self):\n        pass\n')
+        self.assertNotEqual(code, 0)
+        self.assertTrue(result is None or result['passed'] == 0, result)
+
+    def test_module_setup_error_is_not_pass(self):
+        code, result = self.run_runner(
+            'import unittest\n'
+            'def setUpModule():\n    raise RuntimeError("broken prerequisite")\n'
+            'class T(unittest.TestCase):\n    def test_ok(self):\n        pass\n')
+        self.assertNotEqual(code, 0)
+        self.assertTrue(result is None or result['passed'] == 0, result)
+
+    def test_plain_pass_still_passes(self):
+        code, result = self.run_runner(
+            'import unittest\n'
+            'class T(unittest.TestCase):\n    def test_ok(self):\n        pass\n')
+        self.assertEqual(code, 0)
+        self.assertEqual((result['run'], result['passed'], result['skipped']), (1, 1, 0))
 
 if __name__ == '__main__':
     unittest.main()

@@ -369,8 +369,7 @@ JSON. Full runs are opt-in and may be long.
 ```sh
 # Replace RELEASE_TAG with the existing local release tag.
 python3 -B script/upgrade/release_evidence.py all \
-  --commit RELEASE_TAG --out /tmp/sp-release-evidence-RELEASE_TAG \
-  --suite-map /absolute/path/to/reviewed-c1-c9.json
+  --commit RELEASE_TAG --out /tmp/sp-release-evidence-RELEASE_TAG
 
 # Run one kind independently, using a fresh output directory each time.
 python3 -B script/upgrade/release_evidence.py mutation \
@@ -382,20 +381,17 @@ python3 -B script/upgrade/release_evidence.py reproducible-build \
   --commit RELEASE_TAG --out /tmp/sp-build-RELEASE_TAG
 ```
 
-The checked-in README/schema specify C1–C9 labels but do not map the A4 release
-checks to executable suites. Consequently conformance requires a reviewed
-`--suite-map`, with **exactly** keys `C1` through `C9`. Each value has exactly
-`path` (an archived `.t.sol` file), `contract` (an exact test-contract name), and
-`evm` (`cancun` or `prague`). For example, a single mapping entry has the shape
-`"C1": {"path": "contracts/test/path/ActualSuite.t.sol", "contract": "ActualSuite", "evm": "cancun"}`.
-This is a format example, not an asserted C1 assignment. The selected suites
-must all execute positive test counts with zero failures/skips. Additionally,
-conformance runs SP's cross-repo suites (7 mocked Cancun tests, 11 genuine Prague
-tests, 5 provenance tests). Prague commands explicitly set
-`FOUNDRY_EVM_VERSION=prague`; these results do not substitute for the separately
-required DVT records. Forge runs with `test --json`; counts come from each
-structured test status (`Success`, `Failure`, or `Skipped`). Missing or malformed
-results and contradictory final summaries stop generation.
+Conformance reads the reviewed C1–C9 mapping from
+`script/evidence/a4-conformance-record.template.json` in the clean archive of
+`--commit`. It runs each item's exact named Python test and every positive and
+negative control, requiring one successful test per invocation and zero skips.
+Negative controls are tests that successfully reject bad inputs; failing tests
+never produce PASS evidence. Missing or ambiguous tests and import errors stop
+generation. Template counts and result labels are ignored. Counts reflect actual
+test invocations (shared controls may run more than once). Output uses scope
+`checker-logic-offline` and per-item suite/test/control references and derived
+results. This is checker-logic evidence, not live release-state or DVT evidence.
+No external `--suite-map` is needed.
 
 Mutation evidence runs each named manifest Python test and each vendored verifier
 set-binding control baseline → mutated → restored. The guardian controls run in
@@ -408,7 +404,8 @@ Slither uses a fresh offline Forge build, records the full detector report, and
 requires explicit acceptance of every finding **at or above** the selected
 threshold (default `Medium`). A dedicated config enables all detector severities
 and removes detector/path exclusions; `slither.audit.json` records this effective
-selection and the completed detector count. A successful JSON report and a
+selection and the completed detector count. Scratch config/report files live in a
+temporary directory outside the release tree and are removed after analysis. A successful JSON report and a
 matching completed-analysis summary are required, including for Slither 0.11.5
 clean reports whose `results` object is empty. `--accepted-findings` is a JSON array of
 `{"id": "<Slither detector id>", "reason": "<review rationale>"}`; the default is
@@ -431,25 +428,16 @@ Each successful kind writes `<kind>.json`, accepted by `manifest_exec.evidence_f
 `<kind>.audit.json` contains tool versions, command lines, sanitized EVM/profile
 overrides, exit codes, elapsed seconds, stdout/stderr, and parsed Forge counts.
 Failed kinds retain STOP audits but no evidence JSON. `archive.audit.json` records
-archive commands; `SHA256SUMS` covers every generated JSON, including audits.
+archive commands; `SHA256SUMS` is written only after every requested kind passes
+and covers every generated JSON, including audits. Command capture temporarily
+patches `subprocess.run` globally and supports sequential execution only.
 Completed kinds in an interrupted `all` run remain individually valid; no overall
 PASS is emitted. Supply each evidence file's path and SHA-256 to `releaseEvidence`.
 
-Mocked generator tests require an already-installed `jsonschema` package and run
+Generator tests require `pip install jsonschema==4.23.0` and run
 no Forge suites or Git commands:
 
 ```sh
 python3 -B script/upgrade/test_release_evidence.py
 ```
 
-Local implementation check (2026-11-02): `~/.foundry/bin/forge --version`
-reports 1.7.1; `env -u VIRTUAL_ENV slither --version` reports 0.11.5. Forge is
-not on this shell's PATH; the generator uses the executor's absolute Forge path
-and prepends its directory for Slither. Neither tool is missing. System `python3`
-lacks `jsonschema`; `/Users/jason/venvs/ml/bin/python` has 4.26.0 and can run the
-mocked tests above. A separate temporary-copy check of all four manifest Python
-mutations, each baseline/red/restored, took 74.4 seconds. Budget roughly 75 seconds
-for that portion of `mutation`, plus the unmeasured Forge compilation and six
-Cancun/Prague mutation cycles. Conformance, full Slither analysis, and the two
-SP/DVT rebuild pairs were not timed; no reliable full-kind estimates are available
-without those opt-in runs. No full Forge suites were run for this implementation.

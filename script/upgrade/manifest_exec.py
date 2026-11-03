@@ -2,6 +2,7 @@
 """Phase A/B/D unsigned manifest builder and authenticated fork-only rehearsal."""
 import sys
 sys.dont_write_bytecode = True
+import ast
 import argparse
 import copy
 import hashlib
@@ -100,7 +101,7 @@ def evidence_file(ref, kind, commit=None):
     required(ref, ('path', 'sha256'), 'evidence_reference')
     e = reviewed_file(ref['path'], ref['sha256'], 'evidence_'+kind)
     fields = ['kind', 'subjectCommit', 'tool', 'counts', 'result']
-    fields += {'conformance':['controls'], 'mutation':['controls'], 'slither':['findings'],
+    fields += {'conformance':['controls', 'scope'], 'mutation':['controls'], 'slither':['findings'],
                'reproducible-build':['contracts'], 'dvt-ci':['suites', 'ciRun', 'acceptedFailures'],
                'dvt-conformance-4.12':['suites']}[kind]
     if kind.startswith('dvt-'):
@@ -147,7 +148,19 @@ def validate_ci_run(e):
 
 def validate_evidence_details(e, kind):
     if kind == 'conformance':
-        a.need('evidence_conformance_controls', e['controls'], {f'C{i}':'PASS' for i in range(1,10)})
+        schema = json.loads(Path(__file__).with_name('release-evidence.schema.json').read_text())['oneOf'][0]
+        _fraud_schema(e, schema, 'conformance')
+        root = Path(__file__).resolve().parents[2]
+        for control in e['controls'].values():
+            refs = [control] + control['positiveControl'] + control['negativeControl']
+            for ref in refs:
+                path = (root / ref['suite']).resolve()
+                a.need('evidence_test_suite', path.is_relative_to(root) and path.suffix == '.py' and path.is_file(), True)
+                try:
+                    names = {n.name for n in ast.walk(ast.parse(path.read_text())) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+                except (OSError, SyntaxError):
+                    names = set()
+                a.need('evidence_test_name', ref['test'] in names, True)
     elif kind == 'mutation':
         a.exact_keys('evidence_mutations', e['controls'], MUTATIONS)
         for name, test in MUTATIONS.items():

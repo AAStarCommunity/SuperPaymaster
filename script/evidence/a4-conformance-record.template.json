@@ -1,0 +1,206 @@
+{
+  "kind": "conformance",
+  "scope": "checker-logic-offline",
+  "subjectCommit": null,
+  "tool": {
+    "name": "a4-checker-controls",
+    "version": "1"
+  },
+  "counts": {
+    "passed": 204,
+    "failed": 1,
+    "skipped": 0
+  },
+  "result": "BLOCKED",
+  "controls": {
+    "C1": {
+      "suite": "script/evidence/test_a4_state_check.py",
+      "test": "test_c1_wrong_implementation",
+      "positiveControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_all_positive"
+        }
+      ],
+      "negativeControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_c1_wrong_implementation"
+        }
+      ],
+      "result": "PASS"
+    },
+    "C2": {
+      "suite": "script/evidence/test_a4_a6_controls.py",
+      "test": "test_credit_on",
+      "positiveControl": [
+        {
+          "suite": "script/evidence/test_a4_a6_controls.py",
+          "test": "test_credit_off"
+        }
+      ],
+      "negativeControl": [
+        {
+          "suite": "script/evidence/test_a4_a6_controls.py",
+          "test": "test_credit_on"
+        }
+      ],
+      "result": "PASS"
+    },
+    "C3": {
+      "suite": "script/evidence/test_a4_a6_controls.py",
+      "test": "test_credit_queued",
+      "positiveControl": [
+        {
+          "suite": "script/evidence/test_a4_a6_controls.py",
+          "test": "test_credit_off"
+        }
+      ],
+      "negativeControl": [
+        {
+          "suite": "script/evidence/test_a4_a6_controls.py",
+          "test": "test_credit_queued"
+        }
+      ],
+      "result": "PASS"
+    },
+    "C4": {
+      "suite": "script/evidence/test_a4_credit_logscan.py",
+      "test": "test_policy_positive",
+      "positiveControl": [
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_off_policy_reported"
+        }
+      ],
+      "negativeControl": [
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_policy_positive"
+        },
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_missing_chunk_log"
+        },
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_shrink_completes"
+        },
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_archive_both_required"
+        },
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_start_after_deploy"
+        }
+      ],
+      "result": "PASS"
+    },
+    "C5": {
+      "suite": "script/evidence/test_a4_state_check.py",
+      "test": "test_c5_reserved",
+      "positiveControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_all_positive"
+        }
+      ],
+      "negativeControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_c5_reserved"
+        }
+      ],
+      "result": "PASS"
+    },
+    "C6": {
+      "suite": "script/evidence/test_a4_state_check.py",
+      "test": "test_c6_zero_amount_record",
+      "positiveControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_all_positive"
+        }
+      ],
+      "negativeControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_c6_zero_amount_record"
+        }
+      ],
+      "result": "PASS"
+    },
+    "C7": {
+      "suite": "script/evidence/test_a4_credit_logscan.py",
+      "test": "test_reuse_chronological",
+      "positiveControl": [
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_reuse_chronological"
+        },
+        {
+          "suite": "script/evidence/test_a4_anvil_control.py",
+          "test": "test_anvil_reserve_release_rereserve"
+        }
+      ],
+      "negativeControl": [
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_open_zero_amount"
+        },
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_reuse_left_open"
+        },
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_duplicate_reserve"
+        },
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_orphan_closes"
+        },
+        {
+          "suite": "script/evidence/test_a4_credit_logscan.py",
+          "test": "test_user_and_token_key"
+        }
+      ],
+      "result": "BLOCKED"
+    },
+    "C8": {
+      "suite": "script/evidence/test_a4_state_check.py",
+      "test": "test_c8_debt",
+      "positiveControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_all_positive"
+        }
+      ],
+      "negativeControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_c8_debt"
+        }
+      ],
+      "result": "PASS"
+    },
+    "C9": {
+      "suite": "script/evidence/test_a4_state_check.py",
+      "test": "test_c9_inflight",
+      "positiveControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_all_positive"
+        }
+      ],
+      "negativeControl": [
+        {
+          "suite": "script/evidence/test_a4_state_check.py",
+          "test": "test_c9_inflight"
+        }
+      ],
+      "result": "PASS"
+    }
+  }
+}

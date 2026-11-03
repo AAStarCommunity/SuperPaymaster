@@ -1,0 +1,683 @@
+{
+  "scope": "checker-logic-offline",
+  "mutations": [
+    {
+      "name": "logscan.policy_positive",
+      "test": "test_policy_positive",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.off_policy_reported",
+      "test": "test_off_policy_reported",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.open_zero_amount",
+      "test": "test_open_zero_amount",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.reuse_chronological",
+      "test": "test_reuse_chronological",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.duplicate_reserve",
+      "test": "test_duplicate_reserve",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.orphan_closes",
+      "test": "test_orphan_closes",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.user_and_token_key",
+      "test": "test_user_and_token_key",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.missing_chunk_log",
+      "test": "test_missing_chunk_log",
+      "killed": false,
+      "assertionFailures": 0,
+      "errors": 0
+    },
+    {
+      "name": "logscan.shrink_completes",
+      "test": "test_shrink_completes",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.permanent_error",
+      "test": "test_permanent_error",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.start_after_deploy",
+      "test": "test_start_after_deploy",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.bisection_and_evidence",
+      "test": "test_bisection_and_evidence",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.no_code",
+      "test": "test_no_code",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.finalized_both",
+      "test": "test_finalized_both",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.chain_mismatch",
+      "test": "test_chain_mismatch",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.endpoint_file_rejected_without_echo",
+      "test": "test_endpoint_file_rejected_without_echo",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.finalized_checkpoint_in_numbered_view",
+      "test": "test_finalized_checkpoint_in_numbered_view",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.boundary_hash",
+      "test": "test_boundary_hash",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.log_hash",
+      "test": "test_log_hash",
+      "killed": false,
+      "assertionFailures": 0,
+      "errors": 0
+    },
+    {
+      "name": "logscan.removed_log",
+      "test": "test_removed_log",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.duplicate_log",
+      "test": "test_duplicate_log",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.malformed_hex_no_echo",
+      "test": "test_malformed_hex_no_echo",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.malformed_quantity_no_echo",
+      "test": "test_malformed_quantity_no_echo",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.bad_event_encoding",
+      "test": "test_bad_event_encoding",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.wrong_selector_load_bearing",
+      "test": "test_wrong_selector_load_bearing",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.rpc_envelope_no_echo",
+      "test": "test_rpc_envelope_no_echo",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.cli_redaction",
+      "test": "test_cli_redaction",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.same_endpoint",
+      "test": "test_same_endpoint",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.source_abi_selectors",
+      "test": "test_source_abi_selectors",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.reuse_left_open",
+      "test": "test_reuse_left_open",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.archive_both_required",
+      "test": "test_archive_both_required",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.transaction_index_disagreement",
+      "test": "test_transaction_index_disagreement",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.nonempty_canonical_digest",
+      "test": "test_nonempty_canonical_digest",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.outside_filter",
+      "test": "test_outside_filter",
+      "killed": false,
+      "assertionFailures": 0,
+      "errors": 0
+    },
+    {
+      "name": "logscan.code_disagreement",
+      "test": "test_code_disagreement",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.pinned_hash_changes",
+      "test": "test_pinned_hash_changes",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.wrong_policy_selector",
+      "test": "test_policy_positive",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.wrong_reserve_selector",
+      "test": "test_open_zero_amount",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.wrong_settle_selector",
+      "test": "test_reuse_chronological",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.wrong_release_selector",
+      "test": "test_reuse_chronological",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.missing_chunk_log_double",
+      "test": "test_missing_chunk_log",
+      "originalMutation": "logscan.missing_chunk_log",
+      "disabledCheck": "if receipt_logs != [expected, expected]:",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.log_hash_double",
+      "test": "test_log_hash",
+      "originalMutation": "logscan.log_hash",
+      "disabledCheck": "if n in hashes and any(v[\"blockHash\"] != hashes[n] for v in normalized):",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.outside_filter_double",
+      "test": "test_outside_filter",
+      "originalMutation": "logscan.outside_filter",
+      "disabledCheck": "if receipt_logs != [expected, expected]:",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.split_consistency",
+      "test": "test_split_consistency",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.sampling_bound",
+      "test": "test_sampling_bound_and_seed",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.provider_cap",
+      "test": "test_cap_shrinks",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.configured_max",
+      "test": "test_configured_max_shrinks",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.receipt_content",
+      "test": "test_receipt_equal_count_disagreement",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.receipt_shared_substitution",
+      "test": "test_receipt_shared_substitution",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.receipt_truncation",
+      "test": "test_identical_truncation_receipts",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.C1",
+      "test": "test_c1_wrong_implementation",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.C2",
+      "test": "test_c2_policy_on",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.C3",
+      "test": "test_c3_queued",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.C5",
+      "test": "test_c5_reserved",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.C6",
+      "test": "test_c6_zero_amount_record",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.C8",
+      "test": "test_c8_debt",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.C9",
+      "test": "test_c9_inflight",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.C4",
+      "test": "test_c4_ever_on",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.C7",
+      "test": "test_c7_reopened",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.read_agreement",
+      "test": "test_read_bytes_must_agree",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.unverified_blocks",
+      "test": "test_history_unavailable",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.inventory_omission",
+      "test": "test_inventory_omissions_stop",
+      "killed": true,
+      "assertionFailures": 12,
+      "errors": 0
+    },
+    {
+      "name": "state.credit_discovery",
+      "test": "test_inventory_omissions_stop",
+      "killed": true,
+      "assertionFailures": 2,
+      "errors": 0
+    },
+    {
+      "name": "state.lock_discovery",
+      "test": "test_inventory_omissions_stop",
+      "killed": true,
+      "assertionFailures": 6,
+      "errors": 0
+    },
+    {
+      "name": "state.sp_discovery",
+      "test": "test_inventory_omissions_stop",
+      "killed": true,
+      "assertionFailures": 4,
+      "errors": 0
+    },
+    {
+      "name": "state.discovery_complete",
+      "test": "test_inventory_partial_scan_blocks",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_discovery",
+      "test": "test_ep_discovered_nonzero",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_complete",
+      "test": "test_ep_incomplete",
+      "killed": true,
+      "assertionFailures": 2,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_start_required",
+      "test": "test_ep_start_pin",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_start_hash",
+      "test": "test_ep_start_pin",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_paymaster_filter",
+      "test": "test_ep_foreign_paymaster",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_selector",
+      "test": "test_ep_discovered_nonzero",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.sp_start_boundary",
+      "test": "test_late_sp_start",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.creation_agreement",
+      "test": "test_creation_archive_and_disagreement",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.creation_predecessor",
+      "test": "test_creation_boundary",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.creation_record",
+      "test": "test_creation_evidence",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_binding",
+      "test": "test_ep_substitution",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_historical_binding",
+      "test": "test_ep_binding_history",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_upgrade_complete",
+      "test": "test_upgrade_receipt_omission",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.receipt_hex_normalization",
+      "test": "test_receipt_hex_case",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.ep_receipt_hex_normalization",
+      "test": "test_ep_hex_case",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.filtered_default",
+      "test": "test_filtered_chunk_defaults",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.filtered_ceiling",
+      "test": "test_filtered_chunk_defaults",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.all_hit_receipts",
+      "test": "test_all_hit_receipts_and_coverage",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.pacing",
+      "test": "test_rpc_pacing_backoff_and_records",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.backoff",
+      "test": "test_rpc_pacing_backoff_and_records",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.retry_limit",
+      "test": "test_rpc_exhaustion_stays_failure",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.rpc_record",
+      "test": "test_rpc_pacing_backoff_and_records",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.expected_hits",
+      "test": "test_expected_entrypoint_hits",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.expected_head",
+      "test": "test_expected_entrypoint_head",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.new_hits",
+      "test": "test_expected_entrypoint_hits",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.inflight_selector",
+      "test": "test_inflight_implementation_absent",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "state.inflight_empty_probe",
+      "test": "test_inflight_implementation_absent",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "manifest.scope",
+      "killed": true,
+      "errors": 0,
+      "assertionFailures": 1
+    },
+    {
+      "name": "manifest.negative",
+      "killed": true,
+      "errors": 0,
+      "assertionFailures": 1
+    },
+    {
+      "name": "manifest.test_exists",
+      "killed": true,
+      "errors": 0,
+      "assertionFailures": 1
+    }
+  ],
+  "killed": 93,
+  "total": 96,
+  "survivorsExplanation": "Three legacy single-guard mutants are blocked by independent receipt checks: missing_chunk_log, log_hash, outside_filter. Each corresponding _double mutant removes both guards and must be killed by its named test. No runtime errors are counted as kills."
+}

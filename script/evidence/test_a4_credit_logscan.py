@@ -69,6 +69,9 @@ class Endpoint:
             if not self.archive:
                 raise m.RpcFailure("archive unavailable")
             return "0x6000" if int(params[1], 16) >= self.deploy else "0x"
+        if method == "eth_getBlockReceipts":
+            n = int(params[0], 16)
+            return [{"logs": [copy.deepcopy(v) for v in self.logs if int(v["blockNumber"], 16) == n]}]
         if method == "eth_getLogs":
             f = params[0]
             lo, hi = int(f["fromBlock"], 16), int(f["toBlock"], 16)
@@ -76,7 +79,9 @@ class Endpoint:
                 raise m.RpcFailure("range too large")
             return [copy.deepcopy(v) for v in reversed(self.logs)
                     if lo <= int(v["blockNumber"], 16) <= hi and v["address"] == f["address"]
-                    and v["topics"][0] in f["topics"][0]]
+                    and v["topics"][0] in f["topics"][0]
+                    and all(topic is None or (len(v["topics"]) > i and v["topics"][i] == topic)
+                            for i, topic in enumerate(f["topics"][1:], 1))]
         raise AssertionError(method)
 
 
@@ -92,6 +97,230 @@ def verdicts(out):
 
 class Controls(unittest.TestCase):
     # Each test has one assertion, killed by its named targeted mutation below.
+    def test_filtered_chunk_defaults(self):
+        for indexed, explicit, expected in ((None, None, 2000), ({1: '0x'+USER[2:].rjust(64, '0')}, None, 50000),
+                                             ({1: '0x'+USER[2:].rjust(64, '0')}, 100000, 50000)):
+            a, b = Endpoint(), Endpoint()
+            for endpoint in (a, b):
+                endpoint.finalized = 100000
+                endpoint.max_range = 100000
+            with mock.patch.object(m, 'rpc', lambda u, method, p: {'A': a, 'B': b}[u](method, p)):
+                out = m.scan(['A','B'], [TOKEN], 1, 100000, chunk_size=explicit,
+                             indexed_topics=indexed, deployment_check=False)
+            self.assertTrue(out['complete'])
+            self.assertEqual(out['chunkSize'], expected)
+            self.assertEqual(len(out['chunks']), 100000 // expected)
+            self.assertTrue(all(c['toBlock']-c['fromBlock']+1 == expected for c in out['chunks']))
+
+    def test_filtered_shrinks_without_growth(self):
+        a, b = Endpoint(), Endpoint()
+        for endpoint in (a, b):
+            endpoint.finalized = 100000
+            endpoint.max_range = 25000
+        with mock.patch.object(m, 'rpc', lambda u, method, p: {'A':a,'B':b}[u](method,p)):
+            out = m.scan(['A','B'], [TOKEN], 1, 100000, indexed_topics={1:'0x'+USER[2:].rjust(64,'0')}, deployment_check=False)
+        self.assertTrue(out['complete'])
+        self.assertEqual([c['toBlock']-c['fromBlock']+1 for c in out['chunks']], [50000,25000,25000,25000,25000])
+
+    def test_all_hit_receipts_and_coverage(self):
+        rows = [event('P', n=n) for n in range(2, 8)]
+        a, b = Endpoint(rows), Endpoint(rows)
+        with mock.patch.object(m, 'rpc', lambda u, method, p: {'A':a, 'B':b}[u](method,p)):
+            out = m.scan(['A','B'], [TOKEN], 1, 8, 8)
+        self.assertTrue(set(range(2,8)) <= set(out['chunks'][0]['receiptCountCheckedBlocks']))
+        self.assertIn('dual-endpoint agreement + split consistency', out['coverage'])
+        self.assertIn('per-block coverage is NOT claimed', out['coverage'])
+
+    def test_rpc_pacing_backoff_and_records(self):
+        now = [0.0]; starts = []; failures = [429, 503, 'timeout']
+        def sleep(delay): now[0] += delay
+        def transport(req, timeout):
+            starts.append((req.full_url, now[0]))
+            if failures:
+                failure = failures.pop(0)
+                if failure == 'timeout': raise TimeoutError('SECRET')
+                raise m.urllib.error.HTTPError(req.full_url, failure, 'SECRET', {}, None)
+            return io.StringIO(json.dumps(dict(jsonrpc='2.0', id=1, result='0x1')))
+        @m.rpc_recorded
+        def exercise(urls, **kwargs):
+            for u in (urls[0], urls[0], urls[1]): m.rpc(u, 'eth_chainId', [])
+            return {}
+        with mock.patch.object(m.time, 'monotonic', side_effect=lambda: now[0]), \
+             mock.patch.object(m.time, 'sleep', side_effect=sleep), \
+             mock.patch.object(m.urllib.request, 'urlopen', side_effect=transport):
+            out = exercise(['https://a/SECRET', 'https://b/SECRET'], min_interval=0.4)
+        self.assertEqual([r['retryCount'] for r in out['rpcCalls']], [0,1,2,3,0,0])
+        self.assertEqual([r.get('backoffSeconds') for r in out['rpcCalls'][:3]], [0.25,0.5,1.0])
+        self.assertTrue(all(b[1]-a[1] >= 0.399 for a,b in zip(starts[:4], starts[1:5])))
+        self.assertEqual(starts[-1][1], starts[-2][1])
+        self.assertNotIn('SECRET', json.dumps(out))
+        self.assertEqual(out['rpcCalls'][-1]['endpoint'], 'B')
+        self.assertTrue(all(r['method'] == 'eth_chainId' and r['latencySeconds'] >= 0 for r in out['rpcCalls']))
+
+    def test_rpc_exhaustion_stays_failure(self):
+        a, b = Endpoint(), Endpoint()
+        def transport(req, timeout):
+            request = json.loads(req.data)
+            if request['method'] == 'eth_getLogs':
+                raise m.urllib.error.HTTPError(req.full_url, 429, 'SECRET', {}, None)
+            result = {'https://a':a, 'https://b':b}[req.full_url](request['method'], request['params'])
+            return io.StringIO(json.dumps(dict(jsonrpc='2.0', id=1, result=result)))
+        with mock.patch.object(m.time, 'sleep'), mock.patch.object(m.urllib.request, 'urlopen', side_effect=transport):
+            out = m.scan(['https://a','https://b'], [TOKEN], 1, 8, min_interval=0, max_retries=2)
+        self.assertFalse(out['complete'])
+        self.assertEqual(len(out['chunks']), 1)
+        calls = [r for r in out['rpcCalls'] if r['method'] == 'eth_getLogs']
+        self.assertEqual([r['retryCount'] for r in calls], [0,1,2])
+        self.assertTrue(all(r['status'] == 'failure' for r in calls))
+
+    def test_rpc_nonretryable(self):
+        for error in (m.urllib.error.HTTPError('https://a/SECRET',400,'SECRET',{},None), ValueError('SECRET')):
+            with mock.patch.object(m.urllib.request,'urlopen',side_effect=error) as transport, mock.patch.object(m.time,'sleep') as sleep:
+                with self.assertRaises(m.RpcFailure): m.rpc('https://a', 'eth_chainId', [])
+            self.assertEqual(transport.call_count, 1)
+            sleep.assert_not_called()
+
+    def test_empty_range_call_count(self):
+        a, b = Endpoint(), Endpoint()
+        for endpoint in (a, b):
+            endpoint.finalized = 100000
+            endpoint.max_range = 2000
+        with mock.patch.object(m, "rpc", lambda u, method, p: {"A": a, "B": b}[u](method, p)):
+            out = m.scan(["A", "B"], [TOKEN], 1, 100000, 2000, deployment_check=False)
+        self.assertTrue(out["complete"])
+        self.assertEqual(len(out["chunks"]), 50)
+        for endpoint in (a, b):
+            counts = {method: sum(call[0] == method for call in endpoint.calls)
+                      for method in ("eth_chainId", "eth_getLogs", "eth_getBlockReceipts", "eth_getBlockByNumber")}
+            self.assertEqual(counts, {"eth_chainId": 1, "eth_getLogs": 150,
+                                     "eth_getBlockReceipts": 50, "eth_getBlockByNumber": 106})
+            self.assertEqual(len(endpoint.calls), 6 * 50 + 7)
+            self.assertLess(len(endpoint.calls), 10 * 50)
+        self.assertTrue(all(c["halvesChecked"] and len(c["sampledBlocks"]) == 1 for c in out["chunks"]))
+
+    def test_split_consistency(self):
+        class Capped(Endpoint):
+            def __call__(self, method, params):
+                rows = super().__call__(method, params)
+                return rows[:3] if method == "eth_getLogs" else rows
+        rows = [event("P", n=n) for n in range(2, 9)]
+        out = run(a=Capped(rows), b=Capped(rows))
+        self.assertTrue(out["complete"])
+        self.assertEqual(len(out["logs"]), 7)
+        self.assertTrue(any(c["status"] == "split disagreement; shrinking" for c in out["chunks"]))
+
+    def test_sampling_bound_and_seed(self):
+        rows = [event("P", n=n) for n in (2, 3, 4, 5, 6, 7)]
+        a, b = Endpoint(rows), Endpoint(rows)
+        with mock.patch.object(m, "rpc", lambda u, method, p: {"A": a, "B": b}[u](method, p)):
+            out = m.scan(["A", "B"], [TOKEN], 1, 8, 8, receipt_sample_size=2)
+        self.assertTrue(out["complete"])
+        chunk = out["chunks"][0]
+        seed = hashlib.sha256(json.dumps([1, 8, bh(8)], separators=(",", ":")).encode()).hexdigest()
+        self.assertEqual(chunk["sampleSeed"], seed)
+        ranked = sorted(range(2, 8), key=lambda n: hashlib.sha256(f"{seed}:{n}".encode()).hexdigest())
+        self.assertEqual(chunk["sampledLogBlocks"], sorted(ranked[:2]))
+        self.assertEqual(len(chunk["sampledEmptyBlocks"]), 1)
+        self.assertIn(chunk["sampledEmptyBlocks"][0], (1, 8))
+        for endpoint in (a, b):
+            self.assertEqual([int(p[0], 16) for method, p in endpoint.calls if method == "eth_getBlockReceipts"],
+                             chunk["sampledBlocks"])
+
+    def test_unsampled_omission_limit(self):
+        # For [1, 4] with B=bh(8), block 3 is sampled; hidden block 4 is not.
+        a, b = Endpoint([event("P", n=4, value=2)]), Endpoint([event("P", n=4, value=2)])
+        a.raw["eth_getLogs"] = b.raw["eth_getLogs"] = []
+        out = run(a=a, b=b)
+        self.assertTrue(out["complete"])
+        self.assertEqual(out["chunks"][0]["sampledEmptyBlocks"], [3])
+        self.assertEqual(verdicts(out), ("pass", "pass"))
+
+    def test_receipt_hex_case(self):
+        token = '0x'+'ab'*20
+        row = event('P', token=token, value=2)
+        row['data'] = '0x'+word(2)+word(0xab)
+        for omitted in (False, True):
+            class Upper(Endpoint):
+                def __call__(self, method, params):
+                    if omitted and method == 'eth_getLogs': return []
+                    result = super().__call__(method, params)
+                    if method == 'eth_getBlockReceipts':
+                        for receipt in result:
+                            for log in receipt['logs']:
+                                for key in ('address', 'data'): log[key] = '0x'+log[key][2:].upper()
+                                log['topics'] = ['0x'+t[2:].upper() for t in log['topics']]
+                    return result
+            out = run(a=Upper([row]), b=Upper([row]), tokens=[token])
+            self.assertEqual(out['complete'], not omitted)
+            self.assertEqual(out['C4']['verdict'], m.UNVERIFIED if omitted else 'fail')
+
+    def test_receipt_equal_count_disagreement(self):
+        class Disagreeing(Endpoint):
+            def __call__(self, method, params):
+                if method == 'eth_getBlockReceipts' and params[0] == '0x3':
+                    return [{'logs': [event('P', value=2)]}]
+                return super().__call__(method, params)
+        self.assertFalse(run(a=Endpoint([event('P')]), b=Disagreeing([event('P')]))['complete'])
+
+    def test_receipt_shared_substitution(self):
+        class Substituted(Endpoint):
+            def __call__(self, method, params):
+                if method == 'eth_getBlockReceipts' and params[0] == '0x3':
+                    return [{'logs': [event('P', value=2)]}]
+                return super().__call__(method, params)
+        self.assertFalse(run(a=Substituted([event('P')]), b=Substituted([event('P')]))['complete'])
+
+    def test_receipt_full_fields(self):
+        for key, value in [('address', LOCKER), ('topics', [SELECTORS['L'], '0x'+word(USER), OP]),
+                           ('data', '0x'+word(2)+word(1)), ('logIndex', '0x1'),
+                           ('transactionHash', bh(123)), ('blockHash', bh(999))]:
+            class Changed(Endpoint):
+                def __call__(self, method, params):
+                    rows = super().__call__(method, params)
+                    if method == 'eth_getBlockReceipts' and params[0] == '0x3':
+                        rows[0]['logs'][0][key] = value
+                    return rows
+            with self.subTest(field=key):
+                self.assertFalse(run(a=Changed([event('P')]), b=Changed([event('P')]))['complete'])
+
+    def test_receipt_filtered_sorted_positive(self):
+        rows = [event('P', index=1), event('P', index=0), event('R', token=LOCKER)]
+        out = run(rows)
+        self.assertTrue(out['complete'])
+        self.assertEqual(len(out['logs']), 2)
+
+    def test_identical_truncation_receipts(self):
+        a, b = Endpoint([event("P",value=2)]), Endpoint([event("P",value=2)])
+        a.raw["eth_getLogs"] = b.raw["eth_getLogs"] = []
+        self.assertEqual(verdicts(run(a=a,b=b)), (m.UNVERIFIED,m.UNVERIFIED))
+
+    def test_receipts_required(self):
+        a = Endpoint(); a.raw["eth_getBlockReceipts"] = None
+        self.assertEqual(verdicts(run(a=a)), (m.UNVERIFIED,m.UNVERIFIED))
+
+    def test_cap_shrinks(self):
+        for cap in (1000,):
+            rows = [event("P",n=3+i//(cap//2),index=i%(cap//2)) for i in range(cap)]
+            out = run(rows)
+            with self.subTest(cap=cap):
+                self.assertEqual((verdicts(out),out["chunks"][0]["status"],len(out["logs"])),
+                                 (("pass","pass"),"rpc error; shrinking",cap))
+
+    def test_all_caps_block_minimum_chunk(self):
+        for cap in (1000,5000,10000):
+            a=Endpoint(); a.raw['eth_getLogs']=[event('P')]*cap
+            with self.subTest(cap=cap):
+                out=run(a=a,b=a)
+                self.assertEqual((out['chunks'][-1]['fromBlock'],out['chunks'][-1]['toBlock'],verdicts(out)),
+                                 (1,1,(m.UNVERIFIED,m.UNVERIFIED)))
+
+    def test_configured_max_shrinks(self):
+        rows = [event("P",n=3),event("P",n=4)]
+        a,b = Endpoint(rows),Endpoint(rows)
+        with mock.patch.object(m,"rpc",lambda u,method,p: {"A":a,"B":b}[u](method,p)):
+            out=m.scan(["A","B"],[TOKEN],1,8,4,max_logs=1)
+        self.assertEqual((out["complete"],out["chunks"][0]["status"]),(True,"rpc error; shrinking"))
+
     def test_policy_positive(self):
         out = run([event("P", value=2)])
         self.assertEqual((verdicts(out), [e["policy"] for e in out["C4"]["events"]]), (("fail", "pass"), [2]))

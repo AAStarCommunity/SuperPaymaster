@@ -5,20 +5,23 @@ Offline validation performed without network access or signing. The Anvil contro
 ## Files and use
 
 - `a4-credit-logscan.py`: stdlib-only read-only scanner; URL contents come from files and are never printed. Exit 0 means both criteria pass, 1 means fail or unverified, and command/output errors are nonzero.
-- `test_a4_credit_logscan.py`: 36 offline unittest controls and a repeatable mutation runner.
+- `test_a4_credit_logscan.py`: 56 offline unittest controls and a repeatable mutation runner.
 - `a4-credit-logscan-anvil-control.sh`: read-only positive control for an already prepared Anvil chain with executed policy 2. Starts the existing local proxy and requires a complete scan with C4=fail and policy 2 present.
 
 ```sh
 python3 script/evidence/a4-credit-logscan.py --rpc-a-file /path/to/a.rpc --rpc-b-file /path/to/b.rpc \
   --token 0xTOKEN1 0xTOKEN2 --from-block DEPLOY_OR_EARLIER --to-block PINNED_FINALIZED --out evidence.json
 python3 script/evidence/test_a4_credit_logscan.py
-python3 script/evidence/test_a4_credit_logscan.py --mutations
+python3 -B script/evidence/test_a4_mutations.py
 bash -n script/evidence/a4-credit-logscan-anvil-control.sh
 # Later, on the prepared local chain (not run during this validation):
 bash script/evidence/a4-credit-logscan-anvil-control.sh 0xTOKEN FROM TO control.json
 ```
 
-`--token` also supports repetition. `--chunk-size` defaults to 2000; an RPC failure halves the actual failed range, retries at the same start, and retains the reduced size. A one-block failure stops with both verdicts `未能验证`. Decoding/disagreement failures stop immediately. Failed and successful attempts appear in `chunks`; `complete=false` and a null digest prevent partial output being mistaken for complete evidence.
+`--token` also supports repetition. `--chunk-size` defaults to 2000 for credit/lock scans without indexed filters.
+Scans with nonempty `indexed_topics` default to 50,000 and clamp explicit sizes
+to 50,000; sizes never grow during a scan. Only RPC errors, cap hits or split
+mismatches halve a range; an RPC failure halves the actual failed range, retries at the same start, and retains the reduced size. A one-block failure stops with both verdicts `未能验证`. Split disagreement also halves the range; decoding, cross-endpoint and receipt-content disagreements stop immediately. Failed and successful attempts appear in `chunks`; `complete=false` and a null digest prevent partial output being mistaken for complete evidence.
 
 The canonical list contains normalized lowercase hex, integer quantities, removed=false, and transactionIndex as well as the requested identity fields. It sorts by (blockNumber, transactionIndex, logIndex, address). SHA-256 hashes UTF-8 JSON with sorted keys, separators `(",", ":")`, and no trailing newline. Output includes the list itself.
 
@@ -39,7 +42,9 @@ Each topic0 was computed offline using both `cast keccak` and PyCryptodome Kecca
 
 ## Results and targeted mutations
 
-36/36 tests passed. 40/40 targeted mutations were killed by assertion failures, with zero mutant test errors. Each unittest method has one aggregate assertion and a named mutation that makes it fail. These results do not claim exhaustive mutation coverage of every branch or every component within an aggregate assertion. The shell control was executed on a local anvil chain afterwards; see `docs/design/aoa-balance-mode/data/a4-credit-logscan/README.md`.
+Current offline results (2026-11-03): **56/56 scanner tests** and **48/48 state-check tests** passed, run from the repository root with `python3 -B`. The aggregate `test_a4_mutations.py` harness passes: **90/93 mutants killed**, zero mutant test errors, with three expected survivors (`missing_chunk_log`, `log_hash`, `outside_filter`) blocked by redundant checks. `a4-guard-mutations.json` records all 93 outcomes, including new split-consistency and sampling-bound mutations. These results do not claim exhaustive mutation coverage. No git commands or network access were used for this update.
+
+The table below lists the original targeted mutations; the three redundant-guard survivors are marked with their current result. The shell control was executed on a local Anvil chain in an earlier validation; see `docs/design/aoa-balance-mode/data/a4-credit-logscan/README.md`.
 
 The fake provider filters by the requested topics, while injected event topic0 values are independent literals. With a wrong policy selector the scan misses the fixture and returns C4=pass: the deliberate broken-instrument test records that failure mode, and the separate policy-selector mutation turns the actual positive control red.
 
@@ -52,7 +57,7 @@ The fake provider filters by the requested topics, while injected event topic0 v
 | Suppress duplicate-open anomaly | `test_duplicate_reserve` | assertion failed |
 | Suppress close-without-open anomaly | `test_orphan_closes` | assertion failed |
 | Use opHash alone, dropping token and user | `test_user_and_token_key` | assertion failed |
-| Skip A/B log equality check | `test_missing_chunk_log` | assertion failed |
+| Skip A/B log equality check | `test_missing_chunk_log` | survives; redundant check still rejects fixture |
 | Stop instead of shrinking failed ranges | `test_shrink_completes` | assertion failed |
 | Give up at two blocks instead of retrying one block | `test_permanent_error` | assertion failed |
 | Return pass when start is after deployment | `test_start_after_deploy` | assertion failed |
@@ -63,7 +68,7 @@ The fake provider filters by the requested topics, while injected event topic0 v
 | Remove finalized-height gate | `test_finalized_both` | assertion failed |
 | Remove chain-ID equality gate | `test_chain_mismatch` | assertion failed |
 | Remove chunk-boundary header equality gate | `test_boundary_hash` | assertion failed |
-| Ignore mismatch between log blockHash and header | `test_log_hash` | assertion failed |
+| Ignore mismatch between log blockHash and header | `test_log_hash` | survives; redundant check still rejects fixture |
 | Accept removed logs | `test_removed_log` | assertion failed |
 | Accept duplicate log positions | `test_duplicate_log` | assertion failed |
 | Echo malformed hex in error text | `test_malformed_hex_no_echo` | assertion failed |
@@ -78,7 +83,7 @@ The fake provider filters by the requested topics, while injected event topic0 v
 | Fabricate historical code instead of probing either endpoint | `test_archive_both_required` | assertion failed |
 | Normalize every transactionIndex to zero | `test_transaction_index_disagreement` | assertion failed |
 | Hash an empty list regardless of collected logs | `test_nonempty_canonical_digest` | assertion failed |
-| Treat out-of-range logs as an empty response | `test_outside_filter` | assertion failed |
+| Treat out-of-range logs as an empty response | `test_outside_filter` | survives; redundant check still rejects fixture |
 | Fabricate a deployment boundary after code disagreement | `test_code_disagreement` | assertion failed |
 | Remove the end-of-scan pinned-hash check | `test_pinned_hash_changes` | assertion failed |
 | Replace policy topic0 with zero | `test_policy_positive` | assertion failed |
@@ -107,3 +112,104 @@ Exact source replacements are in `MUTATIONS` in the test file; mutation executio
 | `abis/xPNTsTokenV2.json` | `968548bc1b626a5202cf33d6dc279fad8b61c2995814c8575f9c0fe3f54261b7` |
 | `abis/xPNTsTokenV2Ext.json` | `d9b2e9e724852f33c5e482ac2caa25cc3bbf0596860c2c337cd310d631baf7a3` |
 | `abis/xPNTsTokenV2.full.json` | `e7def77e1cbfb6378a1cdf04b1e2191b2c995c9b252264c9ca582d0c7b703826` |
+
+## Split and receipt checks — DSR 2026-11-03
+
+This replaces the earlier block-by-block receipt cross-check. For each token and
+chunk, both endpoints receive the whole-range `eth_getLogs` query and two queries
+for disjoint halves `[lo, floor((lo+hi)/2)]` and `[floor((lo+hi)/2)+1, hi]`.
+Each endpoint's normalized whole list must equal its normalized left list followed
+by its normalized right list. Whole lists must also agree across endpoints.
+A singleton cannot be split and records that reason. Counts of exactly 1,000,
+5,000, or 10,000, or above `--max-logs`, on either whole or half queries trigger
+halving and retry. Split disagreement also triggers halving; a suspicious cap at
+one block fails closed. Exact-cap counts can conservatively reject complete data.
+
+Each accepted chunk cross-checks receipts for every distinct hit block. It also
+records a seeded subset of up to K distinct blocks containing matching logs
+(default K=2, `--receipt-sample-size`, positive integers only), plus one block with
+no matching returned logs if one exists. Both endpoints receive
+`eth_getBlockReceipts` for the union of all hit blocks and those seeded samples. The seed is the lowercase SHA-256
+hex digest of compact JSON `[lo,hi,B_hash]`, where `B_hash` is the normalized pinned
+end-of-scan block hash from endpoint B (`blockHashes.to.B`). Matching blocks are
+ranked by SHA-256 of UTF-8 `seed:decimal_block_number`, breaking ties by block
+number; the first K are selected. The empty block is selected by
+`int(seed,16) % number_of_empty_blocks` in the ascending complement. Selection
+walks only known log-block positions, never all block heights.
+
+Receipt filtering normalizes hex before matching the address, topic0 and indexed
+topics. Both receipt-derived lists must equal the normalized getLogs list for the
+sampled block, including address, topics, data, logIndex, transactionHash,
+blockHash, blockNumber and transactionIndex. Equal counts alone are insufficient.
+Missing receipt support or content disagreement fails closed. Within chunks,
+headers are fetched only for lo, hi and distinct returned-log blocks, once per
+endpoint per height. Empty samples do not add header queries: any matching receipt
+log there already contradicts the empty getLogs list. Existing finalized and
+start/end pin checks remain.
+
+Chunk evidence records `halvesChecked`, `halfRanges`, `halfCounts` (endpoint order
+A/B, then left/right), `sampleSeed`, `sampledLogBlocks`, `sampledEmptyBlocks` and
+`sampledBlocks`. `receiptCountCheckedBlocks` retains the actual checked list (all hits plus samples) for
+compatibility. Attempts rejected before sampling retain a null seed and empty
+sample list; singleton chunks record `halvesReason`.
+
+**Residual limitation:** identical below-cap truncation that is consistent under
+halving and outside sampled blocks is undetectable. This is disclosed, not claimed
+covered. A provider consistently hiding an event from every getLogs query may
+pass even when receipts contain that event, if its block is not sampled.
+`test_unsampled_omission_limit` explicitly demonstrates this. Identical omissions
+from both APIs, provider collusion and provider independence also remain
+unverifiable. These checks are not a receipt-trie proof or an exhaustive receipt
+scan. The seed is deterministic and public, not an unpredictable challenge.
+
+Tests retain cap-truncation, sampled receipt-content disagreement, shared
+substitution and uppercase-hex attacks. State-check omission fixtures place the
+hidden event at the deterministic empty sample (block 2 for `[2,8]`, B=`bh(8)`);
+they no longer imply coverage of every hidden block.
+
+## Call-count evidence and Sepolia C9 estimate
+
+The no-log regression uses 100,000 blocks, chunk size 2,000, one address, two
+endpoints, no retries and `deployment_check=False` (as used by the C9 EntryPoint
+scan). For each endpoint it asserts exactly:
+
+| RPC method | Calls |
+|---|---:|
+| `eth_chainId` | 1 |
+| `eth_getLogs` | 150 |
+| `eth_getBlockReceipts` | 50 |
+| `eth_getBlockByNumber` | 106 |
+| Total | **307 = 6 × 50 + 7 < 10 × 50** |
+
+The 7 fixed calls are chain ID, finalized header, its numbered checkpoint,
+start/end pins, and their final rechecks. Each empty chunk costs 3 log queries,
+1 receipt query and 2 boundary headers per endpoint. No per-block reads occur.
+
+For DSR's approximate head 12,052,152 and start 11,151,016, the inclusive
+range is 901,137 blocks, or 19 chunks at the filtered default of 50,000.
+With no logs or retries the formula above gives 121 calls per endpoint (242
+combined), excluding deployment probes and other state-check scans. This is an
+analytical estimate, not a live measurement. Every distinct hit block adds a
+receipt read per endpoint and, unless already a boundary, a header read.
+Receipt/header work is O(chunks + hit blocks); split-log work is O(chunks).
+
+## RPC pacing and evidence
+
+`--min-interval` defaults to 0.25 seconds between request starts per endpoint;
+`--max-retries` defaults to 5 (allowed 0–5). Python `scan` accepts `min_interval`
+and `max_retries`. State-check config uses `rpcMinInterval` and `rpcMaxRetries`.
+A shared session preserves pacing across all nested scans and fixed-block reads.
+HTTP 429, HTTP 5xx and timeouts retry with 0.25, 0.5, 1, 2, 4 second backoffs
+(subject also to pacing). Other failures are not transport-retried. Exhausted
+transient retries stop the scan incomplete; shrinking cannot turn that failure
+into a complete result. Ordinary provider range errors still halve the range.
+
+`rpcCalls` records every transport attempt's method, endpoint label A/B,
+`latencySeconds`, `retryCount` (zero for the original attempt), and success/failure;
+HTTP status and scheduled `backoffSeconds` are included where applicable. No URLs,
+parameters or provider error messages appear in these records. `rpcPolicy` records
+the effective configuration. Nested scans retain their own call slices.
+
+**Coverage:** receipts are cross-checked only for hit blocks plus seeded samples;
+full completeness relies on dual-endpoint agreement + split consistency;
+per-block coverage is NOT claimed. The same statement is emitted in `coverage`.

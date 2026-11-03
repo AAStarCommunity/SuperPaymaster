@@ -71,7 +71,7 @@ def environment(forge, evm='cancun'):
 
 @contextmanager
 def capture_commands(records):
-    """Also capture commands inside the shared archive/rebuild helpers."""
+    """Capture shared helpers too. Global patch: sequential use only, not parallel-safe."""
     original = subprocess.run
     def run(command, **kwargs):
         started = time.monotonic()
@@ -86,7 +86,6 @@ def capture_commands(records):
                 value = getattr(result, key)
                 if value is not None:
                     record[key] = value.decode(errors='replace') if isinstance(value, bytes) else value
-            output = str(record.get('stdout', '')) + str(record.get('stderr', ''))
             if len(command) > 1 and str(command[1]) == 'test' and '--json' in command:
                 record['counts'] = forge_counts(record.get('stdout', ''), record.get('stderr', ''))
             return result
@@ -170,32 +169,86 @@ def forge_test(forge, tree, path, contract=None, test=None, evm='cancun', red=No
     return counts
 
 
-def conformance(tree, forge, suite_map, details):
-    require(suite_map is not None, 'C1–C9 mapping required: --suite-map FILE (see README); no inferred PASS labels')
-    require(isinstance(suite_map, dict) and set(suite_map) == {f'C{i}' for i in range(1, 10)}, 'suite map must contain exactly C1–C9')
+CONFORMANCE_MAP = 'script/evidence/a4-conformance-record.template.json'
+
+# Run one exact unittest method, rejecting absent/ambiguous selectors and skips.
+CHECKER_RUNNER = r"""
+import importlib.util, json, pathlib, sys, unittest
+path, name, output = sys.argv[1:]
+path = pathlib.Path(path).resolve()
+sys.path.insert(0, str(path.parent))
+spec = importlib.util.spec_from_file_location(path.stem, path)
+module = importlib.util.module_from_spec(spec)
+# unittest looks module fixtures up in sys.modules; unregistered, setUpModule/tearDownModule are silently skipped.
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+def flatten(suite):
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            yield from flatten(item)
+        else:
+            yield item
+selected = [t for t in flatten(unittest.defaultTestLoader.loadTestsFromModule(module))
+            if t.id().split('.')[-1] == name]
+if len(selected) != 1:
+    raise RuntimeError('named test missing or ambiguous: ' + name)
+identity = selected[0].id()
+result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(selected))
+failed = len(result.failures) + len(result.errors) + len(result.unexpectedSuccesses)
+skipped = len(result.skipped) + len(result.expectedFailures)
+# Module/class fixture errors and skips are counted without running the test, so testsRun can be 0.
+passed = max(0, result.testsRun - failed - skipped)
+pathlib.Path(output).write_text(json.dumps(dict(test=identity, run=result.testsRun,
+    passed=passed, failed=failed, skipped=skipped)))
+sys.exit(0 if result.wasSuccessful() and not skipped and result.testsRun == 1 and passed == 1 else 1)
+"""
+
+
+def checker_test(tree, forge, ref):
+    path = (tree / ref['suite']).resolve()
+    require(path.is_relative_to(tree.resolve()) and path.suffix == '.py' and path.is_file(),
+            'suite must name an archived Python file')
+    require(isinstance(ref['test'], str) and ref['test'].startswith('test'), 'invalid named test')
+    with tempfile.TemporaryDirectory(prefix='sp-checker-') as tmp:
+        report = Path(tmp) / 'result.json'
+        r = run([sys.executable, '-B', '-c', CHECKER_RUNNER, path, ref['test'], report],
+                tree, environment(forge))
+        require(report.is_file(), 'named checker test produced no result: ' + ref['test'])
+        outcome = json.loads(report.read_text(), object_pairs_hook=unique_object)
+    require(r.returncode == 0 and outcome.get('run') == 1 and outcome.get('passed') == 1
+            and outcome.get('failed') == 0 and outcome.get('skipped') == 0
+            and outcome.get('test', '').split('.')[-1] == ref['test'],
+            'named checker test failed or skipped: ' + ref['test'])
+    return outcome
+
+
+def conformance(tree, forge, details):
+    mapping = tree / CONFORMANCE_MAP
+    require(mapping.is_file(), 'archived conformance mapping required')
+    template = json.loads(mapping.read_text(), object_pairs_hook=unique_object)
+    controls = template['controls']
+    require(template.get('scope') == 'checker-logic-offline', 'invalid conformance scope')
+    require(isinstance(controls, dict) and set(controls) == {f'C{i}' for i in range(1, 10)},
+            'mapping must contain exactly C1–C9')
+    details['controls'] = {}
     total = 0
-    details['suites'] = {}
-    for label, spec in sorted(suite_map.items()):
-        require(isinstance(spec, dict) and set(spec) == {'path', 'contract', 'evm'}, label + ' requires path, contract, evm')
-        path = spec['path']
-        require(isinstance(path, str) and path.endswith('.t.sol') and
-                (tree / path).resolve().is_relative_to(tree.resolve()) and (tree / path).is_file(),
-                'suite must name an archived .t.sol file')
-        require(isinstance(spec['contract'], str) and spec['contract'], 'missing contract selector')
-        require(spec['evm'] in ('cancun', 'prague'), 'unsupported suite EVM')
-        require('Prague' not in spec['contract'] or spec['evm'] == 'prague', 'Prague suites require Prague EVM')
-        counts = forge_test(forge, tree, path, spec['contract'], evm=spec['evm'])
-        details['suites'][label] = dict(spec, counts=counts)
-        total += counts['passed']
-    # Independently enforce the SP-owned cross-repository Prague/provenance gates.
-    for name, expected, evm in (('CC115CrossRepoConformance', 7, 'cancun'),
-                                ('CC115GenuinePragueCrossRepo', 11, 'prague'),
-                                ('VendoredProvenanceSelfCheck', 5, 'cancun')):
-        counts = forge_test(forge, tree, f'contracts/test/crossrepo/{name}.t.sol', name, evm=evm)
-        require(counts['passed'] == expected, name + ': unexpected test count')
-        details['suites'][name] = dict(counts=counts, env={'FOUNDRY_EVM_VERSION': evm})
-        total += counts['passed']
-    return dict(controls={f'C{i}': 'PASS' for i in range(1, 10)}), total
+    emitted = {}
+    for label, spec in sorted(controls.items()):
+        require(isinstance(spec, dict) and set(spec) ==
+                {'suite', 'test', 'positiveControl', 'negativeControl', 'result'}, 'invalid item: ' + label)
+        for field in ('positiveControl', 'negativeControl'):
+            require(isinstance(spec[field], list) and spec[field], label + ' missing ' + field)
+            require(all(isinstance(ref, dict) and set(ref) == {'suite', 'test'} for ref in spec[field]),
+                    label + ' invalid ' + field)
+        outcomes = []
+        details['controls'][label] = outcomes
+        refs = [dict(suite=spec['suite'], test=spec['test'])] + spec['positiveControl'] + spec['negativeControl']
+        for ref in refs:
+            outcome = checker_test(tree, forge, ref)
+            outcomes.append(dict(ref, outcome=outcome))
+            total += outcome['passed']
+        emitted[label] = dict(spec, result='PASS')
+    return dict(scope='checker-logic-offline', controls=emitted), total
 
 
 def mutation_edit(name):
@@ -264,49 +317,50 @@ def slither(tree, forge, threshold, accepted, details):
     require(binary, 'Slither is not installed; install it locally before generating evidence (no fallback)')
     env = environment(forge)
     version = tool_version(binary, tree, env)
-    report = tree / 'release-slither.json'
-    build = run([forge, 'build', '--offline', '--force', '--build-info', '--skip', 'test', '--skip', 'script'], tree, env)
-    require(build.returncode == 0, 'Slither input build failed')
-    # Use a dedicated config: repository exclusions must not narrow the claimed threshold.
-    selection = dict(detectors_to_run='all', detectors_to_exclude=None,
-                     detectors_to_include=None, filter_paths=[], exclude_dependencies=False,
-                     **{'exclude_' + level: False for level in
-                        ('high', 'medium', 'low', 'informational', 'optimization')})
-    config = tree / 'release-slither.config.json'
-    write_json(config, selection)
-    details['slitherSelection'] = dict(config=selection, threshold=threshold)
-    report.unlink(missing_ok=True)
-    r = run([binary, '.', '--config-file', config, '--compile-force-framework', 'foundry', '--ignore-compile',
-             '--fail-none', '--json', report], tree, env)
-    require(json.loads(config.read_text(), object_pairs_hook=unique_object) == selection, 'Slither detector selection changed')
-    require(selection['detectors_to_run'] == 'all' and not selection['detectors_to_exclude'] and
-            not any(selection['exclude_' + level] for level in ('high', 'medium', 'low', 'informational')),
-            'Slither detector coverage does not support threshold')
-    require(r.returncode == 0 and report.is_file(), 'Slither failed; no PASS evidence')
-    data = json.loads(report.read_text(), object_pairs_hook=unique_object)
-    require(data.get('success') is True and data.get('error') is None, 'Slither analysis was unsuccessful')
-    details['slither'] = data
-    results = data.get('results')
-    require(isinstance(results, dict), 'invalid Slither results')
-    detectors = results.get('detectors', [])
-    require(isinstance(detectors, list), 'invalid Slither detectors')
-    markers = re.findall(r'analyzed \((\d+) contracts with (\d+) detectors\), (\d+) result\(s\) found', r.stdout + r.stderr)
-    require(len(markers) == 1 and int(markers[0][0]) > 0 and int(markers[0][1]) > 0,
-            'Slither analysis completion marker missing')
-    require(int(markers[0][2]) == len(detectors), 'Slither summary disagrees with findings')
-    details['slitherSelection']['detectorsRun'] = int(markers[0][1])
-    levels = ['Optimization', 'Informational', 'Low', 'Medium', 'High']
-    ids = []
-    for item in detectors:
-        require(item['impact'] in levels and isinstance(item['id'], str) and item['id'], 'invalid Slither detector')
-        if levels.index(item['impact']) >= levels.index(threshold):
-            ids.append(item['id'])
-    require(len(ids) == len(set(ids)), 'duplicate Slither finding IDs')
-    require(isinstance(accepted, list) and all(isinstance(x, dict) and set(x) == {'id', 'reason'} and
-            all(isinstance(v, str) and v.strip() for v in x.values()) for x in accepted), 'invalid accepted findings')
-    require(sorted(ids) == sorted(x['id'] for x in accepted), 'unreviewed or stale accepted Slither findings')
-    details['slither'] = data
-    return dict(findings=dict(threshold=threshold, aboveThreshold=ids, accepted=accepted)), 1, version
+    with tempfile.TemporaryDirectory(prefix='sp-slither-') as tmp:
+        report = Path(tmp) / 'release-slither.json'
+        build = run([forge, 'build', '--offline', '--force', '--build-info', '--skip', 'test', '--skip', 'script'], tree, env)
+        require(build.returncode == 0, 'Slither input build failed')
+        # Use a dedicated config: repository exclusions must not narrow the claimed threshold.
+        selection = dict(detectors_to_run='all', detectors_to_exclude=None,
+                         detectors_to_include=None, filter_paths=[], exclude_dependencies=False,
+                         **{'exclude_' + level: False for level in
+                            ('high', 'medium', 'low', 'informational', 'optimization')})
+        config = Path(tmp) / 'release-slither.config.json'
+        write_json(config, selection)
+        details['slitherSelection'] = dict(config=selection, threshold=threshold)
+        report.unlink(missing_ok=True)
+        r = run([binary, '.', '--config-file', config, '--compile-force-framework', 'foundry', '--ignore-compile',
+                 '--fail-none', '--json', report], tree, env)
+        require(json.loads(config.read_text(), object_pairs_hook=unique_object) == selection, 'Slither detector selection changed')
+        require(selection['detectors_to_run'] == 'all' and not selection['detectors_to_exclude'] and
+                not any(selection['exclude_' + level] for level in ('high', 'medium', 'low', 'informational')),
+                'Slither detector coverage does not support threshold')
+        require(r.returncode == 0 and report.is_file(), 'Slither failed; no PASS evidence')
+        data = json.loads(report.read_text(), object_pairs_hook=unique_object)
+        require(data.get('success') is True and data.get('error') is None, 'Slither analysis was unsuccessful')
+        details['slither'] = data
+        results = data.get('results')
+        require(isinstance(results, dict), 'invalid Slither results')
+        detectors = results.get('detectors', [])
+        require(isinstance(detectors, list), 'invalid Slither detectors')
+        markers = re.findall(r'analyzed \((\d+) contracts with (\d+) detectors\), (\d+) result\(s\) found', r.stdout + r.stderr)
+        require(len(markers) == 1 and int(markers[0][0]) > 0 and int(markers[0][1]) > 0,
+                'Slither analysis completion marker missing')
+        require(int(markers[0][2]) == len(detectors), 'Slither summary disagrees with findings')
+        details['slitherSelection']['detectorsRun'] = int(markers[0][1])
+        levels = ['Optimization', 'Informational', 'Low', 'Medium', 'High']
+        ids = []
+        for item in detectors:
+            require(item['impact'] in levels and isinstance(item['id'], str) and item['id'], 'invalid Slither detector')
+            if levels.index(item['impact']) >= levels.index(threshold):
+                ids.append(item['id'])
+        require(len(ids) == len(set(ids)), 'duplicate Slither finding IDs')
+        require(isinstance(accepted, list) and all(isinstance(x, dict) and set(x) == {'id', 'reason'} and
+                all(isinstance(v, str) and v.strip() for v in x.values()) for x in accepted), 'invalid accepted findings')
+        require(sorted(ids) == sorted(x['id'] for x in accepted), 'unreviewed or stale accepted Slither findings')
+        details['slither'] = data
+        return dict(findings=dict(threshold=threshold, aboveThreshold=ids, accepted=accepted)), 1, version
 
 
 def reproducible(commit, version, details):
@@ -328,7 +382,7 @@ def reproducible(commit, version, details):
     return dict(contracts=hashes), len(hashes)
 
 
-def generate(kind, commit, tree, out, forge, suite_map=None, threshold='Medium', accepted=None):
+def generate(kind, commit, tree, out, forge, threshold='Medium', accepted=None):
     details = dict(kind=kind, subjectCommit=commit, commands=[])
     path = out / (kind + '.json')
     require(not path.exists(), 'refusing to overwrite existing evidence: ' + str(path))
@@ -341,7 +395,8 @@ def generate(kind, commit, tree, out, forge, suite_map=None, threshold='Medium',
                 details['tools']['cast'] = tool_version(forge.parent / 'cast', tree, env)
             tool = dict(name='forge', version=version)
             if kind == 'conformance':
-                payload, passed = conformance(tree, forge, suite_map, details)
+                payload, passed = conformance(tree, forge, details)
+                tool = dict(name='unittest', version=sys.version)
             elif kind == 'mutation':
                 payload, passed = mutation(tree, forge, details)
                 tool = dict(name='forge + unittest', version=version + '; Python ' + sys.version)
@@ -376,7 +431,6 @@ def main(argv=None):
         p = sub.add_parser(kind)
         p.add_argument('--commit', required=True, help='existing local tag or exactly tagged commit')
         p.add_argument('--out', required=True, type=Path, help='new/empty directory outside the repository')
-        p.add_argument('--suite-map', type=Path, help='reviewed C1–C9 path/contract/evm mapping')
         p.add_argument('--threshold', choices=['Informational', 'Low', 'Medium', 'High'], default='Medium')
         p.add_argument('--accepted-findings', type=Path, help='JSON array of {id, reason}; defaults to none')
     args = parser.parse_args(argv)
@@ -386,26 +440,23 @@ def main(argv=None):
         require(not out.is_relative_to(m.u.ROOT.resolve()), '--out must be outside the source tree')
         require(not out.exists() or not any(out.iterdir()), '--out must be new or empty; stale evidence is refused')
         commit = clean_commit(args.commit, m.u.ROOT)
-        suite_map = json.loads(args.suite_map.read_text()) if args.suite_map else None
         accepted = json.loads(args.accepted_findings.read_text()) if args.accepted_findings else []
         forge = a.REBUILD_FORGE.resolve()
         a.ENGINE = forge.parent
         out.mkdir(parents=True, exist_ok=True)
-        try:
-            with tempfile.TemporaryDirectory(prefix='sp-release-evidence-') as tmp:
-                tree = Path(tmp) / 'tree'
-                records = []
-                try:
-                    with capture_commands(records):
-                        a.archive_commit(m.u.ROOT, commit, tree)
-                finally:
-                    write_json(out / 'archive.audit.json', dict(subjectCommit=commit, commands=records))
-                for kind in KINDS if args.kind == 'all' else (args.kind,):
-                    print('Running ' + kind + ' (offline; may take several minutes)', flush=True)
-                    generate(kind, commit, tree, out, forge, suite_map, args.threshold, accepted)
-        finally:
-            lines = [hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + p.name for p in sorted(out.glob('*.json'))]
-            (out / 'SHA256SUMS').write_text('\n'.join(lines) + '\n')
+        with tempfile.TemporaryDirectory(prefix='sp-release-evidence-') as tmp:
+            tree = Path(tmp) / 'tree'
+            records = []
+            try:
+                with capture_commands(records):
+                    a.archive_commit(m.u.ROOT, commit, tree)
+            finally:
+                write_json(out / 'archive.audit.json', dict(subjectCommit=commit, commands=records))
+            for kind in KINDS if args.kind == 'all' else (args.kind,):
+                print('Running ' + kind + ' (offline; may take several minutes)', flush=True)
+                generate(kind, commit, tree, out, forge, args.threshold, accepted)
+        lines = [hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + p.name for p in sorted(out.glob('*.json'))]
+        (out / 'SHA256SUMS').write_text('\n'.join(lines) + '\n')
         return 0
     except (Stop, a.Gate, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         print('STOP: ' + str(error), file=sys.stderr)

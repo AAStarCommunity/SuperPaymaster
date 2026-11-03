@@ -437,7 +437,11 @@ class ManifestTests(unittest.TestCase):
                      counts=dict(passed=1, failed=0, skipped=0), result='PASS')
             if kind.startswith('dvt-'):
                 e.update(subjectCommit=m.VERIFIER_COMMIT, spCommit=ART['commit'], aggregatorVersion=m.AGG_VERSION)
-            if kind == 'conformance': e['controls'] = {f'C{i}':'PASS' for i in range(1,10)}
+            if kind == 'conformance':
+                e['scope'] = 'checker-logic-offline'
+                e['controls'] = json.loads((Path(__file__).resolve().parents[1]/'evidence/a4-conformance-record.template.json').read_text())['controls']
+                # Synthetic validator fixture, not an attestation of the blocked local Anvil run.
+                for control in e['controls'].values(): control['result'] = 'PASS'
             if kind == 'mutation': e['controls'] = {k:dict(redTest=v, mutated='FAIL', restored='PASS') for k,v in m.MUTATIONS.items()}
             if kind.startswith('dvt-'):
                 e['counts']['passed'] = 23
@@ -1878,6 +1882,35 @@ class ManifestTests(unittest.TestCase):
                 self.assertFalse(snapshots)
                 self.assertEqual(state['code'], '0x')
                 self.assertFalse(state['queued'])
+
+    def test_conformance_scope_required(self):
+        original=json.loads(Path(self.data['releaseEvidence']['conformance']['path']).read_text())
+        for scope in (None, 'fixed-block-state'):
+            e=copy.deepcopy(original)
+            if scope is None: del e['scope']
+            else: e['scope']=scope
+            with self.subTest(scope=scope), self.assertRaises(a.Gate):
+                m.evidence_file(self.file_ref('missing-scope',e),'conformance')
+
+    def test_conformance_each_negative_required(self):
+        original=json.loads(Path(self.data['releaseEvidence']['conformance']['path']).read_text())
+        for name in original['controls']:
+            for value in (None, []):
+                e=copy.deepcopy(original)
+                if value is None: del e['controls'][name]['negativeControl']
+                else: e['controls'][name]['negativeControl']=value
+                with self.subTest(name=name,value=value), self.assertRaises(a.Gate):
+                    m.evidence_file(self.file_ref('missing-negative',e),'conformance')
+
+    def test_conformance_each_test_must_exist(self):
+        original=json.loads(Path(self.data['releaseEvidence']['conformance']['path']).read_text())
+        for name in original['controls']:
+            for field in ('test','positiveControl','negativeControl'):
+                e=copy.deepcopy(original)
+                if field=='test': e['controls'][name][field]='test_not_a_real_test'
+                else: e['controls'][name][field][0]['test']='test_not_a_real_test'
+                with self.subTest(name=name,field=field), self.assertRaises(a.Gate):
+                    m.evidence_file(self.file_ref('missing-test',e),'conformance')
 
     def test_named_evidence_required_each_kind(self):
         for kind in m.EVIDENCE_KINDS:

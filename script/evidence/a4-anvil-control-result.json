@@ -1,0 +1,36 @@
+{
+  "scope": "local-anvil-instrument-control",
+  "forge": "forge Version: 1.7.1",
+  "chainId": 31337,
+  "sequence": [
+    "reserve(0)",
+    "release",
+    "re-reserve(0)",
+    "release"
+  ],
+  "productionMethods": true,
+  "independentProviders": false,
+  "open": {
+    "verdict": "fail",
+    "counts": {
+      "CreditReserved": 2,
+      "CreditSettled": 0,
+      "CreditReleased": 1
+    },
+    "openCount": 1,
+    "anomalyCount": 0,
+    "anomalies": []
+  },
+  "closed": {
+    "verdict": "pass",
+    "counts": {
+      "CreditReserved": 2,
+      "CreditSettled": 0,
+      "CreditReleased": 2
+    },
+    "openCount": 0,
+    "anomalyCount": 0,
+    "anomalies": []
+  },
+  "result": "PASS"
+}
