@@ -173,8 +173,9 @@ min_optimizer_runs = 500
         names = (*e.m.NAMES, 'SuperPaymasterAdminCalls')
         (src / 'Roots.sol').write_text(header + 'import "./Base.sol";\n' +
             '\n'.join('contract ' + name + ' is Base {}' for name in names if name != 'Registry'))
-        env = dict(os.environ, FOUNDRY_PROFILE='default', FOUNDRY_OFFLINE='true')
-        build = subprocess.run([str(forge), 'build', '--offline', '--ast', '--build-info',
+        env = dict(os.environ, FOUNDRY_PROFILE='default')
+        # No --offline: CI runners have no cached solc 0.8.33 (the temp project has no submodules to install).
+        build = subprocess.run([str(forge), 'build', '--ast', '--build-info',
                                 '--out', str(self.tree / 'out')], cwd=self.tree, env=env,
                                text=True, capture_output=True)
         self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
