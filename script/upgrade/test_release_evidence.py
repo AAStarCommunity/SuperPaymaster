@@ -378,7 +378,7 @@ class EvidenceTests(unittest.TestCase):
             template['controls']['C1']['test'] = 'test_all_positive'
             (tree / e.CONFORMANCE_MAP).write_text(json.dumps(template))
         with patch.object(e, 'clean_commit', return_value=COMMIT), \
-             patch.object(e.a, 'archive_commit', side_effect=archive) as archived, \
+             patch.object(e.a, 'archive_commit', side_effect=archive) as archived, patch.object(e, 'install_node_deps'), \
              patch.object(e.subprocess, 'run', side_effect=self.fake_run):
             self.assertEqual(e.main(['conformance', '--commit', 'v1', '--out', str(self.out)]), 0)
         self.assertEqual(archived.call_args.args[1], COMMIT)
@@ -394,7 +394,7 @@ class EvidenceTests(unittest.TestCase):
             shutil.copytree(self.tree, tree)
         self.fail_suite = True
         with patch.object(e, 'clean_commit', return_value=COMMIT), \
-             patch.object(e.a, 'archive_commit', side_effect=archive) as archived, \
+             patch.object(e.a, 'archive_commit', side_effect=archive) as archived, patch.object(e, 'install_node_deps'), \
              patch.object(e.subprocess, 'run', side_effect=self.fake_run):
             self.assertEqual(e.main(['conformance', '--commit', 'v1', '--out', str(self.out)]), 1)
         self.assertEqual(archived.call_args.args[1], COMMIT)
@@ -440,7 +440,7 @@ class EvidenceTests(unittest.TestCase):
                 raise e.Stop('failed mutation')
             e.write_json(out / (kind + '.json'), dict(result='PASS'))
         with patch.object(e, 'clean_commit', return_value=COMMIT), \
-             patch.object(e.a, 'archive_commit', side_effect=lambda repo, commit, tree: tree.mkdir()), \
+             patch.object(e.a, 'archive_commit', side_effect=lambda repo, commit, tree: tree.mkdir()), patch.object(e, 'install_node_deps'), \
              patch.object(e, 'generate', side_effect=generate):
             self.assertEqual(e.main(['all', '--commit', 'v1', '--out', str(self.out)]), 1)
         self.assertTrue((self.out / 'conformance.json').is_file())
@@ -459,7 +459,7 @@ class EvidenceTests(unittest.TestCase):
                 e.checker_test(self.tree, FORGE, dict(suite='controls.py', test=name))
 
     def test_main_writes_sha_manifest(self):
-        with patch.object(e, 'clean_commit', return_value=COMMIT), patch.object(e.a, 'archive_commit', side_effect=lambda repo, commit, tree: tree.mkdir(parents=True)), \
+        with patch.object(e, 'clean_commit', return_value=COMMIT), patch.object(e.a, 'archive_commit', side_effect=lambda repo, commit, tree: tree.mkdir(parents=True)), patch.object(e, 'install_node_deps'), \
              patch.object(e.subprocess, 'run', side_effect=self.fake_run), patch.object(e.shutil, 'which', return_value='/mock/bin/slither'):
             # archive mock still needs a working directory for tool mocks only.
             self.assertEqual(e.main(['slither', '--commit', 'v1', '--out', str(self.out)]), 0)
@@ -502,6 +502,40 @@ class CheckerRunnerModuleFixtures(unittest.TestCase):
             'class T(unittest.TestCase):\n    def test_ok(self):\n        pass\n')
         self.assertEqual(code, 0)
         self.assertEqual((result['run'], result['passed'], result['skipped']), (1, 1, 0))
+
+
+class InstallNodeDeps(unittest.TestCase):
+    def test_missing_lock_stops(self):
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(e.Stop, 'pnpm-lock.yaml required'):
+            e.install_node_deps(Path(tmp))
+
+    def test_missing_pnpm_stops(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(e.shutil, 'which', return_value=None), \
+             self.assertRaisesRegex(e.Stop, 'pnpm not found'):
+            (Path(tmp)/'pnpm-lock.yaml').write_text('lockfileVersion: 9.0\n')
+            e.install_node_deps(Path(tmp))
+
+    def test_failed_install_stops(self):
+        failed = subprocess.CompletedProcess(['pnpm'], 1, '', 'ERR_PNPM_NO_OFFLINE_TARBALL')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(e.shutil, 'which', return_value='/bin/pnpm'), \
+             patch.object(e.subprocess, 'run', return_value=failed), self.assertRaisesRegex(e.Stop, 'frozen-lockfile --offline failed'):
+            (Path(tmp)/'pnpm-lock.yaml').write_text('lockfileVersion: 9.0\n')
+            e.install_node_deps(Path(tmp))
+
+    def test_success_without_viem_stops(self):
+        ok = subprocess.CompletedProcess(['pnpm'], 0, '', '')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(e.shutil, 'which', return_value='/bin/pnpm'), \
+             patch.object(e.subprocess, 'run', return_value=ok), self.assertRaisesRegex(e.Stop, 'viem missing'):
+            (Path(tmp)/'pnpm-lock.yaml').write_text('lockfileVersion: 9.0\n')
+            e.install_node_deps(Path(tmp))
+
+    def test_match_test_regex_uses_signature(self):
+        calls = []
+        def fake_run(command, tree, env):
+            calls.append(command); raise e.Stop('stop after capture')
+        with patch.object(e, 'run', side_effect=fake_run), self.assertRaises(e.Stop):
+            e.forge_test(Path('/forge'), Path('/tree'), 'contracts/test/x.t.sol', 'C', 'test_ok')
+        self.assertIn('^test_ok\\(\\)$', calls[0])
 
 if __name__ == '__main__':
     unittest.main()

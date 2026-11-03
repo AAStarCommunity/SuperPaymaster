@@ -150,7 +150,8 @@ def forge_test(forge, tree, path, contract=None, test=None, evm='cancun', red=No
     if contract:
         command += ['--match-contract', '^' + re.escape(contract) + '$']
     if test:
-        command += ['--match-test', '^' + re.escape(test) + '$']
+        # Forge 1.7 matches --match-test against the signature `name()`; an anchored bare name finds no tests.
+        command += ['--match-test', '^' + re.escape(test) + r'\(\)$']
     r = run(command, tree, environment(forge, evm))
     counts = forge_counts(r.stdout, r.stderr)
     require(counts['skipped'] == 0, 'skipped Forge tests cannot produce release evidence')
@@ -203,6 +204,19 @@ pathlib.Path(output).write_text(json.dumps(dict(test=identity, run=result.testsR
 sys.exit(0 if result.wasSuccessful() and not skipped and result.testsRun == 1 and passed == 1 else 1)
 """
 
+
+
+def install_node_deps(tree):
+    """The archive has no node_modules; the A6 collector checks need viem. Install exactly the lockfile, offline."""
+    lock = tree / 'pnpm-lock.yaml'
+    require(lock.is_file(), 'archived pnpm-lock.yaml required for node checker dependencies')
+    pnpm = shutil.which('pnpm')
+    require(pnpm is not None, 'pnpm not found; cannot install pinned node dependencies')
+    r = subprocess.run([pnpm, 'install', '--frozen-lockfile', '--offline', '--ignore-scripts'],
+                       cwd=tree, capture_output=True, text=True)
+    require(r.returncode == 0, 'pnpm install --frozen-lockfile --offline failed (store not primed?): '
+            + (r.stderr or r.stdout)[-400:])
+    require((tree / 'node_modules' / 'viem' / 'package.json').is_file(), 'viem missing after pinned install')
 
 def checker_test(tree, forge, ref):
     path = (tree / ref['suite']).resolve()
@@ -450,6 +464,7 @@ def main(argv=None):
             try:
                 with capture_commands(records):
                     a.archive_commit(m.u.ROOT, commit, tree)
+                    install_node_deps(tree)
             finally:
                 write_json(out / 'archive.audit.json', dict(subjectCommit=commit, commands=records))
             for kind in KINDS if args.kind == 'all' else (args.kind,):
