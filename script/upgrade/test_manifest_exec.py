@@ -321,8 +321,17 @@ class Round8Controls(unittest.TestCase):
         with patch.object(m.subprocess, 'run', side_effect=run), patch.object(a, 'archive_commit'), \
              patch.object(a, 'raw_artifact', side_effect=lambda root,name:arts[name]), \
              patch.object(m, 'VERIFIER_CREATION', a.keccak(creation)), \
-             patch.object(m, 'MOCK_TOKEN_RUNTIME_HASH', a.keccak(runtime)):
+             patch.object(m, 'MOCK_TOKEN_RUNTIME_HASH', a.keccak(runtime)), \
+             patch.dict(m.os.environ, {'MANIFEST_DVT_REPO': '/nonexistent-dvt-repo'}):
             return m.rebuild_dvt()
+
+    def test_dvt_repo_must_be_configured(self):
+        m.rebuild_dvt.cache_clear()
+        self.addCleanup(m.rebuild_dvt.cache_clear)
+        env = {k: v for k, v in m.os.environ.items() if k != 'MANIFEST_DVT_REPO'}
+        with patch.dict(m.os.environ, env, clear=True), self.assertRaises(a.Gate) as caught:
+            m.rebuild_dvt()
+        self.assertEqual(caught.exception.record['gate'], 'dvt_repo_configured')
 
     def test_dvt_rebuild_metadata_change_allowed(self):
         self.dvt_rebuild('metadata')
