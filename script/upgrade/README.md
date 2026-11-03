@@ -353,3 +353,103 @@ Signing/sending and final packet writers reject stage content even after renamin
 printing the RPC; Enter terminates that fork. Without it the fork closes after
 writing evidence (and any requested dump). Stages are rehearsal artifacts, not
 release authorization. Full rehearsal still runs the isolated fraud controls.
+
+### Generate SP release evidence locally
+
+`release_evidence.py` produces only `conformance`, `mutation`, `slither`, and
+`reproducible-build`. It never creates DVT attestations. It performs read-only Git
+queries and uses `a3a_exec.archive_commit` (including locally available pinned
+submodules); it never checks out, commits, tags, fetches, or downloads tools.
+The source worktree must be clean, including untracked files and submodules, and
+`--commit` must resolve to a commit with an existing local tag. Output must be a
+new or empty directory **outside** the repository. Missing local dependencies,
+compilers, tools, failed tests, and skipped tests stop that kind without its PASS
+JSON. Full runs are opt-in and may be long.
+
+```sh
+# Replace RELEASE_TAG with the existing local release tag.
+python3 -B script/upgrade/release_evidence.py all \
+  --commit RELEASE_TAG --out /tmp/sp-release-evidence-RELEASE_TAG \
+  --suite-map /absolute/path/to/reviewed-c1-c9.json
+
+# Run one kind independently, using a fresh output directory each time.
+python3 -B script/upgrade/release_evidence.py mutation \
+  --commit RELEASE_TAG --out /tmp/sp-mutations-RELEASE_TAG
+python3 -B script/upgrade/release_evidence.py slither \
+  --commit RELEASE_TAG --out /tmp/sp-slither-RELEASE_TAG \
+  --threshold Medium --accepted-findings /absolute/path/to/reviewed-findings.json
+python3 -B script/upgrade/release_evidence.py reproducible-build \
+  --commit RELEASE_TAG --out /tmp/sp-build-RELEASE_TAG
+```
+
+The checked-in README/schema specify C1–C9 labels but do not map the A4 release
+checks to executable suites. Consequently conformance requires a reviewed
+`--suite-map`, with **exactly** keys `C1` through `C9`. Each value has exactly
+`path` (an archived `.t.sol` file), `contract` (an exact test-contract name), and
+`evm` (`cancun` or `prague`). For example, a single mapping entry has the shape
+`"C1": {"path": "contracts/test/path/ActualSuite.t.sol", "contract": "ActualSuite", "evm": "cancun"}`.
+This is a format example, not an asserted C1 assignment. The selected suites
+must all execute positive test counts with zero failures/skips. Additionally,
+conformance runs SP's cross-repo suites (7 mocked Cancun tests, 11 genuine Prague
+tests, 5 provenance tests). Prague commands explicitly set
+`FOUNDRY_EVM_VERSION=prague`; these results do not substitute for the separately
+required DVT records. Forge runs with `test --json`; counts come from each
+structured test status (`Success`, `Failure`, or `Skipped`). Missing or malformed
+results and contradictory final summaries stop generation.
+
+Mutation evidence runs each named manifest Python test and each vendored verifier
+set-binding control baseline → mutated → restored. The guardian controls run in
+both Cancun and Prague. `redTest` uses the schema's `VerifierAcceptsGuardianSubset`
+and `VerifierAcceptsGuardianSuperset` error names; the audit commands identify the
+actual `test_*PassesAssertSetBound` functions. Compiler errors, import errors,
+missing tests, and unexpected failure reasons do not count as killed mutants.
+
+Slither uses a fresh offline Forge build, records the full detector report, and
+requires explicit acceptance of every finding **at or above** the selected
+threshold (default `Medium`). A dedicated config enables all detector severities
+and removes detector/path exclusions; `slither.audit.json` records this effective
+selection and the completed detector count. A successful JSON report and a
+matching completed-analysis summary are required, including for Slither 0.11.5
+clean reports whose `results` object is empty. `--accepted-findings` is a JSON array of
+`{"id": "<Slither detector id>", "reason": "<review rationale>"}`; the default is
+`[]`. Unexpected and stale acceptances both stop generation. The `passed` count
+for Slither is one completed, reviewed analysis, not an invented test count.
+Review detector IDs in `slither.audit.json` after a refusal, then rerun with a new
+output directory. Tool environments omit inherited wallet/RPC credentials and
+build overrides, including `VIRTUAL_ENV`.
+
+Reproducible build calls the executor's `compile_commit`, `rebuild_dvt`,
+`creation_hashes`, and `compare_build_evidence` paths. It independently rebuilds
+the ten SP contracts plus the pinned DVT verifier twice, with Forge 1.7.1 and
+locally installed compilers/dependencies. The pinned verifier and mock runtime
+hash checks remain enforced. Executable differences stop generation; metadata-only
+differences and `verifierCreationHashes` go in the audit's `rebuild` object because
+the evidence schema forbids those extra fields. The PASS count is eleven compared
+contracts, and constructor arguments are excluded from creation hashes.
+
+Each successful kind writes `<kind>.json`, accepted by `manifest_exec.evidence_file`.
+`<kind>.audit.json` contains tool versions, command lines, sanitized EVM/profile
+overrides, exit codes, elapsed seconds, stdout/stderr, and parsed Forge counts.
+Failed kinds retain STOP audits but no evidence JSON. `archive.audit.json` records
+archive commands; `SHA256SUMS` covers every generated JSON, including audits.
+Completed kinds in an interrupted `all` run remain individually valid; no overall
+PASS is emitted. Supply each evidence file's path and SHA-256 to `releaseEvidence`.
+
+Mocked generator tests require an already-installed `jsonschema` package and run
+no Forge suites or Git commands:
+
+```sh
+python3 -B script/upgrade/test_release_evidence.py
+```
+
+Local implementation check (2026-11-02): `~/.foundry/bin/forge --version`
+reports 1.7.1; `env -u VIRTUAL_ENV slither --version` reports 0.11.5. Forge is
+not on this shell's PATH; the generator uses the executor's absolute Forge path
+and prepends its directory for Slither. Neither tool is missing. System `python3`
+lacks `jsonschema`; `/Users/jason/venvs/ml/bin/python` has 4.26.0 and can run the
+mocked tests above. A separate temporary-copy check of all four manifest Python
+mutations, each baseline/red/restored, took 74.4 seconds. Budget roughly 75 seconds
+for that portion of `mutation`, plus the unmeasured Forge compilation and six
+Cancun/Prague mutation cycles. Conformance, full Slither analysis, and the two
+SP/DVT rebuild pairs were not timed; no reliable full-kind estimates are available
+without those opt-in runs. No full Forge suites were run for this implementation.
