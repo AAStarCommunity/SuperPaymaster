@@ -282,6 +282,33 @@
       "errors": 0
     },
     {
+      "name": "logscan.missing_chunk_log_double",
+      "test": "test_missing_chunk_log",
+      "originalMutation": "logscan.missing_chunk_log",
+      "disabledCheck": "if receipt_logs != [expected, expected]:",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.log_hash_double",
+      "test": "test_log_hash",
+      "originalMutation": "logscan.log_hash",
+      "disabledCheck": "if n in hashes and any(v[\"blockHash\"] != hashes[n] for v in normalized):",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
+      "name": "logscan.outside_filter_double",
+      "test": "test_outside_filter",
+      "originalMutation": "logscan.outside_filter",
+      "disabledCheck": "if receipt_logs != [expected, expected]:",
+      "killed": true,
+      "assertionFailures": 1,
+      "errors": 0
+    },
+    {
       "name": "logscan.split_consistency",
       "test": "test_split_consistency",
       "killed": true,
@@ -650,7 +677,7 @@
       "assertionFailures": 1
     }
   ],
-  "killed": 90,
-  "total": 93,
-  "survivorsExplanation": "Three legacy single-guard mutants are now blocked by independent receipt checks: missing_chunk_log, log_hash, outside_filter. No runtime errors are counted as kills."
+  "killed": 93,
+  "total": 96,
+  "survivorsExplanation": "Three legacy single-guard mutants are blocked by independent receipt checks: missing_chunk_log, log_hash, outside_filter. Each corresponding _double mutant removes both guards and must be killed by its named test. No runtime errors are counted as kills."
 }

@@ -35,6 +35,16 @@ def main():
     for name,(old,new) in scan.MUTATIONS.items():
         target=scan.SELECTOR_MUTANTS[name][1] if name in scan.SELECTOR_MUTANTS else name
         rows.append(dict(name='logscan.'+name,test='test_'+target,**execute(scan,source,[(old,new)],scan.Controls('test_'+target),'a4-credit-logscan.py')))
+    # Remove each surviving guard together with its independent receipt blocker.
+    for name, blocker in [
+        ('missing_chunk_log', 'if receipt_logs != [expected, expected]:'),
+        ('log_hash', 'if n in hashes and any(v["blockHash"] != hashes[n] for v in normalized):'),
+        ('outside_filter', 'if receipt_logs != [expected, expected]:')]:
+        test = 'test_' + name
+        rows.append(dict(name='logscan.'+name+'_double', test=test,
+                         originalMutation='logscan.'+name, disabledCheck=blocker,
+                         **execute(scan, source, [scan.MUTATIONS[name], (blocker, 'if False:')],
+                                   scan.Controls(test), 'a4-credit-logscan.py')))
     for name,old,new,test in [
         ('split_consistency','if split != pair:', 'if False:', 'test_split_consistency'),
         ('sampling_bound','ranked[:k]', 'ranked', 'test_sampling_bound_and_seed'),
@@ -136,7 +146,7 @@ def main():
         survived=rejected(bad)
     rows.append(dict(name='manifest.test_exists',killed=baseline and not survived,errors=0,assertionFailures=int(baseline and not survived)))
     report={'scope':'checker-logic-offline','mutations':rows,'killed':sum(r['killed'] for r in rows),'total':len(rows),
-            'survivorsExplanation':'Three legacy single-guard mutants are now blocked by independent receipt checks: missing_chunk_log, log_hash, outside_filter. No runtime errors are counted as kills.'}
+            'survivorsExplanation':'Three legacy single-guard mutants are blocked by independent receipt checks: missing_chunk_log, log_hash, outside_filter. Each corresponding _double mutant removes both guards and must be killed by its named test. No runtime errors are counted as kills.'}
     (HERE/'a4-guard-mutations.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:v for k,v in report.items() if k!='mutations'},indent=2))
     expected_survivors={'logscan.missing_chunk_log','logscan.log_hash','logscan.outside_filter'}
