@@ -46,6 +46,7 @@ MUTATIONS = {
 DVT_SUITES = {'CC115CrossRepoConformance': 7, 'CC115GenuinePragueCrossRepo': 11, 'provenance': 5}
 
 VERIFIER_CREATION = '0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab'
+VERIFIER_EXECUTABLE = '0x697b97795dfc4547e615c048a5583d31f4c7f9a969b53d85d5ecb9e42e218d54'
 
 
 def reviewed_bytes(path, digest, gate):
@@ -186,28 +187,66 @@ def validate_evidence_details(e, kind):
         a.need('evidence_unaccepted_findings', sorted(f['aboveThreshold']), sorted(x['id'] for x in f['accepted']))
     elif kind == 'reproducible-build':
         a.exact_keys('evidence_contracts', e['contracts'], (*NAMES, 'OverIssueFraudProofVerifier'))
-        for hashes in e['contracts'].values():
+        for name, hashes in e['contracts'].items():
             a.exact_keys('evidence_creation_hashes', hashes, ('fullCreationKeccak', 'strippedCreationKeccak'))
             for value in hashes.values(): a.typed(value, a.HASH32)
+            if name != 'OverIssueFraudProofVerifier':
+                a.need('evidence_full_creation_'+name, hashes['strippedCreationKeccak'], hashes['fullCreationKeccak'])
 
 
-def creation_hashes(code):
-    # Solidity's trailing length includes only the CBOR map, not the two length bytes.
-    a.cbor_tail(code)
-    raw = bytes.fromhex(code[2:])
-    length = int.from_bytes(raw[-2:], 'big') + 2
-    return dict(fullCreationKeccak=a.keccak(code), strippedCreationKeccak=a.keccak('0x'+raw[:-length].hex()))
+# Release packet pin: verifier 72aca4fa, compiler runtime is the final data object.
+# Offsets include the two-byte Solidity CBOR length suffix. No pattern search.
+VERIFIER_METADATA_LAYOUT = {'byteLength': 3300, 'segments': [{'offset': 3247, 'length': 53}]}
 
 
-def compare_build_evidence(e, contracts):
+def verifier_executable(code, layout=None):
+    layout = VERIFIER_METADATA_LAYOUT if layout is None else layout
+    a.need('verifier_metadata_layout', layout, VERIFIER_METADATA_LAYOUT)
+    raw = bytes.fromhex(a.typed(code, a.HEXDATA)[2:])
+    a.need('verifier_creation_length', len(raw), layout['byteLength'])
+    chunks, cursor = [], 0
+    for segment in layout['segments']:
+        start, size = segment['offset'], segment['length']
+        end = start + size
+        a.need('verifier_segment_length', int.from_bytes(raw[end-2:end], 'big') + 2, size)
+        metadata = a.cbor_tail('0x' + raw[start:end].hex())
+        a.exact_keys('verifier_metadata_keys', metadata, ('ipfs', 'solc'))
+        a.need('verifier_metadata_solc', metadata['solc'], bytes.fromhex('000821'))
+        a.need('verifier_metadata_ipfs', isinstance(metadata['ipfs'], bytes) and
+               len(metadata['ipfs']) == 34 and metadata['ipfs'][:2] == b'\x12\x20', True)
+        chunks.append(raw[cursor:start])
+        cursor = end
+    chunks.append(raw[cursor:])
+    return b''.join(chunks)
+
+
+def creation_hashes(code, name=None):
+    full = a.keccak(code)
+    stripped = (a.keccak('0x' + verifier_executable(code).hex())
+                if name == 'OverIssueFraudProofVerifier' else full)
+    return dict(fullCreationKeccak=full, strippedCreationKeccak=stripped)
+
+
+def compare_build_evidence(e, contracts, reference_contracts=None):
     a.exact_keys('reproducible_contracts', e['contracts'], contracts)
+    if reference_contracts is not None:
+        a.exact_keys('reproducible_reference_contracts', reference_contracts, contracts)
     differences = []
     for name, art in contracts.items():
-        expected = creation_hashes(art['bytecode'])
+        if reference_contracts is not None:
+            left, right = reference_contracts[name]['bytecode'], art['bytecode']
+            if name == 'OverIssueFraudProofVerifier':
+                left, right = verifier_executable(left), verifier_executable(right)
+            else:
+                left, right = bytes.fromhex(left[2:]), bytes.fromhex(right[2:])
+            a.need('reproducible_bytes_'+name, left, right)
+        expected = creation_hashes(art['bytecode'], name)
         a.need('rebuild_record_'+name, art['creationHashes'], expected)
         actual = e['contracts'][name]
         a.need('reproducible_executable_'+name, actual['strippedCreationKeccak'], expected['strippedCreationKeccak'])
-        if actual['fullCreationKeccak'] != expected['fullCreationKeccak']:
+        if name != 'OverIssueFraudProofVerifier':
+            a.need('reproducible_full_'+name, actual['fullCreationKeccak'], expected['fullCreationKeccak'])
+        elif actual['fullCreationKeccak'] != expected['fullCreationKeccak']:
             differences.append(name)
     return differences
 
@@ -345,7 +384,10 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     a.need('fraud_token_runtime', token['runtime'] != '0x', True)
     a.need('fraud_token_pin_available', MOCK_TOKEN_RUNTIME_HASH is not None, True)
     a.need('fraud_token_pinned_runtime', a.keccak(token['runtime']), MOCK_TOKEN_RUNTIME_HASH)
-    a.need('fraud_token_stripped_runtime', creation_hashes(token['runtime'])['strippedCreationKeccak'], MOCK_TOKEN_STRIPPED_RUNTIME_HASH)
+    a.cbor_tail(token['runtime'])
+    raw = bytes.fromhex(token['runtime'][2:])
+    size = int.from_bytes(raw[-2:], 'big') + 2
+    a.need('fraud_token_stripped_runtime', a.keccak('0x' + raw[:-size].hex()), MOCK_TOKEN_STRIPPED_RUNTIME_HASH)
     raw_runtime = bytes.fromhex(token['runtime'][2:])
     for offset in (130, 210):
         a.need('fraud_token_zero_owner_'+str(offset), raw_runtime[offset:offset+32].hex(), '00'*32)
@@ -564,10 +606,10 @@ def rebuild_dvt():
                                 cwd=tree/'contracts', env=env, capture_output=True)
         a.need('dvt_offline_rebuild', result.returncode, 0)
         art = a.raw_artifact(tree/'contracts', 'OverIssueFraudProofVerifier')
-        a.need('dvt_rebuilt_creation', a.keccak(art['bytecode']['object']), VERIFIER_CREATION)
+        a.need('dvt_rebuilt_creation', creation_hashes(art['bytecode']['object'], 'OverIssueFraudProofVerifier')['strippedCreationKeccak'], VERIFIER_EXECUTABLE)
         mock = a.raw_artifact(tree/'contracts', 'MockOverIssuableToken')
         a.need('dvt_mock_rebuilt_runtime', a.keccak(mock['deployedBytecode']['object']), MOCK_TOKEN_RUNTIME_HASH)
-        return dict(bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']),
+        return dict(bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object'], 'OverIssueFraudProofVerifier'),
                     mockRuntimeHash=a.keccak(mock['deployedBytecode']['object']))
 
 
@@ -582,7 +624,8 @@ def release_gate(inputs, build, pin):
         evidence_file(data['releaseEvidence'].get(kind), kind, build['commit'])
     evidence_file(dict(path=data['verifier']['ciPath'], sha256=data['verifier']['ciSha256']), 'dvt-ci', build['commit'])
     verifier = rebuild_dvt()
-    a.need('dvt_artifact_rebuild', verifier['bytecode'], verifier_artifact(data['verifier'])['bytecode'])
+    a.need('dvt_artifact_rebuild', verifier_executable(verifier['bytecode']),
+           verifier_executable(verifier_artifact(data['verifier'])['bytecode']))
     contracts = dict(build['contracts'], OverIssueFraudProofVerifier=verifier)
     evidence = evidence_file(data['releaseEvidence']['reproducible-build'], 'reproducible-build', build['commit'])
     build['metadataOnlyDifferences'] = compare_build_evidence(evidence, contracts)
@@ -963,6 +1006,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     def finish():
         plan = dict(schema='3.1', route='manifest-A-B-D', stage=stage, final=stage == 'full', stageSources=sources,
             pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs), rebuild=arts,
+            creationMetadataLayouts={'OverIssueFraudProofVerifier': copy.deepcopy(VERIFIER_METADATA_LAYOUT)},
             addresses=addresses, implementation=impl, extension=extension, operations=operations,
             steps=steps, controls=CONTROLS,
             expectedDomainSeparator=domain_separator(agg),

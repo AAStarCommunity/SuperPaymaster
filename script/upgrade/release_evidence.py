@@ -389,8 +389,9 @@ def reproducible(commit, version, details):
         return contracts
     first, second = build(), build()
     hashes = {name: art['creationHashes'] for name, art in first.items()}
-    differences = m.compare_build_evidence({'contracts': hashes}, second)
+    differences = m.compare_build_evidence({'contracts': hashes}, second, first)
     details['rebuild'] = dict(metadataOnlyDifferences=differences,
+        creationMetadataLayouts={'OverIssueFraudProofVerifier': m.VERIFIER_METADATA_LAYOUT},
         verifierCreationHashes=hashes['OverIssueFraudProofVerifier'],
         secondCreationHashes={name: art['creationHashes'] for name, art in second.items()})
     return dict(contracts=hashes), len(hashes)

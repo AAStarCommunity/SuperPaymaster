@@ -20,6 +20,7 @@ REAL_A3A_VALIDATE_PLAN = a.validate_plan
 ANNI = m.ANNI
 DVT = m.DVT
 SAMPLE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-fraud-drill-sample-4.11.json').read_text())
+VERIFIER_CODE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-creation.json').read_text())['creationBytecode']
 COMMITTEE = m.COMMITTEE
 OLD = m.OLD_AGGREGATOR
 ART = dict(commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
@@ -103,7 +104,7 @@ def input_data(p):
         depositTargetWei=10**18, releaseTag='unit-fixture', registryBaselineCommit='b'*40,
         releaseEvidence={key:'c'*64 for key in m.EVIDENCE_KINDS},
         verifier=dict(commit=m.VERIFIER_COMMIT, artifactPath='unit-fixture', ciSha256='e'*64, buildSha256=m.VERIFIER_SHA256,
-                      artifact=dict(bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
+                      artifact=dict(bytecode=VERIFIER_CODE, runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
 
 
 class FakeChain:
@@ -300,11 +301,15 @@ class DvtCiEvidenceTests(unittest.TestCase):
 
 class Round8Controls(unittest.TestCase):
     def dvt_rebuild(self, mutate=None):
-        creation = '0x60006000f3a00001'
+        creation = VERIFIER_CODE
         runtime = '0x6001'
         arts = {'OverIssueFraudProofVerifier': {'bytecode': {'object':creation}},
                 'MockOverIssuableToken': {'deployedBytecode': {'object':runtime}}}
-        if mutate == 'creation': arts['OverIssueFraudProofVerifier']['bytecode']['object'] += '00'
+        if mutate == 'creation': arts['OverIssueFraudProofVerifier']['bytecode']['object'] = '0x00' + creation[4:]
+        if mutate == 'metadata':
+            raw = bytearray.fromhex(creation[2:])
+            raw[3260] ^= 1
+            arts['OverIssueFraudProofVerifier']['bytecode']['object'] = '0x' + raw.hex()
         if mutate == 'runtime': arts['MockOverIssuableToken']['deployedBytecode']['object'] += '00'
         real_run = m.subprocess.run
         def run(args, **kw):
@@ -318,6 +323,9 @@ class Round8Controls(unittest.TestCase):
              patch.object(m, 'VERIFIER_CREATION', a.keccak(creation)), \
              patch.object(m, 'MOCK_TOKEN_RUNTIME_HASH', a.keccak(runtime)):
             return m.rebuild_dvt()
+
+    def test_dvt_rebuild_metadata_change_allowed(self):
+        self.dvt_rebuild('metadata')
 
     def test_dvt_rebuilt_creation_gate(self):
         self.dvt_rebuild()
@@ -453,7 +461,8 @@ class ManifestTests(unittest.TestCase):
                 e['tool']['name'] = 'slither'
                 e['findings'] = dict(threshold='Low', aboveThreshold=[], accepted=[])
             if kind == 'reproducible-build':
-                e['contracts'] = {k:m.creation_hashes('0x60006000f3a00001') for k in (*m.NAMES, 'OverIssueFraudProofVerifier')}
+                e['contracts'] = {k:m.creation_hashes('0x60006000f3a00001') for k in m.NAMES}
+                e['contracts']['OverIssueFraudProofVerifier'] = m.creation_hashes(VERIFIER_CODE, 'OverIssueFraudProofVerifier')
             self.data['releaseEvidence'][kind] = file_ref(kind, e)
         self.data['releaseEvidence']['sourceVerificationPlan'] = file_ref('source-plan', {'synthetic':True})
         rows = []
@@ -478,7 +487,7 @@ class ManifestTests(unittest.TestCase):
         self.data['fraudProofFixture'] = file_ref('fraud', self.export)
         fixture_artifact = self.data['verifier'].pop('artifact')
         self.real_verifier_artifact = m.verifier_artifact
-        for target, name, value in ((m, 'verifier_artifact', fixture_artifact), (m, 'rebuild_dvt', dict(bytecode=fixture_artifact['bytecode'], creationHashes=m.creation_hashes(fixture_artifact['bytecode']))), (m, 'release_gate', None)):
+        for target, name, value in ((m, 'verifier_artifact', fixture_artifact), (m, 'rebuild_dvt', dict(bytecode=fixture_artifact['bytecode'], creationHashes=m.creation_hashes(fixture_artifact['bytecode'], 'OverIssueFraudProofVerifier'))), (m, 'release_gate', None)):
             mock = patch.object(target, name, return_value=value)
             mock.start()
             self.addCleanup(mock.stop)
@@ -1930,17 +1939,23 @@ class ManifestTests(unittest.TestCase):
         e['suites']['CC115GenuinePragueCrossRepo']['env'] = {}
         with self.assertRaises(a.Gate): m.evidence_file(self.file_ref('wrong-evm', e), kind)
 
+    def test_creation_layout_packet(self):
+        self.assertEqual(self.plan['creationMetadataLayouts'], {'OverIssueFraudProofVerifier': m.VERIFIER_METADATA_LAYOUT})
+        changed = copy.deepcopy(self.plan)
+        changed['creationMetadataLayouts']['OverIssueFraudProofVerifier']['segments'] = []
+        with self.assertRaises(a.Gate): m.validate_plan(changed, self.inputs)
+
     def test_creation_hash_comparison(self):
         contracts = copy.deepcopy(ART['contracts'])
         e = dict(contracts={k:v['creationHashes'].copy() for k,v in contracts.items()})
         self.assertEqual(m.compare_build_evidence(e, contracts), [])
         name = m.NAMES[0]
         e['contracts'][name]['fullCreationKeccak'] = a.ZERO32
-        self.assertEqual(m.compare_build_evidence(e, contracts), [name])
+        with self.assertRaises(a.Gate): m.compare_build_evidence(e, contracts)
         e['contracts'][name]['strippedCreationKeccak'] = a.ZERO32
         with self.assertRaises(a.Gate): m.compare_build_evidence(e, contracts)
         left, right = (m.creation_hashes(x) for x in ('0x6000a16161010004', '0x6000a16161020004'))
-        self.assertEqual(left['strippedCreationKeccak'], right['strippedCreationKeccak'])
+        self.assertNotEqual(left['strippedCreationKeccak'], right['strippedCreationKeccak'])
         self.assertNotEqual(left['fullCreationKeccak'], right['fullCreationKeccak'])
 
     def test_unpinned_and_substituted_mock_refused(self):
@@ -2040,6 +2055,79 @@ class ManifestTests(unittest.TestCase):
     def test_sign_send_refused(self):
         self.assertEqual(m.main(['sign']), 3)
         self.assertEqual(m.main(['send']), 3)
+
+
+class RealCreationTests(unittest.TestCase):
+    root = Path(__file__).with_name('fixtures')
+
+    def verifier(self):
+        return json.loads((self.root / 'dvt-creation.json').read_text())['creationBytecode']
+
+    def compare(self, name, first, second):
+        return m.compare_build_evidence({'contracts': {name: m.creation_hashes(first, name)}},
+            {name: {'bytecode': second, 'creationHashes': m.creation_hashes(second, name)}})
+
+    def test_real_rc6_full_creation(self):
+        for path in (self.root / 'real-creation').glob('*.json'):
+            if path.name == 'INDEX.json': continue
+            fixture = json.loads(path.read_text())
+            code, name = fixture['creationBytecode'], fixture['contract']
+            with self.subTest(contract=name):
+                hashes = m.creation_hashes(code)
+                self.assertEqual(hashes['fullCreationKeccak'], a.keccak(code))
+                self.assertEqual(hashes['strippedCreationKeccak'], hashes['fullCreationKeccak'])
+                self.assertEqual(self.compare(name, code, code), [])
+                for changed in ('0x00' + code[4:], code + '00', code[:-2] + 'ff'):
+                    with self.assertRaises(a.Gate): self.compare(name, code, changed)
+
+    def test_sp_full_hash_guard(self):
+        name = 'SuperPaymaster'
+        code = json.loads((self.root / 'real-creation' / (name + '.json')).read_text())['creationBytecode']
+        hashes = m.creation_hashes(code)
+        forged = dict(hashes, fullCreationKeccak=a.ZERO32)
+        with self.assertRaises(a.Gate):
+            m.compare_build_evidence({'contracts': {name: forged}},
+                {name: {'bytecode': code, 'creationHashes': hashes}})
+
+    def test_dvt_real_metadata_only(self):
+        code = self.verifier()
+        self.assertEqual(a.keccak(code), m.VERIFIER_CREATION)
+        self.assertEqual(m.creation_hashes(code, 'OverIssueFraudProofVerifier')['strippedCreationKeccak'], m.VERIFIER_EXECUTABLE)
+        fixture = json.loads((self.root / 'dvt-creation.json').read_text())
+        self.assertEqual(fixture['metadataLayout'], m.VERIFIER_METADATA_LAYOUT)
+        self.assertEqual(code[2+319*2:], fixture['runtimeBytecode'][2:])
+        changed = bytearray.fromhex(code[2:])
+        changed[3260] ^= 1  # IPFS digest, inside the pinned CBOR bytes value.
+        changed = '0x' + changed.hex()
+        self.assertEqual(self.compare('OverIssueFraudProofVerifier', code, changed), ['OverIssueFraudProofVerifier'])
+        self.assertEqual(m.verifier_executable(code), m.verifier_executable(changed))
+
+    def test_dvt_outside_segment_and_forged_pattern(self):
+        code = self.verifier()
+        for offset, value in ((0, b'\x00'), (100, bytes.fromhex('a164736f6c6343000821000a'))):
+            changed = bytearray.fromhex(code[2:])
+            changed[offset:offset+len(value)] = value
+            with self.subTest(offset=offset), self.assertRaises(a.Gate):
+                self.compare('OverIssueFraudProofVerifier', code, '0x' + changed.hex())
+
+    def test_dvt_wrong_segment_count_or_position(self):
+        for segments in ([], m.VERIFIER_METADATA_LAYOUT['segments'] * 2,
+                         [{'offset': 3246, 'length': 54}]):
+            with self.subTest(segments=segments), self.assertRaises(a.Gate):
+                m.verifier_executable(self.verifier(), {'byteLength': 3300, 'segments': segments})
+
+    def test_dvt_appended_data(self):
+        for suffix in ('00', 'a164736f6c6343000821000a'):
+            with self.subTest(suffix=suffix), self.assertRaises(a.Gate):
+                m.creation_hashes(self.verifier() + suffix, 'OverIssueFraudProofVerifier')
+
+    def test_dvt_segment_length_and_keys(self):
+        code = self.verifier()
+        for offset, value in ((3299, 0x32), (3249, ord('x'))):
+            changed = bytearray.fromhex(code[2:])
+            changed[offset] = value
+            with self.subTest(offset=offset), self.assertRaises(a.Gate):
+                m.creation_hashes('0x' + changed.hex(), 'OverIssueFraudProofVerifier')
 
 
 if __name__ == '__main__':

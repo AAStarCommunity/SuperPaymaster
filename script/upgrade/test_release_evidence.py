@@ -15,7 +15,7 @@ import release_evidence as e
 
 COMMIT = 'a' * 40
 FORGE = Path('/mock/bin/forge')
-HASHES = dict(fullCreationKeccak='0x' + '12' * 32, strippedCreationKeccak='0x' + '34' * 32)
+HASHES = dict(fullCreationKeccak='0x' + '12' * 32, strippedCreationKeccak='0x' + '12' * 32)
 
 
 def result(stdout='', code=0, stderr=''):
@@ -148,7 +148,7 @@ class EvidenceTests(unittest.TestCase):
 
     def test_reproducible_schema_and_executor(self):
         arts = {name: dict(bytecode={'object': '0x6000'}) for name in e.m.NAMES}
-        verifier = dict(bytecode='0x6000', creationHashes=HASHES)
+        verifier = dict(bytecode=json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-creation.json').read_text())['creationBytecode'], creationHashes=HASHES)
         with patch.object(e.a, 'compile_commit', return_value=(arts, {})) as build, \
              patch.object(e.m, 'rebuild_dvt', return_value=verifier) as dvt, \
              patch.object(e.m, 'creation_hashes', return_value=HASHES):
@@ -160,15 +160,15 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(audit['rebuild']['metadataOnlyDifferences'], [])
         self.assertEqual(audit['rebuild']['verifierCreationHashes'], HASHES)
 
-    def test_metadata_differences_are_recorded_but_executable_differences_stop(self):
+    def test_sp_full_or_stripped_hash_differences_stop(self):
         arts = {name: dict(bytecode={'object': '0x6000'}) for name in e.m.NAMES}
-        verifier = dict(bytecode='0x6000', creationHashes=HASHES)
+        verifier = dict(bytecode=json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-creation.json').read_text())['creationBytecode'], creationHashes=HASHES)
         for executable in (False, True):
             with self.subTest(executable=executable):
                 calls = 0
                 changed = dict(HASHES)
                 changed['strippedCreationKeccak' if executable else 'fullCreationKeccak'] = '0x' + '56' * 32
-                def hashes(code):
+                def hashes(code, name=None):
                     nonlocal calls
                     calls += 1
                     # Ten hashes in each SP build, then eleven recomputed by comparison.
@@ -176,15 +176,9 @@ class EvidenceTests(unittest.TestCase):
                 with patch.object(e.a, 'compile_commit', return_value=(arts, {})), \
                      patch.object(e.m, 'rebuild_dvt', return_value=verifier), \
                      patch.object(e.m, 'creation_hashes', side_effect=hashes):
-                    if executable:
-                        with self.assertRaises(e.a.Gate):
-                            self.generate('reproducible-build')
-                        self.assertFalse((self.out / 'reproducible-build.json').exists())
-                    else:
+                    with self.assertRaises(e.a.Gate):
                         self.generate('reproducible-build')
-                        audit = json.loads((self.out / 'reproducible-build.audit.json').read_text())
-                        self.assertEqual(audit['rebuild']['metadataOnlyDifferences'], ['SuperPaymaster'])
-                        (self.out / 'reproducible-build.json').unlink()
+                    self.assertFalse((self.out / 'reproducible-build.json').exists())
 
     def test_missing_forge_has_no_pass(self):
         with patch.object(e.subprocess, 'run', side_effect=FileNotFoundError('forge')):
@@ -536,6 +530,33 @@ class InstallNodeDeps(unittest.TestCase):
         with patch.object(e, 'run', side_effect=fake_run), self.assertRaises(e.Stop):
             e.forge_test(Path('/forge'), Path('/tree'), 'contracts/test/x.t.sol', 'C', 'test_ok')
         self.assertIn('^test_ok\\(\\)$', calls[0])
+
+
+class RealReproducibleTests(unittest.TestCase):
+    def fixtures(self):
+        root = Path(__file__).with_name('fixtures')
+        arts = {name: {'bytecode': {'object': json.loads((root / 'real-creation' / (name + '.json')).read_text())['creationBytecode']}}
+                for name in e.m.NAMES}
+        code = json.loads((root / 'dvt-creation.json').read_text())['creationBytecode']
+        verifier = dict(bytecode=code, creationHashes=e.m.creation_hashes(code, 'OverIssueFraudProofVerifier'))
+        return arts, verifier
+
+    def test_real_reproducible_build(self):
+        arts, verifier = self.fixtures()
+        with patch.object(e.a, 'compile_commit', return_value=(arts, {})), patch.object(e.m, 'rebuild_dvt', return_value=verifier):
+            payload, count = e.reproducible(COMMIT, 'forge Version: 1.7.1', {})
+        self.assertEqual(count, 11)
+        for name in e.m.NAMES:
+            self.assertEqual(payload['contracts'][name]['fullCreationKeccak'], payload['contracts'][name]['strippedCreationKeccak'])
+
+    def test_real_sp_change_stops_reproducible_build(self):
+        import copy
+        arts, verifier = self.fixtures()
+        changed = copy.deepcopy(arts)
+        changed['SuperPaymaster']['bytecode']['object'] += '00'
+        with patch.object(e.a, 'compile_commit', side_effect=[(arts, {}), (changed, {})]), patch.object(e.m, 'rebuild_dvt', return_value=verifier):
+            with self.assertRaises(e.a.Gate): e.reproducible(COMMIT, 'forge Version: 1.7.1', {})
+
 
 if __name__ == '__main__':
     unittest.main()
