@@ -631,7 +631,9 @@ def rebuild():
 def rebuild_dvt():
     version = subprocess.run([str(a.REBUILD_FORGE), '--version'], capture_output=True, text=True, check=True).stdout
     a.need('dvt_forge_version', version.splitlines()[0], 'forge Version: 1.7.1')
-    repo = Path('/Users/jason/Dev/aastar/YetAnotherAA-Validator')
+    # Local clone of DVT (YetAnotherAA-Validator) containing VERIFIER_COMMIT; never a hardcoded machine path.
+    a.need('dvt_repo_configured', bool(os.environ.get('MANIFEST_DVT_REPO')), True)
+    repo = Path(os.environ['MANIFEST_DVT_REPO'])
     with tempfile.TemporaryDirectory(prefix='manifest-dvt-') as directory:
         tree = Path(directory)/'tree'
         a.archive_commit(repo, VERIFIER_COMMIT, tree)

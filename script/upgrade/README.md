@@ -253,6 +253,8 @@ DVT's `deploy/reregister-guardians.mjs --export-pop` supplies top-level
 `domainSeparator` and per-registration G1/G2 word arrays and `calldata`.
 `pop_adapter.py` consumes this format; an export without calldata is rejected.
 
+Set `MANIFEST_DVT_REPO` to a local clone of DVT (YetAnotherAA-Validator) that contains the pinned verifier commit; the verifier rebuild refuses to run without it.
+
 ### Staged manifest forks for DVT exports
 
 Use one pin, release build, constructor inputs and sender nonce inventory throughout.
