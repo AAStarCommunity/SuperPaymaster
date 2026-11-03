@@ -82,6 +82,10 @@ def verifier_artifact(v):
 
 NAMES = ('SuperPaymaster', 'SuperPaymasterAdmin', 'GlobalTierSource', 'AOAProtocolRegistry',
          'xPNTsTokenV2Ext', 'xPNTsTokenV2', 'xPNTsFactoryV2', 'SuperPaymasterLens', 'Registry', 'BLSAggregator')
+LAYOUT_PAIRS = (
+    ('SuperPaymaster', 'SuperPaymasterAdmin', 'scripts/check-sp-layout.py'),
+    ('xPNTsTokenV2', 'xPNTsTokenV2Ext', 'scripts/check-xpnts-v2-layout.py'),
+)
 IMMUTABLES = dict(SuperPaymaster=u.SP_IMMUTABLES, SuperPaymasterAdmin=u.SP_IMMUTABLES[:-1],
     GlobalTierSource=('REGISTRY',), AOAProtocolRegistry=(),
     xPNTsTokenV2Ext=tuple(a.EIP712_IMMUTABLES)+('PROTOCOL_REGISTRY',),
@@ -102,7 +106,7 @@ def evidence_file(ref, kind, commit=None):
     required(ref, ('path', 'sha256'), 'evidence_reference')
     e = reviewed_file(ref['path'], ref['sha256'], 'evidence_'+kind)
     fields = ['kind', 'subjectCommit', 'tool', 'counts', 'result']
-    fields += {'conformance':['controls', 'scope'], 'mutation':['controls'], 'slither':['findings'],
+    fields += {'conformance':['controls', 'scope'], 'mutation':['controls'], 'slither':['findings', 'scope', 'storageLayout'],
                'reproducible-build':['contracts'], 'dvt-ci':['suites', 'ciRun', 'acceptedFailures'],
                'dvt-conformance-4.12':['suites']}[kind]
     if kind.startswith('dvt-'):
@@ -178,13 +182,44 @@ def validate_evidence_details(e, kind):
     elif kind == 'slither':
         a.need('evidence_slither_tool', e['tool']['name'], 'slither')
         f = e['findings']
-        a.exact_keys('evidence_findings', f, ('threshold', 'aboveThreshold', 'accepted'))
+        a.exact_keys('evidence_findings', f, ('threshold', 'aboveThreshold', 'accepted', 'outOfScope', 'inScopeTotal'))
         a.need('evidence_threshold', f['threshold'] in ('Informational', 'Low', 'Medium', 'High'), True)
-        a.need('evidence_findings_list', isinstance(f['aboveThreshold'], list) and isinstance(f['accepted'], list), True)
+        a.need('evidence_findings_list', all(isinstance(f[k], list) for k in ('aboveThreshold', 'accepted', 'outOfScope')), True)
         for item in f['accepted']:
-            a.exact_keys('evidence_accepted_finding', item, ('id', 'reason'))
-            a.need('evidence_acceptance_reason', all(isinstance(v,str) and v.strip() for v in item.values()), True)
-        a.need('evidence_unaccepted_findings', sorted(f['aboveThreshold']), sorted(x['id'] for x in f['accepted']))
+            a.need('evidence_accepted_fields', {'id', 'classification', 'reason'} <= set(item)
+                   and set(item) <= {'id', 'classification', 'reason', 'row', 'check', 'location'}, True)
+            a.need('evidence_classification', item['classification'] in ('false-positive', 'accepted'), True)
+            a.need('evidence_acceptance_reason', all(isinstance(item[k],str) and item[k].strip() for k in ('id', 'reason')), True)
+        ids = f['aboveThreshold']
+        a.need('evidence_unique_findings', len(ids), len(set(ids)))
+        a.need('evidence_unaccepted_findings', sorted(ids), sorted(x['id'] for x in f['accepted']))
+        a.need('evidence_in_scope_total', f['inScopeTotal'], len(ids))
+        scope = e['scope']
+        a.exact_keys('evidence_scope', scope, ('contracts', 'files'))
+        a.need('evidence_scope_contracts', scope['contracts'], list(NAMES))
+        files = scope['files']
+        a.need('evidence_scope_files', isinstance(files, list) and bool(files) and files == sorted(set(files))
+               and all(isinstance(x, str) and x.startswith('contracts/src/') and '..' not in x.split('/')
+                       and x.endswith('.sol') for x in files), True)
+        outside_ids = []
+        for item in f['outOfScope']:
+            a.exact_keys('evidence_outside', item, ('id', 'impact', 'files', 'classification'))
+            a.need('evidence_outside_unclassified', item['classification'], 'unclassified')
+            a.need('evidence_outside_files', bool(item['files']) and not set(item['files']).intersection(files), True)
+            outside_ids.append(item['id'])
+        a.need('evidence_outside_unique', len(outside_ids), len(set(outside_ids)))
+        a.need('evidence_outside_not_reviewed', bool(set(outside_ids).intersection(ids)), False)
+        a.need('evidence_layout_pair_count', len(e['storageLayout']), len(LAYOUT_PAIRS))
+        for pair, (core, extension, reference) in zip(e['storageLayout'], LAYOUT_PAIRS):
+            a.exact_keys('evidence_layout_pair', pair, ('core', 'extension', 'reference', 'testReferences', 'coreTable', 'extensionTable'))
+            a.need('evidence_layout_identity', (pair['core'], pair['extension'], pair['reference']), (core, extension, reference))
+            for table in (pair['coreTable'], pair['extensionTable']):
+                a.exact_keys('evidence_layout_table', table, ('storage', 'namespaces'))
+                a.need('evidence_layout_nonempty', isinstance(table['storage'], list) and bool(table['storage'])
+                       and isinstance(table['namespaces'], list), True)
+                for row in table['storage'] + table['namespaces']:
+                    a.exact_keys('evidence_layout_row', row, ('label', 'slot', 'offset', 'type'))
+            a.need('evidence_layout_parity', pair['coreTable'], pair['extensionTable'])
     elif kind == 'reproducible-build':
         a.exact_keys('evidence_contracts', e['contracts'], (*NAMES, 'OverIssueFraudProofVerifier'))
         for name, hashes in e['contracts'].items():

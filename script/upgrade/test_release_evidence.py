@@ -34,6 +34,33 @@ def forge_json(statuses=('Success',), reason=None):
         } for i, status in enumerate(statuses)}, 'warnings': []}})
 
 
+def compiled_fixture(tree):
+    out = tree / 'out'
+    out.mkdir(exist_ok=True)
+    names = (*e.m.NAMES, 'SuperPaymasterAdminCalls', 'SuperPaymasterStorage', 'xPNTsV2Base')
+    for i, name in enumerate(names, 1):
+        source = 'contracts/src/' + name + '.sol'
+        path = tree / source
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('// compiler fixture')
+        bases = [i]
+        if name in ('SuperPaymaster', 'SuperPaymasterAdmin'):
+            bases += [12]
+        if name in ('xPNTsTokenV2', 'xPNTsTokenV2Ext'):
+            bases += [13]
+        node = dict(id=i, name=name, nodeType='ContractDefinition', contractKind='contract', linearizedBaseContracts=bases)
+        (out / (name + '.json')).write_text(json.dumps(dict(ast=dict(absolutePath=source, nodes=[node]))))
+
+
+def layout_fixture():
+    return dict(storage=[dict(label='balance', slot='0', offset=0, type='t_uint256')],
+                types={'t_uint256':dict(label='uint256', encoding='inplace', numberOfBytes='32')})
+
+
+def finding(identity, file='contracts/src/SuperPaymaster.sol', impact='High'):
+    return dict(id=identity, impact=impact, elements=[dict(source_mapping=dict(filename_relative=file))])
+
+
 class EvidenceTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -79,7 +106,10 @@ class EvidenceTests(unittest.TestCase):
             Path(command[command.index('--json') + 1]).write_text(json.dumps(dict(success=True, error=None, results=dict(detectors=self.slither_findings) if self.slither_findings else {})))
             return result(stderr=f'INFO:Slither:. analyzed (42 contracts with 101 detectors), {len(self.slither_findings)} result(s) found\n')
         if 'build' in command:
+            compiled_fixture(Path(kwargs['cwd']))
             return result()
+        if 'inspect' in command:
+            return result(json.dumps(layout_fixture()))
         mutated = [name for name in e.m.MUTATIONS if self.is_mutated(name)]
         if 'unittest' in command:
             test = command[-1].split('.')[-1]
@@ -136,15 +166,153 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(sum('test' in cmd for cmd, _ in self.calls), 18)
 
     def test_slither_schema_and_executor(self):
-        self.slither_findings = [dict(id='reviewed-1', impact='High')]
-        value = self.generate('slither', accepted=[dict(id='reviewed-1', reason='Reviewed mitigation in release decision')])
+        self.slither_findings = [finding('reviewed-1')]
+        value = self.generate('slither', accepted=[dict(id='reviewed-1', classification='accepted', reason='Reviewed mitigation in release decision')])
         self.assertEqual(value['findings']['aboveThreshold'], ['reviewed-1'])
 
     def test_unaccepted_slither_has_no_pass(self):
-        self.slither_findings = [dict(id='unreviewed', impact='Medium')]
+        self.slither_findings = [finding('unreviewed', impact='Medium')]
         with self.assertRaises(e.Stop):
             self.generate('slither')
         self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_scope_classification_dsr_and_outside(self):
+        self.slither_findings = [finding('inside'), finding('outside', 'contracts/src/Unrelated.sol'),
+                                 finding('lib', 'contracts/lib/Token.sol'), finding('low', impact='Low')]
+        entry = dict(row=26, id='inside', check='uninitialized-state', location='contracts/src/SuperPaymaster.sol:12',
+                     classification='false-positive', reason='Shared layout verified')
+        value = self.generate('slither', accepted=[entry])
+        self.assertEqual(value['findings']['accepted'], [entry])
+        self.assertEqual(value['findings']['inScopeTotal'], 1)
+        self.assertEqual([x['id'] for x in value['findings']['outOfScope']], ['outside', 'lib'])
+        self.assertTrue(all(x['classification'] == 'unclassified' for x in value['findings']['outOfScope']))
+        self.assertIn('contracts/src/SuperPaymasterStorage.sol', value['scope']['files'])
+        self.assertIn('contracts/src/SuperPaymasterAdminCalls.sol', value['scope']['files'])
+        self.assertEqual(len(value['storageLayout']), 2)
+        inspections = [(c, kw) for c, kw in self.calls if 'inspect' in c]
+        self.assertEqual(len(inspections), 4)
+        self.assertTrue(all('--offline' in c and kw['env']['FOUNDRY_OFFLINE'] == 'true'
+                            and kw['cwd'] == self.tree for c, kw in inspections))
+
+    def test_classification_missing_stale_duplicate_invalid_and_count_stop(self):
+        self.slither_findings = [finding('inside'), finding('outside', 'contracts/src/Other.sol')]
+        good = dict(id='inside', classification='accepted', reason='review')
+        cases = [[], [dict(good, id='stale')], [dict(good, id='outside')], [good, good],
+                 [dict(good, classification='unclassified')], [dict(id='inside', reason='old format')],
+                 [dict(good, reason=' ')], [good, dict(good, id='stale')]]
+        for accepted in cases:
+            with self.subTest(accepted=accepted), self.assertRaises(e.Stop):
+                self.generate('slither', accepted=accepted)
+            self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_layout_each_pair_and_each_field_mismatch_stops(self):
+        for target in ('SuperPaymasterAdmin', 'xPNTsTokenV2Ext'):
+            for field, value in [('label', 'different'), ('slot', '1'), ('offset', 1), ('type', 'other')]:
+                def fake(command, **kwargs):
+                    if 'inspect' in command and str(command[2]).endswith(':' + target):
+                        data = layout_fixture()
+                        data['types']['other'] = dict(label='uint128', encoding='inplace', numberOfBytes='16')
+                        data['storage'][0][field] = value
+                        return result(json.dumps(data))
+                    return self.fake_run(command, **kwargs)
+                with self.subTest(target=target, field=field), patch.object(e.subprocess, 'run', side_effect=fake), \
+                     patch.object(e.shutil, 'which', return_value='/mock/slither'), self.assertRaisesRegex(e.Stop, 'layout mismatch'):
+                    e.generate('slither', COMMIT, self.tree, self.out, FORGE)
+                self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_layout_missing_entry_empty_and_failed_inspect_stop(self):
+        for output in (result(code=1), result('{}'), result(json.dumps(dict(storage=[], types={})))):
+            def fake(command, **kwargs):
+                return output if 'inspect' in command else self.fake_run(command, **kwargs)
+            with patch.object(e.subprocess, 'run', side_effect=fake), \
+                 patch.object(e.shutil, 'which', return_value='/mock/slither'), self.assertRaises((e.Stop, KeyError)):
+                e.generate('slither', COMMIT, self.tree, self.out, FORGE)
+            self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_scope_uses_inheritance_excludes_libraries_and_unrelated(self):
+        compiled_fixture(self.tree)
+        path = self.tree / 'out/SuperPaymaster.json'
+        data = json.loads(path.read_text())
+        data['ast']['nodes'][0]['linearizedBaseContracts'].append(100)
+        path.write_text(json.dumps(data))
+        (self.tree / 'out/lib.json').write_text(json.dumps(dict(ast=dict(absolutePath='contracts/lib/Base.sol', nodes=[
+            dict(id=100, name='Base', nodeType='ContractDefinition', contractKind='contract', linearizedBaseContracts=[100])]))))
+        scope, _, _ = e.compiled_scope(self.tree)
+        self.assertNotIn('contracts/lib/Base.sol', scope['files'])
+        self.assertEqual(len(scope['files']), 13)
+        (self.tree / 'out/SuperPaymaster.json').unlink()
+        with self.assertRaisesRegex(e.Stop, 'scope root'):
+            e.compiled_scope(self.tree)
+
+    def test_duplicate_findings_and_missing_locations_stop(self):
+        for findings in ([finding('same'), finding('same')], [dict(id='unknown', impact='High')]):
+            self.slither_findings = findings
+            with self.subTest(findings=findings), self.assertRaises(e.Stop):
+                self.generate('slither')
+            self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_mixed_scope_and_absolute_locations_are_in_scope(self):
+        item = finding('mixed', 'contracts/lib/Outside.sol')
+        item['elements'].append(dict(source_mapping=dict(filename_absolute=str(self.tree / 'contracts/src/SuperPaymaster.sol'))))
+        self.slither_findings = [item]
+        with self.assertRaises(e.Stop):
+            self.generate('slither')
+        value = self.generate('slither', accepted=[dict(id='mixed', classification='accepted', reason='reviewed')])
+        self.assertEqual(value['findings']['aboveThreshold'], ['mixed'])
+        self.assertEqual(value['findings']['outOfScope'], [])
+
+    def test_namespaced_mismatch_stops_and_records_tables(self):
+        def namespace(tree, root, nodes):
+            return [dict(label='pendingOwner', slot='10' if root[1]['name'] == 'SuperPaymasterAdmin' else '9',
+                         offset=0, type='address')]
+        with patch.object(e, 'namespace_table', side_effect=namespace), self.assertRaisesRegex(e.Stop, 'layout mismatch'):
+            self.generate('slither')
+        audit = json.loads((self.out / 'slither.audit.json').read_text())
+        pair = audit['storageLayout'][0]
+        self.assertNotEqual(pair['coreTable']['namespaces'], pair['extensionTable']['namespaces'])
+
+    def test_pending_owner_namespace_and_test_reference(self):
+        relative = 'contracts/src/utils/Ownable2StepNamespaced.sol'
+        path = self.tree / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((e.m.u.ROOT / relative).read_text())
+        node = dict(name='Ownable2StepNamespaced', linearizedBaseContracts=[1])
+        rows = e.namespace_table(self.tree, (relative, node), {1: (relative, node)})
+        self.assertEqual(rows[0]['label'], 'aastar.storage.Ownership2Step._pendingOwner')
+        self.assertEqual(rows[0]['type'], 'address')
+        test_path = self.tree / 'contracts/test/v2/SuperPaymasterD5bGov2.t.sol'
+        test_path.parent.mkdir(parents=True, exist_ok=True)
+        test_path.write_text('function test_gov2_sp_pendingOwner_erc7201_slot() public {}')
+        value = self.generate('slither')
+        self.assertEqual(value['storageLayout'][0]['testReferences'],
+                         ['contracts/test/v2/SuperPaymasterD5bGov2.t.sol:test_gov2_sp_pendingOwner_erc7201_slot'])
+        path.write_text(path.read_text().replace('sstore(slot, p)', 'sstore(0, p)'))
+        with self.assertRaisesRegex(e.Stop, 'namespace binding changed'):
+            e.namespace_table(self.tree, (relative, node), {1: (relative, node)})
+
+    def test_layout_recursive_struct_drift(self):
+        a = layout_fixture()
+        a['types']['struct'] = dict(label='struct S', encoding='inplace', numberOfBytes='32', members=a['storage'])
+        a['storage'] = [dict(label='config', slot='0', offset=0, type='struct')]
+        import copy
+        b = copy.deepcopy(a)
+        b['types']['struct']['members'][0]['offset'] = 1
+        self.assertNotEqual(e.layout_table(a), e.layout_table(b))
+
+    def test_namespace_tables_and_changed_declaration_stop(self):
+        path = self.tree / 'Initializable.sol'
+        path.write_text('bytes32 private constant INITIALIZABLE_STORAGE = 0x' + 'ab' * 32 + ';\n$.slot := INITIALIZABLE_STORAGE')
+        member = dict(name='InitializableStorage', documentation=dict(text='@custom:storage-location erc7201:openzeppelin.storage.Initializable'),
+                      members=[dict(name='_initialized', typeDescriptions=dict(typeString='uint64')),
+                               dict(name='_initializing', typeDescriptions=dict(typeString='bool'))])
+        node = dict(linearizedBaseContracts=[1], nodes=[member])
+        nodes = {1: ('Initializable.sol', node)}
+        table = e.namespace_table(self.tree, ('Initializable.sol', node), nodes)
+        self.assertEqual([x['offset'] for x in table], [0, 8])
+        self.assertEqual(table[0]['slot'], str(int('ab' * 32, 16)))
+        member['members'][0]['typeDescriptions']['typeString'] = 'uint128'
+        with self.assertRaisesRegex(e.Stop, 'namespace layout changed'):
+            e.namespace_table(self.tree, ('Initializable.sol', node), nodes)
 
     def test_reproducible_schema_and_executor(self):
         arts = {name: dict(bytecode={'object': '0x6000'}) for name in e.m.NAMES}

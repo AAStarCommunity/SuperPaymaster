@@ -459,7 +459,11 @@ class ManifestTests(unittest.TestCase):
                 e.update(ciRun=dvt_ci_run(), acceptedFailures=dvt_accepted_failures())
             if kind == 'slither':
                 e['tool']['name'] = 'slither'
-                e['findings'] = dict(threshold='Low', aboveThreshold=[], accepted=[])
+                e['findings'] = dict(threshold='Low', aboveThreshold=[], accepted=[], outOfScope=[], inScopeTotal=0)
+                e['scope'] = dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymaster.sol'])
+                table = dict(storage=[dict(label='balance', slot='0', offset=0, type='uint256')], namespaces=[])
+                e['storageLayout'] = [dict(core=c, extension=x, reference=r, testReferences=[], coreTable=table, extensionTable=table)
+                                      for c, x, r in m.LAYOUT_PAIRS]
             if kind == 'reproducible-build':
                 e['contracts'] = {k:m.creation_hashes('0x60006000f3a00001') for k in m.NAMES}
                 e['contracts']['OverIssueFraudProofVerifier'] = m.creation_hashes(VERIFIER_CODE, 'OverIssueFraudProofVerifier')
@@ -2042,8 +2046,27 @@ class ManifestTests(unittest.TestCase):
         e = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
         e['findings']['aboveThreshold'] = ['unreviewed']
         with self.assertRaises(a.Gate): m.evidence_file(self.file_ref('finding',e),'slither')
-        e['findings']['accepted'] = [dict(id='unreviewed',reason='reviewed exception')]
+        e['findings']['accepted'] = [dict(id='unreviewed',classification='accepted',reason='reviewed exception')]
+        e['findings']['inScopeTotal'] = 1
         m.evidence_file(self.file_ref('accepted-finding',e),'slither')
+
+    def test_slither_scope_counts_and_parity_tampering_rejected(self):
+        original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        def change_count(e): e['findings']['inScopeTotal'] = 1
+        def omit_pair(e): e['storageLayout'].pop()
+        def change_slot(e): e['storageLayout'][0]['extensionTable']['storage'][0]['slot'] = '1'
+        def change_namespace(e): e['storageLayout'][1]['extensionTable']['namespaces'].append(
+            dict(label='namespace', slot='100', offset=0, type='address'))
+        def wrong_scope(e): e['scope']['contracts'].pop()
+        def reviewed_outside(e): e['findings']['outOfScope'] = [dict(id='outside', impact='High',
+            files=['contracts/lib/Other.sol'], classification='accepted')]
+        def overlap(e): e['findings']['outOfScope'] = [dict(id='outside', impact='High',
+            files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
+        for mutate in (change_count, omit_pair, change_slot, change_namespace, wrong_scope, reviewed_outside, overlap):
+            value = copy.deepcopy(original)
+            mutate(value)
+            with self.subTest(mutation=mutate.__name__), self.assertRaises(a.Gate):
+                m.validate_evidence_details(value, 'slither')
 
     def test_collect_registry_version_negative(self):
         with patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \

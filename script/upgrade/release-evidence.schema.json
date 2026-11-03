@@ -809,7 +809,9 @@
         "tool",
         "counts",
         "result",
-        "findings"
+        "findings",
+        "scope",
+        "storageLayout"
       ],
       "properties": {
         "kind": {
@@ -866,7 +868,9 @@
           "required": [
             "threshold",
             "aboveThreshold",
-            "accepted"
+            "accepted",
+            "outOfScope",
+            "inScopeTotal"
           ],
           "properties": {
             "threshold": {
@@ -881,7 +885,8 @@
               "type": "array",
               "items": {
                 "type": "string"
-              }
+              },
+              "uniqueItems": true
             },
             "accepted": {
               "type": "array",
@@ -890,7 +895,8 @@
                 "additionalProperties": false,
                 "required": [
                   "id",
-                  "reason"
+                  "reason",
+                  "classification"
                 ],
                 "properties": {
                   "id": {
@@ -900,11 +906,322 @@
                   "reason": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "classification": {
+                    "enum": [
+                      "false-positive",
+                      "accepted"
+                    ]
+                  },
+                  "row": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "check": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 }
               }
+            },
+            "outOfScope": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "impact": {
+                    "enum": [
+                      "Optimization",
+                      "Informational",
+                      "Low",
+                      "Medium",
+                      "High"
+                    ]
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1,
+                    "uniqueItems": true
+                  },
+                  "classification": {
+                    "const": "unclassified"
+                  }
+                },
+                "required": [
+                  "id",
+                  "impact",
+                  "files",
+                  "classification"
+                ]
+              }
+            },
+            "inScopeTotal": {
+              "type": "integer",
+              "minimum": 0
             }
           }
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contracts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 10,
+              "uniqueItems": true
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^contracts/src/.*\\.sol$"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "contracts",
+            "files"
+          ]
+        },
+        "storageLayout": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "core": {
+                "type": "string",
+                "minLength": 1
+              },
+              "extension": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reference": {
+                "type": "string",
+                "minLength": 1
+              },
+              "coreTable": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "storage": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "slot": {
+                          "type": "string",
+                          "pattern": "^[0-9]+$"
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 31
+                        },
+                        "type": {
+                          "oneOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "object",
+                              "minProperties": 1
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "slot",
+                        "offset",
+                        "type"
+                      ]
+                    },
+                    "minItems": 1
+                  },
+                  "namespaces": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "slot": {
+                          "type": "string",
+                          "pattern": "^[0-9]+$"
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 31
+                        },
+                        "type": {
+                          "oneOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "object",
+                              "minProperties": 1
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "slot",
+                        "offset",
+                        "type"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "storage",
+                  "namespaces"
+                ]
+              },
+              "extensionTable": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "storage": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "slot": {
+                          "type": "string",
+                          "pattern": "^[0-9]+$"
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 31
+                        },
+                        "type": {
+                          "oneOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "object",
+                              "minProperties": 1
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "slot",
+                        "offset",
+                        "type"
+                      ]
+                    },
+                    "minItems": 1
+                  },
+                  "namespaces": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "slot": {
+                          "type": "string",
+                          "pattern": "^[0-9]+$"
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 31
+                        },
+                        "type": {
+                          "oneOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            {
+                              "type": "object",
+                              "minProperties": 1
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "slot",
+                        "offset",
+                        "type"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "storage",
+                  "namespaces"
+                ]
+              },
+              "testReferences": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "core",
+              "extension",
+              "reference",
+              "coreTable",
+              "extensionTable",
+              "testReferences"
+            ]
+          },
+          "minItems": 2,
+          "maxItems": 2
         }
       }
     },
