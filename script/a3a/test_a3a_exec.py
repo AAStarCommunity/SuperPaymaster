@@ -349,7 +349,7 @@ class ExecutorTests(unittest.TestCase):
                 elif sig == 'getThreshold()':
                     v = abi_word(3 if case == 'threshold' else 2)
                 elif sig == 'getOwners()':
-                    owners = list(ex.SAFE_OWNERS)
+                    owners = list(ex.safe_owners(BLOCK))
                     if case == 'owners':
                         owners = [ex.ZERO]*3
                     v = '0x'+abi_word(32)[2:]+abi_word(3)[2:]+''.join(abi_word(x)[2:] for x in owners)
@@ -401,7 +401,7 @@ class ExecutorTests(unittest.TestCase):
                 self.assertEqual(p['roles']['DEFAULT_ADMIN'], [p['pin']['timelock']])
                 self.assertEqual(p['pin']['timelock'], PACKET['simulatedAddresses']['newTimelock'].lower())
                 self.assertEqual(p['pin']['capped'], PACKET['simulatedAddresses']['apntsCapped'].lower())
-                self.assertEqual(p['pin']['owners'], list(ex.SAFE_OWNERS))
+                self.assertEqual(p['pin']['owners'], list(ex.safe_owners(BLOCK)))
                 self.assertEqual(p['pin']['safeNonce'], 1)
                 self.assertEqual(p['operationId'], PACKET['simulatedAddresses']['acceptOperationId'])
                 for s, reference in zip(p['steps'], PACKET['steps']):
@@ -428,6 +428,15 @@ class ExecutorTests(unittest.TestCase):
 
     def test_safe_modules_malformed(self):
         self.assertEqual(self.run_plan('modules_malformed'), (1, 'safe_modules'))
+
+    def test_safe_owners_are_block_dependent(self):
+        old = ex.safe_owners(hex(12060358))
+        self.assertEqual(old, (ex.EXECUTOR, ex.APPROVER, '0x92a30ef64b0b750220b2b3bafe4f3121263d45b3'))
+        with self.assertRaises(ex.Gate) as caught: ex.safe_owners(hex(12060359))
+        self.assertEqual(caught.exception.record['gate'], 'safe_owners_reviewed')
+        reviewed = (ex.EXECUTOR, ex.APPROVER, '0xd6e95a852d68f99759bf47e77d84fcc8d6f93494')
+        self.assertEqual(ex.safe_owners(hex(12060359), reviewed), reviewed)
+        self.assertEqual(ex.safe_owners(hex(12060358), reviewed), old)
 
     def test_distinct_preflight_gates(self):
         cases = {'chain': 'chain_id', 'missing': 'fork_config_missing',

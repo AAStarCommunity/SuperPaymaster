@@ -1,0 +1,61 @@
+{
+  "packetSha256": "460e024407694772a511b283f62442f2521b297bddfad2b823ddc2dee80654d1",
+  "receipts": [
+    {
+      "step": "approveHash",
+      "hash": "0xe268fc43baeb109562d8c85e1e1e71a6eefdb32c4c23513ee39f154d4dc2dcd7",
+      "block": 12060358,
+      "gasUsed": 135104
+    },
+    {
+      "step": "execTransaction",
+      "hash": "0x3f45f5ef1987f3f625da2fb85a90c11abea2ab818a474d25245a7a1b9862b695",
+      "block": 12060359,
+      "gasUsed": 188871
+    }
+  ],
+  "readback": [
+    {
+      "owners": [
+        "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c",
+        "0xe3d28aa77c95d5c098170698e5ba68824bfc008d",
+        "0xd6e95a852d68f99759bf47e77d84fcc8d6f93494"
+      ],
+      "safeNonce": 4,
+      "threshold": 2,
+      "nonces": {
+        "0xe3d28aa77c95d5c098170698e5ba68824bfc008d": [
+          101,
+          101
+        ],
+        "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c": [
+          756,
+          756
+        ]
+      },
+      "isOwnerOld": 0,
+      "isOwnerNew": 1
+    },
+    {
+      "owners": [
+        "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c",
+        "0xe3d28aa77c95d5c098170698e5ba68824bfc008d",
+        "0xd6e95a852d68f99759bf47e77d84fcc8d6f93494"
+      ],
+      "safeNonce": 4,
+      "threshold": 2,
+      "nonces": {
+        "0xe3d28aa77c95d5c098170698e5ba68824bfc008d": [
+          101,
+          101
+        ],
+        "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c": [
+          756,
+          756
+        ]
+      },
+      "isOwnerOld": 0,
+      "isOwnerNew": 1
+    }
+  ]
+}
