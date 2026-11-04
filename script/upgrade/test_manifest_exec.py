@@ -2940,6 +2940,22 @@ class GasGateControls(unittest.TestCase):
         self.step['gasEvidence']['estimateContext']['stateOverrides'] = {}
         self.stop('remote_estimate_overrides')
 
+    def test_wrong_time_override(self):
+        self.step['gasEvidence']['estimateContext']['blockOverrides'] = {'time': hex(self.step['executionTimestamp']+1)}
+        self.stop('remote_estimate_time')
+
+    def test_wrong_prior_steps(self):
+        # One prior step missing from the recorded prefix.
+        self.step['gasEvidence']['priorSteps'] = []
+        self.stop('remote_estimate_prior_steps')
+
+    def test_tampered_prior_steps(self):
+        for prior in (['other'], ['prior', 'prior']):
+            with self.subTest(prior=prior):
+                self.setUp()
+                self.step['gasEvidence']['priorSteps'] = prior
+                self.stop('remote_estimate_prior_steps')
+
     def test_block_limit(self):
         self.step['gasEvidence']['blockGasLimit'] = a.qty(self.step['tx']['gas'])-1
         self.stop('block_gas_limit')

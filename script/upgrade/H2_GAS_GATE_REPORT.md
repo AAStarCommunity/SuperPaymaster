@@ -1,7 +1,6 @@
 # DSR H-2: real-chain gas gate
 
-Review-fix base: `b1f52040`. Changes remain uncommitted.
-No commits, remote RPC calls, fork launches, signing, or broadcasting were performed for this change. Tests use offline fixtures and local ABI tools.
+Commits on `cc125/chain-gas-gate` (PR #599): `6a615186` (gate), `b1f52040` (challenge round 1), `17a00c5d` (round 2), `b256ac8a` (merge of main `7c0d6caf`), then the DSR review fix recorded in the final section. No remote RPC calls, fork launches, signing or broadcasting were performed for this change; tests use offline fixtures and local ABI tools.
 
 ## Original survey at `9edde2b18eec455faf993d65aa81bc7a30b931c7`
 
@@ -93,7 +92,7 @@ python3 -B script/upgrade/probe_gas_gates.py
 GAS_GATE_PROBES PASS 6/6
 ```
 
-The focused gas/probe run passed 13 tests. All five fix-removal checks above produced the expected regression. `git diff --check` passed. That delivery retained HEAD `6a615186`; no commits were created. No remote RPC, fork launch, signing, or broadcasting was performed.
+The focused gas/probe run passed 13 tests. All five fix-removal checks above produced the expected regression. `git diff --check` passed. This round was committed as `b1f52040`. No remote RPC, fork launch, signing, or broadcasting was performed.
 
 ## Review regressions at b1f52040
 
@@ -136,4 +135,13 @@ FIX_REMOVAL execute_b4 RED_CONFIRMED
 FIX_REMOVAL fresh_gas RED_CONFIRMED
 ```
 
-`git diff --check` passed. HEAD remains `b1f52040`; no commits were created. Only offline fixtures and local ABI tools were used.
+`git diff --check` passed. This round was committed as `17a00c5d`. Only offline fixtures and local ABI tools were used.
+
+## DSR review of #599 (b256ac8a)
+
+- Two gates had no negative control (replacing them with `pass` left all 218 manifest tests green): `remote_estimate_time` and `remote_estimate_prior_steps`. Added `test_wrong_time_override`, `test_wrong_prior_steps` (one prior step missing) and `test_tampered_prior_steps` (wrong id, duplicated id); both gates are in `probe_gas_gates.py`, which now reports 8/8, every suppressed gate leaving the bad input accepted except `remote_estimate_missing` (caught by `measurement_estimateGas`).
+- Precondition for any future live sender (not implemented here: manifest signing/sending remain disabled, and `fresh_gas` live mode has no production caller yet). Before **each** signature the sender must call `fresh_gas` in live mode against `latest` without overrides and:
+  - STOP if the live estimate exceeds the limit;
+  - STOP and re-pin if the live estimate exceeds `floor(limit / 1.1)`: the limit is the pinned estimate x1.3, so a rise of more than about 18% means the state changed after the pin;
+  - write the live estimate, block number and limit of every comparison into the send record.
+  DSR reviews this together with the sender.

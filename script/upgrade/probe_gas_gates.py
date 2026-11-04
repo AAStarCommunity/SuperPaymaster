@@ -12,6 +12,8 @@ CASES = {
     'test_missing_override': 'remote_estimate_overrides',
     'test_fresh_estimate': 'fresh_estimate',
     'test_block_limit': 'block_gas_limit',
+    'test_wrong_time_override': 'remote_estimate_time',
+    'test_wrong_prior_steps': 'remote_estimate_prior_steps',
 }
 
 
