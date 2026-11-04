@@ -4,6 +4,70 @@ No commit or network request. Registry is adopted under option (a), with the nar
 
 All ten fresh implementation comparisons pass. The [immutable table and creation corroboration](DEPLOYED_SOURCE_PARITY_RESULTS.md#re-ruling-immutable-checks-2026-11-04) record 35 values, including 16 addresses checked against OLD and expected configuration. No live storage-authority or real-fork acceptance is claimed.
 
+## PR #601 Low review follow-up — L1–L5
+
+Base HEAD: `4656bd9f`. Implemented without committing or accessing the network.
+All six suites ran from the repository root with the fork/control environment
+variables unset, under both requested engines.
+
+Full transaction data (including creation bytecode) is scanned for OLD, and both
+primary and variant destinations reject OLD. Short calldata layouts stop at
+`old_owner_calldata_payload` instead of raising IndexError. Endpoint identity now
+hashes the hostname without the primary/secondary label, credentials, or path;
+equal identities stop during collection and deployed-evidence replay.
+
+Registry history includes RoleRegistered and RoleExited with the same bounded,
+partition-checked log queries, canonical validation, client-side OLD filtering,
+and block/transaction/log ordering. Registrations require a later exit for the
+same role. Both new event types contribute to the role-id union. Per-event counts
+are recorded; zero revokes/exits are allowed. Standard roles must still appear in
+RoleConfigured and grant-type history. The offline Registry fixture models the
+reviewer's supplied counts: 15 RoleGranted, 0 RoleRevoked, 36 RoleRegistered,
+0 RoleExited, none for OLD. These are fixture inputs, not a fresh chain reading.
+
+Gate-removal outcomes match under both engines:
+
+| Case | Gate present | Gate removed |
+| --- | --- | --- |
+| L1: OLD in creation prefix | named STOP | bad fixture accepted |
+| L2: primary / variant destination is OLD | named STOP for each | both bad fixtures accepted |
+| L3: OLD registered without exit | named STOP | bad fixture accepted |
+| L4: same endpoint host / recorded identity | named STOP in collection and replay | bad fixture accepted |
+| L5: short `execute(uint256)` layout | named STOP | IndexError reproduced |
+
+Dedicated mutants are red under both engines: L1 has one assertion failure;
+L2 has two; L3 has one; L4 collection and replay each have one. L5 has one
+IndexError when its gate is removed. Unmodified tests pass, including registered
+then exited, mismatched-role exit rejection, empty revokes/exits, and standard
+roles evidenced solely by RoleRegistered. Probe details and log hashes are in
+[review-low-probes.json](fixtures/old-owner/review-low-probes.json).
+
+Final suite lines:
+
+```text
+A3A_ENGINE_DIR=$HOME/.foundry/bin
+oldowner: Ran 52 tests in 18.592s — OK (skipped=2)
+manifest: Ran 287 tests in 322.019s — OK (skipped=2)
+a3a: Ran 175 tests in 34.282s — OK
+upgrade: Ran 141 tests in 1.209s — OK
+adapter: Ran 53 tests in 0.229s — OK
+release: Ran 69 tests in 3.176s — OK
+
+Default nightly (A3A_ENGINE_DIR unset)
+oldowner: Ran 52 tests in 19.352s — OK (skipped=2)
+manifest: Ran 287 tests in 348.538s — OK (skipped=2)
+a3a: Ran 175 tests in 34.780s — OK
+upgrade: Ran 141 tests in 1.494s — OK
+adapter: Ran 53 tests in 0.287s — OK
+release: Ran 69 tests in 3.168s — OK
+
+git diff --check: passed
+```
+
+The two skips in oldowner and manifest are opt-in live/fork controls.
+Logs: `/tmp/low-{stable,nightly}-{oldowner,manifest,a3a,upgrade,adapter,release,mutants}.log`.
+Earlier follow-ups below retain their historical results.
+
 ## PR #601 DSR follow-up — R1, R2, R3
 
 Base HEAD: `9868c670c98341002e5a8cf5cfa8d0890a011b98`. No commit made.
@@ -302,7 +366,9 @@ old_owner_creation_before removed=red accepted
 
 The post-upgrade negative-control test additionally injects each annotated authority, membership, mapping, allowance, role-config, operator and Safe result into a replay of the full audit and requires its specific STOP gate. Fork doubles verify CONTROL success, OLD rejection and restoration through setters/getters. Source tests cover fresh-build selection, runtime mismatch, immutable masking, implementation mismatch, creation-boundary mismatch, missing source and replay tampering.
 
-## Live acceptance remains blocked
+## Historical blocker — superseded
+
+The following describes the earlier acceptance state and is superseded by the later results above.
 
 All ten attempted candidate-source rebuilds stopped before compiler execution because local Chainlink submodule objects are unavailable. No per-contract runtime parity, actual deployment boundary, live historical-log completeness, live getter value or real-fork injection is claimed. Full candidate mappings and the precise remaining DSR/live inputs are in [OLD_OWNER_ISOLATION.md](OLD_OWNER_ISOLATION.md) and [deployed_source_candidates.json](deployed_source_candidates.json).
 

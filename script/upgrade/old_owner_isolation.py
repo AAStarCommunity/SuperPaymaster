@@ -133,6 +133,7 @@ def extract(tree, names=NAMES):
 def audit(rpc, pin, inventory, fork=None):
     block = pin['stateBlock']
     reads, fork_controls, histories = [], [], {}
+    history_counts = {}
     fork = fork or getattr(rpc,'fork',None)
     def probe(case):
         a.need('old_owner_control_verified', 'available' if fork else 'unverified', 'available')
@@ -217,7 +218,7 @@ def audit(rpc, pin, inventory, fork=None):
                     role_owner(target,role['value'],'old_owner_role_admin_'+role['name'])
         deployments = {r['target']:r['creationBlock'] for r in inventory.get('deployedSources',[])}
         creation = deployments.get(target,pin.get('isolationDeployments',{}).get(target))
-        histories[target] = role_history(recorded,pin,target,spec,creation)
+        histories[target] = role_history(recorded,pin,target,spec,creation,history_counts)
         for role in histories[target]:
             if spec['hasRole']:
                 value = word(target,'hasRole(bytes32,address)',role,OLD)
@@ -391,7 +392,7 @@ def audit(rpc, pin, inventory, fork=None):
                getter=dict(target=u.SAFE,signature='isModuleEnabled(address)',args=['$ACCOUNT'])))
     canonical_pin()
     roles.update(histories.get(u.REG,[]))
-    return dict(safeFallback=dict(address=FALLBACK_HANDLER,provenance='docs/release/a3a-precheck-v4/snapshot.json; DSR canonical deployment-list confirmation required'), forkControls=fork_controls, roleHistory=histories, inventory=inventory, targets=targets, configuredRoles=sorted(roles), xpnts=sorted(xpnts), tokens=sorted(tokens), reverseAllowances=reverse, reads=reads)
+    return dict(safeFallback=dict(address=FALLBACK_HANDLER,provenance='docs/release/a3a-precheck-v4/snapshot.json; DSR canonical deployment-list confirmation required'), forkControls=fork_controls, roleHistory=histories, roleHistoryCounts=history_counts, inventory=inventory, targets=targets, configuredRoles=sorted(roles), xpnts=sorted(xpnts), tokens=sorted(tokens), reverseAllowances=reverse, reads=reads)
 
 
 def validate(section, pin, inventory):
@@ -736,6 +737,7 @@ def validate_deployed(section, pin, sources, pending=None):
     a.need('old_owner_source_replay_unused',next(rows,None),None)
     identities = section.get('endpointIdentities',{})
     a.need('old_owner_endpoint_identities',sorted(identities),['primary','secondary'])
+    assert_endpoint_identities(identities)
     for identity in identities.values():
         a.typed(identity,a.HASH32)
     clean = {k:v for k,v in section.items() if k not in ('sourceReads','sourceSelection','endpointIdentities')}
@@ -816,6 +818,8 @@ def post_upgrade_clones(rpc, pin, tokens, pre_upgrade):
 
 GRANTED = 'RoleGranted(bytes32,address,address)'
 REVOKED = 'RoleRevoked(bytes32,address,address)'
+REGISTERED = 'RoleRegistered(bytes32,address,uint256,uint256)'
+EXITED = 'RoleExited(bytes32,address,uint256,uint256)'
 CONTROL = '0x00000000000000000000000000000000000c0170'
 FALLBACK_HANDLER = '0xfd0732dc9e303f09fcef3a7388ad10a83459ec99'
 
@@ -841,11 +845,13 @@ def bounded_history_logs(rpc, query):
     return logs
 
 
-def role_history(rpc, pin, target, spec, creation):
+def role_history(rpc, pin, target, spec, creation, counts=None):
     """Bounded history, canonical event identities, and independent OLD filter."""
     start, stop = creation, a.qty(pin['stateBlock'])
     a.need('old_owner_history_range',type(start) is int and 0 < start <= stop,True)
-    topics = [a.keccak(GRANTED),a.keccak(REVOKED)]
+    events = [GRANTED, REVOKED] + ([REGISTERED, EXITED] if target == u.REG else [])
+    topics = [a.keccak(event) for event in events]
+    grants = {a.keccak(GRANTED), a.keccak(REGISTERED)}
     query = dict(address=target,fromBlock=hex(start),toBlock=pin['stateBlock'],topics=[topics])
     logs = bounded_history_logs(rpc,query)
     old_logs = bounded_history_logs(rpc,dict(query,topics=[topics,None,'0x'+OLD[2:].zfill(64)]))
@@ -854,7 +860,9 @@ def role_history(rpc, pin, target, spec, creation):
         a.need('old_owner_history_address',log.get('address'),target)
         a.need('old_owner_history_removed',log.get('removed',False),False)
         ts = log.get('topics',[])
-        a.need('old_owner_history_topics',len(ts),4)
+        a.need('old_owner_history_topics',len(ts),3 if ts and ts[0] in (a.keccak(REGISTERED),a.keccak(EXITED)) else 4)
+        if ts and ts[0] in (a.keccak(REGISTERED),a.keccak(EXITED)):
+            a.need('old_owner_history_data',len(a.typed(log.get('data'),a.HEXDATA)),130)
         a.need('old_owner_history_signature',ts[0] in topics,True)
         for topic in ts[1:]:
             a.typed(topic,a.HASH32)
@@ -877,13 +885,17 @@ def role_history(rpc, pin, target, spec, creation):
     a.need('old_owner_history_old_filter',old_logs,expected_old)
     standard = {r['value'] for r in spec['roles']}
     roles = {l['topics'][1] for l in logs}
-    a.need('old_owner_history_positive',not spec['hasRole'] or standard <= roles,True)
+    grant_roles = {l['topics'][1] for l in logs if l['topics'][0] in grants}
+    a.need('old_owner_history_positive',not spec['hasRole'] or standard <= grant_roles,True)
+    if counts is not None:
+        counts[target] = {event.split('(')[0]:sum(l['topics'][0] == topic for l in logs) for event,topic in zip(events,topics)}
     active = set()
     for log in sorted(expected_old,key=lambda l:(a.qty(l['blockNumber']),a.qty(l['transactionIndex']),a.qty(l['logIndex']))):
-        if log['topics'][0] == topics[0]:
-            active.add(log['topics'][1])
+        if log['topics'][0] in grants:
+            active.add((log['topics'][0],log['topics'][1]))
         else:
-            active.discard(log['topics'][1])
+            grant = a.keccak(REGISTERED) if log['topics'][0] == a.keccak(EXITED) else a.keccak(GRANTED)
+            active.discard((grant,log['topics'][1]))
     a.need('old_owner_uncancelled_grants',sorted(active),[])
     return sorted(roles | standard)
 
@@ -1003,6 +1015,7 @@ def assert_manifest_calldata(steps, signatures):
         # These bytes are calls, not opaque signatures/proofs; unknown selectors stop.
         payload_index = 2 if sig.startswith(('execTransaction(', 'schedule(', 'execute(', 'scheduleBatch(', 'executeBatch(')) else 1 if sig.startswith('upgradeToAndCall(') else 0 if sig.startswith('multicall(bytes[])') else None
         if payload_index is not None:
+            a.need('old_owner_calldata_payload',len(values) > payload_index,True)
             payload = values[payload_index]
             for child in payload if isinstance(payload,list) else [payload]:
                 inspect(child,depth=depth+1)
@@ -1010,6 +1023,9 @@ def assert_manifest_calldata(steps, signatures):
         return values
     for step in steps:
         for tx in [step['tx'],*step.get('variants',{}).values()]:
+            a.need('old_owner_calldata_target',str(tx.get('to')).lower() != OLD,True)
+            a.typed(tx['data'],a.HEXDATA)
+            a.need('old_owner_calldata_bytes',OLD[2:] not in tx['data'][2:].lower(),True)
             if tx.get('to') is None:
                 ctor = step.get('constructor')
                 a.need('old_owner_constructor_abi',isinstance(ctor,dict),True)
@@ -1033,10 +1049,15 @@ def local_control_fork():
 
 
 def endpoint_identity(rpc, label):
-    """Hash only the public origin and label; never retain credentials, paths or queries."""
+    """Hash the public host without the endpoint label or credentials."""
     from urllib.parse import urlsplit
     parsed = urlsplit(getattr(rpc,'url',''))
-    return a.keccak(label+'|'+str(parsed.scheme)+'|'+str(parsed.hostname)+'|'+str(parsed.port))
+    a.need('old_owner_endpoint_host',parsed.hostname is not None,True)
+    return a.keccak(parsed.hostname.lower())
+
+
+def assert_endpoint_identities(identities):
+    a.need('old_owner_endpoint_distinct',identities['primary'] != identities['secondary'],True)
 
 
 def negative_controls(section, pin, inventory):

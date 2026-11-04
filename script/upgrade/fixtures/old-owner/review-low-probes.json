@@ -1,0 +1,174 @@
+{
+  "baseHead": "4656bd9f",
+  "offline": true,
+  "registryFixtureCounts": {
+    "RoleGranted": 15,
+    "RoleRevoked": 0,
+    "RoleRegistered": 36,
+    "RoleExited": 0
+  },
+  "engines": {
+    "stable": {
+      "configuration": "A3A_ENGINE_DIR=$HOME/.foundry/bin",
+      "suiteSummary": "Ran 52 tests in 18.592s\n\nOK (skipped=2)",
+      "suiteLogSha256": "fcad595d4d12b3ec6db32e469e09ebaca01e6beddb77cd176441a8fd85012ca1",
+      "removalProbes": [
+        {
+          "gate": "old_owner_endpoint_distinct",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_uncancelled_grants",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_calldata_bytes",
+          "outcome": "caught_elsewhere:old_owner_calldata_argument"
+        },
+        {
+          "gate": "old_owner_calldata_bytes",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_calldata_target",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_calldata_target",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_calldata_payload",
+          "outcome": "crash:IndexError"
+        },
+        {
+          "gate": "old_owner_endpoint_distinct",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_endpoint_distinct",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_uncancelled_grants",
+          "outcome": "accepted"
+        }
+      ],
+      "dedicatedMutants": [
+        "LOW_MUTANT L1 gate=old_owner_calldata_bytes failures=1 errors=0 red=True",
+        "LOW_MUTANT L2 gate=old_owner_calldata_target failures=2 errors=0 red=True",
+        "LOW_MUTANT L3 gate=old_owner_uncancelled_grants failures=1 errors=0 red=True",
+        "LOW_MUTANT L4 gate=old_owner_endpoint_distinct failures=1 errors=0 red=True",
+        "LOW_MUTANT L4_replay gate=old_owner_endpoint_distinct failures=1 errors=0 red=True",
+        "LOW_MUTANT L5 gate=old_owner_calldata_payload failures=0 errors=1 red=True"
+      ],
+      "suites": {
+        "oldowner": {
+          "summary": "Ran 52 tests in 18.592s \u2014 OK (skipped=2)",
+          "logSha256": "fcad595d4d12b3ec6db32e469e09ebaca01e6beddb77cd176441a8fd85012ca1"
+        },
+        "manifest": {
+          "summary": "Ran 287 tests in 322.019s \u2014 OK (skipped=2)",
+          "logSha256": "195446fac786bd4c6abc8c8908ac939d458d690b3c8e618434acf2b86ad88373"
+        },
+        "a3a": {
+          "summary": "Ran 175 tests in 34.282s \u2014 OK",
+          "logSha256": "883d2e02c9d374efd274477d80435c56035f5eeed1c7dcda2ace666655daacf3"
+        },
+        "upgrade": {
+          "summary": "Ran 141 tests in 1.209s \u2014 OK",
+          "logSha256": "300ef01ba2907aa5bea3e5d3f2237116892f68333095ab620d6f6a4b1b07e5e4"
+        },
+        "adapter": {
+          "summary": "Ran 53 tests in 0.229s \u2014 OK",
+          "logSha256": "88e8ddd42e7b44700653b1396665fc4d0ca14d8093ad72abf762c8c3d980c240"
+        },
+        "release": {
+          "summary": "Ran 69 tests in 3.176s \u2014 OK",
+          "logSha256": "94d8265c33451578d879e95a4573bb1ab4d9ee5deaf83536e877a56f16ff1769"
+        }
+      }
+    },
+    "nightly": {
+      "configuration": "A3A_ENGINE_DIR unset",
+      "suiteSummary": "Ran 52 tests in 19.352s\n\nOK (skipped=2)",
+      "suiteLogSha256": "cb42c6640803252117fde235a69ecacc976e72905a5d3feed4541acf6dbd95e6",
+      "removalProbes": [
+        {
+          "gate": "old_owner_endpoint_distinct",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_uncancelled_grants",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_calldata_bytes",
+          "outcome": "caught_elsewhere:old_owner_calldata_argument"
+        },
+        {
+          "gate": "old_owner_calldata_bytes",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_calldata_target",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_calldata_target",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_calldata_payload",
+          "outcome": "crash:IndexError"
+        },
+        {
+          "gate": "old_owner_endpoint_distinct",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_endpoint_distinct",
+          "outcome": "accepted"
+        },
+        {
+          "gate": "old_owner_uncancelled_grants",
+          "outcome": "accepted"
+        }
+      ],
+      "dedicatedMutants": [
+        "LOW_MUTANT L1 gate=old_owner_calldata_bytes failures=1 errors=0 red=True",
+        "LOW_MUTANT L2 gate=old_owner_calldata_target failures=2 errors=0 red=True",
+        "LOW_MUTANT L3 gate=old_owner_uncancelled_grants failures=1 errors=0 red=True",
+        "LOW_MUTANT L4 gate=old_owner_endpoint_distinct failures=1 errors=0 red=True",
+        "LOW_MUTANT L4_replay gate=old_owner_endpoint_distinct failures=1 errors=0 red=True",
+        "LOW_MUTANT L5 gate=old_owner_calldata_payload failures=0 errors=1 red=True"
+      ],
+      "suites": {
+        "oldowner": {
+          "summary": "Ran 52 tests in 19.352s \u2014 OK (skipped=2)",
+          "logSha256": "cb42c6640803252117fde235a69ecacc976e72905a5d3feed4541acf6dbd95e6"
+        },
+        "manifest": {
+          "summary": "Ran 287 tests in 348.538s \u2014 OK (skipped=2)",
+          "logSha256": "8fbcc81bd5f5649f4d5c8170ed460bc31bbf24c1e5496685ad6981946bacff24"
+        },
+        "a3a": {
+          "summary": "Ran 175 tests in 34.780s \u2014 OK",
+          "logSha256": "e8994e68c9aa05a6e84604fa57b3b4f731a6463016e9c1aacc3da4a1986c56eb"
+        },
+        "upgrade": {
+          "summary": "Ran 141 tests in 1.494s \u2014 OK",
+          "logSha256": "420858f98ce109916bf933bbbe808ce4e019588995c41aa53c5004dfb16d2e80"
+        },
+        "adapter": {
+          "summary": "Ran 53 tests in 0.287s \u2014 OK",
+          "logSha256": "88c08d11d48518b87ecc7ea596ce4b3dd35145b0249855d245f542a5d74b7a2c"
+        },
+        "release": {
+          "summary": "Ran 69 tests in 3.168s \u2014 OK",
+          "logSha256": "efed31cf9c42c28b44f7a1b2091f039f7d01a990e9f05f4b7d00cfda47353154"
+        }
+      }
+    }
+  }
+}

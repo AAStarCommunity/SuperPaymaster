@@ -1191,6 +1191,7 @@ def collect_pair(primary, secondary, block, inputs, stage='full'):
         secondary=copy.deepcopy(independent['oldOwnerIsolation']['reads']))
     if 'sourceSelection' in pin['oldOwnerIsolation']:
         pin['oldOwnerIsolation']['endpointIdentities'] = {label:isolation.endpoint_identity(rpc,label) for label,rpc in (('primary',primary),('secondary',secondary))}
+        isolation.assert_endpoint_identities(pin['oldOwnerIsolation']['endpointIdentities'])
     return pin
 
 

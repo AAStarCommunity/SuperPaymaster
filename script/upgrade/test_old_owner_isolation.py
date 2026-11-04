@@ -171,9 +171,12 @@ def fixture_rpc(pin, overrides=None, factory_token=TOKEN):
             if len(query['topics']) == 3:
                 return []
             name = 'Registry' if query['address'] == u.REG else 'TimelockController' if query['address'] == u.TL else None
-            return [dict(address=query['address'],topics=[a.keccak(o.GRANTED),row['value'],'0x'+u.SAFE[2:].zfill(64),'0x'+u.TL[2:].zfill(64)],
-                         blockNumber=pin['stateBlock'],blockHash=pin['stateBlockHash'],transactionHash='0x'+'99'*32,transactionIndex='0x0',logIndex=hex(i))
-                    for i,row in enumerate(inventory()[name]['roles'])] if name else []
+            rows = inventory()[name]['roles'] if name else []
+            kinds = ([o.GRANTED]*15+[o.REGISTERED]*36) if name == 'Registry' else [o.GRANTED]*len(rows)
+            return [dict(address=query['address'],topics=[a.keccak(kind),rows[i % len(rows)]['value'],'0x'+u.SAFE[2:].zfill(64)]+(['0x'+u.TL[2:].zfill(64)] if kind == o.GRANTED else []),
+                         data=raw([0,123]),blockNumber=pin['stateBlock'],blockHash=pin['stateBlockHash'],transactionHash='0x'+'99'*32,transactionIndex='0x0',logIndex=hex(i))
+                    for i,kind in enumerate(kinds)]
+
         if method == 'eth_getBlockByNumber':
             return dict(number=params[0],hash=pin['stateBlockHash'])
         assert params[-1] == pin['stateBlock'], params
@@ -751,6 +754,12 @@ class OldOwnerIsolationTests(unittest.TestCase):
             value['endpointResults'] = dict(primary=copy.deepcopy(value['reads']),secondary=copy.deepcopy(value['reads']))
             value['endpointIdentities'] = dict(primary=a.ZERO32,secondary=BLOCK_HASH)
             o.validate_deployed(value,self.pin,sources)
+            duplicate = copy.deepcopy(value)
+            duplicate['endpointIdentities']['secondary'] = duplicate['endpointIdentities']['primary']
+            action = lambda:o.validate_deployed(duplicate,self.pin,sources)
+            with self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'],'old_owner_endpoint_distinct')
+            removed_probe(self,action,'old_owner_endpoint_distinct')
             self.assertEqual(len(value['inventory']['deployedSources']),12)
             bad = copy.deepcopy(value)
             next(r for r in bad['sourceReads'] if r['method'] == 'eth_getCode' and r['params'][1] == self.pin['stateBlock'])['result'] = '0x6001'+CBOR
@@ -1032,6 +1041,72 @@ class OldOwnerIsolationTests(unittest.TestCase):
         ctor = dict(signature='c(address)',bytecode='0x6000')
         with self.assertRaises(a.Gate):
             o.assert_manifest_calldata([dict(tx=dict(to=None,data='0x6000'+a.cast('abi-encode','c(address)',o.OLD)[2:]),constructor=ctor)],signatures)
+
+    def test_review_low_calldata_gates(self):
+        cases = [
+            ('creation_prefix','old_owner_calldata_bytes',[dict(tx=dict(to=None,data='0x60'+o.OLD[2:].upper()),constructor=dict(bytecode='0x60'+o.OLD[2:].upper(),signature='c()'))],[]),
+            ('target','old_owner_calldata_target',[dict(tx=dict(to=o.OLD,data='0x'))],[]),
+            ('variant_target','old_owner_calldata_target',[dict(tx=dict(to=u.REG,data='0x'),variants=dict(other=dict(to=o.OLD,data='0x')))],[]),
+            ('payload','old_owner_calldata_payload',[dict(tx=dict(to=u.REG,data=a.calldata('execute(uint256)',1)))],['execute(uint256)'])]
+        for name,gate,steps,signatures in cases:
+            action = lambda:o.assert_manifest_calldata(steps,signatures)
+            with self.subTest(case=name):
+                with self.assertRaises(a.Gate) as caught: action()
+                self.assertEqual(caught.exception.record['gate'],gate)
+                removed_probe(self,action,gate)
+
+    def test_review_low_endpoint_identity(self):
+        from types import SimpleNamespace
+        first = o.endpoint_identity(SimpleNamespace(url='https://user:secret@rpc.example/a?key=x'),'primary')
+        second = o.endpoint_identity(SimpleNamespace(url='https://rpc.example/b'),'secondary')
+        self.assertEqual(first,second)
+        action = lambda:o.assert_endpoint_identities(dict(primary=first,secondary=second))
+        with self.assertRaises(a.Gate) as caught: action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_endpoint_distinct')
+        removed_probe(self,action,'old_owner_endpoint_distinct')
+        o.assert_endpoint_identities(dict(primary=first,secondary=o.endpoint_identity(SimpleNamespace(url='https://other.example'),'secondary')))
+        import manifest_exec as m
+        value = dict(oldOwnerIsolation=dict(reads=[],sourceSelection={}))
+        with patch.object(m,'collect',side_effect=lambda *args:copy.deepcopy(value)):
+            action = lambda:m.collect_pair(SimpleNamespace(url='https://rpc.example/a'),SimpleNamespace(url='https://rpc.example/b'),'0x123',{})
+            with self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'],'old_owner_endpoint_distinct')
+            removed_probe(self,action,'old_owner_endpoint_distinct')
+
+    def test_review_low_registry_registered_exited(self):
+        baseline = fixture_rpc(self.pin)
+        counts = {}
+        o.role_history(baseline,self.pin,u.REG,inventory()['Registry'],1,counts)
+        self.assertEqual(counts[u.REG],dict(RoleGranted=15,RoleRevoked=0,RoleRegistered=36,RoleExited=0))
+        role = CUSTOM_ROLE
+        def event(kind,index):
+            return dict(address=u.REG,topics=[a.keccak(kind),role,raw([int(o.OLD,16)])],data=raw([0,123]),
+                        blockNumber=self.pin['stateBlock'],blockHash=BLOCK_HASH,transactionHash='0x'+'99'*32,transactionIndex='0x1',logIndex=hex(index))
+        extra = [event(o.REGISTERED,100)]
+        def rpc(method,params):
+            result = baseline(method,params)
+            if method == 'eth_getLogs' and a.qty(params[0]['toBlock']) >= a.qty(self.pin['stateBlock']):
+                result += extra
+            return result
+        action = lambda:o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1)
+        with self.assertRaises(a.Gate) as caught: action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_uncancelled_grants')
+        removed_probe(self,action,'old_owner_uncancelled_grants')
+        extra.append(event(o.EXITED,101))
+        extra.reverse()  # RPC order must not determine cancellation.
+        self.assertIn(role,action())
+        # Exit for a different role cannot cancel OLD's registration.
+        extra[0]['topics'][1] = a.ZERO32
+        with self.assertRaises(a.Gate) as caught: action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_uncancelled_grants')
+        # Standard roles may be evidenced solely by registerRole history.
+        def registered_only(method,params):
+            result = baseline(method,params)
+            if method == 'eth_getLogs':
+                result = [row for row in result if row['topics'][0] == a.keccak(o.REGISTERED)]
+            return result
+        self.assertIn(inventory()['Registry']['roles'][0]['value'],
+                      o.role_history(registered_only,self.pin,u.REG,inventory()['Registry'],1))
 
     def test_grants_cancellation_union_and_truncation(self):
         baseline = fixture_rpc(self.pin)
