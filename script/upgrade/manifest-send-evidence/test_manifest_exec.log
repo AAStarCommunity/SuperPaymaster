@@ -1,0 +1,28 @@
+.......................................................................................................................................................STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+....STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+.STOP: stage_not_final
+STOP: stage_not_final
+.STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+.STOP: plan_hash
+STOP: plan_hash
+...STOP: simulation_stage
+..........................................................................
+----------------------------------------------------------------------
+Ran 235 tests in 220.392s
+
+OK
