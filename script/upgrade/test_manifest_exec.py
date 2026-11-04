@@ -20,9 +20,10 @@ REAL_A3A_VALIDATE_PLAN = a.validate_plan
 ANNI = m.ANNI
 DVT = m.DVT
 SAMPLE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-fraud-drill-sample-4.11.json').read_text())
+VERIFIER_CODE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-creation.json').read_text())['creationBytecode']
 COMMITTEE = m.COMMITTEE
 OLD = m.OLD_AGGREGATOR
-ART = dict(commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
+ART = dict(scope=dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymaster.sol']), commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
     bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
 
@@ -103,7 +104,7 @@ def input_data(p):
         depositTargetWei=10**18, releaseTag='unit-fixture', registryBaselineCommit='b'*40,
         releaseEvidence={key:'c'*64 for key in m.EVIDENCE_KINDS},
         verifier=dict(commit=m.VERIFIER_COMMIT, artifactPath='unit-fixture', ciSha256='e'*64, buildSha256=m.VERIFIER_SHA256,
-                      artifact=dict(bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
+                      artifact=dict(bytecode=VERIFIER_CODE, runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
 
 
 class FakeChain:
@@ -300,11 +301,15 @@ class DvtCiEvidenceTests(unittest.TestCase):
 
 class Round8Controls(unittest.TestCase):
     def dvt_rebuild(self, mutate=None):
-        creation = '0x60006000f3a00001'
+        creation = VERIFIER_CODE
         runtime = '0x6001'
         arts = {'OverIssueFraudProofVerifier': {'bytecode': {'object':creation}},
                 'MockOverIssuableToken': {'deployedBytecode': {'object':runtime}}}
-        if mutate == 'creation': arts['OverIssueFraudProofVerifier']['bytecode']['object'] += '00'
+        if mutate == 'creation': arts['OverIssueFraudProofVerifier']['bytecode']['object'] = '0x00' + creation[4:]
+        if mutate == 'metadata':
+            raw = bytearray.fromhex(creation[2:])
+            raw[3260] ^= 1
+            arts['OverIssueFraudProofVerifier']['bytecode']['object'] = '0x' + raw.hex()
         if mutate == 'runtime': arts['MockOverIssuableToken']['deployedBytecode']['object'] += '00'
         real_run = m.subprocess.run
         def run(args, **kw):
@@ -316,8 +321,20 @@ class Round8Controls(unittest.TestCase):
         with patch.object(m.subprocess, 'run', side_effect=run), patch.object(a, 'archive_commit'), \
              patch.object(a, 'raw_artifact', side_effect=lambda root,name:arts[name]), \
              patch.object(m, 'VERIFIER_CREATION', a.keccak(creation)), \
-             patch.object(m, 'MOCK_TOKEN_RUNTIME_HASH', a.keccak(runtime)):
+             patch.object(m, 'MOCK_TOKEN_RUNTIME_HASH', a.keccak(runtime)), \
+             patch.dict(m.os.environ, {'MANIFEST_DVT_REPO': '/nonexistent-dvt-repo'}):
             return m.rebuild_dvt()
+
+    def test_dvt_repo_must_be_configured(self):
+        m.rebuild_dvt.cache_clear()
+        self.addCleanup(m.rebuild_dvt.cache_clear)
+        env = {k: v for k, v in m.os.environ.items() if k != 'MANIFEST_DVT_REPO'}
+        with patch.dict(m.os.environ, env, clear=True), self.assertRaises(a.Gate) as caught:
+            m.rebuild_dvt()
+        self.assertEqual(caught.exception.record['gate'], 'dvt_repo_configured')
+
+    def test_dvt_rebuild_metadata_change_allowed(self):
+        self.dvt_rebuild('metadata')
 
     def test_dvt_rebuilt_creation_gate(self):
         self.dvt_rebuild()
@@ -417,6 +434,57 @@ class Round8Controls(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'], 'negative_early_swap_reason')
 
 
+class RebuiltScopeTests(unittest.TestCase):
+    def test_scope_computed_in_pinned_offline_tree_and_cached(self):
+        import subprocess
+        from test_release_evidence import compiled_fixture
+        import release_evidence
+        m.rebuild_commit.cache_clear()
+        self.addCleanup(m.rebuild_commit.cache_clear)
+        m.rebuild.cache_clear()
+        self.addCleanup(m.rebuild.cache_clear)
+        arts = {name: dict(bytecode=dict(object=art['bytecode']),
+                          runtimeIdentity=art['runtimeIdentity'], storageLayout=art['storageLayout'])
+                for name, art in ART['contracts'].items()}
+        arts['BLSAggregator']['ast'] = dict(nodeType='FunctionDefinition', name='version',
+            body=dict(nodeType='Literal', value=m.AGG_VERSION))
+        trees = []
+        def archive(repo, commit, tree):
+            self.assertEqual(commit, ART['commit'])
+            trees.append(tree)
+            tree.mkdir()
+        def run(command, **kwargs):
+            if command[:2] == ['git', 'rev-parse']:
+                return subprocess.CompletedProcess(command, 0, ART['commit'])
+            if '--version' in command:
+                return subprocess.CompletedProcess(command, 0, 'forge Version: 1.7.1')
+            self.assertIn('--offline', command)
+            self.assertEqual(kwargs['cwd'], trees[0])
+            self.assertEqual(kwargs['env']['FOUNDRY_PROFILE'], 'default')
+            if 'build' in command:
+                self.assertIn('--ast', command)
+                self.assertIn('--build-info', command)
+                compiled_fixture(kwargs['cwd'])
+                return subprocess.CompletedProcess(command, 0, '')
+            return subprocess.CompletedProcess(command, 0, json.dumps(ART['contracts']['BLSAggregator']['storageLayout']))
+        with patch.object(m.subprocess, 'run', side_effect=run), \
+             patch.object(a, 'archive_commit', side_effect=archive), \
+             patch.object(a, 'compile_commit', return_value=(arts, {})), \
+             patch.object(a, 'metadata_identity', return_value={}), \
+             patch.object(m, 'commitment_slot', return_value='slot'), \
+             patch.object(m, 'creation_hashes', return_value={}), \
+             patch.object(release_evidence, 'compiled_scope', wraps=release_evidence.compiled_scope) as scope:
+            built = m.rebuild()
+            self.assertIn('contracts/src/SuperPaymaster.sol', built['scope']['files'])
+            self.assertEqual(built['scope']['contracts'], list(m.NAMES))
+            self.assertIs(m.rebuild(), built)
+            json.dumps(built)  # Manifest rebuild metadata must remain serializable.
+            scope.assert_called_once_with(trees[0])
+        self.assertTrue(trees[0].exists())
+        m.rebuild_commit(ART['commit'])['treeOwner'].cleanup()
+        m.rebuild_commit.cache_clear()
+
+
 class ManifestTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -451,9 +519,16 @@ class ManifestTests(unittest.TestCase):
                 e.update(ciRun=dvt_ci_run(), acceptedFailures=dvt_accepted_failures())
             if kind == 'slither':
                 e['tool']['name'] = 'slither'
-                e['findings'] = dict(threshold='Low', aboveThreshold=[], accepted=[])
+                e['rawReport'] = file_ref('slither.raw', dict(success=True, error=None, results={}))
+                e['rawReport']['path'] = 'slither.raw.json'
+                e['findings'] = dict(threshold='Low', aboveThreshold=[], accepted=[], outOfScope=[], inScopeTotal=0)
+                e['scope'] = dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymaster.sol'])
+                table = dict(storage=[dict(label='balance', slot='0', offset=0, type='uint256')], namespaces=[])
+                e['storageLayout'] = [dict(core=c, extension=x, reference=r, testReferences=[], coreTable=table, extensionTable=table)
+                                      for c, x, r in m.LAYOUT_PAIRS]
             if kind == 'reproducible-build':
-                e['contracts'] = {k:m.creation_hashes('0x60006000f3a00001') for k in (*m.NAMES, 'OverIssueFraudProofVerifier')}
+                e['contracts'] = {k:m.creation_hashes('0x60006000f3a00001') for k in m.NAMES}
+                e['contracts']['OverIssueFraudProofVerifier'] = m.creation_hashes(VERIFIER_CODE, 'OverIssueFraudProofVerifier')
             self.data['releaseEvidence'][kind] = file_ref(kind, e)
         self.data['releaseEvidence']['sourceVerificationPlan'] = file_ref('source-plan', {'synthetic':True})
         rows = []
@@ -478,15 +553,17 @@ class ManifestTests(unittest.TestCase):
         self.data['fraudProofFixture'] = file_ref('fraud', self.export)
         fixture_artifact = self.data['verifier'].pop('artifact')
         self.real_verifier_artifact = m.verifier_artifact
-        for target, name, value in ((m, 'verifier_artifact', fixture_artifact), (m, 'rebuild_dvt', dict(bytecode=fixture_artifact['bytecode'], creationHashes=m.creation_hashes(fixture_artifact['bytecode']))), (m, 'release_gate', None)):
+        for target, name, value in ((m, 'verifier_artifact', fixture_artifact), (m, 'rebuild_dvt', dict(bytecode=fixture_artifact['bytecode'], creationHashes=m.creation_hashes(fixture_artifact['bytecode'], 'OverIssueFraudProofVerifier'))), (m, 'release_gate', None)):
             mock = patch.object(target, name, return_value=value)
             mock.start()
             self.addCleanup(mock.stop)
         self.path.write_text(json.dumps(self.data))
-        self.inputs = m.external(self.path)
+        self.commit_patch = patch.object(m, 'rebuild_commit', return_value=ART)
+        self.commit_patch.start(); self.addCleanup(self.commit_patch.stop)
         self.patch = patch.object(m, 'rebuild', return_value=ART)
         self.patch.start()
         self.addCleanup(self.patch.stop)
+        self.inputs = m.external(self.path)
         self.plan = m.build_plan(self.pin, self.inputs)
 
     def staged_chain(self):
@@ -1961,17 +2038,23 @@ class ManifestTests(unittest.TestCase):
         e['suites']['CC115GenuinePragueCrossRepo']['env'] = {}
         with self.assertRaises(a.Gate): m.evidence_file(self.file_ref('wrong-evm', e), kind)
 
+    def test_creation_layout_packet(self):
+        self.assertEqual(self.plan['creationMetadataLayouts'], {'OverIssueFraudProofVerifier': m.VERIFIER_METADATA_LAYOUT})
+        changed = copy.deepcopy(self.plan)
+        changed['creationMetadataLayouts']['OverIssueFraudProofVerifier']['segments'] = []
+        with self.assertRaises(a.Gate): m.validate_plan(changed, self.inputs)
+
     def test_creation_hash_comparison(self):
         contracts = copy.deepcopy(ART['contracts'])
         e = dict(contracts={k:v['creationHashes'].copy() for k,v in contracts.items()})
         self.assertEqual(m.compare_build_evidence(e, contracts), [])
         name = m.NAMES[0]
         e['contracts'][name]['fullCreationKeccak'] = a.ZERO32
-        self.assertEqual(m.compare_build_evidence(e, contracts), [name])
+        with self.assertRaises(a.Gate): m.compare_build_evidence(e, contracts)
         e['contracts'][name]['strippedCreationKeccak'] = a.ZERO32
         with self.assertRaises(a.Gate): m.compare_build_evidence(e, contracts)
         left, right = (m.creation_hashes(x) for x in ('0x6000a16161010004', '0x6000a16161020004'))
-        self.assertEqual(left['strippedCreationKeccak'], right['strippedCreationKeccak'])
+        self.assertNotEqual(left['strippedCreationKeccak'], right['strippedCreationKeccak'])
         self.assertNotEqual(left['fullCreationKeccak'], right['fullCreationKeccak'])
 
     def test_unpinned_and_substituted_mock_refused(self):
@@ -2058,8 +2141,196 @@ class ManifestTests(unittest.TestCase):
         e = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
         e['findings']['aboveThreshold'] = ['unreviewed']
         with self.assertRaises(a.Gate): m.evidence_file(self.file_ref('finding',e),'slither')
-        e['findings']['accepted'] = [dict(id='unreviewed',reason='reviewed exception')]
+        e['findings']['accepted'] = [dict(id='unreviewed',classification='accepted',reason='reviewed exception')]
+        e['findings']['inScopeTotal'] = 1
+        self.raw_findings(e, [('unreviewed', 'High', 'contracts/src/SuperPaymaster.sol')])
         m.evidence_file(self.file_ref('accepted-finding',e),'slither')
+
+    def raw_findings(self, value, findings):
+        raw = dict(success=True, error=None, results=dict(detectors=[dict(id=id, impact=impact,
+            elements=[dict(source_mapping=dict(filename_relative=file))]) for id, impact, file in findings]))
+        ref = self.file_ref('slither.raw', raw)
+        value['rawReport'] = dict(path='slither.raw.json', sha256=ref['sha256'])
+
+    def test_finding_path_canonical_gate(self):
+        for path in ('./contracts/src/SuperPaymaster.sol', 'contracts//src/X.sol',
+                     'contracts/../X.sol', '/tmp/X.sol', 'contracts\\X.sol', ''):
+            value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+            value['findings']['outOfScope'] = [dict(id='hidden', impact='High', files=[path], classification='unclassified')]
+            with self.subTest(path=path):
+                with self.assertRaises(a.Gate) as caught:
+                    m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+                self.assertEqual(caught.exception.record['gate'], 'evidence_finding_path_canonical')
+
+    def test_finding_symlink_canonical_gate(self):
+        value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        tree = Path(self.tmp.name) / 'tree'
+        tree.mkdir()
+        (tree / 'Alias.sol').symlink_to('Actual.sol')
+        value['findings']['outOfScope'] = [dict(id='alias', impact='High',
+            files=['Alias.sol'], classification='unclassified')]
+        with patch.object(m, 'rebuild_commit', return_value=dict(ART, tree=tree)):
+            with self.assertRaises(a.Gate) as caught:
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+        self.assertEqual(caught.exception.record['gate'], 'evidence_finding_path_canonical')
+
+    def test_slither_raw_rederived_gate(self):
+        for attack in ('drop', 'hash', 'move'):
+            value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+            self.raw_findings(value, [('hidden', 'High', 'contracts/src/SuperPaymaster.sol')])
+            if attack == 'hash':
+                value['rawReport']['sha256'] = 'f' * 64
+            if attack == 'move':
+                value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
+                    files=['contracts/lib/Fake.sol'], classification='unclassified')]
+            with self.subTest(attack=attack):
+                with self.assertRaises(a.Gate) as caught:
+                    m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+                self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+
+    def test_raw_absolute_mapping_rejected(self):
+        for field in ('filename_relative', 'filename_absolute', 'filename_short'):
+            for top_level in (False, True):
+                with self.subTest(field=field, top_level=top_level):
+                    value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+                    self.raw_findings(value, [('outside', 'High', 'contracts/lib/Outside.sol')])
+                    value['findings']['outOfScope'] = [dict(id='outside', impact='High',
+                        files=['contracts/lib/Outside.sol'], classification='unclassified')]
+                    raw_path = Path(self.tmp.name) / 'slither.raw.json'
+                    raw = json.loads(raw_path.read_text())
+                    item = raw['results']['detectors'][0]
+                    mapping = {field: '/__evidence_tree__/contracts/lib/Outside.sol'}
+                    if top_level:
+                        item['source_mapping'] = mapping
+                    else:
+                        item['elements'][0]['source_mapping'].update(mapping)
+                    ref = self.file_ref('slither.raw', raw)
+                    value['rawReport']['sha256'] = ref['sha256']
+                    with self.assertRaises(a.Gate) as caught:
+                        m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+
+    def test_raw_report_symlink_escape_rejected(self):
+        for parent in (False, True):
+            with self.subTest(parent=parent), tempfile.TemporaryDirectory() as external:
+                value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+                raw = Path(self.tmp.name) / 'slither.raw.json'
+                outside = Path(external) / 'report.json'
+                outside.write_bytes(raw.read_bytes())
+                link = Path(self.tmp.name) / ('linked-parent' if parent else 'linked-file')
+                link.symlink_to(Path(external) if parent else outside, target_is_directory=parent)
+                value['rawReport']['path'] = link.name + ('/report.json' if parent else '')
+                with patch.object(m, 'reviewed_file', wraps=m.reviewed_file) as reviewed:
+                    with self.assertRaises(a.Gate) as caught:
+                        m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+                    reviewed.assert_not_called()
+
+    def test_outside_high_medium_allowed(self):
+        for impact in ('High', 'Medium'):
+            value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+            value['findings']['outOfScope'] = [dict(id='lib', impact=impact,
+                files=['contracts/lib/Token.sol'], classification='unclassified')]
+            self.raw_findings(value, [('lib', impact, 'contracts/lib/Token.sol')])
+            with self.subTest(impact=impact):
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+
+    def test_scope_empty_and_dependency_disjointness(self):
+        original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        for files in ([], ['']):
+            value = copy.deepcopy(original)
+            value['scope']['files'] = files
+            with self.assertRaises(a.Gate) as caught:
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+            self.assertEqual(caught.exception.record['gate'], 'evidence_scope_files')
+        original['scope']['files'] = ['contracts/lib/Base.sol']
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
+        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
+        with patch.object(m, 'rebuild_commit', return_value=dict(commit=ART['commit'], scope=copy.deepcopy(original['scope']))):
+            m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
+        original['scope']['files'] = ART['scope']['files']
+        original['findings']['outOfScope'] = [dict(id='lib', impact='High',
+            files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
+        self.assertEqual(caught.exception.record['gate'], 'evidence_outside_files')
+
+    def test_fabricated_scope_hides_high_finding(self):
+        value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        value['scope']['files'] = ['contracts/lib/Fabricated.sol']
+        value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
+            files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
+
+    def test_finding_ids_unique_across_scope_partitions(self):
+        original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        outside = dict(id='duplicate', impact='High', files=['contracts/lib/Outside.sol'],
+                       classification='unclassified')
+        for overlap in (False, True):
+            value = copy.deepcopy(original)
+            value['findings']['outOfScope'] = [outside] if overlap else [outside, outside]
+            if overlap:
+                value['findings'].update(aboveThreshold=['duplicate'], inScopeTotal=1,
+                    accepted=[dict(id='duplicate', classification='accepted', reason='reviewed')])
+            with self.subTest(overlap=overlap), self.assertRaises(a.Gate) as caught:
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+            self.assertEqual(caught.exception.record['gate'],
+                             'evidence_outside_not_reviewed' if overlap else 'evidence_outside_unique')
+
+    def test_closure_finding_cannot_be_outside(self):
+        value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
+            files=ART['scope']['files'], classification='unclassified')]
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+        self.assertEqual(caught.exception.record['gate'], 'evidence_outside_files')
+
+    def test_evidence_full_creation_required(self):
+        value = json.loads(Path(self.data['releaseEvidence']['reproducible-build']['path']).read_text())
+        for name in m.NAMES:
+            changed = copy.deepcopy(value)
+            changed['contracts'][name]['strippedCreationKeccak'] = a.ZERO32
+            with self.subTest(contract=name), self.assertRaises(a.Gate) as caught:
+                m.validate_evidence_details(changed, 'reproducible-build')
+            self.assertEqual(caught.exception.record['gate'], 'evidence_full_creation_'+name)
+
+    def test_layout_pair_identity_required(self):
+        original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        for index in range(len(m.LAYOUT_PAIRS)):
+            for field in ('core', 'extension', 'reference'):
+                value = copy.deepcopy(original)
+                value['storageLayout'][index][field] = 'substituted'
+                with self.subTest(index=index, field=field), self.assertRaises(a.Gate) as caught:
+                    m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+                self.assertEqual(caught.exception.record['gate'], 'evidence_layout_identity')
+
+    def test_layout_pair_parity_required(self):
+        value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        value['storageLayout'][0]['extensionTable']['storage'][0]['slot'] = '999'
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+        self.assertEqual(caught.exception.record['gate'], 'evidence_layout_parity')
+
+    def test_slither_scope_counts_and_parity_tampering_rejected(self):
+        original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        def change_count(e): e['findings']['inScopeTotal'] = 1
+        def omit_pair(e): e['storageLayout'].pop()
+        def change_slot(e): e['storageLayout'][0]['extensionTable']['storage'][0]['slot'] = '1'
+        def change_namespace(e): e['storageLayout'][1]['extensionTable']['namespaces'].append(
+            dict(label='namespace', slot='100', offset=0, type='address'))
+        def wrong_scope(e): e['scope']['contracts'].pop()
+        def reviewed_outside(e): e['findings']['outOfScope'] = [dict(id='outside', impact='High',
+            files=['contracts/lib/Other.sol'], classification='accepted')]
+        def overlap(e): e['findings']['outOfScope'] = [dict(id='outside', impact='High',
+            files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
+        for mutate in (change_count, omit_pair, change_slot, change_namespace, wrong_scope, reviewed_outside, overlap):
+            value = copy.deepcopy(original)
+            mutate(value)
+            with self.subTest(mutation=mutate.__name__), self.assertRaises(a.Gate):
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
 
     def test_collect_registry_version_negative(self):
         with patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
@@ -2071,6 +2342,104 @@ class ManifestTests(unittest.TestCase):
     def test_sign_send_refused(self):
         self.assertEqual(m.main(['sign']), 3)
         self.assertEqual(m.main(['send']), 3)
+
+
+class RealCreationTests(unittest.TestCase):
+    root = Path(__file__).with_name('fixtures')
+
+    def verifier(self):
+        return json.loads((self.root / 'dvt-creation.json').read_text())['creationBytecode']
+
+    def compare(self, name, first, second):
+        return m.compare_build_evidence({'contracts': {name: m.creation_hashes(first, name)}},
+            {name: {'bytecode': second, 'creationHashes': m.creation_hashes(second, name)}})
+
+    def test_real_rc6_full_creation(self):
+        for path in (self.root / 'real-creation').glob('*.json'):
+            if path.name == 'INDEX.json': continue
+            fixture = json.loads(path.read_text())
+            code, name = fixture['creationBytecode'], fixture['contract']
+            with self.subTest(contract=name):
+                hashes = m.creation_hashes(code)
+                self.assertEqual(hashes['fullCreationKeccak'], a.keccak(code))
+                self.assertEqual(hashes['strippedCreationKeccak'], hashes['fullCreationKeccak'])
+                self.assertEqual(self.compare(name, code, code), [])
+                for changed in ('0x00' + code[4:], code + '00', code[:-2] + 'ff'):
+                    with self.assertRaises(a.Gate): self.compare(name, code, changed)
+
+    def test_sp_full_hash_guard(self):
+        name = 'SuperPaymaster'
+        code = json.loads((self.root / 'real-creation' / (name + '.json')).read_text())['creationBytecode']
+        hashes = m.creation_hashes(code)
+        forged = dict(hashes, fullCreationKeccak=a.ZERO32)
+        with self.assertRaises(a.Gate):
+            m.compare_build_evidence({'contracts': {name: forged}},
+                {name: {'bytecode': code, 'creationHashes': hashes}})
+
+    def test_dvt_real_metadata_only(self):
+        code = self.verifier()
+        self.assertEqual(a.keccak(code), m.VERIFIER_CREATION)
+        self.assertEqual(m.creation_hashes(code, 'OverIssueFraudProofVerifier')['strippedCreationKeccak'], m.VERIFIER_EXECUTABLE)
+        fixture = json.loads((self.root / 'dvt-creation.json').read_text())
+        self.assertEqual(fixture['metadataLayout'], m.VERIFIER_METADATA_LAYOUT)
+        self.assertEqual(code[2+319*2:], fixture['runtimeBytecode'][2:])
+        changed = bytearray.fromhex(code[2:])
+        changed[3260] ^= 1  # IPFS digest, inside the pinned CBOR bytes value.
+        changed = '0x' + changed.hex()
+        self.assertEqual(self.compare('OverIssueFraudProofVerifier', code, changed), ['OverIssueFraudProofVerifier'])
+        self.assertEqual(m.verifier_executable(code), m.verifier_executable(changed))
+
+    def test_dvt_outside_segment_and_forged_pattern(self):
+        code = self.verifier()
+        for offset, value in ((0, b'\x00'), (100, bytes.fromhex('a164736f6c6343000821000a'))):
+            changed = bytearray.fromhex(code[2:])
+            changed[offset:offset+len(value)] = value
+            with self.subTest(offset=offset), self.assertRaises(a.Gate):
+                self.compare('OverIssueFraudProofVerifier', code, '0x' + changed.hex())
+
+    def test_dvt_wrong_segment_count_or_position(self):
+        for segments in ([], m.VERIFIER_METADATA_LAYOUT['segments'] * 2,
+                         [{'offset': 3246, 'length': 54}]):
+            with self.subTest(segments=segments), self.assertRaises(a.Gate):
+                m.verifier_executable(self.verifier(), {'byteLength': 3300, 'segments': segments})
+
+    def test_dvt_appended_data(self):
+        for suffix in ('00', 'a164736f6c6343000821000a'):
+            with self.subTest(suffix=suffix), self.assertRaises(a.Gate):
+                m.creation_hashes(self.verifier() + suffix, 'OverIssueFraudProofVerifier')
+
+    def test_verifier_metadata_solc_required(self):
+        changed = bytearray.fromhex(self.verifier()[2:])
+        changed[-3] ^= 1
+        with self.assertRaises(a.Gate) as caught:
+            m.verifier_executable('0x' + changed.hex())
+        self.assertEqual(caught.exception.record['gate'], 'verifier_metadata_solc')
+
+    def test_verifier_segment_length_required(self):
+        changed = bytearray.fromhex(self.verifier()[2:])
+        changed[-1] -= 1
+        with self.assertRaises(a.Gate) as caught:
+            m.verifier_executable('0x' + changed.hex())
+        self.assertEqual(caught.exception.record['gate'], 'verifier_segment_length')
+
+    def test_reproducible_reference_bytes_required(self):
+        name = 'SuperPaymaster'
+        first, second = '0x6000', '0x6001'
+        hashes = m.creation_hashes(second, name)
+        # Evidence and rebuilt hashes agree; only the independent reference differs.
+        with self.assertRaises(a.Gate) as caught:
+            m.compare_build_evidence(dict(contracts={name: hashes}),
+                {name: dict(bytecode=second, creationHashes=hashes)},
+                reference_contracts={name: dict(bytecode=first)})
+        self.assertEqual(caught.exception.record['gate'], 'reproducible_bytes_'+name)
+
+    def test_dvt_segment_length_and_keys(self):
+        code = self.verifier()
+        for offset, value in ((3299, 0x32), (3249, ord('x'))):
+            changed = bytearray.fromhex(code[2:])
+            changed[offset] = value
+            with self.subTest(offset=offset), self.assertRaises(a.Gate):
+                m.creation_hashes('0x' + changed.hex(), 'OverIssueFraudProofVerifier')
 
 
 class SafeGovernanceTests(unittest.TestCase):
