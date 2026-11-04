@@ -3417,7 +3417,7 @@ class OldExitExemptionTests(unittest.TestCase):
                 m.unchanged_old_activity(old_exit_rpc(later, self.guardian, occupied=slot), plan, later['stateBlock'])
             self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_slot')
 
-    def test_pre_send_detects_new_activity_after_pin(self):
+    def test_unchanged_old_activity_detects_new_activity_after_pin(self):
         # Passes every internal gate (the proposal is executed) but changes the activity:
         # only the pin comparison old_activity_unchanged can catch it.
         p, rpc = self.fixture()
@@ -3436,6 +3436,14 @@ class OldExitExemptionTests(unittest.TestCase):
         with self.assertRaises(a.Gate) as caught:
             m.unchanged_old_activity(later, plan, p['stateBlock'])
         self.assertEqual(caught.exception.record['gate'], 'old_activity_unchanged')
+
+    def test_pre_send_calls_unchanged_old_activity(self):
+        # Wiring guard: the helper above is only effective if pre_send invokes it.
+        tree = ast.parse(Path(m.__file__).read_text())
+        pre_send = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'pre_send')
+        calls = [c for c in ast.walk(pre_send) if isinstance(c, ast.Call)
+                 and isinstance(c.func, ast.Name) and c.func.id == 'unchanged_old_activity']
+        self.assertEqual(len(calls), 1)
 
     def test_pre_send_enforces_exit_gate(self):
         p, good = self.fixture()
