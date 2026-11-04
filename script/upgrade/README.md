@@ -452,3 +452,65 @@ python3 -B script/upgrade/test_release_evidence.py
 
 
 Rehearsal gas checks record `mode='pinned-consistency'`: they repeat the pinned block, accumulated state overrides, and execution time used by measurement. They do not detect chain changes after the pin. Freshness is enforced only at live send time (`pre_send` on `latest`, without overrides) and by re-pinning. The live `fresh_gas` mode remains `live`; rehearsal's local pre-send checks only the fork's latest state. Manifest signing/sending remain disabled. See [the H2 gas gate report](H2_GAS_GATE_REPORT.md).
+
+## Gated live sender for the frozen manifest packet (disabled by default)
+
+`manifest_exec.py sign|send` still refuse with rc=3. `manifest_send.py` is a separate module, modelled on
+`script/a3a/a3a_send.py`. It is **not authorised to run** until DSR has reviewed it and the author has given a separate
+go for one packet sha256. Without `MANIFEST_SEND_ENABLE=<that sha256>` in the environment, it exits rc=3 before reading
+any file. No CI job runs it against a network; its tests use a local anvil only.
+
+```sh
+MANIFEST_SEND_ENABLE=<approved sha256> python3 -B script/upgrade/manifest_send.py \
+  --packet /path/to/plan.json --approved-sha256 <approved sha256> \
+  --first A1 --last A5 [--prior /path/to/earlier-run/sent.json ...] \
+  --rpc-file /path/to/endpoint-a-url --rpc-file-secondary /path/to/endpoint-b-url \
+  --accounts /path/to/accounts.json --password-file /path/to/0600/password --out /new/empty/dir
+```
+
+Inputs:
+- `--packet` and `--approved-sha256`: the packet file is read once. Its sha256 must equal the approved value. It must be
+  the final full-stage artifact and pass `manifest_exec.validate_plan(frozen=True)`, which rebuilds the plan from its pin.
+- Two endpoint files: the URLs must differ. Only the primary receives `eth_sendRawTransaction`. Every check and
+  read-back runs on both endpoints.
+- `--accounts` maps packet sender labels (`deployer`, `approver`, `executor`, `anni`) to Foundry keystore names.
+  Signing uses `cast mktx --account <name> --password-file <path>` offline: a whitelisted environment, no RPC URL, and
+  never a raw key. The password file must be a regular file owned by you with mode 0600, in a 0700 directory you own.
+  The sender checks only its metadata, never its contents.
+- `--first/--last`: one contiguous range of packet steps per run. Timelock and ETA waits are never warped; a step that is
+  not ready STOPs and is run later. Every step before `--first` must appear in an earlier run's `sent.json`. Each record
+  is re-read on both endpoints (receipt, canonical block, mined fields equal to the packet). The executor context comes
+  from those receipts: the passed set, the 5b upgrade block and the 6c schedule timestamp.
+- `--confirm "SEND <first>..<last> <first 12 hex of the sha256>"`, or the same phrase typed at `/dev/tty`. It is asked
+  once per run, before the first signature.
+
+Before **each** signature, on both endpoints:
+- the chain id;
+- the sender nonce, `latest == pending ==` the planned nonce;
+- `manifest_exec.pre_send_reads`: the executor's state re-reads, split out of `pre_send`, which still requires the fork;
+- timelock, 6c-floor and B4 readiness;
+- the B4 variant, which both endpoints must select identically;
+- the fee cap and the sender balance;
+- `sp_upgrade_exec.fresh_gas` in live mode (`latest`, no overrides). The DSR #599 rules apply: STOP
+  `send_live_gas_over_limit` if the estimate exceeds the frozen limit, and STOP `send_live_gas_repin` (re-pin required)
+  if it exceeds `floor(limit / 1.1)`.
+
+`gas-comparisons.json` records every comparison (endpoint, latest block number before and after the estimate, estimate,
+limit, threshold, result) before the decision is acted on.
+
+After signing, `cast decode-transaction` and a local keccak (both over stdin) must match every packet field. Nonces are
+re-read, then the transaction is broadcast once. The signed bytes are held only in memory until then. The receipt must
+appear on both endpoints with the same block. The status must be 1, except a B4 `apply` mined with status 0 whose
+post-state holds. The step's packet read-backs then run on both endpoints before the next step starts. Any failure
+after the broadcast is `send_after_broadcast` with the hash: nothing is retried, re-signed or repriced. Records are
+scrubbed against both URLs with the `a3a_send.py` helpers.
+
+Debug traces (the fork's `safe_trace`, `mint_trace` and `handover_trace`) are not read live; Safe execution is checked
+from the receipt's `ExecutionSuccess` event.
+
+Offline verification (local anvil and the public anvil keys; no network, keystore or real key):
+
+```sh
+A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_send.py
+A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/probe_send_gates.py
+```

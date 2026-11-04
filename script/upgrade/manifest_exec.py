@@ -1930,6 +1930,17 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
+    tx = pre_send_reads(rpc, plan, step, context)
+    if measured:
+        u.validate_gas(step)
+        probe = {k: v for k, v in a.tx_rpc(tx, gas_cap=u.MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
+        a.need('fresh_estimate', a.qty(rpc('eth_estimateGas', [probe, 'latest'])) <= a.qty(tx['gas']), True)
+        a.need('block_gas_limit', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
+    return tx
+
+
+def pre_send_reads(rpc, plan, step, context):
+    """Read-only state checks before one step. pre_send runs them on the fork; manifest_send.py on both live endpoints."""
     handover_gate(rpc, plan, step, context)
     tx = step['tx']
     a.need('chain', a.qty(rpc('eth_chainId', [])), a.CHAIN)
@@ -1970,11 +1981,6 @@ def pre_send(rpc, plan, step, context, measured=False):
         a.need('onchain_safe_hash', h, step['safeHash'])
         if 'operation' in step:
             u.check_op_hash(rpc, plan['operations'][step['operation']])
-    if measured:
-        u.validate_gas(step)
-        probe = {k: v for k, v in a.tx_rpc(tx, gas_cap=u.MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
-        a.need('fresh_estimate', a.qty(rpc('eth_estimateGas', [probe, 'latest'])) <= a.qty(tx['gas']), True)
-        a.need('block_gas_limit', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
     return tx
 
 
