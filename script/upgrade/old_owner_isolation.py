@@ -960,6 +960,15 @@ def signature_catalogue(tree):
     return sorted(signatures)
 
 
+def decoded_arguments(output):
+    """`cast decode-calldata --json`: stable 1.7.1 prints a bare list, the nightly an envelope."""
+    if isinstance(output, list):
+        return output
+    a.need('old_owner_calldata_decode', isinstance(output, dict) and output.get('success') is True
+           and output.get('errors') == [] and isinstance(output.get('data'), list), True)
+    return output['data']
+
+
 def assert_manifest_calldata(steps, signatures):
     catalogue = {}
     for sig in signatures:
@@ -980,9 +989,7 @@ def assert_manifest_calldata(steps, signatures):
             a.need('old_owner_calldata_empty_args',len(data),10)
             values = []
         else:
-            envelope = json.loads(a.cast('decode-calldata','--json',sig,data))
-            a.need('old_owner_calldata_decode',envelope.get('success'),True)
-            values = envelope['data']
+            values = decoded_arguments(json.loads(a.cast('decode-calldata','--json',sig,data)))
         def visit(value):
             if isinstance(value,list):
                 for child in value: visit(child)

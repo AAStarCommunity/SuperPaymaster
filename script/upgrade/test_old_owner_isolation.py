@@ -385,6 +385,16 @@ class OldOwnerIsolationTests(unittest.TestCase):
             o.audit(fixture_rpc(self.pin,{query:raw([1])},factory_token=token),self.pin,inventory())
         self.assertEqual(caught.exception.record['gate'],'old_owner_mapping_xPNTsToken_autoApprovedSpenders')
 
+    def test_decoded_arguments_both_cast_formats(self):
+        values = ['0x0000000000000000000000000000000000000001', 5]
+        self.assertEqual(o.decoded_arguments(values), values)
+        self.assertEqual(o.decoded_arguments(dict(schema_version=1, success=True, data=values, errors=[], warnings=[])), values)
+        for bad in (dict(success=False, data=values, errors=[]), dict(success=True, data=values, errors=['x']),
+                    dict(success=True, data='x', errors=[]), 'x', None):
+            with self.subTest(bad=bad), self.assertRaises(a.Gate) as caught:
+                o.decoded_arguments(bad)
+            self.assertEqual(caught.exception.record['gate'], 'old_owner_calldata_decode')
+
     def test_factory_enumeration_must_stand_alone(self):
         query = ('eth_call',str([dict(to=FACTORY,data=a.calldata('getAllTokens()')),self.pin['stateBlock']]))
         for listed in ([], [o.ROUND_CLONES[0]]):
