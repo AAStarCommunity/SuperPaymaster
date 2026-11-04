@@ -2610,6 +2610,9 @@ def funding_gate(rpc, plan):
                                ('owner', plan['externalInputs']['data']['phaseC']['accountOwner'], pc['ownerMaintenanceWei'])):
         observed[label] = a.qty(rpc('eth_getBalance', [who, block]))
         a.need('C_funding_'+label, observed[label] >= target, True)
+    # D's operator deposit (AD), the largest single target, sits in SP's own accounting.
+    observed['operator'] = u.uints(a.call(rpc, u.SP, 'operators(address)', u.DEPLOYER, block=block))[OP['aPNTsBalance']]
+    a.need('C_funding_operator', observed['operator'] >= pc['operatorTarget'], True)
     for label, token, holder, target in (('user', addr['X'], S, pc['userTarget']), ('feeToken', addr['Q'], S, pc['feeTokenTarget']),
                                          ('taskSender', addr['T'], S, pc['taskSender']), ('taskRecipient', addr['T'], DEAD, pc['taskRecipient'])):
         observed[label] = a.word(rpc, token, 'balanceOf(address)', holder, block=block)

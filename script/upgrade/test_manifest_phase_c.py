@@ -689,6 +689,9 @@ PRECHECK_CASES = {
     # DSR H1: a raised cap would hide exhausted L; a lowered cap is a changed packet. Both STOP.
     'precheck_allowance_cap': (0, lambda c: c.set(c.X, 'autoAllowance(address,address)', c.S, SP, value=[2*m.PC_CAP_L, m.PC_CAP_L])),
     'precheck_total_cap': (0, lambda c: c.set(c.X, 'userTotal(address)', c.S, value=[m.PC_CAP_L-1, 0])),
+    # Each cap in the other direction too (`__` suffix: same gate, second control).
+    'precheck_allowance_cap__lowered': (0, lambda c: c.set(c.X, 'autoAllowance(address,address)', c.S, SP, value=[m.PC_CAP_L-1, 0])),
+    'precheck_total_cap__raised': (0, lambda c: c.set(c.X, 'userTotal(address)', c.S, value=[2*m.PC_CAP_L, m.PC_CAP_L])),
 }
 FUNDING_CASES = {
     'C_funding_entrypoint_SP': lambda c: c.set(c.ep, 'balanceOf(address)', SP, value=c.plan['phaseC']['entryPointTargets']['SP']-1),
@@ -702,6 +705,10 @@ FUNDING_CASES = {
     'C_funding_taskRecipient': lambda c: c.set(c.plan['phaseC']['addresses']['T'], 'balanceOf(address)', m.DEAD, value=0),
     'C_funding_feeAllowance': lambda c: c.set(c.plan['phaseC']['addresses']['Q'], 'allowance(address,address)', c.S,
                                               c.plan['phaseC']['addresses']['TPM'], value=1),
+    # The allowance is exact: a larger approval is also a changed state.
+    'C_funding_feeAllowance__above': lambda c: c.set(c.plan['phaseC']['addresses']['Q'], 'allowance(address,address)', c.S,
+                                              c.plan['phaseC']['addresses']['TPM'], value=c.plan['phaseC']['feeTokenTarget']+1),
+    'C_funding_operator': lambda c: c.get(SP, 'operators(address)', D).__setitem__(0, c.plan['phaseC']['operatorTarget']-1),
 }
 
 
@@ -811,6 +818,7 @@ def make_live_test(gate, sid, mutate):
 
 
 def make_precheck_test(gate, flags, mutate):
+    gate = gate.split('__')[0]
     def test(self):
         chain = self.chain('after_phase_c')
         self.precheck(chain)
@@ -826,6 +834,7 @@ for _gate, (_flags, _mutate) in PRECHECK_CASES.items():
 
 
 def make_funding_test(gate, mutate):
+    gate = gate.split('__')[0]
     def test(self):
         chain = self.chain('after_phase_c')
         self.funding(chain)

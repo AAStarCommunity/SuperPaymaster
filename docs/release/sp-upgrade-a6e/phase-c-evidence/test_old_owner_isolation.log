@@ -171,7 +171,7 @@ L1_PROBE old_owner_undeclared_clone removed=red caught_elsewhere:metadata_cbor
 ok
 
 ----------------------------------------------------------------------
-Ran 52 tests in 16.414s
+Ran 52 tests in 17.013s
 
 OK (skipped=2)
 rc=0 engine=Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8

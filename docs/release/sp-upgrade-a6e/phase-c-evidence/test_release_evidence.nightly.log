@@ -7,7 +7,7 @@ STOP: named checker test failed or skipped: test_c1_wrong_implementation
 .Running slither (offline; may take several minutes)
 .................................
 ----------------------------------------------------------------------
-Ran 69 tests in 10.623s
+Ran 69 tests in 17.183s
 
 OK
 rc=0 engine=Commit SHA: 4e8874b2bdc840929585ca73e170993c50a4a531

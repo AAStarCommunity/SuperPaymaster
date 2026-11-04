@@ -25,8 +25,8 @@ CASES += [(P, 'test_rebuild_'+g, g) for g in tests.REBUILD_CASES]
 CASES += [(tests.BaselineGateTests, 'test_build_'+g, g) for g in
           ('C12_constructor_abi', 'C14_constructor_abi', 'C_baseline_commit_F1TestToken')]
 CASES += [(L, 'test_live_'+g, g) for g in tests.LIVE_CASES]
-CASES += [(L, 'test_precheck_'+g, g) for g in tests.PRECHECK_CASES]
-CASES += [(L, 'test_funding_'+g, g) for g in tests.FUNDING_CASES]
+CASES += [(L, 'test_precheck_'+g, g.split('__')[0]) for g in tests.PRECHECK_CASES]
+CASES += [(L, 'test_funding_'+g, g.split('__')[0]) for g in tests.FUNDING_CASES]
 CASES += [
     (P, 'test_pin_price_zero', 'C_price_bound'),
     (P, 'test_stage_c_boundary_and_prefix', 'prefix_boundary'),
@@ -44,6 +44,7 @@ CASES += [
     (base_tests.ManifestTests, 'test_rehearsal_phase_c_controls_complete', 'phase_c_controls_complete'),
     (base_tests.ManifestTests, 'test_rehearsal_after_6d_accounting', 'after_6d_accounting'),
     (base_tests.ManifestTests, 'test_rehearsal_accounting_unchanged_since_phase_c', 'accounting_unchanged_since_phase_c'),
+    (base_tests.ManifestTests, 'test_rehearsal_funding_rechecked_after_phase_c', 'C_funding_bundler'),
 ]
 GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")
 # Gate literals whose control is a whole family (name+'_gate', name+'_restore').

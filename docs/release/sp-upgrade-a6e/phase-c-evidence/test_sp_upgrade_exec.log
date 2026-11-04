@@ -141,7 +141,7 @@ test_valid_plan_and_numeric_nonce_sequence (__main__.ExecutorTests.test_valid_pl
 test_wait_never_moves_time_backwards (__main__.ExecutorTests.test_wait_never_moves_time_backwards) ... ok
 
 ----------------------------------------------------------------------
-Ran 141 tests in 4.306s
+Ran 141 tests in 5.718s
 
 OK
 rc=0 engine=Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8

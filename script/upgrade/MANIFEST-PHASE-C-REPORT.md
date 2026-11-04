@@ -30,7 +30,7 @@ local, non-forked anvil with its default account (comparator check below).
 | §3 "a later discrepancy is STOP" (omitted rows) | `funding_gate`: every funding target re-read at the end of Phase C and before each Phase D handover step |
 | §3 post-pilot recompute (M_j/Amax/buffers from consumed attempts, 20-attempt pilot cap, forced new packet) | **not implemented — pilot/formal tooling** |
 | §4 sequencing pilot → recompute/read-back → G3 freeze → formal | **not implemented — pilot/formal tooling** |
-| §7 controls | 12 reverted-snapshot controls (`PC_CONTROLS`), unit controls for every other gate |
+| §7 controls | 13 reverted-snapshot controls (`PC_CONTROLS`), unit controls for every other gate |
 | Stages | `--stage c` (stops after Phase C, `stage-c.json`, never final) |
 
 ## Evidence (committed under `docs/release/sp-upgrade-a6e/phase-c-evidence/`)

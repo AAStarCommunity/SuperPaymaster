@@ -1532,6 +1532,15 @@ class ManifestTests(unittest.TestCase):
     def test_rehearsal_accounting_unchanged_since_phase_c(self):
         self.rehearse_fake(fault='drift', gate='accounting_unchanged_since_phase_c')
 
+    def test_rehearsal_funding_rechecked_after_phase_c(self):
+        # run_manifest must call the funding re-read right after the last Phase C step and stop
+        # on its gate before any Phase D transaction (the real gate is tested in the Phase C suite).
+        def drained(rpc, plan):
+            a.need('C_funding_bundler', False, True)
+        with patch.object(m, 'funding_gate', side_effect=drained):
+            sent, _, _, _ = self.rehearse_fake(fault='funding', gate='C_funding_bundler')
+        self.assertEqual(sent[-1][0], self.plan['phaseC']['steps'][-1])
+
     def test_rehearsal_orders_all_steps_warps_and_b2(self):
         sent, waits, gates, state = self.rehearse_fake()
         self.assertEqual([x[0] for x in sent], [s['id'] for s in self.plan['steps']])
