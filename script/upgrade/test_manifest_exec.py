@@ -46,6 +46,27 @@ ART['contracts']['BLSAggregator']['storageLayout'] = dict(storage=[dict(label='p
     types={'map':dict(encoding='mapping', key='uint', value='bytes'), 'uint':dict(label='uint256'), 'bytes':dict(label='bytes32')})
 
 
+
+def gas_evidence(plan, step):
+    index = next(i for i, item in enumerate(plan['steps']) if item['id'] == step['id'])
+    return dict(estimateContext=dict(block=plan['pin']['block'],
+        stateOverrides={a.APPROVER: {'nonce': '0x1'}} if index else {},
+        blockOverrides={'time': hex(step['executionTimestamp'])}),
+        priorSteps=[item['id'] for item in plan['steps'][:index]], blockGasLimit=200_000_000)
+
+
+def freeze_gas(plan, step):
+    step.update(estimateGas=100000, localEstimateGas=100000, forkGasUsed=90000,
+        skipped=False, rrRequired=False, rrWitness=None,
+        minedGasMinimum=80000 if step['tx']['to'] is None else None)
+    step['tx']['gas'] = hex(130000)
+    step['gasEvidence'] = gas_evidence(plan, step)
+    if 'variants' in step:
+        step['variants']['apply'] = dict(step['tx'])
+        step['variants']['placeholder']['gas'] = hex(130000)
+        step['variantMeasurements'] = {'placeholder': {key: copy.deepcopy(step[key])
+            for key in u.MEASURED_KEYS | {'gasEvidence'}}}
+
 def fraud_data(p, agg):
     guardians = sorted(x['validator'] for x in p['guardianInventory'] if x['validator'] != a.ZERO)
     pid, mask, token = 2**200+123, 7, '0x'+'ab'*20
@@ -717,13 +738,7 @@ class ManifestTests(unittest.TestCase):
         plan = m.build_plan(self.pin, inputs, stage, sources)
         if calibrated:
             for step in plan['steps']:
-                step.update(estimateGas=100000, localEstimateGas=100000,
-                            forkGasUsed=90000, skipped=False, rrRequired=False,
-                            rrWitness=None, minedGasMinimum=80000 if step['tx']['to'] is None else None)
-                step['tx']['gas'] = hex(130000)
-                if 'variants' in step:
-                    step['variants']['apply']['gas'] = hex(130000)
-                    step['variants']['placeholder']['gas'] = hex(21000)
+                freeze_gas(plan, step)
             m.budget(plan)
         saved = Path(self.tmp.name)/('saved-'+stage+str(calibrated)+str(tamper))
         saved.mkdir()
@@ -1254,6 +1269,30 @@ class ManifestTests(unittest.TestCase):
         with patch.object(u, 'scan', return_value=[]), self.assertRaises(a.Gate):
             m.b2_gate(chain, self.plan, '0x150')
 
+    def test_all_manifest_stages_require_remote_gas_evidence(self):
+        for stage in ('a7', 'b4', 'full'):
+            inputs = m.external(self.path, stage)
+            sources = {'a7': self.staged_chain()[2]['a7']} if stage == 'b4' else None
+            plan = m.build_plan(self.pin, inputs, stage, sources)
+            derived = copy.deepcopy(plan)
+            for step in plan['steps']:
+                freeze_gas(plan, step)
+            m.budget(plan)
+            m.validate_plan(plan, inputs, frozen=True)
+            with patch.object(m, 'build_plan', return_value=derived):
+                for index, step in enumerate(plan['steps']):
+                    for variant in ('apply', 'placeholder') if 'variants' in step else ('apply',):
+                        bad = copy.deepcopy(plan)
+                        target = bad['steps'][index]
+                        if variant == 'placeholder':
+                            target = target['variantMeasurements']['placeholder']
+                        del target['estimateGas']
+                        with self.subTest(stage=stage, step=step['id'], variant=variant):
+                            with self.assertRaises(a.Gate) as caught:
+                                m.validate_plan(bad, inputs, frozen=True)
+                            self.assertEqual(caught.exception.record['gate'], 'remote_estimate_missing')
+                            self.assertEqual(caught.exception.record['step'], step['id'])
+
     def test_no_gas_or_budget_fabricated(self):
         self.assertNotIn('budgetsWei', self.plan)
         self.assertTrue(all('gas' not in s['tx'] for s in self.plan['steps']))
@@ -1344,6 +1383,7 @@ class ManifestTests(unittest.TestCase):
                         forkGasUsed=90000, minedGasMinimum=80000 if step['tx']['to'] is None else None,
                         rrRequired=False, rrWitness=None)
             step['tx']['gas'] = hex(130000)
+            step['gasEvidence'] = gas_evidence(plan, step)
             return {}
         def receipt(r, tx, status='0x1'):
             step = next(x for x in self.plan['steps'] if x['tx']['nonce'] == tx['nonce'] and x['tx']['from'] == tx['from'])
@@ -1377,7 +1417,7 @@ class ManifestTests(unittest.TestCase):
             patch.object(a, 'mined_identity'), patch.object(a, 'trace_overrides'),
             patch.object(m, 'b4_controls', return_value=[]),
             patch.object(u, 'probe', return_value=({'status':'0x1', 'gasUsed':hex(21000)}, None)),
-            patch.object(u, 'measure_step', side_effect=measure), patch.object(u, 'receipt', side_effect=receipt),
+            patch.object(u, 'fresh_gas', return_value={'mode': 'pinned-consistency', 'block': self.plan['pin']['block']}), patch.object(u, 'measure_step', side_effect=measure), patch.object(u, 'receipt', side_effect=receipt),
             patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}),
             patch.object(m, 'handover_trace'), patch.object(m, 'mint_trace'), patch.object(u, 'safe_trace'), patch.object(u, 'safe_exec_events'), patch.object(u, 'check_inventory'),
             patch.object(u, 'assert_frozen'), patch.object(m, 'pre_send', side_effect=pre),
@@ -1391,6 +1431,9 @@ class ManifestTests(unittest.TestCase):
             for p in patches: stack.enter_context(p)
             if solvent:
                 m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
+                self.assertEqual(u.fresh_gas.call_count, len(self.plan['steps']))
+                self.assertEqual([c.args[1]['id'] for c in u.fresh_gas.call_args_list],
+                                 [s['id'] for s in self.plan['steps']])
                 self.assertEqual(sum(call.args[2] == 'after_upgrade_execute_exec'
                                      for call in m.controls_at.call_args_list), 1)
                 m.fraud_rehearsal.assert_called_once_with(rpc, self.plan)
@@ -1625,7 +1668,7 @@ class ManifestTests(unittest.TestCase):
         step = self.step('B4')
         step['tx']['gas'] = hex(130000)
         step['variants']['apply'] = dict(step['tx'])
-        step['variants']['placeholder']['gas'] = hex(21000)
+        freeze_gas(self.plan, step)
         expected = self.plan['addresses']['OverIssueFraudProofVerifier']
         for mode in ('preapplied', 'frontrun', 'wrong'):
             frozen = copy.deepcopy(step)
@@ -1657,6 +1700,7 @@ class ManifestTests(unittest.TestCase):
                  patch.object(a, 'word', return_value=step['safeNonce']), \
                  patch.object(a, 'mined_identity'), patch.object(m, 'pre_send'), \
                  patch.object(u, 'receipt', side_effect=receipt), \
+                 patch.object(u, 'fresh_gas', return_value={'mode': 'pinned-consistency', 'block': self.plan['pin']['block']}), patch.object(u, 'measure_step'), patch.object(u, 'replay_remote_measurement'), \
                  patch.object(u, 'probe', return_value=({'status':'0x1','gasUsed':hex(21000)}, None)), \
                  patch.object(u, 'log') as log:
                 if mode == 'wrong':
@@ -2468,6 +2512,8 @@ class SafeGovernanceTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(__file__).with_name('fixtures')/'safe-governance'
         self.chain = json.loads((self.root/'chain-reads.json').read_text())
+        self.original_hashes = {key: {endpoint: item['tx']['hash'] for endpoint, item in endpoints.items()}
+                                for key, endpoints in self.chain.items()}
         self.inputs = dict(data=json.loads((self.root/'inputs.json').read_text()))
         self.packet = json.loads((self.root/'packet-460e0244.json').read_text())
         self.pin = dict(stateBlock=hex(12060363), safeNonce=4,
@@ -2486,9 +2532,8 @@ class SafeGovernanceTests(unittest.TestCase):
     def rpc(self, endpoint):
         def read(method, params):
             for key, endpoints in self.chain.items():
-                original = json.loads((self.root/'chain-reads.json').read_text())[key][endpoint]
                 value = endpoints[endpoint]
-                if params[0] == original['tx']['hash']:
+                if params[0] == self.original_hashes[key][endpoint]:
                     return value[{'eth_getTransactionByHash':'tx', 'eth_getTransactionReceipt':'receipt', 'debug_traceTransaction':'diff'}[method]]
                 if method == 'eth_getBlockByNumber' and params[0] == value['tx']['blockNumber']:
                     return value['block']
@@ -2690,7 +2735,67 @@ class SafeGovernanceTests(unittest.TestCase):
     def test_base_fee_required_and_agreed(self):
         self.stop('safe_gap_base_fee', lambda: self.chain['A100']['a']['block'].pop('baseFeePerGas'))
         self.setUp()
-        self.stop('safe_gap_dual_identity', lambda: self.chain['A100']['b']['block'].update(baseFeePerGas='0x1b'))
+        def shift():
+            item = self.chain['A100']['b']
+            item['block']['baseFeePerGas'] = hex(a.qty(item['block']['baseFeePerGas']) + 1)
+            item['receipt']['effectiveGasPrice'] = hex(a.qty(item['receipt']['effectiveGasPrice']) + 1)
+        self.stop('safe_gap_dual_identity', shift)
+
+    def test_effective_gas_price_anchor(self):
+        for endpoint in ('a', 'b'):
+            for case in ('above_cap', 'below_base', 'off_by_one'):
+                with self.subTest(endpoint=endpoint, case=case):
+                    self.setUp()
+                    item = self.chain['A99'][endpoint]
+                    price = {'above_cap': a.qty(item['tx']['maxFeePerGas']) + 1,
+                             'below_base': a.qty(item['block']['baseFeePerGas']) - 1,
+                             'off_by_one': a.qty(item['receipt']['effectiveGasPrice']) + 1}[case]
+                    self.stop('safe_gap_effective_gas_price',
+                              lambda: item['receipt'].update(effectiveGasPrice=hex(price)))
+
+    def test_zero_gas_used(self):
+        for endpoint in ('a', 'b'):
+            with self.subTest(endpoint=endpoint):
+                self.setUp()
+                self.stop('safe_gap_gas_used_positive',
+                          lambda: self.chain['A99'][endpoint]['receipt'].update(gasUsed='0x0'))
+
+    def test_dual_receipt_gas_used(self):
+        item = self.chain['A99']['b']
+        self.stop('safe_gap_dual_identity',
+                  lambda: item['receipt'].update(gasUsed=hex(a.qty(item['receipt']['gasUsed']) + 1)))
+
+    def test_miner_absent_pre_balance(self):
+        for key in ('A99', 'A100', 'E755'):
+            with self.subTest(key=key):
+                self.setUp()
+                item = self.chain[key]['a']
+                miner = item['block']['miner']
+                item['diff']['pre'].pop(miner)
+                priority_fee = a.qty(item['receipt']['gasUsed']) * (
+                    a.qty(item['receipt']['effectiveGasPrice']) - a.qty(item['block']['baseFeePerGas']))
+                item['diff']['post'][miner]['balance'] = hex(priority_fee)
+                self.stop('safe_gap_miner_balance',
+                          lambda: item['diff']['post'][miner].update(balance=hex(priority_fee + 1)))
+
+    def test_block_transaction_membership(self):
+        for endpoint in ('a', 'b'):
+            for case, gate in [('other_index', 'safe_gap_block_transaction'),
+                               ('missing', 'safe_gap_block_transactions'),
+                               ('out_of_range', 'safe_gap_block_transaction'),
+                               ('different_list', 'safe_gap_dual_identity')]:
+                with self.subTest(endpoint=endpoint, case=case):
+                    self.setUp()
+                    def mutate():
+                        item = self.chain['A99'][endpoint]
+                        transactions = item['block']['transactions']
+                        index = a.qty(item['tx']['transactionIndex'])
+                        other = 0 if index else 1
+                        if case == 'missing': item['block'].pop('transactions')
+                        elif case == 'out_of_range': item['block']['transactions'] = []
+                        elif case == 'different_list': transactions[other] = a.ZERO32
+                        else: transactions[index], transactions[other] = transactions[other], transactions[index]
+                    self.stop(gate, mutate)
 
     def test_exact_nonce_coverage(self):
         self.stop('prepin_nonce_approver', lambda: self.pin['senders']['approver'].update(nonce=102))
@@ -2787,7 +2892,10 @@ class SafeGovernanceTests(unittest.TestCase):
     def test_dual_transaction_index(self):
         def move():
             item = self.chain['E755']['b']
-            index = hex(a.qty(item['tx']['transactionIndex']) + 1)
+            old = a.qty(item['tx']['transactionIndex'])
+            transactions = item['block']['transactions']
+            transactions[old], transactions[old + 1] = transactions[old + 1], transactions[old]
+            index = hex(old + 1)
             for obj in [item['tx'], item['receipt'], *item['receipt']['logs']]:
                 obj['transactionIndex'] = index
         self.stop('safe_gap_dual_identity', move)
@@ -2878,6 +2986,289 @@ class SafeGovernanceTests(unittest.TestCase):
         self.pin['safeGovernanceGaps']['reads']['b'].pop(0)
         with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_proof_read')
+
+
+class GasGateControls(unittest.TestCase):
+    def setUp(self):
+        self.step = dict(id='approve', executionTimestamp=100,
+            tx={'from': a.APPROVER, 'to': a.SAFE, 'data': '0x', 'value': '0x0',
+                'nonce': '0x63', 'chainId': hex(a.CHAIN),
+                'maxFeePerGas': '0x10', 'maxPriorityFeePerGas': '0x1'})
+        self.plan = dict(pin={'block': '0x123'}, steps=[{'id': 'prior'}, self.step])
+        freeze_gas(self.plan, self.step)
+        self.step['estimateGas'] = 135104
+        self.step['localEstimateGas'] = 53160
+        self.step['forkGasUsed'] = 68394
+        self.step['tx']['gas'] = hex(u.margin_limit(135104))
+
+    def stop(self, gate, action=None):
+        with self.assertRaises(a.Gate) as caught:
+            (action or (lambda: u.validate_gas_evidence(self.plan, self.step)))()
+        self.assertEqual(caught.exception.record['gate'], gate)
+        self.assertEqual(caught.exception.record['step'], self.step['id'])
+
+    def test_positive(self):
+        u.validate_gas_evidence(self.plan, self.step)
+
+    def test_gas_evidence_missing(self):
+        del self.step['gasEvidence']
+        self.stop('gas_evidence_missing')
+
+    def test_remote_estimate_context(self):
+        del self.step['gasEvidence']['estimateContext']
+        self.stop('remote_estimate_context')
+
+    def test_measurement_executionTimestamp(self):
+        self.step['executionTimestamp'] = 0
+        self.step['gasEvidence']['estimateContext']['blockOverrides'] = {'time': '0x0'}
+        self.stop('measurement_executionTimestamp')
+
+    def test_measurement_blockGasLimit(self):
+        self.step['gasEvidence']['blockGasLimit'] = 200_000_000.0
+        self.stop('measurement_blockGasLimit')
+
+    def test_fresh_estimate_pin(self):
+        def rpc(method, params):
+            if method == 'eth_estimateGas': return hex(120000)
+            return dict(gasLimit=hex(200_000_000), hash='0x'+'ab'*32,
+                        number='0x123', timestamp='0x64')
+        self.stop('fresh_estimate_pin', lambda: u.fresh_gas(
+            rpc, self.step, {}, 100, pin_block=None))
+
+    def test_remote_fresh_estimate_unavailable(self):
+        def rpc(method, params):
+            self.assertEqual(method, 'eth_estimateGas')
+            raise RuntimeError('remote estimate unavailable')
+        self.stop('remote_fresh_estimate_unavailable', lambda: u.fresh_gas(rpc, self.step))
+
+    def b4_measurement_control(self, gate, key):
+        # Each invocation builds an independent plan before injecting one key.
+        derived = dict(pin={'block': '0x123', 'senders': {}}, externalInputs={}, steps=[
+            dict(id='B4', executionTimestamp=100, sender='approver',
+                 tx={k: v for k, v in self.step['tx'].items() if k != 'gas'})])
+        derived['steps'][0]['variants'] = {
+            name: copy.deepcopy(derived['steps'][0]['tx']) for name in ('apply', 'placeholder')}
+        self.plan = copy.deepcopy(derived)
+        self.step = self.plan['steps'][0]
+        freeze_gas(self.plan, self.step)
+        m.budget(self.plan)
+        with patch.object(m, 'build_plan', return_value=derived):
+            m.validate_plan(self.plan, {}, frozen=True)
+            target = self.step['variantMeasurements']
+            if gate == 'B4_placeholder_measurements':
+                target = target['placeholder']
+            target[key] = copy.deepcopy(self.step['tx']) if key == 'tx' else 'unexpected'
+            self.stop(gate, lambda: m.validate_plan(self.plan, {}, frozen=True))
+
+    def test_B4_variant_measurements(self):
+        self.b4_measurement_control('B4_variant_measurements', 'unexpected')
+
+    def test_B4_placeholder_measurements_tx(self):
+        self.b4_measurement_control('B4_placeholder_measurements', 'tx')
+
+    def test_B4_placeholder_measurements_unexpected(self):
+        self.b4_measurement_control('B4_placeholder_measurements', 'unexpected')
+
+    def test_remote_margin(self):
+        self.step['tx']['gas'] = hex(u.margin_limit(68394))
+        self.stop('measured_gas_limit')
+
+    def test_missing_remote(self):
+        del self.step['estimateGas']
+        self.stop('remote_estimate_missing')
+
+    def test_wrong_pin(self):
+        self.step['gasEvidence']['estimateContext']['block'] = '0x124'
+        self.stop('remote_estimate_pin')
+
+    def test_missing_override(self):
+        self.step['gasEvidence']['estimateContext']['stateOverrides'] = {}
+        self.stop('remote_estimate_overrides')
+
+    def test_wrong_time_override(self):
+        self.step['gasEvidence']['estimateContext']['blockOverrides'] = {'time': hex(self.step['executionTimestamp']+1)}
+        self.stop('remote_estimate_time')
+
+    def test_wrong_prior_steps(self):
+        # One prior step missing from the recorded prefix.
+        self.step['gasEvidence']['priorSteps'] = []
+        self.stop('remote_estimate_prior_steps')
+
+    def test_tampered_prior_steps(self):
+        for prior in (['other'], ['prior', 'prior']):
+            with self.subTest(prior=prior):
+                self.setUp()
+                self.step['gasEvidence']['priorSteps'] = prior
+                self.stop('remote_estimate_prior_steps')
+
+    def test_block_limit(self):
+        self.step['gasEvidence']['blockGasLimit'] = a.qty(self.step['tx']['gas'])-1
+        self.stop('block_gas_limit')
+
+    def test_fresh_estimate(self):
+        def rpc(method, params):
+            if method == 'eth_estimateGas':
+                self.assertEqual(params[1:], ['latest'])
+                return hex(a.qty(self.step['tx']['gas'])+1)
+            return dict(gasLimit=hex(200_000_000), hash='0x'+'ab'*32, number='0x123', timestamp='0x64')
+        self.stop('fresh_estimate', lambda: u.fresh_gas(rpc, self.step))
+
+    def test_fresh_modes(self):
+        for overrides in (None, {}, {a.SAFE: {'balance': '0x1'}}):
+            calls = []
+            def rpc(method, params):
+                calls.append((method, copy.deepcopy(params)))
+                if method == 'eth_estimateGas': return hex(120000)
+                return dict(gasLimit=hex(200_000_000), hash='0x'+'ab'*32, number='0x123', timestamp='0x63')
+            result = u.fresh_gas(rpc, self.step, overrides, 100, pin_block='0x123')
+            block = 'latest' if overrides is None else '0x123'
+            mode = 'live' if overrides is None else 'pinned-consistency'
+            self.assertEqual(result, dict(mode=mode, block=block))
+            self.assertEqual(calls[0][1][1:], [block] if overrides is None else
+                             [block, overrides, {'time': '0x64'}])
+            self.assertEqual(calls[1], ('eth_getBlockByNumber', [block, False]))
+
+    def test_b4_replays_both_variants_before_selection(self):
+        self.step['id'] = 'B4'
+        self.plan['externalInputs'] = {}
+        overrides = {a.SAFE: {'balance': '0x123'}}
+        def rpc(method, params):
+            if method == 'eth_estimateGas': return hex(120000)
+            if method == 'eth_getBlockByNumber':
+                return dict(timestamp=hex(99), gasLimit=hex(200_000_000), hash='0x'+'ab'*32, number='0x123')
+            raise AssertionError(method)
+        self.step.update(estimateGas=120000, localEstimateGas=120000, forkGasUsed=120000)
+        self.step['tx']['gas'] = hex(u.margin_limit(120000))
+        self.step['gasEvidence']['estimateContext']['stateOverrides'] = overrides
+        self.step['variants'] = {name: copy.deepcopy(self.step['tx']) for name in ('apply', 'placeholder')}
+        self.step['variantMeasurements'] = {'placeholder': {
+            k: copy.deepcopy(self.step[k]) for k in u.MEASURED_KEYS | {'gasEvidence'}}}
+        original = copy.deepcopy(self.step)
+        for variant in ('apply', 'placeholder'):
+            for mutation, gate in (('estimate', 'replay_estimateGas'), ('override', 'replay_gasEvidence')):
+                self.step = copy.deepcopy(original)
+                self.plan['steps'][-1] = self.step
+                target = self.step if variant == 'apply' else self.step['variantMeasurements']['placeholder']
+                if mutation == 'estimate':
+                    target['estimateGas'] = 100000
+                    target['localEstimateGas'] = target['forkGasUsed'] = 100000
+                    self.step['variants'][variant]['gas'] = hex(130000)
+                    if variant == 'apply': self.step['tx']['gas'] = hex(130000)
+                else:
+                    target['gasEvidence']['estimateContext']['stateOverrides'] = {a.ZERO: {}}
+                with self.subTest(variant=variant, mutation=mutation), patch.object(m, 'select_b4') as select:
+                    self.stop(gate, lambda: m.execute_b4(
+                        rpc, rpc, self.plan, self.step, {}, overrides, False))
+                    select.assert_not_called()
+
+    def test_b4_preapplied_real_measurement(self):
+        # Stop at the first pre-send RPC: all replay and selection helpers are real.
+        class ReachedPreSend(Exception):
+            pass
+        self.step.update(id='B4', estimateGas=120000, localEstimateGas=120000,
+                         forkGasUsed=120000)
+        self.plan['externalInputs'] = {}
+        verifier = '0x'+'12'*20
+        self.plan['addresses'] = dict(BLSAggregator=a.SAFE, OverIssueFraudProofVerifier=verifier)
+        overrides = self.step['gasEvidence']['estimateContext']['stateOverrides']
+        self.step['tx'].update(data=a.calldata('applyFraudProofVerifier()'),
+                               gas=hex(u.margin_limit(120000)))
+        self.step['variants'] = dict(apply=copy.deepcopy(self.step['tx']),
+                                    placeholder=dict(self.step['tx'], data='0x'))
+        self.step['variantMeasurements'] = {'placeholder': {
+            k: copy.deepcopy(self.step[k]) for k in u.MEASURED_KEYS | {'gasEvidence'}}}
+        original = copy.deepcopy(self.step)
+        for tamper in (None, 'estimate', 'evidence'):
+            self.step = copy.deepcopy(original)
+            self.plan['steps'][-1] = self.step
+            if tamper == 'estimate': self.step['estimateGas'] += 1
+            if tamper == 'evidence': self.step['gasEvidence']['estimateContext']['stateOverrides'] = {a.ZERO: {}}
+            remote_payloads, local_payloads = [], []
+            def remote(method, params):
+                if method == 'eth_estimateGas':
+                    self.assertEqual(params[1:], ['0x123', overrides, {'time': hex(100)}])
+                    remote_payloads.append(params[0]['data'])
+                    return hex(120000)
+                if method == 'eth_getBlockByNumber':
+                    return dict(timestamp=hex(99), gasLimit=hex(200_000_000),
+                                hash='0x'+'ab'*32, number='0x123')
+                raise AssertionError(method)
+            def fork(method, params):
+                if method == 'eth_getBlockByNumber': return remote(method, params)
+                if method == 'eth_call': return '0x'+format(int(verifier, 16), '064x')
+                if method == 'eth_estimateGas':
+                    if params[0]['data'] != '0x': raise RuntimeError('NoPendingVerifierRotation')
+                    self.assertEqual(params[1:], ['latest'])
+                    local_payloads.append(params[0]['data'])
+                    return hex(120000)
+                if method == 'eth_chainId': raise ReachedPreSend()
+                raise AssertionError(method)
+            fork.local = True
+            with self.subTest(tamper=tamper):
+                if tamper:
+                    self.stop('replay_estimateGas' if tamper == 'estimate' else 'replay_gasEvidence',
+                        lambda: m.execute_b4(remote, fork, self.plan, self.step, {}, overrides, False))
+                    self.assertEqual(local_payloads, [])
+                else:
+                    with self.assertRaises(ReachedPreSend):
+                        m.execute_b4(remote, fork, self.plan, self.step, {}, overrides, False)
+                    self.assertEqual(local_payloads, ['0x'])
+                    self.assertEqual(remote_payloads, [self.step['tx']['data'], '0x', '0x'])
+
+    def test_shared_measurement_records_remote_context_and_replays(self):
+        self.plan['externalInputs'] = {}
+        self.step['tx']['nonce'] = hex(13000)
+        fork = base.GasFork(minimum=68394, used=68394, estimate=53160)
+        calls = []
+        def remote(method, params):
+            calls.append((method, copy.deepcopy(params)))
+            if method == 'eth_estimateGas': return hex(135104)
+            if method == 'eth_getBlockByNumber': return dict(gasLimit=hex(200_000_000),
+                hash='0x'+'ab'*32, number='0x123', timestamp='0x64')
+            raise AssertionError(method)
+        overrides = {a.SAFE: {'stateDiff': {a.ZERO32: a.ZERO32}}}
+        u.measure_step(remote, fork, self.plan, self.step, overrides, 2000, True)
+        u.validate_gas_evidence(self.plan, self.step)
+        self.assertEqual(calls[0][1][1:], ['0x123', overrides, {'time': hex(2000)}])
+        self.assertEqual(self.step['estimateGas'], 135104)
+        self.assertEqual(self.step['localEstimateGas'], 53160)
+        self.assertEqual(self.step['forkGasUsed'], 68394)
+        self.assertEqual(a.qty(self.step['tx']['gas']), u.margin_limit(135104))
+        frozen = copy.deepcopy(self.step)
+        u.measure_step(remote, fork, self.plan, self.step, overrides, 2000, False)
+        self.assertEqual(self.step, frozen)
+        changed = {a.SAFE: {'stateDiff': {a.ZERO32: '0x'+'01'*32}}}
+        self.stop('replay_gasEvidence', lambda: u.measure_step(
+            remote, fork, self.plan, self.step, changed, 2000, False))
+        u.fresh_gas(remote, self.step, overrides, 2000, pin_block=self.plan['pin']['block'])
+        estimates = [params for method, params in calls if method == 'eth_estimateGas']
+        self.assertEqual(estimates[-1][1:], ['0x123', overrides, {'time': hex(2000)}])
+
+    def test_unavailable_remote(self):
+        def rpc(method, params):
+            raise RuntimeError('overrides unsupported')
+        self.stop('remote_estimate_unavailable', lambda: u.measure_step(
+            rpc, rpc, self.plan, self.step, {}, 100, True))
+
+
+class GasProbeReportingTests(unittest.TestCase):
+    def test_suppressed_outcomes_distinguish_defense_in_depth(self):
+        import probe_gas_gates as probes
+        for name, gate in probes.CASES.items():
+            with self.subTest(gate=gate):
+                expected = ('caught by measurement_estimateGas (defense in depth)'
+                            if gate == 'remote_estimate_missing' else
+                            'rejected by AttributeError (unstructured failure)'
+                            if gate in ('gas_evidence_missing', 'remote_estimate_context') else
+                            'accepted (load-bearing)')
+                self.assertEqual(probes.suppressed_outcome(name, gate), expected)
+
+    def test_suppressed_gate_cannot_be_reported_as_another_defense(self):
+        import probe_gas_gates as probes
+        with patch.object(u, 'validate_gas_evidence',
+                          side_effect=a.Gate('remote_estimate_missing', False, True)):
+            with self.assertRaises(AssertionError):
+                probes.suppressed_outcome('test_missing_remote', 'remote_estimate_missing')
 
 
 if __name__ == '__main__':
