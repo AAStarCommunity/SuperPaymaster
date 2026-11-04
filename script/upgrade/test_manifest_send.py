@@ -826,6 +826,42 @@ class SendTests(AnvilCase):
             rec = self.stop('interrupted', broadcast=True)
         self.assertEqual(rec['observed']['step'], self.FIRST)
 
+    def test_failure_after_broadcast_is_recorded_with_the_hash(self):
+        """Any exception or interrupt after the broadcast: FAILURE.json says send_after_broadcast with the local hash,
+        never local_error/"no local failure before broadcast"."""
+        for name, url in zip(('a', 'b'), self.urls):
+            (self.d/name).write_text(url)
+        real = ms.advance
+        for i, error in enumerate((KeyboardInterrupt, ValueError)):
+            with self.subTest(error=error.__name__):
+                self.local('evm_revert', [self.base_snapshot])
+                self.__class__.base_snapshot = self.local('evm_snapshot', [])
+                out = self.d/('after-%d' % i)
+                self.out = out
+                self.broadcasts.clear()
+                def advance(context, sid, r, timestamp, error=error):
+                    if sid == self.FIRST:
+                        raise error('injected')
+                    return real(context, sid, r, timestamp)
+                argv = ['--packet', str(self.args.packet), '--approved-sha256', self.sha, '--first', self.FIRST,
+                        '--prior', str(self.args.prior[0]), '--rpc-file', str(self.d/'a'),
+                        '--rpc-file-secondary', str(self.d/'b'), '--accounts', str(self.args.accounts),
+                        '--password-file', str(self.args.password_file), '--out', str(out),
+                        '--authorized-at', AUTHORIZED_AT,
+                        '--confirm', 'SEND %s..%s %s' % (self.FIRST, self.FIRST, self.sha[:12])]
+                err = io.StringIO()
+                with mock.patch.object(ms, 'advance', advance), mock.patch.dict(os.environ, {ms.ENABLE_ENV: self.sha}), \
+                        contextlib.redirect_stderr(err):
+                    self.assertEqual(ms.main(argv), 1)
+                record = json.loads((out/'FAILURE.json').read_text())
+                self.assertEqual(record['gate'], 'send_after_broadcast')
+                self.assertEqual(record['observed']['cause'], 'interrupted' if error is KeyboardInterrupt else 'local_error')
+                self.assertEqual(len(self.broadcasts), 1)
+                sent_hash = a.typed(self.local('eth_getBlockByNumber', ['latest', False])['transactions'][0], a.HASH32)
+                self.assertEqual(record['observed']['hash'], sent_hash)
+                self.assertNotIn('no local failure before broadcast', json.dumps(record))
+                self.assertIn('FAILURE: send_after_broadcast', err.getvalue())
+
     def test_nonempty_output_directory_is_never_reused(self):
         for name, url in zip(('a', 'b'), self.urls):
             (self.d/name).write_text(url)

@@ -148,6 +148,8 @@ SOURCE = [
      "    if not args.dry_run:  # the author's go is on disk", "    if False:  # the author's go is on disk"),
     ('SendTests', 'test_interrupt_during_bookkeeping_is_after_broadcast', 'interrupt after broadcast -> send_after_broadcast',
      "except (Exception, KeyboardInterrupt) as e:", "except Exception as e:"),
+    ('SendTests', 'test_failure_after_broadcast_is_recorded_with_the_hash', 'interrupt after broadcast -> send_after_broadcast',
+     "except (Exception, KeyboardInterrupt) as e:", "except Exception as e:"),
     ('CliTests', 'test_disabled_by_default', 'disabled_by_default (rc=3)',
      "if os.environ.get(ENABLE_ENV) in (None, ''):", "if False:"),
     ('CliTests', 'test_enable_names_another_packet', 'enable_names_packet (rc=3)',
