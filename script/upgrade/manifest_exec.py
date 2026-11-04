@@ -830,10 +830,13 @@ def check_governance(rpcs, pin, inputs):
             governance_trace(diff, row, block['miner'])
             labels.append(label)
         a.need('safe_gap_dual_identity', identities[0], identities[1])
+        row['block'] = a.qty(identities[0][0])
         a.need('safe_gap_trace_available', len(labels) > 0, True)
         counts.append(dict(hash=entry['hash'], traceEndpoints=len(labels), traceEndpointLabels=labels))
     swaps = [r for r in rows if r['tx']['step'] == 'execTransaction']
     a.need('safe_gap_swap_required', len(swaps), 1)
+    # The hand-written owner-set boundary must be the block that actually executed the swap.
+    a.need('safe_gap_owner_swap_block', swaps[0]['block'], a.OWNER_SWAP_BLOCK)
     expected = swaps[0]['packet']['expectedReadback']
     a.need('safe_gap_pin_owners', pin['safe']['owners'], sorted(a.safe_owners(pin['stateBlock'], expected['owners'])))
     a.need('safe_gap_pin_threshold', pin['safe']['threshold'], expected['threshold'])

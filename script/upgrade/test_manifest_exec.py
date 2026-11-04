@@ -2261,6 +2261,30 @@ class SafeGovernanceTests(unittest.TestCase):
         self.setUp()
         self.stop('safe_gap_pin_threshold', lambda: self.pin['safe'].update(threshold=1))
 
+    def test_live_owner_code_on_one_endpoint(self):
+        self.verify()
+        original = self.rpc('b')
+        def delegated(method, params):
+            if method == 'eth_getCode' and params[0] == a.APPROVER: return '0xef0100'+'11'*20
+            return original(method, params)
+        with self.assertRaises(a.Gate) as caught:
+            m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), delegated])
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_eoa')
+
+    def test_dual_identity_and_sender_balance(self):
+        self.stop('safe_gap_dual_identity', lambda: self.chain['E755']['b']['block'].update(miner='0x'+'22'*20))
+        self.setUp()
+        def unpaid():
+            diff = self.chain['A100']['a']['diff']
+            diff['post'][a.APPROVER]['balance'] = diff['pre'][a.APPROVER]['balance']
+        self.stop('safe_gap_sender_balance', unpaid)
+
+    def test_owner_swap_block_bound_to_chain(self):
+        self.verify()
+        with patch.object(a, 'OWNER_SWAP_BLOCK', 12060360):
+            with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), self.rpc('b')])
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_swap_block')
+
     def test_exact_nonce_coverage(self):
         self.stop('prepin_nonce_approver', lambda: self.pin['senders']['approver'].update(nonce=102))
         self.setUp()
