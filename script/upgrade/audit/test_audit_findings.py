@@ -27,6 +27,12 @@ import test_manifest_exec as tm  # noqa: E402  (fixture source; its tests are no
 m, a, u = tm.m, tm.a, tm.u
 
 
+class UnexpectedFixtureCall(Exception):
+    """Raised by audit mocks for an RPC/ABI call they do not model. Deliberately not an
+    AssertionError, so check_expected_failure_causes.py reports it as a wrong cause instead
+    of it being absorbed as the documented failure (review S-2)."""
+
+
 class AuditFixture(unittest.TestCase):
     """Borrow ManifestTests' synthetic pin/inputs/plan without inheriting its tests."""
 
@@ -130,7 +136,10 @@ class F04OldAggregatorPolicyAdmin(AuditFixture):
         def rpc(method, params):
             if method == 'eth_getBalance': return '0x100'
             if method == 'eth_getStorageAt': return '0x'+m.ANNI[2:].zfill(64)
-            return history(method, params)
+            try:
+                return history(method, params)
+            except AssertionError as error:
+                raise UnexpectedFixtureCall(error.args) from None
         def address(rpc, target, sig, block):
             if sig == 'slashPolicyAdmin()':
                 return stranger
@@ -138,12 +147,12 @@ class F04OldAggregatorPolicyAdmin(AuditFixture):
         def word(rpc, target, sig, *args, **kw):
             if sig == 'MAX_VALIDATORS()': return 13
             if sig == 'validatorAtSlot(uint8)': return args[0] if args[0] <= 3 else 0
-            raise AssertionError(sig)
+            raise UnexpectedFixtureCall(sig)
         def call(rpc, target, sig, *args, **kw):
             if sig == 'version()': return a.cast('abi-encode', 'c(string)', 'Registry-5.8.0')
             if sig.startswith('getDepositInfo'):
                 return a.cast('abi-encode', 'c(uint256,bool,uint256,uint256,uint256)', 1, 'true', 1, 86400, 0)
-            raise AssertionError(sig)
+            raise UnexpectedFixtureCall(sig)
         with patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
              patch.object(a, 'nonce', return_value=55), \
              patch.object(u, 'code', side_effect=lambda r, t, b: '0x' if t == m.ANNI else '0x6000'), \
