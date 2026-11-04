@@ -991,7 +991,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "pattern": "^contracts/src/.*\\.sol$"
+                "pattern": "^(?!/)(?!.*(?:^|/)[.]{1,2}/)(?!.*//).+\\.sol$"
               },
               "minItems": 1,
               "uniqueItems": true

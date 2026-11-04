@@ -2059,6 +2059,56 @@ class ManifestTests(unittest.TestCase):
         e['findings']['inScopeTotal'] = 1
         m.evidence_file(self.file_ref('accepted-finding',e),'slither')
 
+    def test_outside_high_medium_allowed(self):
+        for impact in ('High', 'Medium'):
+            value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+            value['findings']['outOfScope'] = [dict(id='lib', impact=impact,
+                files=['contracts/lib/Token.sol'], classification='unclassified')]
+            with self.subTest(impact=impact):
+                m.validate_evidence_details(value, 'slither')
+
+    def test_scope_empty_and_dependency_disjointness(self):
+        original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        for files in ([], ['']):
+            value = copy.deepcopy(original)
+            value['scope']['files'] = files
+            with self.assertRaises(a.Gate) as caught:
+                m.validate_evidence_details(value, 'slither')
+            self.assertEqual(caught.exception.record['gate'], 'evidence_scope_files')
+        original['scope']['files'] = ['contracts/lib/Base.sol']
+        m.validate_evidence_details(original, 'slither')
+        original['findings']['outOfScope'] = [dict(id='lib', impact='High',
+            files=['contracts/lib/Base.sol'], classification='unclassified')]
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(original, 'slither')
+        self.assertEqual(caught.exception.record['gate'], 'evidence_outside_files')
+
+    def test_evidence_full_creation_required(self):
+        value = json.loads(Path(self.data['releaseEvidence']['reproducible-build']['path']).read_text())
+        for name in m.NAMES:
+            changed = copy.deepcopy(value)
+            changed['contracts'][name]['strippedCreationKeccak'] = a.ZERO32
+            with self.subTest(contract=name), self.assertRaises(a.Gate) as caught:
+                m.validate_evidence_details(changed, 'reproducible-build')
+            self.assertEqual(caught.exception.record['gate'], 'evidence_full_creation_'+name)
+
+    def test_layout_pair_identity_required(self):
+        original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        for index in range(len(m.LAYOUT_PAIRS)):
+            for field in ('core', 'extension', 'reference'):
+                value = copy.deepcopy(original)
+                value['storageLayout'][index][field] = 'substituted'
+                with self.subTest(index=index, field=field), self.assertRaises(a.Gate) as caught:
+                    m.validate_evidence_details(value, 'slither')
+                self.assertEqual(caught.exception.record['gate'], 'evidence_layout_identity')
+
+    def test_layout_pair_parity_required(self):
+        value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        value['storageLayout'][0]['extensionTable']['storage'][0]['slot'] = '999'
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(value, 'slither')
+        self.assertEqual(caught.exception.record['gate'], 'evidence_layout_parity')
+
     def test_slither_scope_counts_and_parity_tampering_rejected(self):
         original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
         def change_count(e): e['findings']['inScopeTotal'] = 1
@@ -2152,6 +2202,31 @@ class RealCreationTests(unittest.TestCase):
         for suffix in ('00', 'a164736f6c6343000821000a'):
             with self.subTest(suffix=suffix), self.assertRaises(a.Gate):
                 m.creation_hashes(self.verifier() + suffix, 'OverIssueFraudProofVerifier')
+
+    def test_verifier_metadata_solc_required(self):
+        changed = bytearray.fromhex(self.verifier()[2:])
+        changed[-3] ^= 1
+        with self.assertRaises(a.Gate) as caught:
+            m.verifier_executable('0x' + changed.hex())
+        self.assertEqual(caught.exception.record['gate'], 'verifier_metadata_solc')
+
+    def test_verifier_segment_length_required(self):
+        changed = bytearray.fromhex(self.verifier()[2:])
+        changed[-1] -= 1
+        with self.assertRaises(a.Gate) as caught:
+            m.verifier_executable('0x' + changed.hex())
+        self.assertEqual(caught.exception.record['gate'], 'verifier_segment_length')
+
+    def test_reproducible_reference_bytes_required(self):
+        name = 'SuperPaymaster'
+        first, second = '0x6000', '0x6001'
+        hashes = m.creation_hashes(second, name)
+        # Evidence and rebuilt hashes agree; only the independent reference differs.
+        with self.assertRaises(a.Gate) as caught:
+            m.compare_build_evidence(dict(contracts={name: hashes}),
+                {name: dict(bytecode=second, creationHashes=hashes)},
+                reference_contracts={name: dict(bytecode=first)})
+        self.assertEqual(caught.exception.record['gate'], 'reproducible_bytes_'+name)
 
     def test_dvt_segment_length_and_keys(self):
         code = self.verifier()

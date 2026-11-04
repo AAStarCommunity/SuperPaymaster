@@ -199,7 +199,7 @@ def validate_evidence_details(e, kind):
         a.need('evidence_scope_contracts', scope['contracts'], list(NAMES))
         files = scope['files']
         a.need('evidence_scope_files', isinstance(files, list) and bool(files) and files == sorted(set(files))
-               and all(isinstance(x, str) and x.startswith('contracts/src/') and '..' not in x.split('/')
+               and all(isinstance(x, str) and not x.startswith('/') and all(part not in ('', '.', '..') for part in x.split('/'))
                        and x.endswith('.sol') for x in files), True)
         outside_ids = []
         for item in f['outOfScope']:
@@ -629,10 +629,10 @@ def rebuild():
 
 @lru_cache(maxsize=1)
 def rebuild_dvt():
+    a.need('dvt_repo_configured', bool(os.environ.get('MANIFEST_DVT_REPO')), True)
     version = subprocess.run([str(a.REBUILD_FORGE), '--version'], capture_output=True, text=True, check=True).stdout
     a.need('dvt_forge_version', version.splitlines()[0], 'forge Version: 1.7.1')
     # Local clone of DVT (YetAnotherAA-Validator) containing VERIFIER_COMMIT; never a hardcoded machine path.
-    a.need('dvt_repo_configured', bool(os.environ.get('MANIFEST_DVT_REPO')), True)
     repo = Path(os.environ['MANIFEST_DVT_REPO'])
     with tempfile.TemporaryDirectory(prefix='manifest-dvt-') as directory:
         tree = Path(directory)/'tree'

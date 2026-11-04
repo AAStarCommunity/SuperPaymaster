@@ -327,7 +327,7 @@ def mutation(tree, forge, details):
 
 
 def compiled_scope(tree):
-    """Resolve inheritance in each build-info unit: solc IDs are unit-local."""
+    """Resolve import closures and inheritance within each build-info unit."""
     roots, root_nodes, signatures = {}, {}, {}
     files = set()
     units = sorted((tree / 'out/build-info').glob('*.json'))
@@ -353,15 +353,26 @@ def compiled_scope(tree):
                 continue
             source, node = matches[0]
             chain = []
-            unit_files = {source}
+            unit_files = set()
+            pending = [source]
+            while pending:
+                path = pending.pop()
+                if path in unit_files:
+                    continue
+                require(path in sources, 'missing compiled import AST in unit: ' + path)
+                unit_files.add(path)
+                for imported in sources[path]['ast'].get('nodes', []):
+                    if imported.get('nodeType') == 'ImportDirective':
+                        target = imported.get('absolutePath')
+                        require(isinstance(target, str) and target in sources,
+                                'missing compiled import AST in unit: ' + str(target))
+                        pending.append(target)
             for base in node['linearizedBaseContracts']:
                 require(base in nodes, 'missing compiled base AST in unit: ' + unit.name)
                 path, definition = nodes[base]
                 content = data.get('input', {}).get('sources', {}).get(path, {}).get('content')
                 require(isinstance(content, str), 'missing compiled source content: ' + path)
                 chain.append((path, definition['name'], definition['contractKind'], content))
-                if path.startswith('contracts/src/') and definition['contractKind'] != 'interface':
-                    unit_files.add(path)
             # IDs and source indices differ between units. Compare source identity,
             # exact contents and ordered inheritance instead of numeric AST IDs.
             signature = (source, chain)
