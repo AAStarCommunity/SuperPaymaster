@@ -4,6 +4,7 @@ import sys
 sys.dont_write_bytecode = True
 import argparse
 import copy
+from contextlib import contextmanager
 import hashlib
 import json
 from pathlib import Path
@@ -480,41 +481,57 @@ def validate_gas(step):
                                                    step['forkGasUsed'], minimum or 0))
 
 
+@contextmanager
+def gas_step(step):
+    """Preserve the failing step alongside the gate's observed and expected values."""
+    try:
+        yield
+    except a.Gate as error:
+        error.record['step'] = step.get('id')
+        raise
+
+
 def validate_gas_evidence(plan, step):
     """Bind the remote measurement to the pin and the preceding plan prefix."""
-    a.need('remote_estimate_missing', type(step.get('estimateGas')) is int and step['estimateGas'] > 0, True)
-    evidence = step.get('gasEvidence')
-    a.need('gas_evidence_missing', isinstance(evidence, dict), True)
-    context = evidence.get('estimateContext')
-    a.need('remote_estimate_context', isinstance(context, dict), True)
-    a.need('measurement_executionTimestamp', type(step.get('executionTimestamp')) is int
-           and step['executionTimestamp'] > 0, True)
-    a.need('remote_estimate_pin', context.get('block'), plan['pin']['block'])
-    prior = [s['id'] for s in plan['steps'][:next(i for i, s in enumerate(plan['steps']) if s['id'] == step['id'])]]
-    a.need('remote_estimate_prior_steps', evidence.get('priorSteps'), prior)
-    overrides = context.get('stateOverrides')
-    dependent = bool(prior) or plan['pin'].get('stateBlock', plan['pin']['block']) != plan['pin']['block']
-    a.need('remote_estimate_overrides', isinstance(overrides, dict) and (not dependent or bool(overrides)), True)
-    a.need('remote_estimate_time', context.get('blockOverrides'), {'time': hex(step['executionTimestamp'])})
-    ceiling = evidence.get('blockGasLimit')
-    a.need('measurement_blockGasLimit', type(ceiling) is int and ceiling > 0, True)
-    a.need('block_gas_limit', a.qty(step['tx']['gas']) <= ceiling, True)
-    validate_gas(step)
+    with gas_step(step):
+        a.need('remote_estimate_missing', type(step.get('estimateGas')) is int and step['estimateGas'] > 0, True)
+        evidence = step.get('gasEvidence')
+        a.need('gas_evidence_missing', isinstance(evidence, dict), True)
+        context = evidence.get('estimateContext')
+        a.need('remote_estimate_context', isinstance(context, dict), True)
+        a.need('measurement_executionTimestamp', type(step.get('executionTimestamp')) is int
+               and step['executionTimestamp'] > 0, True)
+        a.need('remote_estimate_pin', context.get('block'), plan['pin']['block'])
+        prior = [s['id'] for s in plan['steps'][:next(i for i, s in enumerate(plan['steps']) if s['id'] == step['id'])]]
+        a.need('remote_estimate_prior_steps', evidence.get('priorSteps'), prior)
+        overrides = context.get('stateOverrides')
+        dependent = bool(prior) or plan['pin'].get('stateBlock', plan['pin']['block']) != plan['pin']['block']
+        a.need('remote_estimate_overrides', isinstance(overrides, dict) and (not dependent or bool(overrides)), True)
+        a.need('remote_estimate_time', context.get('blockOverrides'), {'time': hex(step['executionTimestamp'])})
+        ceiling = evidence.get('blockGasLimit')
+        a.need('measurement_blockGasLimit', type(ceiling) is int and ceiling > 0, True)
+        a.need('block_gas_limit', a.qty(step['tx']['gas']) <= ceiling, True)
+        validate_gas(step)
 
 
-def fresh_gas(rpc, step, overrides=None, timestamp=None):
+def fresh_gas(rpc, step, overrides=None, timestamp=None, *, pin_block=None):
     """Live callers omit overrides; rehearsals supply the accumulated fork effects."""
-    tx = step['tx']
-    probe_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
-    params = [probe_tx, 'latest']
-    if overrides is not None:
-        params += [overrides, {'time': hex(timestamp)}]
-    try:
-        estimate = a.qty(rpc('eth_estimateGas', params))
-    except Exception as error:
-        raise a.Gate('remote_fresh_estimate_unavailable', step.get('id'), str(error)) from error
-    a.need('fresh_estimate', estimate <= a.qty(tx['gas']), True)
-    a.need('block_gas_limit', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
+    with gas_step(step):
+        tx = step['tx']
+        probe_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
+        block = 'latest' if overrides is None else pin_block
+        if overrides is not None:
+            a.need('fresh_estimate_pin', isinstance(block, str) and block.startswith('0x'), True)
+        params = [probe_tx, block]
+        if overrides is not None:
+            params += [overrides, {'time': hex(timestamp)}]
+        try:
+            estimate = a.qty(rpc('eth_estimateGas', params))
+        except Exception as error:
+            raise a.Gate('remote_fresh_estimate_unavailable', step.get('id'), str(error)) from error
+        a.need('fresh_estimate', estimate <= a.qty(tx['gas']), True)
+        a.need('block_gas_limit', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, block)['gasLimit']), True)
+        return dict(mode='live' if overrides is None else 'rehearsal', block=block)
 
 
 def validate_plan(plan, frozen=True):
@@ -627,59 +644,60 @@ def reservoir_witness(rpc, tx, r):
 
 
 def measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate):
-    tx = step['tx']
-    estimate_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
-    context = dict(block=plan['pin']['block'], stateOverrides=copy.deepcopy(overrides), blockOverrides={'time': hex(timestamp)})
-    try:
-        est = a.qty(remote('eth_estimateGas', [estimate_tx, context['block'], overrides, context['blockOverrides']]))
-    except Exception as error:
-        raise a.Gate('remote_estimate_unavailable', step.get('id'), str(error)) from error
-    local_est = a.qty(rpc('eth_estimateGas', [estimate_tx, 'latest']))
-    minimum, trials = mined_minimum(rpc, tx, timestamp) if tx['to'] is None else (None, [])
-    observed = dict(executionTimestamp=timestamp, estimateGas=est, localEstimateGas=local_est, minedGasMinimum=minimum)
-    if 'externalInputs' in plan:
-        observed['gasEvidence'] = dict(estimateContext=context,
-            priorSteps=[s['id'] for s in plan['steps'][:next(i for i, s in enumerate(plan['steps']) if s['id'] == step['id'])]],
-            blockGasLimit=a.qty(a.block_data(remote, plan['pin']['block'])['gasLimit']))
-    if not calibrate:
-        for key, value in observed.items():
-            a.need('replay_'+key, value, step[key])
+    with gas_step(step):
+        tx = step['tx']
+        estimate_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
+        context = dict(block=plan['pin']['block'], stateOverrides=copy.deepcopy(overrides), blockOverrides={'time': hex(timestamp)})
+        try:
+            est = a.qty(remote('eth_estimateGas', [estimate_tx, context['block'], overrides, context['blockOverrides']]))
+        except Exception as error:
+            raise a.Gate('remote_estimate_unavailable', step.get('id'), str(error)) from error
+        local_est = a.qty(rpc('eth_estimateGas', [estimate_tx, 'latest']))
+        minimum, trials = mined_minimum(rpc, tx, timestamp) if tx['to'] is None else (None, [])
+        observed = dict(executionTimestamp=timestamp, estimateGas=est, localEstimateGas=local_est, minedGasMinimum=minimum)
+        if 'externalInputs' in plan:
+            observed['gasEvidence'] = dict(estimateContext=context,
+                priorSteps=[s['id'] for s in plan['steps'][:next(i for i, s in enumerate(plan['steps']) if s['id'] == step['id'])]],
+                blockGasLimit=a.qty(a.block_data(remote, plan['pin']['block'])['gasLimit']))
+        if not calibrate:
+            for key, value in observed.items():
+                a.need('replay_'+key, value, step[key])
+            validate_gas(step)
+            return dict(estimateContext=context, minedGasSearch=trials)
+        limit = margin_limit(est, local_est, minimum or 0)
+        # Gas-used accounting can depend on the submitted limit. Require a stable measured
+        # limit, and fail on a cycle/non-convergence instead of freezing inconsistent evidence.
+        for _ in range(4):
+            if 'gasEvidence' in observed:
+                a.need('block_gas_limit', limit <= observed['gasEvidence']['blockGasLimit'], True)
+            if limit > a.GAS_CAP:
+                # The fork inherits the pinned block's gas limit (anvil_nodeInfo environment.gasLimit); a tx above it
+                # can never be included.
+                block_gas_limit = a.qty(a.block_data(rpc, 'latest')['gasLimit'])
+                if limit > block_gas_limit:
+                    raise a.Gate('block_gas_limit', dict(step=step.get('id'), limit=limit, blockGasLimit=block_gas_limit),
+                                 'limit <= block gas limit')
+            if limit > MAX_CREATE_GAS:
+                raise a.Gate('measured_gas_ceiling', dict(step=step.get('id'), limit=limit, estimateGas=est, localEstimateGas=local_est,
+                                                          minedGasMinimum=minimum), '<= %d' % MAX_CREATE_GAS)
+            if limit > a.GAS_CAP:
+                a.need('rr_create_only', tx['to'], None)
+                a.need('rr_mined_need', minimum > RR_THRESHOLD, True)
+            trial, witness = probe(rpc, tx, limit, timestamp, witness=limit > a.GAS_CAP)
+            a.need('pilot_success', trial['status'], '0x1')
+            used = a.qty(trial['gasUsed'])
+            final_limit = margin_limit(est, local_est, used, minimum or 0)
+            if final_limit == limit:
+                break
+            limit = final_limit
+        else:
+            raise a.Gate('gas_measurement_convergence', limit, 'stable margin from estimates, gasUsed, and mined minimum')
+        step.update(observed, forkGasUsed=used, rrRequired=limit > a.GAS_CAP, rrWitness=witness)
+        step['tx']['gas'] = hex(limit)
         validate_gas(step)
+        if 'externalInputs' in plan:
+            validate_gas_evidence(plan, step)
         return dict(estimateContext=context, minedGasSearch=trials)
-    limit = margin_limit(est, local_est, minimum or 0)
-    # Gas-used accounting can depend on the submitted limit. Require a stable measured
-    # limit, and fail on a cycle/non-convergence instead of freezing inconsistent evidence.
-    for _ in range(4):
-        if 'gasEvidence' in observed:
-            a.need('block_gas_limit', limit <= observed['gasEvidence']['blockGasLimit'], True)
-        if limit > a.GAS_CAP:
-            # The fork inherits the pinned block's gas limit (anvil_nodeInfo environment.gasLimit); a tx above it
-            # can never be included.
-            block_gas_limit = a.qty(a.block_data(rpc, 'latest')['gasLimit'])
-            if limit > block_gas_limit:
-                raise a.Gate('block_gas_limit', dict(step=step.get('id'), limit=limit, blockGasLimit=block_gas_limit),
-                             'limit <= block gas limit')
-        if limit > MAX_CREATE_GAS:
-            raise a.Gate('measured_gas_ceiling', dict(step=step.get('id'), limit=limit, estimateGas=est, localEstimateGas=local_est,
-                                                      minedGasMinimum=minimum), '<= %d' % MAX_CREATE_GAS)
-        if limit > a.GAS_CAP:
-            a.need('rr_create_only', tx['to'], None)
-            a.need('rr_mined_need', minimum > RR_THRESHOLD, True)
-        trial, witness = probe(rpc, tx, limit, timestamp, witness=limit > a.GAS_CAP)
-        a.need('pilot_success', trial['status'], '0x1')
-        used = a.qty(trial['gasUsed'])
-        final_limit = margin_limit(est, local_est, used, minimum or 0)
-        if final_limit == limit:
-            break
-        limit = final_limit
-    else:
-        raise a.Gate('gas_measurement_convergence', limit, 'stable margin from estimates, gasUsed, and mined minimum')
-    step.update(observed, forkGasUsed=used, rrRequired=limit > a.GAS_CAP, rrWitness=witness)
-    step['tx']['gas'] = hex(limit)
-    validate_gas(step)
-    if 'externalInputs' in plan:
-        validate_gas_evidence(plan, step)
-    return dict(estimateContext=context, minedGasSearch=trials)
 
 
 def validate_pin(pin):

@@ -1716,10 +1716,10 @@ def select_b4(rpc, plan, step):
 
 def execute_b4(remote, rpc, plan, step, context, overrides, calibrate, out=None):
     timestamp = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
+    u.measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate)
     if calibrate:
         # Calibration requires the unapplied fixture to measure both approved payloads.
         # Snapshot probes never consume the reserved nonce.
-        u.measure_step(remote, rpc, plan, step, overrides, timestamp, True)
         step['variants']['apply'] = copy.deepcopy(step['tx'])
     placeholder = dict(id=step['id'], tx=step['variants']['placeholder'])
     if not calibrate:
@@ -1733,7 +1733,7 @@ def execute_b4(remote, rpc, plan, step, context, overrides, calibrate, out=None)
     if name == 'placeholder':
         selected.update(step['variantMeasurements']['placeholder'])
     pre_send(rpc, plan, selected, context, measured=True)
-    u.fresh_gas(remote, selected, overrides, timestamp)
+    fresh = u.fresh_gas(remote, selected, overrides, timestamp, pin_block=plan['pin']['block'])
     a.need('B4_block_gas', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
     rpc('evm_setNextBlockTimestamp', [timestamp])
     r = u.receipt(rpc, tx, status=None)
@@ -1742,7 +1742,7 @@ def execute_b4(remote, rpc, plan, step, context, overrides, calibrate, out=None)
     a.need('B4_safe_nonce', a.word(rpc, u.SAFE, 'nonce()'), step['safeNonce'])
     a.need('B4_receipt_gas', a.qty(r['gasUsed']) <= a.qty(tx['gas']), True)
     # Record even a reverted apply before checking whether its post-state permits continuation.
-    record = dict(step='B4', variant=name, transaction=tx, receipt=r)
+    record = dict(step='B4', variant=name, transaction=tx, receipt=r, freshGas=fresh)
     context['B4Receipt'] = record
     if out is not None:
         u.log(out, record)
@@ -2121,7 +2121,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         timestamp = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
         evidence = u.measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate)
         pre_send(rpc, plan, step, context, measured=True)
-        u.fresh_gas(remote, step, overrides, timestamp)
+        evidence['freshGas'] = u.fresh_gas(remote, step, overrides, timestamp, pin_block=plan['pin']['block'])
         rpc('evm_setNextBlockTimestamp', [timestamp])
         r = u.receipt(rpc, step['tx'])
         a.need('manifest_receipt_gas', a.qty(r['gasUsed']), step['forkGasUsed'])

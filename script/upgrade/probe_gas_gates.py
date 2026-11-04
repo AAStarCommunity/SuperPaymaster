@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline mutation probes: suppress one gas gate, require its negative test to fail."""
+"""Offline gas-gate probes reporting acceptance or the next defensive gate."""
 import io
 import unittest
 from unittest.mock import patch
@@ -15,21 +15,52 @@ CASES = {
 }
 
 
-def main():
+def suppressed_outcome(name, gate):
     original = tests.a.need
+    case = tests.GasGateControls(name)
+    outcomes, suppressed = [], []
+
+    def without_gate(actual_gate, *args, **kwargs):
+        if actual_gate == gate:
+            suppressed.append(actual_gate)
+        else:
+            return original(actual_gate, *args, **kwargs)
+
+    def observe(expected_gate, action=None):
+        case.assertEqual(expected_gate, gate)
+        try:
+            (action or (lambda: tests.u.validate_gas_evidence(case.plan, case.step)))()
+        except tests.a.Gate as error:
+            case.assertNotEqual(error.record['gate'], gate)
+            case.assertEqual(error.record['step'], case.step['id'])
+            outcomes.append('caught by '+error.record['gate']+' (defense in depth)')
+        else:
+            outcomes.append('accepted (load-bearing)')
+
+    case.stop = observe
+    stream = io.StringIO()
+    with patch.object(tests.a, 'need', side_effect=without_gate):
+        result = unittest.TextTestRunner(stream=stream).run(case)
+    if not result.wasSuccessful():
+        raise AssertionError(stream.getvalue())
+    if not suppressed or len(outcomes) != 1:
+        raise AssertionError(f'{gate}: probe did not exercise exactly one control and suppress its gate')
+    return outcomes[0]
+
+
+def main():
+    rows = []
     for name, gate in CASES.items():
-        baseline = unittest.TextTestRunner(stream=io.StringIO()).run(tests.GasGateControls(name))
+        stream = io.StringIO()
+        baseline = unittest.TextTestRunner(stream=stream).run(tests.GasGateControls(name))
         if not baseline.wasSuccessful():
-            raise AssertionError(f'{name}: baseline failed')
-        def without_gate(actual_gate, *args, **kwargs):
-            if actual_gate != gate:
-                return original(actual_gate, *args, **kwargs)
-        with patch.object(tests.a, 'need', side_effect=without_gate):
-            result = unittest.TextTestRunner(stream=io.StringIO()).run(tests.GasGateControls(name))
-        if result.wasSuccessful():
-            raise AssertionError(f'{gate}: mutation survived')
-        print(f'{gate}: baseline PASS; gate removed RED')
-    print('GAS_GATE_PROBES PASS 6/6')
+            raise AssertionError(f'{name}: baseline failed\n{stream.getvalue()}')
+        rows.append((gate, suppressed_outcome(name, gate)))
+    print('| Suppressed gate | Baseline | Suppressed outcome |')
+    print('|---|---|---|')
+    for gate, outcome in rows:
+        print(f'| {gate} | PASS | {outcome} |')
+    print(f'GAS_GATE_PROBES PASS {len(rows)}/{len(CASES)}')
 
 
 if __name__ == '__main__':

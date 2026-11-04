@@ -1,9 +1,9 @@
 # DSR H-2: real-chain gas gate
 
-Base: `cc125/chain-gas-gate`, `9edde2b18eec455faf993d65aa81bc7a30b931c7`.
+Review-fix base: `6a615186`. Changes remain uncommitted.
 No commits, remote RPC calls, fork launches, signing, or broadcasting were performed for this change. Tests use offline fixtures and local ABI tools.
 
-## Survey at the base commit
+## Original survey at `9edde2b18eec455faf993d65aa81bc7a30b931c7`
 
 The existing field names are retained: `estimateGas` means the **remote chain estimate**, `localEstimateGas` means the **fork estimate**, and `forkGasUsed` means the mined fork receipt's consumption. An uncalibrated plan deliberately has no gas limits or fabricated measurements; only a calibrated/frozen artifact is eligible for measured validation.
 
@@ -25,8 +25,8 @@ The existing field names are retained: `estimateGas` means the **remote chain es
 - Shared `measure_step` now attaches manifest `gasEvidence`: exact estimate context, preceding step IDs, and real-chain pinned block gas limit. Frozen replay compares this evidence to newly measured context. Unsupported remote estimates stop at `remote_estimate_unavailable`.
 - Manifest frozen validation requires the remote measurement, matching pin, preceding prefix, state overrides for dependent steps (also when continuing from a later state block), matching time override, all three positive integer measurements, exact 13/10 margin, and the recorded block ceiling.
 - CREATE's existing mined minimum and RR witness remain additional requirements. Its exact limit remains ceil(13/10 × max(remote estimate, fork estimate, fork gas used, mined minimum)).
-- Both B4 payloads use the shared measurement mechanism. Placeholder evidence is stored separately in `variantMeasurements.placeholder`, and cannot inherit missing measurements from apply.
-- Every manifest execution path, including both B4 choices, calls measured local pre-send and remote `fresh_gas` before execution. Remote rehearsal checks request `latest` plus accumulated state/time overrides because earlier steps have only executed on the fork. A live caller of `fresh_gas` omits overrides and checks actual `latest` state. The helper also checks the latest remote block ceiling.
+- Both B4 payloads use the shared measurement mechanism. Frozen execution replays BOTH apply and placeholder against reconstructed pinned overrides before selecting either payload. Placeholder evidence is stored separately in `variantMeasurements.placeholder`, and cannot inherit missing measurements from apply. Tampered apply estimates/limits stop at `replay_estimateGas`; irrelevant nonempty overrides stop at `replay_gasEvidence`.
+- Every manifest execution path, including both B4 choices, calls measured local pre-send and remote `fresh_gas` before execution. Remote rehearsal checks request the PIN block plus accumulated state overrides and the step's time override. A live caller of `fresh_gas` omits overrides and checks actual `latest` state. The helper checks the block ceiling at the same selected block and returns `{mode, block}`; manifest execution records this as `freshGas`.
 - Measurement metadata is stripped from the deterministic stage-prefix payload, preserving staged rebuilding while retaining it in the frozen artifact.
 - Pinned Amsterdam engine selection and validation are unchanged (`4e8874b2bdc840929585ca73e170993c50a4a531`). No default Anvil measurement fallback was added.
 
@@ -34,46 +34,63 @@ Offline evidence checks detect absent override context and replay detects change
 
 ## Negative controls and gate-removal probes
 
-`python script/upgrade/probe_gas_gates.py` suppresses one named gate at a time in memory, runs its corresponding test, and requires that test to turn red. Production files are not modified by the probes.
+`python3 -B script/upgrade/probe_gas_gates.py` suppresses one named gate at a time in memory and observes the actual control action. It requires the suppressed gate to be exercised but never raised. Other exceptions or test failures fail the probe; they cannot be mislabeled as acceptance. A secondary gate is reported as defense in depth, not proof that the removed gate alone is load-bearing. Production files are not modified by these probes.
 
-| Control | Expected gate | Baseline | Gate suppressed |
-|---|---|---|---|
-| Remote 135104, fork estimate 53160, fork used 68394; gas covers fork margin but not remote margin | `measured_gas_limit` | PASS | RED |
-| Missing remote `estimateGas` | `remote_estimate_missing` | PASS | RED |
-| Estimate block differs from pin | `remote_estimate_pin` | PASS | RED |
-| Dependent step has empty state overrides | `remote_estimate_overrides` | PASS | RED |
-| Latest estimate exceeds frozen limit | `fresh_estimate` | PASS | RED |
-| Limit exceeds block ceiling | `block_gas_limit` | PASS | RED |
+| Suppressed gate | Baseline | Suppressed outcome |
+|---|---|---|
+| measured_gas_limit | PASS | accepted (load-bearing) |
+| remote_estimate_missing | PASS | caught by measurement_estimateGas (defense in depth) |
+| remote_estimate_pin | PASS | accepted (load-bearing) |
+| remote_estimate_overrides | PASS | accepted (load-bearing) |
+| fresh_estimate | PASS | accepted (load-bearing) |
+| block_gas_limit | PASS | accepted (load-bearing) |
 
-Additional controls cover a consistent plan, unsupported remote estimation, real shared-measurement serialization/replay against offline RPC doubles, changed overrides on replay, and every step in each manifest stage (including independent placeholder evidence). Execution tests assert one remote fresh check for every manifest step.
+
+Additional controls cover a consistent plan, unsupported remote estimation, shared-measurement serialization/replay, changed overrides, and every step in each manifest stage (including independent placeholder evidence). Each missing-measurement mutation now uses a fresh deep copy. All gas controls assert the failing step ID as well as the gate, including Phase D. Shared gas failures preserve this ID in `record.step`.
+
+Execution tests assert one remote fresh check for every manifest step. Mode tests assert both the estimate block tag/overrides and the block-ceiling lookup for live calls and rehearsal calls (including empty overrides). Probe tests check the six observed outcomes and reject a supposedly suppressed gate that still raises.
+
+## Fix-removal checks
+
+Offline in-memory source mutations and base-version comparisons produced:
+
+| Fix removed | Observed regression |
+|---|---|
+| Frozen B4 apply replay | Both apply tampering controls fail because execution reaches selection instead of the required replay STOP. Placeholder controls remain protected. |
+| Rehearsal estimate at PIN | Mode test fails: estimate parameters contain `latest` instead of `0x123`. |
+| Independent mutation copies | Retaining the new step assertion with the old loop fails: `B4 != D.registry.transfer`. |
+| README margin correction | Base text contains the stale “freezes that exact limit” statement; corrected text removes it and specifies the measured 13/10 margin. |
+| Honest probe outcomes | Base probe prints generic RED for missing remote measurement; the outcome check fails because it omits `measurement_estimateGas` defense in depth. |
+
+No source files were reverted during these checks. B4 regression controls mutate each variant independently: estimate 100000 / limit 130000 versus observed estimate 120000, and irrelevant `{ZERO_ADDRESS: {}}` evidence versus reconstructed overrides.
 
 ## Final verification
 
-All commands ran from repository root. Final output lines:
+All commands ran from repository root with offline fixtures and local ABI tools only. Final output lines:
 
 ```text
-python script/upgrade/test_manifest_exec.py
-Ran 202 tests in 255.785s
+python3 -B script/upgrade/test_manifest_exec.py
+Ran 206 tests in 242.025s
 OK
 
-python script/a3a/test_a3a_exec.py
-Ran 102 tests in 3.298s
+python3 -B script/a3a/test_a3a_exec.py
+Ran 102 tests in 3.161s
 OK
 
-python script/upgrade/test_sp_upgrade_exec.py
-Ran 141 tests in 1.640s
+python3 -B script/upgrade/test_sp_upgrade_exec.py
+Ran 141 tests in 1.691s
 OK
 
-python script/upgrade/test_pop_adapter.py
-Ran 53 tests in 0.286s
+python3 -B script/upgrade/test_pop_adapter.py
+Ran 53 tests in 0.305s
 OK
 
-python script/upgrade/test_release_evidence.py
-Ran 69 tests in 3.759s
+python3 -B script/upgrade/test_release_evidence.py
+Ran 69 tests in 3.473s
 OK
 
-python script/upgrade/probe_gas_gates.py
+python3 -B script/upgrade/probe_gas_gates.py
 GAS_GATE_PROBES PASS 6/6
 ```
 
-The final focused gas/stage/B4 run passed 13 tests in 14.651s. `git diff --check` passed. HEAD remains `9edde2b18eec455faf993d65aa81bc7a30b931c7`; changes are uncommitted.
+The focused gas/probe run passed 13 tests. All five fix-removal checks above produced the expected regression. `git diff --check` passed. HEAD remains `6a615186`; no commits were created. No remote RPC, fork launch, signing, or broadcasting was performed.

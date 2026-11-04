@@ -1261,17 +1261,18 @@ class ManifestTests(unittest.TestCase):
             m.budget(plan)
             m.validate_plan(plan, inputs, frozen=True)
             with patch.object(m, 'build_plan', return_value=derived):
-                for step in plan['steps']:
-                    saved = step.pop('estimateGas')
-                    with self.subTest(stage=stage, step=step['id']), self.assertRaises(a.Gate) as caught:
-                        m.validate_plan(plan, inputs, frozen=True)
-                    self.assertEqual(caught.exception.record['gate'], 'remote_estimate_missing')
-                    step['estimateGas'] = saved
-                    if 'variants' in step:
-                        del step['variantMeasurements']['placeholder']['estimateGas']
-                        with self.assertRaises(a.Gate) as caught:
-                            m.validate_plan(plan, inputs, frozen=True)
-                        self.assertEqual(caught.exception.record['gate'], 'remote_estimate_missing')
+                for index, step in enumerate(plan['steps']):
+                    for variant in ('apply', 'placeholder') if 'variants' in step else ('apply',):
+                        bad = copy.deepcopy(plan)
+                        target = bad['steps'][index]
+                        if variant == 'placeholder':
+                            target = target['variantMeasurements']['placeholder']
+                        del target['estimateGas']
+                        with self.subTest(stage=stage, step=step['id'], variant=variant):
+                            with self.assertRaises(a.Gate) as caught:
+                                m.validate_plan(bad, inputs, frozen=True)
+                            self.assertEqual(caught.exception.record['gate'], 'remote_estimate_missing')
+                            self.assertEqual(caught.exception.record['step'], step['id'])
 
     def test_no_gas_or_budget_fabricated(self):
         self.assertNotIn('budgetsWei', self.plan)
@@ -1397,7 +1398,7 @@ class ManifestTests(unittest.TestCase):
             patch.object(a, 'mined_identity'), patch.object(a, 'trace_overrides'),
             patch.object(m, 'b4_controls', return_value=[]),
             patch.object(u, 'probe', return_value=({'status':'0x1', 'gasUsed':hex(21000)}, None)),
-            patch.object(u, 'fresh_gas'), patch.object(u, 'measure_step', side_effect=measure), patch.object(u, 'receipt', side_effect=receipt),
+            patch.object(u, 'fresh_gas', return_value={'mode': 'rehearsal', 'block': self.plan['pin']['block']}), patch.object(u, 'measure_step', side_effect=measure), patch.object(u, 'receipt', side_effect=receipt),
             patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}),
             patch.object(m, 'handover_trace'), patch.object(m, 'mint_trace'), patch.object(u, 'safe_trace'), patch.object(u, 'safe_exec_events'), patch.object(u, 'check_inventory'),
             patch.object(u, 'assert_frozen'), patch.object(m, 'pre_send', side_effect=pre),
@@ -1680,7 +1681,7 @@ class ManifestTests(unittest.TestCase):
                  patch.object(a, 'word', return_value=step['safeNonce']), \
                  patch.object(a, 'mined_identity'), patch.object(m, 'pre_send'), \
                  patch.object(u, 'receipt', side_effect=receipt), \
-                 patch.object(u, 'fresh_gas'), patch.object(u, 'measure_step'), \
+                 patch.object(u, 'fresh_gas', return_value={'mode': 'rehearsal', 'block': self.plan['pin']['block']}), patch.object(u, 'measure_step'), \
                  patch.object(u, 'probe', return_value=({'status':'0x1','gasUsed':hex(21000)}, None)), \
                  patch.object(u, 'log') as log:
                 if mode == 'wrong':
@@ -2767,6 +2768,7 @@ class GasGateControls(unittest.TestCase):
         with self.assertRaises(a.Gate) as caught:
             (action or (lambda: u.validate_gas_evidence(self.plan, self.step)))()
         self.assertEqual(caught.exception.record['gate'], gate)
+        self.assertEqual(caught.exception.record['step'], self.step['id'])
 
     def test_positive(self):
         u.validate_gas_evidence(self.plan, self.step)
@@ -2799,6 +2801,54 @@ class GasGateControls(unittest.TestCase):
             return dict(gasLimit=hex(200_000_000), hash='0x'+'ab'*32, number='0x123', timestamp='0x64')
         self.stop('fresh_estimate', lambda: u.fresh_gas(rpc, self.step))
 
+    def test_fresh_modes(self):
+        for overrides in (None, {}, {a.SAFE: {'balance': '0x1'}}):
+            calls = []
+            def rpc(method, params):
+                calls.append((method, copy.deepcopy(params)))
+                if method == 'eth_estimateGas': return hex(120000)
+                return dict(gasLimit=hex(200_000_000), hash='0x'+'ab'*32, number='0x123', timestamp='0x63')
+            result = u.fresh_gas(rpc, self.step, overrides, 100, pin_block='0x123')
+            block = 'latest' if overrides is None else '0x123'
+            mode = 'live' if overrides is None else 'rehearsal'
+            self.assertEqual(result, dict(mode=mode, block=block))
+            self.assertEqual(calls[0][1][1:], [block] if overrides is None else
+                             [block, overrides, {'time': '0x64'}])
+            self.assertEqual(calls[1], ('eth_getBlockByNumber', [block, False]))
+
+    def test_b4_replays_both_variants_before_selection(self):
+        self.step['id'] = 'B4'
+        self.plan['externalInputs'] = {}
+        overrides = {a.SAFE: {'balance': '0x123'}}
+        def rpc(method, params):
+            if method == 'eth_estimateGas': return hex(120000)
+            if method == 'eth_getBlockByNumber':
+                return dict(timestamp=hex(99), gasLimit=hex(200_000_000), hash='0x'+'ab'*32, number='0x123')
+            raise AssertionError(method)
+        self.step.update(estimateGas=120000, localEstimateGas=120000, forkGasUsed=120000)
+        self.step['tx']['gas'] = hex(u.margin_limit(120000))
+        self.step['gasEvidence']['estimateContext']['stateOverrides'] = overrides
+        self.step['variants'] = {name: copy.deepcopy(self.step['tx']) for name in ('apply', 'placeholder')}
+        self.step['variantMeasurements'] = {'placeholder': {
+            k: copy.deepcopy(self.step[k]) for k in u.MEASURED_KEYS | {'gasEvidence'}}}
+        original = copy.deepcopy(self.step)
+        for variant in ('apply', 'placeholder'):
+            for mutation, gate in (('estimate', 'replay_estimateGas'), ('override', 'replay_gasEvidence')):
+                self.step = copy.deepcopy(original)
+                self.plan['steps'][-1] = self.step
+                target = self.step if variant == 'apply' else self.step['variantMeasurements']['placeholder']
+                if mutation == 'estimate':
+                    target['estimateGas'] = 100000
+                    target['localEstimateGas'] = target['forkGasUsed'] = 100000
+                    self.step['variants'][variant]['gas'] = hex(130000)
+                    if variant == 'apply': self.step['tx']['gas'] = hex(130000)
+                else:
+                    target['gasEvidence']['estimateContext']['stateOverrides'] = {a.ZERO: {}}
+                with self.subTest(variant=variant, mutation=mutation), patch.object(m, 'select_b4') as select:
+                    self.stop(gate, lambda: m.execute_b4(
+                        rpc, rpc, self.plan, self.step, {}, overrides, False))
+                    select.assert_not_called()
+
     def test_shared_measurement_records_remote_context_and_replays(self):
         self.plan['externalInputs'] = {}
         self.step['tx']['nonce'] = hex(13000)
@@ -2824,15 +2874,32 @@ class GasGateControls(unittest.TestCase):
         changed = {a.SAFE: {'stateDiff': {a.ZERO32: '0x'+'01'*32}}}
         self.stop('replay_gasEvidence', lambda: u.measure_step(
             remote, fork, self.plan, self.step, changed, 2000, False))
-        u.fresh_gas(remote, self.step, overrides, 2000)
+        u.fresh_gas(remote, self.step, overrides, 2000, pin_block=self.plan['pin']['block'])
         estimates = [params for method, params in calls if method == 'eth_estimateGas']
-        self.assertEqual(estimates[-1][1:], ['latest', overrides, {'time': hex(2000)}])
+        self.assertEqual(estimates[-1][1:], ['0x123', overrides, {'time': hex(2000)}])
 
     def test_unavailable_remote(self):
         def rpc(method, params):
             raise RuntimeError('overrides unsupported')
         self.stop('remote_estimate_unavailable', lambda: u.measure_step(
             rpc, rpc, self.plan, self.step, {}, 100, True))
+
+
+class GasProbeReportingTests(unittest.TestCase):
+    def test_suppressed_outcomes_distinguish_defense_in_depth(self):
+        import probe_gas_gates as probes
+        for name, gate in probes.CASES.items():
+            with self.subTest(gate=gate):
+                expected = ('caught by measurement_estimateGas (defense in depth)'
+                            if gate == 'remote_estimate_missing' else 'accepted (load-bearing)')
+                self.assertEqual(probes.suppressed_outcome(name, gate), expected)
+
+    def test_suppressed_gate_cannot_be_reported_as_another_defense(self):
+        import probe_gas_gates as probes
+        with patch.object(u, 'validate_gas_evidence',
+                          side_effect=a.Gate('remote_estimate_missing', False, True)):
+            with self.assertRaises(AssertionError):
+                probes.suppressed_outcome('test_missing_remote', 'remote_estimate_missing')
 
 
 if __name__ == '__main__':
