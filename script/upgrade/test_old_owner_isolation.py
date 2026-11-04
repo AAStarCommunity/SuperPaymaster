@@ -129,7 +129,9 @@ def fixture_rpc(pin, overrides=None, factory_token=TOKEN):
         put(FACTORY,'communityToToken(address)',[token],[int(token,16)])
     put(TOKEN,'FACTORY()',[],[int(FACTORY,16)])
     put(factory_token,'FACTORY()',[],[int(FACTORY,16)])
-    put(FACTORY,'getAllTokens()',[],[32,1,int(factory_token,16)])
+    # Like the pinned chain: the factory enumerates the round clones (plus the fixture's own token).
+    listed = sorted({*o.ROUND_CLONES, factory_token})
+    put(FACTORY,'getAllTokens()',[],[32,len(listed),*[int(t,16) for t in listed]])
     put(FACTORY,'communityToToken(address)',[u.DEPLOYER],[int(TOKEN,16)])
     put(FACTORY,'communityToToken(address)',[o.OLD],[0])
     put(u.REG,'hasRole(bytes32,address)',[CUSTOM_ROLE,o.OLD],[0])
@@ -382,6 +384,16 @@ class OldOwnerIsolationTests(unittest.TestCase):
         with self.assertRaises(a.Gate) as caught:
             o.audit(fixture_rpc(self.pin,{query:raw([1])},factory_token=token),self.pin,inventory())
         self.assertEqual(caught.exception.record['gate'],'old_owner_mapping_xPNTsToken_autoApprovedSpenders')
+
+    def test_factory_enumeration_must_stand_alone(self):
+        query = ('eth_call',str([dict(to=FACTORY,data=a.calldata('getAllTokens()')),self.pin['stateBlock']]))
+        for listed in ([], [o.ROUND_CLONES[0]]):
+            with self.subTest(listed=listed):
+                answer = raw([32,len(listed),*[int(t,16) for t in listed]])
+                for run in (lambda rpc: o.audit(rpc,self.pin,inventory()), lambda rpc: o.discover_targets(rpc,self.pin)):
+                    with self.assertRaises(a.Gate) as caught:
+                        run(fixture_rpc(self.pin,{query:answer}))
+                    self.assertEqual(caught.exception.record['gate'],'old_owner_factory_enumeration')
 
     def test_role_history_authentication_and_empty_probes(self):
         baseline = fixture_rpc(self.pin)

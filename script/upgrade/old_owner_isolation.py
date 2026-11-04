@@ -316,7 +316,9 @@ def audit(rpc, pin, inventory, fork=None):
     negative('old_owner_operator','0x'+format(1,'064x')+'0'*64*(len(operator_types)-1))
     a.need('old_owner_operator',value,[0]*len(operator_types))
     tokens = {pin['capped'], OLD_TOKEN, targets['GToken']}
-    xpnts = set(u.addr_array(call(targets['xPNTsFactory'],'getAllTokens()'))) | set(pin.get('isolationLegacyTokens',[])) | set(ROUND_CLONES)
+    enumerated = set(u.addr_array(call(targets['xPNTsFactory'],'getAllTokens()')))
+    a.need('old_owner_factory_enumeration',bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)
+    xpnts = enumerated | set(pin.get('isolationLegacyTokens',[])) | set(ROUND_CLONES)
     configured = False
     for who in sorted(set(pin['pauseList'])):
         w = words(u.SP,'operators(address)',who)
@@ -459,7 +461,10 @@ def discover_targets(rpc, pin):
                    GTokenStaking=[address(u.REG,'GTOKEN_STAKING()')],MySBT=[address(u.REG,'MYSBT()')],
                    xPNTsFactory=[address(u.SP,'xpntsFactory()')],PaymasterFactory=[PAYMASTER_FACTORY])
     targets['GToken'] = [address(targets['GTokenStaking'][0],'GTOKEN()')]
-    tokens = set(u.addr_array(a.call(rpc,targets['xPNTsFactory'][0],'getAllTokens()',block=block))) | set(ROUND_CLONES)
+    enumerated = set(u.addr_array(a.call(rpc,targets['xPNTsFactory'][0],'getAllTokens()',block=block)))
+    # The factory's own enumeration must stand alone: nonempty and containing every round clone.
+    a.need('old_owner_factory_enumeration',bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)
+    tokens = enumerated | set(ROUND_CLONES)
     for who in pin['pauseList']:
         values = u.uints(a.call(rpc,u.SP,'operators(address)',who,block=block))
         a.need('old_owner_discovery_operator_shape',len(values),9)
