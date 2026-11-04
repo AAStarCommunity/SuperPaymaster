@@ -14,6 +14,7 @@ Run from the repository root:
 """
 import sys
 sys.dont_write_bytecode = True
+import contextlib
 import copy
 import json
 from pathlib import Path
@@ -161,8 +162,14 @@ class F04OldAggregatorPolicyAdmin(AuditFixture):
              patch.object(m, 'dvt_activity', return_value=[]), \
              patch.object(m, 'balances', return_value={k: self.pin[k] for k in
                           ('totalTrackedBalance', 'protocolRevenue', 'operatorBalances')}):
-            with self.assertRaises(a.Gate) as caught:
-                m.collect(rpc, '0x100', self.inputs)
+            with contextlib.ExitStack() as stack:
+                if hasattr(m, 'isolation'):
+                    # Post-#601 main: stub old-owner isolation exactly as
+                    # test_manifest_exec.test_collect_direct_fake_chain does.
+                    stack.enter_context(patch.object(m.isolation, 'collect_deployed',
+                                                     return_value=self.pin['oldOwnerIsolation']))
+                with self.assertRaises(a.Gate) as caught:
+                    m.collect(rpc, '0x100', self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'old_aggregator_slash_policy_admin')
 
 
