@@ -21,15 +21,13 @@ Supply `externalInputs.data.deployedSources`, keyed by lowercase target address:
     "contract": "Registry",
     "implementation": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
     "commit": "a839347e04b40da287522c3641e12121ef2e8e9e",
-    "creationBlock": 11151002
+    "creationBlock": 11151002,
+    "claim": "behavioral-equivalence"
   }
 }
 ```
 
-This illustrates the Registry candidate fields, not an adopted source. Registry
-currently belongs under `externalInputs.data.pendingDsrRuling` with the fixture
-reason. Copy both fixture fields; collection and replay STOP at
-`deployed_source_pending` until DSR rules. After adoption, its creation boundary must still be
+Registry is adopted with `claim="behavioral-equivalence"`: on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33). All other contracts use `claim="deployment-record + runtime parity"`. The proxy creation boundary must still be
 verified live at the chosen pin. Supply exactly all discovered targets, including every
 xPNTs clone. Resolve any tag to its full commit SHA. `creationBlock` is the target
 or proxy's deployment block, not its implementation's deployment block.
@@ -51,8 +49,11 @@ The source gate:
    The metadata section is UNMASKED and byte-for-byte equal. CBOR solc and ipfs
    are recorded (ipfs is explicitly absent when the key is missing). Immutable
    ranges cannot overlap metadata. Exact equality INCLUDING metadata makes
-   candidate provenance irrelevant. If metadata is masked or differs, rule 4
-   requires selection from a deployment record first; provenance is not parity.
+   the behavior comparison conclusive. Candidate provenance is irrelevant only when the comparison uniquely determines the property being checked. For L-1 the property is behavior: runtime exact equality suffices, with every masked immutable independently decoded and checked. Source identity requires a deployment record.
+   Each immutable reference ID is resolved to its variable name and type in the
+   build AST. Address values must differ from OLD and match known deployment
+   configuration; missing expectations are recorded as `no expected value`.
+   Repeated values are also checked for self-consistency.
 6. Extracts AST/ABI authority, role and mapping inventory from that same build.
    Records target, implementation, commit, compiler, settings, Forge version,
    immutable ranges, runtime hash and parity result.
@@ -71,10 +72,10 @@ Dual-endpoint collection remains mandatory.
 10 PASS comparisons, their comparison types and CBOR fields. The exact candidates,
 compiler settings, immutable ranges and provenance are retained in
 [deployed_source_candidates.json](deployed_source_candidates.json). The fixture
-contains 10 adopted targets including both named clones, plus the Registry proxy
-in `pendingDsrRuling`. Registry candidate `a839347e04b40da287522c3641e12121ef2e8e9e`
-awaits DSR re-ruling requested 2026-11-04: solc-only CBOR with
-`bytecode_hash=none` does not pin the source tree.
+contains 11 adopted targets including the Registry proxy and both named clones.
+Registry uses only the behavioral-equivalence claim stated above.
+
+Revised rule 4 (2026-11-04): Candidate provenance is irrelevant only when the comparison uniquely determines the property being checked. For L-1 the property is behavior: runtime exact equality suffices, with every masked immutable independently decoded and checked. Source identity requires a deployment record.
 
 Both `0x696a73701b104c6ccbbaaddd2216788ea08eab89` (aPNTs) and
 `0xe6579a90dc498a710008de12119812d0fb7aa224` (PNTs) must be exact 45-byte

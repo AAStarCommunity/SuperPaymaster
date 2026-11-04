@@ -2,7 +2,7 @@
   "schema": 1,
   "head": "f7e8dffabd71c77876cb475d06c54c35de4f9adc",
   "offlineOnly": true,
-  "note": "DSR: exact equality INCLUDING unmasked metadata makes candidate provenance irrelevant. Masking is confined to compiler immutable ranges. If metadata is masked or differs, rule 4 applies: candidate must first come from a deployment record. Record provenance alone does not establish parity. Registry origin is recorded, not a blocker; all round clones must share the parity-verified factory nonce-1 implementation.",
+  "note": "Candidate provenance is irrelevant only when the comparison uniquely determines the property being checked. For L-1 the property is behavior: runtime exact equality suffices, with every masked immutable independently decoded and checked. Source identity requires a deployment record.",
   "contracts": [
     {
       "contract": "Registry",
@@ -14,7 +14,7 @@
       "attempts": [
         {
           "commit": "a839347e04b40da287522c3641e12121ef2e8e9e",
-          "basis": "DSR ruling: full runtime equality including metadata; candidate provenance irrelevant",
+          "basis": "on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33)",
           "build": {
             "profile": "default",
             "config": {
@@ -660,7 +660,7 @@
         "ipfs": null
       },
       "candidate": "a839347e04b40da287522c3641e12121ef2e8e9e",
-      "fixtureDisposition": "Included: DSR accepts exact runtime equality INCLUDING unmasked metadata; provenance is not a blocker.",
+      "fixtureDisposition": "adopted in deployedSources",
       "targetCreationRecord": {
         "path": "broadcast/DeployLive.s.sol/11155111/run-1782562837353.json",
         "sha256": "866e22cc5ea06ba3c11f7f8aa0d52d29304270efca3eb3960550a8fedf917b1b",
@@ -668,6 +668,119 @@
         "transactionHash": "0xf401fa907a5abbecaf6da1fa88a493ea945b3eea84cdebd48552fd03ec6e5820",
         "creationBlock": 11151002,
         "verification": "local broadcast receipt; live before/at boundary remains mandatory"
+      },
+      "claim": "behavioral-equivalence",
+      "claimDescription": "on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33)",
+      "immutableChecks": [
+        {
+          "id": "162357",
+          "name": "__self",
+          "type": "address",
+          "value": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
+          "expected": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
+          "result": "PASS"
+        }
+      ],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-builds/a839347e04b40da287522c3641e12121ef2e8e9e",
+        "artifactSha256": "8dcddc15c84fc9d67851bf057aefb4ece51e813b6c687f30f9e9fa600606be93",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [
+            {
+              "start": 14299,
+              "length": 32
+            },
+            {
+              "start": 14564,
+              "length": 32
+            }
+          ],
+          "runtimeKeccak": "0xa43e76a74928389398d096f3a877828b84b21cd7b0294c1cfd56a888431ad5a8",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-builds/a839347e04b40da287522c3641e12121ef2e8e9e/out/Registry.sol/Registry.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "contracts/src/core/Registry.sol": "Registry"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "c13fca6b31d8d113.json": "0659b4b4604770532ac03a5da8fa760b1c1b89e23ad0648fe9c8dc091dc8e9e3",
+          "e34c552b450719a1.json": "b83fa70c805b322d603955b4b5643cb8daf6f61320e970e03af6d79398151a95"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info"
+        ]
+      },
+      "creationCorroboration": {
+        "transaction": "0x2792ea496eefac7868ce5e11e071e1613584b87bcdafaae39103d42333ab12b5",
+        "creator": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+        "block": 11599359,
+        "directCreate": true,
+        "suppliedEndpointAgreement": true,
+        "endpointAgreementBasis": "user-supplied; no network requests",
+        "source": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/onchain/registry-creation-tx.json",
+        "sourceSha256": "5e5ddb86af936e52d681cfab7fb889a0e2e5ff77d9628a0cb4751049ae1f5ba7",
+        "constructorSignature": "constructor()",
+        "constructorArgs": [],
+        "constructorArgumentBytes": 0,
+        "addressArgumentsNotOld": "vacuous: no constructor arguments",
+        "inputBytes": 23366,
+        "buildCreationBytes": 23366,
+        "equal": true,
+        "diffRuns": [],
+        "onlyConstructorArguments": null,
+        "onlyMetadata": null,
+        "inputSha256": "a87e8af8ea5ae8544ec4b591a9aa6bcb44e813495ca03e4f823cec4748fa3d47",
+        "buildCreationSha256": "a87e8af8ea5ae8544ec4b591a9aa6bcb44e813495ca03e4f823cec4748fa3d47",
+        "inheritedOwnerInitializer": "msg.sender",
+        "inheritedOwner": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+        "inheritedOwnerNotOld": true
       }
     },
     {
@@ -1429,6 +1542,205 @@
       "cbor": {
         "solc": "0.8.33",
         "ipfs": null
+      },
+      "claim": "deployment-record + runtime parity",
+      "immutableChecks": [
+        {
+          "id": "6285",
+          "name": "__self",
+          "type": "address",
+          "value": "0xe25f88dbeafc64200270a948df8e9dd2f9b22c27",
+          "expected": "0xe25f88dbeafc64200270a948df8e9dd2f9b22c27",
+          "result": "PASS"
+        },
+        {
+          "id": "724",
+          "name": "entryPoint",
+          "type": "contract IEntryPoint",
+          "value": "0x0000000071727de22e5e9d8baf0edac6f37da032",
+          "expected": "0x0000000071727de22e5e9d8baf0edac6f37da032",
+          "result": "PASS"
+        },
+        {
+          "id": "951",
+          "name": "REGISTRY",
+          "type": "contract IRegistry",
+          "value": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+          "expected": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+          "result": "PASS"
+        },
+        {
+          "id": "958",
+          "name": "ETH_USD_PRICE_FEED",
+          "type": "contract AggregatorV3Interface",
+          "value": "0x694aa1769357215de4fac081bf1f309adc325306",
+          "expected": "0x694aa1769357215de4fac081bf1f309adc325306",
+          "result": "PASS"
+        }
+      ],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-builds/6a6d2d1785e1f03bcf72091930c6bca03f7090a8",
+        "artifactSha256": "b26552640089ba7115eba15e181f0cbc52b4624aef4e270587071619a5849e29",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [
+            {
+              "start": 12890,
+              "length": 32
+            },
+            {
+              "start": 13235,
+              "length": 32
+            },
+            {
+              "start": 3171,
+              "length": 32
+            },
+            {
+              "start": 3847,
+              "length": 32
+            },
+            {
+              "start": 4021,
+              "length": 32
+            },
+            {
+              "start": 5876,
+              "length": 32
+            },
+            {
+              "start": 6481,
+              "length": 32
+            },
+            {
+              "start": 9121,
+              "length": 32
+            },
+            {
+              "start": 13057,
+              "length": 32
+            },
+            {
+              "start": 14370,
+              "length": 32
+            },
+            {
+              "start": 16586,
+              "length": 32
+            },
+            {
+              "start": 2124,
+              "length": 32
+            },
+            {
+              "start": 7168,
+              "length": 32
+            },
+            {
+              "start": 10817,
+              "length": 32
+            },
+            {
+              "start": 11401,
+              "length": 32
+            },
+            {
+              "start": 16502,
+              "length": 32
+            },
+            {
+              "start": 21459,
+              "length": 32
+            },
+            {
+              "start": 21791,
+              "length": 32
+            },
+            {
+              "start": 22171,
+              "length": 32
+            },
+            {
+              "start": 22501,
+              "length": 32
+            },
+            {
+              "start": 6413,
+              "length": 32
+            },
+            {
+              "start": 9882,
+              "length": 32
+            },
+            {
+              "start": 12384,
+              "length": 32
+            },
+            {
+              "start": 23002,
+              "length": 32
+            }
+          ],
+          "runtimeKeccak": "0x63a66dc03dfe0a16788f2f14625d661affac311f7b11e3a7a4acffd5b4435135",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-builds/6a6d2d1785e1f03bcf72091930c6bca03f7090a8/out/SuperPaymaster.sol/SuperPaymaster.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 500
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol": "SuperPaymaster"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "0da93869d00c54ca.json": "e096f42cddcba00e9add2c29128226fb1479846b436fc2cfa358590d0377b404"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info",
+          "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol"
+        ]
       }
     },
     {
@@ -2236,6 +2548,161 @@
       "cbor": {
         "solc": "0.8.33",
         "ipfs": null
+      },
+      "claim": "deployment-record + runtime parity",
+      "immutableChecks": [
+        {
+          "id": "2788",
+          "name": "_cachedDomainSeparator",
+          "type": "bytes32",
+          "value": "0x1e6b004fb025d43d7acd57b0d7a4ce494813a52358eb0c20db630bbd8826af17",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "2790",
+          "name": "_cachedChainId",
+          "type": "uint256",
+          "value": 11155111,
+          "expected": 11155111,
+          "result": "PASS"
+        },
+        {
+          "id": "2792",
+          "name": "_cachedThis",
+          "type": "address",
+          "value": "0x9eb17fac022557f64924aa2f9e018db3a330e1e7",
+          "expected": "0x9eb17fac022557f64924aa2f9e018db3a330e1e7",
+          "result": "PASS"
+        },
+        {
+          "id": "2794",
+          "name": "_hashedName",
+          "type": "bytes32",
+          "value": "0xb61d5c2240b92a39a4b635d085e9d59534f71f542fb712e82ce2d23f93a3682f",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "2796",
+          "name": "_hashedVersion",
+          "type": "bytes32",
+          "value": "0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "2799",
+          "name": "_name",
+          "type": "ShortString",
+          "value": "0x41415374617220504e547300000000000000000000000000000000000000000b",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "2802",
+          "name": "_version",
+          "type": "ShortString",
+          "value": "0x3100000000000000000000000000000000000000000000000000000000000001",
+          "expected": "no expected value",
+          "result": "no expected value"
+        }
+      ],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-target-builds/5be39abf44ec01b60fda738fd732533b797fd6c7",
+        "artifactSha256": "512090188def877cde676bcedb009d36403279ac50007335113dd817e6b3a13e",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [
+            {
+              "start": 4587,
+              "length": 32
+            },
+            {
+              "start": 4776,
+              "length": 32
+            },
+            {
+              "start": 4540,
+              "length": 32
+            },
+            {
+              "start": 4666,
+              "length": 32
+            },
+            {
+              "start": 4704,
+              "length": 32
+            },
+            {
+              "start": 1597,
+              "length": 32
+            },
+            {
+              "start": 1638,
+              "length": 32
+            }
+          ],
+          "runtimeKeccak": "0x313d60fc0cd6c959371f5ae6dc544232690e34512a6094c96ebc45bd510fb8e4",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-target-builds/5be39abf44ec01b60fda738fd732533b797fd6c7/out/APNTsCapped.sol/APNTsCapped.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 500
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "contracts/src/tokens/APNTsCapped.sol": "APNTsCapped"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "5e495b6141f6c2cb.json": "30579690115569a20c1e292aa9d0389c043e260fe62dc4da27fe48599c7b69c6"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info",
+          "contracts/src/tokens/APNTsCapped.sol"
+        ]
       }
     },
     {
@@ -2855,6 +3322,81 @@
       "cbor": {
         "solc": "0.8.33",
         "ipfs": null
+      },
+      "claim": "deployment-record + runtime parity",
+      "immutableChecks": [],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+        "artifactSha256": "e0d1e1dfe1251a340558be8498aff6e0ea0dac23c29ca2d382db062876c4745e",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [],
+          "runtimeKeccak": "0x41aec1b7c7ca0a08113cd691258bd8e41aa99ed54e1fd2b668807b86f04d8ff6",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e/out/TimelockController.sol/TimelockController.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 500
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol": "TimelockController"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "a2daf7476873edba.json": "508fa07982b76a4fe770e024502ced4c1ec9c4856418cf693ffaa305b60a2363"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info",
+          "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol",
+          "contracts/src/core/GTokenStaking.sol",
+          "contracts/src/tokens/GTokenAuthorization.sol",
+          "contracts/src/tokens/xPNTsFactory.sol",
+          "contracts/src/tokens/xPNTsToken.sol",
+          "contracts/src/tokens/MySBT.sol",
+          "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
+        ]
       }
     },
     {
@@ -3567,6 +4109,163 @@
       "cbor": {
         "solc": "0.8.33",
         "ipfs": null
+      },
+      "claim": "deployment-record + runtime parity",
+      "immutableChecks": [
+        {
+          "id": "56",
+          "name": "GTOKEN",
+          "type": "contract IERC20",
+          "value": "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08",
+          "expected": "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08",
+          "result": "PASS"
+        },
+        {
+          "id": "58",
+          "name": "REGISTRY",
+          "type": "address",
+          "value": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+          "expected": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+          "result": "PASS"
+        }
+      ],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+        "artifactSha256": "b44c97ba9db863db2605fb841c144de0d18435203e0bcb50424deb520271a41c",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [
+            {
+              "start": 2503,
+              "length": 32
+            },
+            {
+              "start": 2747,
+              "length": 32
+            },
+            {
+              "start": 3803,
+              "length": 32
+            },
+            {
+              "start": 4735,
+              "length": 32
+            },
+            {
+              "start": 5459,
+              "length": 32
+            },
+            {
+              "start": 5518,
+              "length": 32
+            },
+            {
+              "start": 7151,
+              "length": 32
+            },
+            {
+              "start": 7256,
+              "length": 32
+            },
+            {
+              "start": 969,
+              "length": 32
+            },
+            {
+              "start": 1482,
+              "length": 32
+            },
+            {
+              "start": 3243,
+              "length": 32
+            },
+            {
+              "start": 4638,
+              "length": 32
+            },
+            {
+              "start": 5042,
+              "length": 32
+            },
+            {
+              "start": 6080,
+              "length": 32
+            },
+            {
+              "start": 8417,
+              "length": 32
+            },
+            {
+              "start": 8628,
+              "length": 32
+            }
+          ],
+          "runtimeKeccak": "0xc1e3c59b8e950853ed9f322df99c1ec10ea3961dbb6d12693e933f4dd3b0e0ae",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e/out/GTokenStaking.sol/GTokenStaking.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 500
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "contracts/src/core/GTokenStaking.sol": "GTokenStaking"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "a2daf7476873edba.json": "508fa07982b76a4fe770e024502ced4c1ec9c4856418cf693ffaa305b60a2363"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info",
+          "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol",
+          "contracts/src/core/GTokenStaking.sol",
+          "contracts/src/tokens/GTokenAuthorization.sol",
+          "contracts/src/tokens/xPNTsFactory.sol",
+          "contracts/src/tokens/xPNTsToken.sol",
+          "contracts/src/tokens/MySBT.sol",
+          "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
+        ]
       }
     },
     {
@@ -4315,6 +5014,203 @@
       "cbor": {
         "solc": "0.8.33",
         "ipfs": null
+      },
+      "claim": "deployment-record + runtime parity",
+      "immutableChecks": [
+        {
+          "id": "11236",
+          "name": "_cap",
+          "type": "uint256",
+          "value": 21000000000000000000000000,
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "14519",
+          "name": "_cachedDomainSeparator",
+          "type": "bytes32",
+          "value": "0xcffef6e6b0a079f053c14db119ab2ed05b0b641cee0d2f43a8fbc314222c9b4e",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "14521",
+          "name": "_cachedChainId",
+          "type": "uint256",
+          "value": 11155111,
+          "expected": 11155111,
+          "result": "PASS"
+        },
+        {
+          "id": "14523",
+          "name": "_cachedThis",
+          "type": "address",
+          "value": "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08",
+          "expected": "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08",
+          "result": "PASS"
+        },
+        {
+          "id": "14525",
+          "name": "_hashedName",
+          "type": "bytes32",
+          "value": "0xd18b43fd042671ca04a7660e7c0008ccd50ca1fe48518df01fb0aea651dcd462",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "14527",
+          "name": "_hashedVersion",
+          "type": "bytes32",
+          "value": "0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "14530",
+          "name": "_name",
+          "type": "ShortString",
+          "value": "0x47546f6b656e0000000000000000000000000000000000000000000000000006",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "14533",
+          "name": "_version",
+          "type": "ShortString",
+          "value": "0x3100000000000000000000000000000000000000000000000000000000000001",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "3298",
+          "name": "factory",
+          "type": "contract IxPNTsFactory",
+          "value": "0x67422d2e44a33c8da99b3b776841bf316bd209a2",
+          "expected": "0x67422d2e44a33c8da99b3b776841bf316bd209a2",
+          "result": "PASS"
+        }
+      ],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+        "artifactSha256": "4dd95d777ed13efcbfe29317606d7aa20ff2881c9ef02c9d7ccf486f7c130203",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [
+            {
+              "start": 3402,
+              "length": 32
+            },
+            {
+              "start": 3562,
+              "length": 32
+            },
+            {
+              "start": 3623,
+              "length": 32
+            },
+            {
+              "start": 5322,
+              "length": 32
+            },
+            {
+              "start": 5511,
+              "length": 32
+            },
+            {
+              "start": 5275,
+              "length": 32
+            },
+            {
+              "start": 5401,
+              "length": 32
+            },
+            {
+              "start": 5439,
+              "length": 32
+            },
+            {
+              "start": 2695,
+              "length": 32
+            },
+            {
+              "start": 2736,
+              "length": 32
+            },
+            {
+              "start": 985,
+              "length": 32
+            },
+            {
+              "start": 2111,
+              "length": 32
+            }
+          ],
+          "runtimeKeccak": "0xff0469bd525a1724f4212e46861a2a84ed3a3fe5a585d28c6e18264b70f05b08",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e/out/GTokenAuthorization.sol/GTokenAuthorization.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 500
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "contracts/src/tokens/GTokenAuthorization.sol": "GTokenAuthorization"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "a2daf7476873edba.json": "508fa07982b76a4fe770e024502ced4c1ec9c4856418cf693ffaa305b60a2363"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info",
+          "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol",
+          "contracts/src/core/GTokenStaking.sol",
+          "contracts/src/tokens/GTokenAuthorization.sol",
+          "contracts/src/tokens/xPNTsFactory.sol",
+          "contracts/src/tokens/xPNTsToken.sol",
+          "contracts/src/tokens/MySBT.sol",
+          "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
+        ]
       }
     },
     {
@@ -4955,6 +5851,115 @@
       "cbor": {
         "solc": "0.8.33",
         "ipfs": null
+      },
+      "claim": "deployment-record + runtime parity",
+      "immutableChecks": [
+        {
+          "id": "5491",
+          "name": "REGISTRY",
+          "type": "address",
+          "value": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+          "expected": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+          "result": "PASS"
+        },
+        {
+          "id": "5494",
+          "name": "implementation",
+          "type": "address",
+          "value": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+          "expected": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+          "result": "PASS"
+        }
+      ],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+        "artifactSha256": "d8c6f22b0ceba968c56b13c763d2b749b5a2c5751ffffe862a3a783a31d76ca7",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [
+            {
+              "start": 1753,
+              "length": 32
+            },
+            {
+              "start": 4331,
+              "length": 32
+            },
+            {
+              "start": 1865,
+              "length": 32
+            },
+            {
+              "start": 3128,
+              "length": 32
+            }
+          ],
+          "runtimeKeccak": "0x984d165dc900df30b3d6a1c9746b67b2fc406a5c244cdec7b7f67fe39d0fda5d",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e/out/xPNTsFactory.sol/xPNTsFactory.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 500
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "contracts/src/tokens/xPNTsFactory.sol": "xPNTsFactory"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "a2daf7476873edba.json": "508fa07982b76a4fe770e024502ced4c1ec9c4856418cf693ffaa305b60a2363"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info",
+          "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol",
+          "contracts/src/core/GTokenStaking.sol",
+          "contracts/src/tokens/GTokenAuthorization.sol",
+          "contracts/src/tokens/xPNTsFactory.sol",
+          "contracts/src/tokens/xPNTsToken.sol",
+          "contracts/src/tokens/MySBT.sol",
+          "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
+        ]
       }
     },
     {
@@ -5743,6 +6748,167 @@
             "verification": "local broadcast additionalContracts CREATE and matching receipt; live before/at boundary remains mandatory"
           }
         }
+      },
+      "claim": "deployment-record + runtime parity",
+      "immutableChecks": [
+        {
+          "id": "14519",
+          "name": "_cachedDomainSeparator",
+          "type": "bytes32",
+          "value": "0xb5ac272e3557a3cc63af8e2ebc4e4f595dd6ee226f466391072fb706271db4e4",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "14521",
+          "name": "_cachedChainId",
+          "type": "uint256",
+          "value": 11155111,
+          "expected": 11155111,
+          "result": "PASS"
+        },
+        {
+          "id": "14523",
+          "name": "_cachedThis",
+          "type": "address",
+          "value": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+          "expected": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+          "result": "PASS"
+        },
+        {
+          "id": "14525",
+          "name": "_hashedName",
+          "type": "bytes32",
+          "value": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "14527",
+          "name": "_hashedVersion",
+          "type": "bytes32",
+          "value": "0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "14530",
+          "name": "_name",
+          "type": "ShortString",
+          "value": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "expected": "no expected value",
+          "result": "no expected value"
+        },
+        {
+          "id": "14533",
+          "name": "_version",
+          "type": "ShortString",
+          "value": "0x3100000000000000000000000000000000000000000000000000000000000001",
+          "expected": "no expected value",
+          "result": "no expected value"
+        }
+      ],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+        "artifactSha256": "d3346342e8f41f8abdd3493322dc4eca293f8638ce8cedcd5ffff39879271c80",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [
+            {
+              "start": 11317,
+              "length": 32
+            },
+            {
+              "start": 11506,
+              "length": 32
+            },
+            {
+              "start": 11270,
+              "length": 32
+            },
+            {
+              "start": 11396,
+              "length": 32
+            },
+            {
+              "start": 11434,
+              "length": 32
+            },
+            {
+              "start": 5710,
+              "length": 32
+            },
+            {
+              "start": 5751,
+              "length": 32
+            }
+          ],
+          "runtimeKeccak": "0x22aa01a9d508b907b10df60a8fce2db5421e65c2b106a9b0c4abcc10927e9fec",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e/out/xPNTsToken.sol/xPNTsToken.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 500
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "contracts/src/tokens/xPNTsToken.sol": "xPNTsToken"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "a2daf7476873edba.json": "508fa07982b76a4fe770e024502ced4c1ec9c4856418cf693ffaa305b60a2363"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info",
+          "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol",
+          "contracts/src/core/GTokenStaking.sol",
+          "contracts/src/tokens/GTokenAuthorization.sol",
+          "contracts/src/tokens/xPNTsFactory.sol",
+          "contracts/src/tokens/xPNTsToken.sol",
+          "contracts/src/tokens/MySBT.sol",
+          "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
+        ]
       }
     },
     {
@@ -6419,6 +7585,147 @@
       "cbor": {
         "solc": "0.8.33",
         "ipfs": null
+      },
+      "claim": "deployment-record + runtime parity",
+      "immutableChecks": [
+        {
+          "id": "3936",
+          "name": "GTOKEN",
+          "type": "address",
+          "value": "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08",
+          "expected": "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08",
+          "result": "PASS"
+        },
+        {
+          "id": "3938",
+          "name": "GTOKEN_STAKING",
+          "type": "address",
+          "value": "0x472297b557c1d0f030f281a5bb8a535f6c5ab65e",
+          "expected": "0x472297b557c1d0f030f281a5bb8a535f6c5ab65e",
+          "result": "PASS"
+        },
+        {
+          "id": "3940",
+          "name": "REGISTRY",
+          "type": "address",
+          "value": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+          "expected": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+          "result": "PASS"
+        }
+      ],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+        "artifactSha256": "daa2c779ade1f22e2864f14e31cf0a92c591eb2cdacf52097c2cdb5c74bb153f",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [
+            {
+              "start": 3464,
+              "length": 32
+            },
+            {
+              "start": 3341,
+              "length": 32
+            },
+            {
+              "start": 826,
+              "length": 32
+            },
+            {
+              "start": 1692,
+              "length": 32
+            },
+            {
+              "start": 4092,
+              "length": 32
+            },
+            {
+              "start": 5349,
+              "length": 32
+            },
+            {
+              "start": 5447,
+              "length": 32
+            },
+            {
+              "start": 6263,
+              "length": 32
+            },
+            {
+              "start": 7362,
+              "length": 32
+            },
+            {
+              "start": 11300,
+              "length": 32
+            }
+          ],
+          "runtimeKeccak": "0x503406268c12a8cfefd01d07289e51915f4869c71e5024b77ec603f67408a303",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e/out/MySBT.sol/MySBT.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 500
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "contracts/src/tokens/MySBT.sol": "MySBT"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "a2daf7476873edba.json": "508fa07982b76a4fe770e024502ced4c1ec9c4856418cf693ffaa305b60a2363"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info",
+          "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol",
+          "contracts/src/core/GTokenStaking.sol",
+          "contracts/src/tokens/GTokenAuthorization.sol",
+          "contracts/src/tokens/xPNTsFactory.sol",
+          "contracts/src/tokens/xPNTsToken.sol",
+          "contracts/src/tokens/MySBT.sol",
+          "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
+        ]
       }
     },
     {
@@ -7074,6 +8381,81 @@
       "cbor": {
         "solc": "0.8.33",
         "ipfs": null
+      },
+      "claim": "deployment-record + runtime parity",
+      "immutableChecks": [],
+      "immutableCheckResult": "PASS",
+      "reRulingBuild": {
+        "tree": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+        "artifactSha256": "20749b710e80b25dca41775dbccc51bf03b664c74acb53ef09966a684ec25c27",
+        "parity": {
+          "equal": true,
+          "immutableRanges": [],
+          "runtimeKeccak": "0xc54e87ae154134fd1f69f38118fd6d5e59d546882b21cdcd5f78258d0a187959",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        },
+        "artifactPath": "/private/tmp/l1-target-builds/cf26915e032ccc9e8e02f9aaf3769afd4335027e/out/PaymasterFactory.sol/PaymasterFactory.json",
+        "compiler": {
+          "version": "0.8.33+commit.64118f21"
+        },
+        "settings": {
+          "remappings": [
+            "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+            "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+            "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+            "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+            "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+            "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+            "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+            "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+            "forge-std/=contracts/lib/forge-std/src/",
+            "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+            "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+            "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+            "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+            "singleton-paymaster/=singleton-paymaster/",
+            "solady/=contracts/lib/solady/src/",
+            "src/=contracts/src/"
+          ],
+          "optimizer": {
+            "enabled": true,
+            "runs": 500
+          },
+          "metadata": {
+            "bytecodeHash": "none"
+          },
+          "compilationTarget": {
+            "contracts/src/paymasters/v4/core/PaymasterFactory.sol": "PaymasterFactory"
+          },
+          "evmVersion": "cancun",
+          "libraries": {},
+          "viaIR": true
+        },
+        "buildInfoSha256": {
+          "a2daf7476873edba.json": "508fa07982b76a4fe770e024502ced4c1ec9c4856418cf693ffaa305b60a2363"
+        },
+        "command": [
+          "forge",
+          "build",
+          "--offline",
+          "--ast",
+          "--build-info",
+          "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/governance/TimelockController.sol",
+          "contracts/src/core/GTokenStaking.sol",
+          "contracts/src/tokens/GTokenAuthorization.sol",
+          "contracts/src/tokens/xPNTsFactory.sol",
+          "contracts/src/tokens/xPNTsToken.sol",
+          "contracts/src/tokens/MySBT.sol",
+          "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
+        ]
       }
     }
   ],

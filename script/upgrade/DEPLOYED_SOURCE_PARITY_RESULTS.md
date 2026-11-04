@@ -1,20 +1,14 @@
 # Deployed-source parity — DSR rulings, 2026-11-04
 
-**Registry adoption suspended pending DSR re-ruling (2026-11-04).** The runtime
-comparison remains evidence, but `bytecode_hash=none` leaves only the solc version
-in CBOR; metadata-included equality does not pin the source tree. The fixture now
-has 10 adopted targets and Registry under `pendingDsrRuling`, with its original
-fields plus the reason. Pin-time collection and replay STOP at
-`deployed_source_pending`. Registry acceptance statements below describe the
-prior ruling and are superseded by this pending status.
+**Registry adopted under DSR option (a), behavioral-equivalence only:** on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33).
 
-Base HEAD: `f7e8dffabd71c77876cb475d06c54c35de4f9adc`. Offline; no commit, RPC request or transaction.
+Candidate provenance is irrelevant only when the comparison uniquely determines the property being checked. For L-1 the property is behavior: runtime exact equality suffices, with every masked immutable independently decoded and checked. Source identity requires a deployment record. Metadata remains UNMASKED; masking is limited to compiler immutable references. All other contracts use `deployment-record + runtime parity`.
 
-**Ten implementation comparisons PASS.** Exact equality INCLUDING metadata makes candidate provenance irrelevant. The metadata section is **UNMASKED and byte-for-byte equal**; masking applies only to compiler-declared immutable ranges. If a comparison masks metadata or metadata differs, **rule 4 applies: select the candidate from a deployment record first**. A record alone never turns a mismatch into PASS.
+Offline; no network request, commit, or transaction.
 
 Pinned Sepolia block: **12061284**, hash `0x6efc112879041305b4e48a194069fa1ac1117286a23c0d43b13474428f292787`. Original supplied snapshot SHA-256: `a105ed6fb0347924d08528f674e0d65049c9e0e70253931e1d18b29491680567`. Supplemental clone/Registry snapshot SHA-256: `0e7a170ac9022e2f40709268ef086834156c022df4daeed6c6b212b0e005d820`.
 
-For the nine existing comparisons, this run rechecked the supplied runtime and immutable ranges against each retained rebuilt artifact SHA-256: zeroing only those ranges reproduces the exact raw rebuilt digest. It then decoded the on-chain CBOR and verified no masked range overlaps it. xPNTsToken was freshly built from a complete recursive local archive at `cf26915e032ccc9e8e02f9aaf3769afd4335027e` using `forge build contracts/src/tokens/xPNTsToken.sol --offline --ast --build-info`, default profile. No alternate candidate was tried.
+This re-ruling run freshly built all ten accepted implementations offline from archived commits and retained local dependencies. Registry used the full committed default profile; the remaining builds selected the relevant contract paths with the same committed default settings. Every comparison passed again. Fresh artifact/build-info hashes, compiler settings, commands, AST types and decoded immutable values are recorded under `reRulingBuild` and `immutableChecks` in the JSON evidence. Targeted builds can assign different AST IDs; immutable references are always resolved against their own build.
 
 | Contract | Accepted commit | Result | Comparison type | CBOR solc | CBOR ipfs |
 |---|---|---|---|---|---|
@@ -33,7 +27,7 @@ For the nine existing comparisons, this run rechecked the supplied runtime and i
 
 ## Registry 5.8.0 acceptance and origin
 
-DSR accepts `a839347e04b40da287522c3641e12121ef2e8e9e` for implementation `0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee`. Metadata is UNMASKED and byte-for-byte equal; only compiler immutable ranges are masked. Candidate provenance is irrelevant under this exact comparison.
+DSR accepts `a839347e04b40da287522c3641e12121ef2e8e9e` for implementation `0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee`. Metadata is UNMASKED and byte-for-byte equal; only compiler immutable ranges are masked. on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33). Candidate provenance is irrelevant only when the comparison uniquely determines the property being checked. For L-1 the property is behavior: runtime exact equality suffices, with every masked immutable independently decoded and checked. Source identity requires a deployment record.
 
 Deployment-origin record only, not a blocker: Etherscan v2 `getcontractcreation` → creator `0xb5600060e6de5e11d3636731964218e53caadf0e`, transaction `0x2792ea496eefac7868ce5e11e071e1613584b87bcdafaae39103d42333ab12b5`, block **11599359**. The orchestrator verified receipt `contractAddress == 0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee` on both endpoints; this offline run consumes the supplied `onchain/xpnts-and-registry.json` record and makes no fresh endpoint claim.
 
@@ -63,14 +57,14 @@ The fixture now contains the Registry proxy, the eight previously accepted targe
 Negative controls cover nonstandard clone bytes, wrong implementation, wrong factory nonce-1 origin, two valid clones with different implementations, metadata differences/masking under rule 4, immutable ranges overlapping metadata, and storage authority/allowance leaks on both named clones. Gate-removal probes report whether removing a gate admits the bad input or another gate catches it.
 
 ```text
-old-owner: Ran 31 tests in 4.498s — OK (skipped=2)
-manifest: Ran 223 tests in 293.178s — OK (skipped=2)
-a3a exec: Ran 102 tests in 2.963s — OK
-a3a send (PTY): Ran 73 tests in 79.222s — OK
+old-owner: Ran 36 tests in 4.509s — OK (skipped=2)
+manifest: Ran 228 tests in 309.926s — OK (skipped=2)
+a3a exec: Ran 102 tests in 3.503s — OK
+a3a send (PTY): Ran 73 tests in 52.042s — OK
 git diff --check: passed
 ```
 
-Old-owner ran **79 gate-removal trials**; full per-gate outcomes are in [OLD_OWNER_ISOLATION_RESULTS.md](OLD_OWNER_ISOLATION_RESULTS.md). The two skips are existing opt-in real-fork tests, also imported by manifest. The extra sender suite passed all 73 tests under a PTY; its initial pipe-based run stalled around terminal confirmation and was interrupted. No live fork or chain isolation was run.
+Old-owner ran **88 gate-removal trials**: 60 accepted, 26 caught elsewhere, 2 structural-check removal crashes. Full per-gate outcomes and log paths are in [OLD_OWNER_ISOLATION_RESULTS.md](OLD_OWNER_ISOLATION_RESULTS.md). The two skips require opt-in hydrated local forks. No live isolation or fork acceptance is claimed.
 
 ## Record provenance
 
@@ -307,3 +301,59 @@ git diff --check: passed
 ```
 
 Both suites exited 0. The skipped cases require opt-in hydrated local forks. Logs: `/private/tmp/old-owner-parity-old-owner-tests.log` and `/private/tmp/old-owner-parity-manifest-tests.log`. The compilation log is `/private/tmp/old-owner-parity-builds/73f43561fa873072b3984aaa2942c6b9f2350a66.log`; ordered attempt output is `/private/tmp/old-owner-parity-progress.log`. No live proxy-slot, history, or fork-control verification is claimed.
+
+## Re-ruling immutable checks (2026-11-04)
+
+All values below are decoded from the supplied runtime using fresh build immutableReferences and AST variable types. Repeated references also agree. Expected addresses come from `deployments/config.sepolia.json`; implementation/self addresses use the authenticated runtime target, factory implementation uses CREATE nonce 1, and chain ID is Sepolia (11155111). No expectation is inferred from an observed value.
+
+| Contract | Name | AST type | Value | Expected | Result |
+|---|---|---|---|---|---|
+| Registry | __self | address | 0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee | 0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee | PASS |
+| SuperPaymaster | __self | address | 0xe25f88dbeafc64200270a948df8e9dd2f9b22c27 | 0xe25f88dbeafc64200270a948df8e9dd2f9b22c27 | PASS |
+| SuperPaymaster | entryPoint | contract IEntryPoint | 0x0000000071727de22e5e9d8baf0edac6f37da032 | 0x0000000071727de22e5e9d8baf0edac6f37da032 | PASS |
+| SuperPaymaster | REGISTRY | contract IRegistry | 0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71 | 0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71 | PASS |
+| SuperPaymaster | ETH_USD_PRICE_FEED | contract AggregatorV3Interface | 0x694aa1769357215de4fac081bf1f309adc325306 | 0x694aa1769357215de4fac081bf1f309adc325306 | PASS |
+| APNTsCapped | _cachedDomainSeparator | bytes32 | 0x1e6b004fb025d43d7acd57b0d7a4ce494813a52358eb0c20db630bbd8826af17 | no expected value | no expected value |
+| APNTsCapped | _cachedChainId | uint256 | 11155111 | 11155111 | PASS |
+| APNTsCapped | _cachedThis | address | 0x9eb17fac022557f64924aa2f9e018db3a330e1e7 | 0x9eb17fac022557f64924aa2f9e018db3a330e1e7 | PASS |
+| APNTsCapped | _hashedName | bytes32 | 0xb61d5c2240b92a39a4b635d085e9d59534f71f542fb712e82ce2d23f93a3682f | no expected value | no expected value |
+| APNTsCapped | _hashedVersion | bytes32 | 0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6 | no expected value | no expected value |
+| APNTsCapped | _name | ShortString | 0x41415374617220504e547300000000000000000000000000000000000000000b | no expected value | no expected value |
+| APNTsCapped | _version | ShortString | 0x3100000000000000000000000000000000000000000000000000000000000001 | no expected value | no expected value |
+| TimelockController | — | — | no masked immutables | — | PASS |
+| GTokenStaking | GTOKEN | contract IERC20 | 0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08 | 0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08 | PASS |
+| GTokenStaking | REGISTRY | address | 0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71 | 0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71 | PASS |
+| GToken | _cap | uint256 | 21000000000000000000000000 | no expected value | no expected value |
+| GToken | _cachedDomainSeparator | bytes32 | 0xcffef6e6b0a079f053c14db119ab2ed05b0b641cee0d2f43a8fbc314222c9b4e | no expected value | no expected value |
+| GToken | _cachedChainId | uint256 | 11155111 | 11155111 | PASS |
+| GToken | _cachedThis | address | 0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08 | 0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08 | PASS |
+| GToken | _hashedName | bytes32 | 0xd18b43fd042671ca04a7660e7c0008ccd50ca1fe48518df01fb0aea651dcd462 | no expected value | no expected value |
+| GToken | _hashedVersion | bytes32 | 0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6 | no expected value | no expected value |
+| GToken | _name | ShortString | 0x47546f6b656e0000000000000000000000000000000000000000000000000006 | no expected value | no expected value |
+| GToken | _version | ShortString | 0x3100000000000000000000000000000000000000000000000000000000000001 | no expected value | no expected value |
+| GToken | factory | contract IxPNTsFactory | 0x67422d2e44a33c8da99b3b776841bf316bd209a2 | 0x67422d2e44a33c8da99b3b776841bf316bd209a2 | PASS |
+| xPNTsFactory | REGISTRY | address | 0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71 | 0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71 | PASS |
+| xPNTsFactory | implementation | address | 0xfdfb993ddce4d95407c893e09556e31732a5beb8 | 0xfdfb993ddce4d95407c893e09556e31732a5beb8 | PASS |
+| xPNTsToken | _cachedDomainSeparator | bytes32 | 0xb5ac272e3557a3cc63af8e2ebc4e4f595dd6ee226f466391072fb706271db4e4 | no expected value | no expected value |
+| xPNTsToken | _cachedChainId | uint256 | 11155111 | 11155111 | PASS |
+| xPNTsToken | _cachedThis | address | 0xfdfb993ddce4d95407c893e09556e31732a5beb8 | 0xfdfb993ddce4d95407c893e09556e31732a5beb8 | PASS |
+| xPNTsToken | _hashedName | bytes32 | 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 | no expected value | no expected value |
+| xPNTsToken | _hashedVersion | bytes32 | 0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6 | no expected value | no expected value |
+| xPNTsToken | _name | ShortString | 0x0000000000000000000000000000000000000000000000000000000000000000 | no expected value | no expected value |
+| xPNTsToken | _version | ShortString | 0x3100000000000000000000000000000000000000000000000000000000000001 | no expected value | no expected value |
+| MySBT | GTOKEN | address | 0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08 | 0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08 | PASS |
+| MySBT | GTOKEN_STAKING | address | 0x472297b557c1d0f030f281a5bb8a535f6c5ab65e | 0x472297b557c1d0f030f281a5bb8a535f6c5ab65e | PASS |
+| MySBT | REGISTRY | address | 0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71 | 0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71 | PASS |
+| PaymasterFactory | — | — | no masked immutables | — | PASS |
+
+35 immutables total: 16 address values match expected configuration/bindings and differ from OLD; 3 chain IDs match the executor's Sepolia constant; 16 remaining values explicitly have no expected value. TimelockController and PaymasterFactory have no compiler immutable references. The EIP-712 implementation cache is checked in the implementation runtime, not in clone/proxy storage.
+
+## Registry creation-code corroboration
+
+The supplied direct-CREATE transaction `0x2792ea496eefac7868ce5e11e071e1613584b87bcdafaae39103d42333ab12b5`, from `0xb5600060e6de5e11d3636731964218e53caadf0e` at block **11599359**, contains **23,366 bytes**. Both-endpoint input agreement is supplied evidence, not a fresh network claim.
+
+The a839347e source declares `constructor() Ownable(msg.sender)` and its compiled constructor ABI has no inputs. Decoded arguments: `[]`; encoded argument length: **0 bytes**. There are no address arguments to check against OLD. The inherited owner argument is `msg.sender`, the supplied creator address, which differs from OLD.
+
+**Creation code equality: true, all 23,366 bytes.** Diff offsets/lengths: none. There is no constructor-argument or metadata difference. Both creation-code SHA-256 values are `a87e8af8ea5ae8544ec4b591a9aa6bcb44e813495ca03e4f823cec4748fa3d47`. The supplied transaction file SHA-256 is `5e5ddb86af936e52d681cfab7fb889a0e2e5ff77d9628a0cb4751049ae1f5ba7`.
+
+This is nonblocking corroboration. Registry's accepted claim remains: on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33).

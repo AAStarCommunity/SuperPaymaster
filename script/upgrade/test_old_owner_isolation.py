@@ -226,6 +226,8 @@ def removed_probe(test, action, gate):
         except a.Gate as error:
             test.assertNotEqual(error.record['gate'],gate)
             outcome = 'caught_elsewhere:'+error.record['gate']
+        except (TypeError, KeyError, IndexError) as error:
+            outcome = 'crash:'+type(error).__name__
         else:
             outcome = 'accepted'
     print('L1_PROBE '+gate+' removed=red '+outcome)
@@ -478,7 +480,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def source_fixture(self):
         baseline = fixture_rpc(self.pin)
         targets = o.discover_targets(baseline,self.pin)
-        sources = {target:dict(contract=name,implementation=IMPL if name == 'xPNTsToken' else target,commit='a'*40,creationBlock=1)
+        sources = {target:dict(contract=name,implementation=IMPL if name == 'xPNTsToken' else target,commit='a'*40,creationBlock=1,claim='behavioral-equivalence' if name == 'Registry' else 'deployment-record + runtime parity')
                    for name,group in targets.items() for target in group}
         def build(commit,name):
             self.assertEqual(commit,'a'*40)
@@ -513,23 +515,110 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 with self.assertRaises(a.Gate) as caught: o.collect_deployed(rpc,self.pin,sources)
                 self.assertEqual(caught.exception.record['gate'],'old_owner_deployed_build')
 
-    def test_pending_registry_source_is_not_adopted(self):
+    def test_registry_adopted_behavioral_claim(self):
         fragment = json.loads((Path(__file__).parent/'fixtures/old-owner/deployed-sources.json').read_text())
-        sources, pending = fragment['deployedSources'], fragment['pendingDsrRuling']
-        self.assertEqual(len(sources), 10)
-        self.assertEqual(list(pending), [u.REG])
-        self.assertNotIn(u.REG, sources)
-        self.assertEqual(pending[u.REG]['contract'], 'Registry')
-        with patch.object(o, 'deployed_build') as build:
-            for selected in (sources, {**sources, **pending}):
-                for action in (
-                    lambda: o.collect_deployed(None, self.pin, selected, pending=pending),
-                    lambda: o.validate_deployed(None, self.pin, selected, pending=pending),
-                ):
-                    with self.assertRaises(a.Gate) as caught:
-                        action()
-                    self.assertEqual(caught.exception.record['gate'], 'deployed_source_pending')
-            build.assert_not_called()
+        self.assertNotIn('pendingDsrRuling', fragment)
+        self.assertEqual(len(fragment['deployedSources']), 11)
+        self.assertEqual(fragment['deployedSources'][u.REG]['claim'], 'behavioral-equivalence')
+        rpc, sources, build = self.source_fixture()
+        with patch.object(o, 'deployed_build', side_effect=build):
+            o.collect_deployed(rpc, self.pin, sources)
+            sources[u.REG]['claim'] = 'deployment-record + runtime parity'
+            action = lambda:o.collect_deployed(rpc, self.pin, sources)
+            with self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'], 'old_owner_source_claim')
+            removed_probe(self, action, 'old_owner_source_claim')
+
+    def test_ast_extra_getter_revert_stops(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory)
+            artifacts = fixture_ast(tree)
+            path = tree/'out/build-info/test.json'
+            data = json.loads(path.read_text())
+            root = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]
+            root['nodes'].append(dict(nodeType='VariableDeclaration',name='extraOwner',src='7:1:0',
+                stateVariable=True,visibility='public',typeDescriptions=dict(typeString='address')))
+            artifacts['Registry']['abi'].append(dict(type='function',name='extraOwner',inputs=[],outputs=[dict(type='address')]))
+            path.write_text(json.dumps(data))
+            with patch.object(a,'raw_artifact',side_effect=lambda t,n:artifacts[n]):
+                extracted = o.extract(tree)
+        self.assertIn('extraOwner()', [r['signature'] for r in extracted['Registry']['authorities']])
+        baseline = fixture_rpc(self.pin)
+        def rpc(method, params):
+            if method == 'eth_call' and params[0]['data'] == a.calldata('extraOwner()'):
+                raise a.Gate('rpc_revert', 'execution reverted', 'successful getter')
+            return baseline(method, params)
+        with self.assertRaises(a.Gate) as caught: o.audit(rpc,self.pin,extracted)
+        self.assertEqual(caught.exception.record['gate'], 'rpc_revert')
+
+    def test_immutable_address_negative_controls_and_removals(self):
+        artifact = dict(immutableDeclarations={'7':dict(name='entryPoint',type='contract IEntryPoint')},
+            deployedBytecode=dict(object='0x'+'00'*32+CBOR,immutableReferences={'7':[dict(start=0,length=32)]}))
+        good = o.immutable_expectations()['entryPoint']
+        def run(value): return o.runtime_parity(raw([int(value,16)])+CBOR,artifact)
+        self.assertEqual(run(good)['immutables'][0]['value'], good)
+        for value,gate in [(o.OLD,'old_owner_immutable_not_old'),(TOKEN,'old_owner_immutable_expected')]:
+            action = lambda:run(value)
+            with self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'],gate)
+            removed_probe(self,action,gate)
+        artifact['immutableDeclarations']['7']['name'] = 'unknownAddress'
+        action = lambda:run(o.OLD)
+        with self.assertRaises(a.Gate): action()
+        removed_probe(self,action,'old_owner_immutable_not_old')
+        self.assertEqual(run(TOKEN)['immutables'][0]['expected'],'no expected value')
+        artifact['immutableDeclarations'] = {}
+        with self.assertRaises(a.Gate) as caught: run(good)
+        self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_ast')
+        removed_probe(self,lambda:run(good),'old_owner_immutable_ast')
+
+    def test_pin_time_immutable_gates(self):
+        baseline,sources,build = self.source_fixture()
+        def compiled(commit,name):
+            result = build(commit,name)
+            if name == 'Registry':
+                result['artifact'] = dict(immutableDeclarations={'7':dict(name='__self',type='address')},
+                    deployedBytecode=dict(object='0x'+'00'*32+CBOR,immutableReferences={'7':[dict(start=0,length=32)]}))
+            return result
+        for value,gate in [(o.OLD,'old_owner_immutable_not_old'),(TOKEN,'old_owner_immutable_expected'),(u.REG,None)]:
+            def rpc(method,params):
+                if method == 'eth_getCode' and params == [u.REG,self.pin['stateBlock']]:
+                    return raw([int(value,16)])+CBOR
+                return baseline(method,params)
+            with patch.object(o,'deployed_build',side_effect=compiled):
+                action = lambda:o.deployed_inventory(rpc,self.pin,sources)
+                if gate is None:
+                    result = action()
+                    row = next(r for r in result['deployedSources'] if r['contract']=='Registry')
+                    self.assertEqual(row['parity']['immutables'][0]['result'],'PASS')
+                else:
+                    with self.assertRaises(a.Gate) as caught: action()
+                    self.assertEqual(caught.exception.record['gate'],gate)
+                    removed_probe(self,action,gate)
+
+    def test_immutable_ast_and_malformed_reference_controls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory)
+            fixture_ast(tree)
+            path = tree/'out/build-info/test.json'
+            data = json.loads(path.read_text())
+            root = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]
+            root['nodes'].append(dict(nodeType='VariableDeclaration',id=7,name='entryPoint',mutability='immutable',
+                typeDescriptions=dict(typeString='contract IEntryPoint')))
+            path.write_text(json.dumps(data))
+            declarations = o.immutable_declarations(tree)
+        self.assertEqual(declarations, {'7':dict(name='entryPoint',type='contract IEntryPoint')})
+        artifact = dict(immutableDeclarations=declarations,
+            deployedBytecode=dict(object='0x'+'00'*32+CBOR,immutableReferences={'7':[dict(start=0,length=32)]}))
+        action = lambda:o.runtime_parity(raw([2**160])+CBOR,artifact)
+        with self.assertRaises(a.Gate) as caught: action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_address_encoding')
+        removed_probe(self,action,'old_owner_immutable_address_encoding')
+        artifact['deployedBytecode']['immutableReferences']['7'] = []
+        action = lambda:o.runtime_parity(artifact['deployedBytecode']['object'],artifact)
+        with self.assertRaises(a.Gate) as caught: action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_values')
+        removed_probe(self,action,'old_owner_immutable_values')
 
     def test_clone_identity_and_factory_origin_controls(self):
         factory = '0x67422d2e44a33c8da99b3b776841bf316bd209a2'
@@ -626,7 +715,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             o.source_provenance(comparison,dict(resolvedCommit='a'*40))
 
     def test_runtime_mask_ranges_and_nonimmutable_mismatch(self):
-        artifact = dict(deployedBytecode=dict(object='0x60'+'00'*32+'00'+CBOR,immutableReferences={'7':[dict(start=1,length=32)]}))
+        artifact = dict(immutableDeclarations={'7':dict(name='fixture',type='uint256')},deployedBytecode=dict(object='0x60'+'00'*32+'00'+CBOR,immutableReferences={'7':[dict(start=1,length=32)]}))
         self.assertTrue(o.runtime_parity('0x60'+'11'*32+'00'+CBOR,artifact)['equal'])
         for data,gate in [('0x61'+'11'*32+'00'+CBOR,'old_owner_runtime_parity'),('0x60','old_owner_runtime_length')]:
             with self.assertRaises(a.Gate) as caught: o.runtime_parity(data,artifact)
@@ -635,7 +724,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         with self.assertRaises(a.Gate): o.runtime_parity('0x60'+'11'*32+'00'+CBOR,artifact)
 
     def test_immutable_repeated_values_must_agree(self):
-        artifact = dict(deployedBytecode=dict(object='0x'+'00'*64+CBOR,
+        artifact = dict(immutableDeclarations={'7':dict(name='fixture',type='uint256')},deployedBytecode=dict(object='0x'+'00'*64+CBOR,
                         immutableReferences={'7':[dict(start=0,length=32),dict(start=32,length=32)]}))
         self.assertTrue(o.runtime_parity('0x'+'11'*64+CBOR,artifact)['equal'])
         with self.assertRaises(a.Gate) as caught:

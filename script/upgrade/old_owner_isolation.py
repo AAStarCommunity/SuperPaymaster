@@ -423,6 +423,7 @@ def deployed_build(commit, name):
         a.need('old_owner_deployed_build', built.returncode, 0)
         artifact_name = 'GTokenAuthorization' if name == 'GToken' and commit == 'cf26915e032ccc9e8e02f9aaf3769afd4335027e' else name
         art = a.raw_artifact(tree,artifact_name)
+        art['immutableDeclarations'] = immutable_declarations(tree)
         metadata = art.get('metadata', {})
         if isinstance(metadata,str):
             metadata = json.loads(metadata)
@@ -471,7 +472,9 @@ def verify_clone(code, factory, expected):
 
 
 def source_provenance(comparison, deployment_record):
-    """DSR: exact equality including unmasked metadata makes provenance irrelevant.
+    """Rule 4: exact comparison determines behavior, not source identity.
+
+    Source identity requires a deployment record.
 
     Rule 4 applies whenever metadata was masked or differs: select the candidate
     from a deployment record first. This prerequisite does not grant parity.
@@ -489,7 +492,64 @@ def runtime_metadata(code):
     return dict(solc='.'.join(str(v) for v in solc),ipfs=ipfs.hex() if ipfs is not None else None),len(raw)-int.from_bytes(raw[-2:],'big')-2
 
 
-def runtime_parity(code, artifact, deployment_record=None):
+def immutable_declarations(tree):
+    """Resolve compiler reference IDs in the same build's AST (including bases)."""
+    declarations = {}
+    def visit(node):
+        if isinstance(node, dict):
+            if node.get('nodeType') == 'VariableDeclaration' and node.get('mutability') == 'immutable':
+                declarations[str(node['id'])] = dict(name=node['name'], type=node['typeDescriptions']['typeString'])
+            for value in node.values():
+                visit(value)
+        elif isinstance(node, list):
+            for value in node:
+                visit(value)
+    for path in sorted((tree/'out/build-info').glob('*.json')):
+        visit(json.loads(path.read_text())['output']['sources'])
+    return declarations
+
+
+def immutable_expectations(implementation=None):
+    config = json.loads((u.ROOT/'deployments/config.sepolia.json').read_text())
+    aliases = dict(entryPoint='entryPoint', REGISTRY='registry', registry='registry',
+                   FACTORY='xPNTsFactory', factory='xPNTsFactory', GTOKEN_STAKING='staking', GTOKEN='gToken',
+                   MYSBT='sbt', ETH_USD_PRICE_FEED='priceFeed')
+    result = {name: config[key].lower() for name, key in aliases.items()}
+    result['implementation'] = factory_implementation(config['xPNTsFactory'].lower())
+    result['_cachedChainId'] = a.CHAIN
+    if implementation:
+        result['__self'] = implementation.lower()
+        result['_cachedThis'] = implementation.lower()
+    return result
+
+
+def decode_immutable(identity, values, artifact, expectations):
+    declaration = artifact.get('immutableDeclarations', {}).get(identity)
+    a.need('old_owner_immutable_ast', declaration is not None, True)
+    a.need('old_owner_immutable_values', bool(values), True)
+    name, typ = declaration['name'], declaration['type']
+    number = int.from_bytes(values[0], 'big')
+    address_type = typ in ('address', 'address payable') or typ.startswith('contract ')
+    if address_type:
+        a.need('old_owner_immutable_address_encoding', number < 2**160, True)
+        value = '0x'+format(number, '040x')
+        a.need('old_owner_immutable_not_old', value != OLD, True)
+    elif typ.startswith('uint'):
+        value = number
+    elif typ.startswith('int'):
+        value = int.from_bytes(values[0], 'big', signed=True)
+    elif typ == 'bool':
+        value = bool(number)
+    else:
+        value = '0x'+values[0].hex()
+    expected = expectations.get(name, 'no expected value')
+    if expected != 'no expected value':
+        a.need('old_owner_immutable_expected', value, expected)
+    return dict(id=identity, name=name, type=typ, value=value, expected=expected,
+                result='PASS' if expected != 'no expected value' else 'no expected value')
+
+
+def runtime_parity(code, artifact, deployment_record=None, expectations=None):
     deployed = artifact['deployedBytecode']
     actual = bytearray.fromhex(a.typed(code,a.HEXDATA)[2:])
     expected = bytearray.fromhex(a.typed(deployed['object'],a.HEXDATA)[2:])
@@ -499,8 +559,10 @@ def runtime_parity(code, artifact, deployment_record=None):
     _, expected_metadata_start = runtime_metadata(deployed['object'])
     metadata_equal = actual[metadata_start:] == expected[expected_metadata_start:]
     source_provenance(dict(equal=metadata_equal,metadataUnmasked=True,metadataEqual=metadata_equal),deployment_record)
-    occupied, ranges = set(), []
-    for entries in deployed.get('immutableReferences',{}).values():
+    if expectations is None:
+        expectations = immutable_expectations()
+    occupied, ranges, immutables = set(), [], []
+    for identity, entries in deployed.get('immutableReferences',{}).items():
         values = []
         for entry in entries:
             start, size = entry['start'], entry['length']
@@ -513,8 +575,9 @@ def runtime_parity(code, artifact, deployment_record=None):
             actual[start:start+size] = expected[start:start+size] = bytes(size)
             ranges.append(dict(start=start,length=size))
         a.need('old_owner_immutable_consistency',len(set(values)) <= 1,True)
+        immutables.append(decode_immutable(identity, values, artifact, expectations))
     a.need('old_owner_runtime_parity',actual == expected,True)
-    return dict(equal=True,immutableRanges=ranges,runtimeKeccak=a.keccak(code),
+    return dict(equal=True,immutables=immutables,immutableRanges=ranges,runtimeKeccak=a.keccak(code),
                 comparisonType='immutable-only masking; metadata UNMASKED and byte-for-byte equal',
                 metadataUnmasked=True,metadataEqual=metadata_equal,cbor=cbor)
 
@@ -532,7 +595,8 @@ def deployed_inventory(rpc, pin, sources):
     for name, group in targets.items():
         for target in group:
             spec = sources[target]
-            a.exact_keys('old_owner_source_fields',spec,('contract','implementation','commit','creationBlock'))
+            a.exact_keys('old_owner_source_fields',spec,('contract','implementation','commit','creationBlock','claim'))
+            a.need('old_owner_source_claim', spec['claim'], 'behavioral-equivalence' if name == 'Registry' else 'deployment-record + runtime parity')
             a.need('old_owner_source_name',spec['contract'],name)
             creation = spec['creationBlock']
             a.need('old_owner_creation_range',type(creation) is int and 0 < creation <= a.qty(block),True)
@@ -552,12 +616,12 @@ def deployed_inventory(rpc, pin, sources):
                 implementation = target
             a.need('old_owner_implementation',spec['implementation'],implementation)
             built = deployed_build(spec['commit'],name)
-            parity = runtime_parity(rpc('eth_getCode',[implementation,block]),built['artifact'])
+            parity = runtime_parity(rpc('eth_getCode',[implementation,block]),built['artifact'], expectations=immutable_expectations(implementation))
             source_provenance(parity,None)
             variants[target] = built['inventory']
             result.setdefault(name,built['inventory'])
             mapping.append(dict(contract=name,target=target,implementation=implementation,commit=spec['commit'],
-                                creationBlock=creation,compiler=built['compiler'],settings=built['settings'],forge=built['forge'],parity=parity))
+                                claim=spec['claim'],creationBlock=creation,compiler=built['compiler'],settings=built['settings'],forge=built['forge'],parity=parity))
     a.need('old_owner_source_pin_after',rpc('eth_getBlockByNumber',[block,False]),canonical)
     result['deployedSources'] = mapping
     result['targetInventories'] = variants
@@ -665,7 +729,7 @@ def post_upgrade_clones(rpc, pin, tokens, pre_upgrade):
     implementation,commit = sorted(bindings)[0]
     block = pin['stateBlock']
     built = deployed_build(commit,'xPNTsToken')
-    parity = runtime_parity(rpc('eth_getCode',[implementation,block]),built['artifact'])
+    parity = runtime_parity(rpc('eth_getCode',[implementation,block]),built['artifact'], expectations=immutable_expectations(implementation))
     source_provenance(parity,None)
     resolved = {}
     for token in sorted(tokens):

@@ -1,14 +1,28 @@
-# L-1 offline verification — DSR rulings, 2026-11-04
+# L-1 offline verification — DSR re-ruling, 2026-11-04
 
-Base HEAD: `f7e8dffabd71c77876cb475d06c54c35de4f9adc`. Offline, uncommitted.
+No commit or network request. Registry is adopted under option (a), with the narrowed claim: on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33). Other contracts retain `deployment-record + runtime parity`.
 
-Ten implementation comparisons now PASS including unmasked metadata; the fresh xPNTsToken build and all CBOR fields are recorded in [DEPLOYED_SOURCE_PARITY_RESULTS.md](DEPLOYED_SOURCE_PARITY_RESULTS.md). No live storage-authority or real-fork acceptance is claimed.
+All ten fresh implementation comparisons pass. The [immutable table and creation corroboration](DEPLOYED_SOURCE_PARITY_RESULTS.md#re-ruling-immutable-checks-2026-11-04) record 35 values, including 16 addresses checked against OLD and expected configuration. No live storage-authority or real-fork acceptance is claimed.
 
-## Current gate-removal evidence
+## Final suite lines
 
-The two new focused tests failed before implementation with missing `clone_implementation` and `source_provenance` entry points. The final old-owner suite passes all implemented controls (two opt-in fork tests skipped).
+Run from repository root:
 
-79 removal probes ran. Every bad input first hit its expected STOP gate. The table groups repeated probes by gate and removal outcome; counts reflect executed trials, not distinct gates. `accepted` means the guard is necessary for that trial; `caught_elsewhere` identifies the independent remaining STOP.
+```text
+old-owner: Ran 36 tests in 4.509s — OK (skipped=2)
+manifest: Ran 228 tests in 309.926s — OK (skipped=2)
+a3a exec: Ran 102 tests in 3.503s — OK
+a3a send (PTY): Ran 73 tests in 52.042s — OK
+git diff --check: passed
+```
+
+The two old-owner skips (also imported by manifest) require an opt-in hydrated fork. The sender suite uses a PTY; the initial pipe-based invocation stalled on terminal confirmation and was interrupted. Logs: `/private/tmp/l1-owner.log`, `/private/tmp/l1-manifest-final.log`, `/private/tmp/l1-a3a.log`, `/private/tmp/l1-a3a-send-tty.log`.
+
+## Gate-removal evidence
+
+88 removal trials ran: 60 accepted the bad input after removal, 26 stopped at another gate, and 2 crashed. Crashes are classified separately and are not claimed as accepted bypasses. Each negative input first hit its expected STOP gate with the checker intact.
+
+The AST-extra-getter test adds a getter to the compiler AST/ABI, extracts it, and verifies that a live-read revert propagates as STOP. It cannot become an absent surface. Pin-time tests exercise both immutable negative gates through deployed_inventory, in addition to direct runtime comparison controls.
 
 | Removed gate | Outcome | Trials |
 |---|---|---|
@@ -49,6 +63,12 @@ The two new focused tests failed before implementation with missing `clone_imple
 | `old_owner_history_positive` | `accepted` | 1 |
 | `old_owner_history_removed` | `accepted` | 1 |
 | `old_owner_history_signature` | `accepted` | 1 |
+| `old_owner_immutable_address_encoding` | `caught_elsewhere:old_owner_immutable_expected` | 1 |
+| `old_owner_immutable_ast` | `crash:TypeError` | 1 |
+| `old_owner_immutable_expected` | `accepted` | 2 |
+| `old_owner_immutable_not_old` | `accepted` | 1 |
+| `old_owner_immutable_not_old` | `caught_elsewhere:old_owner_immutable_expected` | 2 |
+| `old_owner_immutable_values` | `crash:IndexError` | 1 |
 | `old_owner_implementation` | `accepted` | 1 |
 | `old_owner_log_partition` | `caught_elsewhere:old_owner_history_old_filter` | 1 |
 | `old_owner_mapping_GTokenStaking_authorizedSlashers` | `accepted` | 1 |
@@ -57,7 +77,7 @@ The two new focused tests failed before implementation with missing `clone_imple
 | `old_owner_mapping_xPNTsFactory_isXPNTs` | `accepted` | 1 |
 | `old_owner_mapping_xPNTsToken_approvedFacilitators` | `accepted` | 2 |
 | `old_owner_mapping_xPNTsToken_autoApprovedSpenders` | `accepted` | 3 |
-| `old_owner_metadata_unmasked` | `accepted` | 1 |
+| `old_owner_metadata_unmasked` | `caught_elsewhere:old_owner_immutable_ast` | 1 |
 | `old_owner_operator` | `accepted` | 1 |
 | `old_owner_operator_treasury_0xb5600060e6de5e11d3636731964218e53caadf0e` | `accepted` | 1 |
 | `old_owner_registry_user_roles` | `accepted` | 1 |
@@ -75,21 +95,10 @@ The two new focused tests failed before implementation with missing `clone_imple
 | `old_owner_safe_guard` | `caught_elsewhere:old_owner_fork_negative` | 1 |
 | `old_owner_safe_modules` | `caught_elsewhere:old_owner_fork_negative` | 1 |
 | `old_owner_safe_owners` | `accepted` | 1 |
+| `old_owner_source_claim` | `accepted` | 1 |
 | `old_owner_source_rule4` | `accepted` | 3 |
 | `old_owner_source_rule4` | `caught_elsewhere:old_owner_runtime_parity` | 1 |
 | `old_owner_uncancelled_grants` | `accepted` | 1 |
-
-## Current final suite lines
-
-```text
-old-owner: Ran 31 tests in 4.498s — OK (skipped=2)
-manifest: Ran 223 tests in 293.178s — OK (skipped=2)
-a3a exec: Ran 102 tests in 2.963s — OK
-a3a send (PTY): Ran 73 tests in 79.222s — OK
-git diff --check: passed
-```
-
-The sender suite used a PTY after an initial pipe-based run stalled around its terminal-confirmation test. All 73 sender tests passed on the PTY rerun. The two skips in old-owner/manifest are the existing opt-in real-fork tests.
 
 ## Historical results (superseded)
 
