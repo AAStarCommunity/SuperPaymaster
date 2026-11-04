@@ -30,11 +30,14 @@
 | SendTests.test_prior_records_not_objects | `prior_records` | need suppressed | GREEN | RED | AttributeError: 'str' object has no attribute 'get' |
 | SendTests.test_prior_record_keys | `prior_record_keys` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_prior_variant | `prior_variant` | need suppressed | GREEN | RED | KeyError: 'variants' |
-| SendTests.test_prior_receipt_hash_on_secondary | `prior_receipt_hash` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'prior_receipt_hash' |
+| SendTests.test_prior_receipt_hash_on_secondary | `prior_receipt_hash` | need suppressed | GREEN | RED | AssertionError: 'prior_receipt_agree' != 'prior_receipt_hash' |
 | SendTests.test_prior_wrong_block | `prior_receipt_block` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_prior_hash_of_another_step | `prior_mined_nonce` | need suppressed | GREEN | RED | AssertionError: 'prior_mined_input' != 'prior_mined_nonce' |
 | SendTests.test_prior_block_not_canonical_on_secondary | `prior_block_canonical` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'prior_block_canonical' |
 | SendTests.test_prior_timestamp_on_secondary | `prior_timestamp_agree` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'prior_timestamp_agree' |
+| SendTests.test_prior_receipts_disagree | `prior_receipt_agree` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_prior_exec_without_safe_success | `safe_success_event` | need suppressed | GREEN | RED | AssertionError: 'prior_receipt_agree' != 'safe_success_event' |
+| SendTests.test_nonempty_output_directory_is_never_reused | `output_empty` | need suppressed | GREEN | RED | AssertionError: 'FAILURE: output_empty' not found in 'FAILURE: send_operator_confirmation\n' |
 | SendTests.test_signed_nonce | `send_signed_nonce` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_signed_nonce' |
 | SendTests.test_signed_gas | `send_signed_gas` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_signed_gas' |
 | SendTests.test_signed_max_fee | `send_signed_maxFeePerGas` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_signed_maxFeePerGas' |
@@ -56,7 +59,9 @@
 | SendTests.test_secondary_post_nonce | `send_post_nonce` | need suppressed | GREEN | RED | AssertionError: 'send_nonce_latest' != 'send_after_broadcast' |
 | SendTests.test_post_safe_nonce | `send_post_safe_nonce` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_secondary_readback | `readback_owner()` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
-| SendTests.test_live_run_requires_authorized_at | `send_authorized_at` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_live_run_requires_authorized_at | `send_authorized_at` | need suppressed | GREEN | RED | TypeError: '<=' not supported between instances of 'NoneType' and 'datetime.datetime' |
+| SendTests.test_authorized_at_in_the_future | `send_authorized_at_future` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_authorized_at_before_the_packet_pin | `send_authorized_at_before_pin` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_authorization_record_must_read_back | `send_authorization_record` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_wrong_phrase_writes_no_authorization | `send_operator_confirmation` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_prior_unknown_hash | `prior_receipt_missing` | source: raise -> no-op | GREEN | RED | AssertionError: 'send_provider_receipt' != 'prior_receipt_missing' |
@@ -64,9 +69,11 @@
 | SendTests.test_secondary_never_sees_receipt | `send_secondary_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_secondary_receipt_timeout' |
 | SendTests.test_broadcast_error_is_monitored_not_retried | `send_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_receipt_timeout' |
 | SendTests.test_returned_hash_mismatch | `send_returned_hash` | source: raise -> no-op | GREEN | RED | AssertionError: Gate not raised |
-| SendTests.test_dry_run_shares_the_live_gate_sequence | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: Lists differ: ['sen[90864 chars]ding', '<broadcast>', 'send_receipt_hash', 'se[1835 chars]ity' |
+| SendTests.test_dry_run_shares_the_live_gate_sequence | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: Lists differ: ['sen[92695 chars]ding', '<broadcast>', 'send_receipt_hash', 'se[1835 chars]ity' |
 | SendTests.test_dry_run_with_real_keystore_leaks_no_secret | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: 'SENT' != 'DRY_RUN' |
 | SendTests.test_authorization_recorded_before_the_first_signature | `authorization.json before signing` | source: raise -> no-op | GREEN | RED | AssertionError: False is not true : authorization.json must precede the first signature |
+| SendTests.test_interrupt_during_bookkeeping_is_after_broadcast | `interrupt after broadcast -> send_after_broadcast` | source: raise -> no-op | GREEN | RED | KeyboardInterrupt escaped the sender (no send_after_broadcast) |
+| SendTests.test_failure_after_broadcast_is_recorded_with_the_hash | `interrupt after broadcast -> send_after_broadcast` | source: raise -> no-op | GREEN | RED | KeyboardInterrupt escaped the sender (no send_after_broadcast) |
 | B4Tests.test_endpoints_disagree_on_variant | `send_b4_variant_agree` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_variant_agree' |
 | B4Tests.test_apply_not_ready | `send_b4_ready` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_ready' |
 | B4Tests.test_placeholder_status_zero_is_never_allowed | `send_receipt_status` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
@@ -88,4 +95,4 @@
 | CliTests.test_endpoints_must_differ | `send_independent_endpoints` | need suppressed | GREEN | RED | AssertionError: 'local_error' != 'send_independent_endpoints' |
 | CliTests.test_disabled_by_default | `disabled_by_default (rc=3)` | source: raise -> no-op | GREEN | RED | KeyError: 'MANIFEST_SEND_ENABLE' |
 | CliTests.test_enable_names_another_packet | `enable_names_packet (rc=3)` | source: raise -> no-op | GREEN | RED | AssertionError: 1 != 3 |
-SEND_GATE_PROBES PASS 88/88
+SEND_GATE_PROBES PASS 95/95

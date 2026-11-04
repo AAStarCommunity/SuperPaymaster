@@ -41,37 +41,79 @@ overrides):
   the first signature. Tests cover: missing or invalid time; wrong phrase, which writes no record; the record existing
   before the first `cast mktx` with matching contents; a tampered write; and a dry run needing none of these.
 
-## Evidence (this commit, repository root, `A3A_ENGINE_DIR="$(dirname "$(command -v cast)")"`, both engines)
+## DSR re-review at aa634d0e (L1, L2) and clestons' review (S-1 to S-5)
 
-Logs: `script/upgrade/manifest-send-evidence/<engine>/*.log`; `engine.txt` shows `cast --version`.
+- **L1, flaky `test_secondary_balance`.**
+  - Reproduction: 4 full runs of the old harness under nightly, with `test_manifest_exec` running concurrently, did
+    not reproduce it.
+  - What the reported error tells us: `BadStatusLine` is raised when the status line received is non-empty and is not
+    HTTP. An empty answer is reported as `RemoteDisconnected` instead. So some request reached a server other than
+    our anvil.
+  - The harness had three ways for that to happen; all three are removed:
+    1. `free_port()` closed its probe socket before anvil bound the port, so a concurrent process could take it.
+       Anvil now binds with `--port 0` and the harness reads the port from anvil's own output.
+    2. The second endpoint was `localhost`, which can resolve to `::1`, where a different process can listen on the
+       same port number. Both endpoints are now literal `127.0.0.1` strings.
+    3. `urllib` honours `HTTP_PROXY` / `ALL_PROXY`. The test process now installs a proxy-free opener.
+  - The harness also asserts it is talking to its own anvil (`web3_clientVersion` starts with `anvil/`, chain id
+    0xaa36a7, process alive).
+  - As a second layer, a transport error on a test read is retried by the harness only, at most twice. Each retry is
+    printed and the total is reported as `HARNESS_RETRIES`. The broadcast never goes through this wrapper, and the
+    sender itself never retries.
+  - Stability: the full `test_manifest_send.py`, 10 runs per engine, with both engines' runs in parallel and a
+    concurrent `test_manifest_exec.py` loop (three complete passes per engine during the runs). Result: 20/20 OK,
+    `HARNESS_RETRIES 0` in every run. Logs are in `manifest-send-evidence/stability-<engine>/`.
+- **L2.** `--authorized-at` may not lead the clock by more than 300 s (`send_authorized_at_future`). It may not
+  predate `pin.timestamp` (`send_authorized_at_before_pin`); that is the pin block's timestamp, which the packet hash
+  covers. A file mtime is not used because copying resets it. Each rule has a negative test, plus boundary positives
+  (within skew; equal to the pin). The docs now state that `--dry-run` can rehearse only the first step of a range.
+- **S-1.** `test_manifest_send.py` and `probe_send_gates.py` run in `a3a-executor.yml` after the manifest tests,
+  offline.
+- **S-2.** The prefix proof now also requires the same receipt on both endpoints (`prior_receipt_agree`) and Safe
+  `ExecutionSuccess` for every `_exec` prior (`safe_success_event`). Earlier steps' read-backs are not re-run, since
+  state legitimately moves on; a verify-only `--reconcile <hash>` mode is proposed as a follow-up.
+- **S-3.** The README documents the manual reconcile procedure after `send_after_broadcast`.
+- **S-4.** The post-broadcast bookkeeping now sits inside the guarded block. A KeyboardInterrupt or any other
+  exception after the broadcast is `send_after_broadcast` with the local hash, never `local_error`. This is tested
+  through `run()` and through `main()` (FAILURE.json).
+- **S-5.** Control for `output_empty`: an earlier run's `sent.json` is never touched.
+
+## Evidence (repository root, `A3A_ENGINE_DIR=<engine dir>`, both engines)
+
+Logs: `script/upgrade/manifest-send-evidence/<engine>/*.log` and `stability-<engine>/`; `engine.txt` shows `cast --version`. The `skipped=2` entries are tests added on main, not by this PR.
 
 ```text
 # foundry-1.7.1: cast Version: 1.7.1, Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
-test_manifest_exec.py: Ran 235 tests in 224.303s -> OK
-test_a3a_exec.py: Ran 102 tests in 2.756s -> OK
-test_sp_upgrade_exec.py: Ran 141 tests in 0.944s -> OK
-test_pop_adapter.py: Ran 53 tests in 0.205s -> OK
-test_release_evidence.py: Ran 69 tests in 3.025s -> OK
-test_a3a_send.py: Ran 77 tests in 8.514s -> OK
-test_manifest_send.py: Ran 108 tests in 52.581s -> OK
-probe_send_gates.py: SEND_GATE_PROBES PASS 88/88
+test_old_owner_isolation.py: Ran 52 tests in 5.327s -> OK (skipped=2)
+test_manifest_exec.py: Ran 287 tests in 282.616s -> OK (skipped=2)
+test_a3a_exec.py: Ran 102 tests in 2.663s -> OK
+test_sp_upgrade_exec.py: Ran 141 tests in 0.931s -> OK
+test_pop_adapter.py: Ran 53 tests in 0.189s -> OK
+test_release_evidence.py: Ran 69 tests in 3.508s -> OK
+test_a3a_send.py: Ran 77 tests in 8.574s -> OK
+test_manifest_send.py: Ran 117 tests in 69.733s -> OK
+probe_send_gates.py: SEND_GATE_PROBES PASS 95/95
+stability (10x test_manifest_send.py under concurrent load): 10/10 OK, harness retries ['0']
 
 # nightly-4e8874b: cast Version: 1.8.7-nightly, Commit SHA: 4e8874b2bdc840929585ca73e170993c50a4a531
-test_manifest_exec.py: Ran 235 tests in 245.140s -> OK
-test_a3a_exec.py: Ran 102 tests in 2.809s -> OK
-test_sp_upgrade_exec.py: Ran 141 tests in 1.178s -> OK
-test_pop_adapter.py: Ran 53 tests in 0.220s -> OK
-test_release_evidence.py: Ran 69 tests in 2.863s -> OK
-test_a3a_send.py: Ran 77 tests in 9.316s -> OK
-test_manifest_send.py: Ran 108 tests in 50.008s -> OK
-probe_send_gates.py: SEND_GATE_PROBES PASS 88/88
+test_old_owner_isolation.py: Ran 52 tests in 6.459s -> OK (skipped=2)
+test_manifest_exec.py: Ran 287 tests in 318.257s -> OK (skipped=2)
+test_a3a_exec.py: Ran 102 tests in 3.142s -> OK
+test_sp_upgrade_exec.py: Ran 141 tests in 1.574s -> OK
+test_pop_adapter.py: Ran 53 tests in 0.258s -> OK
+test_release_evidence.py: Ran 69 tests in 3.587s -> OK
+test_a3a_send.py: Ran 77 tests in 9.787s -> OK
+test_manifest_send.py: Ran 117 tests in 67.439s -> OK
+probe_send_gates.py: SEND_GATE_PROBES PASS 95/95
+stability (10x test_manifest_send.py under concurrent load): 10/10 OK, harness retries ['0']
 ```
 
 ## Gate-removal probes (`probe_send_gates.py`)
 
 Each control is green with its gate. It turns red when the gate is removed: a `need` gate is suppressed by exact name,
-and a direct raise, an enable check, the dry-run stop or the authorization write is replaced by a no-op in a mutated
-copy of the module source. The table is identical under both engines (Foundry 1.7.1 shown).
+and a direct raise, an enable check, the dry-run stop, the authorization write or the post-broadcast interrupt
+handling is replaced by a no-op in a mutated copy of the module source. The table is identical under both engines
+(Foundry 1.7.1 shown).
 
 | Control | Gate removed | Removal | With gate | Without gate | First failure without the gate |
 |---|---|---|---|---|---|
@@ -105,11 +147,14 @@ copy of the module source. The table is identical under both engines (Foundry 1.
 | SendTests.test_prior_records_not_objects | `prior_records` | need suppressed | GREEN | RED | AttributeError: 'str' object has no attribute 'get' |
 | SendTests.test_prior_record_keys | `prior_record_keys` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_prior_variant | `prior_variant` | need suppressed | GREEN | RED | KeyError: 'variants' |
-| SendTests.test_prior_receipt_hash_on_secondary | `prior_receipt_hash` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'prior_receipt_hash' |
+| SendTests.test_prior_receipt_hash_on_secondary | `prior_receipt_hash` | need suppressed | GREEN | RED | AssertionError: 'prior_receipt_agree' != 'prior_receipt_hash' |
 | SendTests.test_prior_wrong_block | `prior_receipt_block` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_prior_hash_of_another_step | `prior_mined_nonce` | need suppressed | GREEN | RED | AssertionError: 'prior_mined_input' != 'prior_mined_nonce' |
 | SendTests.test_prior_block_not_canonical_on_secondary | `prior_block_canonical` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'prior_block_canonical' |
 | SendTests.test_prior_timestamp_on_secondary | `prior_timestamp_agree` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'prior_timestamp_agree' |
+| SendTests.test_prior_receipts_disagree | `prior_receipt_agree` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_prior_exec_without_safe_success | `safe_success_event` | need suppressed | GREEN | RED | AssertionError: 'prior_receipt_agree' != 'safe_success_event' |
+| SendTests.test_nonempty_output_directory_is_never_reused | `output_empty` | need suppressed | GREEN | RED | AssertionError: 'FAILURE: output_empty' not found in 'FAILURE: send_operator_confirmation\n' |
 | SendTests.test_signed_nonce | `send_signed_nonce` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_signed_nonce' |
 | SendTests.test_signed_gas | `send_signed_gas` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_signed_gas' |
 | SendTests.test_signed_max_fee | `send_signed_maxFeePerGas` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_signed_maxFeePerGas' |
@@ -131,7 +176,9 @@ copy of the module source. The table is identical under both engines (Foundry 1.
 | SendTests.test_secondary_post_nonce | `send_post_nonce` | need suppressed | GREEN | RED | AssertionError: 'send_nonce_latest' != 'send_after_broadcast' |
 | SendTests.test_post_safe_nonce | `send_post_safe_nonce` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_secondary_readback | `readback_owner()` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
-| SendTests.test_live_run_requires_authorized_at | `send_authorized_at` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_live_run_requires_authorized_at | `send_authorized_at` | need suppressed | GREEN | RED | TypeError: '<=' not supported between instances of 'NoneType' and 'datetime.datetime' |
+| SendTests.test_authorized_at_in_the_future | `send_authorized_at_future` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_authorized_at_before_the_packet_pin | `send_authorized_at_before_pin` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_authorization_record_must_read_back | `send_authorization_record` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_wrong_phrase_writes_no_authorization | `send_operator_confirmation` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_prior_unknown_hash | `prior_receipt_missing` | source: raise -> no-op | GREEN | RED | AssertionError: 'send_provider_receipt' != 'prior_receipt_missing' |
@@ -139,9 +186,11 @@ copy of the module source. The table is identical under both engines (Foundry 1.
 | SendTests.test_secondary_never_sees_receipt | `send_secondary_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_secondary_receipt_timeout' |
 | SendTests.test_broadcast_error_is_monitored_not_retried | `send_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_receipt_timeout' |
 | SendTests.test_returned_hash_mismatch | `send_returned_hash` | source: raise -> no-op | GREEN | RED | AssertionError: Gate not raised |
-| SendTests.test_dry_run_shares_the_live_gate_sequence | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: Lists differ: ['sen[90864 chars]ding', '<broadcast>', 'send_receipt_hash', 'se[1835 chars]ity' |
+| SendTests.test_dry_run_shares_the_live_gate_sequence | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: Lists differ: ['sen[92695 chars]ding', '<broadcast>', 'send_receipt_hash', 'se[1835 chars]ity' |
 | SendTests.test_dry_run_with_real_keystore_leaks_no_secret | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: 'SENT' != 'DRY_RUN' |
 | SendTests.test_authorization_recorded_before_the_first_signature | `authorization.json before signing` | source: raise -> no-op | GREEN | RED | AssertionError: False is not true : authorization.json must precede the first signature |
+| SendTests.test_interrupt_during_bookkeeping_is_after_broadcast | `interrupt after broadcast -> send_after_broadcast` | source: raise -> no-op | GREEN | RED | KeyboardInterrupt escaped the sender (no send_after_broadcast) |
+| SendTests.test_failure_after_broadcast_is_recorded_with_the_hash | `interrupt after broadcast -> send_after_broadcast` | source: raise -> no-op | GREEN | RED | KeyboardInterrupt escaped the sender (no send_after_broadcast) |
 | B4Tests.test_endpoints_disagree_on_variant | `send_b4_variant_agree` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_variant_agree' |
 | B4Tests.test_apply_not_ready | `send_b4_ready` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_ready' |
 | B4Tests.test_placeholder_status_zero_is_never_allowed | `send_receipt_status` | need suppressed | GREEN | RED | AssertionError: Gate not raised |

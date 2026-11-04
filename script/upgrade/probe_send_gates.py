@@ -161,7 +161,12 @@ def run_case(cls, name):
     result = unittest.TestResult()
     # A suppressed gate can let a transaction through that anvil rejects: bound the receipt wait for probes.
     with patch.object(t.ms, 'RECEIPT_WAIT_SECONDS', 2):
-        cls(name).run(result)
+        case = cls(name)
+        try:
+            case.run(result)
+        except KeyboardInterrupt:  # unittest re-raises it: an injected interrupt escaping the sender is a red control
+            case.doCleanups()  # TestCase.run skipped them: never let this case's patches leak into the next one
+            return 'RED', 'KeyboardInterrupt escaped the sender (no send_after_broadcast)'
     problems = result.failures+result.errors
     if not problems:
         return 'GREEN', ''
