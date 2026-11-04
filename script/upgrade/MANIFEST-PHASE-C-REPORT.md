@@ -26,7 +26,10 @@ local, non-forked anvil with its default account (comparator check below).
 | §2 / §6 chain preconditions | `collect_phase_c` pin reads + `phase_c_pin_gates` (offline) + `phase_c_pre_send` (live) |
 | §4 nonces / budget | shared counters + O counter; `budget_deployer_values` at build; calibrated `budget` with exact shortfall; O = pin + C20 vs measured gas + maintenance |
 | §4 timing | `C_after_activation` (6d and B4 passed), `C_after_token_eta` (block time ≥ `pendingAPNTsTokenEta`); Phase D handover requires every C step |
-| §6 SP-attempt STOPs | `sp_attempt_precheck` (SP_RENEW, renewal mode, `L-used ≥ Amax` both counters, price) |
+| §6 SP-attempt STOPs | `sp_attempt_precheck` (SP_RENEW, renewal mode, caps == frozen L, `L-used ≥ Amax` both counters, price, one recorded block). **Exported helper, run once at the end of Phase C; the sampler is not wired yet** (the A6 collector does not call it; per-attempt wiring is a pilot blocker) |
+| §3 "a later discrepancy is STOP" (omitted rows) | `funding_gate`: every funding target re-read at the end of Phase C and before each Phase D handover step |
+| §3 post-pilot recompute (M_j/Amax/buffers from consumed attempts, 20-attempt pilot cap, forced new packet) | **not implemented — pilot/formal tooling** |
+| §4 sequencing pilot → recompute/read-back → G3 freeze → formal | **not implemented — pilot/formal tooling** |
 | §7 controls | 12 reverted-snapshot controls (`PC_CONTROLS`), unit controls for every other gate |
 | Stages | `--stage c` (stops after Phase C, `stage-c.json`, never final) |
 

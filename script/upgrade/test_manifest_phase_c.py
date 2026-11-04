@@ -17,6 +17,7 @@ import test_manifest_exec as t
 m, a, u = t.m, t.a, t.u
 D, SP = u.DEPLOYER, u.SP
 REAL_REBUILD_BASELINES = m.rebuild_baselines
+REAL_FUNDING_GATE = m.funding_gate
 WORDS9 = 'c(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)'
 
 
@@ -79,6 +80,16 @@ class Chain:
         for arm, target in (('SP', SP), ('VPM', addr['VPM']), ('TPM', addr['TPM'])):
             w[(self.ep, 'balanceOf(address)', target)] = pc['entryPointBefore'][arm]
         w[(addr['Q'], 'balanceOf(address)', self.S)] = 0
+        if sid not in ids:
+            # Post-Phase-C state: every funding target met, executed or omitted.
+            for arm, target in (('SP', SP), ('VPM', addr['VPM']), ('TPM', addr['TPM'])):
+                w[(self.ep, 'balanceOf(address)', target)] = pc['entryPointTargets'][arm]
+            self.balances[self.B] = p['bundler']['balance']+pc['bundlerTopUp']
+            w[(self.X, 'balanceOf(address)', self.S)] = pc['userTarget']
+            w[(addr['Q'], 'balanceOf(address)', self.S)] = pc['feeTokenTarget']
+            w[(addr['Q'], 'allowance(address,address)', self.S, addr['TPM'])] = pc['feeTokenTarget']
+            w[(addr['T'], 'balanceOf(address)', self.S)] = pc['taskSender']
+            w[(addr['T'], 'balanceOf(address)', m.DEAD)] = pc['taskRecipient']
         self.words = w
         if 'C5' in done or pc['accountExists']:
             self.codes[self.S] = '0x6000'
@@ -171,6 +182,8 @@ class Chain:
 class PhaseCTests(unittest.TestCase):
     def setUp(self):
         t.ManifestTests.setUp(self)
+        real = patch.object(m, 'funding_gate', REAL_FUNDING_GATE)
+        real.start(); self.addCleanup(real.stop)
         self.pc = self.plan['phaseC']
         self.base_data = copy.deepcopy(self.data)
 
@@ -673,6 +686,22 @@ PRECHECK_CASES = {
     'precheck_allowance': (0, lambda c: c.set(c.X, 'autoAllowance(address,address)', c.S, SP,
                                                value=[m.PC_CAP_L, m.PC_CAP_L-c.plan['phaseC']['Amax']+1])),
     'precheck_total': (0, lambda c: c.set(c.X, 'userTotal(address)', c.S, value=[m.PC_CAP_L, m.PC_CAP_L-c.plan['phaseC']['Amax']+1])),
+    # DSR H1: a raised cap would hide exhausted L; a lowered cap is a changed packet. Both STOP.
+    'precheck_allowance_cap': (0, lambda c: c.set(c.X, 'autoAllowance(address,address)', c.S, SP, value=[2*m.PC_CAP_L, m.PC_CAP_L])),
+    'precheck_total_cap': (0, lambda c: c.set(c.X, 'userTotal(address)', c.S, value=[m.PC_CAP_L-1, 0])),
+}
+FUNDING_CASES = {
+    'C_funding_entrypoint_SP': lambda c: c.set(c.ep, 'balanceOf(address)', SP, value=c.plan['phaseC']['entryPointTargets']['SP']-1),
+    'C_funding_entrypoint_VPM': lambda c: c.set(c.ep, 'balanceOf(address)', c.plan['phaseC']['addresses']['VPM'], value=0),
+    'C_funding_entrypoint_TPM': lambda c: c.set(c.ep, 'balanceOf(address)', c.plan['phaseC']['addresses']['TPM'], value=1),
+    'C_funding_bundler': lambda c: c.balances.__setitem__(c.B, c.plan['phaseC']['bundlerTarget']-1),
+    'C_funding_owner': lambda c: c.balances.__setitem__(c.O, c.plan['phaseC']['ownerMaintenanceWei']-1),
+    'C_funding_user': lambda c: c.set(c.X, 'balanceOf(address)', c.S, value=1),
+    'C_funding_feeToken': lambda c: c.set(c.plan['phaseC']['addresses']['Q'], 'balanceOf(address)', c.S, value=1),
+    'C_funding_taskSender': lambda c: c.set(c.plan['phaseC']['addresses']['T'], 'balanceOf(address)', c.S, value=300),
+    'C_funding_taskRecipient': lambda c: c.set(c.plan['phaseC']['addresses']['T'], 'balanceOf(address)', m.DEAD, value=0),
+    'C_funding_feeAllowance': lambda c: c.set(c.plan['phaseC']['addresses']['Q'], 'allowance(address,address)', c.S,
+                                              c.plan['phaseC']['addresses']['TPM'], value=1),
 }
 
 
@@ -734,8 +763,41 @@ class LiveGateTests(PhaseCTests):
     def test_handover_requires_phase_c(self):
         step = self.step('D.registry.transfer')
         passed = {s['id'] for s in self.plan['steps'] if not s['id'].startswith('D.')}
-        m.handover_gate(None, self.plan, step, dict(passed=passed))
-        self.stop('handover_dependencies', lambda: m.handover_gate(None, self.plan, step, dict(passed=passed-{'C19'})))
+        with patch.object(m, 'funding_gate', return_value={'synthetic': True}) as funding:
+            context = dict(passed=passed)
+            m.handover_gate(None, self.plan, step, context)
+            self.assertEqual(context['handoverFunding'], [{'synthetic': True}])
+            self.stop('handover_dependencies', lambda: m.handover_gate(None, self.plan, step, dict(passed=passed-{'C19'})))
+            self.assertEqual(funding.call_count, 1)
+
+    def funding(self, chain):
+        with chain.patches()[0]:
+            return m.funding_gate(chain, self.plan)
+
+    def test_funding_clean_state_and_block_binding(self):
+        result = self.funding(self.chain('after_phase_c'))
+        self.assertEqual((result['block'], result['blockHash']), ('0x200', t.base.HASH))
+        self.assertEqual(result['entryPointSP'], self.pc['entryPointTargets']['SP'])
+        precheck = self.precheck(self.chain('after_phase_c'))
+        self.assertEqual((precheck['block'], precheck['blockHash'], precheck['L']), ('0x200', t.base.HASH, m.PC_CAP_L))
+
+    def test_funding_omitted_rows_rechecked(self):
+        # DSR M1: C17.sp and C19 omitted at build time (targets already met at the pin);
+        # a later drop below target still STOPs.
+        pin = copy.deepcopy(self.pin)
+        pin['entryPointDeposit'] = 10**20
+        pin['phaseC']['bundler']['balance'] = 10**20
+        plan = self.build(None, pin)
+        self.assertNotIn('C17.sp', plan['phaseC']['steps'])
+        self.assertNotIn('C19', plan['phaseC']['steps'])
+        self.plan, self.pc = plan, plan['phaseC']
+        chain = self.chain('after_phase_c')
+        self.funding(chain)
+        chain.set(chain.ep, 'balanceOf(address)', SP, value=self.pc['entryPointTargets']['SP']-1)
+        self.stop('C_funding_entrypoint_SP', lambda: self.funding(chain))
+        chain = self.chain('after_phase_c')
+        chain.balances[chain.B] = self.pc['bundlerTarget']-1
+        self.stop('C_funding_bundler', lambda: self.funding(chain))
 
 
 
@@ -761,6 +823,19 @@ for _gate, (_sid, _mutate) in LIVE_CASES.items():
     setattr(LiveGateTests, 'test_live_'+_gate, make_live_test(_gate, _sid, _mutate))
 for _gate, (_flags, _mutate) in PRECHECK_CASES.items():
     setattr(LiveGateTests, 'test_precheck_'+_gate, make_precheck_test(_gate, _flags, _mutate))
+
+
+def make_funding_test(gate, mutate):
+    def test(self):
+        chain = self.chain('after_phase_c')
+        self.funding(chain)
+        mutate(chain)
+        self.stop(gate, lambda: self.funding(chain))
+    return test
+
+
+for _gate, _mutate in FUNDING_CASES.items():
+    setattr(LiveGateTests, 'test_funding_'+_gate, make_funding_test(_gate, _mutate))
 for _name in [n for n in dir(PhaseCTests) if n.startswith('test_')]:
     setattr(LiveGateTests, _name, None)
 
@@ -787,7 +862,8 @@ class SnapshotControlTests(PhaseCTests):
             'C_status_mismatch': 'C_account_status', 'C_policy_pending': 'C8_policy_off',
             'C_owner_underfunded': 'C_owner_budget', 'C_deposit_front_run': 'C17_deposit_before',
             'C_allowance_exhausted': 'precheck_allowance', 'C_total_exhausted': 'precheck_total',
-            'C_sp_renew': 'SP_RENEW_never', 'C_renewal_mode': 'precheck_renewal_mode'})
+            'C_sp_renew': 'SP_RENEW_never', 'C_renewal_mode': 'precheck_renewal_mode',
+            'C_bundler_drained': 'C_funding_bundler'})
         self.assertTrue(all(x['restored'] for x in controls))
 
     def test_not_applicable_controls_are_explicit(self):

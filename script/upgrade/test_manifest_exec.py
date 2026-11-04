@@ -645,6 +645,10 @@ class ManifestTests(unittest.TestCase):
             mock.start()
             self.addCleanup(mock.stop)
         self.path.write_text(json.dumps(self.data))
+        # Phase C funding re-reads are exercised against a stateful fake in test_manifest_phase_c.py;
+        # here they are isolated so the A/B/D fakes need not model post-Phase-C balances.
+        self.funding_patch = patch.object(m, 'funding_gate', return_value={'synthetic': 'funding'})
+        self.funding_patch.start(); self.addCleanup(self.funding_patch.stop)
         self.baseline_patch = patch.object(m, 'rebuild_baselines', return_value=BASELINES)
         self.baseline_patch.start(); self.addCleanup(self.baseline_patch.stop)
         self.commit_patch = patch.object(m, 'rebuild_commit', return_value=ART)
@@ -1563,6 +1567,8 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(result['status'], 'PASS')
         record = next(x for x in result['steps'] if x['step'] == 'B4')
         self.assertEqual((record['step'], record['variant'], record['receipt']['status']), ('B4', 'apply', '0x0'))
+        # Phase C funding is re-read at the end of Phase C (stubbed here; real gate in the Phase C suite).
+        self.assertEqual(result['phaseCFunding'], {'synthetic': 'funding'})
         self.assertEqual(state['nonces'][u.DEPLOYER], a.qty(self.plan['steps'][-1]['tx']['nonce'])+1)
 
     def test_rehearsal_stops_on_solvency_without_pass_record(self):

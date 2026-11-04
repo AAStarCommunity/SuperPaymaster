@@ -26,6 +26,7 @@ CASES += [(tests.BaselineGateTests, 'test_build_'+g, g) for g in
           ('C12_constructor_abi', 'C14_constructor_abi', 'C_baseline_commit_F1TestToken')]
 CASES += [(L, 'test_live_'+g, g) for g in tests.LIVE_CASES]
 CASES += [(L, 'test_precheck_'+g, g) for g in tests.PRECHECK_CASES]
+CASES += [(L, 'test_funding_'+g, g) for g in tests.FUNDING_CASES]
 CASES += [
     (P, 'test_pin_price_zero', 'C_price_bound'),
     (P, 'test_stage_c_boundary_and_prefix', 'prefix_boundary'),

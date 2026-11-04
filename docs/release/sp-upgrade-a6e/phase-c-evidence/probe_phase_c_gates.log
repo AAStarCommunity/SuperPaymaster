@@ -95,6 +95,18 @@
 | LiveGateTests.test_precheck_precheck_renewal_mode | `precheck_renewal_mode` | PASS | red |
 | LiveGateTests.test_precheck_precheck_allowance | `precheck_allowance` | PASS | red |
 | LiveGateTests.test_precheck_precheck_total | `precheck_total` | PASS | red |
+| LiveGateTests.test_precheck_precheck_allowance_cap | `precheck_allowance_cap` | PASS | red |
+| LiveGateTests.test_precheck_precheck_total_cap | `precheck_total_cap` | PASS | red |
+| LiveGateTests.test_funding_C_funding_entrypoint_SP | `C_funding_entrypoint_SP` | PASS | red |
+| LiveGateTests.test_funding_C_funding_entrypoint_VPM | `C_funding_entrypoint_VPM` | PASS | red |
+| LiveGateTests.test_funding_C_funding_entrypoint_TPM | `C_funding_entrypoint_TPM` | PASS | red |
+| LiveGateTests.test_funding_C_funding_bundler | `C_funding_bundler` | PASS | red |
+| LiveGateTests.test_funding_C_funding_owner | `C_funding_owner` | PASS | red |
+| LiveGateTests.test_funding_C_funding_user | `C_funding_user` | PASS | red |
+| LiveGateTests.test_funding_C_funding_feeToken | `C_funding_feeToken` | PASS | red |
+| LiveGateTests.test_funding_C_funding_taskSender | `C_funding_taskSender` | PASS | red |
+| LiveGateTests.test_funding_C_funding_taskRecipient | `C_funding_taskRecipient` | PASS | red |
+| LiveGateTests.test_funding_C_funding_feeAllowance | `C_funding_feeAllowance` | PASS | red |
 | PhaseCTests.test_pin_price_zero | `C_price_bound` | PASS | red |
 | PhaseCTests.test_stage_c_boundary_and_prefix | `prefix_boundary` | PASS | red |
 | PhaseCTests.test_stage_c_prefix_must_end_in_phase_c | `prefix_boundary_last` | PASS | red |
@@ -111,5 +123,5 @@
 | ManifestTests.test_rehearsal_phase_c_controls_complete | `phase_c_controls_complete` | PASS | red |
 | ManifestTests.test_rehearsal_after_6d_accounting | `after_6d_accounting` | PASS | red |
 | ManifestTests.test_rehearsal_accounting_unchanged_since_phase_c | `accounting_unchanged_since_phase_c` | PASS | red |
-PHASE_C_GATE_PROBES PASS 111/111 red; uncovered new gates: []
+PHASE_C_GATE_PROBES PASS 123/123 red; uncovered new gates: []
 rc=0

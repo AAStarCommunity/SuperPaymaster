@@ -2098,8 +2098,11 @@ def handover_gate(rpc, plan, step, context):
     if sid.startswith(('D.aggregator.', 'D.old_aggregator.')):
         required_steps.update(('A10.0', 'A10.1', 'A10.2', 'A11.min', 'A11.default'))
     if 'phaseC' in plan:
-        # Phase C funding precedes Phase D (§3 ordering, §4 critical path).
+        # Phase C funding precedes Phase D (§3 ordering, §4 critical path), and every
+        # funding target, including omitted rows, still holds before each handover step.
         required_steps.update(plan['phaseC']['steps'])
+        if required_steps <= passed:
+            context.setdefault('handoverFunding', []).append(funding_gate(rpc, plan))
     if sid.startswith('D.registry_'):
         required_steps.add('D.registry.transfer')
         for pred in registry_ownership(u.DEPLOYER, u.TL):
@@ -2469,8 +2472,8 @@ def owner_gas_gate(step):
         a.need('C_owner_gas_bound', a.qty(step['tx']['gas']) <= step['gasBound'], True)
 
 
-def price_gate(rpc):
-    price = u.uints(a.call(rpc, u.SP, 'cachedPrice()'))
+def price_gate(rpc, block='latest'):
+    price = u.uints(a.call(rpc, u.SP, 'cachedPrice()', block=block))
     a.need('C_price_decimals', price[3], PC_PRICE_DECIMALS)
     a.need('C_price_bound', 0 < price[0] <= PC_PRICE_CAP, True)
     return price
@@ -2566,22 +2569,59 @@ def phase_c_pre_send(rpc, plan, step, context):
 
 
 def sp_attempt_precheck(rpc, plan, flags=0):
-    """Before every SP attempt (pilot and formal): no renewal, enough L, price within P*."""
+    """SP-attempt precheck: no renewal, frozen L with L-used >= Amax, price within P*.
+
+    Exported helper. The executor runs it once at the end of Phase C; the A6 sampler does not
+    call it yet, so per-attempt enforcement belongs to the pilot tooling (not this module).
+    """
     a.need('SP_RENEW_never', flags & FLAG_SP_RENEW, 0)
     pc = plan['phaseC']
     X, S = pc['addresses']['X'], pc['addresses']['S']
-    price_gate(rpc)
-    a.need('precheck_renewal_mode', [a.word(rpc, X, 'renewalMode(address)', S), a.word(rpc, X, 'autoRenewUsed(address)', S)], [0, 0])
-    allow = u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, u.SP))
-    total = u.uints(a.call(rpc, X, 'userTotal(address)', S))
-    a.need('precheck_allowance', allow[0] >= allow[1] and allow[0]-allow[1] >= pc['Amax'], True)
-    a.need('precheck_total', total[0] >= total[1] and total[0]-total[1] >= pc['Amax'], True)
-    return dict(autoAllowance=allow, userTotal=total, Amax=pc['Amax'])
+    # Every read is bound to one block; the record names it.
+    head = a.block_data(rpc, 'latest')
+    block = head['number']
+    price = price_gate(rpc, block)
+    a.need('precheck_renewal_mode', [a.word(rpc, X, 'renewalMode(address)', S, block=block),
+           a.word(rpc, X, 'autoRenewUsed(address)', S, block=block)], [0, 0])
+    allow = u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, u.SP, block=block))
+    total = u.uints(a.call(rpc, X, 'userTotal(address)', S, block=block))
+    # L is frozen in the packet (§3): any cap change, up or down, is STOP before the used test.
+    a.need('precheck_allowance_cap', allow[0], PC_CAP_L)
+    a.need('precheck_total_cap', total[0], PC_CAP_L)
+    a.need('precheck_allowance', allow[1] <= PC_CAP_L and PC_CAP_L-allow[1] >= pc['Amax'], True)
+    a.need('precheck_total', total[1] <= PC_CAP_L and PC_CAP_L-total[1] >= pc['Amax'], True)
+    return dict(block=block, blockHash=head['hash'], flags=flags, cachedPrice=price,
+                autoAllowance=allow, userTotal=total, Amax=pc['Amax'], L=PC_CAP_L)
+
+
+def funding_gate(rpc, plan):
+    """Re-read every Phase C funding target, executed or omitted at build time (§3: a later
+    discrepancy is STOP). O only needs its remaining in-window maintenance after its calls."""
+    pc, pin = plan['phaseC'], plan['pin']
+    addr, ep = pc['addresses'], pin['immutables']['entryPoint']
+    S = addr['S']
+    head = a.block_data(rpc, 'latest')
+    block = head['number']
+    observed = {}
+    for arm, target in (('SP', u.SP), ('VPM', addr['VPM']), ('TPM', addr['TPM'])):
+        observed['entryPoint'+arm] = a.word(rpc, ep, 'balanceOf(address)', target, block=block)
+        a.need('C_funding_entrypoint_'+arm, observed['entryPoint'+arm] >= pc['entryPointTargets'][arm], True)
+    for label, who, target in (('bundler', plan['externalInputs']['data']['phaseC']['bundler'], pc['bundlerTarget']),
+                               ('owner', plan['externalInputs']['data']['phaseC']['accountOwner'], pc['ownerMaintenanceWei'])):
+        observed[label] = a.qty(rpc('eth_getBalance', [who, block]))
+        a.need('C_funding_'+label, observed[label] >= target, True)
+    for label, token, holder, target in (('user', addr['X'], S, pc['userTarget']), ('feeToken', addr['Q'], S, pc['feeTokenTarget']),
+                                         ('taskSender', addr['T'], S, pc['taskSender']), ('taskRecipient', addr['T'], DEAD, pc['taskRecipient'])):
+        observed[label] = a.word(rpc, token, 'balanceOf(address)', holder, block=block)
+        a.need('C_funding_'+label, observed[label] >= target, True)
+    observed['feeAllowance'] = a.word(rpc, addr['Q'], 'allowance(address,address)', S, addr['TPM'], block=block)
+    a.need('C_funding_feeAllowance', observed['feeAllowance'], pc['feeTokenTarget'])
+    return dict(block=block, blockHash=head['hash'], **observed)
 
 
 PC_CONTROLS = ['C_price_above_cap', 'C_cap_exhausted', 'C_factory_used', 'C_enduser_inactive', 'C_status_mismatch',
                'C_policy_pending', 'C_owner_underfunded', 'C_deposit_front_run', 'C_allowance_exhausted',
-               'C_total_exhausted', 'C_sp_renew', 'C_renewal_mode']
+               'C_total_exhausted', 'C_sp_renew', 'C_renewal_mode', 'C_bundler_drained']
 
 
 def layout_slot(plan, contract, label):
@@ -2694,6 +2734,8 @@ def phase_c_controls(rpc, plan, sid, controls, context):
             flags, state['flags'] = state['flags'], 0
             return sp_attempt_precheck(rpc, plan, flags)
         add('C_sp_renew', 'SP_RENEW_never', renew, check_flags)
+        add('C_bundler_drained', 'C_funding_bundler', lambda: rpc('anvil_setBalance', [c['bundler'], hex(pc['bundlerTarget']-1)]),
+            lambda: funding_gate(rpc, plan))
         add('C_renewal_mode', 'precheck_renewal_mode', lambda: fixture(O, S, a.calldata('execute(address,uint256,bytes)',
             X, 0, a.calldata('setRenewalMode(uint8)', 1))), check)
 
@@ -2974,6 +3016,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
             controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
         if pc is not None and sid == pc['steps'][-1]:
             context['afterC'] = phase_c_accounting(rpc, plan)
+            context['funding'] = funding_gate(rpc, plan)
             context['precheck'] = sp_attempt_precheck(rpc, plan)
             phase_c_controls(rpc, plan, 'after_phase_c', controls, context)
     if pc is not None:
@@ -2987,7 +3030,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         validate_plan(plan, plan['externalInputs'], frozen=True)
         result = dict(status='PASS', stage=plan['stage'], steps=records, readback=readback)
         if pc is not None:
-            result.update(phaseCAccounting=context['afterC'], spAttemptPrecheck=context['precheck'],
+            result.update(phaseCAccounting=context['afterC'], phaseCFunding=context['funding'], spAttemptPrecheck=context['precheck'],
                           negativeControls=[x for x in controls if x['control'] in PC_CONTROLS])
         return result
     controls.append(handover_controls(rpc, plan))
@@ -3011,6 +3054,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     validate_plan(plan, plan['externalInputs'], frozen=True)
     result = dict(status='PASS', scope='Phases A/B/C/D', steps=records, negativeControls=controls,
                   B2=context['B2'], postSwapAccounting=accounting, phaseCAccounting=context['afterC'],
+                  phaseCFunding=context['funding'], handoverFunding=context.get('handoverFunding', []),
                   spAttemptPrecheck=context['precheck'], fraudProof=fraud)
     a.write_json(out/'manifest-simulate.json', result)
     return result

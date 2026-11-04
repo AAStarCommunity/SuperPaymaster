@@ -102,7 +102,7 @@ test_valid_plan (__main__.ExecutorTests.test_valid_plan) ... ok
 test_transient_upstream_failure_is_retried_and_final_failure_stays_fatal (__main__.RelayRetry.test_transient_upstream_failure_is_retried_and_final_failure_stays_fatal) ... ok
 
 ----------------------------------------------------------------------
-Ran 102 tests in 6.980s
+Ran 102 tests in 10.052s
 
 OK
-rc=0
+rc=0 engine=Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
