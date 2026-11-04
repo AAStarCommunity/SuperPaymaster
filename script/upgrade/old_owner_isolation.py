@@ -456,14 +456,17 @@ def runtime_parity(code, artifact):
     a.need('old_owner_runtime_nonempty',bool(actual),True)
     occupied, ranges = set(), []
     for entries in deployed.get('immutableReferences',{}).values():
+        values = []
         for entry in entries:
             start, size = entry['start'], entry['length']
             a.need('old_owner_immutable_range', type(start) is int and size == 32 and 0 <= start <= len(expected)-size, True)
             span = set(range(start,start+size))
             a.need('old_owner_immutable_overlap',bool(span & occupied),False)
             occupied.update(span)
+            values.append(bytes(actual[start:start+size]))
             actual[start:start+size] = expected[start:start+size] = bytes(size)
             ranges.append(dict(start=start,length=size))
+        a.need('old_owner_immutable_consistency',len(set(values)) <= 1,True)
     a.need('old_owner_runtime_parity',actual == expected,True)
     return dict(equal=True,immutableRanges=ranges,runtimeKeccak=a.keccak(code))
 

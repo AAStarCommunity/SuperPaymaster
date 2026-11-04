@@ -43,6 +43,7 @@ The source gate:
    committed default profile. Missing dependencies/source/compiler stop execution.
 5. Compares full pinned implementation runtime against the fresh artifact, masking
    only bounded, nonoverlapping 32-byte compiler immutable-reference ranges.
+   Repeated occurrences of each immutable must contain the same pinned value.
    Metadata bytes are not stripped.
 6. Extracts AST/ABI authority, role and mapping inventory from that same build.
    Records target, implementation, commit, compiler, settings, Forge version,
@@ -78,10 +79,11 @@ nonce 12133. Clone implementations must be read at the pin.
 
 [deployed_source_candidates.json](deployed_source_candidates.json) contains full
 SHAs, source paths, version-string checks and each attempted rebuild's actual STOP.
-Every attempted build stopped at `rebuild_submodule_unavailable` for
-`contracts/lib/chainlink-brownie-contracts`, before compiler execution. Solady and
-other historical dependency objects/compiler installations may also be needed;
-they have not been claimed available. No candidate is promoted to authenticated
+The 2026-11-04 rerun at HEAD `926a0282` uses the supplied finalized Sepolia
+runtime snapshot at block 12061284. Chainlink and Solady are now initialized.
+Rebuilds still stop before compilation on locally unavailable historical or
+nested submodules; each attempt records its full missing path and commit.
+See [DEPLOYED_SOURCE_PARITY_RESULTS.md](DEPLOYED_SOURCE_PARITY_RESULTS.md). No candidate is promoted to authenticated
 source merely because its version string matches. The retained pending token
 `0xbb46321545a91db2f3b5c3e694f2f23abe259883` is XPNTs-3.5.0, **not APNTsCapped**.
 

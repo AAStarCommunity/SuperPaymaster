@@ -1,5 +1,9 @@
 # L-1 offline verification results
 
+Historical results for the earlier base below. For the HEAD `926a0282` offline
+source-parity rerun and current test results, see
+[DEPLOYED_SOURCE_PARITY_RESULTS.md](DEPLOYED_SOURCE_PARITY_RESULTS.md).
+
 Base HEAD: `03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0`. Changes uncommitted.
 
 All commands ran from the repository root. Fork environment variables were removed for these runs; no network or real-fork test executed. Local cast supplies ABI encoding/decoding and keccak.

@@ -508,6 +508,35 @@ class OldOwnerIsolationTests(unittest.TestCase):
         artifact['deployedBytecode']['immutableReferences']['7'][0]['length'] = 33
         with self.assertRaises(a.Gate): o.runtime_parity('0x60'+'11'*32+'00',artifact)
 
+    def test_immutable_repeated_values_must_agree(self):
+        artifact = dict(deployedBytecode=dict(object='0x'+'00'*64,
+                        immutableReferences={'7':[dict(start=0,length=32),dict(start=32,length=32)]}))
+        self.assertTrue(o.runtime_parity('0x'+'11'*64,artifact)['equal'])
+        with self.assertRaises(a.Gate) as caught:
+            o.runtime_parity('0x'+'11'*32+'22'*32,artifact)
+        self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_consistency')
+
+    def test_proxy_slot_binds_parity_to_pinned_implementation(self):
+        baseline,sources,build = self.source_fixture()
+        implementation = '0x'+'12'*20
+        sources[u.REG]['implementation'] = implementation
+        sources[u.SP]['implementation'] = implementation
+        slot = hex(int(a.keccak('eip1967.proxy.implementation'),16)-1)
+        def rpc(method,params):
+            if method == 'eth_getStorageAt' and params[0] in (u.REG,u.SP):
+                self.assertEqual(params[1:],[slot,self.pin['stateBlock']])
+                return raw([int(implementation,16)])
+            return baseline(method,params)
+        with patch.object(o,'deployed_build',side_effect=build):
+            value = o.deployed_inventory(rpc,self.pin,sources)
+            self.assertEqual([r['implementation'] for r in value['deployedSources'][:2]],
+                             [implementation,implementation])
+            for target in (u.REG,u.SP):
+                bad = copy.deepcopy(sources)
+                bad[target]['implementation'] = target
+                with self.assertRaises(a.Gate) as caught: o.deployed_inventory(rpc,self.pin,bad)
+                self.assertEqual(caught.exception.record['gate'],'old_owner_implementation')
+
     def test_recursive_manifest_abi_controls(self):
         inner = 'setOwner(address)'
         nested = 'nested((address,bytes)[])'
