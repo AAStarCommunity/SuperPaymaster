@@ -1,25 +1,76 @@
-# Deployment-record source parity — 2026-11-04
+# Deployed-source parity — DSR rulings, 2026-11-04
 
-DSR: deployment record first; exactly one candidate per record-based contract. Registry is evidence only. Prior attempts superseded; no alternate-commit retries. Offline rebuilds use complete recursive gitlink archives; unavailable dependencies are UNBUILDABLE.
+**Registry adoption suspended pending DSR re-ruling (2026-11-04).** The runtime
+comparison remains evidence, but `bytecode_hash=none` leaves only the solc version
+in CBOR; metadata-included equality does not pin the source tree. The fixture now
+has 10 adopted targets and Registry under `pendingDsrRuling`, with its original
+fields plus the reason. Pin-time collection and replay STOP at
+`deployed_source_pending`. Registry acceptance statements below describe the
+prior ruling and are superseded by this pending status.
 
-Pinned Sepolia block: **12061284**. Runtime snapshot SHA-256: `a105ed6fb0347924d08528f674e0d65049c9e0e70253931e1d18b29491680567`.
+Base HEAD: `f7e8dffabd71c77876cb475d06c54c35de4f9adc`. Offline; no commit, RPC request or transaction.
 
-Eight deployment-record contracts; Registry is evidence only; xPNTs clones need a DSR ruling. Four fresh commit archives, one build each, with shared results for the six DeployLive contracts. No alternate commits, RPC calls, fetches, or commits.
+**Ten implementation comparisons PASS.** Exact equality INCLUDING metadata makes candidate provenance irrelevant. The metadata section is **UNMASKED and byte-for-byte equal**; masking applies only to compiler-declared immutable ranges. If a comparison masks metadata or metadata differs, **rule 4 applies: select the candidate from a deployment record first**. A record alone never turns a mismatch into PASS.
 
-| Contract | Commit | Result | First masked diff (byte offset) | Metadata hash only |
-|---|---|---|---|---|
-| Registry | `a839347e04b40da287522c3641e12121ef2e8e9e` | needs DSR ruling: no deployment record; parity attempt: PASS | None | False |
-| SuperPaymaster | `6a6d2d1785e1f03bcf72091930c6bca03f7090a8` | PASS; parity attempt: PASS | None | False |
-| APNTsCapped | `5be39abf44ec01b60fda738fd732533b797fd6c7` | PASS; parity attempt: PASS | None | False |
-| TimelockController | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS; parity attempt: PASS | None | False |
-| GTokenStaking | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS; parity attempt: PASS | None | False |
-| GToken | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS; parity attempt: PASS | None | False |
-| xPNTsFactory | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS; parity attempt: PASS | None | False |
-| xPNTsToken | `none` | needs DSR ruling; parity attempt: not run | None | None |
-| MySBT | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS; parity attempt: PASS | None | False |
-| PaymasterFactory | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS; parity attempt: PASS | None | False |
+Pinned Sepolia block: **12061284**, hash `0x6efc112879041305b4e48a194069fa1ac1117286a23c0d43b13474428f292787`. Original supplied snapshot SHA-256: `a105ed6fb0347924d08528f674e0d65049c9e0e70253931e1d18b29491680567`. Supplemental clone/Registry snapshot SHA-256: `0e7a170ac9022e2f40709268ef086834156c022df4daeed6c6b212b0e005d820`.
 
-PASS means full deployed-runtime equality after masking compiler-declared immutable references, with consistent repeated immutable values, including metadata. Null diff means no differing byte if PASS; comparison fields are unknown if UNBUILDABLE. JSON retains raw/masked hashes, byte lengths, immutable values/ranges, compiler metadata and settings for every completed comparison.
+For the nine existing comparisons, this run rechecked the supplied runtime and immutable ranges against each retained rebuilt artifact SHA-256: zeroing only those ranges reproduces the exact raw rebuilt digest. It then decoded the on-chain CBOR and verified no masked range overlaps it. xPNTsToken was freshly built from a complete recursive local archive at `cf26915e032ccc9e8e02f9aaf3769afd4335027e` using `forge build contracts/src/tokens/xPNTsToken.sol --offline --ast --build-info`, default profile. No alternate candidate was tried.
+
+| Contract | Accepted commit | Result | Comparison type | CBOR solc | CBOR ipfs |
+|---|---|---|---|---|---|
+| Registry | `a839347e04b40da287522c3641e12121ef2e8e9e` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+| SuperPaymaster | `6a6d2d1785e1f03bcf72091930c6bca03f7090a8` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+| APNTsCapped | `5be39abf44ec01b60fda738fd732533b797fd6c7` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+| TimelockController | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+| GTokenStaking | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+| GToken | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+| xPNTsFactory | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+| xPNTsToken | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+| MySBT | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+| PaymasterFactory | `cf26915e032ccc9e8e02f9aaf3769afd4335027e` | PASS | Immutable ranges only; metadata UNMASKED, byte-for-byte equal | 0.8.33 | absent |
+
+`ipfs: null` in JSON means the CBOR map contains no `ipfs` key, not an unknown hash or a masked field. Every on-chain trailer decodes to `{solc: 0x000821}` (0.8.33), consistent with `bytecodeHash: none`. No IPFS hash exists in these trailers to report. GToken is rebuilt from **GTokenAuthorization**; the collector uses that artifact and AST under the logical GToken name.
+
+## Registry 5.8.0 acceptance and origin
+
+DSR accepts `a839347e04b40da287522c3641e12121ef2e8e9e` for implementation `0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee`. Metadata is UNMASKED and byte-for-byte equal; only compiler immutable ranges are masked. Candidate provenance is irrelevant under this exact comparison.
+
+Deployment-origin record only, not a blocker: Etherscan v2 `getcontractcreation` → creator `0xb5600060e6de5e11d3636731964218e53caadf0e`, transaction `0x2792ea496eefac7868ce5e11e071e1613584b87bcdafaae39103d42333ab12b5`, block **11599359**. The orchestrator verified receipt `contractAddress == 0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee` on both endpoints; this offline run consumes the supplied `onchain/xpnts-and-registry.json` record and makes no fresh endpoint claim.
+
+Fixture key is the executing Registry proxy `0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71`, whose local DeployLive CREATE receipt is block **11151002**. That proxy boundary is distinct from the implementation origin above; live before/at-code checks remain mandatory.
+
+## xPNTs five-step evidence
+
+1. Both supplied clones have exactly 45 bytes: `363d3d373d3d3d363d73 ‖ impl ‖ 5af43d82803e903d91602b57fd5bf3`. The checker requires the exact prefix, suffix and length, then parses bytes [10:30].
+2. Origin method: **CREATE address formula** `keccak(rlp([factory, nonce=1]))[12:]`. Factory `0x67422d2e44a33c8da99b3b776841bf316bd209a2` computes `0xfdfb993ddce4d95407c893e09556e31732a5beb8`, equal to both parsed implementations. The accepted factory constructor creates `new xPNTsToken()` as its first CREATE.
+3. The supplied implementation runtime is **13437 bytes** and passes the fresh `cf26915e032ccc9e8e02f9aaf3769afd4335027e` xPNTsToken rebuild comparison, with seven immutable ranges masked and metadata UNMASKED and byte-for-byte equal. CBOR solc = 0.8.33; ipfs = absent. Compiler settings, runtime hashes, ranges and values are retained in JSON.
+4. Both named clones are mandatory in discovery even if omitted by factory/operator lists. Every discovered clone must resolve at the pin to the same parity-verified implementation. The post-upgrade hook includes the union of legacy and current factory/operator clones, including manifest-created clones once they exist, rechecks implementation parity, and STOPs on any difference.
+5. Implementation parity does not prove clone storage authority. `communityOwner`, `FACTORY`, minter-like authority/getters and boolean permissions (`autoApprovedSpenders`, `approvedFacilitators`), plus allowances, are extracted from that same parity-verified deployed build and read in each clone context at the pin with the existing positive/negative controls. Offline supplied code is not a live storage-authority certification.
+
+| Clone | Address | Parsed implementation | Local CREATE block |
+|---|---|---|---|
+| aPNTs | `0x696a73701b104c6ccbbaaddd2216788ea08eab89` | `0xfdfb993ddce4d95407c893e09556e31732a5beb8` | 11151014 |
+| PNTs | `0xe6579a90dc498a710008de12119812d0fb7aa224` | `0xfdfb993ddce4d95407c893e09556e31732a5beb8` | 11151051 |
+
+Clone boundaries come from local DeployLive `additionalContracts` CREATE entries and matching transaction receipts. Runtime snapshots and local records do not replace the collector’s live before/at boundary checks.
+
+Under this ruling, a future V2 clone pointing to a different implementation STOPs even when the caller labels its inventory `xPNTsTokenV2`. A different implementation requires a new explicit acceptance; release-source selection cannot waive this binding.
+
+## Fixture and validation
+
+The fixture now contains the Registry proxy, the eight previously accepted targets, and both named clones (11 executing targets, 10 logical contract types). Additional discovered targets still require their own source and creation-boundary inputs. This is accepted source evidence, not a completed live isolation run.
+
+Negative controls cover nonstandard clone bytes, wrong implementation, wrong factory nonce-1 origin, two valid clones with different implementations, metadata differences/masking under rule 4, immutable ranges overlapping metadata, and storage authority/allowance leaks on both named clones. Gate-removal probes report whether removing a gate admits the bad input or another gate catches it.
+
+```text
+old-owner: Ran 31 tests in 4.498s — OK (skipped=2)
+manifest: Ran 223 tests in 293.178s — OK (skipped=2)
+a3a exec: Ran 102 tests in 2.963s — OK
+a3a send (PTY): Ran 73 tests in 79.222s — OK
+git diff --check: passed
+```
+
+Old-owner ran **79 gate-removal trials**; full per-gate outcomes are in [OLD_OWNER_ISOLATION_RESULTS.md](OLD_OWNER_ISOLATION_RESULTS.md). The two skips are existing opt-in real-fork tests, also imported by manifest. The extra sender suite passed all 73 tests under a PTY; its initial pipe-based run stalled around terminal confirmation and was interrupted. No live fork or chain isolation was run.
 
 ## Record provenance
 
@@ -36,6 +87,7 @@ transactions[] swaps hashes: listed CREATE hash 0xae0399f86c25b1b4cfe95c396488fe
 - **PaymasterFactory**: `broadcast/DeployLive.s.sol/11155111/run-1782562837353.json`, commit field `cf26915e` → `cf26915e032ccc9e8e02f9aaf3769afd4335027e`.
 
 GToken uses the broadcast artifact **GTokenAuthorization**, not GToken. The orchestrator verified the six DeployLive CREATE receipts on both endpoints (blocks 11151003–11151057), and the corrected SuperPaymaster CREATE at block 11228202. This run uses that supplied verification; it does not claim fresh RPC verification. APNTsCapped’s prior A3a identity is supplemented by this independent rebuild and the recorded live S3 creation receipt.
+
 
 ## Build and dependency evidence
 
@@ -187,28 +239,6 @@ Compiler executed: `True`. Build error: `null`.
 | standards/x402/contracts/evm/lib/permit2/lib/solmate | `8d910d876f51c3b2585c9109409d601f600e68e1` | https://github.com/rari-capital/solmate | True |
 | standards/x402/contracts/evm/lib/permit2/lib/solmate/lib/ds-test | `9310e879db8ba3ea6d5c6489a579118fd264a3f5` | https://github.com/dapphub/ds-test | True |
 
-## DSR rulings and fixture
-
-**Registry: needs DSR ruling: no deployment record.** `a839347e04b40da287522c3641e12121ef2e8e9e` comes only from M-11 §0.1’s prior runtime claim. Its result is evidence only and cannot enter the fixture.
-
-At pin 12061284 read each clone runtime; require EIP-1167 363d3d373d3d3d363d73<20-byte implementation>5af43d82803e903d91602b57fd5bf3 (45 bytes), extract bytes [10:30], read implementation runtime at the same pin, then locate its deployment record before selecting a commit. No clone runtime or implementation deployment record supplied; do not infer source from factory/version parity.
-
-All eight fixture entries are PASS only, with target creation boundaries from receipts. SuperPaymaster uses the proxy target from upgradeToAndCall and its original DeployLive CREATE receipt; its implementation is the verified runtime address. The collector must still authenticate the proxy slot at the pin. It is a partial source map, not evidence that the full isolation inventory is resolved.
-
-- SuperPaymaster: Included: implementation runtime PASS; proxy target and implementation from upgrade record, proxy creation boundary from DeployLive receipt. Collector must verify pin binding.
-- APNTsCapped: Included: exact runtime PASS with recorded direct CREATE boundary.
-- TimelockController: Included: exact runtime PASS with recorded direct CREATE boundary.
-- GTokenStaking: Included: exact runtime PASS with recorded direct CREATE boundary.
-- GToken: Included: exact runtime PASS with recorded direct CREATE boundary.
-- xPNTsFactory: Included: exact runtime PASS with recorded direct CREATE boundary.
-- MySBT: Included: exact runtime PASS with recorded direct CREATE boundary.
-- PaymasterFactory: Included: exact runtime PASS with recorded direct CREATE boundary.
-
-GToken is the logical inventory name in the fixture; its rebuilt artifact is GTokenAuthorization, as recorded in the candidate evidence. These offline source results do not certify a successful full on-chain isolation collection.
-
-## Validation
-
-Old-owner suite: **26 tests, PASS (2 skipped)**. Manifest suite: **218 tests, PASS (2 skipped)**. No commit made.
 
 ## Superseded historical attempts
 
@@ -277,4 +307,3 @@ git diff --check: passed
 ```
 
 Both suites exited 0. The skipped cases require opt-in hydrated local forks. Logs: `/private/tmp/old-owner-parity-old-owner-tests.log` and `/private/tmp/old-owner-parity-manifest-tests.log`. The compilation log is `/private/tmp/old-owner-parity-builds/73f43561fa873072b3984aaa2942c6b9f2350a66.log`; ordered attempt output is `/private/tmp/old-owner-parity-progress.log`. No live proxy-slot, history, or fork-control verification is claimed.
-

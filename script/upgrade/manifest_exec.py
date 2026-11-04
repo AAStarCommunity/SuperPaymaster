@@ -1165,7 +1165,7 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     a.need('stake_not_unlocking', pin['withdrawTime'], 0)
     # Isolation records discovery calls, bounded role-event history and canonical blocks
     # so build_plan can replay every new inventory gate on both endpoint transcripts.
-    pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), fork=isolation.local_control_fork())
+    pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), fork=isolation.local_control_fork(), pending=inputs['data'].get('pendingDsrRuling'))
     return pin
 
 
@@ -1344,7 +1344,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         a.need('sender_'+label, pin['senders'][label]['address'], who)
     arts = copy.deepcopy(rebuild())
     a.need('old_owner_control_cases_binding',pin.get('isolationControlCases',{}),d.get('isolationControlCases',{}))
-    isolation.validate_deployed(pin.get('oldOwnerIsolation'), pin, d.get('deployedSources'))
+    isolation.validate_deployed(pin.get('oldOwnerIsolation'), pin, d.get('deployedSources'), pending=d.get('pendingDsrRuling'))
     release_gate(inputs, arts, pin)
     counters = {label: x['nonce'] for label, x in pin['senders'].items()}
     steps, addresses, runtimes = [], {}, {}

@@ -15,6 +15,9 @@ STAKING, GTOKEN, FACTORY, SBT = ['0x'+v*20 for v in ('21','22','23','24')]
 CUSTOM_ROLE = '0x'+'77'*32
 BLOCK_HASH = '0x'+'88'*32
 CAPPED = '0x'+'13'*20
+CBOR = 'a164736f6c6343000821000a'
+IMPL = a.create_address(FACTORY,1)
+CLONE = '0x363d3d373d3d3d363d73'+IMPL[2:]+'5af43d82803e903d91602b57fd5bf3'
 OP_TYPES = ['uint128','bool','bool','address','uint32','uint48','address','uint256','uint256']
 
 
@@ -49,6 +52,9 @@ def fixture_ast(tree):
             label = {'GTokenStaking':'authorizedSlashers','xPNTsFactory':'isXPNTs','xPNTsToken':'autoApprovedSpenders'}[name]
             variable(label,'mapping(address => bool)',typeName=dict(nodeType='Mapping',keyType=dict(name='address'),valueType=dict(name='bool')))
             function(label,['address'],['bool'])
+        if name == 'xPNTsToken':
+            variable('approvedFacilitators','mapping(address => bool)',typeName=dict(nodeType='Mapping',keyType=dict(name='address'),valueType=dict(name='bool')))
+            function('approvedFacilitators',['address'],['bool'])
         if name in ('MySBT','xPNTsToken'):
             label = 'daoMultisig' if name == 'MySBT' else 'communityOwner'
             variable(label,'address')
@@ -81,7 +87,7 @@ def raw(values):
 
 def fixture_rpc(pin, overrides=None, factory_token=TOKEN):
     answers = {}
-    targets = [u.REG,u.SP,pin['capped'],u.TL,STAKING,GTOKEN,FACTORY,SBT,o.PAYMASTER_FACTORY,TOKEN,factory_token]
+    targets = [u.REG,u.SP,pin['capped'],u.TL,STAKING,GTOKEN,FACTORY,SBT,o.PAYMASTER_FACTORY,TOKEN,factory_token,*o.ROUND_CLONES]
     pin.setdefault('isolationDeployments',{target:1 for target in targets})
     pin['isolationDeployments'].update({target:1 for target in targets})
     def put(target,sig,args,values):
@@ -113,6 +119,14 @@ def fixture_rpc(pin, overrides=None, factory_token=TOKEN):
             for holder in {o.NEW,o.OLD_TOKEN,u.SAFE,u.TL,u.SP,u.REG,u.DEPLOYER,a.APPROVER,a.EXECUTOR,*targets,*pin['pauseList']}:
                 put(factory_token,row['signature'],[holder],[1])
         put(FACTORY,'communityToToken(address)',[o.NEW],[int(factory_token,16)])
+    for token in o.ROUND_CLONES:
+        for row in inventory()['xPNTsToken']['authorities']:
+            put(token,row['signature'],[],[int(token,16)])
+        for row in inventory()['xPNTsToken']['mappings']:
+            for holder in {o.OLD,o.NEW,o.OLD_TOKEN,u.SAFE,u.TL,u.SP,u.REG,u.DEPLOYER,a.APPROVER,a.EXECUTOR,*targets,*pin['pauseList']}:
+                put(token,row['signature'],[holder],[int(holder != o.OLD)])
+        put(token,'FACTORY()',[],[int(FACTORY,16)])
+        put(FACTORY,'communityToToken(address)',[token],[int(token,16)])
     put(TOKEN,'FACTORY()',[],[int(FACTORY,16)])
     put(factory_token,'FACTORY()',[],[int(FACTORY,16)])
     put(FACTORY,'getAllTokens()',[],[32,1,int(factory_token,16)])
@@ -130,7 +144,7 @@ def fixture_rpc(pin, overrides=None, factory_token=TOKEN):
     put(u.SP,'operators(address)',[o.OLD],[0]*9)
     for who in pin['pauseList']:
         put(u.SP,'operators(address)',[who],[1,1,0,int(TOKEN,16),0,0,int(u.DEPLOYER,16),0,0])
-    for token in set((pin['capped'],o.OLD_TOKEN,TOKEN,GTOKEN,factory_token)):
+    for token in set((pin['capped'],*o.ROUND_CLONES,TOKEN,GTOKEN,factory_token)):
         for holder in principals:
             put(token,'allowance(address,address)',[holder,o.OLD],[0])
             for spender in (u.SP,u.REG):
@@ -360,7 +374,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         token = '0x'+'39'*20
         rpc = fixture_rpc(self.pin,factory_token=token)
         value = o.audit(rpc,self.pin,inventory())
-        self.assertEqual(value['xpnts'],sorted([TOKEN,token]))
+        self.assertEqual(value['xpnts'],sorted([TOKEN,token,*o.ROUND_CLONES]))
         self.assertIn(GTOKEN,value['tokens'])
         query = ('eth_call',str([dict(to=token,data=a.calldata('autoApprovedSpenders(address)',o.OLD)),self.pin['stateBlock']]))
         with self.assertRaises(a.Gate) as caught:
@@ -464,14 +478,14 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def source_fixture(self):
         baseline = fixture_rpc(self.pin)
         targets = o.discover_targets(baseline,self.pin)
-        sources = {target:dict(contract=name,implementation=target,commit='a'*40,creationBlock=1)
+        sources = {target:dict(contract=name,implementation=IMPL if name == 'xPNTsToken' else target,commit='a'*40,creationBlock=1)
                    for name,group in targets.items() for target in group}
         def build(commit,name):
             self.assertEqual(commit,'a'*40)
-            return dict(inventory=inventory()[name],artifact=dict(deployedBytecode=dict(object='0x6000',immutableReferences={})),
+            return dict(inventory=inventory()[name],artifact=dict(deployedBytecode=dict(object='0x6000'+CBOR,immutableReferences={})),
                         compiler=dict(version='0.8.33'),settings=dict(optimizer=dict(enabled=True,runs=10000)),forge='fixture')
         def rpc(method,params):
-            if method == 'eth_getCode': return '0x' if params[1] == '0x0' else '0x6000'
+            if method == 'eth_getCode': return '0x' if params[1] == '0x0' else CLONE if params[0] in targets['xPNTsToken'] else '0x6000'+CBOR
             if method == 'eth_getStorageAt' and params[0] != u.SAFE: return raw([0])
             return baseline(method,params)
         rpc.fork = baseline.fork
@@ -484,13 +498,13 @@ class OldOwnerIsolationTests(unittest.TestCase):
             value['endpointResults'] = dict(primary=copy.deepcopy(value['reads']),secondary=copy.deepcopy(value['reads']))
             value['endpointIdentities'] = dict(primary=a.ZERO32,secondary=BLOCK_HASH)
             o.validate_deployed(value,self.pin,sources)
-            self.assertEqual(len(value['inventory']['deployedSources']),10)
+            self.assertEqual(len(value['inventory']['deployedSources']),12)
             bad = copy.deepcopy(value)
-            next(r for r in bad['sourceReads'] if r['method'] == 'eth_getCode' and r['params'][1] == self.pin['stateBlock'])['result'] = '0x6001'
+            next(r for r in bad['sourceReads'] if r['method'] == 'eth_getCode' and r['params'][1] == self.pin['stateBlock'])['result'] = '0x6001'+CBOR
             # Direct implementation code and runtime query are separate; mutate all pinned code reads.
             for r in bad['sourceReads']:
-                if r['method'] == 'eth_getCode' and r['params'][1] == self.pin['stateBlock']:
-                    r['result'] = '0x6001'
+                if r['method'] == 'eth_getCode' and r['params'][1] == self.pin['stateBlock'] and r['params'][0] not in (TOKEN,*o.ROUND_CLONES):
+                    r['result'] = '0x6001'+CBOR
             with self.assertRaises(a.Gate) as caught: o.validate_deployed(bad,self.pin,sources)
             self.assertEqual(caught.exception.record['gate'],'old_owner_runtime_parity')
             removed_probe(self,lambda:o.validate_deployed(bad,self.pin,sources),'old_owner_runtime_parity')
@@ -499,26 +513,138 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 with self.assertRaises(a.Gate) as caught: o.collect_deployed(rpc,self.pin,sources)
                 self.assertEqual(caught.exception.record['gate'],'old_owner_deployed_build')
 
+    def test_pending_registry_source_is_not_adopted(self):
+        fragment = json.loads((Path(__file__).parent/'fixtures/old-owner/deployed-sources.json').read_text())
+        sources, pending = fragment['deployedSources'], fragment['pendingDsrRuling']
+        self.assertEqual(len(sources), 10)
+        self.assertEqual(list(pending), [u.REG])
+        self.assertNotIn(u.REG, sources)
+        self.assertEqual(pending[u.REG]['contract'], 'Registry')
+        with patch.object(o, 'deployed_build') as build:
+            for selected in (sources, {**sources, **pending}):
+                for action in (
+                    lambda: o.collect_deployed(None, self.pin, selected, pending=pending),
+                    lambda: o.validate_deployed(None, self.pin, selected, pending=pending),
+                ):
+                    with self.assertRaises(a.Gate) as caught:
+                        action()
+                    self.assertEqual(caught.exception.record['gate'], 'deployed_source_pending')
+            build.assert_not_called()
+
+    def test_clone_identity_and_factory_origin_controls(self):
+        factory = '0x67422d2e44a33c8da99b3b776841bf316bd209a2'
+        impl = '0xfdfb993ddce4d95407c893e09556e31732a5beb8'
+        code = '0x363d3d373d3d3d363d73'+impl[2:]+'5af43d82803e903d91602b57fd5bf3'
+        self.assertEqual(o.clone_implementation(code),impl)
+        self.assertEqual(o.factory_implementation(factory),impl)
+        cases = [
+            (lambda:o.clone_implementation(code+'00'),'old_owner_clone_standard'),
+            (lambda:o.clone_implementation('0x00'+code[4:]),'old_owner_clone_standard'),
+            (lambda:o.verify_clone(code,factory,TOKEN),'old_owner_clone_implementation'),
+            (lambda:o.verify_clone(code,TOKEN,impl),'old_owner_clone_factory_nonce1'),
+            (lambda:o.verify_clone(code.replace(impl[2:],TOKEN[2:]),factory,impl),'old_owner_clone_implementation')]
+        for action,gate in cases:
+            with self.subTest(gate=gate):
+                with self.assertRaises(a.Gate) as caught: action()
+                self.assertEqual(caught.exception.record['gate'],gate)
+                removed_probe(self,action,gate)
+
+    def test_clone_collection_and_post_upgrade_gate_removals(self):
+        rpc,sources,build = self.source_fixture()
+        with patch.object(o,'deployed_build',side_effect=build):
+            before = dict(sourceSelection=sources)
+            tokens = (TOKEN,*o.ROUND_CLONES)
+            result = o.post_upgrade_clones(rpc,self.pin,tokens,before)
+            self.assertEqual(set(result['clones']),set(tokens))
+            for code,gate in [(CLONE+'00','old_owner_clone_standard'),
+                              (CLONE.replace(IMPL[2:],TOKEN[2:]),'old_owner_clone_implementation')]:
+                def bad(method,params):
+                    if method == 'eth_getCode' and params == [o.PNT_TOKEN,self.pin['stateBlock']]: return code
+                    return rpc(method,params)
+                for action in (lambda:o.deployed_inventory(bad,self.pin,sources),
+                               lambda:o.post_upgrade_clones(bad,self.pin,tokens,before)):
+                    with self.assertRaises(a.Gate) as caught: action()
+                    self.assertEqual(caught.exception.record['gate'],gate)
+                    removed_probe(self,action,gate)
+            # A second valid factory/clone pair still cannot change the shared impl.
+            other_factory = '0x'+'45'*20
+            other_impl = o.factory_implementation(other_factory)
+            changed = copy.deepcopy(sources)
+            changed[o.PNT_TOKEN]['implementation'] = other_impl
+            def different(method,params):
+                if method == 'eth_getCode' and params == [o.PNT_TOKEN,self.pin['stateBlock']]:
+                    return CLONE.replace(IMPL[2:],other_impl[2:])
+                if method == 'eth_call' and params[0] == dict(to=o.PNT_TOKEN,data=a.calldata('FACTORY()')):
+                    return raw([int(other_factory,16)])
+                return rpc(method,params)
+            action = lambda:o.deployed_inventory(different,self.pin,changed)
+            with self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'],'old_owner_clone_same_implementation')
+            removed_probe(self,action,'old_owner_clone_same_implementation')
+
+    def test_named_clones_storage_authority_controls(self):
+        for token in o.ROUND_CLONES:
+            cases = [('communityOwner()',[],int(o.OLD,16),'old_owner_authority_xPNTsToken_communityOwner'),
+                     ('approvedFacilitators(address)',[o.OLD],1,'old_owner_mapping_xPNTsToken_approvedFacilitators'),
+                     ('autoApprovedSpenders(address)',[o.OLD],1,'old_owner_mapping_xPNTsToken_autoApprovedSpenders'),
+                     ('allowance(address,address)',[u.SAFE,o.OLD],1,'old_owner_allowance_'+token+'_'+u.SAFE)]
+            for signature,args,value,gate in cases:
+                key = ('eth_call',str([dict(to=token,data=a.calldata(signature,*args)),self.pin['stateBlock']]))
+                action = lambda:o.audit(fixture_rpc(self.pin,{key:raw([value])}),self.pin,inventory())
+                with self.assertRaises(a.Gate) as caught: action()
+                self.assertEqual(caught.exception.record['gate'],gate)
+                removed_probe(self,action,gate)
+
+    def test_metadata_bytes_cannot_be_masked_as_immutables(self):
+        tail = 'a2646970667358221220'+'11'*32+'64736f6c6343000821'
+        code = '0x6000'+tail+format(len(bytes.fromhex(tail)),'04x')
+        artifact = dict(deployedBytecode=dict(object=code,immutableReferences={}))
+        parity = o.runtime_parity(code,artifact)
+        self.assertEqual(parity['cbor'],dict(solc='0.8.33',ipfs='1220'+'11'*32))
+        changed = code.replace('11'*32,'22'*32)
+        with self.assertRaises(a.Gate) as caught: o.runtime_parity(changed,artifact)
+        self.assertEqual(caught.exception.record['gate'],'old_owner_source_rule4')
+        removed_probe(self,lambda:o.runtime_parity(changed,artifact),'old_owner_source_rule4')
+        with self.assertRaises(a.Gate) as caught:
+            o.runtime_parity(changed,artifact,dict(resolvedCommit='a'*40))
+        self.assertEqual(caught.exception.record['gate'],'old_owner_runtime_parity')
+        artifact['deployedBytecode']['immutableReferences'] = {'7':[dict(start=12,length=32)]}
+        action = lambda:o.runtime_parity(code,artifact)
+        with self.assertRaises(a.Gate) as caught: action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_metadata_unmasked')
+        removed_probe(self,action,'old_owner_metadata_unmasked')
+
+    def test_metadata_masked_requires_rule4(self):
+        exact = dict(equal=True,metadataUnmasked=True,metadataEqual=True)
+        o.source_provenance(exact,None)
+        for field in ('metadataUnmasked','metadataEqual','equal'):
+            comparison = dict(exact,**{field:False})
+            action = lambda:o.source_provenance(comparison,None)
+            with self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'],'old_owner_source_rule4')
+            removed_probe(self,action,'old_owner_source_rule4')
+            o.source_provenance(comparison,dict(resolvedCommit='a'*40))
+
     def test_runtime_mask_ranges_and_nonimmutable_mismatch(self):
-        artifact = dict(deployedBytecode=dict(object='0x60'+'00'*32+'00',immutableReferences={'7':[dict(start=1,length=32)]}))
-        self.assertTrue(o.runtime_parity('0x60'+'11'*32+'00',artifact)['equal'])
-        for data,gate in [('0x61'+'11'*32+'00','old_owner_runtime_parity'),('0x60','old_owner_runtime_length')]:
+        artifact = dict(deployedBytecode=dict(object='0x60'+'00'*32+'00'+CBOR,immutableReferences={'7':[dict(start=1,length=32)]}))
+        self.assertTrue(o.runtime_parity('0x60'+'11'*32+'00'+CBOR,artifact)['equal'])
+        for data,gate in [('0x61'+'11'*32+'00'+CBOR,'old_owner_runtime_parity'),('0x60','old_owner_runtime_length')]:
             with self.assertRaises(a.Gate) as caught: o.runtime_parity(data,artifact)
             self.assertEqual(caught.exception.record['gate'],gate)
         artifact['deployedBytecode']['immutableReferences']['7'][0]['length'] = 33
-        with self.assertRaises(a.Gate): o.runtime_parity('0x60'+'11'*32+'00',artifact)
+        with self.assertRaises(a.Gate): o.runtime_parity('0x60'+'11'*32+'00'+CBOR,artifact)
 
     def test_immutable_repeated_values_must_agree(self):
-        artifact = dict(deployedBytecode=dict(object='0x'+'00'*64,
+        artifact = dict(deployedBytecode=dict(object='0x'+'00'*64+CBOR,
                         immutableReferences={'7':[dict(start=0,length=32),dict(start=32,length=32)]}))
-        self.assertTrue(o.runtime_parity('0x'+'11'*64,artifact)['equal'])
+        self.assertTrue(o.runtime_parity('0x'+'11'*64+CBOR,artifact)['equal'])
         with self.assertRaises(a.Gate) as caught:
-            o.runtime_parity('0x'+'11'*32+'22'*32,artifact)
+            o.runtime_parity('0x'+'11'*32+'22'*32+CBOR,artifact)
         self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_consistency')
 
     def test_proxy_slot_binds_parity_to_pinned_implementation(self):
         baseline,sources,build = self.source_fixture()
-        implementation = '0x'+'12'*20
+        implementation = '0x'+'34'*20
         sources[u.REG]['implementation'] = implementation
         sources[u.SP]['implementation'] = implementation
         slot = hex(int(a.keccak('eip1967.proxy.implementation'),16)-1)
@@ -638,16 +764,21 @@ class OldOwnerIsolationTests(unittest.TestCase):
         expanded = copy.deepcopy(inventory())
         for name in m.NAMES:
             expanded.setdefault(name,copy.deepcopy(inventory()['APNTsCapped']))
+        expanded['xPNTsToken']['authorities'] = []
         targets = {name:[u.SP if name == 'SuperPaymaster' else FACTORY if name == 'xPNTsFactoryV2' else TOKEN] for name in m.NAMES}
         rpc = fixture_rpc(self.pin)
         with patch.object(o,'inventory_source',return_value=expanded) as source, patch.object(o,'audit',return_value=value) as audit, \
-             patch.object(o,'negative_controls',return_value=report) as negatives:
-            result = o.post_upgrade_check(rpc,self.pin,Path('/release-fixture'),targets,{TOKEN:'xPNTsTokenV2'},value,fork=rpc.fork)
+             patch.object(o,'negative_controls',return_value=report) as negatives, \
+             patch.object(o,'post_upgrade_clones',return_value=dict(verified=True,inventory=inventory()['xPNTsToken'])) as clones:
+            result = o.post_upgrade_check(rpc,self.pin,Path('/release-fixture'),targets,{t:'xPNTsTokenV2' for t in (TOKEN,*o.ROUND_CLONES)},value,fork=rpc.fork)
             self.assertEqual(source.call_args.kwargs['mode'],'release')
             self.assertIn('SuperPaymasterAdmin',source.call_args.kwargs['names'])
             self.assertEqual(result['negativeControls'],report)
             self.assertEqual(audit.call_args.args[1]['isolationExtraTargets'],targets)
             negatives.assert_called_once()
+            self.assertEqual(set(clones.call_args.args[2]),{TOKEN,*o.ROUND_CLONES})
+            for token in (TOKEN,*o.ROUND_CLONES):
+                self.assertEqual(audit.call_args.args[2]['targetInventories'][token],inventory()['xPNTsToken'])
 
     def test_history_identity_gate_removals(self):
         baseline = fixture_rpc(self.pin)

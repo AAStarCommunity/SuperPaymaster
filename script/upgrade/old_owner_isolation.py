@@ -11,6 +11,8 @@ a = u.a
 OLD = '0x92a30ef64b0b750220b2b3bafe4f3121263d45b3'
 NEW = '0xd6e95a852d68f99759bf47e77d84fcc8d6f93494'
 OLD_TOKEN = '0x696a73701b104c6ccbbaaddd2216788ea08eab89'
+PNT_TOKEN = '0xe6579a90dc498a710008de12119812d0fb7aa224'
+ROUND_CLONES = (OLD_TOKEN, PNT_TOKEN)
 NAMES = ('Registry', 'SuperPaymaster', 'APNTsCapped', 'TimelockController', 'GTokenStaking', 'GToken', 'xPNTsFactory', 'xPNTsToken', 'MySBT', 'PaymasterFactory')
 
 # Existing Sepolia deployment config; other addresses come from pinned getters.
@@ -295,7 +297,7 @@ def audit(rpc, pin, inventory, fork=None):
     negative('old_owner_operator','0x'+format(1,'064x')+'0'*64*(len(operator_types)-1))
     a.need('old_owner_operator',value,[0]*len(operator_types))
     tokens = {pin['capped'], OLD_TOKEN, targets['GToken']}
-    xpnts = set(u.addr_array(call(targets['xPNTsFactory'],'getAllTokens()'))) | set(pin.get('isolationLegacyTokens',[]))
+    xpnts = set(u.addr_array(call(targets['xPNTsFactory'],'getAllTokens()'))) | set(pin.get('isolationLegacyTokens',[])) | set(ROUND_CLONES)
     configured = False
     for who in sorted(set(pin['pauseList'])):
         w = words(u.SP,'operators(address)',who)
@@ -419,12 +421,13 @@ def deployed_build(commit, name):
         except (OSError, subprocess.CalledProcessError) as error:
             raise a.Gate('old_owner_deployed_build', type(error).__name__, 'rebuildable deployed source; DSR decision required') from None
         a.need('old_owner_deployed_build', built.returncode, 0)
-        art = a.raw_artifact(tree,name)
+        artifact_name = 'GTokenAuthorization' if name == 'GToken' and commit == 'cf26915e032ccc9e8e02f9aaf3769afd4335027e' else name
+        art = a.raw_artifact(tree,artifact_name)
         metadata = art.get('metadata', {})
         if isinstance(metadata,str):
             metadata = json.loads(metadata)
         a.need('old_owner_compiler_settings', bool(metadata.get('settings')) and bool(metadata.get('compiler')), True)
-        return dict(inventory=extract(tree,(name,))[name], artifact=art,
+        return dict(inventory=extract(tree,(artifact_name,))[artifact_name], artifact=art,
                     compiler=metadata['compiler'], settings=metadata['settings'], forge=version)
 
 
@@ -436,7 +439,7 @@ def discover_targets(rpc, pin):
                    GTokenStaking=[address(u.REG,'GTOKEN_STAKING()')],MySBT=[address(u.REG,'MYSBT()')],
                    xPNTsFactory=[address(u.SP,'xpntsFactory()')],PaymasterFactory=[PAYMASTER_FACTORY])
     targets['GToken'] = [address(targets['GTokenStaking'][0],'GTOKEN()')]
-    tokens = set(u.addr_array(a.call(rpc,targets['xPNTsFactory'][0],'getAllTokens()',block=block)))
+    tokens = set(u.addr_array(a.call(rpc,targets['xPNTsFactory'][0],'getAllTokens()',block=block))) | set(ROUND_CLONES)
     for who in pin['pauseList']:
         values = u.uints(a.call(rpc,u.SP,'operators(address)',who,block=block))
         a.need('old_owner_discovery_operator_shape',len(values),9)
@@ -448,18 +451,61 @@ def discover_targets(rpc, pin):
     return targets
 
 
-def runtime_parity(code, artifact):
+def clone_implementation(code):
+    code = a.typed(code,a.HEXDATA).lower()
+    a.need('old_owner_clone_standard',len(code) == 92 and code.startswith('0x363d3d373d3d3d363d73')
+           and code.endswith('5af43d82803e903d91602b57fd5bf3'),True)
+    return '0x'+code[22:62]
+
+
+def factory_implementation(factory):
+    """Constructor's first CREATE: keccak(rlp([factory, nonce=1]))[12:]."""
+    return a.create_address(factory,1)
+
+
+def verify_clone(code, factory, expected):
+    implementation = clone_implementation(code)
+    a.need('old_owner_clone_implementation',implementation,expected)
+    a.need('old_owner_clone_factory_nonce1',implementation,factory_implementation(factory))
+    return implementation
+
+
+def source_provenance(comparison, deployment_record):
+    """DSR: exact equality including unmasked metadata makes provenance irrelevant.
+
+    Rule 4 applies whenever metadata was masked or differs: select the candidate
+    from a deployment record first. This prerequisite does not grant parity.
+    """
+    exact = all(comparison.get(k) is True for k in ('equal','metadataUnmasked','metadataEqual'))
+    a.need('old_owner_source_rule4',exact or bool(deployment_record and deployment_record.get('resolvedCommit')),True)
+
+
+def runtime_metadata(code):
+    tail = a.cbor_tail(code)
+    solc, ipfs = tail.get('solc'),tail.get('ipfs')
+    a.need('old_owner_metadata_solc',isinstance(solc,bytes) and len(solc) == 3,True)
+    a.need('old_owner_metadata_ipfs',ipfs is None or isinstance(ipfs,bytes),True)
+    raw = bytes.fromhex(code[2:])
+    return dict(solc='.'.join(str(v) for v in solc),ipfs=ipfs.hex() if ipfs is not None else None),len(raw)-int.from_bytes(raw[-2:],'big')-2
+
+
+def runtime_parity(code, artifact, deployment_record=None):
     deployed = artifact['deployedBytecode']
     actual = bytearray.fromhex(a.typed(code,a.HEXDATA)[2:])
     expected = bytearray.fromhex(a.typed(deployed['object'],a.HEXDATA)[2:])
     a.need('old_owner_runtime_length',len(actual),len(expected))
     a.need('old_owner_runtime_nonempty',bool(actual),True)
+    cbor, metadata_start = runtime_metadata(code)
+    _, expected_metadata_start = runtime_metadata(deployed['object'])
+    metadata_equal = actual[metadata_start:] == expected[expected_metadata_start:]
+    source_provenance(dict(equal=metadata_equal,metadataUnmasked=True,metadataEqual=metadata_equal),deployment_record)
     occupied, ranges = set(), []
     for entries in deployed.get('immutableReferences',{}).values():
         values = []
         for entry in entries:
             start, size = entry['start'], entry['length']
             a.need('old_owner_immutable_range', type(start) is int and size == 32 and 0 <= start <= len(expected)-size, True)
+            a.need('old_owner_metadata_unmasked',start+size <= min(metadata_start,expected_metadata_start),True)
             span = set(range(start,start+size))
             a.need('old_owner_immutable_overlap',bool(span & occupied),False)
             occupied.update(span)
@@ -468,7 +514,9 @@ def runtime_parity(code, artifact):
             ranges.append(dict(start=start,length=size))
         a.need('old_owner_immutable_consistency',len(set(values)) <= 1,True)
     a.need('old_owner_runtime_parity',actual == expected,True)
-    return dict(equal=True,immutableRanges=ranges,runtimeKeccak=a.keccak(code))
+    return dict(equal=True,immutableRanges=ranges,runtimeKeccak=a.keccak(code),
+                comparisonType='immutable-only masking; metadata UNMASKED and byte-for-byte equal',
+                metadataUnmasked=True,metadataEqual=metadata_equal,cbor=cbor)
 
 
 def deployed_inventory(rpc, pin, sources):
@@ -480,6 +528,7 @@ def deployed_inventory(rpc, pin, sources):
     a.need('old_owner_source_targets',sorted(sources),sorted(wanted))
     result, mapping, variants = {}, [], {}
     block = pin['stateBlock']
+    clone_impl = None
     for name, group in targets.items():
         for target in group:
             spec = sources[target]
@@ -493,13 +542,18 @@ def deployed_inventory(rpc, pin, sources):
             code = a.typed(rpc('eth_getCode',[target,block]),a.HEXDATA)
             slot = hex(int(a.keccak('eip1967.proxy.implementation'),16)-1)
             implementation = u.addr_word(int(a.typed(rpc('eth_getStorageAt',[target,slot,block]),a.HASH32),16))
-            if code.startswith('0x363d3d373d3d3d363d73') and code.endswith('5af43d82803e903d91602b57fd5bf3') and len(code) == 92:
-                implementation = '0x'+code[22:62]
+            if name == 'xPNTsToken':
+                factory = u.addr_word(a.word(rpc,target,'FACTORY()',block=block))
+                implementation = verify_clone(code,factory,spec['implementation'])
+                if clone_impl is None:
+                    clone_impl = implementation
+                a.need('old_owner_clone_same_implementation',implementation,clone_impl)
             if implementation == a.ZERO:
                 implementation = target
             a.need('old_owner_implementation',spec['implementation'],implementation)
             built = deployed_build(spec['commit'],name)
             parity = runtime_parity(rpc('eth_getCode',[implementation,block]),built['artifact'])
+            source_provenance(parity,None)
             variants[target] = built['inventory']
             result.setdefault(name,built['inventory'])
             mapping.append(dict(contract=name,target=target,implementation=implementation,commit=spec['commit'],
@@ -510,7 +564,13 @@ def deployed_inventory(rpc, pin, sources):
     return result
 
 
-def collect_deployed(rpc, pin, sources, fork=None):
+def require_adopted_sources(pending):
+    # Pending rulings cannot authorize a source, even if also listed as adopted.
+    a.need('deployed_source_pending', pending or {}, {})
+
+
+def collect_deployed(rpc, pin, sources, fork=None, pending=None):
+    require_adopted_sources(pending)
     reads = []
     def recorded(method, params):
         value = rpc(method,params)
@@ -523,7 +583,8 @@ def collect_deployed(rpc, pin, sources, fork=None):
     return section
 
 
-def validate_deployed(section, pin, sources):
+def validate_deployed(section, pin, sources, pending=None):
+    require_adopted_sources(pending)
     a.need('old_owner_evidence_present',isinstance(section,dict),True)
     a.need('old_owner_source_selection',section.get('sourceSelection'),sources)
     rows = iter(section.get('sourceReads',[]))
@@ -568,9 +629,15 @@ def post_upgrade_check(rpc, pin, release_tree, release_targets, token_kinds, pre
     a.need('old_owner_post_legacy_targets',sorted(pre_upgrade['targets']),sorted(n for n in NAMES if n != 'xPNTsToken'))
     a.need('old_owner_post_token_kinds',sorted(token_kinds),sorted(set(current['xPNTsToken']) | set(pre_upgrade['xpnts'])))
     inventory['targetInventories'] = {current['xPNTsFactory'][0]:inventory['xPNTsFactoryV2']}
+    clone_reads = []
+    def clone_rpc(method,params):
+        value = rpc(method,params)
+        clone_reads.append(dict(method=method,params=params,result=value))
+        return value
+    clone_evidence = post_upgrade_clones(clone_rpc,pin,token_kinds,pre_upgrade)
     for token,kind in token_kinds.items():
         a.need('old_owner_post_token_kind',kind in ('xPNTsToken','xPNTsTokenV2'),True)
-        inventory['targetInventories'][token] = merge('xPNTsTokenV2','xPNTsTokenV2Ext') if kind == 'xPNTsTokenV2' else inventory[kind]
+        inventory['targetInventories'][token] = clone_evidence['inventory']
     post = copy.deepcopy(pin)
     post['isolationExtraTargets'] = copy.deepcopy(release_targets)
     for name,target in pre_upgrade['targets'].items():
@@ -578,8 +645,34 @@ def post_upgrade_check(rpc, pin, release_tree, release_targets, token_kinds, pre
             post['isolationExtraTargets'].setdefault(name,[]).append(target)
     post['isolationLegacyTokens'] = pre_upgrade['xpnts']
     section = audit(rpc,post,inventory,fork=fork)
+    section['cloneEvidence'] = clone_evidence
+    section['cloneReads'] = clone_reads
     section['negativeControls'] = negative_controls(section,post,inventory)
     return section
+
+
+def post_upgrade_clones(rpc, pin, tokens, pre_upgrade):
+    """Resolve every legacy/current/manifest-created clone at the post-upgrade pin.
+
+    A new implementation is a STOP under this ruling, even for a V2 token kind.
+    Release inventory selection cannot waive the parity-verified binding.
+    """
+    sources = pre_upgrade['sourceSelection']
+    rows = [v for v in sources.values() if v['contract'] == 'xPNTsToken']
+    a.need('old_owner_post_clone_source',bool(rows),True)
+    bindings = {(v['implementation'],v['commit']) for v in rows}
+    a.need('old_owner_post_clone_binding',len(bindings),1)
+    implementation,commit = sorted(bindings)[0]
+    block = pin['stateBlock']
+    built = deployed_build(commit,'xPNTsToken')
+    parity = runtime_parity(rpc('eth_getCode',[implementation,block]),built['artifact'])
+    source_provenance(parity,None)
+    resolved = {}
+    for token in sorted(tokens):
+        factory = u.addr_word(a.word(rpc,token,'FACTORY()',block=block))
+        resolved[token] = verify_clone(rpc('eth_getCode',[token,block]),factory,implementation)
+    return dict(implementation=implementation,commit=commit,parity=parity,clones=resolved,inventory=built['inventory'],
+                originMethod='CREATE keccak(rlp([factory, nonce=1]))[12:]')
 
 
 GRANTED = 'RoleGranted(bytes32,address,address)'

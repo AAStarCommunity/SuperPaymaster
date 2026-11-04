@@ -1,20 +1,20 @@
 {
   "schema": 1,
-  "head": "926a028206c38fdca4b06df3cb01d82363bc29f9",
+  "head": "f7e8dffabd71c77876cb475d06c54c35de4f9adc",
   "offlineOnly": true,
-  "note": "DSR: deployment record first; exactly one candidate per record-based contract. Registry is evidence only. Prior attempts superseded; no alternate-commit retries. Offline rebuilds use complete recursive gitlink archives; unavailable dependencies are UNBUILDABLE.",
+  "note": "DSR: exact equality INCLUDING unmasked metadata makes candidate provenance irrelevant. Masking is confined to compiler immutable ranges. If metadata is masked or differs, rule 4 applies: candidate must first come from a deployment record. Record provenance alone does not establish parity. Registry origin is recorded, not a blocker; all round clones must share the parity-verified factory nonce-1 implementation.",
   "contracts": [
     {
       "contract": "Registry",
-      "status": "needs DSR ruling: no deployment record",
+      "status": "PASS",
       "implementationCandidate": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
       "addressEvidence": "supplied dual-endpoint finalized runtime snapshot at block 12061284",
-      "parity": "unverified",
+      "parity": "verified",
       "sourcePath": "contracts/src/core/Registry.sol",
       "attempts": [
         {
           "commit": "a839347e04b40da287522c3641e12121ef2e8e9e",
-          "basis": "evidence only: no deployment record",
+          "basis": "DSR ruling: full runtime equality including metadata; candidate provenance irrelevant",
           "build": {
             "profile": "default",
             "config": {
@@ -382,7 +382,15 @@
             }
           ],
           "immutableValuesConsistent": true,
-          "status": "PASS"
+          "status": "PASS",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          },
+          "comparisonVerification": "Rechecked supplied runtime against authenticated retained rebuilt SHA-256, with compiler immutable ranges only; decoded on-chain CBOR."
         }
       ],
       "onchainEvidence": {
@@ -636,9 +644,31 @@
           "disposition": "superseded: not from a deployment record"
         }
       ],
-      "deploymentRecord": null,
-      "evidenceOnlyCommit": "a839347e04b40da287522c3641e12121ef2e8e9e",
-      "priorParityClaim": "docs/design/aoa-balance-mode/M-11-downstream-changes.md \u00a70.1: Registry-5.8.0 immutable-masked parity at origin/main a839347e; not deployment provenance"
+      "deploymentRecord": {
+        "source": "etherscan v2 getcontractcreation",
+        "creator": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+        "txHash": "0x2792ea496eefac7868ce5e11e071e1613584b87bcdafaae39103d42333ab12b5",
+        "block": 11599359,
+        "receiptContractAddressMatchesBothEndpoints": true,
+        "contractAddress": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
+        "verification": "Orchestrator supplied: receipt contractAddress matches implementation on both endpoints; offline record only, not an acceptance blocker.",
+        "evidence": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/onchain/xpnts-and-registry.json"
+      },
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
+      },
+      "candidate": "a839347e04b40da287522c3641e12121ef2e8e9e",
+      "fixtureDisposition": "Included: DSR accepts exact runtime equality INCLUDING unmasked metadata; provenance is not a blocker.",
+      "targetCreationRecord": {
+        "path": "broadcast/DeployLive.s.sol/11155111/run-1782562837353.json",
+        "sha256": "866e22cc5ea06ba3c11f7f8aa0d52d29304270efca3eb3960550a8fedf917b1b",
+        "target": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+        "transactionHash": "0xf401fa907a5abbecaf6da1fa88a493ea945b3eea84cdebd48552fd03ec6e5820",
+        "creationBlock": 11151002,
+        "verification": "local broadcast receipt; live before/at boundary remains mandatory"
+      }
     },
     {
       "contract": "SuperPaymaster",
@@ -1137,7 +1167,15 @@
             }
           ],
           "immutableValuesConsistent": true,
-          "status": "PASS"
+          "status": "PASS",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          },
+          "comparisonVerification": "Rechecked supplied runtime against authenticated retained rebuilt SHA-256, with compiler immutable ranges only; decoded on-chain CBOR."
         }
       ],
       "onchainEvidence": {
@@ -1386,6 +1424,11 @@
           "status": "0x1"
         },
         "implementationBinding": "UpgradeToV5_4_2 upgradeToAndCall target and first argument; corrected transaction hash 0xae0399f86c25b1b4cfe95c396488feadfc11c80319862e6292c89560ecc33ec6; collector must still authenticate implementation slot at the pin."
+      },
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
       }
     },
     {
@@ -1796,7 +1839,15 @@
             }
           ],
           "immutableValuesConsistent": true,
-          "status": "PASS"
+          "status": "PASS",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          },
+          "comparisonVerification": "Rechecked supplied runtime against authenticated retained rebuilt SHA-256, with compiler immutable ranges only; decoded on-chain CBOR."
         }
       ],
       "onchainEvidence": {
@@ -2180,7 +2231,12 @@
           "status": "0x1"
         }
       },
-      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary."
+      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary.",
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
+      }
     },
     {
       "contract": "TimelockController",
@@ -2534,7 +2590,15 @@
           },
           "maskedRanges": [],
           "immutableValuesConsistent": true,
-          "status": "PASS"
+          "status": "PASS",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          },
+          "comparisonVerification": "Rechecked supplied runtime against authenticated retained rebuilt SHA-256, with compiler immutable ranges only; decoded on-chain CBOR."
         }
       ],
       "onchainEvidence": {
@@ -2786,7 +2850,12 @@
           11151057
         ]
       },
-      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary."
+      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary.",
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
+      }
     },
     {
       "contract": "GTokenStaking",
@@ -3237,7 +3306,15 @@
             }
           ],
           "immutableValuesConsistent": true,
-          "status": "PASS"
+          "status": "PASS",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          },
+          "comparisonVerification": "Rechecked supplied runtime against authenticated retained rebuilt SHA-256, with compiler immutable ranges only; decoded on-chain CBOR."
         }
       ],
       "onchainEvidence": {
@@ -3485,7 +3562,12 @@
           11151057
         ]
       },
-      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary."
+      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary.",
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
+      }
     },
     {
       "contract": "GToken",
@@ -3913,7 +3995,15 @@
             }
           ],
           "immutableValuesConsistent": true,
-          "artifactContract": "GTokenAuthorization"
+          "artifactContract": "GTokenAuthorization",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          },
+          "comparisonVerification": "Rechecked supplied runtime against authenticated retained rebuilt SHA-256, with compiler immutable ranges only; decoded on-chain CBOR."
         }
       ],
       "onchainEvidence": {
@@ -4220,7 +4310,12 @@
           11151057
         ]
       },
-      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary."
+      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary.",
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
+      }
     },
     {
       "contract": "xPNTsFactory",
@@ -4599,7 +4694,15 @@
             }
           ],
           "immutableValuesConsistent": true,
-          "status": "PASS"
+          "status": "PASS",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          },
+          "comparisonVerification": "Rechecked supplied runtime against authenticated retained rebuilt SHA-256, with compiler immutable ranges only; decoded on-chain CBOR."
         }
       ],
       "onchainEvidence": {
@@ -4847,21 +4950,416 @@
           11151057
         ]
       },
-      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary."
+      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary.",
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
+      }
     },
     {
       "contract": "xPNTsToken",
-      "status": "needs DSR ruling",
-      "implementationCandidate": null,
-      "addressEvidence": "implementation discovery required for every clone; retained pendingToken snapshot is XPNTs-3.5.0",
-      "parity": "unverified",
+      "status": "PASS",
+      "implementationCandidate": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+      "addressEvidence": "supplied aPNTs/PNTs exact EIP-1167 runtimes at block 12061284; parsed shared implementation equals factory CREATE nonce-1 address",
+      "parity": "verified",
       "sourcePath": "contracts/src/tokens/xPNTsToken.sol",
-      "attempts": [],
-      "additionalBlockers": [
+      "attempts": [
         {
-          "gate": "deployed_runtime_unavailable",
-          "observed": {
-            "note": "no address"
+          "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+          "basis": "DSR factory constructor CREATE nonce-1 ruling",
+          "build": {
+            "profile": "default",
+            "config": {
+              "src": "contracts/src",
+              "test": "contracts/test",
+              "script": "script",
+              "out": "out",
+              "libs": [
+                "contracts/lib",
+                "singleton-paymaster/lib"
+              ],
+              "cache_path": "cache",
+              "solc_version": "0.8.33",
+              "optimizer": true,
+              "optimizer_runs": 500,
+              "via_ir": true,
+              "evm_version": "cancun",
+              "extra_output": [
+                "storageLayout"
+              ],
+              "bytecode_hash": "none",
+              "remappings": [
+                "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+                "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+                "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+                "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+                "solady/=contracts/lib/solady/src/",
+                "singleton-paymaster/=singleton-paymaster/",
+                "src/=contracts/src/"
+              ],
+              "fs_permissions": [
+                {
+                  "access": "read-write",
+                  "path": "./contracts/deployments"
+                },
+                {
+                  "access": "read-write",
+                  "path": "./script"
+                },
+                {
+                  "access": "read-write",
+                  "path": "./"
+                },
+                {
+                  "access": "read-write",
+                  "path": "./script/v3"
+                }
+              ]
+            },
+            "forge": "forge Version: 1.7.1\nCommit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8\nBuild Timestamp: 2026-05-08T07:54:31.470926000Z (1778226871)\nBuild Profile: dist",
+            "command": [
+              "/Users/jason/.foundry/bin/forge",
+              "build",
+              "contracts/src/tokens/xPNTsToken.sol",
+              "--offline",
+              "--ast",
+              "--build-info"
+            ],
+            "compilerExecuted": true,
+            "submodules": [
+              {
+                "path": "contracts/lib/chainlink-brownie-contracts",
+                "gitlink": "6e324d8ad9fbb5519186ad9f1eaf99704de4c915",
+                "sourceURL": "https://github.com/smartcontractkit/chainlink-brownie-contracts",
+                "gitmodulesCommit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+                "availableCommit": "6e324d8ad9fbb5519186ad9f1eaf99704de4c915",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "contracts/lib/solady",
+                "gitlink": "90db92ce173856605d24a554969f2c67cadbc7e9",
+                "sourceURL": "https://github.com/Vectorized/solady.git",
+                "gitmodulesCommit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+                "availableCommit": "90db92ce173856605d24a554969f2c67cadbc7e9",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/ercs",
+                "gitlink": "c6d2d5e3ac261769cec2fb49b3e382fe2bf21e88",
+                "sourceURL": "https://github.com/ethereum/ERCs.git",
+                "gitmodulesCommit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+                "availableCommit": "c6d2d5e3ac261769cec2fb49b3e382fe2bf21e88",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/mpp-specs",
+                "gitlink": "0c438bdd24b831abafc22b2a99f7562e414dcf4f",
+                "sourceURL": "https://github.com/tempoxyz/mpp-specs.git",
+                "gitmodulesCommit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+                "availableCommit": "0c438bdd24b831abafc22b2a99f7562e414dcf4f",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/permit2",
+                "gitlink": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "sourceURL": "https://github.com/Uniswap/permit2.git",
+                "gitmodulesCommit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+                "availableCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/permit2/lib/forge-gas-snapshot",
+                "gitlink": "3c5d52a26169876a144f7690d2f9ef0200eb0791",
+                "sourceURL": "https://github.com/marktoda/forge-gas-snapshot",
+                "gitmodulesCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "availableCommit": "3c5d52a26169876a144f7690d2f9ef0200eb0791",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/permit2/lib/forge-gas-snapshot/lib/forge-std",
+                "gitlink": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef",
+                "sourceURL": "https://github.com/foundry-rs/forge-std",
+                "gitmodulesCommit": "3c5d52a26169876a144f7690d2f9ef0200eb0791",
+                "availableCommit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/permit2/lib/forge-gas-snapshot/lib/forge-std/lib/ds-test",
+                "gitlink": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+                "sourceURL": "https://github.com/dapphub/ds-test",
+                "gitmodulesCommit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef",
+                "availableCommit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/permit2/lib/forge-std",
+                "gitlink": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb",
+                "sourceURL": "https://github.com/foundry-rs/forge-std",
+                "gitmodulesCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "availableCommit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/permit2/lib/forge-std/lib/ds-test",
+                "gitlink": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+                "sourceURL": "https://github.com/dapphub/ds-test",
+                "gitmodulesCommit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb",
+                "availableCommit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/permit2/lib/openzeppelin-contracts",
+                "gitlink": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2",
+                "sourceURL": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+                "gitmodulesCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "availableCommit": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/permit2/lib/solmate",
+                "gitlink": "8d910d876f51c3b2585c9109409d601f600e68e1",
+                "sourceURL": "https://github.com/rari-capital/solmate",
+                "gitmodulesCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "availableCommit": "8d910d876f51c3b2585c9109409d601f600e68e1",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/permit2/lib/solmate/lib/ds-test",
+                "gitlink": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+                "sourceURL": "https://github.com/dapphub/ds-test",
+                "gitmodulesCommit": "8d910d876f51c3b2585c9109409d601f600e68e1",
+                "availableCommit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402",
+                "gitlink": "b054f423400f0b972dbd9032120f172350110a59",
+                "sourceURL": "https://github.com/coinbase/x402.git",
+                "gitmodulesCommit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+                "availableCommit": "b054f423400f0b972dbd9032120f172350110a59",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/forge-std",
+                "gitlink": "1801b0541f4fda118a10798fd3486bb7051c5dd6",
+                "sourceURL": "https://github.com/foundry-rs/forge-std",
+                "gitmodulesCommit": "b054f423400f0b972dbd9032120f172350110a59",
+                "availableCommit": "1801b0541f4fda118a10798fd3486bb7051c5dd6",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/openzeppelin-contracts",
+                "gitlink": "fcbae5394ae8ad52d8e580a3477db99814b9d565",
+                "sourceURL": "https://github.com/openzeppelin/openzeppelin-contracts",
+                "gitmodulesCommit": "b054f423400f0b972dbd9032120f172350110a59",
+                "availableCommit": "fcbae5394ae8ad52d8e580a3477db99814b9d565",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/openzeppelin-contracts/lib/erc4626-tests",
+                "gitlink": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
+                "sourceURL": "https://github.com/a16z/erc4626-tests.git",
+                "gitmodulesCommit": "fcbae5394ae8ad52d8e580a3477db99814b9d565",
+                "availableCommit": "232ff9ba8194e406967f52ecc5cb52ed764209e9",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/openzeppelin-contracts/lib/forge-std",
+                "gitlink": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
+                "sourceURL": "https://github.com/foundry-rs/forge-std",
+                "gitmodulesCommit": "fcbae5394ae8ad52d8e580a3477db99814b9d565",
+                "availableCommit": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/openzeppelin-contracts/lib/halmos-cheatcodes",
+                "gitlink": "7328abe100445fc53885c21d0e713b95293cf14c",
+                "sourceURL": "https://github.com/a16z/halmos-cheatcodes",
+                "gitmodulesCommit": "fcbae5394ae8ad52d8e580a3477db99814b9d565",
+                "availableCommit": "7328abe100445fc53885c21d0e713b95293cf14c",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/permit2",
+                "gitlink": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "sourceURL": "https://github.com/Uniswap/permit2",
+                "gitmodulesCommit": "b054f423400f0b972dbd9032120f172350110a59",
+                "availableCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/permit2/lib/forge-gas-snapshot",
+                "gitlink": "3c5d52a26169876a144f7690d2f9ef0200eb0791",
+                "sourceURL": "https://github.com/marktoda/forge-gas-snapshot",
+                "gitmodulesCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "availableCommit": "3c5d52a26169876a144f7690d2f9ef0200eb0791",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/permit2/lib/forge-gas-snapshot/lib/forge-std",
+                "gitlink": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef",
+                "sourceURL": "https://github.com/foundry-rs/forge-std",
+                "gitmodulesCommit": "3c5d52a26169876a144f7690d2f9ef0200eb0791",
+                "availableCommit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/permit2/lib/forge-gas-snapshot/lib/forge-std/lib/ds-test",
+                "gitlink": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+                "sourceURL": "https://github.com/dapphub/ds-test",
+                "gitmodulesCommit": "2c7cbfc6fbede6d7c9e6b17afe997e3fdfe22fef",
+                "availableCommit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/permit2/lib/forge-std",
+                "gitlink": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb",
+                "sourceURL": "https://github.com/foundry-rs/forge-std",
+                "gitmodulesCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "availableCommit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/permit2/lib/forge-std/lib/ds-test",
+                "gitlink": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+                "sourceURL": "https://github.com/dapphub/ds-test",
+                "gitmodulesCommit": "66bf4e2c92cf507531599845e8d5a08cc2e3b5bb",
+                "availableCommit": "e282159d5170298eb2455a6c05280ab5a73a4ef0",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/permit2/lib/openzeppelin-contracts",
+                "gitlink": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2",
+                "sourceURL": "https://github.com/OpenZeppelin/openzeppelin-contracts",
+                "gitmodulesCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "availableCommit": "d3ff81b37f3c773b44dcaf5fda212c7176eef0e2",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/permit2/lib/solmate",
+                "gitlink": "8d910d876f51c3b2585c9109409d601f600e68e1",
+                "sourceURL": "https://github.com/rari-capital/solmate",
+                "gitmodulesCommit": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
+                "availableCommit": "8d910d876f51c3b2585c9109409d601f600e68e1",
+                "objectEqualsGitlink": true
+              },
+              {
+                "path": "standards/x402/contracts/evm/lib/permit2/lib/solmate/lib/ds-test",
+                "gitlink": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+                "sourceURL": "https://github.com/dapphub/ds-test",
+                "gitmodulesCommit": "8d910d876f51c3b2585c9109409d601f600e68e1",
+                "availableCommit": "9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+                "objectEqualsGitlink": true
+              }
+            ],
+            "log": "/private/tmp/dsr-token-compiler.log",
+            "logSha256": "0df279716d0ebd495e46f19d50fe03d0bc6c5b33eba4d7b5884843d454def4f8"
+          },
+          "bytesEqual": true,
+          "rawBytesEqual": false,
+          "firstDiffOffset": null,
+          "onlyCborMetadataHash": false,
+          "compiler": {
+            "version": "0.8.33+commit.64118f21"
+          },
+          "settings": {
+            "remappings": [
+              "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+              "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+              "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+              "@openzeppelin/contracts/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/",
+              "account-abstraction-v6/=singleton-paymaster/lib/account-abstraction-v6/contracts/",
+              "account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+              "account-abstraction-v8/=singleton-paymaster/lib/account-abstraction-v8/contracts/",
+              "chainlink-brownie-contracts/=contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
+              "ds-test/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/",
+              "erc4626-tests/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/erc4626-tests/",
+              "forge-std/=contracts/lib/forge-std/src/",
+              "halmos-cheatcodes/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/lib/halmos-cheatcodes/src/",
+              "openzeppelin-contracts-v4.8.3/=singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/",
+              "openzeppelin-contracts-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+              "openzeppelin-contracts-v5.1.0/=singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/",
+              "singleton-paymaster/=singleton-paymaster/",
+              "solady/=contracts/lib/solady/src/",
+              "src/=contracts/src/"
+            ],
+            "optimizer": {
+              "enabled": true,
+              "runs": 500
+            },
+            "metadata": {
+              "bytecodeHash": "none"
+            },
+            "compilationTarget": {
+              "contracts/src/tokens/xPNTsToken.sol": "xPNTsToken"
+            },
+            "evmVersion": "cancun",
+            "libraries": {},
+            "viaIR": true
+          },
+          "runtimeSha256": {
+            "rebuilt": "a93f797af0f7446cc0cbe72cd7c704eec80dbc9793e7b8aa11a835176064bc4b",
+            "onchain": "ef2e254a753ac65c4420a0c7a7e430196da025822b081ac0686431f0a243554e",
+            "maskedRebuilt": "a93f797af0f7446cc0cbe72cd7c704eec80dbc9793e7b8aa11a835176064bc4b",
+            "maskedOnchain": "a93f797af0f7446cc0cbe72cd7c704eec80dbc9793e7b8aa11a835176064bc4b"
+          },
+          "runtimeBytes": {
+            "rebuilt": 13437,
+            "onchain": 13437
+          },
+          "maskedRanges": [
+            {
+              "id": "4331",
+              "start": 11317,
+              "length": 32,
+              "onchainValue": "0xb5ac272e3557a3cc63af8e2ebc4e4f595dd6ee226f466391072fb706271db4e4"
+            },
+            {
+              "id": "4333",
+              "start": 11506,
+              "length": 32,
+              "onchainValue": "0x0000000000000000000000000000000000000000000000000000000000aa36a7"
+            },
+            {
+              "id": "4335",
+              "start": 11270,
+              "length": 32,
+              "onchainValue": "0x000000000000000000000000fdfb993ddce4d95407c893e09556e31732a5beb8"
+            },
+            {
+              "id": "4337",
+              "start": 11396,
+              "length": 32,
+              "onchainValue": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+            },
+            {
+              "id": "4339",
+              "start": 11434,
+              "length": 32,
+              "onchainValue": "0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6"
+            },
+            {
+              "id": "4342",
+              "start": 5710,
+              "length": 32,
+              "onchainValue": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            {
+              "id": "4345",
+              "start": 5751,
+              "length": 32,
+              "onchainValue": "0x3100000000000000000000000000000000000000000000000000000000000001"
+            }
+          ],
+          "immutableValuesConsistent": true,
+          "status": "PASS",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
           }
         }
       ],
@@ -5188,8 +5686,64 @@
           "disposition": "superseded: not from a deployment record"
         }
       ],
-      "deploymentRecord": null,
-      "resolution": "At pin 12061284 read each clone runtime; require EIP-1167 363d3d373d3d3d363d73<20-byte implementation>5af43d82803e903d91602b57fd5bf3 (45 bytes), extract bytes [10:30], read implementation runtime at the same pin, then locate its deployment record before selecting a commit. No clone runtime or implementation deployment record supplied; do not infer source from factory/version parity."
+      "deploymentRecord": {
+        "method": "CREATE address formula keccak(rlp([factory, nonce=1]))[12:] == implementation",
+        "factory": "0x67422d2e44a33c8da99b3b776841bf316bd209a2",
+        "nonce": 1,
+        "computedAddress": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+        "implementation": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+        "sourceConstructor": "contracts/src/tokens/xPNTsFactory.sol at cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+        "sourceEvidence": "constructor deploys new xPNTsToken() as its first CREATE"
+      },
+      "resolution": "Every round clone is resolved at the pin and must use the same parity-verified implementation. Manifest-created clones are included in the post-upgrade discovery and STOP on any difference. Authority remains clone storage and is audited separately.",
+      "candidate": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
+      },
+      "fixtureDisposition": "Included: exact EIP-1167 clones; shared nonce-1 implementation independently rebuilt with metadata included.",
+      "onchainEvidence": {
+        "address": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+        "codeLen": 13437,
+        "sha256": "ef2e254a753ac65c4420a0c7a7e430196da025822b081ac0686431f0a243554e",
+        "evidence": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/onchain/xpnts-and-registry.json",
+        "evidenceSha256": "0e7a170ac9022e2f40709268ef086834156c022df4daeed6c6b212b0e005d820"
+      },
+      "clones": {
+        "aPNTs": {
+          "address": "0x696a73701b104c6ccbbaaddd2216788ea08eab89",
+          "runtime": "0x363d3d373d3d3d363d73fdfb993ddce4d95407c893e09556e31732a5beb85af43d82803e903d91602b57fd5bf3",
+          "eip1167": true,
+          "impl": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+          "runtimeBytes": 45,
+          "comparisonType": "exact standard EIP-1167 runtime; no masking",
+          "implementationParity": "PASS",
+          "creationRecord": {
+            "path": "broadcast/DeployLive.s.sol/11155111/run-1782562837353.json",
+            "sha256": "866e22cc5ea06ba3c11f7f8aa0d52d29304270efca3eb3960550a8fedf917b1b",
+            "transactionHash": "0x7b89b6fca413d730be6f979c9d82c48fbb974e0f84808169679ee6d88146e58c",
+            "creationBlock": 11151014,
+            "verification": "local broadcast additionalContracts CREATE and matching receipt; live before/at boundary remains mandatory"
+          }
+        },
+        "PNTs": {
+          "address": "0xe6579a90dc498a710008de12119812d0fb7aa224",
+          "runtime": "0x363d3d373d3d3d363d73fdfb993ddce4d95407c893e09556e31732a5beb85af43d82803e903d91602b57fd5bf3",
+          "eip1167": true,
+          "impl": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+          "runtimeBytes": 45,
+          "comparisonType": "exact standard EIP-1167 runtime; no masking",
+          "implementationParity": "PASS",
+          "creationRecord": {
+            "path": "broadcast/DeployLive.s.sol/11155111/run-1782562837353.json",
+            "sha256": "866e22cc5ea06ba3c11f7f8aa0d52d29304270efca3eb3960550a8fedf917b1b",
+            "transactionHash": "0x95275914bb495bc71ee79870de19577558669bc493aea3b86b237b3f513dc69b",
+            "creationBlock": 11151051,
+            "verification": "local broadcast additionalContracts CREATE and matching receipt; live before/at boundary remains mandatory"
+          }
+        }
+      }
     },
     {
       "contract": "MySBT",
@@ -5604,7 +6158,15 @@
             }
           ],
           "immutableValuesConsistent": true,
-          "status": "PASS"
+          "status": "PASS",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          },
+          "comparisonVerification": "Rechecked supplied runtime against authenticated retained rebuilt SHA-256, with compiler immutable ranges only; decoded on-chain CBOR."
         }
       ],
       "onchainEvidence": {
@@ -5852,7 +6414,12 @@
           11151057
         ]
       },
-      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary."
+      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary.",
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
+      }
     },
     {
       "contract": "PaymasterFactory",
@@ -6206,7 +6773,15 @@
           },
           "maskedRanges": [],
           "immutableValuesConsistent": true,
-          "status": "PASS"
+          "status": "PASS",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          },
+          "comparisonVerification": "Rechecked supplied runtime against authenticated retained rebuilt SHA-256, with compiler immutable ranges only; decoded on-chain CBOR."
         }
       ],
       "onchainEvidence": {
@@ -6494,7 +7069,12 @@
           11151057
         ]
       },
-      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary."
+      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary.",
+      "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+      "cbor": {
+        "solc": "0.8.33",
+        "ipfs": null
+      }
     }
   ],
   "pin": {
@@ -7712,5 +8292,7 @@
       "result": "PASS",
       "log": "/private/tmp/dsr-manifest-tests.log"
     }
-  }
+  },
+  "supplementalRuntimeEvidence": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/onchain/xpnts-and-registry.json",
+  "supplementalRuntimeEvidenceSha256": "0e7a170ac9022e2f40709268ef086834156c022df4daeed6c6b212b0e005d820"
 }

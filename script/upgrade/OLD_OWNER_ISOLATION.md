@@ -9,8 +9,9 @@ was run during this change.
 
 `manifest_exec.collect()` calls `collect_deployed()`. `inventory_source()` defaults
 to deployed mode. Each target is discovered from pinned getters; factory tokens
-and operator tokens are combined. Every token instance gets its own authenticated
-inventory, even when two clones have different implementations or commits.
+and operator tokens are combined with both mandatory round clones (aPNTs and PNTs).
+Every token instance gets its own authenticated inventory. All xPNTs clones must
+resolve to the same parity-verified implementation; any difference STOPs.
 
 Supply `externalInputs.data.deployedSources`, keyed by lowercase target address:
 
@@ -19,14 +20,17 @@ Supply `externalInputs.data.deployedSources`, keyed by lowercase target address:
   "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71": {
     "contract": "Registry",
     "implementation": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
-    "commit": "c30854f91833ae0d3fd6b7ec027ae53b138a3337",
-    "creationBlock": 123
+    "commit": "a839347e04b40da287522c3641e12121ef2e8e9e",
+    "creationBlock": 11151002
   }
 }
 ```
 
-This is a schema example, **not usable evidence**: `123` is a placeholder and the
-commit is only a candidate. Supply exactly all discovered targets, including every
+This illustrates the Registry candidate fields, not an adopted source. Registry
+currently belongs under `externalInputs.data.pendingDsrRuling` with the fixture
+reason. Copy both fixture fields; collection and replay STOP at
+`deployed_source_pending` until DSR rules. After adoption, its creation boundary must still be
+verified live at the chosen pin. Supply exactly all discovered targets, including every
 xPNTs clone. Resolve any tag to its full commit SHA. `creationBlock` is the target
 or proxy's deployment block, not its implementation's deployment block.
 
@@ -44,7 +48,11 @@ The source gate:
 5. Compares full pinned implementation runtime against the fresh artifact, masking
    only bounded, nonoverlapping 32-byte compiler immutable-reference ranges.
    Repeated occurrences of each immutable must contain the same pinned value.
-   Metadata bytes are not stripped.
+   The metadata section is UNMASKED and byte-for-byte equal. CBOR solc and ipfs
+   are recorded (ipfs is explicitly absent when the key is missing). Immutable
+   ranges cannot overlap metadata. Exact equality INCLUDING metadata makes
+   candidate provenance irrelevant. If metadata is masked or differs, rule 4
+   requires selection from a deployment record first; provenance is not parity.
 6. Extracts AST/ABI authority, role and mapping inventory from that same build.
    Records target, implementation, commit, compiler, settings, Forge version,
    immutable ranges, runtime hash and parity result.
@@ -57,35 +65,32 @@ credentials, paths and query parameters are never retained in those identities.
 As before, transcript replay proves predicates, not the honesty of RPC providers.
 Dual-endpoint collection remains mandatory.
 
-## Candidate deployed-source mapping
+## Accepted deployed-source mapping
 
-All addresses below are **offline candidates**, not assertions about a new pin.
-Registry/SP implementations come from retained snapshots and deployment config.
-Direct addresses come from config; APNTsCapped is calculated from deployer CREATE
-nonce 12133. Clone implementations must be read at the pin.
+[DEPLOYED_SOURCE_PARITY_RESULTS.md](DEPLOYED_SOURCE_PARITY_RESULTS.md) records all
+10 PASS comparisons, their comparison types and CBOR fields. The exact candidates,
+compiler settings, immutable ranges and provenance are retained in
+[deployed_source_candidates.json](deployed_source_candidates.json). The fixture
+contains 10 adopted targets including both named clones, plus the Registry proxy
+in `pendingDsrRuling`. Registry candidate `a839347e04b40da287522c3641e12121ef2e8e9e`
+awaits DSR re-ruling requested 2026-11-04: solc-only CBOR with
+`bytecode_hash=none` does not pin the source tree.
 
-| Contract / candidate version | Implementation candidate | Candidate commits / tags | Status |
-|---|---|---|---|
-| Registry-5.8.0 | `0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee` | `bb2610e8`, `c30854f9` | STOP; parity unverified |
-| SuperPaymaster-5.4.2 | `0xe25f88dbeafc64200270a948df8e9dd2f9b22c27` | `6a6d2d17`, `v5.4.2` → `e1ddf9dd` | STOP; parity unverified |
-| APNTsCapped-1.0.0 | `0x9eb17fac022557f64924aa2f9e018db3a330e1e7` | `d2ca897e`, `3be99c94`, `03f8bdeb` | STOP; parity unverified |
-| TimelockController (OZ 5.0.2; no version getter) | `0x86c86c789edc099801cc6a5f48334f1d67dc9564` | `89e1cb64`, `03f8bdeb` | STOP; parity unverified |
-| Staking-4.2.0 | `0x472297b557c1d0f030f281a5bb8a535f6c5ab65e` | `8074c2b4`, `03f8bdeb` | STOP; parity unverified |
-| GToken-2.1.2 | `0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08` | `73f43561`, `03f8bdeb` | STOP; parity unverified |
-| xPNTsFactory-2.3.0-clone-optimized | `0x67422d2e44a33c8da99b3b776841bf316bd209a2` | `27c08c03`, `03f8bdeb` | STOP; parity unverified |
-| XPNTs-3.5.0, per discovered token | **Unknown; resolve each clone at pin** | `d8893493`, `v5.4.2`, `03f8bdeb` | STOP; parity unverified |
-| MySBT-3.2.0 | `0x4867b4302bf4c7818b71f55e53a3520ee1855aa7` | `351a8991`, `03f8bdeb` | STOP; parity unverified |
-| PaymasterFactory-1.0.2 | `0xa936f8e3d682b0ecf280e6f5c05ff4204ee87180` | `73f43561`, `03f8bdeb` | STOP; parity unverified |
+Both `0x696a73701b104c6ccbbaaddd2216788ea08eab89` (aPNTs) and
+`0xe6579a90dc498a710008de12119812d0fb7aa224` (PNTs) must be exact 45-byte
+standard EIP-1167 clones. Their parsed implementation is
+`0xfdfb993ddce4d95407c893e09556e31732a5beb8`. Origin is proven by the CREATE
+formula `keccak(rlp([0x67422d2e44a33c8da99b3b776841bf316bd209a2, 1]))[12:]`
+and the accepted factory constructor's first `new xPNTsToken()` call. The
+13437-byte implementation passes the `cf26915e032ccc9e8e02f9aaf3769afd4335027e`
+rebuild with metadata included. CBOR solc is 0.8.33; ipfs is absent.
+Every clone is independently resolved at the pin and checked against that shared
+implementation. Version strings and factory address lists do not establish parity.
 
-[deployed_source_candidates.json](deployed_source_candidates.json) contains full
-SHAs, source paths, version-string checks and each attempted rebuild's actual STOP.
-The 2026-11-04 rerun at HEAD `926a0282` uses the supplied finalized Sepolia
-runtime snapshot at block 12061284. Chainlink and Solady are now initialized.
-Rebuilds still stop before compilation on locally unavailable historical or
-nested submodules; each attempt records its full missing path and commit.
-See [DEPLOYED_SOURCE_PARITY_RESULTS.md](DEPLOYED_SOURCE_PARITY_RESULTS.md). No candidate is promoted to authenticated
-source merely because its version string matches. The retained pending token
-`0xbb46321545a91db2f3b5c3e694f2f23abe259883` is XPNTs-3.5.0, **not APNTsCapped**.
+Clone authority remains storage: communityOwner, minter-like authorities,
+autoApprovedSpenders, approvedFacilitators and allowances retain pinned positive
+and negative controls in each clone's context. Code parity does not certify those
+live controls. No full live isolation run was performed offline.
 
 ## Role history and controls
 
@@ -190,7 +195,8 @@ The caller must:
   getter surfaces. Include each relevant deployed authority context.
 - Supply `token_kinds` for the union of pre-upgrade and current tokens, explicitly
   choosing `xPNTsToken` or `xPNTsTokenV2`; there is no inference from a revert.
-- Pass the previously validated pre-upgrade isolation section. Legacy targets and
+- Pass the previously validated pre-upgrade isolation section, including its
+  authenticated `sourceSelection` for the clones. Legacy targets and
   tokens remain checked. Token ownership controls use each token's own `FACTORY`,
   so old tokens need not belong to the newly installed factory.
 - Supply post-pin `isolationExpectedOwners` where handover changed a positive
@@ -198,6 +204,15 @@ The caller must:
 - Run independently against both endpoints and retain/compare results before M2.5
   acceptance. The new external verifier's immutable AGGREGATOR/REGISTRY bindings
   also retain the existing manifest deployment/readback gates.
+
+Before the authority audit, the hook resolves all legacy/current clones (including
+manifest-created clones discovered post-upgrade), rebuilds the accepted clone
+implementation, and records pinned `cloneReads` and `cloneEvidence`. Clone
+authority getters come from that same deployed build; the release token inventory
+cannot replace them. Every clone
+must match the same parity-verified implementation and factory nonce-1 origin.
+A different V2 implementation STOPs under this ruling even if token_kinds labels
+it V2; release inventory selection is not permission to change the binding.
 
 The hook explicitly selects release source, merges delegated SP/token getter
 surfaces, re-runs the complete OLD audit and positive controls, and injects each
@@ -208,12 +223,12 @@ setter controls remain mandatory wherever the audit has no live positive holder.
 
 ## Remaining DSR / live-run items
 
-1. Supply local historical dependency objects and compilers, the actual target
-   deployment blocks, and exact candidate commits per target. Rebuild and obtain
-   runtime parity at the chosen pin on both endpoints. Every unavailable or
-   mismatched contract remains STOP pending DSR's per-contract decision.
-2. Discover every clone's implementation and every relevant token/factory at the
-   pin; config addresses and matching version strings are not substitutes.
+1. Re-run the accepted source comparisons at the chosen live pin on both
+   endpoints and validate all target creation boundaries. Offline PASS is not a
+   full live isolation certificate.
+2. Resolve every clone at the live pin, including additional factory/operator
+   tokens; any implementation difference STOPs. Supply additional source entries
+   and creation boundaries for newly discovered targets.
 3. Run canonical bounded history on both endpoints, including OLD-filtered grants
    and later revocations, and establish standard-role event controls.
 4. Supply executable, authorized setter/prerequisite cases for categories with no

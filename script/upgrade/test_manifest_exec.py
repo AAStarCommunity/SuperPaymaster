@@ -504,7 +504,7 @@ class RebuiltScopeTests(unittest.TestCase):
 
 class ManifestTests(unittest.TestCase):
     def setUp(self):
-        source_validation = patch.object(m.isolation,'validate_deployed',side_effect=lambda section,pin,sources:m.isolation.validate(section,pin,ART['oldOwnerInventory']))
+        source_validation = patch.object(m.isolation,'validate_deployed',side_effect=lambda section,pin,sources,pending=None:(m.isolation.require_adopted_sources(pending),m.isolation.validate(section,pin,ART['oldOwnerInventory'])))
         source_validation.start(); self.addCleanup(source_validation.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
