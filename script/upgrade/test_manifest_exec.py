@@ -3417,6 +3417,26 @@ class OldExitExemptionTests(unittest.TestCase):
                 m.unchanged_old_activity(old_exit_rpc(later, self.guardian, occupied=slot), plan, later['stateBlock'])
             self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_slot')
 
+    def test_pre_send_detects_new_activity_after_pin(self):
+        # Passes every internal gate (the proposal is executed) but changes the activity:
+        # only the pin comparison old_activity_unchanged can catch it.
+        p, rpc = self.fixture()
+        p['oldActivity'] = m.old_activity(rpc, OLD, p['stateBlock'], [])
+        plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
+        base_rpc = old_exit_rpc(p, self.guardian)
+        aggregated = a.keccak('SignatureAggregated(uint256,bytes,uint256)')
+        def later(method, params):
+            if method == 'eth_getLogs':
+                return base_rpc(method, params) + [dict(address=OLD, topics=[aggregated, '0x'+'0'*63+'7'],
+                    data='0x', blockNumber='0x2', blockHash='0x'+'ef'*32, transactionHash='0x'+'12'*32,
+                    transactionIndex='0x0', logIndex='0x0')]
+            if method == 'eth_call' and params[0]['data'] == a.calldata('executedProposals(uint256)', 7):
+                return '0x'+format(1, '064x')
+            return base_rpc(method, params)
+        with self.assertRaises(a.Gate) as caught:
+            m.unchanged_old_activity(later, plan, p['stateBlock'])
+        self.assertEqual(caught.exception.record['gate'], 'old_activity_unchanged')
+
     def test_pre_send_enforces_exit_gate(self):
         p, good = self.fixture()
         p['oldActivity'] = m.old_activity(good, OLD, p['stateBlock'], [])

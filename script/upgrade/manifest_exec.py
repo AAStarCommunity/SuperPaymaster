@@ -789,6 +789,7 @@ def old_activity(rpc, old, block, pop=None):
                 exemptions.append(dict(guardian=guardian, readyAt=values[0], expiresAt=values[1],
                     pinTime=a.qty(header['timestamp']), blockHash=header['hash'],
                     slotScan=slots, maxValidators=maximum, slashCount=slash, inPop=in_pop, popSource=pop_source))
+            # Backstop only: any nonzero request is decided by the exemption gates above.
             a.need('old_exit_cleared', all(v == 0 for v in values) or bool(exemptions), True)
     return dict(creation=start, logs=logs, exemptions=exemptions)
 
