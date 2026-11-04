@@ -2,6 +2,7 @@
 import copy
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from functools import lru_cache
@@ -394,6 +395,80 @@ class OldOwnerIsolationTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(a.Gate) as caught:
                 o.decoded_arguments(bad)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_calldata_decode')
+
+    def test_manifest_calldata_invalid_cast_output(self):
+        signature = 'setOwner(address)'
+        steps = [dict(tx=dict(to=u.REG,data=a.calldata(signature,o.NEW)))]
+        original = a.cast
+        for bad in ('invalid', None, 7, True):
+            def cast(*args):
+                return json.dumps(bad) if args[0] == 'decode-calldata' else original(*args)
+            with self.subTest(output=bad), patch.object(a,'cast',side_effect=cast):
+                with self.assertRaises(a.Gate) as caught:
+                    o.assert_manifest_calldata(steps,[signature])
+                self.assertEqual(caught.exception.record['gate'],'old_owner_calldata_decode')
+
+    def test_safe_noncanonical_fallback_and_non_old_module(self):
+        cases = [
+            ('old_owner_fallback_canonical', 'eth_getStorageAt',
+             [u.SAFE,a.keccak('fallback_manager.handler.address'),self.pin['stateBlock']],raw([int(TOKEN,16)])),
+            ('old_owner_module_page', 'eth_call',
+             [dict(to=u.SAFE,data=a.calldata('getModulesPaginated(address,uint256)','0x'+'0'*39+'1',100)),self.pin['stateBlock']],
+             raw([64,1,1,int(TOKEN,16)])),
+        ]
+        for gate,method,params,value in cases:
+            with self.subTest(gate=gate):
+                rpc = fixture_rpc(self.pin,{(method,str(params)):value})
+                action = lambda:o.audit(rpc,self.pin,inventory())
+                with self.assertRaises(a.Gate) as caught:
+                    action()
+                self.assertEqual(caught.exception.record['gate'],gate)
+                removed_probe(self,action,gate)
+
+    def test_old_filtered_history_cannot_hide_grant(self):
+        baseline = fixture_rpc(self.pin)
+        def rpc(method,params):
+            result = baseline(method,params)
+            if method == 'eth_getLogs' and len(params[0]['topics']) == 1:
+                result = copy.deepcopy(result)
+                for log in result:
+                    log['topics'][2] = '0x'+o.OLD[2:].zfill(64)
+            return result
+        action = lambda:o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1)
+        with self.assertRaises(a.Gate) as caught:
+            action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_history_old_filter')
+        removed_probe(self,action,'old_owner_history_old_filter')
+        original = a.need
+        def removed(label,actual,expected):
+            if label != 'old_owner_history_old_filter':
+                original(label,actual,expected)
+        with patch.object(a,'need',side_effect=removed), self.assertRaises(a.Gate) as caught:
+            action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_uncancelled_grants')
+
+    def test_immutable_expectations_ignore_dirty_worktree(self):
+        committed = subprocess.run(['git','show','HEAD:deployments/config.sepolia.json'],
+                                   cwd=u.ROOT,capture_output=True,check=True).stdout
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory)
+            # Build a temporary HEAD without creating a commit or changing the real checkout.
+            subprocess.run(['git','init','-q',directory],check=True)
+            blob = subprocess.run(['git','hash-object','-w','--stdin'],cwd=tree,input=committed,capture_output=True,check=True).stdout.decode().strip()
+            subtree = subprocess.run(['git','mktree'],cwd=tree,input=f'100644 blob {blob}\tconfig.sepolia.json\n'.encode(),capture_output=True,check=True).stdout.decode().strip()
+            root = subprocess.run(['git','mktree'],cwd=tree,input=f'040000 tree {subtree}\tdeployments\n'.encode(),capture_output=True,check=True).stdout.decode().strip()
+            (tree/'.git/HEAD').write_text(root+'\n')
+            path = tree/'deployments/config.sepolia.json'
+            path.parent.mkdir()
+            path.write_bytes(committed)
+            with patch.object(u,'ROOT',tree):
+                expected = o.immutable_expectations(o.NEW)
+                dirty = json.loads(committed)
+                dirty['entryPoint'] = o.OLD
+                dirty['xPNTsFactory'] = o.OLD
+                path.write_text(json.dumps(dirty))
+                self.assertEqual(o.immutable_expectations(o.NEW),expected)
+                self.assertEqual(expected['entryPoint'],json.loads(committed)['entryPoint'].lower())
 
     def test_factory_enumeration_must_stand_alone(self):
         query = ('eth_call',str([dict(to=FACTORY,data=a.calldata('getAllTokens()')),self.pin['stateBlock']]))

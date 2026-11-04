@@ -570,7 +570,9 @@ def immutable_declarations(tree):
 
 
 def immutable_expectations(implementation=None):
-    config = json.loads((u.ROOT/'deployments/config.sepolia.json').read_text())
+    config = json.loads(subprocess.run(
+        ['git', 'show', 'HEAD:deployments/config.sepolia.json'], cwd=u.ROOT,
+        capture_output=True, check=True).stdout)
     aliases = dict(entryPoint='entryPoint', REGISTRY='registry', registry='registry',
                    FACTORY='xPNTsFactory', factory='xPNTsFactory', GTOKEN_STAKING='staking', GTOKEN='gToken',
                    MYSBT='sbt', ETH_USD_PRICE_FEED='priceFeed')
@@ -877,7 +879,7 @@ def role_history(rpc, pin, target, spec, creation):
     roles = {l['topics'][1] for l in logs}
     a.need('old_owner_history_positive',not spec['hasRole'] or standard <= roles,True)
     active = set()
-    for log in sorted(old_logs,key=lambda l:(a.qty(l['blockNumber']),a.qty(l['transactionIndex']),a.qty(l['logIndex']))):
+    for log in sorted(expected_old,key=lambda l:(a.qty(l['blockNumber']),a.qty(l['transactionIndex']),a.qty(l['logIndex']))):
         if log['topics'][0] == topics[0]:
             active.add(log['topics'][1])
         else:

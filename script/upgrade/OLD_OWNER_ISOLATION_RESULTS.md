@@ -4,6 +4,76 @@ No commit or network request. Registry is adopted under option (a), with the nar
 
 All ten fresh implementation comparisons pass. The [immutable table and creation corroboration](DEPLOYED_SOURCE_PARITY_RESULTS.md#re-ruling-immutable-checks-2026-11-04) record 35 values, including 16 addresses checked against OLD and expected configuration. No live storage-authority or real-fork acceptance is claimed.
 
+## PR #601 DSR follow-up — R1, R2, R3
+
+Base HEAD: `9868c670c98341002e5a8cf5cfa8d0890a011b98`. No commit made.
+All commands ran offline from the repository root, with `OLD_OWNER_FORK_PIN`,
+`OLD_OWNER_FORK_RPC`, and `OLD_OWNER_CONTROL_RPC` unset. Both engines were tested:
+`A3A_ENGINE_DIR=$HOME/.foundry/bin` and the default nightly (variable unset).
+
+Role-history active grants now come from `expected_old`, the client-side OLD
+subset of unfiltered logs. The dedicated omission fixture returns a canonical
+OLD RoleGranted in the unfiltered query but omits it from the OLD-filtered query,
+consistently across partitions. Removing the consistency gate still leaves the
+uncancelled-grant gate protecting the audit.
+
+| Dedicated negative fixture / gate | Gate present | Gate removed (both engines) |
+| --- | --- | --- |
+| Filtered query hides OLD grant / `old_owner_history_old_filter` | named STOP | red; `caught_elsewhere:old_owner_uncancelled_grants` |
+| Non-OLD, noncanonical Safe fallback / `old_owner_fallback_canonical` | named STOP | red; bad fixture accepted |
+| Safe module list contains a non-OLD module / `old_owner_module_page` | named STOP | red; bad fixture accepted |
+
+The ordinary suite runs these removal probes through `removed_probe`. In addition,
+each dedicated test was rerun with its gate suppressed in `a.need`: each mutant
+produced one assertion failure and zero errors, under both engines. Evidence is
+recorded in `fixtures/old-owner/adversarial-probes.json`; raw mutant logs are
+`/tmp/dsr-{stable,nightly}-mutants.log`. A red history mutant means its exact gate
+assertion fails, while the independent uncancelled-grant check still rejects it.
+
+`decoded_arguments` already rejects strings and null with
+`old_owner_calldata_decode`. Added manifest-level coverage for string, null,
+number, and boolean cast JSON results; no decoder logic change was necessary.
+`immutable_expectations` now reads `git show HEAD:deployments/config.sepolia.json`.
+An isolated Git-object fixture verifies dirty entryPoint and factory addresses
+do not change expectations, without modifying the real checkout or creating a
+commit.
+
+The updated probe snapshot contains 111 removal trials. Final suite results for
+this follow-up are below; all later sections describe earlier runs.
+
+```text
+A3A_ENGINE_DIR=$HOME/.foundry/bin
+oldowner: Ran 49 tests in 12.817s — OK (skipped=2)
+manifest: Ran 284 tests in 284.239s — OK (skipped=2)
+a3a: Ran 175 tests in 34.430s — OK
+upgrade: Ran 141 tests in 1.206s — OK
+adapter: Ran 53 tests in 0.231s — OK
+release: Ran 69 tests in 3.209s — OK
+
+Default nightly (A3A_ENGINE_DIR unset)
+oldowner: Ran 49 tests in 13.307s — OK (skipped=2)
+manifest: Ran 284 tests in 309.943s — OK (skipped=2)
+a3a: Ran 175 tests in 34.622s — OK
+upgrade: Ran 141 tests in 1.446s — OK
+adapter: Ran 53 tests in 0.274s — OK
+release: Ran 69 tests in 3.293s — OK
+git diff --check: passed
+```
+
+Logs: `/tmp/dsr-{stable,nightly}-{oldowner,manifest,a3a,upgrade,adapter,release}.log`.
+The two skips in old-owner (also imported into manifest) are opt-in live/fork tests.
+
+Suite commands, repeated under each engine from the repository root:
+
+```sh
+python3 -B -m unittest discover -s script/upgrade -p test_old_owner_isolation.py -q
+python3 -B -m unittest discover -s script/upgrade -p test_manifest_exec.py -q
+python3 -B -m unittest discover -s script/a3a -p "test_*.py" -q
+python3 -B -m unittest discover -s script/upgrade -p test_sp_upgrade_exec.py -q
+python3 -B -m unittest discover -s script/upgrade -p test_pop_adapter.py -q
+python3 -B -m unittest discover -s script/upgrade -p test_release_evidence.py -q
+```
+
 ## Follow-up: proxy allowlist and independent configuration coverage
 
 Every inventory target now reads the EIP-1967 implementation and beacon slots at

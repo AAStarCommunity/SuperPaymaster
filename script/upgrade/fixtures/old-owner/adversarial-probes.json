@@ -1,7 +1,9 @@
 {
-  "command": "python3 script/upgrade/test_old_owner_isolation.py",
-  "testSummary": "Ran 39 tests in 5.404s\n\nOK (skipped=2)",
-  "logSha256": "9246ac6895d92e9c59ce27c53188db59d3ae769db60bba6393abcab08f1e936f",
+  "command": "python3 -B -m unittest discover -s script/upgrade -p test_old_owner_isolation.py -q",
+  "engine": "default nightly",
+  "baseHead": "9868c670c98341002e5a8cf5cfa8d0890a011b98",
+  "testSummary": "Ran 49 tests in 13.307s\nOK (skipped=2)",
+  "logSha256": "cd24f1e0a37b1963bc41e39a8f0baf6167d977ca49c59a7860bc97906b9a4725",
   "probes": [
     {
       "gate": "old_owner_clone_standard",
@@ -308,6 +310,10 @@
       "outcome": "caught_elsewhere:old_owner_fallback_canonical"
     },
     {
+      "gate": "old_owner_history_old_filter",
+      "outcome": "caught_elsewhere:old_owner_uncancelled_grants"
+    },
+    {
       "gate": "old_owner_immutable_not_old",
       "outcome": "caught_elsewhere:old_owner_immutable_expected"
     },
@@ -384,6 +390,18 @@
       "outcome": "caught_elsewhere:old_owner_record_required"
     },
     {
+      "gate": "old_owner_role_extraction_empty",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_extraction_empty",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_extraction_empty",
+      "outcome": "accepted"
+    },
+    {
       "gate": "old_owner_role_log_address",
       "outcome": "accepted"
     },
@@ -404,12 +422,48 @@
       "outcome": "accepted"
     },
     {
+      "gate": "old_owner_fallback_canonical",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_module_page",
+      "outcome": "accepted"
+    },
+    {
       "gate": "old_owner_implementation",
       "outcome": "accepted"
     },
     {
       "gate": "old_owner_creation_before",
       "outcome": "accepted"
+    },
+    {
+      "gate": "unexpected_proxy",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "unexpected_proxy",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_undeclared_clone",
+      "outcome": "caught_elsewhere:metadata_cbor"
     }
-  ]
+  ],
+  "reviewGateMutants": {
+    "stable": [
+      "old_owner_history_old_filter mutant suite=RED failures=1",
+      "L1_PROBE old_owner_module_page removed=red accepted",
+      "old_owner_fallback_canonical mutant suite=RED failures=1",
+      "L1_PROBE old_owner_fallback_canonical removed=red accepted",
+      "old_owner_module_page mutant suite=RED failures=1"
+    ],
+    "nightly": [
+      "old_owner_history_old_filter mutant suite=RED failures=1",
+      "L1_PROBE old_owner_module_page removed=red accepted",
+      "old_owner_fallback_canonical mutant suite=RED failures=1",
+      "L1_PROBE old_owner_fallback_canonical removed=red accepted",
+      "old_owner_module_page mutant suite=RED failures=1"
+    ]
+  }
 }
