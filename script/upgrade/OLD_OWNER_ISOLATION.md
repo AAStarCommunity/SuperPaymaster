@@ -38,8 +38,12 @@ The source gate:
 2. Requires no target code immediately before the supplied creation block and
    nonempty code at that block. The Registry boundary must also agree with the
    existing `registryCreation` evidence.
-3. Resolves ERC-1967 implementation storage and standard EIP-1167 clone runtime;
-   direct contracts use their own address. Checks the supplied implementation.
+3. Reads both ERC-1967 implementation and beacon slots for every inventory target
+   at the pin. Nonzero slots outside the Registry/SP allowlist STOP at
+   `unexpected_proxy`; beacon indirection is unsupported and also STOPs.
+   Undeclared EIP-1167 clones STOP at `old_owner_undeclared_clone`. Declared
+   xPNTs clones resolve their runtime implementation; direct contracts use their
+   own address. Checks the supplied implementation.
    Independently compares both Registry and SP proxy runtimes to ERC1967Proxy
    rebuilt at cf26915e, with metadata unmasked; records proxy parity separately.
 4. Archives the exact commit and locally retained submodule objects into a fresh
@@ -256,3 +260,7 @@ Offline suite results and the complete per-gate removal classification are in
 RoleConfigured uses the same bounded/bisected history reader, size limit and
 disjoint partition equality checks as RoleGranted/RoleRevoked, on both endpoints.
 Current adversarial controls and results: [ADVERSARIAL_REVIEW_RESULTS.md](ADVERSARIAL_REVIEW_RESULTS.md).
+
+RoleConfigured coverage is independent of grant/revoke history: its own results
+must be nonempty and contain every extracted standard role for each emitting
+contract. Empty full-range and both partition results cannot satisfy this gate.

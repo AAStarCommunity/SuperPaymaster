@@ -458,6 +458,83 @@ class OldOwnerIsolationTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'],'old_owner_log_limit')
         removed_probe(self,action,'old_owner_log_limit')
 
+    def test_all_inventory_targets_read_both_slots_at_pin(self):
+        baseline,sources,build = self.source_fixture()
+        reads = []
+        def rpc(method,params):
+            if method == 'eth_getStorageAt': reads.append(params)
+            return baseline(method,params)
+        with patch.object(o,'deployed_build',side_effect=build):
+            result = o.deployed_inventory(rpc,self.pin,sources)
+        self.assertEqual(sorted(reads),sorted([target,slot,self.pin['stateBlock']]
+                         for target in sources for slot in (o.IMPLEMENTATION_SLOT,o.BEACON_SLOT)))
+        proxies = {row['target'] for row in result['deployedSources'] if row['proxy'] is not None}
+        self.assertEqual(proxies,{u.REG,u.SP})
+
+    def test_unexpected_indirection_and_gate_removals(self):
+        baseline,sources,build = self.source_fixture()
+        # Valid implementation bytes must never authorize an undeclared proxy.
+        for slot in (o.IMPLEMENTATION_SLOT,o.BEACON_SLOT):
+            changed = copy.deepcopy(sources)
+            changed[GTOKEN]['implementation'] = IMPL if slot == o.IMPLEMENTATION_SLOT else GTOKEN
+            def rpc(method,params):
+                if method == 'eth_getStorageAt' and params == [GTOKEN,slot,self.pin['stateBlock']]:
+                    return raw([int(IMPL,16)])
+                return baseline(method,params)
+            with self.subTest(slot=slot),patch.object(o,'deployed_build',side_effect=build):
+                action = lambda:o.deployed_inventory(rpc,self.pin,changed)
+                with self.assertRaises(a.Gate) as caught: action()
+                self.assertEqual(caught.exception.record['gate'],'unexpected_proxy')
+                removed_probe(self,action,'unexpected_proxy')
+        def clone_rpc(method,params):
+            if method == 'eth_getCode' and params == [GTOKEN,self.pin['stateBlock']]: return CLONE
+            return baseline(method,params)
+        def clone_build(commit,name):
+            result = build(commit,name)
+            if name == 'GToken': result['artifact']['deployedBytecode']['object'] = CLONE
+            return result
+        with patch.object(o,'deployed_build',side_effect=clone_build):
+            action = lambda:o.deployed_inventory(clone_rpc,self.pin,sources)
+            with self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'],'old_owner_undeclared_clone')
+            removed_probe(self,action,'old_owner_undeclared_clone')
+
+    def test_role_configured_independent_coverage_and_gate_removals(self):
+        baseline = fixture_rpc(self.pin)
+        for missing_standard in (False,True):
+            def rpc(method,params):
+                result = baseline(method,params)
+                if method == 'eth_getLogs' and params[0]['topics'] == [a.keccak(o.ROLE_EVENT)]:
+                    return [row for row in result if row['topics'][1] == CUSTOM_ROLE] if missing_standard else []
+                return result
+            rpc.fork = baseline.fork
+            with self.subTest(missing_standard=missing_standard):
+                action = lambda:o.audit(rpc,self.pin,inventory())
+                with self.assertRaises(a.Gate) as caught: action()
+                self.assertEqual(caught.exception.record['gate'],'old_owner_role_extraction_empty')
+                removed_probe(self,action,'old_owner_role_extraction_empty')
+
+    def test_role_configured_coverage_per_emitter(self):
+        inv = copy.deepcopy(inventory())
+        inv['TimelockController']['roleEventTopic'] = a.keccak(o.ROLE_EVENT)
+        baseline = fixture_rpc(self.pin)
+        empty = False
+        def rpc(method,params):
+            if method == 'eth_getLogs' and params[0]['address'] == u.TL and params[0]['topics'] == [a.keccak(o.ROLE_EVENT)]:
+                if empty: return []
+                logs = baseline(method,params)
+                for row in logs:
+                    row['address'] = u.TL
+                    row['topics'][1] = inv['TimelockController']['roles'][0]['value']
+                return logs[:1]
+            return baseline(method,params)
+        rpc.fork = baseline.fork
+        o.audit(rpc,self.pin,inv)
+        empty = True
+        with self.assertRaises(a.Gate) as caught: o.audit(rpc,self.pin,inv)
+        self.assertEqual(caught.exception.record['gate'],'old_owner_role_extraction_empty')
+        removed_probe(self,lambda:o.audit(rpc,self.pin,inv),'old_owner_role_extraction_empty')
+
     def test_proxy_runtime_extra_selector_stops(self):
         baseline,sources,build = self.source_fixture()
         # Implementation remains correct; only the proxy bytecode is changed.
@@ -466,7 +543,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             sources[target]['implementation'] = impl
         for target in (u.REG,u.SP):
             def rpc(method,params):
-                if method == 'eth_getStorageAt' and params[0] in (u.REG,u.SP): return raw([int(impl,16)])
+                if method == 'eth_getStorageAt' and params[0] in (u.REG,u.SP) and params[1] == o.IMPLEMENTATION_SLOT: return raw([int(impl,16)])
                 if method == 'eth_getCode' and params == [target,self.pin['stateBlock']]: return '0x6312345678506000'+CBOR
                 return baseline(method,params)
             with patch.object(o,'deployed_build',side_effect=build):
@@ -821,7 +898,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         sources[u.SP]['implementation'] = implementation
         slot = hex(int(a.keccak('eip1967.proxy.implementation'),16)-1)
         def rpc(method,params):
-            if method == 'eth_getStorageAt' and params[0] in (u.REG,u.SP):
+            if method == 'eth_getStorageAt' and params[0] in (u.REG,u.SP) and params[1] == o.IMPLEMENTATION_SLOT:
                 self.assertEqual(params[1:],[slot,self.pin['stateBlock']])
                 return raw([int(implementation,16)])
             return baseline(method,params)

@@ -1,24 +1,63 @@
 # L-1 offline verification — DSR re-ruling, 2026-11-04
 
-No commit or network request. Registry is adopted under option (a), with the narrowed claim: on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33). Other contracts retain `deployment-record + runtime parity`.
+No commit or network request. Registry is adopted under option (a), with the narrowed claim: on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33). Only APNTsCapped retains `deployment-record + runtime parity` with committed plan/receipt references; all other targets use `behavioral-equivalence`, matching the adopted fixtures.
 
 All ten fresh implementation comparisons pass. The [immutable table and creation corroboration](DEPLOYED_SOURCE_PARITY_RESULTS.md#re-ruling-immutable-checks-2026-11-04) record 35 values, including 16 addresses checked against OLD and expected configuration. No live storage-authority or real-fork acceptance is claimed.
+
+## Follow-up: proxy allowlist and independent configuration coverage
+
+Every inventory target now reads the EIP-1967 implementation and beacon slots at
+its state pin. Only Registry and SuperPaymaster are allowlisted, with their own
+proxy runtime parity checks retained. Unexpected slot indirection STOPs at
+`unexpected_proxy`; beacon indirection also STOPs for allowlisted targets.
+Undeclared standard EIP-1167 runtimes STOP at `old_owner_undeclared_clone`.
+RoleConfigured results independently require nonempty coverage of every standard
+role for each emitter, without borrowing grant/revoke coverage.
+
+New offline regression and removal probes:
+
+| Input | Gate present | Gate removed |
+| --- | --- | --- |
+| GToken with an implementation slot and valid implementation bytes | `unexpected_proxy` STOP | accepted |
+| GToken with a beacon slot | `unexpected_proxy` STOP | accepted |
+| Undeclared GToken EIP-1167 runtime | `old_owner_undeclared_clone` STOP | caught by `metadata_cbor` |
+| Empty RoleConfigured full range and both partitions, intact grant history | `old_owner_role_extraction_empty` STOP | accepted |
+| RoleConfigured has a custom role but lacks the standard role | `old_owner_role_extraction_empty` STOP | accepted |
+| A second emitter has empty RoleConfigured results | `old_owner_role_extraction_empty` STOP | accepted |
+
+The clone removal probe reaches another gate; it is not a successful bypass.
+A separate positive test verifies both slot reads for every inventory target at
+the pin and proxy parity evidence for exactly Registry and SuperPaymaster.
+Repository-wide Markdown/JSON claim searches found no remaining current claim of
+`deployment-record + runtime parity` for a target other than APNTsCapped.
 
 ## Final suite lines
 
 Run from repository root:
 
 ```text
-old-owner: Ran 36 tests in 4.509s — OK (skipped=2)
-manifest: Ran 228 tests in 309.926s — OK (skipped=2)
-a3a exec: Ran 102 tests in 3.503s — OK
-a3a send (PTY): Ran 73 tests in 52.042s — OK
+old-owner: Ran 43 tests in 5.179s — OK (skipped=2)
+manifest: Ran 235 tests in 292.297s — OK (skipped=2)
+a3a (exec + send): Ran 175 tests in 33.232s — OK
 git diff --check: passed
 ```
 
-The two old-owner skips (also imported by manifest) require an opt-in hydrated fork. The sender suite uses a PTY; the initial pipe-based invocation stalled on terminal confirmation and was interrupted. Logs: `/private/tmp/l1-owner.log`, `/private/tmp/l1-manifest-final.log`, `/private/tmp/l1-a3a.log`, `/private/tmp/l1-a3a-send-tty.log`.
+Commands, all from repository root:
 
-## Gate-removal evidence
+```sh
+python3 -B -m unittest discover -s script/upgrade -p test_old_owner_isolation.py -q
+python3 -B -m unittest discover -s script/upgrade -p test_manifest_exec.py -q
+python3 -B -m unittest discover -s script/a3a -p 'test_*.py' -q
+```
+
+The two old-owner skips (also imported by manifest) require opt-in RPC/fork
+configuration and were not enabled for this offline run. Logs:
+`/tmp/oldowner-tests.log`, `/tmp/oldowner-manifest-final.log`,
+`/tmp/oldowner-a3a.log`. No commit was made.
+
+Final old-owner run: 108 removal trials — 72 accepted, 32 caught elsewhere, 4 structural errors. Structural errors are not successful bypasses.
+
+## Earlier gate-removal evidence (before this follow-up)
 
 88 removal trials ran: 60 accepted the bad input after removal, 26 stopped at another gate, and 2 crashed. Crashes are classified separately and are not claimed as accepted bypasses. Each negative input first hit its expected STOP gate with the checker intact.
 

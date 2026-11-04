@@ -18,6 +18,9 @@ NAMES = ('Registry', 'SuperPaymaster', 'APNTsCapped', 'TimelockController', 'GTo
 
 # Existing Sepolia deployment config; other addresses come from pinned getters.
 PAYMASTER_FACTORY = '0xa936f8e3d682b0ecf280e6f5c05ff4204ee87180'
+VERIFIED_PROXIES = frozenset((u.REG, u.SP))
+IMPLEMENTATION_SLOT = hex(int(a.keccak('eip1967.proxy.implementation'),16)-1)
+BEACON_SLOT = hex(int(a.keccak('eip1967.proxy.beacon'),16)-1)
 PROXY_COMMIT = 'cf26915e032ccc9e8e02f9aaf3769afd4335027e'
 ROLE_EVENT = 'RoleConfigured(bytes32,'+u.CONFIG_TYPE+',uint256)'
 
@@ -104,7 +107,7 @@ def extract(tree, names=NAMES):
                 groups[category].append(row)
             for rows in groups.values():
                 rows.sort(key=lambda x:(x['name'],x['file']))
-            if name == 'Registry':
+            if name == 'Registry' or any(f['type'] == 'event' and f['name'] == 'RoleConfigured' for f in abi):
                 events = [f for f in abi if f['type'] == 'event' and f['name'] == 'RoleConfigured']
                 def abi_type(v):
                     return '('+','.join(abi_type(c) for c in v['components'])+')' if v['type'] == 'tuple' else v['type']
@@ -257,34 +260,48 @@ def audit(rpc, pin, inventory, fork=None):
     for source in inventory.get('deployedSources',[]):
         if source['contract'] == 'Registry':
             a.need('old_owner_registry_creation_binding',pin['registryCreation'],source['creationBlock'])
-    topic = inventory['Registry']['roleEventTopic']
-    logs = bounded_history_logs(recorded, dict(address=u.REG, fromBlock=hex(pin['registryCreation']),
-                                         toBlock=block, topics=[topic]))
-    roles, canonical_blocks = set(), {}
-    for log in logs:
-        a.need('old_owner_role_log_address', log.get('address'), u.REG)
-        a.need('old_owner_role_log_removed', log.get('removed',False), False)
-        topics = log.get('topics',[])
-        a.need('old_owner_role_log_topics', len(topics), 2)
-        a.need('old_owner_role_log_topic', topics[0], topic)
-        role = a.typed(topics[1],a.HASH32)
-        number = a.typed(log.get('blockNumber'),a.QTY)
-        a.need('old_owner_role_log_range', pin['registryCreation'] <= a.qty(number) <= a.qty(block), True)
-        if number not in canonical_blocks:
-            canonical_blocks[number] = recorded('eth_getBlockByNumber',[number,False])
-        canonical = canonical_blocks[number]
-        a.need('old_owner_role_log_canonical', a.typed(log.get('blockHash'),a.HASH32), canonical['hash'])
-        a.need('old_owner_role_log_block', canonical['number'], number)
-        roles.add(role)
-    canonical_pin()
-    standard = {r['value'] for r in inventory['Registry']['roles']}
-    a.need('old_owner_role_extraction_empty', bool(roles | set(histories[u.REG])) and standard <= roles | set(histories[u.REG]), True)
-    for role in sorted(roles-standard):
-        value = word(u.REG,'hasRole(bytes32,address)',role,OLD)
-        negative('old_owner_role_Registry_'+role,1)
-        a.need('old_owner_role_Registry_'+role,value,0)
-        role_owner(u.REG,role,'old_owner_role_admin_'+role)
-        role_control('Registry',u.REG,role)
+    configured_by_target = {}
+    configuration_targets = dict((target,name) for name,target in targets.items())
+    for name, group in pin.get('isolationExtraTargets',{}).items():
+        configuration_targets.update((target,name) for target in group)
+    for target, name in configuration_targets.items():
+        spec = inventory.get('targetInventories',{}).get(target,inventory[name])
+        if 'roleEventTopic' not in spec:
+            continue
+        creation = next((r['creationBlock'] for r in inventory.get('deployedSources',[]) if r['target'] == target), pin.get('isolationDeployments',{}).get(target))
+        if name == 'Registry':
+            creation = pin['registryCreation']
+        topic = spec['roleEventTopic']
+        logs = bounded_history_logs(recorded, dict(address=target, fromBlock=hex(creation),
+                                             toBlock=block, topics=[topic]))
+        roles, canonical_blocks = set(), {}
+        for log in logs:
+            a.need('old_owner_role_log_address', log.get('address'), target)
+            a.need('old_owner_role_log_removed', log.get('removed',False), False)
+            topics = log.get('topics',[])
+            a.need('old_owner_role_log_topics', len(topics), 2)
+            a.need('old_owner_role_log_topic', topics[0], topic)
+            role = a.typed(topics[1],a.HASH32)
+            number = a.typed(log.get('blockNumber'),a.QTY)
+            a.need('old_owner_role_log_range', creation <= a.qty(number) <= a.qty(block), True)
+            if number not in canonical_blocks:
+                canonical_blocks[number] = recorded('eth_getBlockByNumber',[number,False])
+            canonical = canonical_blocks[number]
+            a.need('old_owner_role_log_canonical', a.typed(log.get('blockHash'),a.HASH32), canonical['hash'])
+            a.need('old_owner_role_log_block', canonical['number'], number)
+            roles.add(role)
+        canonical_pin()
+        standard = {r['value'] for r in spec['roles']}
+        a.need('old_owner_role_extraction_empty', bool(roles) and standard <= roles, True)
+        configured_by_target[target] = roles
+        for role in sorted(roles-standard):
+            value = word(target,'hasRole(bytes32,address)',role,OLD)
+            negative('old_owner_role_'+name+'_'+role,1)
+            a.need('old_owner_role_'+name+'_'+role,value,0)
+            if name == 'Registry':
+                role_owner(target,role,'old_owner_role_admin_'+role)
+            role_control(name,target,role)
+    roles = configured_by_target[u.REG]
     proposer = next((r['value'] for r in inventory['TimelockController']['roles'] if r['name'] == 'PROPOSER_ROLE'), None)
     a.need('old_owner_control_role_extracted', proposer is not None, True)
     a.need('old_owner_control_authority', addr(u.SP,'owner()'), pin.get('isolationExpectedOwners',{}).get(u.SP,u.DEPLOYER))
@@ -454,10 +471,14 @@ def discover_targets(rpc, pin):
     return targets
 
 
+def is_clone(code):
+    code = code.lower()
+    return len(code) == 92 and code.startswith('0x363d3d373d3d3d363d73') and code.endswith('5af43d82803e903d91602b57fd5bf3')
+
+
 def clone_implementation(code):
     code = a.typed(code,a.HEXDATA).lower()
-    a.need('old_owner_clone_standard',len(code) == 92 and code.startswith('0x363d3d373d3d3d363d73')
-           and code.endswith('5af43d82803e903d91602b57fd5bf3'),True)
+    a.need('old_owner_clone_standard',is_clone(code),True)
     return '0x'+code[22:62]
 
 
@@ -641,10 +662,15 @@ def deployed_inventory(rpc, pin, sources):
             a.need('old_owner_creation_before',rpc('eth_getCode',[target,hex(creation-1)]),'0x')
             a.need('old_owner_creation_at',rpc('eth_getCode',[target,hex(creation)]) != '0x',True)
             code = a.typed(rpc('eth_getCode',[target,block]),a.HEXDATA)
-            slot = hex(int(a.keccak('eip1967.proxy.implementation'),16)-1)
-            implementation = u.addr_word(int(a.typed(rpc('eth_getStorageAt',[target,slot,block]),a.HASH32),16))
+            implementation_word = int(a.typed(rpc('eth_getStorageAt',[target,IMPLEMENTATION_SLOT,block]),a.HASH32),16)
+            beacon_word = int(a.typed(rpc('eth_getStorageAt',[target,BEACON_SLOT,block]),a.HASH32),16)
+            a.need('unexpected_proxy', not (implementation_word or beacon_word) or target in VERIFIED_PROXIES, True)
+            # The allowlist verifies ERC1967Proxy runtime, which does not use beacons.
+            a.need('unexpected_proxy', beacon_word == 0, True)
+            implementation = u.addr_word(implementation_word)
+            a.need('old_owner_undeclared_clone', name == 'xPNTsToken' or not is_clone(code), True)
             proxy = None
-            if target in (u.REG,u.SP):
+            if target in VERIFIED_PROXIES:
                 proxy_build = deployed_build(PROXY_COMMIT,'ERC1967Proxy')
                 proxy = dict(commit=PROXY_COMMIT, contract='ERC1967Proxy',
                              parity=runtime_parity(code,proxy_build['artifact'],expectations=immutable_expectations(target)))
