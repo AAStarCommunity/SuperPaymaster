@@ -13,7 +13,7 @@ set) are replaced in the send tests; the second endpoint can be tampered with to
 """
 import sys
 sys.dont_write_bytecode = True
-import contextlib, copy, hashlib, io, json, os, shutil, socket, stat, subprocess, tempfile, time, unittest
+import contextlib, copy, hashlib, io, json, os, re, shutil, socket, stat, subprocess, tempfile, time, unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -25,6 +25,7 @@ import manifest_send as ms  # noqa: E402
 
 m, u, a, sd = ms.m, ms.u, ms.a, ms.sd
 REAL_CAST = shutil.which('cast') or str(Path.home()/'.foundry/bin/cast')
+REAL_RUN = subprocess.run
 ANVIL = shutil.which('anvil') or str(Path.home()/'.foundry/bin/anvil')
 # Public anvil test accounts #0-#3 (well-known keys, never funded on any public chain by this repo).
 KEYS = {'deployer': '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
@@ -112,6 +113,28 @@ def generic_runtime():
 
 
 GENERIC = generic_runtime()
+
+
+@contextlib.contextmanager
+def captured_fds():
+    """Capture file descriptors 1 and 2 (this process and every child, e.g. cast's prompts and errors)."""
+    streams = []
+    saved = [os.dup(1), os.dup(2)]
+    files = [tempfile.TemporaryFile(), tempfile.TemporaryFile()]
+    sys.stdout.flush(); sys.stderr.flush()
+    try:
+        for fd, f in zip((1, 2), files):
+            os.dup2(f.fileno(), fd)
+        yield streams
+    finally:
+        sys.stdout.flush(); sys.stderr.flush()
+        for fd, s in zip((1, 2), saved):
+            os.dup2(s, fd)
+            os.close(s)
+        for f in files:
+            f.seek(0)
+            streams.append(f.read().decode(errors='replace'))
+            f.close()
 
 
 def word(v):
@@ -261,14 +284,14 @@ class AnvilCase(unittest.TestCase):
         self.out.mkdir()
         self.args = SimpleNamespace(packet=d/'plan.json', approved_sha256=self.sha, first=self.FIRST, last=self.LAST,
                                     prior=[prior], accounts=d/'accounts.json', password_file=pw/'password',
-                                    out=self.out, confirm=None, current=None)
+                                    out=self.out, confirm=None, current=None, dry_run=False)
         self.endpoints = (('primary', Endpoint(a.RPC(self.urls[0]), 'primary')),
                           ('secondary', Endpoint(a.RPC(self.urls[1]), 'secondary')))
-        self.broadcasts, self.validated, self.reads = [], [], []
+        self.broadcasts, self.validated, self.reads, self.gate_log = [], [], [], []
         self.read_failure = None
         self.after_sign = None
         self.before_broadcast = None
-        real_broadcast, real_signed = sd.broadcast, sd.signed
+        real_broadcast, real_signed = sd.broadcast, ms.signed
         def broadcast(url, raw):
             for _, ep in self.endpoints:
                 for method, params in ep.calls:
@@ -276,6 +299,7 @@ class AnvilCase(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in self.out.glob('signed.*')), sorted('signed.%s.raw' % x['step']
                              for x in json.loads((self.out/'sent.json').read_text())['sent']))
             self.broadcasts.append((url, raw))
+            self.gate_log.append('<broadcast>')
             if self.before_broadcast:
                 self.before_broadcast()
             return real_broadcast(url, raw)
@@ -292,7 +316,7 @@ class AnvilCase(unittest.TestCase):
         def validate(plan, inputs, frozen=False):
             self.validated.append((frozen, hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest()))
         for p in (mock.patch.object(sd, 'CAST', str(wrapper)), mock.patch.object(sd, 'LOCK_PATH', d/'send.lock'),
-                  mock.patch.object(sd, 'broadcast', broadcast), mock.patch.object(sd, 'signed', signed),
+                  mock.patch.object(sd, 'broadcast', broadcast), mock.patch.object(ms, 'signed', signed),
                   mock.patch.object(m, 'pre_send_reads', reads), mock.patch.object(m, 'validate_plan', validate),
                   mock.patch.object(ms, 'POLL_SECONDS', 0.05), mock.patch.object(ms, 'SECONDARY_WAIT_SECONDS', 1),
                   mock.patch.dict(os.environ, {'ETH_RPC_URL': self.urls[0], 'RPC_SECONDARY': self.urls[1]})):
@@ -315,7 +339,7 @@ class AnvilCase(unittest.TestCase):
         self.cfg.write_text(json.dumps(cfg))
 
     def phrase(self):
-        return 'SEND %s..%s %s' % (self.args.first, self.args.last or self.args.first, self.args.approved_sha256[:12])
+        return '%s %s..%s %s' % ('DRY-RUN' if self.args.dry_run else 'SEND', self.args.first, self.args.last or self.args.first, self.args.approved_sha256[:12])
 
     def send(self, typed=None):
         return ms.run(self.args, self.endpoints, self.urls, confirm=lambda _: self.phrase() if typed is None else typed)
@@ -444,6 +468,117 @@ class SendTests(AnvilCase):
     def test_endpoint_roles(self):
         self.endpoints = tuple(reversed(self.endpoints))
         self.stop('send_endpoints')
+
+    def fresh_out(self, name):
+        self.out = self.d/name
+        self.out.mkdir()
+        self.args.out = self.out
+
+    def logged(self, fn):
+        """Every need() gate name, in order, with the broadcast point marked."""
+        self.gate_log = []
+        original = a.need
+        def need(name, *args, **kw):
+            self.gate_log.append(name)
+            return original(name, *args, **kw)
+        with mock.patch.object(a, 'need', need):
+            result = fn()
+        return result, list(self.gate_log)
+
+    def test_dry_run_shares_the_live_gate_sequence(self):
+        self.args.last = self.FIRST
+        snap = self.local('evm_snapshot', [])
+        live, live_gates = self.logged(self.send)
+        self.assertEqual(live['steps'], [self.FIRST])
+        self.local('evm_revert', [snap])
+        self.broadcasts.clear()
+        self.log.unlink()
+        self.fresh_out('dry')
+        self.args.dry_run = True
+        start = self.nonce()
+        dry, dry_gates = self.logged(self.send)
+        cut = live_gates.index('<broadcast>')
+        self.assertGreater(cut, 50)
+        self.assertEqual(dry_gates, live_gates[:cut])
+        self.assertEqual((dry['status'], dry['step'], dry['broadcast']), ('DRY_RUN', self.FIRST, False))
+        self.assertEqual(self.broadcasts, [])
+        self.assertEqual(self.nonce(), start)
+        self.assertEqual(len(self.mktx_calls()), 1, 'signed in memory exactly like a live run')
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()), sorted([
+            'packet.approved.json', 'sent.json', 'gas-comparisons.json', 'result.json',
+            'unsigned.%s.json' % self.FIRST, 'decoded.%s.json' % self.FIRST]))
+        self.assertEqual(json.loads((self.out/('decoded.%s.json' % self.FIRST)).read_text())['hash'], dry['hash'])
+        self.assertEqual(len(self.comparisons()), 2)
+
+    def test_dry_run_stops_before_the_first_broadcast_of_a_range(self):
+        self.args.dry_run = True
+        result = self.send()
+        self.assertEqual(result['step'], self.FIRST)
+        self.assertEqual(self.broadcasts, [])
+        self.assertEqual([r['step'] for r in self.comparisons()], [self.FIRST, self.FIRST])
+
+    def test_dry_run_confirmation_phrase(self):
+        self.args.dry_run = True
+        self.stop('send_operator_confirmation', lambda: self.send('SEND %s..%s %s' % (self.FIRST, self.LAST, self.sha[:12])))
+
+    def test_dry_run_with_real_keystore_leaks_no_secret(self):
+        """A real `cast wallet` keystore and password file; nothing secret may reach any output or exception."""
+        home = self.d/'home'
+        keystores = home/'.foundry'/'keystores'
+        keystores.mkdir(parents=True)
+        password = 'pw-' + hashlib.sha256(b'manifest-send-leak-test').hexdigest()[:24]
+        imported = REAL_RUN([REAL_CAST, 'wallet', 'import', ACCOUNTS['deployer'], '--private-key', KEYS['deployer'],
+                             '--unsafe-password', password, '--keystore-dir', str(keystores)],
+                            capture_output=True, text=True)
+        self.assertEqual(imported.returncode, 0, imported.stderr)
+        keystore_text = (keystores/ACCOUNTS['deployer']).read_text()
+        crypto = json.loads(keystore_text)['crypto']
+        secrets = [KEYS['deployer'], KEYS['deployer'][2:], password, keystore_text, crypto['ciphertext'], crypto['kdfparams']['salt'],
+                   crypto['mac'], crypto['cipherparams']['iv']]
+        pwdir = self.d/'secret'
+        pwdir.mkdir(mode=0o700)
+        pwfile = pwdir/'password'
+        pwfile.write_text(password)
+        pwfile.chmod(0o600)
+        for name, url in zip(('a', 'b'), self.urls):
+            (self.d/name).write_text(url)
+        def argv(out, phrase):
+            return ['--packet', str(self.args.packet), '--approved-sha256', self.sha, '--first', self.FIRST,
+                    '--prior', str(self.args.prior[0]), '--rpc-file', str(self.d/'a'), '--rpc-file-secondary', str(self.d/'b'),
+                    '--accounts', str(self.args.accounts), '--password-file', str(pwfile), '--out', str(out),
+                    '--dry-run', '--confirm', phrase]
+        phrase = 'DRY-RUN %s..%s %s' % (self.FIRST, self.FIRST, self.sha[:12])
+        old = os.umask(0o022)
+        self.addCleanup(os.umask, old)
+        outputs = []
+        with mock.patch.object(sd, 'CAST', REAL_CAST), mock.patch.dict(os.environ, {'HOME': str(home), ms.ENABLE_ENV: self.sha}):
+            for out, expect in ((self.d/'ks-ok', 0), (self.d/'ks-bad', 1)):
+                if expect:
+                    pwfile.write_text('wrong-' + password)  # cast must refuse; its error text is checked too
+                self.out = out
+                with captured_fds() as streams:
+                    rc = ms.main(argv(out, phrase))
+                self.assertEqual(rc, expect, streams)
+                outputs += streams
+                outputs += [f.read_text() for f in out.rglob('*') if f.is_file()]
+            pwfile.write_text('wrong-' + password)
+            self.out = self.d/'ks-exc'
+            self.fresh_out('ks-exc')
+            self.args.password_file, self.args.dry_run = pwfile, True
+            with captured_fds() as streams:
+                with self.assertRaises(a.Gate) as caught:
+                    self.send()
+            outputs += streams + [str(caught.exception), json.dumps(caught.exception.record)]
+        result = json.loads((self.d/'ks-ok'/'result.json').read_text())
+        self.assertEqual(result['status'], 'DRY_RUN')
+        self.assertEqual(json.loads((self.d/'ks-bad'/'FAILURE.json').read_text())['gate'], 'send_sign_exit')
+        self.assertEqual(caught.exception.record['gate'], 'send_sign_exit')
+        self.assertEqual(self.broadcasts, [])
+        blob = '\n'.join(outputs).lower()
+        self.assertIn(result['hash'], blob)  # the outputs were really collected
+        for secret in secrets:
+            self.assertNotIn(secret.lower(), blob)
+        self.assertIsNone(re.search(r'02f8[0-9a-f]{120,}', blob), 'no signed transaction bytes in any output')
 
     def test_cli_end_to_end(self):
         for name, url in zip(('a', 'b'), self.urls):
@@ -953,6 +1088,59 @@ class TimingTests(unittest.TestCase):
         for limit in (130000, 130001, 21000, 1, 11, 10, 16777216):
             self.assertEqual(ms.repin_threshold(limit), int(limit*10)//11)
             self.assertLessEqual(ms.repin_threshold(limit)*1.1, limit+1e-9)
+
+
+class PasswordFileTests(unittest.TestCase):
+    """Outside the repository; mode 0600 or stricter; private directory; metadata only."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)/'pw'
+        self.dir.mkdir(mode=0o700)
+        self.file = self.dir/'password'
+        self.file.write_text('never read by the sender')
+        self.file.chmod(0o600)
+
+    def gate(self, path=None):
+        with self.assertRaises(a.Gate) as c:
+            ms.password_file_check(path or self.file)
+        return c.exception.record['gate']
+
+    def test_owner_only_modes_accepted(self):
+        for mode in (0o600, 0o400):
+            self.file.chmod(mode)
+            ms.password_file_check(self.file)
+
+    def test_mode_too_open(self):
+        for mode in (0o644, 0o640, 0o604, 0o700, 0o200, 0o000):
+            with self.subTest(mode=oct(mode)):
+                self.file.chmod(mode)
+                self.assertEqual(self.gate(), 'send_password_mode')
+
+    def test_inside_repository(self):
+        with tempfile.TemporaryDirectory(dir=str(ms.ROOT)) as inside:
+            d = Path(inside)
+            d.chmod(0o700)
+            f = d/'password'
+            f.write_text('x')
+            f.chmod(0o600)
+            self.assertEqual(self.gate(f), 'send_password_outside_repo')
+
+    def test_symlink(self):
+        link = self.dir/'link'
+        link.symlink_to(self.file)
+        self.assertEqual(self.gate(link), 'send_password_symlink')
+
+    def test_directory_open_to_others(self):
+        self.dir.chmod(0o755)
+        self.addCleanup(self.dir.chmod, 0o700)
+        self.assertEqual(self.gate(), 'send_password_dir_mode')
+
+    def test_not_a_regular_file(self):
+        self.assertEqual(self.gate(self.dir/'missing'), 'send_password_file')
+        sub = self.dir/'sub'
+        sub.mkdir(mode=0o700)
+        self.assertEqual(self.gate(sub), 'send_password_regular')
 
 
 class PacketTests(unittest.TestCase):

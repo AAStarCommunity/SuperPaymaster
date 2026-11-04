@@ -87,6 +87,12 @@ NEED = {
         'test_timelock_unscheduled_or_done': 'send_timelock_scheduled',
         'test_activation_schedule_floor': 'send_activation_schedule_floor',
     },
+    'PasswordFileTests': {
+        'test_mode_too_open': 'send_password_mode',
+        'test_inside_repository': 'send_password_outside_repo',
+        'test_symlink': 'send_password_symlink',
+        'test_directory_open_to_others': 'send_password_dir_mode',
+    },
     'PacketTests': {
         'test_approved_sha256': 'packet_approved_sha256',
         'test_stage_missing': 'packet_stage',
@@ -107,6 +113,10 @@ SOURCE = [
      "raise a.Gate(gate+'_timeout'", "(lambda *x: None)(gate+'_timeout'"),
     ('SendTests', 'test_returned_hash_mismatch', 'send_returned_hash',
      "raise a.Gate('send_returned_hash'", "(lambda *x: None)('send_returned_hash'"),
+    ('SendTests', 'test_dry_run_shares_the_live_gate_sequence', 'dry_run_stop (no broadcast)',
+     "if args.dry_run:  # the only difference", "if False:  # the only difference"),
+    ('SendTests', 'test_dry_run_with_real_keystore_leaks_no_secret', 'dry_run_stop (no broadcast)',
+     "if args.dry_run:  # the only difference", "if False:  # the only difference"),
     ('CliTests', 'test_disabled_by_default', 'disabled_by_default (rc=3)',
      "if os.environ.get(ENABLE_ENV) in (None, ''):", "if False:"),
     ('CliTests', 'test_enable_names_another_packet', 'enable_names_packet (rc=3)',

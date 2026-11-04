@@ -17,25 +17,35 @@ overrides):
   latest block number before and after the estimate, estimate, limit, threshold, and result (`pass`, `repin`,
   `over_limit`, `other_gate` or `unavailable`).
 
+## Dry run and secret handling (review of 121a5652)
+
+- `--dry-run` takes the live code path and stops right before the first broadcast. A test checks that its `need()`
+  gate sequence equals the live run's up to the broadcast.
+- A dry run with a real `cast wallet` keystore and password file shows no key, password or keystore field (ciphertext,
+  mac, salt, iv, or the whole JSON) in fd-level stdout/stderr, any `--out` file or any exception text. The same holds
+  for the wrong-password failure.
+- `password_file_check`: the file must be outside the repository (`send_password_outside_repo`) and have mode 0600 or
+  stricter (`send_password_mode`, 0400 accepted). Each rule has a negative test.
+
 ## Evidence (this commit, repository root, `A3A_ENGINE_DIR="$(dirname "$(command -v cast)")"`)
 
 Logs: `script/upgrade/manifest-send-evidence/*.log`.
 
 ```text
-test_manifest_exec.py: Ran 235 tests in 220.392s -> OK
-test_a3a_exec.py: Ran 102 tests in 2.820s -> OK
-test_sp_upgrade_exec.py: Ran 141 tests in 0.937s -> OK
-test_pop_adapter.py: Ran 53 tests in 0.248s -> OK
-test_release_evidence.py: Ran 69 tests in 3.831s -> OK
-test_a3a_send.py: Ran 73 tests in 8.370s -> OK
-test_manifest_send.py: Ran 90 tests in 50.462s -> OK
-probe_send_gates.py: SEND_GATE_PROBES PASS 71/71
+test_manifest_exec.py: Ran 235 tests in 223.181s -> OK
+test_a3a_exec.py: Ran 102 tests in 2.721s -> OK
+test_sp_upgrade_exec.py: Ran 141 tests in 0.927s -> OK
+test_pop_adapter.py: Ran 53 tests in 0.196s -> OK
+test_release_evidence.py: Ran 69 tests in 3.657s -> OK
+test_a3a_send.py: Ran 73 tests in 8.909s -> OK
+test_manifest_send.py: Ran 100 tests in 50.127s -> OK
+probe_send_gates.py: SEND_GATE_PROBES PASS 77/77
 ```
 
 ## Gate-removal probes (`probe_send_gates.py`)
 
 Each control is green with its gate. It turns red when the gate is removed: a `need` gate is suppressed by exact name,
-and a direct raise or enable check is replaced by a no-op in a mutated copy of the module source.
+and a direct raise, an enable check or the dry-run stop is replaced by a no-op in a mutated copy of the module source.
 
 | Control | Gate removed | Removal | With gate | Without gate | First failure without the gate |
 |---|---|---|---|---|---|
@@ -96,6 +106,8 @@ and a direct raise or enable check is replaced by a no-op in a mutated copy of t
 | SendTests.test_secondary_never_sees_receipt | `send_secondary_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_secondary_receipt_timeout' |
 | SendTests.test_broadcast_error_is_monitored_not_retried | `send_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_receipt_timeout' |
 | SendTests.test_returned_hash_mismatch | `send_returned_hash` | source: raise -> no-op | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_dry_run_shares_the_live_gate_sequence | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: Lists differ: ['sen[90754 chars]ding', '<broadcast>', 'send_receipt_hash', 'se[1835 chars]ity' |
+| SendTests.test_dry_run_with_real_keystore_leaks_no_secret | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: 'SENT' != 'DRY_RUN' |
 | B4Tests.test_endpoints_disagree_on_variant | `send_b4_variant_agree` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_variant_agree' |
 | B4Tests.test_apply_not_ready | `send_b4_ready` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_ready' |
 | B4Tests.test_placeholder_status_zero_is_never_allowed | `send_receipt_status` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
@@ -105,6 +117,10 @@ and a direct raise or enable check is replaced by a no-op in a mutated copy of t
 | TimingTests.test_timelock_ready | `send_timelock_ready` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | TimingTests.test_timelock_unscheduled_or_done | `send_timelock_scheduled` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | TimingTests.test_activation_schedule_floor | `send_activation_schedule_floor` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| PasswordFileTests.test_mode_too_open | `send_password_mode` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| PasswordFileTests.test_inside_repository | `send_password_outside_repo` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| PasswordFileTests.test_symlink | `send_password_symlink` | need suppressed | GREEN | RED | AssertionError: 'send_password_regular' != 'send_password_symlink' |
+| PasswordFileTests.test_directory_open_to_others | `send_password_dir_mode` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | PacketTests.test_approved_sha256 | `packet_approved_sha256` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | PacketTests.test_stage_missing | `packet_stage` | need suppressed | GREEN | RED | AssertionError: 'manifest_keys' != 'packet_stage' |
 | CliTests.test_endpoints_must_differ | `send_independent_endpoints` | need suppressed | GREEN | RED | AssertionError: 'local_error' != 'send_independent_endpoints' |

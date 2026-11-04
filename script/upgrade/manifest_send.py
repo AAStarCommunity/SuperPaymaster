@@ -10,7 +10,7 @@ Usage (one contiguous range of packet steps per run; earlier runs' sent.json fil
   MANIFEST_SEND_ENABLE=<sha256> python3 -B script/upgrade/manifest_send.py \
     --packet <plan.json> --approved-sha256 <sha256> --first A1 [--last A5] [--prior <earlier sent.json> ...] \
     --rpc-file <file: primary URL> --rpc-file-secondary <file: independent URL> \
-    --accounts <json: {"deployer": "<keystore name>", ...}> --password-file <0600 file> --out <new empty dir>
+    --accounts <json: {"deployer": "<keystore name>", ...}> --password-file <0600 file> --out <new empty dir> [--dry-run]
 
 Order of operations, each a hard stop with a named gate; nothing is retried, re-signed or repriced:
   0. Per-user lock shared with a3a_send.py (same signers); the packet is read once, its sha256 must equal
@@ -27,8 +27,10 @@ Order of operations, each a hard stop with a named gate; nothing is retried, re-
      gas-comparisons.json before the decision is acted on.
   3. `cast mktx --account <name> --password-file <path>` offline (whitelisted environment, no RPC variable);
      `cast decode-transaction` and a local keccak over stdin; every decoded field equals the packet.
-  4. Nonces re-read on both endpoints; broadcast.json ("attempting") is written; eth_sendRawTransaction once, to the
-     primary endpoint only. From here every failure is send_after_broadcast with the local hash.
+  4. Nonces re-read on both endpoints. --dry-run stops here, before the first step's broadcast: the same code path,
+     signature included, with nothing sent (result.json status DRY_RUN). Otherwise broadcast.json ("attempting") is
+     written and eth_sendRawTransaction goes once to the primary endpoint only; from here every failure is
+     send_after_broadcast with the local hash.
   5. Receipt on the primary, then the same receipt (block hash) on the secondary; status 0x1, except the B4 apply
      variant, which may mine 0x0 when its post-state holds; gasUsed <= gas; mined fields equal the packet on both.
   6. Post-state on both endpoints: the step's packet read-backs (batch read-backs for 5b/6d), Safe execution
@@ -39,7 +41,7 @@ provider text are never written or printed; records are scrubbed against both UR
 """
 import sys
 sys.dont_write_bytecode = True
-import argparse, copy, hashlib, json, os, time
+import argparse, copy, hashlib, json, os, stat, subprocess, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -56,6 +58,48 @@ SECONDARY_WAIT_SECONDS = 120
 POLL_SECONDS = 4
 DECODED_FIELDS = sd.DECODED_FIELDS
 ENDPOINTS = ('primary', 'secondary')
+ROOT = HERE.parents[1]
+
+
+def password_file_check(path):
+    """Metadata only (cast alone reads the password): a regular file of the current user, outside the repository,
+    mode 0600 or stricter (owner read required, nothing for group/other, no execute), in a directory that only the
+    current user can enter or write, so the file cannot be swapped between this check and cast's open."""
+    try:
+        info = path.lstat()
+        parent = path.parent.lstat()
+    except OSError:
+        raise a.Gate('send_password_file', 'unavailable', 'regular file owned by current user, mode 0600 or stricter') from None
+    a.need('send_password_symlink', stat.S_ISLNK(info.st_mode), False)
+    a.need('send_password_regular', stat.S_ISREG(info.st_mode), True)
+    a.need('send_password_owner', info.st_uid, os.getuid())
+    mode = stat.S_IMODE(info.st_mode)
+    a.need('send_password_mode', mode & ~0o600 == 0 and mode & 0o400 != 0, True)
+    resolved = path.resolve()
+    a.need('send_password_outside_repo', resolved != ROOT and ROOT not in resolved.parents, True)
+    a.need('send_password_dir_symlink', stat.S_ISLNK(parent.st_mode), False)
+    a.need('send_password_dir_owner', parent.st_uid, os.getuid())
+    a.need('send_password_dir_mode', stat.S_IMODE(parent.st_mode) & 0o077, 0)
+
+
+def signed(tx, account, password_file):
+    """`cast mktx --account <name> --password-file <path>` offline (a3a_send's whitelisted environment, stdin and
+    stderr left to the terminal), then a3a_send's local decode, field-by-field comparison and keccak.
+    The signed bytes are returned to the caller only; they are never written or sent here."""
+    password_file_check(password_file)
+    cmd = [sd.CAST, 'mktx', '--account', account, '--password-file', str(password_file), '--chain', str(a.CHAIN),
+           '--nonce', str(a.qty(tx['nonce'])), '--gas-limit', str(a.qty(tx['gas'])),
+           '--gas-price', str(a.qty(tx['maxFeePerGas'])), '--priority-gas-price', str(a.qty(tx['maxPriorityFeePerGas'])),
+           '--value', str(a.qty(tx['value']))]
+    cmd += ['--create', tx['data']] if tx.get('to') is None else [tx['to'], tx['data']]
+    r = subprocess.run(cmd, env=sd.signer_env(), stdout=subprocess.PIPE, text=True)
+    a.need('send_sign_exit', r.returncode, 0)
+    raw = r.stdout.strip()
+    a.need('send_sign_output', raw.startswith('0x02') and all(c in '0123456789abcdef' for c in raw[2:].lower()), True)
+    decoded = sd.decode(raw)
+    h = sd.check_signed(decoded, tx)
+    a.need('send_signed_hash', sd.local_keccak(raw), h)
+    return raw, h, decoded
 
 
 def repin_threshold(limit):
@@ -370,12 +414,14 @@ def run(args, endpoints, urls, confirm=None):
     steps = plan['steps'][first:last+1]
     for step in steps:
         a.need('send_account_named', isinstance(accounts.get(step['sender']), str) and accounts[step['sender']] != '', True)
-    sd.password_file_check(args.password_file)
+    password_file_check(args.password_file)
     context = prove_prefix(endpoints, plan, args.prior, first, args.approved_sha256, tokens)
-    phrase = 'SEND %s..%s %s' % (steps[0]['id'], steps[-1]['id'], args.approved_sha256[:12])
+    verb = 'DRY-RUN' if args.dry_run else 'SEND'
+    phrase = '%s %s..%s %s' % (verb, steps[0]['id'], steps[-1]['id'], args.approved_sha256[:12])
     typed = args.confirm
     if typed is None:
-        typed = (confirm or sd.tty_confirm)('Type "%s" to sign and send %d packet steps: ' % (phrase, len(steps))).strip()
+        typed = (confirm or sd.tty_confirm)('Type "%s" to %s %d packet steps: ' % (
+            phrase, 'sign without sending' if args.dry_run else 'sign and send', len(steps))).strip()
     a.need('send_operator_confirmation', typed, phrase)
     comparisons, sent = [], []
     def write_comparisons():
@@ -389,10 +435,15 @@ def run(args, endpoints, urls, confirm=None):
         chosen, variant = pre_signature(endpoints, plan, step, context, comparisons, write_comparisons)
         tx = chosen['tx']
         a.write_json(args.out/('unsigned.%s.json' % sid), tx)
-        raw, h, decoded = sd.signed(tx, accounts[step['sender']], args.password_file)  # in memory until broadcast
+        raw, h, decoded = signed(tx, accounts[step['sender']], args.password_file)  # in memory until broadcast
         a.write_json(args.out/('decoded.%s.json' % sid), {k: decoded.get(k) for k in DECODED_FIELDS})
         for label, rpc in endpoints:  # the only window between the gates and the broadcast is local signing
             nonce_gate(rpc, tx, 'send_final_nonce')
+        if args.dry_run:  # the only difference from a live run: no broadcast (and so nothing after it)
+            result = guard_all(dict(status='DRY_RUN', packetSha256=args.approved_sha256, step=sid, variant=variant,
+                                    hash=h, broadcast=False), urls)
+            sd.note(args.out/'result.json', lambda p: a.write_json(p, result))
+            return result
         a.write_json(args.out/('broadcast.%s.json' % sid), dict(step=sid, hash=h, outcome='attempting'))
         outcome, provider = 'unknown', None
         try:
@@ -474,6 +525,8 @@ def main(argv=None):
     p.add_argument('--password-file', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--confirm')
+    p.add_argument('--dry-run', action='store_true',
+                   help='every gate, signing in memory included, then stop before the first broadcast')
     args = p.parse_args(argv)
     args.current = None  # the step being processed, for FAILURE.json
     if os.environ[ENABLE_ENV] != args.approved_sha256:

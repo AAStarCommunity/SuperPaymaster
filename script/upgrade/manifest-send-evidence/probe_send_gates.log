@@ -57,6 +57,8 @@
 | SendTests.test_secondary_never_sees_receipt | `send_secondary_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_secondary_receipt_timeout' |
 | SendTests.test_broadcast_error_is_monitored_not_retried | `send_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_receipt_timeout' |
 | SendTests.test_returned_hash_mismatch | `send_returned_hash` | source: raise -> no-op | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_dry_run_shares_the_live_gate_sequence | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: Lists differ: ['sen[90754 chars]ding', '<broadcast>', 'send_receipt_hash', 'se[1835 chars]ity' |
+| SendTests.test_dry_run_with_real_keystore_leaks_no_secret | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: 'SENT' != 'DRY_RUN' |
 | B4Tests.test_endpoints_disagree_on_variant | `send_b4_variant_agree` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_variant_agree' |
 | B4Tests.test_apply_not_ready | `send_b4_ready` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_ready' |
 | B4Tests.test_placeholder_status_zero_is_never_allowed | `send_receipt_status` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
@@ -66,9 +68,13 @@
 | TimingTests.test_timelock_ready | `send_timelock_ready` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | TimingTests.test_timelock_unscheduled_or_done | `send_timelock_scheduled` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | TimingTests.test_activation_schedule_floor | `send_activation_schedule_floor` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| PasswordFileTests.test_mode_too_open | `send_password_mode` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| PasswordFileTests.test_inside_repository | `send_password_outside_repo` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| PasswordFileTests.test_symlink | `send_password_symlink` | need suppressed | GREEN | RED | AssertionError: 'send_password_regular' != 'send_password_symlink' |
+| PasswordFileTests.test_directory_open_to_others | `send_password_dir_mode` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | PacketTests.test_approved_sha256 | `packet_approved_sha256` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | PacketTests.test_stage_missing | `packet_stage` | need suppressed | GREEN | RED | AssertionError: 'manifest_keys' != 'packet_stage' |
 | CliTests.test_endpoints_must_differ | `send_independent_endpoints` | need suppressed | GREEN | RED | AssertionError: 'local_error' != 'send_independent_endpoints' |
 | CliTests.test_disabled_by_default | `disabled_by_default (rc=3)` | source: raise -> no-op | GREEN | RED | KeyError: 'MANIFEST_SEND_ENABLE' |
 | CliTests.test_enable_names_another_packet | `enable_names_packet (rc=3)` | source: raise -> no-op | GREEN | RED | AssertionError: 1 != 3 |
-SEND_GATE_PROBES PASS 71/71
+SEND_GATE_PROBES PASS 77/77

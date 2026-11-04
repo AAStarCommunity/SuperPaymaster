@@ -465,7 +465,7 @@ MANIFEST_SEND_ENABLE=<approved sha256> python3 -B script/upgrade/manifest_send.p
   --packet /path/to/plan.json --approved-sha256 <approved sha256> \
   --first A1 --last A5 [--prior /path/to/earlier-run/sent.json ...] \
   --rpc-file /path/to/endpoint-a-url --rpc-file-secondary /path/to/endpoint-b-url \
-  --accounts /path/to/accounts.json --password-file /path/to/0600/password --out /new/empty/dir
+  --accounts /path/to/accounts.json --password-file /path/to/0600/password --out /new/empty/dir [--dry-run]
 ```
 
 Inputs:
@@ -475,8 +475,9 @@ Inputs:
   read-back runs on both endpoints.
 - `--accounts` maps packet sender labels (`deployer`, `approver`, `executor`, `anni`) to Foundry keystore names.
   Signing uses `cast mktx --account <name> --password-file <path>` offline: a whitelisted environment, no RPC URL, and
-  never a raw key. The password file must be a regular file owned by you with mode 0600, in a 0700 directory you own.
-  The sender checks only its metadata, never its contents.
+  never a raw key. The password file must be a regular file you own, outside the repository, with mode 0600 or
+  stricter (0400 is accepted), in a directory you own that is closed to group and others. The sender checks only its
+  metadata, never its contents.
 - `--first/--last`: one contiguous range of packet steps per run. Timelock and ETA waits are never warped; a step that is
   not ready STOPs and is run later. Every step before `--first` must appear in an earlier run's `sent.json`. Each record
   is re-read on both endpoints (receipt, canonical block, mined fields equal to the packet). The executor context comes
@@ -504,6 +505,12 @@ appear on both endpoints with the same block. The status must be 1, except a B4 
 post-state holds. The step's packet read-backs then run on both endpoints before the next step starts. Any failure
 after the broadcast is `send_after_broadcast` with the hash: nothing is retried, re-signed or repriced. Records are
 scrubbed against both URLs with the `a3a_send.py` helpers.
+
+`--dry-run` takes the same code path, including every gate, the in-memory signature, the decode/compare and the final
+nonce re-read. It stops right before the first step's broadcast and writes `result.json` with status `DRY_RUN`; its
+phrase starts with `DRY-RUN`. A test asserts that its gate sequence equals the live run's up to the broadcast. A second
+test runs a dry run with a real `cast wallet` keystore and password file, and checks that no key, password or keystore
+field appears in stdout, stderr, any file or any exception text.
 
 Debug traces (the fork's `safe_trace`, `mint_trace` and `handover_trace`) are not read live; Safe execution is checked
 from the receipt's `ExecutionSuccess` event.
