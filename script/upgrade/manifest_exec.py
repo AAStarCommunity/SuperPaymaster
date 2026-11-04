@@ -945,6 +945,10 @@ def check_governance(rpcs, pin, inputs):
             a.need('safe_gap_block', isinstance(block, dict), True)
             a.need('safe_gap_canonical', block.get('hash'), mined.get('blockHash'))
             a.need('safe_gap_block_number', block.get('number'), number)
+            index = a.qty(a.typed(mined.get('transactionIndex'), a.QTY, gate='safe_gap_receipt_identity'))
+            transactions = block.get('transactions')
+            a.need('safe_gap_block_transactions', isinstance(transactions, list), True)
+            a.need('safe_gap_block_transaction', index < len(transactions) and transactions[index] == entry['hash'], True)
             miner = a.typed(block.get('miner'), a.ADDRESS_RX, gate='safe_gap_miner')
             owners = set(a.safe_owners(hex(a.OWNER_SWAP_BLOCK - 1))) | set(row['packet']['expectedReadback']['owners'])
             a.need('safe_gap_miner_alias', miner.lower() not in {a.SAFE, tx['from']} | owners, True)
@@ -956,7 +960,12 @@ def check_governance(rpcs, pin, inputs):
             a.need('safe_gap_logs_shape', isinstance(receipt.get('logs'), list), True)
             governance_logs(receipt['logs'], row, receipt)
             base_fee = a.qty(a.typed(block.get('baseFeePerGas'), a.QTY, gate='safe_gap_base_fee'))
-            identities.append([number, block['hash'], block['miner'], mined['transactionIndex'], base_fee])
+            gas_used = a.qty(a.typed(receipt.get('gasUsed'), a.QTY, gate='safe_gap_gas_used'))
+            gas_price = a.qty(a.typed(receipt.get('effectiveGasPrice'), a.QTY, gate='safe_gap_gas_price'))
+            a.need('safe_gap_gas_used_positive', gas_used > 0, True)
+            a.need('safe_gap_effective_gas_price', gas_price, min(tx['maxFeePerGas'], base_fee + tx['maxPriorityFeePerGas']))
+            identities.append([number, block['hash'], block['miner'], mined['transactionIndex'], base_fee,
+                               gas_used, gas_price, transactions])
             diff = rpc('debug_traceTransaction', [entry['hash'], {'tracer': 'prestateTracer', 'tracerConfig': {'diffMode': True}}])
             if diff is None or (isinstance(diff, dict) and '__error' in diff):
                 continue

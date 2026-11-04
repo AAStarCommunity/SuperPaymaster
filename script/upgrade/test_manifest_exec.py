@@ -2446,6 +2446,8 @@ class SafeGovernanceTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(__file__).with_name('fixtures')/'safe-governance'
         self.chain = json.loads((self.root/'chain-reads.json').read_text())
+        self.original_hashes = {key: {endpoint: item['tx']['hash'] for endpoint, item in endpoints.items()}
+                                for key, endpoints in self.chain.items()}
         self.inputs = dict(data=json.loads((self.root/'inputs.json').read_text()))
         self.packet = json.loads((self.root/'packet-460e0244.json').read_text())
         self.pin = dict(stateBlock=hex(12060363), safeNonce=4,
@@ -2464,9 +2466,8 @@ class SafeGovernanceTests(unittest.TestCase):
     def rpc(self, endpoint):
         def read(method, params):
             for key, endpoints in self.chain.items():
-                original = json.loads((self.root/'chain-reads.json').read_text())[key][endpoint]
                 value = endpoints[endpoint]
-                if params[0] == original['tx']['hash']:
+                if params[0] == self.original_hashes[key][endpoint]:
                     return value[{'eth_getTransactionByHash':'tx', 'eth_getTransactionReceipt':'receipt', 'debug_traceTransaction':'diff'}[method]]
                 if method == 'eth_getBlockByNumber' and params[0] == value['tx']['blockNumber']:
                     return value['block']
@@ -2668,7 +2669,67 @@ class SafeGovernanceTests(unittest.TestCase):
     def test_base_fee_required_and_agreed(self):
         self.stop('safe_gap_base_fee', lambda: self.chain['A100']['a']['block'].pop('baseFeePerGas'))
         self.setUp()
-        self.stop('safe_gap_dual_identity', lambda: self.chain['A100']['b']['block'].update(baseFeePerGas='0x1b'))
+        def shift():
+            item = self.chain['A100']['b']
+            item['block']['baseFeePerGas'] = hex(a.qty(item['block']['baseFeePerGas']) + 1)
+            item['receipt']['effectiveGasPrice'] = hex(a.qty(item['receipt']['effectiveGasPrice']) + 1)
+        self.stop('safe_gap_dual_identity', shift)
+
+    def test_effective_gas_price_anchor(self):
+        for endpoint in ('a', 'b'):
+            for case in ('above_cap', 'below_base', 'off_by_one'):
+                with self.subTest(endpoint=endpoint, case=case):
+                    self.setUp()
+                    item = self.chain['A99'][endpoint]
+                    price = {'above_cap': a.qty(item['tx']['maxFeePerGas']) + 1,
+                             'below_base': a.qty(item['block']['baseFeePerGas']) - 1,
+                             'off_by_one': a.qty(item['receipt']['effectiveGasPrice']) + 1}[case]
+                    self.stop('safe_gap_effective_gas_price',
+                              lambda: item['receipt'].update(effectiveGasPrice=hex(price)))
+
+    def test_zero_gas_used(self):
+        for endpoint in ('a', 'b'):
+            with self.subTest(endpoint=endpoint):
+                self.setUp()
+                self.stop('safe_gap_gas_used_positive',
+                          lambda: self.chain['A99'][endpoint]['receipt'].update(gasUsed='0x0'))
+
+    def test_dual_receipt_gas_used(self):
+        item = self.chain['A99']['b']
+        self.stop('safe_gap_dual_identity',
+                  lambda: item['receipt'].update(gasUsed=hex(a.qty(item['receipt']['gasUsed']) + 1)))
+
+    def test_miner_absent_pre_balance(self):
+        for key in ('A99', 'A100', 'E755'):
+            with self.subTest(key=key):
+                self.setUp()
+                item = self.chain[key]['a']
+                miner = item['block']['miner']
+                item['diff']['pre'].pop(miner)
+                priority_fee = a.qty(item['receipt']['gasUsed']) * (
+                    a.qty(item['receipt']['effectiveGasPrice']) - a.qty(item['block']['baseFeePerGas']))
+                item['diff']['post'][miner]['balance'] = hex(priority_fee)
+                self.stop('safe_gap_miner_balance',
+                          lambda: item['diff']['post'][miner].update(balance=hex(priority_fee + 1)))
+
+    def test_block_transaction_membership(self):
+        for endpoint in ('a', 'b'):
+            for case, gate in [('other_index', 'safe_gap_block_transaction'),
+                               ('missing', 'safe_gap_block_transactions'),
+                               ('out_of_range', 'safe_gap_block_transaction'),
+                               ('different_list', 'safe_gap_dual_identity')]:
+                with self.subTest(endpoint=endpoint, case=case):
+                    self.setUp()
+                    def mutate():
+                        item = self.chain['A99'][endpoint]
+                        transactions = item['block']['transactions']
+                        index = a.qty(item['tx']['transactionIndex'])
+                        other = 0 if index else 1
+                        if case == 'missing': item['block'].pop('transactions')
+                        elif case == 'out_of_range': item['block']['transactions'] = []
+                        elif case == 'different_list': transactions[other] = a.ZERO32
+                        else: transactions[index], transactions[other] = transactions[other], transactions[index]
+                    self.stop(gate, mutate)
 
     def test_exact_nonce_coverage(self):
         self.stop('prepin_nonce_approver', lambda: self.pin['senders']['approver'].update(nonce=102))
@@ -2765,7 +2826,10 @@ class SafeGovernanceTests(unittest.TestCase):
     def test_dual_transaction_index(self):
         def move():
             item = self.chain['E755']['b']
-            index = hex(a.qty(item['tx']['transactionIndex']) + 1)
+            old = a.qty(item['tx']['transactionIndex'])
+            transactions = item['block']['transactions']
+            transactions[old], transactions[old + 1] = transactions[old + 1], transactions[old]
+            index = hex(old + 1)
             for obj in [item['tx'], item['receipt'], *item['receipt']['logs']]:
                 obj['transactionIndex'] = index
         self.stop('safe_gap_dual_identity', move)
