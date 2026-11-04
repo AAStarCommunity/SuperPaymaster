@@ -38,6 +38,8 @@ ENGINE = Path(os.environ.get('A3A_ENGINE_DIR', Path.home() / 'Dev/aastar/tools/f
 COMMIT = '4e8874b2bdc840929585ca73e170993c50a4a531'
 PACKET = ROOT / 'docs/release/a3a-precheck-v4/a3a-precheck.json'
 CHAIN = 11155111
+# Packet 460e0244 execTransaction block; A3a is complete before this owner swap.
+OWNER_SWAP_BLOCK = 12060359
 ACTIVATION = 1791294816
 FORK_ID = '0x6c1d9423'
 MARGIN_NUM, MARGIN_DEN = 13, 10
@@ -58,7 +60,6 @@ EIP712_IMMUTABLES = frozenset(('_cachedDomainSeparator', '_cachedChainId', '_cac
 STEP_IDS = ('S1', 'S2', 'S3', 'S4', 'S5a', 'S5b', 'S6a', 'S6b', 'S7')
 CONTROL_IDS = ('S4_before_S3', 'wrong_safe_nonce', 'early_execute', 'non_owner_queue')
 # Author decision 2026-10-30: separate Sepolia test Safe.
-SAFE_OWNERS = (EXECUTOR, APPROVER, '0x92a30ef64b0b750220b2b3bafe4f3121263d45b3')
 SENTINEL = '0x' + '00'*19 + '01'
 RELAY_ATTEMPTS, RELAY_BACKOFF = 4, 1.0  # fork relay: bounded retries of pinned reads
 RELAY_RETRY_BUDGET = 20.0  # seconds for all attempts of one request, far below anvil's fork timeout
@@ -694,7 +695,15 @@ def safe_extensions(rpc, block):
     need('safe_modules', call(rpc, SAFE, 'getModulesPaginated(address,uint256)', SENTINEL, 10, block=block), empty)
 
 
+def safe_owners(block, reviewed=None):
+    if qty(block) < OWNER_SWAP_BLOCK:
+        return (EXECUTOR, APPROVER, '0x92a30ef64b0b750220b2b3bafe4f3121263d45b3')
+    need('safe_owners_reviewed', reviewed is not None, True)
+    return tuple(reviewed)
+
+
 def preflight(rpc, block):
+    need('a3a_preflight_after_owner_swap', qty(block) < OWNER_SWAP_BLOCK, True)
     need('chain_id', qty(rpc('eth_chainId', [])), CHAIN)
     config = rpc('eth_config', [])
     if not isinstance(config, dict) or not isinstance(config.get('current'), dict):
@@ -719,7 +728,7 @@ def preflight(rpc, block):
         need('safe_owner_padding', raw[i:i+12].hex(), '00'*12)
     owners = ['0x' + raw[i:i+32].hex()[-40:] for i in range(64, len(raw), 32)]
     snapshot = json.loads((PACKET.parent / 'snapshot.json').read_text())['snapshot']
-    need('safe_owners', sorted(owners), sorted(SAFE_OWNERS))
+    need('safe_owners', sorted(owners), sorted(safe_owners(block)))
     need('safe_threshold', word(rpc, SAFE, 'getThreshold()', block=block), 2)
     safe_extensions(rpc, block)
     sp = {}

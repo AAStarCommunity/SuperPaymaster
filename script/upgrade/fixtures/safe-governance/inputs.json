@@ -1,0 +1,22 @@
+{
+  "safeGovernanceGaps": [
+    {
+      "path": "script/upgrade/fixtures/safe-governance/packet-ea2a4f09.json",
+      "sha256": "ea2a4f09a3d0ab6826c3df51db7026be150f46a43e3bed3c3fc5f527f23390c3",
+      "step": "approveHash",
+      "hash": "0x1b13246cb084a7b1a9c3f344576a17bc2bc0072abd00e97b66654c755f8f4877"
+    },
+    {
+      "path": "script/upgrade/fixtures/safe-governance/packet-460e0244.json",
+      "sha256": "460e024407694772a511b283f62442f2521b297bddfad2b823ddc2dee80654d1",
+      "step": "approveHash",
+      "hash": "0xe268fc43baeb109562d8c85e1e1e71a6eefdb32c4c23513ee39f154d4dc2dcd7"
+    },
+    {
+      "path": "script/upgrade/fixtures/safe-governance/packet-460e0244.json",
+      "sha256": "460e024407694772a511b283f62442f2521b297bddfad2b823ddc2dee80654d1",
+      "step": "execTransaction",
+      "hash": "0x3f45f5ef1987f3f625da2fb85a90c11abea2ab818a474d25245a7a1b9862b695"
+    }
+  ]
+}
