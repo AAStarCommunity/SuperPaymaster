@@ -515,7 +515,7 @@ def validate_gas_evidence(plan, step):
 
 
 def fresh_gas(rpc, step, overrides=None, timestamp=None, *, pin_block=None):
-    """Live callers omit overrides; rehearsals supply the accumulated fork effects."""
+    """Check live freshness without overrides, or pinned consistency with overrides."""
     with gas_step(step):
         tx = step['tx']
         probe_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
@@ -531,7 +531,7 @@ def fresh_gas(rpc, step, overrides=None, timestamp=None, *, pin_block=None):
             raise a.Gate('remote_fresh_estimate_unavailable', step.get('id'), str(error)) from error
         a.need('fresh_estimate', estimate <= a.qty(tx['gas']), True)
         a.need('block_gas_limit', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, block)['gasLimit']), True)
-        return dict(mode='live' if overrides is None else 'rehearsal', block=block)
+        return dict(mode='live' if overrides is None else 'pinned-consistency', block=block)
 
 
 def validate_plan(plan, frozen=True):
@@ -643,7 +643,7 @@ def reservoir_witness(rpc, tx, r):
     return witness
 
 
-def measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate):
+def remote_measurement(remote, plan, step, overrides, timestamp):
     with gas_step(step):
         tx = step['tx']
         estimate_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
@@ -652,13 +652,33 @@ def measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate):
             est = a.qty(remote('eth_estimateGas', [estimate_tx, context['block'], overrides, context['blockOverrides']]))
         except Exception as error:
             raise a.Gate('remote_estimate_unavailable', step.get('id'), str(error)) from error
-        local_est = a.qty(rpc('eth_estimateGas', [estimate_tx, 'latest']))
-        minimum, trials = mined_minimum(rpc, tx, timestamp) if tx['to'] is None else (None, [])
-        observed = dict(executionTimestamp=timestamp, estimateGas=est, localEstimateGas=local_est, minedGasMinimum=minimum)
+        observed = dict(executionTimestamp=timestamp, estimateGas=est)
         if 'externalInputs' in plan:
             observed['gasEvidence'] = dict(estimateContext=context,
                 priorSteps=[s['id'] for s in plan['steps'][:next(i for i, s in enumerate(plan['steps']) if s['id'] == step['id'])]],
                 blockGasLimit=a.qty(a.block_data(remote, plan['pin']['block'])['gasLimit']))
+        return observed
+
+
+def replay_remote_measurement(remote, plan, step, overrides, timestamp):
+    """Replay pinned evidence without consulting the fork's current state."""
+    with gas_step(step):
+        observed = remote_measurement(remote, plan, step, overrides, timestamp)
+        for key, value in observed.items():
+            a.need('replay_'+key, value, step[key])
+        validate_gas_evidence(plan, step)
+
+
+def measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate):
+    with gas_step(step):
+        tx = step['tx']
+        observed = remote_measurement(remote, plan, step, overrides, timestamp)
+        est = observed['estimateGas']
+        context = dict(block=plan['pin']['block'], stateOverrides=copy.deepcopy(overrides), blockOverrides={'time': hex(timestamp)})
+        estimate_tx = {k: v for k, v in a.tx_rpc(tx, gas_cap=MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
+        local_est = a.qty(rpc('eth_estimateGas', [estimate_tx, 'latest']))
+        minimum, trials = mined_minimum(rpc, tx, timestamp) if tx['to'] is None else (None, [])
+        observed.update(localEstimateGas=local_est, minedGasMinimum=minimum)
         if not calibrate:
             for key, value in observed.items():
                 a.need('replay_'+key, value, step[key])

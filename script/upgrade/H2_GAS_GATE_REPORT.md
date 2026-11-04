@@ -1,6 +1,6 @@
 # DSR H-2: real-chain gas gate
 
-Review-fix base: `6a615186`. Changes remain uncommitted.
+Review-fix base: `b1f52040`. Changes remain uncommitted.
 No commits, remote RPC calls, fork launches, signing, or broadcasting were performed for this change. Tests use offline fixtures and local ABI tools.
 
 ## Original survey at `9edde2b18eec455faf993d65aa81bc7a30b931c7`
@@ -25,12 +25,12 @@ The existing field names are retained: `estimateGas` means the **remote chain es
 - Shared `measure_step` now attaches manifest `gasEvidence`: exact estimate context, preceding step IDs, and real-chain pinned block gas limit. Frozen replay compares this evidence to newly measured context. Unsupported remote estimates stop at `remote_estimate_unavailable`.
 - Manifest frozen validation requires the remote measurement, matching pin, preceding prefix, state overrides for dependent steps (also when continuing from a later state block), matching time override, all three positive integer measurements, exact 13/10 margin, and the recorded block ceiling.
 - CREATE's existing mined minimum and RR witness remain additional requirements. Its exact limit remains ceil(13/10 × max(remote estimate, fork estimate, fork gas used, mined minimum)).
-- Both B4 payloads use the shared measurement mechanism. Frozen execution replays BOTH apply and placeholder against reconstructed pinned overrides before selecting either payload. Placeholder evidence is stored separately in `variantMeasurements.placeholder`, and cannot inherit missing measurements from apply. Tampered apply estimates/limits stop at `replay_estimateGas`; irrelevant nonempty overrides stop at `replay_gasEvidence`.
-- Every manifest execution path, including both B4 choices, calls measured local pre-send and remote `fresh_gas` before execution. Remote rehearsal checks request the PIN block plus accumulated state overrides and the step's time override. A live caller of `fresh_gas` omits overrides and checks actual `latest` state. The helper checks the block ceiling at the same selected block and returns `{mode, block}`; manifest execution records this as `freshGas`.
+- Both B4 payloads use the shared measurement mechanism. Frozen execution replays the REMOTE pinned measurements for BOTH apply and placeholder against reconstructed overrides, compares `estimateGas` and `gasEvidence`, and runs `validate_gas_evidence` before selecting either payload. Only the selected payload receives full replay, including the local fork estimate. A permissionless apply already reflected on the fork therefore permits placeholder selection without locally estimating the now-reverting apply. Placeholder evidence is stored separately in `variantMeasurements.placeholder`, and cannot inherit missing measurements from apply. Tampered apply estimates/limits stop at `replay_estimateGas`; irrelevant nonempty overrides stop at `replay_gasEvidence`.
+- Every manifest execution path, including both B4 choices, calls measured local pre-send and remote `fresh_gas` before execution. Remote rehearsal checks record `mode='pinned-consistency'` and request the PIN block plus accumulated state overrides and the step's time override. This repeats measurement's parameters and is a consistency check, not a freshness gate. A live caller of `fresh_gas` records `mode='live'`, omits overrides, and checks actual `latest` state. Freshness against chain changes after the pin is enforced only at live send time (`pre_send` on `latest`) and by re-pinning, not in rehearsal. Rehearsal's local `pre_send` checks only the fork's latest state; signing/sending remain disabled. The helper checks the block ceiling at the same selected block and returns `{mode, block}`; manifest execution records this as `freshGas`.
 - Measurement metadata is stripped from the deterministic stage-prefix payload, preserving staged rebuilding while retaining it in the frozen artifact.
 - Pinned Amsterdam engine selection and validation are unchanged (`4e8874b2bdc840929585ca73e170993c50a4a531`). No default Anvil measurement fallback was added.
 
-Offline evidence checks detect absent override context and replay detects changed overrides; they do not independently reconstruct a remote chain from serialized JSON. Actual provider support remains untested under the offline-only constraint. No particular step has been established as unestimatable; any such remote failure stops with the step ID and named gate, including a B4 apply that becomes unestimatable before submission.
+Offline evidence checks detect absent override context and replay detects changed overrides; they do not independently reconstruct a remote chain from serialized JSON. Actual provider support remains untested under the offline-only constraint. No particular step has been established as unestimatable; any such remote failure stops with the step ID and named gate, including a B4 apply that is unestimatable in its pinned remote context. An unselected apply is never estimated against current fork state.
 
 ## Negative controls and gate-removal probes
 
@@ -64,9 +64,9 @@ Offline in-memory source mutations and base-version comparisons produced:
 
 No source files were reverted during these checks. B4 regression controls mutate each variant independently: estimate 100000 / limit 130000 versus observed estimate 120000, and irrelevant `{ZERO_ADDRESS: {}}` evidence versus reconstructed overrides.
 
-## Final verification
+## Prior verification at 6a615186
 
-All commands ran from repository root with offline fixtures and local ABI tools only. Final output lines:
+The prior delivery recorded these offline results from repository root:
 
 ```text
 python3 -B script/upgrade/test_manifest_exec.py
@@ -93,4 +93,47 @@ python3 -B script/upgrade/probe_gas_gates.py
 GAS_GATE_PROBES PASS 6/6
 ```
 
-The focused gas/probe run passed 13 tests. All five fix-removal checks above produced the expected regression. `git diff --check` passed. HEAD remains `6a615186`; no commits were created. No remote RPC, fork launch, signing, or broadcasting was performed.
+The focused gas/probe run passed 13 tests. All five fix-removal checks above produced the expected regression. `git diff --check` passed. That delivery retained HEAD `6a615186`; no commits were created. No remote RPC, fork launch, signing, or broadcasting was performed.
+
+## Review regressions at b1f52040
+
+The RPC-only `test_b4_preapplied_real_measurement` uses real replay and selection helpers and stops at the first pre-send RPC. The fork rejects local apply estimation with `NoPendingVerifierRotation`; valid evidence reaches placeholder pre-send, while tampered apply estimates and overrides STOP before local estimation. Existing execution controls separately cover reserved nonce consumption and receipts.
+
+Fix-removal probes loaded the original HEAD functions in memory, leaving production files untouched:
+
+- Original `execute_b4`: regression RED with `NoPendingVerifierRotation`.
+- Original `fresh_gas`: regression RED because `rehearsal` differs from `pinned-consistency`.
+
+## Final offline verification at b1f52040
+
+All commands ran from repository root. Final lines:
+
+```text
+python3 -B script/upgrade/test_manifest_exec.py
+Ran 207 tests in 236.679s
+OK
+
+python3 -B script/a3a/test_a3a_exec.py
+Ran 102 tests in 3.477s
+OK
+
+python3 -B script/upgrade/test_sp_upgrade_exec.py
+Ran 141 tests in 1.711s
+OK
+
+python3 -B script/upgrade/test_pop_adapter.py
+Ran 53 tests in 0.358s
+OK
+
+python3 -B script/upgrade/test_release_evidence.py
+Ran 69 tests in 3.512s
+OK
+
+python3 -B script/upgrade/probe_gas_gates.py
+GAS_GATE_PROBES PASS 6/6
+
+FIX_REMOVAL execute_b4 RED_CONFIRMED
+FIX_REMOVAL fresh_gas RED_CONFIRMED
+```
+
+`git diff --check` passed. HEAD remains `b1f52040`; no commits were created. Only offline fixtures and local ABI tools were used.

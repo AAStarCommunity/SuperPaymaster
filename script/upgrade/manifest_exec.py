@@ -1716,22 +1716,26 @@ def select_b4(rpc, plan, step):
 
 def execute_b4(remote, rpc, plan, step, context, overrides, calibrate, out=None):
     timestamp = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
-    u.measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate)
     if calibrate:
+        u.measure_step(remote, rpc, plan, step, overrides, timestamp, True)
         # Calibration requires the unapplied fixture to measure both approved payloads.
         # Snapshot probes never consume the reserved nonce.
         step['variants']['apply'] = copy.deepcopy(step['tx'])
     placeholder = dict(id=step['id'], tx=step['variants']['placeholder'])
     if not calibrate:
         placeholder.update(step['variantMeasurements']['placeholder'])
-    u.measure_step(remote, rpc, plan, placeholder, overrides, timestamp, calibrate)
+        u.replay_remote_measurement(remote, plan, step, overrides, timestamp)
+        u.replay_remote_measurement(remote, plan, placeholder, overrides, timestamp)
     if calibrate:
+        u.measure_step(remote, rpc, plan, placeholder, overrides, timestamp, True)
         step['variantMeasurements'] = {'placeholder': {k: copy.deepcopy(v) for k, v in placeholder.items() if k not in ('id', 'tx')}}
     # Re-estimate the selected payload. A race after this gate is checked by b4_post_state.
     name, tx = select_b4(rpc, plan, step)
     selected = dict(step, tx=tx)
     if name == 'placeholder':
         selected.update(step['variantMeasurements']['placeholder'])
+    if not calibrate:
+        u.measure_step(remote, rpc, plan, selected, overrides, timestamp, False)
     pre_send(rpc, plan, selected, context, measured=True)
     fresh = u.fresh_gas(remote, selected, overrides, timestamp, pin_block=plan['pin']['block'])
     a.need('B4_block_gas', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)

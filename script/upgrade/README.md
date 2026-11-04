@@ -450,3 +450,5 @@ no Forge suites or Git commands:
 python3 -B script/upgrade/test_release_evidence.py
 ```
 
+
+Rehearsal gas checks record `mode='pinned-consistency'`: they repeat the pinned block, accumulated state overrides, and execution time used by measurement. They do not detect chain changes after the pin. Freshness is enforced only at live send time (`pre_send` on `latest`, without overrides) and by re-pinning. The live `fresh_gas` mode remains `live`; rehearsal's local pre-send checks only the fork's latest state. Manifest signing/sending remain disabled. See [the H2 gas gate report](H2_GAS_GATE_REPORT.md).

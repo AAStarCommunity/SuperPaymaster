@@ -1398,7 +1398,7 @@ class ManifestTests(unittest.TestCase):
             patch.object(a, 'mined_identity'), patch.object(a, 'trace_overrides'),
             patch.object(m, 'b4_controls', return_value=[]),
             patch.object(u, 'probe', return_value=({'status':'0x1', 'gasUsed':hex(21000)}, None)),
-            patch.object(u, 'fresh_gas', return_value={'mode': 'rehearsal', 'block': self.plan['pin']['block']}), patch.object(u, 'measure_step', side_effect=measure), patch.object(u, 'receipt', side_effect=receipt),
+            patch.object(u, 'fresh_gas', return_value={'mode': 'pinned-consistency', 'block': self.plan['pin']['block']}), patch.object(u, 'measure_step', side_effect=measure), patch.object(u, 'receipt', side_effect=receipt),
             patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}),
             patch.object(m, 'handover_trace'), patch.object(m, 'mint_trace'), patch.object(u, 'safe_trace'), patch.object(u, 'safe_exec_events'), patch.object(u, 'check_inventory'),
             patch.object(u, 'assert_frozen'), patch.object(m, 'pre_send', side_effect=pre),
@@ -1681,7 +1681,7 @@ class ManifestTests(unittest.TestCase):
                  patch.object(a, 'word', return_value=step['safeNonce']), \
                  patch.object(a, 'mined_identity'), patch.object(m, 'pre_send'), \
                  patch.object(u, 'receipt', side_effect=receipt), \
-                 patch.object(u, 'fresh_gas', return_value={'mode': 'rehearsal', 'block': self.plan['pin']['block']}), patch.object(u, 'measure_step'), \
+                 patch.object(u, 'fresh_gas', return_value={'mode': 'pinned-consistency', 'block': self.plan['pin']['block']}), patch.object(u, 'measure_step'), patch.object(u, 'replay_remote_measurement'), \
                  patch.object(u, 'probe', return_value=({'status':'0x1','gasUsed':hex(21000)}, None)), \
                  patch.object(u, 'log') as log:
                 if mode == 'wrong':
@@ -2810,7 +2810,7 @@ class GasGateControls(unittest.TestCase):
                 return dict(gasLimit=hex(200_000_000), hash='0x'+'ab'*32, number='0x123', timestamp='0x63')
             result = u.fresh_gas(rpc, self.step, overrides, 100, pin_block='0x123')
             block = 'latest' if overrides is None else '0x123'
-            mode = 'live' if overrides is None else 'rehearsal'
+            mode = 'live' if overrides is None else 'pinned-consistency'
             self.assertEqual(result, dict(mode=mode, block=block))
             self.assertEqual(calls[0][1][1:], [block] if overrides is None else
                              [block, overrides, {'time': '0x64'}])
@@ -2848,6 +2848,60 @@ class GasGateControls(unittest.TestCase):
                     self.stop(gate, lambda: m.execute_b4(
                         rpc, rpc, self.plan, self.step, {}, overrides, False))
                     select.assert_not_called()
+
+    def test_b4_preapplied_real_measurement(self):
+        # Stop at the first pre-send RPC: all replay and selection helpers are real.
+        class ReachedPreSend(Exception):
+            pass
+        self.step.update(id='B4', estimateGas=120000, localEstimateGas=120000,
+                         forkGasUsed=120000)
+        self.plan['externalInputs'] = {}
+        verifier = '0x'+'12'*20
+        self.plan['addresses'] = dict(BLSAggregator=a.SAFE, OverIssueFraudProofVerifier=verifier)
+        overrides = self.step['gasEvidence']['estimateContext']['stateOverrides']
+        self.step['tx'].update(data=a.calldata('applyFraudProofVerifier()'),
+                               gas=hex(u.margin_limit(120000)))
+        self.step['variants'] = dict(apply=copy.deepcopy(self.step['tx']),
+                                    placeholder=dict(self.step['tx'], data='0x'))
+        self.step['variantMeasurements'] = {'placeholder': {
+            k: copy.deepcopy(self.step[k]) for k in u.MEASURED_KEYS | {'gasEvidence'}}}
+        original = copy.deepcopy(self.step)
+        for tamper in (None, 'estimate', 'evidence'):
+            self.step = copy.deepcopy(original)
+            self.plan['steps'][-1] = self.step
+            if tamper == 'estimate': self.step['estimateGas'] += 1
+            if tamper == 'evidence': self.step['gasEvidence']['estimateContext']['stateOverrides'] = {a.ZERO: {}}
+            remote_payloads, local_payloads = [], []
+            def remote(method, params):
+                if method == 'eth_estimateGas':
+                    self.assertEqual(params[1:], ['0x123', overrides, {'time': hex(100)}])
+                    remote_payloads.append(params[0]['data'])
+                    return hex(120000)
+                if method == 'eth_getBlockByNumber':
+                    return dict(timestamp=hex(99), gasLimit=hex(200_000_000),
+                                hash='0x'+'ab'*32, number='0x123')
+                raise AssertionError(method)
+            def fork(method, params):
+                if method == 'eth_getBlockByNumber': return remote(method, params)
+                if method == 'eth_call': return '0x'+format(int(verifier, 16), '064x')
+                if method == 'eth_estimateGas':
+                    if params[0]['data'] != '0x': raise RuntimeError('NoPendingVerifierRotation')
+                    self.assertEqual(params[1:], ['latest'])
+                    local_payloads.append(params[0]['data'])
+                    return hex(120000)
+                if method == 'eth_chainId': raise ReachedPreSend()
+                raise AssertionError(method)
+            fork.local = True
+            with self.subTest(tamper=tamper):
+                if tamper:
+                    self.stop('replay_estimateGas' if tamper == 'estimate' else 'replay_gasEvidence',
+                        lambda: m.execute_b4(remote, fork, self.plan, self.step, {}, overrides, False))
+                    self.assertEqual(local_payloads, [])
+                else:
+                    with self.assertRaises(ReachedPreSend):
+                        m.execute_b4(remote, fork, self.plan, self.step, {}, overrides, False)
+                    self.assertEqual(local_payloads, ['0x'])
+                    self.assertEqual(remote_payloads, [self.step['tx']['data'], '0x', '0x'])
 
     def test_shared_measurement_records_remote_context_and_replays(self):
         self.plan['externalInputs'] = {}
