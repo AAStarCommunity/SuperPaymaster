@@ -384,8 +384,7 @@ def compiled_scope(tree):
             files.update(unit_files)
     for name in (*m.NAMES, 'SuperPaymasterAdminCalls'):
         require(name in roots, 'missing compiled scope root: ' + name)
-    require(all((tree / f).resolve().is_relative_to(tree.resolve()) and (tree / f).is_file()
-                for f in files), 'invalid compiled scope path')
+    files = {canonical_source_path(f, tree, scope=True) for f in files}
     return dict(contracts=list(m.NAMES), files=sorted(files)), roots, root_nodes
 
 
@@ -471,15 +470,21 @@ def storage_consistency(tree, forge, roots, nodes, details):
     return pairs
 
 
+def canonical_source_path(filename, tree, *, scope=False):
+    path = (tree / filename).resolve()
+    root = tree.resolve()
+    if scope:
+        require(path.is_relative_to(root) and path.is_file(), 'invalid compiled scope path')
+    return path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+
+
 def finding_files(item, tree):
     files = set()
     for element in item.get('elements', []):
         mapping = element.get('source_mapping', {})
         filename = mapping.get('filename_relative') or mapping.get('filename_absolute')
         if filename:
-            path = Path(filename)
-            path = (tree / path).resolve() if not path.is_absolute() else path.resolve()
-            files.add(path.relative_to(tree.resolve()).as_posix() if path.is_relative_to(tree.resolve()) else str(path))
+            files.add(canonical_source_path(filename, tree))
     require(files, 'Slither finding has no source location: ' + item['id'])
     return sorted(files)
 

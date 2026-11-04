@@ -23,7 +23,7 @@ SAMPLE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-fraud-dri
 VERIFIER_CODE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-creation.json').read_text())['creationBytecode']
 COMMITTEE = m.COMMITTEE
 OLD = m.OLD_AGGREGATOR
-ART = dict(commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
+ART = dict(scope=dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymaster.sol']), commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
     bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
 
@@ -434,6 +434,52 @@ class Round8Controls(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'], 'negative_early_swap_reason')
 
 
+class RebuiltScopeTests(unittest.TestCase):
+    def test_scope_computed_in_pinned_offline_tree_and_cached(self):
+        import subprocess
+        from test_release_evidence import compiled_fixture
+        import release_evidence
+        m.rebuild.cache_clear()
+        self.addCleanup(m.rebuild.cache_clear)
+        arts = {name: dict(bytecode=dict(object=art['bytecode']),
+                          runtimeIdentity=art['runtimeIdentity'], storageLayout=art['storageLayout'])
+                for name, art in ART['contracts'].items()}
+        arts['BLSAggregator']['ast'] = dict(nodeType='FunctionDefinition', name='version',
+            body=dict(nodeType='Literal', value=m.AGG_VERSION))
+        trees = []
+        def archive(repo, commit, tree):
+            self.assertEqual(commit, ART['commit'])
+            trees.append(tree)
+            tree.mkdir()
+        def run(command, **kwargs):
+            if command[:2] == ['git', 'rev-parse']:
+                return subprocess.CompletedProcess(command, 0, ART['commit'])
+            if '--version' in command:
+                return subprocess.CompletedProcess(command, 0, 'forge Version: 1.7.1')
+            self.assertIn('--offline', command)
+            self.assertEqual(kwargs['cwd'], trees[0])
+            self.assertEqual(kwargs['env']['FOUNDRY_PROFILE'], 'default')
+            if 'build' in command:
+                self.assertIn('--ast', command)
+                self.assertIn('--build-info', command)
+                compiled_fixture(kwargs['cwd'])
+                return subprocess.CompletedProcess(command, 0, '')
+            return subprocess.CompletedProcess(command, 0, json.dumps(ART['contracts']['BLSAggregator']['storageLayout']))
+        with patch.object(m.subprocess, 'run', side_effect=run), \
+             patch.object(a, 'archive_commit', side_effect=archive), \
+             patch.object(a, 'compile_commit', return_value=(arts, {})), \
+             patch.object(a, 'metadata_identity', return_value={}), \
+             patch.object(m, 'commitment_slot', return_value='slot'), \
+             patch.object(m, 'creation_hashes', return_value={}), \
+             patch.object(release_evidence, 'compiled_scope', wraps=release_evidence.compiled_scope) as scope:
+            built = m.rebuild()
+            self.assertIn('contracts/src/SuperPaymaster.sol', built['scope']['files'])
+            self.assertEqual(built['scope']['contracts'], list(m.NAMES))
+            self.assertIs(m.rebuild(), built)
+            scope.assert_called_once_with(trees[0])
+        self.assertFalse(trees[0].exists())
+
+
 class ManifestTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -505,10 +551,10 @@ class ManifestTests(unittest.TestCase):
             mock.start()
             self.addCleanup(mock.stop)
         self.path.write_text(json.dumps(self.data))
-        self.inputs = m.external(self.path)
         self.patch = patch.object(m, 'rebuild', return_value=ART)
         self.patch.start()
         self.addCleanup(self.patch.stop)
+        self.inputs = m.external(self.path)
         self.plan = m.build_plan(self.pin, self.inputs)
 
     def staged_chain(self):
@@ -2076,11 +2122,48 @@ class ManifestTests(unittest.TestCase):
                 m.validate_evidence_details(value, 'slither')
             self.assertEqual(caught.exception.record['gate'], 'evidence_scope_files')
         original['scope']['files'] = ['contracts/lib/Base.sol']
-        m.validate_evidence_details(original, 'slither')
-        original['findings']['outOfScope'] = [dict(id='lib', impact='High',
-            files=['contracts/lib/Base.sol'], classification='unclassified')]
         with self.assertRaises(a.Gate) as caught:
             m.validate_evidence_details(original, 'slither')
+        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
+        with patch.object(m, 'rebuild', return_value=dict(scope=copy.deepcopy(original['scope']))):
+            m.validate_evidence_details(original, 'slither')
+        original['scope']['files'] = ART['scope']['files']
+        original['findings']['outOfScope'] = [dict(id='lib', impact='High',
+            files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(original, 'slither')
+        self.assertEqual(caught.exception.record['gate'], 'evidence_outside_files')
+
+    def test_fabricated_scope_hides_high_finding(self):
+        value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        value['scope']['files'] = ['contracts/lib/Fabricated.sol']
+        value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
+            files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(value, 'slither')
+        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
+
+    def test_finding_ids_unique_across_scope_partitions(self):
+        original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        outside = dict(id='duplicate', impact='High', files=['contracts/lib/Outside.sol'],
+                       classification='unclassified')
+        for overlap in (False, True):
+            value = copy.deepcopy(original)
+            value['findings']['outOfScope'] = [outside] if overlap else [outside, outside]
+            if overlap:
+                value['findings'].update(aboveThreshold=['duplicate'], inScopeTotal=1,
+                    accepted=[dict(id='duplicate', classification='accepted', reason='reviewed')])
+            with self.subTest(overlap=overlap), self.assertRaises(a.Gate) as caught:
+                m.validate_evidence_details(value, 'slither')
+            self.assertEqual(caught.exception.record['gate'],
+                             'evidence_outside_not_reviewed' if overlap else 'evidence_outside_unique')
+
+    def test_closure_finding_cannot_be_outside(self):
+        value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
+            files=ART['scope']['files'], classification='unclassified')]
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_evidence_details(value, 'slither')
         self.assertEqual(caught.exception.record['gate'], 'evidence_outside_files')
 
     def test_evidence_full_creation_required(self):

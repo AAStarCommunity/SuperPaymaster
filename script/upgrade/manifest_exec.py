@@ -201,14 +201,17 @@ def validate_evidence_details(e, kind):
         a.need('evidence_scope_files', isinstance(files, list) and bool(files) and files == sorted(set(files))
                and all(isinstance(x, str) and not x.startswith('/') and all(part not in ('', '.', '..') for part in x.split('/'))
                        and x.endswith('.sol') for x in files), True)
+        recomputed = rebuild()['scope']
+        a.need('evidence_scope_recomputed', scope, recomputed)
         outside_ids = []
         for item in f['outOfScope']:
             a.exact_keys('evidence_outside', item, ('id', 'impact', 'files', 'classification'))
             a.need('evidence_outside_unclassified', item['classification'], 'unclassified')
-            a.need('evidence_outside_files', bool(item['files']) and not set(item['files']).intersection(files), True)
+            a.need('evidence_outside_files', bool(item['files']) and not set(item['files']).intersection(recomputed['files']), True)
             outside_ids.append(item['id'])
         a.need('evidence_outside_unique', len(outside_ids), len(set(outside_ids)))
         a.need('evidence_outside_not_reviewed', bool(set(outside_ids).intersection(ids)), False)
+        a.need('evidence_unique_findings', len(ids + outside_ids), len(set(ids + outside_ids)))
         a.need('evidence_layout_pair_count', len(e['storageLayout']), len(LAYOUT_PAIRS))
         for pair, (core, extension, reference) in zip(e['storageLayout'], LAYOUT_PAIRS):
             a.exact_keys('evidence_layout_pair', pair, ('core', 'extension', 'reference', 'testReferences', 'coreTable', 'extensionTable'))
@@ -612,6 +615,15 @@ def rebuild():
         a.archive_commit(u.ROOT, head, tree)
         env = {k: os.environ[k] for k in ('HOME', 'PATH', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SVM_HOME') if k in os.environ}
         env['FOUNDRY_PROFILE'] = 'default'
+        # Compute and cache the closure before the pinned archive is removed.
+        from release_evidence import compiled_scope, Stop
+        built = subprocess.run([str(a.REBUILD_FORGE), 'build', '--offline', '--ast', '--build-info'],
+                               cwd=tree, env=env, capture_output=True, text=True)
+        a.need('evidence_scope_build', built.returncode, 0)
+        try:
+            scope, _, _ = compiled_scope(tree)
+        except Stop as error:
+            raise a.Gate('evidence_scope_recomputed', str(error), 'valid compiled release scope') from None
         result = subprocess.run([str(a.REBUILD_FORGE), 'inspect', 'BLSAggregator', 'storage-layout', '--offline', '--json'],
             cwd=tree, env=env, capture_output=True, text=True)
         a.need('fraud_layout_inspect', result.returncode, 0)
@@ -621,7 +633,7 @@ def rebuild():
         arts['BLSAggregator']['storageLayout'] = layout
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
     a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
-    return dict(commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
+    return dict(scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
         bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']), runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})

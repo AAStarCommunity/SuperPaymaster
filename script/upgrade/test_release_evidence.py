@@ -97,6 +97,32 @@ class CompiledScopeTests(unittest.TestCase):
         second.write_text(json.dumps(other))
         return second, other
 
+    def test_symlink_scope_matches_finding_paths(self):
+        compiled_fixture(self.tree)
+        (self.tree / 'contracts/alias').symlink_to('src', target_is_directory=True)
+        path = self.tree / 'out/build-info/unit.json'
+        data = json.loads(path.read_text())
+        source = 'contracts/src/SuperPaymaster.sol'
+        alias = 'contracts/alias/SuperPaymaster.sol'
+        data['output']['sources'][source]['ast']['nodes'].append(
+            dict(nodeType='ImportDirective', absolutePath=alias))
+        data['output']['sources'][alias] = dict(ast=dict(absolutePath=alias, nodes=[]))
+        path.write_text(json.dumps(data))
+        scope, _, _ = e.compiled_scope(self.tree)
+        self.assertNotIn(alias, scope['files'])
+        self.assertIn(e.finding_files(finding('alias', alias), self.tree)[0], scope['files'])
+
+    def test_symlink_scope_escape_stops(self):
+        compiled_fixture(self.tree)
+        with tempfile.TemporaryDirectory() as outside:
+            source = self.tree / 'contracts/src/SuperPaymaster.sol'
+            target = Path(outside) / source.name
+            target.write_text('// outside')
+            source.unlink()
+            source.symlink_to(target)
+            with self.assertRaisesRegex(e.Stop, 'invalid compiled scope path'):
+                e.compiled_scope(self.tree)
+
     def test_synthetic_multi_unit_scope_and_namespace_ids(self):
         self.synthetic_units()
         scope, roots, nodes = e.compiled_scope(self.tree)
@@ -244,6 +270,10 @@ class EvidenceTests(unittest.TestCase):
         self.skip_suite = False
         self.slither_findings = []
         self.calls = []
+        self.compiled_tree = self.tree
+        rebuilt = patch.object(e.m, 'rebuild', side_effect=lambda: dict(scope=e.compiled_scope(self.compiled_tree)[0]))
+        rebuilt.start()
+        self.addCleanup(rebuilt.stop)
 
     def fake_run(self, command, **kwargs):
         command = [str(x) for x in command]
@@ -260,7 +290,8 @@ class EvidenceTests(unittest.TestCase):
             Path(command[command.index('--json') + 1]).write_text(json.dumps(dict(success=True, error=None, results=dict(detectors=self.slither_findings) if self.slither_findings else {})))
             return result(stderr=f'INFO:Slither:. analyzed (42 contracts with 101 detectors), {len(self.slither_findings)} result(s) found\n')
         if 'build' in command:
-            compiled_fixture(Path(kwargs['cwd']))
+            self.compiled_tree = Path(kwargs['cwd'])
+            compiled_fixture(self.compiled_tree)
             if hasattr(self, 'import_transitive'):
                 self.add_imported_lib(self.import_transitive)
             return result()
