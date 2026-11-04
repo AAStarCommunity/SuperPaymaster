@@ -1,7 +1,9 @@
 # Manifest live sender (`manifest_send.py`): gates, tests, probes
 
 Disabled by default and not authorised to run. A run needs DSR's review of this module and the author's separate go for
-one packet sha256, given as `MANIFEST_SEND_ENABLE=<sha256>`. `manifest_exec.py sign|send` still return 3. No key, RPC
+one packet sha256, given as `MANIFEST_SEND_ENABLE=<sha256>`. The go is the author's own phrase, which `--confirm` carries
+verbatim; `--confirm` bypasses `/dev/tty`, so nothing here is TTY-enforced. A live run records the phrase, its
+`--authorized-at` time and the packet sha256 in `authorization.json` before the first signature. `manifest_exec.py sign|send` still return 3. No key, RPC
 endpoint or public chain was used: every test runs offline against a local anvil (`--chain-id 11155111`) with the
 public anvil keys.
 
@@ -17,38 +19,66 @@ overrides):
   latest block number before and after the estimate, estimate, limit, threshold, and result (`pass`, `repin`,
   `over_limit`, `other_gate` or `unavailable`).
 
-## Dry run and secret handling (review of 121a5652)
+## Review items (jhfnetboy, at 121a5652 and b7bdaa83)
 
-- `--dry-run` takes the live code path and stops right before the first broadcast. A test checks that its `need()`
-  gate sequence equals the live run's up to the broadcast.
-- A dry run with a real `cast wallet` keystore and password file shows no key, password or keystore field (ciphertext,
-  mac, salt, iv, or the whole JSON) in fd-level stdout/stderr, any `--out` file or any exception text. The same holds
-  for the wrong-password failure.
-- `password_file_check`: the file must be outside the repository (`send_password_outside_repo`) and have mode 0600 or
-  stricter (`send_password_mode`, 0400 accepted). Each rule has a negative test.
+- **B1 dry run.** `--dry-run` takes the live code path and stops right before the first broadcast. A test checks that
+  its `need()` gate sequence equals the live run's up to the broadcast, minus the two authorization gates that only a
+  live run has.
+- **B2 leak test.** A dry run with a real `cast wallet` keystore and password file shows no key, password or keystore
+  field (ciphertext, mac, salt, iv, or the whole JSON) in fd-level stdout/stderr, any `--out` file or any exception
+  text. The same holds for the wrong-password failure.
+- **B3 password file.** `a3a_send.outside_worktrees` is shared by both senders and applies three checks:
+  - not under this repository (`send_password_outside_repo`);
+  - `git rev-parse --show-toplevel` in the file's directory, with `GIT_*` removed, must fail
+    (`send_password_git_worktree`; git not runnable is `send_password_git_unavailable`);
+  - no ancestor holds `.git` (`send_password_git_dir`).
 
-## Evidence (this commit, repository root, `A3A_ENGINE_DIR="$(dirname "$(command -v cast)")"`)
+  The mode rule is unchanged per sender: the manifest sender accepts 0600 or stricter, and a3a_send keeps exactly
+  0600. Negative tests cover each rule, in both test suites.
+- **B4 authorization.** `--confirm` carries the author's go; it is not TTY-enforced. Live runs require
+  `--authorized-at`, an ISO-8601 time with an offset (`send_authorized_at`), and the exact phrase
+  (`send_operator_confirmation`). They write and read back `authorization.json` (`send_authorization_record`) before
+  the first signature. Tests cover: missing or invalid time; wrong phrase, which writes no record; the record existing
+  before the first `cast mktx` with matching contents; a tampered write; and a dry run needing none of these.
 
-Logs: `script/upgrade/manifest-send-evidence/*.log`.
+## Evidence (this commit, repository root, `A3A_ENGINE_DIR="$(dirname "$(command -v cast)")"`, both engines)
+
+Logs: `script/upgrade/manifest-send-evidence/<engine>/*.log`; `engine.txt` shows `cast --version`.
 
 ```text
-test_manifest_exec.py: Ran 235 tests in 223.181s -> OK
-test_a3a_exec.py: Ran 102 tests in 2.721s -> OK
-test_sp_upgrade_exec.py: Ran 141 tests in 0.927s -> OK
-test_pop_adapter.py: Ran 53 tests in 0.196s -> OK
-test_release_evidence.py: Ran 69 tests in 3.657s -> OK
-test_a3a_send.py: Ran 73 tests in 8.909s -> OK
-test_manifest_send.py: Ran 100 tests in 50.127s -> OK
-probe_send_gates.py: SEND_GATE_PROBES PASS 77/77
+# foundry-1.7.1: cast Version: 1.7.1, Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
+test_manifest_exec.py: Ran 235 tests in 224.303s -> OK
+test_a3a_exec.py: Ran 102 tests in 2.756s -> OK
+test_sp_upgrade_exec.py: Ran 141 tests in 0.944s -> OK
+test_pop_adapter.py: Ran 53 tests in 0.205s -> OK
+test_release_evidence.py: Ran 69 tests in 3.025s -> OK
+test_a3a_send.py: Ran 77 tests in 8.514s -> OK
+test_manifest_send.py: Ran 108 tests in 52.581s -> OK
+probe_send_gates.py: SEND_GATE_PROBES PASS 88/88
+
+# nightly-4e8874b: cast Version: 1.8.7-nightly, Commit SHA: 4e8874b2bdc840929585ca73e170993c50a4a531
+test_manifest_exec.py: Ran 235 tests in 245.140s -> OK
+test_a3a_exec.py: Ran 102 tests in 2.809s -> OK
+test_sp_upgrade_exec.py: Ran 141 tests in 1.178s -> OK
+test_pop_adapter.py: Ran 53 tests in 0.220s -> OK
+test_release_evidence.py: Ran 69 tests in 2.863s -> OK
+test_a3a_send.py: Ran 77 tests in 9.316s -> OK
+test_manifest_send.py: Ran 108 tests in 50.008s -> OK
+probe_send_gates.py: SEND_GATE_PROBES PASS 88/88
 ```
 
 ## Gate-removal probes (`probe_send_gates.py`)
 
 Each control is green with its gate. It turns red when the gate is removed: a `need` gate is suppressed by exact name,
-and a direct raise, an enable check or the dry-run stop is replaced by a no-op in a mutated copy of the module source.
+and a direct raise, an enable check, the dry-run stop or the authorization write is replaced by a no-op in a mutated
+copy of the module source. The table is identical under both engines (Foundry 1.7.1 shown).
 
 | Control | Gate removed | Removal | With gate | Without gate | First failure without the gate |
 |---|---|---|---|---|---|
+| a3a.SenderTests.test_password_in_this_repository | `send_password_outside_repo` | need suppressed | GREEN | RED | AssertionError: 'send_password_git_worktree' != 'send_password_outside_repo' |
+| a3a.SenderTests.test_password_in_another_git_worktree | `send_password_git_worktree` | need suppressed | GREEN | RED | AssertionError: 'send_password_git_dir' != 'send_password_git_worktree' |
+| a3a.SenderTests.test_password_under_git_marker | `send_password_git_dir` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| a3a.SenderTests.test_password_git_unavailable | `send_password_git_unavailable` | source: raise -> no-op | GREEN | RED | AttributeError: 'NoneType' object has no attribute 'returncode' |
 | SendTests.test_live_estimate_over_limit | `send_live_gas_over_limit` | need suppressed | GREEN | RED | AssertionError: 'send_live_gas_repin' != 'send_live_gas_over_limit' |
 | SendTests.test_secondary_estimate_over_limit | `send_live_gas_over_limit` | need suppressed | GREEN | RED | AssertionError: 'send_live_gas_repin' != 'send_live_gas_over_limit' |
 | SendTests.test_live_estimate_requires_repin | `send_live_gas_repin` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
@@ -101,13 +131,17 @@ and a direct raise, an enable check or the dry-run stop is replaced by a no-op i
 | SendTests.test_secondary_post_nonce | `send_post_nonce` | need suppressed | GREEN | RED | AssertionError: 'send_nonce_latest' != 'send_after_broadcast' |
 | SendTests.test_post_safe_nonce | `send_post_safe_nonce` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_secondary_readback | `readback_owner()` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_live_run_requires_authorized_at | `send_authorized_at` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_authorization_record_must_read_back | `send_authorization_record` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| SendTests.test_wrong_phrase_writes_no_authorization | `send_operator_confirmation` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | SendTests.test_prior_unknown_hash | `prior_receipt_missing` | source: raise -> no-op | GREEN | RED | AssertionError: 'send_provider_receipt' != 'prior_receipt_missing' |
 | SendTests.test_prior_receipt_on_secondary | `prior_receipt_missing` | source: raise -> no-op | GREEN | RED | AssertionError: 'send_provider_receipt' != 'prior_receipt_missing' |
 | SendTests.test_secondary_never_sees_receipt | `send_secondary_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_secondary_receipt_timeout' |
 | SendTests.test_broadcast_error_is_monitored_not_retried | `send_receipt_timeout` | source: raise -> no-op | GREEN | RED | AssertionError: 'local_error' != 'send_receipt_timeout' |
 | SendTests.test_returned_hash_mismatch | `send_returned_hash` | source: raise -> no-op | GREEN | RED | AssertionError: Gate not raised |
-| SendTests.test_dry_run_shares_the_live_gate_sequence | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: Lists differ: ['sen[90754 chars]ding', '<broadcast>', 'send_receipt_hash', 'se[1835 chars]ity' |
+| SendTests.test_dry_run_shares_the_live_gate_sequence | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: Lists differ: ['sen[90864 chars]ding', '<broadcast>', 'send_receipt_hash', 'se[1835 chars]ity' |
 | SendTests.test_dry_run_with_real_keystore_leaks_no_secret | `dry_run_stop (no broadcast)` | source: raise -> no-op | GREEN | RED | AssertionError: 'SENT' != 'DRY_RUN' |
+| SendTests.test_authorization_recorded_before_the_first_signature | `authorization.json before signing` | source: raise -> no-op | GREEN | RED | AssertionError: False is not true : authorization.json must precede the first signature |
 | B4Tests.test_endpoints_disagree_on_variant | `send_b4_variant_agree` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_variant_agree' |
 | B4Tests.test_apply_not_ready | `send_b4_ready` | need suppressed | GREEN | RED | AssertionError: 'send_after_broadcast' != 'send_b4_ready' |
 | B4Tests.test_placeholder_status_zero_is_never_allowed | `send_receipt_status` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
@@ -118,9 +152,12 @@ and a direct raise, an enable check or the dry-run stop is replaced by a no-op i
 | TimingTests.test_timelock_unscheduled_or_done | `send_timelock_scheduled` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | TimingTests.test_activation_schedule_floor | `send_activation_schedule_floor` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | PasswordFileTests.test_mode_too_open | `send_password_mode` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
-| PasswordFileTests.test_inside_repository | `send_password_outside_repo` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| PasswordFileTests.test_inside_repository | `send_password_outside_repo` | need suppressed | GREEN | RED | AssertionError: 'send_password_git_worktree' != 'send_password_outside_repo' |
 | PasswordFileTests.test_symlink | `send_password_symlink` | need suppressed | GREEN | RED | AssertionError: 'send_password_regular' != 'send_password_symlink' |
+| PasswordFileTests.test_inside_another_git_worktree | `send_password_git_worktree` | need suppressed | GREEN | RED | AssertionError: 'send_password_git_dir' != 'send_password_git_worktree' |
+| PasswordFileTests.test_under_git_marker | `send_password_git_dir` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | PasswordFileTests.test_directory_open_to_others | `send_password_dir_mode` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
+| PasswordFileTests.test_git_unavailable | `send_password_git_unavailable` | source: raise -> no-op | GREEN | RED | AttributeError: 'NoneType' object has no attribute 'returncode' |
 | PacketTests.test_approved_sha256 | `packet_approved_sha256` | need suppressed | GREEN | RED | AssertionError: Gate not raised |
 | PacketTests.test_stage_missing | `packet_stage` | need suppressed | GREEN | RED | AssertionError: 'manifest_keys' != 'packet_stage' |
 | CliTests.test_endpoints_must_differ | `send_independent_endpoints` | need suppressed | GREEN | RED | AssertionError: 'local_error' != 'send_independent_endpoints' |

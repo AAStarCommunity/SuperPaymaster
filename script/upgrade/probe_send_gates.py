@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate-removal probes for manifest_send.py: each named control must be green with the gate and red without it.
+"""Gate-removal probes for manifest_send.py (and the shared password rule in a3a_send.py): each named control must be green with the gate and red without it.
 
 `need` gates are suppressed by name at runtime (a3a_exec.need skips exactly that gate name, so a computed name such
 as send_nonce_latest is suppressed wherever it is built). Direct raises and the enable checks are neutralised in a
@@ -14,9 +14,18 @@ from unittest.mock import patch
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import test_manifest_send as t  # noqa: E402
+sys.path.insert(0, str(HERE.parent/'a3a'))
+import test_a3a_send as ta  # noqa: E402
 
-SRC = (HERE/'manifest_send.py').read_text()
+SRC = {'ms': (HERE/'manifest_send.py').read_text(), 'sd': (HERE.parent/'a3a'/'a3a_send.py').read_text()}
+TEST_MODULES = {'': t, 'a3a.': ta}
 NEED = {
+    # a3a_send.py's password check carries the shared worktree rule (outside_worktrees).
+    'a3a.SenderTests': {
+        'test_password_in_this_repository': 'send_password_outside_repo',
+        'test_password_in_another_git_worktree': 'send_password_git_worktree',
+        'test_password_under_git_marker': 'send_password_git_dir',
+    },
     'SendTests': {
         'test_live_estimate_over_limit': 'send_live_gas_over_limit',
         'test_secondary_estimate_over_limit': 'send_live_gas_over_limit',
@@ -71,6 +80,9 @@ NEED = {
         'test_post_safe_nonce': 'send_post_safe_nonce',
         'test_secondary_readback': 'readback_owner()',
         'test_returned_hash_mismatch': None,  # direct raise, below
+        'test_live_run_requires_authorized_at': 'send_authorized_at',
+        'test_authorization_record_must_read_back': 'send_authorization_record',
+        'test_wrong_phrase_writes_no_authorization': 'send_operator_confirmation',
     },
     'B4Tests': {
         'test_endpoints_disagree_on_variant': 'send_b4_variant_agree',
@@ -91,6 +103,9 @@ NEED = {
         'test_mode_too_open': 'send_password_mode',
         'test_inside_repository': 'send_password_outside_repo',
         'test_symlink': 'send_password_symlink',
+        'test_inside_another_git_worktree': 'send_password_git_worktree',
+        'test_under_git_marker': 'send_password_git_dir',
+
         'test_directory_open_to_others': 'send_password_dir_mode',
     },
     'PacketTests': {
@@ -101,8 +116,12 @@ NEED = {
         'test_endpoints_must_differ': 'send_independent_endpoints',
     },
 }
-# (class, control, gate, source fragment, replacement): the fragment must occur in manifest_send.py.
+# (class, control, gate, source fragment, replacement[, module]): the fragment must occur in that module's source
+# ('ms' = manifest_send.py, the default; 'sd' = a3a_send.py).
 SOURCE = [
+    ('a3a.SenderTests', 'test_password_git_unavailable', 'send_password_git_unavailable',
+     "raise ex.Gate('send_password_git_unavailable', 'git not runnable', 'git rev-parse failing outside a worktree') from None",
+     "r = None", 'sd'),
     ('SendTests', 'test_prior_unknown_hash', 'prior_receipt_missing',
      "raise a.Gate('prior_receipt_missing'", "(lambda *x: None)('prior_receipt_missing'"),
     ('SendTests', 'test_prior_receipt_on_secondary', 'prior_receipt_missing',
@@ -117,6 +136,11 @@ SOURCE = [
      "if args.dry_run:  # the only difference", "if False:  # the only difference"),
     ('SendTests', 'test_dry_run_with_real_keystore_leaks_no_secret', 'dry_run_stop (no broadcast)',
      "if args.dry_run:  # the only difference", "if False:  # the only difference"),
+    ('PasswordFileTests', 'test_git_unavailable', 'send_password_git_unavailable',
+     "raise ex.Gate('send_password_git_unavailable', 'git not runnable', 'git rev-parse failing outside a worktree') from None",
+     "r = None", 'sd'),
+    ('SendTests', 'test_authorization_recorded_before_the_first_signature', 'authorization.json before signing',
+     "    if not args.dry_run:  # the author's go is on disk", "    if False:  # the author's go is on disk"),
     ('CliTests', 'test_disabled_by_default', 'disabled_by_default (rc=3)',
      "if os.environ.get(ENABLE_ENV) in (None, ''):", "if False:"),
     ('CliTests', 'test_enable_names_another_packet', 'enable_names_packet (rc=3)',
@@ -137,20 +161,36 @@ def run_case(cls, name):
     return 'RED', line[:110].replace('|', '/')
 
 
-def mutated(fragment, replacement):
-    src = SRC.replace(fragment, replacement)
-    assert src != SRC, fragment
-    mod = types.ModuleType('manifest_send')
-    mod.__file__ = str(HERE/'manifest_send.py')
+def mutated(fragment, replacement, which='ms'):
+    src = SRC[which].replace(fragment, replacement)
+    assert src != SRC[which], fragment
+    name, path = (('manifest_send', HERE/'manifest_send.py') if which == 'ms' else
+                  ('a3a_send', HERE.parent/'a3a'/'a3a_send.py'))
+    mod = types.ModuleType(name)
+    mod.__file__ = str(path)
     exec(compile(src, mod.__file__, 'exec'), mod.__dict__)
     return mod
 
 
+def swapped(source):
+    """Patches that put the mutated module wherever the tests and the sender look it up."""
+    which = source[2] if len(source) > 2 else 'ms'
+    mod = mutated(*source)
+    if which == 'ms':
+        return [patch.object(t, 'ms', mod)]
+    return [patch.object(t.ms, 'sd', mod), patch.object(t, 'sd', mod), patch.object(ta, 'sd', mod)]
+
+
 def main():
     rows, failed = [], []
-    classes = {name: getattr(t, name) for name in NEED}
+    names = list(NEED) + [x[0] for x in SOURCE if x[0] not in NEED]
+    classes = {}
+    for name in names:
+        prefix = 'a3a.' if name.startswith('a3a.') else ''
+        classes[name] = getattr(TEST_MODULES[prefix], name[len(prefix):])
     for cname, cls in classes.items():
-        cases = [(c, g, None) for c, g in NEED[cname].items() if g] + [(c, g, (f, r)) for k, c, g, f, r in SOURCE if k == cname]
+        cases = ([(c, g, None) for c, g in NEED.get(cname, {}).items() if g] +
+                 [(x[1], x[2], tuple(x[3:])) for x in SOURCE if x[0] == cname])
         cls.setUpClass()
         try:
             for control, gate, source in cases:
@@ -164,8 +204,14 @@ def main():
                         probe, detail = run_case(cls, control)
                     how = 'need suppressed'
                 else:
-                    with patch.object(t, 'ms', mutated(*source)):
+                    patches = swapped(source)
+                    for p in patches:
+                        p.start()
+                    try:
                         probe, detail = run_case(cls, control)
+                    finally:
+                        for p in reversed(patches):
+                            p.stop()
                     how = 'source: raise -> no-op'
                 ok = base == 'GREEN' and probe == 'RED'
                 rows.append((cname+'.'+control, gate, how, base, probe, detail or why))

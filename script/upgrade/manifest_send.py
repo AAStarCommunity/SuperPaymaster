@@ -6,11 +6,19 @@ go for the specific packet sha256. `manifest_exec.py sign|send` keep refusing wi
 manifest broadcast path, kept apart so that manifest_exec.py itself still cannot broadcast. Without the environment
 variable MANIFEST_SEND_ENABLE set to the approved packet sha256 it exits rc=3 before reading any file.
 
+Authorization: the go is the author's own phrase "SEND <first>..<last> <first 12 hex of the sha256>". Passed with
+--confirm it bypasses /dev/tty, so --confirm carries the author's go: the orchestrating session passes it only after the
+author personally sent that full phrase, verbatim, and never writes it for the author (a bare "yes" is not a go).
+Without --confirm the phrase is read from /dev/tty. A live run also needs --authorized-at (ISO-8601 with offset: when
+the phrase was received) and writes authorization.json (phrase verbatim, that time, packet sha256, range) before the
+first signature. --dry-run (phrase "DRY-RUN ...") needs neither and writes no authorization record.
+
 Usage (one contiguous range of packet steps per run; earlier runs' sent.json files prove the prefix):
   MANIFEST_SEND_ENABLE=<sha256> python3 -B script/upgrade/manifest_send.py \
     --packet <plan.json> --approved-sha256 <sha256> --first A1 [--last A5] [--prior <earlier sent.json> ...] \
     --rpc-file <file: primary URL> --rpc-file-secondary <file: independent URL> \
-    --accounts <json: {"deployer": "<keystore name>", ...}> --password-file <0600 file> --out <new empty dir> [--dry-run]
+    --accounts <json: {"deployer": "<keystore name>", ...}> --password-file <0600 file> --out <new empty dir> \
+    --confirm "<the author's phrase, verbatim>" --authorized-at <ISO-8601>   (or --dry-run)
 
 Order of operations, each a hard stop with a named gate; nothing is retried, re-signed or repriced:
   0. Per-user lock shared with a3a_send.py (same signers); the packet is read once, its sha256 must equal
@@ -41,7 +49,7 @@ provider text are never written or printed; records are scrubbed against both UR
 """
 import sys
 sys.dont_write_bytecode = True
-import argparse, copy, hashlib, json, os, stat, subprocess, time
+import argparse, copy, datetime, hashlib, json, os, stat, subprocess, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -58,12 +66,12 @@ SECONDARY_WAIT_SECONDS = 120
 POLL_SECONDS = 4
 DECODED_FIELDS = sd.DECODED_FIELDS
 ENDPOINTS = ('primary', 'secondary')
-ROOT = HERE.parents[1]
+ROOT = a.ROOT
 
 
 def password_file_check(path):
-    """Metadata only (cast alone reads the password): a regular file of the current user, outside the repository,
-    mode 0600 or stricter (owner read required, nothing for group/other, no execute), in a directory that only the
+    """Metadata only (cast alone reads the password): a regular file of the current user, outside this repository
+    and any other git worktree, mode 0600 or stricter (owner read required, nothing for group/other, no execute), in a directory that only the
     current user can enter or write, so the file cannot be swapped between this check and cast's open."""
     try:
         info = path.lstat()
@@ -75,8 +83,7 @@ def password_file_check(path):
     a.need('send_password_owner', info.st_uid, os.getuid())
     mode = stat.S_IMODE(info.st_mode)
     a.need('send_password_mode', mode & ~0o600 == 0 and mode & 0o400 != 0, True)
-    resolved = path.resolve()
-    a.need('send_password_outside_repo', resolved != ROOT and ROOT not in resolved.parents, True)
+    sd.outside_worktrees(path)  # shared with a3a_send: not in this repository nor in any other git worktree
     a.need('send_password_dir_symlink', stat.S_ISLNK(parent.st_mode), False)
     a.need('send_password_dir_owner', parent.st_uid, os.getuid())
     a.need('send_password_dir_mode', stat.S_IMODE(parent.st_mode) & 0o077, 0)
@@ -394,6 +401,16 @@ def step_range(plan, first, last):
     return i, j
 
 
+def authorization_time(value):
+    """--authorized-at: when the author's phrase was received, ISO-8601 with an explicit offset."""
+    try:
+        when = datetime.datetime.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError:
+        when = None
+    a.need('send_authorized_at', when is not None and when.tzinfo is not None, True)
+    return value
+
+
 def scrub_all(value, urls):
     for url in urls:
         value = sd.scrub(value, url)
@@ -415,6 +432,7 @@ def run(args, endpoints, urls, confirm=None):
     for step in steps:
         a.need('send_account_named', isinstance(accounts.get(step['sender']), str) and accounts[step['sender']] != '', True)
     password_file_check(args.password_file)
+    authorized_at = None if args.dry_run else authorization_time(args.authorized_at)
     context = prove_prefix(endpoints, plan, args.prior, first, args.approved_sha256, tokens)
     verb = 'DRY-RUN' if args.dry_run else 'SEND'
     phrase = '%s %s..%s %s' % (verb, steps[0]['id'], steps[-1]['id'], args.approved_sha256[:12])
@@ -423,6 +441,12 @@ def run(args, endpoints, urls, confirm=None):
         typed = (confirm or sd.tty_confirm)('Type "%s" to %s %d packet steps: ' % (
             phrase, 'sign without sending' if args.dry_run else 'sign and send', len(steps))).strip()
     a.need('send_operator_confirmation', typed, phrase)
+    if not args.dry_run:  # the author's go is on disk before the first signature of a live run
+        record = dict(phrase=typed, authorizedAt=authorized_at, packetSha256=args.approved_sha256,
+                      first=steps[0]['id'], last=steps[-1]['id'],
+                      recordedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'))
+        a.write_json(args.out/'authorization.json', record)
+        a.need('send_authorization_record', json.loads((args.out/'authorization.json').read_text()), record)
     comparisons, sent = [], []
     def write_comparisons():
         a.write_json(args.out/'gas-comparisons.json', guard_all(dict(packetSha256=args.approved_sha256,
@@ -525,6 +549,7 @@ def main(argv=None):
     p.add_argument('--password-file', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--confirm')
+    p.add_argument('--authorized-at', help='live runs: ISO-8601 time (with offset) the author sent the phrase')
     p.add_argument('--dry-run', action='store_true',
                    help='every gate, signing in memory included, then stop before the first broadcast')
     args = p.parse_args(argv)

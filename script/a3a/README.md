@@ -472,7 +472,9 @@ opt-in flags:
 
 - `--password-file PATH` passes the path to `cast mktx --account <name>
   --password-file PATH`. Before signing, it must be a regular file owned by the
-  current user, mode **0600 exactly**, and not a symlink. The sender inspects
+  current user, mode **0600 exactly**, and not a symlink. It must also be outside
+  this repository and every other git worktree (`git rev-parse --show-toplevel` in
+  its directory must fail; no ancestor holds `.git`). The sender inspects
   metadata only and never reads or logs its contents. The signer environment
   whitelist is unchanged.
 - `--confirm "SEND <step> <first 12 hex of the plan sha256>"` replaces the

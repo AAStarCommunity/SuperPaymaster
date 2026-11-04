@@ -217,6 +217,35 @@ class SenderTests(unittest.TestCase):
         finally:
             self.d.chmod(0o700)
 
+    def test_password_in_this_repository(self):
+        with tempfile.TemporaryDirectory(dir=str(ex.ROOT)) as inside:
+            d = Path(inside)
+            d.chmod(0o700)
+            self.args.password_file = d / 'password'
+            self.args.password_file.touch()
+            self.args.password_file.chmod(0o600)
+            self.refused_password('send_password_outside_repo')
+
+    def test_password_in_another_git_worktree(self):
+        repo = self.d / 'other-repo'
+        repo.mkdir(mode=0o700)
+        REAL_RUN(['git', 'init', '-q', str(repo)], check=True)
+        self.args.password_file = repo / 'password'
+        self.args.password_file.touch()
+        self.args.password_file.chmod(0o600)
+        self.refused_password('send_password_git_worktree')
+
+    def test_password_under_git_marker(self):
+        # git itself rejects this broken `.git` file, so only the ancestor check can see it.
+        (self.d / '.git').write_text('gitdir: /nonexistent\n')
+        self.password_path()
+        self.refused_password('send_password_git_dir')
+
+    def test_password_git_unavailable(self):
+        self.password_path()
+        with mock.patch.object(sd, 'GIT', str(self.d / 'no-git')):
+            self.refused_password('send_password_git_unavailable')
+
     def test_password_missing(self):
         self.args.password_file = self.d / 'missing'
         self.refused_password('send_password_file')

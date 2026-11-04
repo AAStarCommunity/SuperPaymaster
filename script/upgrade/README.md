@@ -475,15 +475,24 @@ Inputs:
   read-back runs on both endpoints.
 - `--accounts` maps packet sender labels (`deployer`, `approver`, `executor`, `anni`) to Foundry keystore names.
   Signing uses `cast mktx --account <name> --password-file <path>` offline: a whitelisted environment, no RPC URL, and
-  never a raw key. The password file must be a regular file you own, outside the repository, with mode 0600 or
-  stricter (0400 is accepted), in a directory you own that is closed to group and others. The sender checks only its
+  never a raw key. The password file must be a regular file you own, with mode 0600 or stricter (0400 is accepted),
+  in a directory you own that is closed to group and others. It must also be outside this repository and every other
+  git worktree: `git rev-parse --show-toplevel` in its directory must fail, and no ancestor directory may hold a
+  `.git` entry. The sender checks only its
   metadata, never its contents.
 - `--first/--last`: one contiguous range of packet steps per run. Timelock and ETA waits are never warped; a step that is
   not ready STOPs and is run later. Every step before `--first` must appear in an earlier run's `sent.json`. Each record
   is re-read on both endpoints (receipt, canonical block, mined fields equal to the packet). The executor context comes
   from those receipts: the passed set, the 5b upgrade block and the 6c schedule timestamp.
-- `--confirm "SEND <first>..<last> <first 12 hex of the sha256>"`, or the same phrase typed at `/dev/tty`. It is asked
-  once per run, before the first signature.
+- Authorization. The go is the author's own phrase, `SEND <first>..<last> <first 12 hex of the sha256>`. Passing it
+  as `--confirm` bypasses `/dev/tty`, so the sender does **not** enforce a terminal: `--confirm` carries the author's
+  go. The orchestrating session passes it only after the author personally sent that full phrase. It is copied
+  verbatim and never written for the author; a bare "yes" is not a go. Without `--confirm` the phrase is read from
+  `/dev/tty`. A live run also needs `--authorized-at` (ISO-8601 with an offset: when the phrase was received). It
+  writes `authorization.json` (the phrase verbatim, that time, the packet sha256 and the range) and reads it back
+  before the first signature; otherwise it STOPs (`send_operator_confirmation`, `send_authorized_at`,
+  `send_authorization_record`). `--dry-run` uses the phrase `DRY-RUN ...` and needs neither. The phrase is asked once
+  per run, before the first signature.
 
 Before **each** signature, on both endpoints:
 - the chain id;
@@ -508,7 +517,8 @@ scrubbed against both URLs with the `a3a_send.py` helpers.
 
 `--dry-run` takes the same code path, including every gate, the in-memory signature, the decode/compare and the final
 nonce re-read. It stops right before the first step's broadcast and writes `result.json` with status `DRY_RUN`; its
-phrase starts with `DRY-RUN`. A test asserts that its gate sequence equals the live run's up to the broadcast. A second
+phrase starts with `DRY-RUN`. A test asserts that its gate sequence equals the live run's up to the broadcast; the
+only exception is the two authorization gates, which live runs alone carry. A second
 test runs a dry run with a real `cast wallet` keystore and password file, and checks that no key, password or keystore
 field appears in stdout, stderr, any file or any exception text.
 

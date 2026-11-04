@@ -11,7 +11,8 @@ Usage (run by the operator in a terminal: cast asks for the keystore password, a
     --out <new empty dir>
 
 Author decision 2026-10-30, Sepolia testing only: opt-in --password-file PATH passes the path to cast
-(regular file, current user's ownership, exactly 0600, no symlink; this module never reads its contents).
+(regular file, current user's ownership, exactly 0600, no symlink, outside this repository and any git worktree;
+this module never reads its contents).
 Independent --confirm "SEND <step> <first 12 hex of the plan sha256>" replaces the /dev/tty pause.
 These options remove the human pause only: reviewed sha256, pre_send twice, local decode verification,
 no resend/reprice and one step per run still hold. Interactive operation remains the default.
@@ -55,7 +56,8 @@ DECODED_FIELDS = ('signer', 'type', 'chainId', 'nonce', 'gas', 'maxFeePerGas', '
                   'accessList', 'input', 'hash')  # what decoded.json keeps; never the signature
 SIGNER_ENV_KEYS = ('HOME', 'PATH', 'TERM', 'LANG', 'USER')
 TTY_PATH = '/dev/tty'
-LOCK_PATH = Path.home()/'.a3a_send.lock'  # one sender at a time per user (HOME); other users or machines are out of reach
+LOCK_PATH = Path.home()/'.a3a_send.lock'
+GIT = 'git'  # one sender at a time per user (HOME); other users or machines are out of reach
 
 
 def signer_env():
@@ -82,6 +84,23 @@ def role_of(plan, address):
     return roles[0]
 
 
+def outside_worktrees(path):
+    """The password file may not live in this repository or in any other git worktree, where it could be staged,
+    committed or picked up by tooling. Three independent checks: not under this repository's root; `git rev-parse
+    --show-toplevel` run in its directory (GIT_* variables removed) must fail; no ancestor holds a `.git` entry."""
+    resolved = path.resolve()
+    root = ex.ROOT.resolve()
+    ex.need('send_password_outside_repo', resolved != root and root not in resolved.parents, True)
+    env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+    try:
+        r = subprocess.run([GIT, '-C', str(resolved.parent), 'rev-parse', '--show-toplevel'], env=env,
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    except OSError:
+        raise ex.Gate('send_password_git_unavailable', 'git not runnable', 'git rev-parse failing outside a worktree') from None
+    ex.need('send_password_git_worktree', r.returncode != 0, True)
+    ex.need('send_password_git_dir', any(os.path.lexists(d/'.git') for d in (resolved.parent, *resolved.parent.parents)), False)
+
+
 def password_file_check(path):
     """Inspect metadata only; cast alone reads the password."""
     try:
@@ -92,6 +111,7 @@ def password_file_check(path):
     ex.need('send_password_regular', stat.S_ISREG(info.st_mode), True)
     ex.need('send_password_owner', info.st_uid, os.getuid())
     ex.need('send_password_mode', stat.S_IMODE(info.st_mode), 0o600)
+    outside_worktrees(path)
     # cast opens the path after this check, so the directory must be closed to everyone else as well:
     # nobody but the current user can then swap the file between the check and cast's open.
     try:

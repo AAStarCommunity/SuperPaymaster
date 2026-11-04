@@ -24,9 +24,13 @@ import test_manifest_exec as tm  # noqa: E402
 import manifest_send as ms  # noqa: E402
 
 m, u, a, sd = ms.m, ms.u, ms.a, ms.sd
-REAL_CAST = shutil.which('cast') or str(Path.home()/'.foundry/bin/cast')
+# The engine under test, as in CI: A3A_ENGINE_DIR (Foundry 1.7.1 or the pinned nightly), else PATH.
+ENGINE = os.environ.get('A3A_ENGINE_DIR')
+REAL_CAST = str(Path(ENGINE)/'cast') if ENGINE else (shutil.which('cast') or str(Path.home()/'.foundry/bin/cast'))
+ANVIL = str(Path(ENGINE)/'anvil') if ENGINE else (shutil.which('anvil') or str(Path.home()/'.foundry/bin/anvil'))
 REAL_RUN = subprocess.run
-ANVIL = shutil.which('anvil') or str(Path.home()/'.foundry/bin/anvil')
+AUTHORIZED_AT = '2026-11-04T14:00:00+00:00'
+AUTH_GATES = ('send_authorized_at', 'send_authorization_record')  # live only (author's go); dry-run has neither
 # Public anvil test accounts #0-#3 (well-known keys, never funded on any public chain by this repo).
 KEYS = {'deployer': '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
         'approver': '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
@@ -284,12 +288,13 @@ class AnvilCase(unittest.TestCase):
         self.out.mkdir()
         self.args = SimpleNamespace(packet=d/'plan.json', approved_sha256=self.sha, first=self.FIRST, last=self.LAST,
                                     prior=[prior], accounts=d/'accounts.json', password_file=pw/'password',
-                                    out=self.out, confirm=None, current=None, dry_run=False)
+                                    out=self.out, confirm=None, current=None, dry_run=False, authorized_at=AUTHORIZED_AT)
         self.endpoints = (('primary', Endpoint(a.RPC(self.urls[0]), 'primary')),
                           ('secondary', Endpoint(a.RPC(self.urls[1]), 'secondary')))
         self.broadcasts, self.validated, self.reads, self.gate_log = [], [], [], []
         self.read_failure = None
         self.after_sign = None
+        self.before_sign = None
         self.before_broadcast = None
         real_broadcast, real_signed = sd.broadcast, ms.signed
         def broadcast(url, raw):
@@ -304,6 +309,8 @@ class AnvilCase(unittest.TestCase):
                 self.before_broadcast()
             return real_broadcast(url, raw)
         def signed(tx, account, password_file=None):
+            if self.before_sign:
+                self.before_sign()
             result = real_signed(tx, account, password_file)
             if self.after_sign:
                 self.after_sign()
@@ -499,7 +506,10 @@ class SendTests(AnvilCase):
         dry, dry_gates = self.logged(self.send)
         cut = live_gates.index('<broadcast>')
         self.assertGreater(cut, 50)
-        self.assertEqual(dry_gates, live_gates[:cut])
+        # The reviewer's B4 rule adds the author's-go record to live runs only; nothing else may differ.
+        self.assertEqual([g for g in live_gates[:cut] if g in AUTH_GATES], list(AUTH_GATES))
+        self.assertEqual(dry_gates, [g for g in live_gates[:cut] if g not in AUTH_GATES])
+        self.assertFalse((self.out/'authorization.json').exists())
         self.assertEqual((dry['status'], dry['step'], dry['broadcast']), ('DRY_RUN', self.FIRST, False))
         self.assertEqual(self.broadcasts, [])
         self.assertEqual(self.nonce(), start)
@@ -509,6 +519,47 @@ class SendTests(AnvilCase):
             'unsigned.%s.json' % self.FIRST, 'decoded.%s.json' % self.FIRST]))
         self.assertEqual(json.loads((self.out/('decoded.%s.json' % self.FIRST)).read_text())['hash'], dry['hash'])
         self.assertEqual(len(self.comparisons()), 2)
+
+    def test_live_run_requires_authorized_at(self):
+        for value in (None, '', '2026-11-04T14:00:00', 'yesterday', '2026-13-01T00:00:00+00:00'):
+            with self.subTest(value=value):
+                self.args.authorized_at = value
+                self.stop('send_authorized_at')
+                self.assertFalse((self.out/'authorization.json').exists())
+                self.assertEqual(self.mktx_calls(), [])
+
+    def test_wrong_phrase_writes_no_authorization(self):
+        self.stop('send_operator_confirmation', lambda: self.send('yes'))
+        self.assertFalse((self.out/'authorization.json').exists())
+
+    def test_authorization_recorded_before_the_first_signature(self):
+        seen = []
+        def check():
+            if not seen:
+                path = self.out/'authorization.json'
+                self.assertTrue(path.exists(), 'authorization.json must precede the first signature')
+                self.assertEqual(self.mktx_calls(), [])
+                seen.append(json.loads(path.read_text()))
+        self.before_sign = check
+        self.send()
+        record = seen[0]
+        self.assertEqual({k: record[k] for k in ('phrase', 'authorizedAt', 'packetSha256', 'first', 'last')},
+                         dict(phrase=self.phrase(), authorizedAt=AUTHORIZED_AT, packetSha256=self.sha,
+                              first=self.FIRST, last=self.LAST))
+        self.assertEqual(json.loads((self.out/'authorization.json').read_text()), record)
+        self.assertEqual(len(self.mktx_calls()), 2)
+
+    def test_authorization_record_must_read_back(self):
+        real = a.write_json
+        def tampered(path, data):
+            real(path, dict(data, phrase='yes') if path.name == 'authorization.json' else data)
+        with mock.patch.object(a, 'write_json', tampered):
+            self.stop('send_authorization_record')
+
+    def test_dry_run_needs_no_authorization(self):
+        self.args.dry_run, self.args.authorized_at = True, None
+        self.assertEqual(self.send()['status'], 'DRY_RUN')
+        self.assertFalse((self.out/'authorization.json').exists())
 
     def test_dry_run_stops_before_the_first_broadcast_of_a_range(self):
         self.args.dry_run = True
@@ -586,7 +637,7 @@ class SendTests(AnvilCase):
         argv = ['--packet', str(self.args.packet), '--approved-sha256', self.sha, '--first', self.FIRST,
                 '--last', self.LAST, '--prior', str(self.args.prior[0]), '--rpc-file', str(self.d/'a'),
                 '--rpc-file-secondary', str(self.d/'b'), '--accounts', str(self.args.accounts),
-                '--password-file', str(self.args.password_file), '--out', str(self.d/'cli')]
+                '--password-file', str(self.args.password_file), '--out', str(self.d/'cli'), '--authorized-at', AUTHORIZED_AT]
         self.out = self.d/'cli'  # where the broadcast hook looks for signed bytes
         old = os.umask(0o022)
         self.addCleanup(os.umask, old)
@@ -596,7 +647,7 @@ class SendTests(AnvilCase):
             self.assertEqual(ms.main(argv+['--confirm', 'SEND %s..%s %s' % (self.FIRST, self.LAST, self.sha[:12])]), 0)
             self.assertEqual(json.loads(out.getvalue())['steps'], [self.FIRST, self.LAST])
             self.assertEqual(stat.S_IMODE((self.d/'cli').stat().st_mode), 0o700)
-            argv[-1] = str(self.d/'cli2')
+            argv[argv.index('--out')+1] = str(self.d/'cli2')
             self.out = self.d/'cli2'
             self.assertEqual(ms.main(argv+['--confirm', 'SEND']), 1)
         record = json.loads((self.d/'cli2'/'FAILURE.json').read_text())
@@ -1125,6 +1176,24 @@ class PasswordFileTests(unittest.TestCase):
             f.write_text('x')
             f.chmod(0o600)
             self.assertEqual(self.gate(f), 'send_password_outside_repo')
+
+    def test_inside_another_git_worktree(self):
+        repo = Path(self.tmp.name)/'other-repo'
+        repo.mkdir(mode=0o700)
+        REAL_RUN(['git', 'init', '-q', str(repo)], check=True)
+        f = repo/'password'
+        f.write_text('x')
+        f.chmod(0o600)
+        self.assertEqual(self.gate(f), 'send_password_git_worktree')
+
+    def test_under_git_marker(self):
+        # A broken `.git` file: git itself refuses it, so only the ancestor check sees it.
+        (self.dir/'.git').write_text('gitdir: /nonexistent\n')
+        self.assertEqual(self.gate(), 'send_password_git_dir')
+
+    def test_git_unavailable(self):
+        with mock.patch.object(sd, 'GIT', str(self.dir/'no-git')):
+            self.assertEqual(self.gate(), 'send_password_git_unavailable')
 
     def test_symlink(self):
         link = self.dir/'link'
