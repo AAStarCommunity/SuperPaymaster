@@ -27,6 +27,7 @@ CASES += [(tests.BaselineGateTests, 'test_build_'+g, g) for g in
 CASES += [(L, 'test_live_'+g, g) for g in tests.LIVE_CASES]
 CASES += [(L, 'test_precheck_'+g, g) for g in tests.PRECHECK_CASES]
 CASES += [
+    (P, 'test_pin_price_zero', 'C_price_bound'),
     (P, 'test_stage_c_boundary_and_prefix', 'prefix_boundary'),
     (P, 'test_stage_c_prefix_must_end_in_phase_c', 'prefix_boundary_last'),
     (P, 'test_stage_c_artifact_never_final', 'final_stage'),
@@ -88,7 +89,9 @@ def main(argv):
     for cls, name, gate in CASES:
         ok, _, log = run(cls, name)
         if not ok:
-            raise AssertionError(f'{name}: baseline failed\n{log}')
+            # A control that fails without suppression proves nothing about its gate.
+            print(f'BASELINE FAILED {name}\n{log}', file=sys.stderr)
+            return 1
         ok, reached, log = run(cls, name, gate)
         rows.append((cls.__name__+'.'+name, gate, 'PASS', 'red' if not ok and reached else
                      'NOT REACHED' if not reached else 'GREEN (gate not load-bearing)'))

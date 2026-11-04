@@ -95,6 +95,7 @@
 | LiveGateTests.test_precheck_precheck_renewal_mode | `precheck_renewal_mode` | PASS | red |
 | LiveGateTests.test_precheck_precheck_allowance | `precheck_allowance` | PASS | red |
 | LiveGateTests.test_precheck_precheck_total | `precheck_total` | PASS | red |
+| PhaseCTests.test_pin_price_zero | `C_price_bound` | PASS | red |
 | PhaseCTests.test_stage_c_boundary_and_prefix | `prefix_boundary` | PASS | red |
 | PhaseCTests.test_stage_c_prefix_must_end_in_phase_c | `prefix_boundary_last` | PASS | red |
 | PhaseCTests.test_stage_c_artifact_never_final | `final_stage` | PASS | red |
@@ -110,5 +111,5 @@
 | ManifestTests.test_rehearsal_phase_c_controls_complete | `phase_c_controls_complete` | PASS | red |
 | ManifestTests.test_rehearsal_after_6d_accounting | `after_6d_accounting` | PASS | red |
 | ManifestTests.test_rehearsal_accounting_unchanged_since_phase_c | `accounting_unchanged_since_phase_c` | PASS | red |
-PHASE_C_GATE_PROBES PASS 110/110 red; uncovered new gates: []
+PHASE_C_GATE_PROBES PASS 111/111 red; uncovered new gates: []
 rc=0

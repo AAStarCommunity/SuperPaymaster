@@ -824,6 +824,10 @@ PC_TREASURY = u.SAFE
 FLAG_SP_RENEW = 1
 ACCOUNT_FACTORY = '0x91e60e0613810449d098b0b5ec8b51a0fe8c8985'
 ARMS = ('SP', 'VPM', 'TPM')
+# ISuperPaymaster.OperatorConfig declaration order = the public getter's return order.
+OPERATOR_FIELDS = ('aPNTsBalance', 'isConfigured', 'isPaused', 'xPNTsToken', 'reputation', 'minTxInterval',
+                   'treasury', 'totalSpent', 'totalTxSponsored')
+OP = {name: i for i, name in enumerate(OPERATOR_FIELDS)}
 ARM_FIELDS = ('call', 'verification', 'paymasterVerification', 'postOp', 'preVerification', 'outer')
 OWNER_PREPARATION = ('C9.allowance', 'C9.total', 'C9.mode', 'C18.approve')
 PC_RUNTIMES = ('accountFactory', 'accountImplementation', 'account', 'VerifyingPaymaster', 'TokenPaymaster')
@@ -1024,9 +1028,9 @@ def phase_c_pin_gates(pin, c):
     a.need('C_price_shape', len(price), 4)
     # A pin price alone does not bound future reservations: P* bounds funding, and the
     # live cache is re-read before every Phase C transaction.
-    a.need('C_price_bound', price[0] < 2**255 and price[0] <= PC_PRICE_CAP, True)
+    a.need('C_price_bound', 0 < price[0] <= PC_PRICE_CAP, True)
     a.need('C_pricing_nonzero', p['sp']['aPNTsPriceUSD'] > 0, True)
-    a.need('C_operator_shape', len(p['sp']['deployerOperator']), 9)
+    a.need('C_operator_shape', len(p['sp']['deployerOperator']), len(OPERATOR_FIELDS))
     a.need('C2_operator_role', p['roles']['PAYMASTER_SUPER'], 1)
     a.need('C3_community', p['roles']['COMMUNITY'], 1)
     cfg = u.config(p['endUser']['roleConfig'])
@@ -1931,13 +1935,13 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         c_call('C2.approve', capped, 'approve(address,uint256)', (u.SP, delta_a),
             [word_pred(capped, 'allowance(address,address)', delta_a, D, u.SP)])
         c_call('C2.deposit', u.SP, 'deposit(uint256)', (delta_a,),
-            [word_pred(u.SP, 'operators(address)', ws['operatorTarget'], D, index=0),
+            [word_pred(u.SP, 'operators(address)', ws['operatorTarget'], D, index=OP['aPNTsBalance']),
              word_pred(u.SP, 'totalTrackedBalance()', BUFFER+delta_a), word_pred(u.SP, 'protocolRevenue()', BUFFER),
              word_pred(capped, 'balanceOf(address)', BUFFER+delta_a, u.SP),
              word_pred(capped, 'balanceOf(address)', held-delta_a, D),
              word_pred(capped, 'allowance(address,address)', 0, D, u.SP)])
     before = words[:]
-    before[0], before[2] = ws['operatorTarget'], 0
+    before[OP['aPNTsBalance']], before[OP['isPaused']] = ws['operatorTarget'], 0
     phase_c['operatorBefore'] = before
     string = lambda value: a.cast('abi-encode', 'c(string)', value)
     c_call('C3.deploy', factory, 'deployxPNTsToken(string,string,string,string,uint256,address)', (*PC_TOKEN, PC_RATE, a.ZERO),
@@ -1952,7 +1956,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
          predicate(X, 'communityName()', (), string(PC_TOKEN[2])), predicate(X, 'communityENS()', (), string(PC_TOKEN[3])),
          predicate(u.SP, 'operators(address)', (D,), before)])
     after = before[:]
-    after[1], after[3], after[6] = 1, int(X, 16), int(PC_TREASURY, 16)
+    after[OP['isConfigured']], after[OP['xPNTsToken']], after[OP['treasury']] = 1, int(X, 16), int(PC_TREASURY, 16)
     phase_c['operatorAfter'] = after
     c_call('C3.configure', u.SP, 'configureOperator(address,address)', (X, PC_TREASURY),
         [predicate(u.SP, 'operators(address)', (D,), after), word_pred(X, 'creditPolicy()', 0),
@@ -2484,7 +2488,7 @@ def phase_c_state(rpc, plan, context):
     sampled = set(plan['externalInputs']['data']['sampled'])
     for who in plan['pin']['pauseList']:
         a.need('C_sampled_unpaused' if who in sampled else 'C_unsampled_paused',
-               u.uints(a.call(rpc, u.SP, 'operators(address)', who))[2], int(who not in sampled))
+               u.uints(a.call(rpc, u.SP, 'operators(address)', who))[OP['isPaused']], int(who not in sampled))
     price_gate(rpc)
     pc = plan['phaseC']
     a.need('C_pricing_unchanged', [a.word(rpc, u.SP, 'aPNTsPriceUSD()'), a.word(rpc, u.SP, 'protocolFeeBPS()')],
@@ -2506,7 +2510,7 @@ def phase_c_pre_send(rpc, plan, step, context):
         a.need('C2_operator_role', a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('PAYMASTER_SUPER'), D), 1)
         a.need('C2_token_balance', a.word(rpc, capped, 'balanceOf(address)', D) >= pc['operatorTopUp'], True)
         expected = list(pc['operatorBefore'])
-        expected[0] = pc['operatorTarget']-pc['operatorTopUp']
+        expected[OP['aPNTsBalance']] = pc['operatorTarget']-pc['operatorTopUp']
         a.need('C_operator_before', u.uints(a.call(rpc, u.SP, 'operators(address)', D)), expected)
     if sid == 'C3.deploy':
         a.need('C3_factory_active', a.address(rpc, u.SP, 'xpntsFactory()'), factory)

@@ -102,7 +102,7 @@ test_valid_plan (__main__.ExecutorTests.test_valid_plan) ... ok
 test_transient_upstream_failure_is_retried_and_final_failure_stays_fatal (__main__.RelayRetry.test_transient_upstream_failure_is_retried_and_final_failure_stays_fatal) ... ok
 
 ----------------------------------------------------------------------
-Ran 102 tests in 4.279s
+Ran 102 tests in 6.980s
 
 OK
 rc=0

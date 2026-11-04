@@ -271,6 +271,54 @@ class PhaseCTests(unittest.TestCase):
         self.assertEqual(self.step('C3.configure')['tx']['data'], a.calldata('configureOperator(address,address)',
             pc['addresses']['X'], u.SAFE))
 
+    def test_rounding_is_up_with_non_dividing_inputs(self):
+        # Odd measurements and a non-dividing aPNTs price: ceil and floor differ at every step,
+        # and the expected values come from exact rational arithmetic, not the executor's helpers.
+        from fractions import Fraction
+        from math import ceil, floor
+        data, pin = copy.deepcopy(self.data), copy.deepcopy(self.pin)
+        arms = data['phaseC']['rehearsal']['arms']
+        arms['SP'].update(call=60001, verification=80003, paymasterVerification=120005, preVerification=50007)
+        pin['phaseC']['sp']['aPNTsPriceUSD'] = 3*10**16+7
+        pin['phaseC']['sp']['protocolFeeBPS'] = 1001
+        pc = self.build(data, pin)['phaseC']
+        raw = [arms['SP'][k] for k in ('call', 'verification', 'paymasterVerification', 'preVerification')]
+        for value in raw:
+            self.assertNotEqual(ceil(Fraction(3*value, 2)), floor(Fraction(3*value, 2)))
+        M = (sum(ceil(Fraction(3*v, 2)) for v in raw)+480000)*5*10**9
+        self.assertEqual(pc['maxPrefund']['SP'], M)
+        a0 = Fraction(M*3500*10**8*10**18, 10**8*(3*10**16+7))
+        self.assertNotEqual(ceil(a0), floor(a0))
+        self.assertEqual(pc['A0'], ceil(a0))
+        amax = Fraction(ceil(a0)*(10000+1001+1000), 10000)
+        self.assertNotEqual(ceil(amax), floor(amax))
+        self.assertEqual(pc['Amax'], ceil(amax))
+        self.assertEqual(pc['operatorTarget'], 105*ceil(amax))
+
+    def test_pin_price_zero(self):
+        pin = copy.deepcopy(self.pin)
+        pin['phaseC']['sp']['cachedPrice'] = [0, 0, 0, 8]
+        self.stop('C_price_bound', lambda: self.build(None, pin))
+
+    def test_operator_fields_match_solidity_struct(self):
+        import re
+        source = (Path(m.u.ROOT)/'contracts/src/interfaces/ISuperPaymaster.sol').read_text()
+        body = re.search(r'struct OperatorConfig \{(.*?)\n    \}', source, re.S).group(1)
+        body = re.sub(r'//[^\n]*', '', body)
+        fields = re.findall(r'^\s*\w+\s+(\w+);', body, re.M)
+        self.assertEqual(tuple(fields), m.OPERATOR_FIELDS)
+        index = {name: i for i, name in enumerate(fields)}
+        before, after = self.pc['operatorBefore'], self.pc['operatorAfter']
+        changed = {i for i, (x, y) in enumerate(zip(before, after)) if x != y}
+        self.assertEqual(changed, {index['isConfigured'], index['xPNTsToken'], index['treasury']} - (
+            {index['isConfigured']} if before[index['isConfigured']] == 1 else set()))
+        self.assertEqual(after[index['xPNTsToken']], int(self.pc['addresses']['X'], 16))
+        self.assertEqual(after[index['treasury']], int(u.SAFE, 16))
+        self.assertEqual((after[index['aPNTsBalance']], after[index['isPaused']]), (self.pc['operatorTarget'], 0))
+        pinned = self.pin['phaseC']['sp']['deployerOperator']
+        for name in ('reputation', 'minTxInterval', 'totalSpent', 'totalTxSponsored'):
+            self.assertEqual(after[index[name]], pinned[index[name]])
+
     def test_reduced_n_or_amount_is_refused(self):
         # n is never reduced to fit a budget; every amount is rebuilt from the pin.
         for key, mutate in (('manifest_phaseC', lambda p: p['phaseC'].update(attempts=99)),

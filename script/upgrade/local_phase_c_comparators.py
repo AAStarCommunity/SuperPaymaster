@@ -31,8 +31,7 @@ def rpc_factory(url):
         body = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
         req = urllib.request.Request(url, body, {'Content-Type': 'application/json'})
         reply = json.loads(opener.open(req, timeout=30).read())
-        if 'error' in reply:
-            raise RuntimeError(reply['error'])
+        a.need('local_rpc_error', reply.get('error'), None)
         return reply['result']
     rpc.local = True
     return rpc
@@ -44,7 +43,7 @@ def mined(rpc, txhash):
         if r is not None:
             return r
         time.sleep(0.05)
-    raise RuntimeError('receipt timeout '+txhash)
+    raise a.Gate('local_receipt_timeout', txhash, 'mined receipt')
 
 
 def main(baselines, entrypoint, out):
@@ -61,9 +60,13 @@ def main(baselines, entrypoint, out):
         rpc = rpc_factory('http://127.0.0.1:%d' % PORT)
         for _ in range(100):
             try:
-                rpc('eth_chainId', []); break
-            except Exception:
+                ready = int(rpc('eth_chainId', []), 16) > 0
+                break
+            except OSError:
+                # Only a refused/reset connection while anvil starts is retried.
+                ready = False
                 time.sleep(0.1)
+        a.need('local_engine_ready', ready, True)
         anvil0 = rpc('eth_accounts', [])[0]
         art = json.loads(Path(entrypoint).read_text())
         h = rpc('eth_sendTransaction', [dict(**{'from': anvil0}, data=art['bytecode']['object'], gas=hex(30_000_000))])

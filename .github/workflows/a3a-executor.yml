@@ -57,6 +57,9 @@ jobs:
       - name: Offline manifest Phase C tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_phase_c.py
+      - name: Phase C gate-removal probes (every new gate's control must turn red)
+        run: |
+          cd script/upgrade && A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B probe_phase_c_gates.py origin/main
       - name: Offline PoP adapter tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_pop_adapter.py
