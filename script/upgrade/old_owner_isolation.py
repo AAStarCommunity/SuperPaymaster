@@ -1,5 +1,6 @@
 """Pinned-source authority discovery and replayable old-owner isolation reads."""
 import json
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -17,6 +18,7 @@ NAMES = ('Registry', 'SuperPaymaster', 'APNTsCapped', 'TimelockController', 'GTo
 
 # Existing Sepolia deployment config; other addresses come from pinned getters.
 PAYMASTER_FACTORY = '0xa936f8e3d682b0ecf280e6f5c05ff4204ee87180'
+PROXY_COMMIT = 'cf26915e032ccc9e8e02f9aaf3769afd4335027e'
 ROLE_EVENT = 'RoleConfigured(bytes32,'+u.CONFIG_TYPE+',uint256)'
 
 
@@ -256,7 +258,7 @@ def audit(rpc, pin, inventory, fork=None):
         if source['contract'] == 'Registry':
             a.need('old_owner_registry_creation_binding',pin['registryCreation'],source['creationBlock'])
     topic = inventory['Registry']['roleEventTopic']
-    logs = a.schedule_logs(recorded, dict(address=u.REG, fromBlock=hex(pin['registryCreation']),
+    logs = bounded_history_logs(recorded, dict(address=u.REG, fromBlock=hex(pin['registryCreation']),
                                          toBlock=block, topics=[topic]))
     roles, canonical_blocks = set(), {}
     for log in logs:
@@ -428,7 +430,7 @@ def deployed_build(commit, name):
         if isinstance(metadata,str):
             metadata = json.loads(metadata)
         a.need('old_owner_compiler_settings', bool(metadata.get('settings')) and bool(metadata.get('compiler')), True)
-        return dict(inventory=extract(tree,(artifact_name,))[artifact_name], artifact=art,
+        return dict(inventory={} if name == 'ERC1967Proxy' else extract(tree,(artifact_name,))[artifact_name], artifact=art,
                     compiler=metadata['compiler'], settings=metadata['settings'], forge=version)
 
 
@@ -469,6 +471,38 @@ def verify_clone(code, factory, expected):
     a.need('old_owner_clone_implementation',implementation,expected)
     a.need('old_owner_clone_factory_nonce1',implementation,factory_implementation(factory))
     return implementation
+
+
+def committed_record(path, digest):
+    """Read repository evidence from HEAD, never caller-supplied record contents."""
+    a.need('old_owner_record_path', isinstance(path,str) and not Path(path).is_absolute() and '..' not in Path(path).parts, True)
+    proc = subprocess.run(['git','show','HEAD:'+path],cwd=u.ROOT,capture_output=True)
+    a.need('old_owner_record_committed',proc.returncode,0)
+    a.need('old_owner_record_sha256',hashlib.sha256(proc.stdout).hexdigest(),digest)
+    return json.loads(proc.stdout)
+
+
+def verify_deployment_record(spec):
+    ref = spec.get('deploymentRecord')
+    a.need('old_owner_record_required',isinstance(ref,dict),True)
+    record = committed_record(ref['path'],ref['sha256'])
+    a.need('old_owner_record_commit',ref['commit'],spec['commit'])
+    recorded_commit = record.get('commit',record.get('rebuild',{}).get('commit'))
+    resolved = subprocess.run(['git','rev-parse','--verify',str(recorded_commit)+'^{commit}'],cwd=u.ROOT,capture_output=True,text=True)
+    a.need('old_owner_record_source_commit',resolved.stdout.strip() if resolved.returncode == 0 else None,spec['commit'])
+    address = ref['contractAddress']
+    a.need('old_owner_record_address',address,spec['implementation'])
+    a.typed(ref['txHash'],a.HASH32)
+    receipts = record.get('receipts',[])
+    if 'receipt' in ref:
+        receipt_ref = ref['receipt']
+        receipts = [committed_record(receipt_ref['path'],receipt_ref['sha256'])]
+        a.need('old_owner_record_plan_address',record.get('pin',{}).get('capped'),address)
+    matches = [r for r in receipts if r.get('transactionHash','').lower() == ref['txHash']]
+    a.need('old_owner_record_receipt',len(matches),1)
+    a.need('old_owner_record_receipt_address',matches[0].get('contractAddress','').lower(),address)
+    a.need('old_owner_record_receipt_status',matches[0].get('status'),'0x1')
+    return dict(ref,resolvedCommit=spec['commit'])
 
 
 def source_provenance(comparison, deployment_record):
@@ -542,6 +576,8 @@ def decode_immutable(identity, values, artifact, expectations):
         value = bool(number)
     else:
         value = '0x'+values[0].hex()
+    if address_type:
+        a.need('old_owner_immutable_expectation_missing', name in expectations and expectations[name] != 'no expected value', True)
     expected = expectations.get(name, 'no expected value')
     if expected != 'no expected value':
         a.need('old_owner_immutable_expected', value, expected)
@@ -595,8 +631,9 @@ def deployed_inventory(rpc, pin, sources):
     for name, group in targets.items():
         for target in group:
             spec = sources[target]
-            a.exact_keys('old_owner_source_fields',spec,('contract','implementation','commit','creationBlock','claim'))
-            a.need('old_owner_source_claim', spec['claim'], 'behavioral-equivalence' if name == 'Registry' else 'deployment-record + runtime parity')
+            a.exact_keys('old_owner_source_fields',spec,('contract','implementation','commit','creationBlock','claim',*(['deploymentRecord'] if 'deploymentRecord' in spec else [])))
+            a.need('old_owner_source_claim', spec['claim'] in (('behavioral-equivalence',) if name == 'Registry' else ('behavioral-equivalence','deployment-record + runtime parity')), True)
+            record = verify_deployment_record(spec) if spec['claim'] == 'deployment-record + runtime parity' else None
             a.need('old_owner_source_name',spec['contract'],name)
             creation = spec['creationBlock']
             a.need('old_owner_creation_range',type(creation) is int and 0 < creation <= a.qty(block),True)
@@ -606,6 +643,11 @@ def deployed_inventory(rpc, pin, sources):
             code = a.typed(rpc('eth_getCode',[target,block]),a.HEXDATA)
             slot = hex(int(a.keccak('eip1967.proxy.implementation'),16)-1)
             implementation = u.addr_word(int(a.typed(rpc('eth_getStorageAt',[target,slot,block]),a.HASH32),16))
+            proxy = None
+            if target in (u.REG,u.SP):
+                proxy_build = deployed_build(PROXY_COMMIT,'ERC1967Proxy')
+                proxy = dict(commit=PROXY_COMMIT, contract='ERC1967Proxy',
+                             parity=runtime_parity(code,proxy_build['artifact'],expectations=immutable_expectations(target)))
             if name == 'xPNTsToken':
                 factory = u.addr_word(a.word(rpc,target,'FACTORY()',block=block))
                 implementation = verify_clone(code,factory,spec['implementation'])
@@ -617,11 +659,11 @@ def deployed_inventory(rpc, pin, sources):
             a.need('old_owner_implementation',spec['implementation'],implementation)
             built = deployed_build(spec['commit'],name)
             parity = runtime_parity(rpc('eth_getCode',[implementation,block]),built['artifact'], expectations=immutable_expectations(implementation))
-            source_provenance(parity,None)
+            source_provenance(parity,record)
             variants[target] = built['inventory']
             result.setdefault(name,built['inventory'])
             mapping.append(dict(contract=name,target=target,implementation=implementation,commit=spec['commit'],
-                                claim=spec['claim'],creationBlock=creation,compiler=built['compiler'],settings=built['settings'],forge=built['forge'],parity=parity))
+                                claim=spec['claim'],creationBlock=creation,compiler=built['compiler'],settings=built['settings'],forge=built['forge'],parity=parity,proxy=proxy,deploymentRecord=record))
     a.need('old_owner_source_pin_after',rpc('eth_getBlockByNumber',[block,False]),canonical)
     result['deployedSources'] = mapping
     result['targetInventories'] = variants
@@ -745,31 +787,35 @@ CONTROL = '0x00000000000000000000000000000000000c0170'
 FALLBACK_HANDLER = '0xfd0732dc9e303f09fcef3a7388ad10a83459ec99'
 
 
+def bounded_history_logs(rpc, query):
+    start, stop = a.qty(query["fromBlock"]), a.qty(query["toBlock"])
+    def bounded(method, params):
+        result = rpc(method,params)
+        if method == 'eth_getLogs':
+            a.need('old_owner_log_array',isinstance(result,list),True)
+            try:
+                a.need('old_owner_log_limit',len(result) < 1000,True)
+            except a.Gate as fault:
+                fault.log_range_limit = True
+                raise
+        return result
+    logs = a.schedule_logs(bounded,query)
+    # Detect inconsistent pagination / silent truncation using a disjoint range cover.
+    if start < stop:
+        middle = (start+stop)//2
+        parts = a.schedule_logs(bounded,dict(query,toBlock=hex(middle))) + a.schedule_logs(bounded,dict(query,fromBlock=hex(middle+1)))
+        a.need('old_owner_log_partition',sorted(logs,key=lambda x:json.dumps(x,sort_keys=True)),sorted(parts,key=lambda x:json.dumps(x,sort_keys=True)))
+    return logs
+
+
 def role_history(rpc, pin, target, spec, creation):
     """Bounded history, canonical event identities, and independent OLD filter."""
     start, stop = creation, a.qty(pin['stateBlock'])
     a.need('old_owner_history_range',type(start) is int and 0 < start <= stop,True)
     topics = [a.keccak(GRANTED),a.keccak(REVOKED)]
-    def fetch(query):
-        def bounded(method, params):
-            result = rpc(method,params)
-            if method == 'eth_getLogs':
-                a.need('old_owner_log_array',isinstance(result,list),True)
-                if len(result) >= 1000:
-                    fault = a.Gate('old_owner_log_limit',len(result),'< 1000; bisect')
-                    fault.log_range_limit = True
-                    raise fault
-            return result
-        logs = a.schedule_logs(bounded,query)
-        # Detect inconsistent pagination / silent truncation using a disjoint range cover.
-        if start < stop:
-            middle = (start+stop)//2
-            parts = a.schedule_logs(bounded,dict(query,toBlock=hex(middle))) + a.schedule_logs(bounded,dict(query,fromBlock=hex(middle+1)))
-            a.need('old_owner_log_partition',sorted(logs,key=lambda x:json.dumps(x,sort_keys=True)),sorted(parts,key=lambda x:json.dumps(x,sort_keys=True)))
-        return logs
     query = dict(address=target,fromBlock=hex(start),toBlock=pin['stateBlock'],topics=[topics])
-    logs = fetch(query)
-    old_logs = fetch(dict(query,topics=[topics,None,'0x'+OLD[2:].zfill(64)]))
+    logs = bounded_history_logs(rpc,query)
+    old_logs = bounded_history_logs(rpc,dict(query,topics=[topics,None,'0x'+OLD[2:].zfill(64)]))
     canonical, identities = {}, set()
     for log in logs+old_logs:
         a.need('old_owner_history_address',log.get('address'),target)

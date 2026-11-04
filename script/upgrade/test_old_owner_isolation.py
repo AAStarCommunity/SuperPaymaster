@@ -399,7 +399,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         original = a.need
         for gate,bad in cases:
             def rpc(method,params):
-                return bad if method == 'eth_getLogs' and params[0]['topics'] == [a.keccak(o.ROLE_EVENT)] else baseline(method,params)
+                return (bad if params[0]['toBlock'] == self.pin['stateBlock'] else []) if method == 'eth_getLogs' and params[0]['topics'] == [a.keccak(o.ROLE_EVENT)] else baseline(method,params)
             with self.subTest(gate=gate),self.assertRaises(a.Gate) as caught:
                 o.audit(rpc,self.pin,inventory())
             self.assertEqual(caught.exception.record['gate'],gate)
@@ -424,11 +424,88 @@ class OldOwnerIsolationTests(unittest.TestCase):
             return baseline(method,[full]) if params[0]['toBlock'] == self.pin['stateBlock'] else []
         rpc.fork = baseline.fork
         value = o.audit(rpc,self.pin,inventory())
-        self.assertEqual(len(queries),3)
+        self.assertEqual(len(queries),5)
         self.assertEqual(queries[1]['toBlock'],'0x92')
         self.assertEqual(queries[2]['fromBlock'],'0x93')
         value['endpointResults'] = dict(primary=copy.deepcopy(value['reads']),secondary=copy.deepcopy(value['reads']))
         o.validate(value,self.pin,inventory())
+
+    def test_config_history_drop_truncation_both_endpoints(self):
+        baseline = fixture_rpc(self.pin)
+        full = dict(address=u.REG,fromBlock='0x1',toBlock=self.pin['stateBlock'],topics=[a.keccak(o.ROLE_EVENT)])
+        for endpoint in ('primary','secondary'):
+            def bad(method,params):
+                logs = baseline(method,params)
+                if method == 'eth_call' and params[0] == dict(to=u.REG,data=a.calldata('getRoleConfig(bytes32)',CUSTOM_ROLE)):
+                    values = u.uints(logs)
+                    values[11] = int(o.OLD,16)
+                    return raw(values)
+                return logs[:1] if method == 'eth_getLogs' and params[0] == full else logs
+            bad.fork = baseline.fork
+            action = lambda:o.audit(bad,self.pin,inventory())
+            with self.subTest(endpoint=endpoint), self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'],'old_owner_log_partition')
+            removed_probe(self,action,'old_owner_log_partition')
+            section = evidence(self.pin)
+            for row in section['endpointResults'][endpoint]:
+                if row.get('method') == 'eth_getLogs' and row['params'][0] == full:
+                    row['result'] = row['result'][:1]
+            with self.assertRaises(a.Gate) as caught: o.validate(section,self.pin,inventory())
+            self.assertEqual(caught.exception.record['gate'],'old_owner_log_partition')
+        query = dict(full,fromBlock=self.pin['stateBlock'])
+        action = lambda:o.bounded_history_logs(lambda m,p:[{}]*1000,query)
+        with self.assertRaises(a.Gate) as caught: action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_log_limit')
+        removed_probe(self,action,'old_owner_log_limit')
+
+    def test_proxy_runtime_extra_selector_stops(self):
+        baseline,sources,build = self.source_fixture()
+        # Implementation remains correct; only the proxy bytecode is changed.
+        impl = '0x'+'ab'*20
+        for target in (u.REG,u.SP):
+            sources[target]['implementation'] = impl
+        for target in (u.REG,u.SP):
+            def rpc(method,params):
+                if method == 'eth_getStorageAt' and params[0] in (u.REG,u.SP): return raw([int(impl,16)])
+                if method == 'eth_getCode' and params == [target,self.pin['stateBlock']]: return '0x6312345678506000'+CBOR
+                return baseline(method,params)
+            with patch.object(o,'deployed_build',side_effect=build):
+                action = lambda:o.deployed_inventory(rpc,self.pin,sources)
+                with self.assertRaises(a.Gate) as caught: action()
+                self.assertEqual(caught.exception.record['gate'],'old_owner_runtime_length')
+                removed_probe(self,action,'old_owner_runtime_length')
+                original = a.need
+                def removed(label,actual,expected):
+                    if label not in ('old_owner_runtime_length','old_owner_runtime_parity'): original(label,actual,expected)
+                with patch.object(a,'need',side_effect=removed): action()
+                print('L1_PROBE proxy_runtime_all_parity_gates removed=red accepted')
+
+    def test_deployment_record_binding_and_gate_removals(self):
+        fragment = json.loads((Path(__file__).parent/'fixtures/old-owner/deployed-sources.json').read_text())
+        spec = next(r for r in fragment['deployedSources'].values() if r['contract']=='APNTsCapped')
+        self.assertEqual(o.verify_deployment_record(spec)['resolvedCommit'],spec['commit'])
+        for field,value,gate in [
+            ('sha256','0'*64,'old_owner_record_sha256'),
+            ('commit','b'*40,'old_owner_record_commit'),
+            ('contractAddress',TOKEN,'old_owner_record_address'),
+            ('txHash',a.ZERO32,'old_owner_record_receipt')]:
+            bad = copy.deepcopy(spec); bad['deploymentRecord'][field] = value
+            action = lambda:o.verify_deployment_record(bad)
+            with self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'],gate)
+            removed_probe(self,action,gate)
+        bad = copy.deepcopy(spec); bad['commit']='b'*40; bad['deploymentRecord']['commit']='b'*40
+        action = lambda:o.verify_deployment_record(bad)
+        with self.assertRaises(a.Gate) as caught: action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_record_source_commit')
+        removed_probe(self,action,'old_owner_record_source_commit')
+        rpc,sources,build = self.source_fixture()
+        sources[u.SP]['claim']='deployment-record + runtime parity'
+        with patch.object(o,'deployed_build',side_effect=build):
+            action = lambda:o.deployed_inventory(rpc,self.pin,sources)
+            with self.assertRaises(a.Gate) as caught: action()
+            self.assertEqual(caught.exception.record['gate'],'old_owner_record_required')
+            removed_probe(self,action,'old_owner_record_required')
 
     def test_optional_fork_harness_with_mock_rpc(self):
         baseline = fixture_fork(self.pin)
@@ -480,11 +557,11 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def source_fixture(self):
         baseline = fixture_rpc(self.pin)
         targets = o.discover_targets(baseline,self.pin)
-        sources = {target:dict(contract=name,implementation=IMPL if name == 'xPNTsToken' else target,commit='a'*40,creationBlock=1,claim='behavioral-equivalence' if name == 'Registry' else 'deployment-record + runtime parity')
+        sources = {target:dict(contract=name,implementation=IMPL if name == 'xPNTsToken' else target,commit='a'*40,creationBlock=1,claim='behavioral-equivalence')
                    for name,group in targets.items() for target in group}
         def build(commit,name):
-            self.assertEqual(commit,'a'*40)
-            return dict(inventory=inventory()[name],artifact=dict(deployedBytecode=dict(object='0x6000'+CBOR,immutableReferences={})),
+            self.assertEqual(commit,o.PROXY_COMMIT if name == 'ERC1967Proxy' else 'a'*40)
+            return dict(inventory=inventory().get(name,{}),artifact=dict(deployedBytecode=dict(object='0x6000'+CBOR,immutableReferences={})),
                         compiler=dict(version='0.8.33'),settings=dict(optimizer=dict(enabled=True,runs=10000)),forge='fixture')
         def rpc(method,params):
             if method == 'eth_getCode': return '0x' if params[1] == '0x0' else CLONE if params[0] in targets['xPNTsToken'] else '0x6000'+CBOR
@@ -566,6 +643,11 @@ class OldOwnerIsolationTests(unittest.TestCase):
         action = lambda:run(o.OLD)
         with self.assertRaises(a.Gate): action()
         removed_probe(self,action,'old_owner_immutable_not_old')
+        action = lambda:run(TOKEN)
+        with self.assertRaises(a.Gate) as caught: action()
+        self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_expectation_missing')
+        removed_probe(self,action,'old_owner_immutable_expectation_missing')
+        artifact['immutableDeclarations']['7']['type'] = 'uint256'
         self.assertEqual(run(TOKEN)['immutables'][0]['expected'],'no expected value')
         artifact['immutableDeclarations'] = {}
         with self.assertRaises(a.Gate) as caught: run(good)
@@ -576,7 +658,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         baseline,sources,build = self.source_fixture()
         def compiled(commit,name):
             result = build(commit,name)
-            if name == 'Registry':
+            if name in ('Registry','ERC1967Proxy'):
                 result['artifact'] = dict(immutableDeclarations={'7':dict(name='__self',type='address')},
                     deployedBytecode=dict(object='0x'+'00'*32+CBOR,immutableReferences={'7':[dict(start=0,length=32)]}))
             return result
@@ -585,8 +667,9 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 if method == 'eth_getCode' and params == [u.REG,self.pin['stateBlock']]:
                     return raw([int(value,16)])+CBOR
                 return baseline(method,params)
-            with patch.object(o,'deployed_build',side_effect=compiled):
-                action = lambda:o.deployed_inventory(rpc,self.pin,sources)
+            def only_registry(rpc,pin): return {'Registry':[u.REG]}
+            with patch.object(o,'deployed_build',side_effect=compiled), patch.object(o,'discover_targets',side_effect=only_registry):
+                action = lambda:o.deployed_inventory(rpc,self.pin,{u.REG:sources[u.REG]})
                 if gate is None:
                     result = action()
                     row = next(r for r in result['deployedSources'] if r['contract']=='Registry')

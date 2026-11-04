@@ -2,7 +2,7 @@
 
 **Registry adopted under DSR option (a), behavioral-equivalence only:** on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33).
 
-Candidate provenance is irrelevant only when the comparison uniquely determines the property being checked. For L-1 the property is behavior: runtime exact equality suffices, with every masked immutable independently decoded and checked. Source identity requires a deployment record. Metadata remains UNMASKED; masking is limited to compiler immutable references. All other contracts use `deployment-record + runtime parity`.
+Candidate provenance is irrelevant only when the comparison uniquely determines the property being checked. For L-1 the property is behavior: runtime exact equality suffices, with every masked immutable independently decoded and checked. Source identity requires a deployment record. Metadata remains UNMASKED; masking is limited to compiler immutable references. Current claims: APNTsCapped retains `deployment-record + runtime parity` with a validated committed plan/receipt; all other targets use `behavioral-equivalence`. Local broadcasts are not committed and therefore do not satisfy the new record-binding gate.
 
 Offline; no network request, commit, or transaction.
 
@@ -278,7 +278,7 @@ Registry retains the committed 200-run restriction where present. The JSON evide
 
 The 20 archive failures all report `rebuild_submodule_unavailable` for `standards/x402/contracts/evm/lib/forge-std` at `1801b0541f4fda118a10798fd3486bb7051c5dd6`. The remaining two attempts compiled commit `73f43561`: GToken has 2,599 rebuilt bytes versus 6,113 on-chain; PaymasterFactory has 5,144 versus 6,093. Both have non-metadata runtime differences. GToken also fails consistency across the three occurrences of its compiler-declared immutable when read at those offsets in the on-chain code; PaymasterFactory has no immutable ranges. Masking therefore cannot authenticate either runtime. Their artifact metadata reports EVM `prague` (the historical config does not explicitly select an EVM version).
 
-## Proxy binding
+## Historical proxy binding (superseded by the adversarial-review fix below)
 
 `old_owner_isolation.deployed_inventory` already reads the target proxy’s EIP-1967 implementation slot at `pin.stateBlock`, checks `old_owner_implementation`, then authenticates that implementation’s runtime. Existing Registry/SP tests cover correct and incorrect bindings. This offline snapshot contains implementation-address zero slots, not actual proxy-slot evidence; live binding verification is not claimed.
 
@@ -357,3 +357,31 @@ The a839347e source declares `constructor() Ownable(msg.sender)` and its compile
 **Creation code equality: true, all 23,366 bytes.** Diff offsets/lengths: none. There is no constructor-argument or metadata difference. Both creation-code SHA-256 values are `a87e8af8ea5ae8544ec4b591a9aa6bcb44e813495ca03e4f823cec4748fa3d47`. The supplied transaction file SHA-256 is `5e5ddb86af936e52d681cfab7fb889a0e2e5ff77d9628a0cb4751049ae1f5ba7`.
 
 This is nonblocking corroboration. Registry's accepted claim remains: on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33).
+
+## Adversarial-review corrections (2026-11-04)
+
+RoleConfigured now shares the exact bounded/bisected reader, size limit and
+partition equality checks used by grant/revoke history. Each endpoint transcript
+is revalidated. Dropping the custom OLD-owned config event from a full-range
+page while retaining it in a partition STOPs. A saturated single-block page
+STOPs rather than being accepted as complete.
+
+Every masked address-typed immutable now requires an independent expectation;
+unknown names STOP at `old_owner_immutable_expectation_missing`. Non-address
+immutables retain explicit recorded values and may have no expectation.
+
+Deployment-record claims now validate committed file bytes and SHA-256, the
+record's resolved commit, and a successful receipt's transaction hash and
+contract address against the source entry's implementation. APNTsCapped uses
+the committed A3a plan plus S3 receipt. The local DeployLive and SP upgrade
+broadcasts have no committed file in this repository; those claims are therefore
+explicitly downgraded to behavioral-equivalence. Registry remains unchanged.
+`fixtures/old-owner/broadcast-provenance.json` records the local file hashes and
+receipt summaries. SP's real CREATE remains
+`0xc73a1f1ba653a0691427e547b935c4ba35d47ba30a7d6aa3cda13741015c3fcf`;
+the broadcast transactions array swaps it with the upgradeToAndCall hash.
+
+The historical sections above describe prior runs. See
+[ADVERSARIAL_REVIEW_RESULTS.md](ADVERSARIAL_REVIEW_RESULTS.md) for this run's proxy
+rebuild, final suite results and gate-removal probes. No live RPC verification,
+transaction, or commit was performed.

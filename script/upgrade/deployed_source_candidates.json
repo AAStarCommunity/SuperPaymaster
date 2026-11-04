@@ -781,7 +781,8 @@
         "inheritedOwnerInitializer": "msg.sender",
         "inheritedOwner": "0xb5600060e6de5e11d3636731964218e53caadf0e",
         "inheritedOwnerNotOld": true
-      }
+      },
+      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
     },
     {
       "contract": "SuperPaymaster",
@@ -1543,7 +1544,7 @@
         "solc": "0.8.33",
         "ipfs": null
       },
-      "claim": "deployment-record + runtime parity",
+      "claim": "behavioral-equivalence",
       "immutableChecks": [
         {
           "id": "6285",
@@ -1741,7 +1742,8 @@
           "--build-info",
           "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol"
         ]
-      }
+      },
+      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
     },
     {
       "contract": "APNTsCapped",
@@ -2703,6 +2705,17 @@
           "--build-info",
           "contracts/src/tokens/APNTsCapped.sol"
         ]
+      },
+      "validatedDeploymentRecord": {
+        "path": "docs/release/a3a-exec-ams/plan-11981108/plan.json",
+        "sha256": "e797e9bddb4f78883ba9ea646c0fac4e08a46ed017f114c289d87869d751b71f",
+        "receipt": {
+          "path": "docs/release/a3a-testsafe-12025632/live/S3/receipt.json",
+          "sha256": "06042ee82a6072a9e2c5b578722f7a6bf138198a4189818f11e48814746c9327"
+        },
+        "txHash": "0x93e0fe11f4de1cd88b087b5ef9b40fcc4ee9355d940e169825f23d6c2a721abe",
+        "contractAddress": "0x9eb17fac022557f64924aa2f9e018db3a330e1e7",
+        "commit": "5be39abf44ec01b60fda738fd732533b797fd6c7"
       }
     },
     {
@@ -3323,7 +3336,7 @@
         "solc": "0.8.33",
         "ipfs": null
       },
-      "claim": "deployment-record + runtime parity",
+      "claim": "behavioral-equivalence",
       "immutableChecks": [],
       "immutableCheckResult": "PASS",
       "reRulingBuild": {
@@ -3397,7 +3410,8 @@
           "contracts/src/tokens/MySBT.sol",
           "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
         ]
-      }
+      },
+      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
     },
     {
       "contract": "GTokenStaking",
@@ -4110,7 +4124,7 @@
         "solc": "0.8.33",
         "ipfs": null
       },
-      "claim": "deployment-record + runtime parity",
+      "claim": "behavioral-equivalence",
       "immutableChecks": [
         {
           "id": "56",
@@ -4266,7 +4280,8 @@
           "contracts/src/tokens/MySBT.sol",
           "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
         ]
-      }
+      },
+      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
     },
     {
       "contract": "GToken",
@@ -5015,7 +5030,7 @@
         "solc": "0.8.33",
         "ipfs": null
       },
-      "claim": "deployment-record + runtime parity",
+      "claim": "behavioral-equivalence",
       "immutableChecks": [
         {
           "id": "11236",
@@ -5211,7 +5226,8 @@
           "contracts/src/tokens/MySBT.sol",
           "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
         ]
-      }
+      },
+      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
     },
     {
       "contract": "xPNTsFactory",
@@ -5852,7 +5868,7 @@
         "solc": "0.8.33",
         "ipfs": null
       },
-      "claim": "deployment-record + runtime parity",
+      "claim": "behavioral-equivalence",
       "immutableChecks": [
         {
           "id": "5491",
@@ -5960,7 +5976,8 @@
           "contracts/src/tokens/MySBT.sol",
           "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
         ]
-      }
+      },
+      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
     },
     {
       "contract": "xPNTsToken",
@@ -6749,7 +6766,7 @@
           }
         }
       },
-      "claim": "deployment-record + runtime parity",
+      "claim": "behavioral-equivalence",
       "immutableChecks": [
         {
           "id": "14519",
@@ -6909,7 +6926,8 @@
           "contracts/src/tokens/MySBT.sol",
           "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
         ]
-      }
+      },
+      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
     },
     {
       "contract": "MySBT",
@@ -7586,7 +7604,7 @@
         "solc": "0.8.33",
         "ipfs": null
       },
-      "claim": "deployment-record + runtime parity",
+      "claim": "behavioral-equivalence",
       "immutableChecks": [
         {
           "id": "3936",
@@ -7726,7 +7744,8 @@
           "contracts/src/tokens/MySBT.sol",
           "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
         ]
-      }
+      },
+      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
     },
     {
       "contract": "PaymasterFactory",
@@ -8382,7 +8401,7 @@
         "solc": "0.8.33",
         "ipfs": null
       },
-      "claim": "deployment-record + runtime parity",
+      "claim": "behavioral-equivalence",
       "immutableChecks": [],
       "immutableCheckResult": "PASS",
       "reRulingBuild": {
@@ -8456,7 +8475,8 @@
           "contracts/src/tokens/MySBT.sol",
           "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
         ]
-      }
+      },
+      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
     }
   ],
   "pin": {
@@ -9676,5 +9696,54 @@
     }
   },
   "supplementalRuntimeEvidence": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/onchain/xpnts-and-registry.json",
-  "supplementalRuntimeEvidenceSha256": "0e7a170ac9022e2f40709268ef086834156c022df4daeed6c6b212b0e005d820"
+  "supplementalRuntimeEvidenceSha256": "0e7a170ac9022e2f40709268ef086834156c022df4daeed6c6b212b0e005d820",
+  "adversarialReviewFixes": {
+    "configHistory": "Shared bounded/bisected logs, 1000-row limit and disjoint partition equality on both endpoints",
+    "addressImmutables": "Every address-typed immutable requires independent expected value; missing expectation STOP",
+    "proxyEvidence": "fixtures/old-owner/proxy-parity.json",
+    "deploymentRecords": "Claims require HEAD record bytes and SHA256, resolved source commit, matching successful receipt transaction hash and implementation address; uncommitted broadcasts cannot authorize source identity"
+  },
+  "proxyRuntimeVerification": {
+    "path": "fixtures/old-owner/proxy-parity.json",
+    "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+    "pin": 12061284,
+    "proxies": [
+      {
+        "target": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+        "implementation": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
+        "runtimeBytes": 100,
+        "parity": {
+          "equal": true,
+          "immutables": [],
+          "immutableRanges": [],
+          "runtimeKeccak": "0xbfa8a49f3061225d6e1298934a59b43ee6ab3c042b13fc572712709ff6cc7ec0",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        }
+      },
+      {
+        "target": "0x09df0d2e3722ec0e401fe3819e64278a42ae4de9",
+        "implementation": "0xe25f88dbeafc64200270a948df8e9dd2f9b22c27",
+        "runtimeBytes": 100,
+        "parity": {
+          "equal": true,
+          "immutables": [],
+          "immutableRanges": [],
+          "runtimeKeccak": "0xbfa8a49f3061225d6e1298934a59b43ee6ab3c042b13fc572712709ff6cc7ec0",
+          "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
+          "metadataUnmasked": true,
+          "metadataEqual": true,
+          "cbor": {
+            "solc": "0.8.33",
+            "ipfs": null
+          }
+        }
+      }
+    ]
+  }
 }

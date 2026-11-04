@@ -27,7 +27,7 @@ Supply `externalInputs.data.deployedSources`, keyed by lowercase target address:
 }
 ```
 
-Registry is adopted with `claim="behavioral-equivalence"`: on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33). All other contracts use `claim="deployment-record + runtime parity"`. The proxy creation boundary must still be
+Registry is adopted with `claim="behavioral-equivalence"`: on-chain runtime is behaviorally equivalent to the a839347e build (immutable-masked byte-for-byte equality, solc 0.8.33). APNTsCapped uses `claim="deployment-record + runtime parity"` with committed plan/receipt references; all other targets use behavioral-equivalence because their local broadcasts are not committed. The proxy creation boundary must still be
 verified live at the chosen pin. Supply exactly all discovered targets, including every
 xPNTs clone. Resolve any tag to its full commit SHA. `creationBlock` is the target
 or proxy's deployment block, not its implementation's deployment block.
@@ -40,6 +40,8 @@ The source gate:
    existing `registryCreation` evidence.
 3. Resolves ERC-1967 implementation storage and standard EIP-1167 clone runtime;
    direct contracts use their own address. Checks the supplied implementation.
+   Independently compares both Registry and SP proxy runtimes to ERC1967Proxy
+   rebuilt at cf26915e, with metadata unmasked; records proxy parity separately.
 4. Archives the exact commit and locally retained submodule objects into a fresh
    temporary tree. Runs `forge build --offline --ast --build-info` with the
    committed default profile. Missing dependencies/source/compiler stop execution.
@@ -52,9 +54,15 @@ The source gate:
    the behavior comparison conclusive. Candidate provenance is irrelevant only when the comparison uniquely determines the property being checked. For L-1 the property is behavior: runtime exact equality suffices, with every masked immutable independently decoded and checked. Source identity requires a deployment record.
    Each immutable reference ID is resolved to its variable name and type in the
    build AST. Address values must differ from OLD and match known deployment
-   configuration; missing expectations are recorded as `no expected value`.
+   configuration or independently established bindings; a missing address
+   expectation STOPs. Non-address values may be recorded as `no expected value`.
    Repeated values are also checked for self-consistency.
-6. Extracts AST/ABI authority, role and mapping inventory from that same build.
+6. For deployment-record claims, reads the referenced broadcast or A3a plan
+   from Git HEAD, verifies SHA-256 and resolves its commit. Checks a successful
+   receipt naming the same implementation address and transaction hash; A3a
+   references include a separately hashed committed receipt and matching plan
+   address. Missing or invalid bindings STOP. See the fixture README for fields.
+7. Extracts AST/ABI authority, role and mapping inventory from that same build.
    Records target, implementation, commit, compiler, settings, Forge version,
    immutable ranges, runtime hash and parity result.
 
@@ -244,3 +252,7 @@ setter controls remain mandatory wherever the audit has no live positive holder.
 
 Offline suite results and the complete per-gate removal classification are in
 [OLD_OWNER_ISOLATION_RESULTS.md](OLD_OWNER_ISOLATION_RESULTS.md).
+
+RoleConfigured uses the same bounded/bisected history reader, size limit and
+disjoint partition equality checks as RoleGranted/RoleRevoked, on both endpoints.
+Current adversarial controls and results: [ADVERSARIAL_REVIEW_RESULTS.md](ADVERSARIAL_REVIEW_RESULTS.md).
