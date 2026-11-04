@@ -1,0 +1,298 @@
+{
+  "schema": 1,
+  "head": "03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0",
+  "offlineOnly": true,
+  "note": "Research candidates, NOT authorized deployedSources input. All attempted rebuilds STOP; no RPC or successful parity.",
+  "contracts": [
+    {
+      "contract": "Registry",
+      "candidate": "c30854f91833ae0d3fd6b7ec027ae53b138a3337",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "Registry-5.8.0",
+      "implementationCandidate": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
+      "addressEvidence": "deployments/config.sepolia.json; not a pin read",
+      "candidates": [
+        {
+          "ref": "bb2610e8",
+          "commit": "bb2610e806e92e1c5cd3e4e727c679becce99d0d",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "c30854f9",
+          "commit": "c30854f91833ae0d3fd6b7ec027ae53b138a3337",
+          "versionStringPresent": true
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": "contracts/src/core/Registry.sol"
+    },
+    {
+      "contract": "SuperPaymaster",
+      "candidate": "e1ddf9dd7d221bb47b597803b639ef0dac8ddb19",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "SuperPaymaster-5.4.2",
+      "implementationCandidate": "0xe25f88dbeafc64200270a948df8e9dd2f9b22c27",
+      "addressEvidence": "deployments/config.sepolia.json; not a pin read",
+      "candidates": [
+        {
+          "ref": "6a6d2d17",
+          "commit": "6a6d2d1785e1f03bcf72091930c6bca03f7090a8",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "v5.4.2",
+          "commit": "e1ddf9dd7d221bb47b597803b639ef0dac8ddb19",
+          "versionStringPresent": true
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol"
+    },
+    {
+      "contract": "APNTsCapped",
+      "candidate": "d2ca897ed59c859c0ee878d3284e94a263aaef9f",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "APNTsCapped-1.0.0",
+      "implementationCandidate": "0x9eb17fac022557f64924aa2f9e018db3a330e1e7",
+      "addressEvidence": "deployer CREATE nonce 12133; not a deployment receipt",
+      "candidates": [
+        {
+          "ref": "d2ca897e",
+          "commit": "d2ca897ed59c859c0ee878d3284e94a263aaef9f",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "3be99c94",
+          "commit": "3be99c94152b37d68f8dc8ee623ec26ceaff5cdb",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "HEAD",
+          "commit": "03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0",
+          "versionStringPresent": true
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": "contracts/src/tokens/APNTsCapped.sol"
+    },
+    {
+      "contract": "TimelockController",
+      "candidate": "89e1cb64812589ad1e17d6df9972cb68ea4eb37a",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "OpenZeppelin 5.0.2; no version() getter",
+      "implementationCandidate": "0x86c86c789edc099801cc6a5f48334f1d67dc9564",
+      "addressEvidence": "deployments/config.sepolia.json; not a pin read",
+      "candidates": [
+        {
+          "ref": "89e1cb64",
+          "commit": "89e1cb64812589ad1e17d6df9972cb68ea4eb37a",
+          "versionStringPresent": false
+        },
+        {
+          "ref": "HEAD",
+          "commit": "03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0",
+          "versionStringPresent": false
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": null
+    },
+    {
+      "contract": "GTokenStaking",
+      "candidate": "8074c2b4e9f39dc6fea9674bb8282f08dfecf133",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "Staking-4.2.0",
+      "implementationCandidate": "0x472297b557c1d0f030f281a5bb8a535f6c5ab65e",
+      "addressEvidence": "deployments/config.sepolia.json; not a pin read",
+      "candidates": [
+        {
+          "ref": "8074c2b4",
+          "commit": "8074c2b4e9f39dc6fea9674bb8282f08dfecf133",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "HEAD",
+          "commit": "03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0",
+          "versionStringPresent": true
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": "contracts/src/core/GTokenStaking.sol"
+    },
+    {
+      "contract": "GToken",
+      "candidate": "73f43561fa873072b3984aaa2942c6b9f2350a66",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "GToken-2.1.2",
+      "implementationCandidate": "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08",
+      "addressEvidence": "deployments/config.sepolia.json; not a pin read",
+      "candidates": [
+        {
+          "ref": "73f43561",
+          "commit": "73f43561fa873072b3984aaa2942c6b9f2350a66",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "HEAD",
+          "commit": "03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0",
+          "versionStringPresent": true
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": "contracts/src/tokens/GToken.sol"
+    },
+    {
+      "contract": "xPNTsFactory",
+      "candidate": "27c08c03829ed31aa0d22fd7747fa4b67003ae6d",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "xPNTsFactory-2.3.0-clone-optimized",
+      "implementationCandidate": "0x67422d2e44a33c8da99b3b776841bf316bd209a2",
+      "addressEvidence": "deployments/config.sepolia.json; not a pin read",
+      "candidates": [
+        {
+          "ref": "27c08c03",
+          "commit": "27c08c03829ed31aa0d22fd7747fa4b67003ae6d",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "HEAD",
+          "commit": "03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0",
+          "versionStringPresent": true
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": "contracts/src/tokens/xPNTsFactory.sol"
+    },
+    {
+      "contract": "xPNTsToken",
+      "candidate": "d88934936e588a83fee140d24005e8c6d73eceab",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "XPNTs-3.5.0",
+      "implementationCandidate": null,
+      "addressEvidence": "implementation discovery required for every clone; retained pendingToken snapshot is XPNTs-3.5.0",
+      "candidates": [
+        {
+          "ref": "d8893493",
+          "commit": "d88934936e588a83fee140d24005e8c6d73eceab",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "v5.4.2",
+          "commit": "e1ddf9dd7d221bb47b597803b639ef0dac8ddb19",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "HEAD",
+          "commit": "03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0",
+          "versionStringPresent": true
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": "contracts/src/tokens/xPNTsToken.sol"
+    },
+    {
+      "contract": "MySBT",
+      "candidate": "351a8991bd9522f9aa50a0f330c245f51406c1a8",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "MySBT-3.2.0",
+      "implementationCandidate": "0x4867b4302bf4c7818b71f55e53a3520ee1855aa7",
+      "addressEvidence": "deployments/config.sepolia.json; not a pin read",
+      "candidates": [
+        {
+          "ref": "351a8991",
+          "commit": "351a8991bd9522f9aa50a0f330c245f51406c1a8",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "HEAD",
+          "commit": "03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0",
+          "versionStringPresent": true
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": "contracts/src/tokens/MySBT.sol"
+    },
+    {
+      "contract": "PaymasterFactory",
+      "candidate": "73f43561fa873072b3984aaa2942c6b9f2350a66",
+      "status": "STOP",
+      "reason": {
+        "status": "FAILURE",
+        "gate": "rebuild_submodule_unavailable",
+        "observed": "contracts/lib/chainlink-brownie-contracts",
+        "expected": "local initialized submodule or object store; no network fallback"
+      },
+      "versionCandidate": "PaymasterFactory-1.0.2",
+      "implementationCandidate": "0xa936f8e3d682b0ecf280e6f5c05ff4204ee87180",
+      "addressEvidence": "deployments/config.sepolia.json; not a pin read",
+      "candidates": [
+        {
+          "ref": "73f43561",
+          "commit": "73f43561fa873072b3984aaa2942c6b9f2350a66",
+          "versionStringPresent": true
+        },
+        {
+          "ref": "HEAD",
+          "commit": "03f8bdeb94c72b85d351235adbe6e2cdfbc0b5b0",
+          "versionStringPresent": true
+        }
+      ],
+      "parity": "unverified",
+      "sourcePath": "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
+    }
+  ]
+}

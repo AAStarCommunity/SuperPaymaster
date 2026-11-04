@@ -30,6 +30,15 @@ ART = dict(scope=dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymas
     storageLayout={}, metadata={}) for name in m.NAMES})
 
 ART['oldOwnerInventory'] = isolation_tests.inventory()
+import ast
+import re
+ART['calldataSignatures'] = sorted({n.value for module in (m,u) for n in ast.walk(ast.parse(Path(module.__file__).read_text()))
+    if isinstance(n,ast.Constant) and isinstance(n.value,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*\([a-zA-Z0-9_,()\[\]]*\)',n.value)} |
+    {verb+suffix for verb in ('schedule','execute') for suffix in
+     ['(address,uint256,bytes,bytes32,bytes32'+(',uint256)' if verb == 'schedule' else ')'),
+      'Batch(address[],uint256[],bytes[],bytes32,bytes32'+(',uint256)' if verb == 'schedule' else ')')]})
+
+ART['calldataSignatures'] += ['setBLSAggregator(address)','setBlsAggregator(address)','setMinThreshold(uint256)','setDefaultThreshold(uint256)','configureRole(bytes32,'+u.CONFIG_TYPE+')']
 
 for art in ART['contracts'].values(): art['creationHashes'] = m.creation_hashes(art['bytecode'])
 
@@ -495,6 +504,8 @@ class RebuiltScopeTests(unittest.TestCase):
 
 class ManifestTests(unittest.TestCase):
     def setUp(self):
+        source_validation = patch.object(m.isolation,'validate_deployed',side_effect=lambda section,pin,sources:m.isolation.validate(section,pin,ART['oldOwnerInventory']))
+        source_validation.start(); self.addCleanup(source_validation.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.path = Path(self.tmp.name)/'external.json'
@@ -2127,7 +2138,7 @@ class ManifestTests(unittest.TestCase):
             if sig == 'version()': return a.cast('abi-encode', 'c(string)', 'Registry-5.8.0')
             if sig.startswith('getDepositInfo'): return a.cast('abi-encode','c(uint256,bool,uint256,uint256,uint256)', 1, 'true', 1, 86400, 0)
             raise AssertionError(sig)
-        with patch.object(m.isolation, 'audit', return_value=self.pin['oldOwnerIsolation']), \
+        with patch.object(m.isolation, 'collect_deployed', return_value=self.pin['oldOwnerIsolation']), \
              patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
              patch.object(a, 'nonce', return_value=55), patch.object(u, 'code', side_effect=lambda r,t,b:'0x' if t == ANNI else '0x6000'), \
              patch.object(a, 'call', side_effect=call), patch.object(a, 'word', side_effect=word), \
@@ -2343,7 +2354,7 @@ class ManifestTests(unittest.TestCase):
                 m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
 
     def test_collect_registry_version_negative(self):
-        with patch.object(m.isolation, 'audit', return_value=self.pin['oldOwnerIsolation']), \
+        with patch.object(m.isolation, 'collect_deployed', return_value=self.pin['oldOwnerIsolation']), \
              patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
              patch.object(a, 'nonce', return_value=55), patch.object(u, 'code', return_value='0x'), \
              patch.object(a, 'call', return_value='0x'):
