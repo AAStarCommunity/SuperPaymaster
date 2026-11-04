@@ -482,14 +482,17 @@ Inputs:
   metadata, never its contents.
 - `--first/--last`: one contiguous range of packet steps per run. Timelock and ETA waits are never warped; a step that is
   not ready STOPs and is run later. Every step before `--first` must appear in an earlier run's `sent.json`. Each record
-  is re-read on both endpoints (receipt, canonical block, mined fields equal to the packet). The executor context comes
+  is re-read on both endpoints (receipt, canonical block, mined fields equal to the packet, the same receipt on both,
+  Safe `ExecutionSuccess` for `_exec` steps). The executor context comes
   from those receipts: the passed set, the 5b upgrade block and the 6c schedule timestamp.
 - Authorization. The go is the author's own phrase, `SEND <first>..<last> <first 12 hex of the sha256>`. Passing it
   as `--confirm` bypasses `/dev/tty`, so the sender does **not** enforce a terminal: `--confirm` carries the author's
   go. The orchestrating session passes it only after the author personally sent that full phrase. It is copied
   verbatim and never written for the author; a bare "yes" is not a go. Without `--confirm` the phrase is read from
-  `/dev/tty`. A live run also needs `--authorized-at` (ISO-8601 with an offset: when the phrase was received). It
-  writes `authorization.json` (the phrase verbatim, that time, the packet sha256 and the range) and reads it back
+  `/dev/tty`. A live run also needs `--authorized-at` (ISO-8601 with an offset: when the phrase was received). That
+  time may not be in the future (beyond 5 minutes of clock skew, `send_authorized_at_future`). It also may not predate
+  the packet's pin block timestamp, which the packet hash covers (`send_authorized_at_before_pin`); a file mtime is not
+  used because copying resets it. The run then writes `authorization.json` (the phrase verbatim, that time, the packet sha256 and the range) and reads it back
   before the first signature; otherwise it STOPs (`send_operator_confirmation`, `send_authorized_at`,
   `send_authorization_record`). `--dry-run` uses the phrase `DRY-RUN ...` and needs neither. The phrase is asked once
   per run, before the first signature.
@@ -517,15 +520,34 @@ scrubbed against both URLs with the `a3a_send.py` helpers.
 
 `--dry-run` takes the same code path, including every gate, the in-memory signature, the decode/compare and the final
 nonce re-read. It stops right before the first step's broadcast and writes `result.json` with status `DRY_RUN`; its
-phrase starts with `DRY-RUN`. A test asserts that its gate sequence equals the live run's up to the broadcast; the
+phrase starts with `DRY-RUN`. A dry run can rehearse only the **first** step of a range: every later step's nonce and
+state gates depend on the previous step having been mined. A test asserts that its gate sequence equals the live run's up to the broadcast; the
 only exception is the two authorization gates, which live runs alone carry. A second
 test runs a dry run with a real `cast wallet` keystore and password file, and checks that no key, password or keystore
 field appears in stdout, stderr, any file or any exception text.
 
+Reconciling after `send_after_broadcast`: `FAILURE.json` carries the locally computed hash and the cause. Nothing
+is retried, so the operator reconciles by hand, and never by re-running the step: its nonce gate STOPs while that
+nonce is consumed, and an unmined transaction must not be replaced without a new review.
+1. Read the receipt for that hash on both endpoints.
+2. If it was mined with the allowed status, check the step's post-state, as the fork rehearsal and DSR's checklist
+   define it.
+3. Then write a one-record prior file, `{"packetSha256": ..., "sent": [{"step", "variant", "hash", "blockNumber",
+   "blockHash"}]}`, have it reviewed, and pass it with `--prior`.
+
+The prefix proof re-reads that record on both endpoints: receipt, canonical block, mined fields, the same receipt on
+both, and Safe `ExecutionSuccess` for `_exec` steps. It does not re-run the step's read-backs, which is why step 2 is
+manual. A verify-only `--reconcile <hash>` mode that reuses the post-state code is a proposed follow-up.
+
 Debug traces (the fork's `safe_trace`, `mint_trace` and `handover_trace`) are not read live; Safe execution is checked
 from the receipt's `ExecutionSuccess` event.
 
-Offline verification (local anvil and the public anvil keys; no network, keystore or real key):
+Offline verification uses a local anvil and the public anvil keys only; no network, keystore or real key. Each
+test class starts its own anvil with `--port 0` and reads the bound port from anvil's output, so no pre-picked port can
+be taken by a concurrent process. Both endpoint URLs are literal `127.0.0.1` strings; nothing resolves `localhost`.
+The test process ignores environment proxies. A transport error on a test read is retried by the test harness only,
+at most twice; each retry is printed (`HARNESS RETRY`), and the run ends with `HARNESS_RETRIES <count>`. The sender
+itself never retries.
 
 ```sh
 A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_send.py

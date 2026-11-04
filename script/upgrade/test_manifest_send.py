@@ -6,14 +6,15 @@ real manifest_exec.validate_plan(frozen=True) with those fixtures. The send test
 public anvil test accounts and run against a local anvil (--chain-id 11155111): signing is real `cast mktx` through
 a wrapper that maps keystore names to the public anvil keys, decoding/keccak are real, the broadcast is a real
 eth_sendRawTransaction to anvil, live estimates come from anvil, and receipts, mined fields and post-state
-read-backs are read from anvil through two endpoint objects (127.0.0.1 and localhost). The packet prefix is mined
+read-backs are read from anvil through two endpoint objects (two distinct 127.0.0.1 URL strings). The packet prefix is mined
 by impersonation and proven through the sender's real prior-record check. Only validate_plan (the packet no longer
 matches its deterministic rebuild once re-targeted) and manifest_exec.pre_send_reads (it needs the Sepolia contract
 set) are replaced in the send tests; the second endpoint can be tampered with to model endpoint disagreement.
 """
 import sys
 sys.dont_write_bytecode = True
-import contextlib, copy, hashlib, io, json, os, re, shutil, socket, stat, subprocess, tempfile, time, unittest
+import contextlib, copy, datetime, hashlib, io, json, os, re, shutil, stat, subprocess, tempfile, time, unittest
+import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -29,8 +30,15 @@ ENGINE = os.environ.get('A3A_ENGINE_DIR')
 REAL_CAST = str(Path(ENGINE)/'cast') if ENGINE else (shutil.which('cast') or str(Path.home()/'.foundry/bin/cast'))
 ANVIL = str(Path(ENGINE)/'anvil') if ENGINE else (shutil.which('anvil') or str(Path.home()/'.foundry/bin/anvil'))
 REAL_RUN = subprocess.run
-AUTHORIZED_AT = '2026-11-04T14:00:00+00:00'
-AUTH_GATES = ('send_authorized_at', 'send_authorization_record')  # live only (author's go); dry-run has neither
+
+
+def iso(delta_seconds=-60):
+    return (datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=delta_seconds)).isoformat(timespec='seconds')
+
+
+AUTHORIZED_AT = iso()  # a minute before the suite started: after every fixture pin, not in the future
+AUTH_GATES = ('send_authorized_at', 'send_authorized_at_future', 'send_authorized_at_before_pin',
+              'send_authorization_record')  # live only (author's go); dry-run has none of them
 # Public anvil test accounts #0-#3 (well-known keys, never funded on any public chain by this repo).
 KEYS = {'deployer': '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
         'approver': '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
@@ -117,6 +125,13 @@ def generic_runtime():
 
 
 GENERIC = generic_runtime()
+# Prefix replay only: a stand-in Safe that emits ExecutionSuccess(bytes32 indexed txHash = sload(1), uint256 payment = 0)
+# for every call, so mined `_exec` prior records carry the event the sender's prefix proof requires.
+
+
+def safe_stub():
+    sig = a.keccak('ExecutionSuccess(bytes32,uint256)')[2:]
+    return '0x600154' + '7f' + sig + '6020' + '6000' + 'a2' + '00'
 
 
 @contextlib.contextmanager
@@ -145,10 +160,29 @@ def word(v):
     return '0x'+format(v, '064x')
 
 
-def free_port():
-    with socket.socket() as s:
-        s.bind(('127.0.0.1', 0))
-        return s.getsockname()[1]
+# Loopback anvil traffic must never go through a proxy taken from the environment (HTTP_PROXY/ALL_PROXY): a proxy in
+# the path answers with its own status lines and connection handling. Test process only; production is unchanged.
+urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
+LISTENING = re.compile(r'Listening on 127\.0\.0\.1:(\d+)')
+
+
+def start_anvil(log_path):
+    """Start anvil on a port it binds itself (--port 0) and read that port from its own output: no window in which
+    another process can take a pre-picked port, and so no chance of talking to a foreign server."""
+    log = open(log_path, 'w')
+    proc = subprocess.Popen([ANVIL, '--chain-id', '11155111', '--port', '0', '--hardfork', 'cancun'],
+                            stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+    log.close()
+    deadline = time.monotonic()+60
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError('anvil exited: '+Path(log_path).read_text()[-2000:])
+        found = LISTENING.search(Path(log_path).read_text(errors='replace'))
+        if found:
+            return proc, int(found.group(1))
+        time.sleep(.05)
+    proc.kill()
+    raise RuntimeError('anvil did not report its port')
 
 
 def frozen_packet():
@@ -174,17 +208,35 @@ def retarget(plan):
     return plan
 
 
+HARNESS_RETRIES = []  # (endpoint, method) of every harness-level transport retry; printed at exit, never silent
+
+
 class Endpoint:
-    """Wraps a real a3a_exec.RPC to anvil: records every call and lets one test rewrite results (disagreement)."""
+    """Wraps a real a3a_exec.RPC to anvil: records every call and lets one test rewrite results (disagreement).
+
+    Test harness only: a read that fails in transport (rpc_transport, i.e. no HTTP answer from the local anvil) is
+    retried up to twice and logged. The sender itself never retries; injected faults (tampers) are never retried,
+    and the broadcast does not go through this wrapper."""
     def __init__(self, rpc, name):
         self.rpc, self.name, self.calls, self.tamper = rpc, name, [], {}
+
+    def real(self, method, params, *rest):
+        for attempt in range(3):
+            try:
+                return self.rpc(method, params, *rest)
+            except a.Gate as e:
+                if e.record['gate'] != 'rpc_transport' or attempt == 2:
+                    raise
+                HARNESS_RETRIES.append((self.name, method, e.record['observed']))
+                print('HARNESS RETRY %s %s %s' % (self.name, method, e.record['observed']), file=sys.stderr)
+                time.sleep(.1)
 
     def __call__(self, method, params, *rest):
         self.calls.append((method, json.dumps(params)))
         fn = self.tamper.get(method)
         if fn is not None and getattr(fn, 'replace', False):
             return fn(params)
-        result = self.rpc(method, params, *rest)
+        result = self.real(method, params, *rest)
         return fn(params, result) if fn else result
 
 
@@ -203,17 +255,13 @@ class AnvilCase(unittest.TestCase):
         cls.real_plan = plan
         case.doCleanups()
         cls.plan = retarget(plan)
-        cls.port = free_port()
-        cls.proc = subprocess.Popen([ANVIL, '--chain-id', '11155111', '--port', str(cls.port), '--hardfork', 'cancun',
-                                     '--silent'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        cls.urls = ('http://127.0.0.1:%d' % cls.port, 'http://localhost:%d' % cls.port)
+        cls.anvil_dir = tempfile.TemporaryDirectory()
+        cls.proc, cls.port = start_anvil(Path(cls.anvil_dir.name)/'anvil.log')
+        # Two distinct endpoint strings for the same IPv4 listener; no name resolution (localhost may be ::1).
+        cls.urls = ('http://127.0.0.1:%d' % cls.port, 'http://127.0.0.1:%d/' % cls.port)
         cls.local = a.RPC(cls.urls[0], local=True)
-        for _ in range(200):
-            try:
-                cls.local('eth_chainId', [])
-                break
-            except a.Gate:
-                time.sleep(.05)
+        assert cls.local('web3_clientVersion', []).startswith('anvil/'), 'not our anvil'
+        assert cls.local('eth_chainId', []) == '0xaa36a7'
         cls.addr = cls.plan['addresses']
         cls.setup_chain()
         cls.base_snapshot = cls.local('evm_snapshot', [])
@@ -222,6 +270,7 @@ class AnvilCase(unittest.TestCase):
     def tearDownClass(cls):
         cls.proc.terminate()
         cls.proc.wait(10)
+        cls.anvil_dir.cleanup()
 
     @classmethod
     def set_slot(cls, target, slot, value):
@@ -240,8 +289,11 @@ class AnvilCase(unittest.TestCase):
         for label, sender in cls.plan['pin']['senders'].items():
             cls.local('anvil_setNonce', [sender['address'], hex(sender['nonce'])])
         sent = []
+        cls.local('anvil_setCode', [u.SAFE, safe_stub()])
         for step in cls.plan['steps'][:first]:
             tx = step['tx']
+            if 'safeHash' in step:
+                cls.set_slot(u.SAFE, 1, int(step['safeHash'], 16))
             h = cls.local('eth_sendTransaction', [a.tx_rpc(tx)])
             r = None
             for _ in range(400):
@@ -264,6 +316,7 @@ class AnvilCase(unittest.TestCase):
         cls.generic(u.SAFE, {SEL['nonce']: step['safeNonce']})
 
     def setUp(self):
+        self.assertIsNone(self.proc.poll(), 'anvil exited')
         self.local('evm_revert', [self.base_snapshot])
         self.__class__.base_snapshot = self.local('evm_snapshot', [])
         self.tmp = tempfile.TemporaryDirectory()
@@ -528,6 +581,28 @@ class SendTests(AnvilCase):
                 self.assertFalse((self.out/'authorization.json').exists())
                 self.assertEqual(self.mktx_calls(), [])
 
+    def test_authorized_at_in_the_future(self):
+        self.args.authorized_at = iso(ms.CLOCK_SKEW_SECONDS+60)
+        self.stop('send_authorized_at_future')
+        self.assertFalse((self.out/'authorization.json').exists())
+
+    def test_authorized_at_within_clock_skew(self):
+        self.args.authorized_at, self.args.last = iso(ms.CLOCK_SKEW_SECONDS-60), self.FIRST
+        self.send()
+        self.assertEqual(json.loads((self.out/'authorization.json').read_text())['authorizedAt'], self.args.authorized_at)
+
+    def test_authorized_at_before_the_packet_pin(self):
+        pin = self.packet_plan['pin']['timestamp']
+        before = datetime.datetime.fromtimestamp(pin-1, datetime.timezone.utc).isoformat()
+        self.args.authorized_at = before
+        self.stop('send_authorized_at_before_pin')
+        self.assertFalse((self.out/'authorization.json').exists())
+
+    def test_authorized_at_equal_to_the_packet_pin(self):
+        pin = self.packet_plan['pin']['timestamp']
+        self.args.authorized_at, self.args.last = datetime.datetime.fromtimestamp(pin, datetime.timezone.utc).isoformat(), self.FIRST
+        self.send()
+
     def test_wrong_phrase_writes_no_authorization(self):
         self.stop('send_operator_confirmation', lambda: self.send('yes'))
         self.assertFalse((self.out/'authorization.json').exists())
@@ -726,6 +801,49 @@ class SendTests(AnvilCase):
         self.endpoints[1][1].tamper['eth_getBlockByNumber'] = lambda p, r: (
             dict(r, timestamp=hex(int(r['timestamp'], 16)+1)) if p[0] != 'latest' else r)
         self.stop('prior_timestamp_agree')
+
+    def exec_record(self):
+        return next(x for x in self.prior_records if x['step'].endswith('_exec'))
+
+    def test_prior_exec_without_safe_success(self):
+        h = self.exec_record()['hash']
+        self.endpoints[1][1].tamper['eth_getTransactionReceipt'] = lambda p, r: dict(r, logs=[]) if p[0] == h else r
+        self.stop('safe_success_event')
+
+    def test_prior_receipts_disagree(self):
+        h = self.prior_records[2]['hash']
+        self.endpoints[1][1].tamper['eth_getTransactionReceipt'] = lambda p, r: (
+            dict(r, gasUsed=hex(int(r['gasUsed'], 16)+1)) if p[0] == h else r)
+        self.stop('prior_receipt_agree')
+
+    def test_interrupt_during_bookkeeping_is_after_broadcast(self):
+        real = ms.advance
+        def advance(context, sid, r, timestamp):
+            if sid == self.FIRST:
+                raise KeyboardInterrupt
+            return real(context, sid, r, timestamp)
+        with mock.patch.object(ms, 'advance', advance):
+            rec = self.stop('interrupted', broadcast=True)
+        self.assertEqual(rec['observed']['step'], self.FIRST)
+
+    def test_nonempty_output_directory_is_never_reused(self):
+        for name, url in zip(('a', 'b'), self.urls):
+            (self.d/name).write_text(url)
+        old = self.d/'old-run'
+        old.mkdir()
+        (old/'sent.json').write_text('{"packetSha256": "earlier run", "sent": []}')
+        before = (old/'sent.json').read_bytes()
+        argv = ['--packet', str(self.args.packet), '--approved-sha256', self.sha, '--first', self.FIRST,
+                '--prior', str(self.args.prior[0]), '--rpc-file', str(self.d/'a'), '--rpc-file-secondary', str(self.d/'b'),
+                '--accounts', str(self.args.accounts), '--password-file', str(self.args.password_file),
+                '--out', str(old), '--authorized-at', AUTHORIZED_AT, '--confirm', self.phrase()]
+        err = io.StringIO()
+        with mock.patch.dict(os.environ, {ms.ENABLE_ENV: self.sha}), contextlib.redirect_stderr(err):
+            self.assertEqual(ms.main(argv), 1)
+        self.assertIn('FAILURE: output_empty', err.getvalue())
+        self.assertEqual((old/'sent.json').read_bytes(), before)
+        self.assertEqual(sorted(p.name for p in old.iterdir()), ['sent.json'])
+        self.assertEqual(self.mktx_calls(), [])
 
     def test_prior_receipt_on_secondary(self):
         hidden = self.prior_records[4]['hash']
@@ -1312,4 +1430,6 @@ class CliTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    import atexit
+    atexit.register(lambda: print('HARNESS_RETRIES %d %s' % (len(HARNESS_RETRIES), HARNESS_RETRIES), file=sys.stderr))
     unittest.main()

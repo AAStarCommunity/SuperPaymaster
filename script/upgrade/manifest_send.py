@@ -10,8 +10,8 @@ Authorization: the go is the author's own phrase "SEND <first>..<last> <first 12
 --confirm it bypasses /dev/tty, so --confirm carries the author's go: the orchestrating session passes it only after the
 author personally sent that full phrase, verbatim, and never writes it for the author (a bare "yes" is not a go).
 Without --confirm the phrase is read from /dev/tty. A live run also needs --authorized-at (ISO-8601 with offset: when
-the phrase was received) and writes authorization.json (phrase verbatim, that time, packet sha256, range) before the
-first signature. --dry-run (phrase "DRY-RUN ...") needs neither and writes no authorization record.
+the phrase was received; not in the future beyond 5 minutes of clock skew, not before the packet's pin block time) and
+writes authorization.json (phrase verbatim, that time, packet sha256, range) before the first signature. --dry-run (phrase "DRY-RUN ...") needs neither and writes no authorization record.
 
 Usage (one contiguous range of packet steps per run; earlier runs' sent.json files prove the prefix):
   MANIFEST_SEND_ENABLE=<sha256> python3 -B script/upgrade/manifest_send.py \
@@ -25,7 +25,8 @@ Order of operations, each a hard stop with a named gate; nothing is retried, re-
      --approved-sha256, and the plan is parsed from those hashed bytes (a copy is kept as evidence). It must be the final
      full-stage artifact and pass manifest_exec.validate_plan(frozen=True) (deterministic rebuild from its pin).
   1. Prefix: every step before --first is proven on BOTH endpoints by an earlier sent.json record (receipt, block
-     hash, mined fields equal to the packet); the executor context (passed set, upgrade block, 6c timestamp) is
+     hash, mined fields equal to the packet, the same receipt on both, Safe ExecutionSuccess for every _exec step);
+     the executor context (passed set, upgrade block, 6c timestamp) is
      derived from those receipts, never from the record alone.
   2. Before EACH signature, on BOTH endpoints: chain id; sender nonce latest == pending == planned; the executor's
      pre_send state re-reads (manifest_exec.pre_send_reads); timelock/ETA readiness; the B4 variant (both endpoints
@@ -36,7 +37,8 @@ Order of operations, each a hard stop with a named gate; nothing is retried, re-
   3. `cast mktx --account <name> --password-file <path>` offline (whitelisted environment, no RPC variable);
      `cast decode-transaction` and a local keccak over stdin; every decoded field equals the packet.
   4. Nonces re-read on both endpoints. --dry-run stops here, before the first step's broadcast: the same code path,
-     signature included, with nothing sent (result.json status DRY_RUN). Otherwise broadcast.json ("attempting") is
+     signature included, with nothing sent (result.json status DRY_RUN). It can rehearse only the first step of a
+     range: every later step's nonce and state gates depend on the previous step having been mined. Otherwise broadcast.json ("attempting") is
      written and eth_sendRawTransaction goes once to the primary endpoint only; from here every failure is
      send_after_broadcast with the local hash.
   5. Receipt on the primary, then the same receipt (block hash) on the secondary; status 0x1, except the B4 apply
@@ -66,6 +68,7 @@ SECONDARY_WAIT_SECONDS = 120
 POLL_SECONDS = 4
 DECODED_FIELDS = sd.DECODED_FIELDS
 ENDPOINTS = ('primary', 'secondary')
+CLOCK_SKEW_SECONDS = 300  # --authorized-at may lead this machine's clock by at most this much
 ROOT = a.ROOT
 
 
@@ -362,7 +365,7 @@ def prove_prefix(endpoints, plan, priors, first_index, sha, tokens):
         variant = rec['variant']
         a.need('prior_variant', variant in (('apply', 'placeholder') if 'variants' in step else (None,)), True)
         tx = step_tx(step, variant)
-        stamps = []
+        stamps, cores = [], []
         for label, rpc in endpoints:
             raw = rpc('eth_getTransactionReceipt', [rec['hash']])
             if raw is None:
@@ -376,6 +379,10 @@ def prove_prefix(endpoints, plan, priors, first_index, sha, tokens):
                 stamps.append(canonical_block(rpc, r, 'prior_block'))
                 if r['status'] == '0x0':  # only the B4 apply variant gets here: its post-state must still hold
                     m.b4_post_state(rpc, plan, variant, r)
+                if step['id'].endswith('_exec') and 'safeHash' in step:  # status 1 alone does not prove the inner call
+                    u.safe_exec_events(r['logs'], step['safeHash'])
+            cores.append(receipt_core(r))
+        a.need('prior_receipt_agree', cores[1], cores[0])
         a.need('prior_timestamp_agree', stamps[1], stamps[0])
         advance(context, step['id'], r, stamps[0])
     return context
@@ -401,13 +408,18 @@ def step_range(plan, first, last):
     return i, j
 
 
-def authorization_time(value):
-    """--authorized-at: when the author's phrase was received, ISO-8601 with an explicit offset."""
+def authorization_time(value, plan):
+    """--authorized-at: when the author's phrase was received, ISO-8601 with an explicit offset. It cannot lie in the
+    future (beyond CLOCK_SKEW_SECONDS) and cannot predate the packet: the bound is the pin block's timestamp, which the
+    packet hash covers (a file mtime is not used: copying or checking out resets it)."""
     try:
         when = datetime.datetime.fromisoformat(value) if isinstance(value, str) else None
     except ValueError:
         when = None
     a.need('send_authorized_at', when is not None and when.tzinfo is not None, True)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    a.need('send_authorized_at_future', when <= now+datetime.timedelta(seconds=CLOCK_SKEW_SECONDS), True)
+    a.need('send_authorized_at_before_pin', when.timestamp() >= plan['pin']['timestamp'], True)
     return value
 
 
@@ -432,7 +444,7 @@ def run(args, endpoints, urls, confirm=None):
     for step in steps:
         a.need('send_account_named', isinstance(accounts.get(step['sender']), str) and accounts[step['sender']] != '', True)
     password_file_check(args.password_file)
-    authorized_at = None if args.dry_run else authorization_time(args.authorized_at)
+    authorized_at = None if args.dry_run else authorization_time(args.authorized_at, plan)
     context = prove_prefix(endpoints, plan, args.prior, first, args.approved_sha256, tokens)
     verb = 'DRY-RUN' if args.dry_run else 'SEND'
     phrase = '%s %s..%s %s' % (verb, steps[0]['id'], steps[-1]['id'], args.approved_sha256[:12])
@@ -499,6 +511,12 @@ def run(args, endpoints, urls, confirm=None):
                         observed[label] = dict(readbacks=observed[label], final=final_readback(rpc, plan))
             if outcome == 'accepted_hash_mismatch':
                 raise a.Gate('send_returned_hash', 'mismatch', h)
+            # Bookkeeping stays inside the guarded block: an interrupt here is still send_after_broadcast with the hash.
+            advance(context, sid, r, stamps[0])
+            sent.append(dict(step=sid, variant=variant, hash=h, blockNumber=r['blockNumber'], blockHash=r['blockHash']))
+            sd.note(args.out/'sent.json', lambda p: write_sent())
+            sd.note(args.out/('readback.%s.json' % sid), lambda p: a.write_json(p, guard_all(dict(
+                step=sid, variant=variant, status=r['status'], gasUsed=a.qty(r['gasUsed']), readbacks=observed), urls, h)))
         except (Exception, KeyboardInterrupt) as e:
             if isinstance(e, KeyboardInterrupt):
                 inner = {'gate': 'interrupted', 'observed': None}
@@ -509,11 +527,6 @@ def run(args, endpoints, urls, confirm=None):
             raise a.Gate('send_after_broadcast', {'hash': h, 'broadcast': outcome, 'provider': provider, 'step': sid,
                                                   'cause': inner.get('gate'), 'causeObserved': inner.get('observed')},
                          'reconcile by hash on both endpoints; never resend, re-sign or reprice without a new review') from None
-        advance(context, sid, r, stamps[0])
-        sent.append(dict(step=sid, variant=variant, hash=h, blockNumber=r['blockNumber'], blockHash=r['blockHash']))
-        sd.note(args.out/'sent.json', lambda p: write_sent())
-        sd.note(args.out/('readback.%s.json' % sid), lambda p: a.write_json(p, guard_all(dict(
-            step=sid, variant=variant, status=r['status'], gasUsed=a.qty(r['gasUsed']), readbacks=observed), urls, h)))
     result = guard_all(dict(status='SENT', packetSha256=args.approved_sha256, steps=[x['step'] for x in sent],
                             hashes=[x['hash'] for x in sent]), urls)
     sd.note(args.out/'result.json', lambda p: a.write_json(p, result))
