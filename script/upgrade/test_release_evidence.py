@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Mocked tools only: no Forge builds/suites, git commands, or network access."""
+"""Evidence tests, including a real offline multi-unit Forge build; no git or network."""
 import sys
 sys.dont_write_bytecode = True
+import os
+import shutil
 import hashlib
 import json
 from pathlib import Path
@@ -15,7 +17,7 @@ import release_evidence as e
 
 COMMIT = 'a' * 40
 FORGE = Path('/mock/bin/forge')
-HASHES = dict(fullCreationKeccak='0x' + '12' * 32, strippedCreationKeccak='0x' + '34' * 32)
+HASHES = dict(fullCreationKeccak='0x' + '12' * 32, strippedCreationKeccak='0x' + '12' * 32)
 
 
 def result(stdout='', code=0, stderr=''):
@@ -32,6 +34,212 @@ def forge_json(statuses=('Success',), reason=None):
             'kind': {'Standard': {'gas': 1234}}, 'traces': [],
             'labeled_addresses': {}, 'duration': {'secs': 0, 'nanos': 123}
         } for i, status in enumerate(statuses)}, 'warnings': []}})
+
+
+def compiled_fixture(tree):
+    out = tree / 'out'
+    out.mkdir(exist_ok=True)
+    sources = {}
+    names = (*e.m.NAMES, 'SuperPaymasterAdminCalls', 'SuperPaymasterStorage', 'xPNTsV2Base')
+    for i, name in enumerate(names, 1):
+        source = 'contracts/src/' + name + '.sol'
+        path = tree / source
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('// compiler fixture')
+        bases = [i]
+        if name in ('SuperPaymaster', 'SuperPaymasterAdmin'):
+            bases += [12]
+        if name in ('xPNTsTokenV2', 'xPNTsTokenV2Ext'):
+            bases += [13]
+        node = dict(id=i, name=name, nodeType='ContractDefinition', contractKind='contract', linearizedBaseContracts=bases)
+        imports = [dict(nodeType='ImportDirective', absolutePath='contracts/src/' + names[b - 1] + '.sol') for b in bases[1:]]
+        sources[source] = dict(ast=dict(absolutePath=source, nodes=[node, *imports]))
+    build_info = out / 'build-info'
+    build_info.mkdir(exist_ok=True)
+    (build_info / 'unit.json').write_text(json.dumps(dict(
+        input=dict(sources={p: dict(content='// compiler fixture') for p in sources}),
+        output=dict(sources=sources))))
+
+
+def layout_fixture():
+    return dict(storage=[dict(label='balance', slot='0', offset=0, type='t_uint256')],
+                types={'t_uint256':dict(label='uint256', encoding='inplace', numberOfBytes='32')})
+
+
+def finding(identity, file='contracts/src/SuperPaymaster.sol', impact='High'):
+    return dict(id=identity, impact=impact, elements=[dict(source_mapping=dict(filename_relative=file))])
+
+
+class CompiledScopeTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix='sp-scope-test-')
+        self.addCleanup(self.tmp.cleanup)
+        self.tree = Path(self.tmp.name)
+
+    def synthetic_units(self):
+        compiled_fixture(self.tree)
+        path = self.tree / 'out/build-info/unit.json'
+        data = json.loads(path.read_text())
+        registry = 'contracts/src/Registry.sol'
+        output = data['output']['sources'].pop(registry)
+        # Reuse SuperPaymaster's ID in a different unit, with its own base.
+        node = output['ast']['nodes'][0]
+        node.update(id=1, linearizedBaseContracts=[1, 2])
+        base = 'contracts/src/RegistryBase.sol'
+        (self.tree / base).write_text('// registry base')
+        output['ast']['nodes'].append(dict(nodeType='ImportDirective', absolutePath=base))
+        other = dict(input=dict(sources={registry: dict(content='// compiler fixture'),
+                                        base: dict(content='// registry base')}),
+                     output=dict(sources={registry: output, base: dict(ast=dict(absolutePath=base, nodes=[
+                         dict(id=2, name='RegistryBase', nodeType='ContractDefinition',
+                              contractKind='contract', linearizedBaseContracts=[2])]))}))
+        path.write_text(json.dumps(data))
+        second = path.with_name('registry.json')
+        second.write_text(json.dumps(other))
+        return second, other
+
+    def test_symlink_scope_matches_finding_paths(self):
+        compiled_fixture(self.tree)
+        (self.tree / 'contracts/alias').symlink_to('src', target_is_directory=True)
+        path = self.tree / 'out/build-info/unit.json'
+        data = json.loads(path.read_text())
+        source = 'contracts/src/SuperPaymaster.sol'
+        alias = 'contracts/alias/SuperPaymaster.sol'
+        data['output']['sources'][source]['ast']['nodes'].append(
+            dict(nodeType='ImportDirective', absolutePath=alias))
+        data['output']['sources'][alias] = dict(ast=dict(absolutePath=alias, nodes=[]))
+        path.write_text(json.dumps(data))
+        scope, _, _ = e.compiled_scope(self.tree)
+        self.assertNotIn(alias, scope['files'])
+        self.assertIn(e.finding_files(finding('alias', alias), self.tree)[0], scope['files'])
+
+    def test_symlink_scope_escape_stops(self):
+        compiled_fixture(self.tree)
+        with tempfile.TemporaryDirectory() as outside:
+            source = self.tree / 'contracts/src/SuperPaymaster.sol'
+            target = Path(outside) / source.name
+            target.write_text('// outside')
+            source.unlink()
+            source.symlink_to(target)
+            with self.assertRaisesRegex(e.Stop, 'invalid compiled scope path'):
+                e.compiled_scope(self.tree)
+
+    def test_synthetic_multi_unit_scope_and_namespace_ids(self):
+        self.synthetic_units()
+        scope, roots, nodes = e.compiled_scope(self.tree)
+        self.assertEqual(len(scope['files']), 14)
+        self.assertIn('contracts/src/RegistryBase.sol', scope['files'])
+        self.assertEqual(nodes['Registry'][2][1]['name'], 'RegistryBase')
+        self.assertEqual(nodes['SuperPaymaster'][2][1]['name'], 'SuperPaymasterAdmin')
+        self.assertEqual(roots['Registry'][1]['id'], roots['SuperPaymaster'][1]['id'])
+
+    def test_registry_import_closure_uses_own_unit(self):
+        path, data = self.synthetic_units()
+        base = 'contracts/src/RegistryBase.sol'
+        lib = 'contracts/lib/RegistryDependency.sol'
+        (self.tree / lib).parent.mkdir(parents=True, exist_ok=True)
+        (self.tree / lib).write_text('// Registry-only dependency')
+        data['input']['settings'] = dict(optimizer=dict(runs=200))
+        data['output']['sources'][base]['ast']['nodes'].append(
+            dict(nodeType='ImportDirective', absolutePath=lib))
+        data['output']['sources'][lib] = dict(ast=dict(absolutePath=lib, nodes=[]))
+        path.write_text(json.dumps(data))
+        # Same source path in the other unit deliberately has a different import graph.
+        other_path = path.with_name('unit.json')
+        other = json.loads(other_path.read_text())
+        other['output']['sources'][base] = dict(ast=dict(absolutePath=base, nodes=[]))
+        other_path.write_text(json.dumps(other))
+        self.assertIn(lib, e.compiled_scope(self.tree)[0]['files'])
+        del data['output']['sources'][lib]
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'missing compiled import AST in unit'):
+            e.compiled_scope(self.tree)
+
+    def test_duplicate_root_identical_across_units(self):
+        path, data = self.synthetic_units()
+        for output in data['output']['sources'].values():
+            for node in output['ast']['nodes']:
+                if node['nodeType'] != 'ContractDefinition':
+                    continue
+                node['id'] += 100
+                node['linearizedBaseContracts'] = [i + 100 for i in node['linearizedBaseContracts']]
+        path.with_name('duplicate.json').write_text(json.dumps(data))
+        self.assertEqual(len(e.compiled_scope(self.tree)[0]['files']), 14)
+        data['input']['sources']['contracts/src/RegistryBase.sol']['content'] += ' changed'
+        path.with_name('duplicate.json').write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'non-identical duplicate'):
+            e.compiled_scope(self.tree)
+
+    def test_base_must_exist_in_own_unit(self):
+        path, data = self.synthetic_units()
+        data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]['linearizedBaseContracts'].append(12)
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'missing compiled base AST in unit'):
+            e.compiled_scope(self.tree)
+
+    def test_missing_build_info_stops(self):
+        with self.assertRaisesRegex(e.Stop, 'missing compiled scope build-info'):
+            e.compiled_scope(self.tree)
+
+    def test_missing_facade_stops(self):
+        compiled_fixture(self.tree)
+        path = self.tree / 'out/build-info/unit.json'
+        data = json.loads(path.read_text())
+        del data['output']['sources']['contracts/src/SuperPaymasterAdminCalls.sol']
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'missing compiled scope root: SuperPaymasterAdminCalls'):
+            e.compiled_scope(self.tree)
+
+    def test_ambiguous_root_in_unit_stops(self):
+        path, data = self.synthetic_units()
+        source = 'contracts/src/OtherRegistry.sol'
+        data['output']['sources'][source] = dict(ast=dict(absolutePath=source, nodes=[
+            dict(id=3, name='Registry', nodeType='ContractDefinition',
+                 contractKind='contract', linearizedBaseContracts=[3])]))
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'ambiguous compiled scope root: Registry'):
+            e.compiled_scope(self.tree)
+
+    def test_real_offline_two_unit_build(self):
+        forge = Path(os.environ.get('A3A_ENGINE_DIR', str(Path.home() / '.foundry/bin'))) / 'forge'
+        self.assertTrue(forge.is_file(), 'real offline scope test requires Forge')
+        (self.tree / 'foundry.toml').write_text('''[profile.default]
+src = "contracts/src"
+solc_version = "0.8.33"
+optimizer = true
+optimizer_runs = 500
+[[profile.default.additional_compiler_profiles]]
+name = "registry-size"
+optimizer_runs = 200
+[[profile.default.compilation_restrictions]]
+paths = "contracts/src/Registry.sol"
+max_optimizer_runs = 200
+[[profile.default.compilation_restrictions]]
+paths = "contracts/src/Roots.sol"
+min_optimizer_runs = 500
+''')
+        src = self.tree / 'contracts/src'
+        src.mkdir(parents=True)
+        header = '// SPDX-License-Identifier: MIT\npragma solidity 0.8.33;\n'
+        (src / 'Base.sol').write_text(header + 'contract Base { uint256 public value; }')
+        (src / 'Registry.sol').write_text(header + 'import "./Base.sol"; contract Registry is Base {}')
+        names = (*e.m.NAMES, 'SuperPaymasterAdminCalls')
+        (src / 'Roots.sol').write_text(header + 'import "./Base.sol";\n' +
+            '\n'.join('contract ' + name + ' is Base {}' for name in names if name != 'Registry'))
+        env = dict(os.environ, FOUNDRY_PROFILE='default')
+        # No --offline: CI runners have no cached solc 0.8.33 (the temp project has no submodules to install).
+        build = subprocess.run([str(forge), 'build', '--ast', '--build-info',
+                                '--out', str(self.tree / 'out')], cwd=self.tree, env=env,
+                               text=True, capture_output=True)
+        self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+        units = [json.loads(p.read_text()) for p in (self.tree / 'out/build-info').glob('*.json')]
+        self.assertEqual(len(units), 2)
+        self.assertEqual({u['input']['settings']['optimizer']['runs'] for u in units}, {200, 500})
+        scope, roots, nodes = e.compiled_scope(self.tree)
+        self.assertEqual(scope['files'], ['contracts/src/Base.sol', 'contracts/src/Registry.sol', 'contracts/src/Roots.sol'])
+        self.assertEqual(set(roots), set(names))
+        for name, root in roots.items():
+            self.assertEqual([nodes[name][i][1]['name'] for i in root[1]['linearizedBaseContracts']], [name, 'Base'])
 
 
 class EvidenceTests(unittest.TestCase):
@@ -63,6 +271,10 @@ class EvidenceTests(unittest.TestCase):
         self.skip_suite = False
         self.slither_findings = []
         self.calls = []
+        self.compiled_tree = self.root / 'consumer-tree'
+        rebuilt = patch.object(e.m, 'rebuild_commit', side_effect=lambda commit: dict(commit=commit, tree=self.compiled_tree, scope=e.compiled_scope(self.compiled_tree)[0]))
+        rebuilt.start()
+        self.addCleanup(rebuilt.stop)
 
     def fake_run(self, command, **kwargs):
         command = [str(x) for x in command]
@@ -79,7 +291,15 @@ class EvidenceTests(unittest.TestCase):
             Path(command[command.index('--json') + 1]).write_text(json.dumps(dict(success=True, error=None, results=dict(detectors=self.slither_findings) if self.slither_findings else {})))
             return result(stderr=f'INFO:Slither:. analyzed (42 contracts with 101 detectors), {len(self.slither_findings)} result(s) found\n')
         if 'build' in command:
+            generator_tree = Path(kwargs['cwd'])
+            self.assertNotEqual(generator_tree.resolve(), self.compiled_tree.resolve())
+            compiled_fixture(generator_tree)
+            if hasattr(self, 'import_transitive'):
+                self.add_imported_lib(self.import_transitive)
+            shutil.copytree(generator_tree, self.compiled_tree, dirs_exist_ok=True)
             return result()
+        if 'inspect' in command:
+            return result(json.dumps(layout_fixture()))
         mutated = [name for name in e.m.MUTATIONS if self.is_mutated(name)]
         if 'unittest' in command:
             test = command[-1].split('.')[-1]
@@ -136,19 +356,281 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(sum('test' in cmd for cmd, _ in self.calls), 18)
 
     def test_slither_schema_and_executor(self):
-        self.slither_findings = [dict(id='reviewed-1', impact='High')]
-        value = self.generate('slither', accepted=[dict(id='reviewed-1', reason='Reviewed mitigation in release decision')])
+        self.slither_findings = [finding('reviewed-1')]
+        value = self.generate('slither', accepted=[dict(id='reviewed-1', classification='accepted', reason='Reviewed mitigation in release decision')])
         self.assertEqual(value['findings']['aboveThreshold'], ['reviewed-1'])
 
+    def test_portable_raw_mappings_between_distinct_trees(self):
+        source = 'contracts/src/SuperPaymaster.sol'
+        for field in ('filename_relative', 'filename_absolute', 'mixed'):
+            for top_level in (False, True):
+                with self.subTest(field=field, top_level=top_level):
+                    for path in self.out.iterdir():
+                        path.unlink()
+                    mapping = {field: source if field == 'filename_relative' else str(self.tree / source)}
+                    if field == 'mixed':
+                        mapping = dict(filename_absolute=str(self.tree / source),
+                                       filename_relative='contracts/lib/Wrong.sol',
+                                       filename_short=str(self.tree / source))
+                    item = dict(id='portable', impact='High')
+                    if top_level:
+                        item['source_mapping'] = mapping
+                    else:
+                        item['elements'] = [dict(source_mapping=mapping)]
+                    self.slither_findings = [item]
+                    value = self.generate('slither', accepted=[
+                        dict(id='portable', classification='accepted', reason='reviewed')])
+                    self.assertNotEqual(self.tree.resolve(), self.compiled_tree.resolve())
+                    self.assertEqual(value['findings']['aboveThreshold'], ['portable'])
+                    raw = json.loads((self.out / 'slither.raw.json').read_text())
+                    detector = raw['results']['detectors'][0]
+                    published = detector['source_mapping'] if top_level else detector['elements'][0]['source_mapping']
+                    self.assertEqual(published, dict(filename_relative=source))
+
+    def test_generator_validates_evidence_commit_not_head(self):
+        other = 'e' * 40
+        with patch.object(e.m, 'rebuild_commit', side_effect=lambda commit: dict(
+                commit=commit, tree=self.tree, scope=e.compiled_scope(self.tree)[0])) as build, \
+             patch.object(e.m, 'rebuild', side_effect=AssertionError('HEAD build used')), \
+             patch.object(e.subprocess, 'run', side_effect=self.fake_run), \
+             patch.object(e.shutil, 'which', return_value='/mock/bin/slither'):
+            e.generate('slither', other, self.tree, self.out, FORGE)
+        build.assert_called_once_with(other)
+        value = json.loads((self.out / 'slither.json').read_text())
+        with patch.object(e.m, 'rebuild_commit', return_value=dict(commit=COMMIT, scope=value['scope'])):
+            with self.assertRaises(e.a.Gate) as caught:
+                e.m.validate_evidence_details(value, 'slither', self.out)
+        self.assertEqual(caught.exception.record['gate'], 'evidence_rebuild_commit')
+
     def test_unaccepted_slither_has_no_pass(self):
-        self.slither_findings = [dict(id='unreviewed', impact='Medium')]
+        self.slither_findings = [finding('unreviewed', impact='Medium')]
         with self.assertRaises(e.Stop):
             self.generate('slither')
         self.assertFalse((self.out / 'slither.json').exists())
 
+    def add_imported_lib(self, transitive=False):
+        self.import_transitive = transitive
+        path = self.tree / 'out/build-info/unit.json'
+        if not path.exists():
+            compiled_fixture(self.tree)
+        data = json.loads(path.read_text())
+        sources = data['output']['sources']
+        root = 'contracts/src/SuperPaymaster.sol'
+        lib = 'contracts/lib/ImportedBase.sol'
+        paths = [lib] if not transitive else ['contracts/lib/Bridge.sol', lib]
+        for target in paths:
+            file = self.tree / target
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text('// dependency')
+            sources[root]['ast']['nodes'].append(dict(nodeType='ImportDirective', absolutePath=target))
+            sources[target] = dict(ast=dict(absolutePath=target, nodes=[]))
+            root = target
+        sources[lib]['ast']['nodes'].append(dict(id=100, name='ImportedBase',
+            nodeType='ContractDefinition', contractKind='contract', linearizedBaseContracts=[100]))
+        sources['contracts/src/SuperPaymaster.sol']['ast']['nodes'][0]['linearizedBaseContracts'].append(100)
+        data['input']['sources'][lib] = dict(content='// dependency')
+        path.write_text(json.dumps(data))
+        return lib
+
+    def test_transitive_lib_high_requires_classification(self):
+        lib = self.add_imported_lib(transitive=True)
+        self.slither_findings = [finding('transitive', lib)]
+        with self.assertRaisesRegex(e.Stop, 'unreviewed or stale'):
+            self.generate('slither', accepted=[])
+        self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_test_file_high_remains_outside(self):
+        file = 'contracts/test/Unrelated.t.sol'
+        self.slither_findings = [finding('test', file)]
+        value = self.generate('slither', accepted=[])
+        self.assertEqual(value['findings']['aboveThreshold'], [])
+        self.assertEqual(value['findings']['outOfScope'][0]['files'], [file])
+
+    def test_lib_high_medium_require_classification(self):
+        lib = self.add_imported_lib()
+        for impact in ('High', 'Medium'):
+            self.slither_findings = [finding('lib', lib, impact=impact)]
+            with self.subTest(impact=impact), self.assertRaisesRegex(e.Stop, 'unreviewed or stale'):
+                self.generate('slither', accepted=[])
+            self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_lib_high_medium_classified(self):
+        lib = self.add_imported_lib()
+        for impact in ('High', 'Medium'):
+            for classification in ('accepted', 'false-positive'):
+                self.slither_findings = [finding('lib', lib, impact=impact)]
+                entry = dict(id='lib', classification=classification, reason='Reviewed dependency finding')
+                value = self.generate('slither', accepted=[entry])
+                self.assertEqual(value['findings']['aboveThreshold'], ['lib'])
+                self.assertEqual(value['findings']['outOfScope'], [])
+                (self.out / 'slither.json').unlink()
+
+    def test_lib_low_informational_remain_outside(self):
+        for impact in ('Low', 'Informational'):
+            self.slither_findings = [finding('lib', 'contracts/lib/Token.sol', impact=impact)]
+            value = self.generate('slither', accepted=[])
+            self.assertEqual(value['findings']['outOfScope'], [dict(id='lib', impact=impact,
+                files=['contracts/lib/Token.sol'], classification='unclassified')])
+            (self.out / 'slither.json').unlink()
+
+    def test_scope_classification_dsr_and_outside(self):
+        self.slither_findings = [finding('inside'), finding('outside', 'contracts/src/Unrelated.sol', impact='Low'),
+                                 finding('lib', 'contracts/lib/Token.sol', impact='Informational'), finding('low', impact='Low')]
+        entry = dict(row=26, id='inside', check='uninitialized-state', location='contracts/src/SuperPaymaster.sol:12',
+                     classification='false-positive', reason='Shared layout verified')
+        value = self.generate('slither', accepted=[entry])
+        self.assertEqual(value['findings']['accepted'], [entry])
+        self.assertEqual(value['findings']['inScopeTotal'], 1)
+        self.assertEqual([x['id'] for x in value['findings']['outOfScope']], ['outside', 'lib'])
+        self.assertTrue(all(x['classification'] == 'unclassified' for x in value['findings']['outOfScope']))
+        self.assertIn('contracts/src/SuperPaymasterStorage.sol', value['scope']['files'])
+        self.assertIn('contracts/src/SuperPaymasterAdminCalls.sol', value['scope']['files'])
+        self.assertEqual(len(value['storageLayout']), 2)
+        builds = [c for c, _ in self.calls if 'build' in c]
+        self.assertTrue(any('--ast' in c and '--build-info' in c for c in builds))
+        inspections = [(c, kw) for c, kw in self.calls if 'inspect' in c]
+        self.assertEqual(len(inspections), 4)
+        self.assertTrue(all('--offline' in c and kw['env']['FOUNDRY_OFFLINE'] == 'true'
+                            and kw['cwd'] == self.tree for c, kw in inspections))
+
+    def test_classification_missing_stale_duplicate_invalid_and_count_stop(self):
+        self.slither_findings = [finding('inside'), finding('outside', 'contracts/src/Other.sol')]
+        good = dict(id='inside', classification='accepted', reason='review')
+        cases = [[], [dict(good, id='stale')], [dict(good, id='outside')], [good, good],
+                 [dict(good, classification='unclassified')], [dict(id='inside', reason='old format')],
+                 [dict(good, reason=' ')], [good, dict(good, id='stale')]]
+        for accepted in cases:
+            with self.subTest(accepted=accepted), self.assertRaises(e.Stop):
+                self.generate('slither', accepted=accepted)
+            self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_generator_layout_parity_required(self):
+        def fake(command, **kwargs):
+            if 'inspect' in command and str(command[2]).endswith(':SuperPaymasterAdmin'):
+                data = layout_fixture()
+                data['storage'][0]['slot'] = '999'
+                return result(json.dumps(data))
+            return self.fake_run(command, **kwargs)
+        with patch.object(e.subprocess, 'run', side_effect=fake), \
+             patch.object(e.shutil, 'which', return_value='/mock/slither'), \
+             self.assertRaisesRegex(e.Stop, 'storage layout mismatch: SuperPaymaster vs SuperPaymasterAdmin'):
+            e.generate('slither', COMMIT, self.tree, self.out, FORGE)
+        self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_layout_each_pair_and_each_field_mismatch_stops(self):
+        for target in ('SuperPaymasterAdmin', 'xPNTsTokenV2Ext'):
+            for field, value in [('label', 'different'), ('slot', '1'), ('offset', 1), ('type', 'other')]:
+                def fake(command, **kwargs):
+                    if 'inspect' in command and str(command[2]).endswith(':' + target):
+                        data = layout_fixture()
+                        data['types']['other'] = dict(label='uint128', encoding='inplace', numberOfBytes='16')
+                        data['storage'][0][field] = value
+                        return result(json.dumps(data))
+                    return self.fake_run(command, **kwargs)
+                with self.subTest(target=target, field=field), patch.object(e.subprocess, 'run', side_effect=fake), \
+                     patch.object(e.shutil, 'which', return_value='/mock/slither'), self.assertRaisesRegex(e.Stop, 'layout mismatch'):
+                    e.generate('slither', COMMIT, self.tree, self.out, FORGE)
+                self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_layout_missing_entry_empty_and_failed_inspect_stop(self):
+        for output in (result(code=1), result('{}'), result(json.dumps(dict(storage=[], types={})))):
+            def fake(command, **kwargs):
+                return output if 'inspect' in command else self.fake_run(command, **kwargs)
+            with patch.object(e.subprocess, 'run', side_effect=fake), \
+                 patch.object(e.shutil, 'which', return_value='/mock/slither'), self.assertRaises((e.Stop, KeyError)):
+                e.generate('slither', COMMIT, self.tree, self.out, FORGE)
+            self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_scope_includes_imported_base_excludes_unrelated(self):
+        lib = self.add_imported_lib()
+        path = self.tree / 'out/build-info/unit.json'
+        data = json.loads(path.read_text())
+        sources = data['output']['sources']
+        unrelated = 'contracts/lib/Unrelated.sol'
+        sources[unrelated] = dict(ast=dict(absolutePath=unrelated, nodes=[]))
+        path.write_text(json.dumps(data))
+        scope, _, _ = e.compiled_scope(self.tree)
+        self.assertIn(lib, scope['files'])
+        self.assertNotIn(unrelated, scope['files'])
+        self.assertEqual(len(scope['files']), 14)
+        del sources['contracts/src/SuperPaymaster.sol']
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(e.Stop, 'scope root'):
+            e.compiled_scope(self.tree)
+
+    def test_duplicate_findings_and_missing_locations_stop(self):
+        for findings in ([finding('same'), finding('same')], [dict(id='unknown', impact='High')]):
+            self.slither_findings = findings
+            with self.subTest(findings=findings), self.assertRaises(e.Stop):
+                self.generate('slither')
+            self.assertFalse((self.out / 'slither.json').exists())
+
+    def test_mixed_scope_and_absolute_locations_are_in_scope(self):
+        item = finding('mixed', 'contracts/lib/Outside.sol')
+        item['elements'].append(dict(source_mapping=dict(filename_absolute=str(self.tree / 'contracts/src/SuperPaymaster.sol'))))
+        self.slither_findings = [item]
+        with self.assertRaises(e.Stop):
+            self.generate('slither')
+        value = self.generate('slither', accepted=[dict(id='mixed', classification='accepted', reason='reviewed')])
+        self.assertEqual(value['findings']['aboveThreshold'], ['mixed'])
+        self.assertEqual(value['findings']['outOfScope'], [])
+
+    def test_namespaced_mismatch_stops_and_records_tables(self):
+        def namespace(tree, root, nodes):
+            return [dict(label='pendingOwner', slot='10' if root[1]['name'] == 'SuperPaymasterAdmin' else '9',
+                         offset=0, type='address')]
+        with patch.object(e, 'namespace_table', side_effect=namespace), self.assertRaisesRegex(e.Stop, 'layout mismatch'):
+            self.generate('slither')
+        audit = json.loads((self.out / 'slither.audit.json').read_text())
+        pair = audit['storageLayout'][0]
+        self.assertNotEqual(pair['coreTable']['namespaces'], pair['extensionTable']['namespaces'])
+
+    def test_pending_owner_namespace_and_test_reference(self):
+        relative = 'contracts/src/utils/Ownable2StepNamespaced.sol'
+        path = self.tree / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((e.m.u.ROOT / relative).read_text())
+        node = dict(name='Ownable2StepNamespaced', linearizedBaseContracts=[1])
+        rows = e.namespace_table(self.tree, (relative, node), {1: (relative, node)})
+        self.assertEqual(rows[0]['label'], 'aastar.storage.Ownership2Step._pendingOwner')
+        self.assertEqual(rows[0]['type'], 'address')
+        test_path = self.tree / 'contracts/test/v2/SuperPaymasterD5bGov2.t.sol'
+        test_path.parent.mkdir(parents=True, exist_ok=True)
+        test_path.write_text('function test_gov2_sp_pendingOwner_erc7201_slot() public {}')
+        value = self.generate('slither')
+        self.assertEqual(value['storageLayout'][0]['testReferences'],
+                         ['contracts/test/v2/SuperPaymasterD5bGov2.t.sol:test_gov2_sp_pendingOwner_erc7201_slot'])
+        path.write_text(path.read_text().replace('sstore(slot, p)', 'sstore(0, p)'))
+        with self.assertRaisesRegex(e.Stop, 'namespace binding changed'):
+            e.namespace_table(self.tree, (relative, node), {1: (relative, node)})
+
+    def test_layout_recursive_struct_drift(self):
+        a = layout_fixture()
+        a['types']['struct'] = dict(label='struct S', encoding='inplace', numberOfBytes='32', members=a['storage'])
+        a['storage'] = [dict(label='config', slot='0', offset=0, type='struct')]
+        import copy
+        b = copy.deepcopy(a)
+        b['types']['struct']['members'][0]['offset'] = 1
+        self.assertNotEqual(e.layout_table(a), e.layout_table(b))
+
+    def test_namespace_tables_and_changed_declaration_stop(self):
+        path = self.tree / 'Initializable.sol'
+        path.write_text('bytes32 private constant INITIALIZABLE_STORAGE = 0x' + 'ab' * 32 + ';\n$.slot := INITIALIZABLE_STORAGE')
+        member = dict(name='InitializableStorage', documentation=dict(text='@custom:storage-location erc7201:openzeppelin.storage.Initializable'),
+                      members=[dict(name='_initialized', typeDescriptions=dict(typeString='uint64')),
+                               dict(name='_initializing', typeDescriptions=dict(typeString='bool'))])
+        node = dict(linearizedBaseContracts=[1], nodes=[member])
+        nodes = {1: ('Initializable.sol', node)}
+        table = e.namespace_table(self.tree, ('Initializable.sol', node), nodes)
+        self.assertEqual([x['offset'] for x in table], [0, 8])
+        self.assertEqual(table[0]['slot'], str(int('ab' * 32, 16)))
+        member['members'][0]['typeDescriptions']['typeString'] = 'uint128'
+        with self.assertRaisesRegex(e.Stop, 'namespace layout changed'):
+            e.namespace_table(self.tree, ('Initializable.sol', node), nodes)
+
     def test_reproducible_schema_and_executor(self):
         arts = {name: dict(bytecode={'object': '0x6000'}) for name in e.m.NAMES}
-        verifier = dict(bytecode='0x6000', creationHashes=HASHES)
+        verifier = dict(bytecode=json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-creation.json').read_text())['creationBytecode'], creationHashes=HASHES)
         with patch.object(e.a, 'compile_commit', return_value=(arts, {})) as build, \
              patch.object(e.m, 'rebuild_dvt', return_value=verifier) as dvt, \
              patch.object(e.m, 'creation_hashes', return_value=HASHES):
@@ -160,15 +642,15 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(audit['rebuild']['metadataOnlyDifferences'], [])
         self.assertEqual(audit['rebuild']['verifierCreationHashes'], HASHES)
 
-    def test_metadata_differences_are_recorded_but_executable_differences_stop(self):
+    def test_sp_full_or_stripped_hash_differences_stop(self):
         arts = {name: dict(bytecode={'object': '0x6000'}) for name in e.m.NAMES}
-        verifier = dict(bytecode='0x6000', creationHashes=HASHES)
+        verifier = dict(bytecode=json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-creation.json').read_text())['creationBytecode'], creationHashes=HASHES)
         for executable in (False, True):
             with self.subTest(executable=executable):
                 calls = 0
                 changed = dict(HASHES)
                 changed['strippedCreationKeccak' if executable else 'fullCreationKeccak'] = '0x' + '56' * 32
-                def hashes(code):
+                def hashes(code, name=None):
                     nonlocal calls
                     calls += 1
                     # Ten hashes in each SP build, then eleven recomputed by comparison.
@@ -176,15 +658,9 @@ class EvidenceTests(unittest.TestCase):
                 with patch.object(e.a, 'compile_commit', return_value=(arts, {})), \
                      patch.object(e.m, 'rebuild_dvt', return_value=verifier), \
                      patch.object(e.m, 'creation_hashes', side_effect=hashes):
-                    if executable:
-                        with self.assertRaises(e.a.Gate):
-                            self.generate('reproducible-build')
-                        self.assertFalse((self.out / 'reproducible-build.json').exists())
-                    else:
+                    with self.assertRaises(e.a.Gate):
                         self.generate('reproducible-build')
-                        audit = json.loads((self.out / 'reproducible-build.audit.json').read_text())
-                        self.assertEqual(audit['rebuild']['metadataOnlyDifferences'], ['SuperPaymaster'])
-                        (self.out / 'reproducible-build.json').unlink()
+                    self.assertFalse((self.out / 'reproducible-build.json').exists())
 
     def test_missing_forge_has_no_pass(self):
         with patch.object(e.subprocess, 'run', side_effect=FileNotFoundError('forge')):
@@ -536,6 +1012,33 @@ class InstallNodeDeps(unittest.TestCase):
         with patch.object(e, 'run', side_effect=fake_run), self.assertRaises(e.Stop):
             e.forge_test(Path('/forge'), Path('/tree'), 'contracts/test/x.t.sol', 'C', 'test_ok')
         self.assertIn('^test_ok\\(\\)$', calls[0])
+
+
+class RealReproducibleTests(unittest.TestCase):
+    def fixtures(self):
+        root = Path(__file__).with_name('fixtures')
+        arts = {name: {'bytecode': {'object': json.loads((root / 'real-creation' / (name + '.json')).read_text())['creationBytecode']}}
+                for name in e.m.NAMES}
+        code = json.loads((root / 'dvt-creation.json').read_text())['creationBytecode']
+        verifier = dict(bytecode=code, creationHashes=e.m.creation_hashes(code, 'OverIssueFraudProofVerifier'))
+        return arts, verifier
+
+    def test_real_reproducible_build(self):
+        arts, verifier = self.fixtures()
+        with patch.object(e.a, 'compile_commit', return_value=(arts, {})), patch.object(e.m, 'rebuild_dvt', return_value=verifier):
+            payload, count = e.reproducible(COMMIT, 'forge Version: 1.7.1', {})
+        self.assertEqual(count, 11)
+        for name in e.m.NAMES:
+            self.assertEqual(payload['contracts'][name]['fullCreationKeccak'], payload['contracts'][name]['strippedCreationKeccak'])
+
+    def test_real_sp_change_stops_reproducible_build(self):
+        import copy
+        arts, verifier = self.fixtures()
+        changed = copy.deepcopy(arts)
+        changed['SuperPaymaster']['bytecode']['object'] += '00'
+        with patch.object(e.a, 'compile_commit', side_effect=[(arts, {}), (changed, {})]), patch.object(e.m, 'rebuild_dvt', return_value=verifier):
+            with self.assertRaises(e.a.Gate): e.reproducible(COMMIT, 'forge Version: 1.7.1', {})
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,16 @@
+{
+  "sourceCommit": "adce0ec88f1f9a5fb38e467599f72323fcd25ccd",
+  "note": "Real Forge 1.7.1 creation/runtime bytecode of the manifest contracts at v5.5.0-rc.6; used to test creation_hashes on real artifacts.",
+  "contracts": {
+    "SuperPaymaster": "9435541b09064765a10064f3ccc9dbd947b65be35af5a217ed268a73c634abc4",
+    "SuperPaymasterAdmin": "f2ac750e26316ee5ea6a8e6b6d757baaa35e4b68b1f34d51376f4aee2bc3e1ff",
+    "GlobalTierSource": "a656f32f47f1600f8efd13336ea594503161bb58ca1cc4845cae8b341e3122c0",
+    "AOAProtocolRegistry": "50924cf003a0f9650cdaa3bc7b9d3caba07f64dc183388acbc78670560ac87e5",
+    "xPNTsTokenV2Ext": "2567ead1ae60ff82d27dcad6fd01ebe2cb4d64c981bd57a0ff35f046780270ca",
+    "xPNTsTokenV2": "88ae6bd55a6a7bce640713d7515016e4cb46a1468eedeb817a545191d74f0225",
+    "xPNTsFactoryV2": "9c132dce28e081d331404a486973fa8e04347896c253404feec0fc7f583c7aa0",
+    "SuperPaymasterLens": "36e2f5df7a9faff43b536c4fe61b83ff2a58e43c58279abef05663ea322ec9b9",
+    "Registry": "bd3700cdabd2ef10cf79ba9dda330274aa8871f3b8fb93dc11e2a1ead84feb8d",
+    "BLSAggregator": "5b2a0074c0593c404adb1fb49bf18d14b32d0bd0bafbfe3e28d3dc53d17d09ad"
+  }
+}

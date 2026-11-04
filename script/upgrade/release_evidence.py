@@ -326,6 +326,224 @@ def mutation(tree, forge, details):
     return dict(controls=controls), passed
 
 
+def compiled_scope(tree):
+    """Resolve import closures and inheritance within each build-info unit."""
+    roots, root_nodes, signatures = {}, {}, {}
+    files = set()
+    units = sorted((tree / 'out/build-info').glob('*.json'))
+    require(units, 'missing compiled scope build-info')
+    for unit in units:
+        data = json.loads(unit.read_text(), object_pairs_hook=unique_object)
+        sources = data.get('output', {}).get('sources', {})
+        require(sources, 'missing compiled scope build-info sources')
+        nodes = {}
+        for source, output in sources.items():
+            ast = output.get('ast', {})
+            require(ast.get('absolutePath') == source, 'missing or invalid compiled source AST')
+            for node in ast.get('nodes', []):
+                if node.get('nodeType') == 'ContractDefinition':
+                    require(node['id'] not in nodes, 'conflicting compiler AST IDs within unit')
+                    nodes[node['id']] = (source, node)
+        # AdminCalls is the explicitly required Solidity facade, not an inherited base.
+        for name in (*m.NAMES, 'SuperPaymasterAdminCalls'):
+            matches = [n for n in nodes.values()
+                       if n[1]['name'] == name and n[0].startswith('contracts/src/')]
+            require(len(matches) <= 1, 'ambiguous compiled scope root: ' + name)
+            if not matches:
+                continue
+            source, node = matches[0]
+            chain = []
+            unit_files = set()
+            pending = [source]
+            while pending:
+                path = pending.pop()
+                if path in unit_files:
+                    continue
+                require(path in sources, 'missing compiled import AST in unit: ' + path)
+                unit_files.add(path)
+                for imported in sources[path]['ast'].get('nodes', []):
+                    if imported.get('nodeType') == 'ImportDirective':
+                        target = imported.get('absolutePath')
+                        require(isinstance(target, str) and target in sources,
+                                'missing compiled import AST in unit: ' + str(target))
+                        pending.append(target)
+            for base in node['linearizedBaseContracts']:
+                require(base in nodes, 'missing compiled base AST in unit: ' + unit.name)
+                path, definition = nodes[base]
+                content = data.get('input', {}).get('sources', {}).get(path, {}).get('content')
+                require(isinstance(content, str), 'missing compiled source content: ' + path)
+                chain.append((path, definition['name'], definition['contractKind'], content))
+            # IDs and source indices differ between units. Compare source identity,
+            # exact contents and ordered inheritance instead of numeric AST IDs.
+            signature = (source, chain)
+            require(name not in signatures or signatures[name] == signature,
+                    'non-identical duplicate compiled scope root: ' + name)
+            signatures[name] = signature
+            roots[name] = (source, node)
+            root_nodes[name] = nodes
+            files.update(unit_files)
+    for name in (*m.NAMES, 'SuperPaymasterAdminCalls'):
+        require(name in roots, 'missing compiled scope root: ' + name)
+    files = {canonical_source_path(f, tree, scope=True) for f in files}
+    return dict(contracts=list(m.NAMES), files=sorted(files)), roots, root_nodes
+
+
+def layout_table(data):
+    types = data['types']
+    def expand(key, seen=()):
+        require(key in types, 'missing storage type')
+        t = types[key]
+        if key in seen:
+            return dict(label=t['label'])
+        result = {k: t[k] for k in ('label', 'encoding', 'numberOfBytes')}
+        for field in ('key', 'value', 'base'):
+            if field in t:
+                result[field] = expand(t[field], (*seen, key))
+        if 'members' in t:
+            result['members'] = [entry(x, (*seen, key)) for x in t['members']]
+        return result
+    def entry(x, seen=()):
+        return dict(label=x['label'], slot=x['slot'], offset=x['offset'], type=expand(x['type'], seen))
+    require(isinstance(data['storage'], list) and data['storage'], 'empty storage layout')
+    return [entry(x) for x in data['storage']]
+
+
+def namespace_table(tree, root, nodes):
+    """Solc omits ERC-7201 storage. Check the shared declaration and slot binding explicitly.
+
+    The release uses OZ Initializable and the repo's pending-owner namespace.
+    Unknown annotated namespaces STOP
+    rather than silently producing a partial parity claim.
+    """
+    tables = []
+    for base in root[1]['linearizedBaseContracts']:
+        path, node = nodes[base]
+        if node.get('name') == 'Ownable2StepNamespaced':
+            source = (tree / path).read_text()
+            slots = re.findall(r'bytes32 internal constant OWNERSHIP_2STEP_SLOT\s*=\s*(0x[0-9a-fA-F]{64});', source)
+            require(len(slots) == 1 and
+                    re.search(r'function pendingOwner\(\) public view virtual returns \(address p\)', source) and
+                    re.search(r'function _setPendingOwner\(address p\) private', source) and
+                    source.count('bytes32 slot = OWNERSHIP_2STEP_SLOT;') == 2 and
+                    'p := sload(slot)' in source and 'sstore(slot, p)' in source,
+                    'pending-owner namespace binding changed')
+            tables.append(dict(label='aastar.storage.Ownership2Step._pendingOwner',
+                               slot=str(int(slots[0], 16)), offset=0, type='address'))
+        for member in node.get('nodes', []):
+            doc = member.get('documentation') or {}
+            text = doc.get('text', '') if isinstance(doc, dict) else doc
+            if '@custom:storage-location' not in text:
+                continue
+            require(member['name'] == 'InitializableStorage' and
+                    'erc7201:openzeppelin.storage.Initializable' in text, 'unsupported storage namespace')
+            fields = [(x['name'], x['typeDescriptions']['typeString']) for x in member['members']]
+            require(fields == [('_initialized', 'uint64'), ('_initializing', 'bool')], 'namespace layout changed')
+            source = (tree / path).read_text()
+            slots = re.findall(r'bytes32 private constant INITIALIZABLE_STORAGE = (0x[0-9a-fA-F]{64});', source)
+            require(len(slots) == 1 and '$.slot := INITIALIZABLE_STORAGE' in source, 'namespace slot binding changed')
+            for (label, typ), offset in zip(fields, (0, 8)):
+                tables.append(dict(label='openzeppelin.storage.Initializable.' + label,
+                                   slot=str(int(slots[0], 16)), offset=offset, type=typ))
+    return tables
+
+
+def storage_consistency(tree, forge, roots, nodes, details):
+    pairs = []
+    details['storageLayout'] = pairs
+    for core, extension, reference in m.LAYOUT_PAIRS:
+        tables = []
+        for name in (core, extension):
+            target = roots[name][0] + ':' + name
+            r = run([forge, 'inspect', target, 'storageLayout', '--json', '--offline'], tree, environment(forge))
+            require(r.returncode == 0, 'storage layout inspect failed: ' + name)
+            table = layout_table(json.loads(r.stdout, object_pairs_hook=unique_object))
+            tables.append(dict(storage=table, namespaces=namespace_table(tree, roots[name], nodes[name])))
+        refs = []
+        test_path = 'contracts/test/v2/SuperPaymasterD5bGov2.t.sol'
+        test_name = 'test_gov2_sp_pendingOwner_erc7201_slot'
+        if core == 'SuperPaymaster' and (tree / test_path).is_file() and test_name in (tree / test_path).read_text():
+            refs.append(test_path + ':' + test_name)
+        pair = dict(core=core, extension=extension, reference=reference, testReferences=refs,
+                    coreTable=tables[0], extensionTable=tables[1])
+        pairs.append(pair)
+        require(tables[0] == tables[1], 'storage layout mismatch: ' + core + ' vs ' + extension)
+    return pairs
+
+
+def canonical_path_syntax(filename):
+    return (isinstance(filename, str) and not filename.startswith('/') and '\\' not in filename
+            and all(part not in ('', '.', '..') for part in filename.split('/')))
+
+
+def canonical_source_path(filename, tree, *, scope=False):
+    path = (tree / filename).resolve()
+    root = tree.resolve()
+    if scope:
+        require(path.is_relative_to(root) and path.is_file(), 'invalid compiled scope path')
+    return path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+
+
+def source_mappings(value):
+    """Visit source mappings at every level of a Slither report."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key == 'source_mapping':
+                require(isinstance(child, dict), 'invalid Slither source mapping')
+                yield child
+            else:
+                yield from source_mappings(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from source_mappings(child)
+
+
+def source_filename(mapping):
+    # Absolute locations are authoritative until the report is made portable.
+    return mapping.get('filename_absolute') or mapping.get('filename_relative')
+
+
+def portable_slither_report(report, tree):
+    for mapping in source_mappings(report):
+        filename = source_filename(mapping)
+        if filename:
+            relative = canonical_source_path(filename, tree)
+            require(canonical_path_syntax(relative), 'Slither source outside generator tree')
+            mapping['filename_relative'] = relative
+        mapping.pop('filename_absolute', None)
+        mapping.pop('filename_short', None)
+    return report
+
+
+def finding_files(item, tree):
+    files = set()
+    for mapping in source_mappings(item):
+        filename = source_filename(mapping)
+        if filename:
+            files.add(canonical_source_path(filename, tree))
+    require(files, 'Slither finding has no source location: ' + item['id'])
+    return sorted(files)
+
+
+def normalized_detectors(detectors, tree):
+    return [dict(item, files=finding_files(item, tree)) for item in detectors]
+
+
+def route_slither(detectors, scope, threshold):
+    """Pure classification of detectors with canonical source files."""
+    levels = ['Optimization', 'Informational', 'Low', 'Medium', 'High']
+    ids, outside, all_ids = [], [], []
+    for item in detectors:
+        require(item['impact'] in levels and isinstance(item['id'], str) and item['id'], 'invalid Slither detector')
+        all_ids.append(item['id'])
+        files = item['files']
+        if not set(files).intersection(scope['files']):
+            outside.append(dict(id=item['id'], impact=item['impact'], files=files, classification='unclassified'))
+        elif levels.index(item['impact']) >= levels.index(threshold):
+            ids.append(item['id'])
+    require(len(all_ids) == len(set(all_ids)), 'duplicate Slither finding IDs')
+    return dict(aboveThreshold=ids, outOfScope=outside, inScopeTotal=len(ids))
+
+
 def slither(tree, forge, threshold, accepted, details):
     binary = shutil.which('slither')
     require(binary, 'Slither is not installed; install it locally before generating evidence (no fallback)')
@@ -333,8 +551,11 @@ def slither(tree, forge, threshold, accepted, details):
     version = tool_version(binary, tree, env)
     with tempfile.TemporaryDirectory(prefix='sp-slither-') as tmp:
         report = Path(tmp) / 'release-slither.json'
-        build = run([forge, 'build', '--offline', '--force', '--build-info', '--skip', 'test', '--skip', 'script'], tree, env)
+        build = run([forge, 'build', '--offline', '--force', '--ast', '--build-info', '--skip', 'test', '--skip', 'script'], tree, env)
         require(build.returncode == 0, 'Slither input build failed')
+        scope, roots, nodes = compiled_scope(tree)
+        details['scope'] = scope
+        layouts = storage_consistency(tree, forge, roots, nodes, details)
         # Use a dedicated config: repository exclusions must not narrow the claimed threshold.
         selection = dict(detectors_to_run='all', detectors_to_exclude=None,
                          detectors_to_include=None, filter_paths=[], exclude_dependencies=False,
@@ -363,18 +584,23 @@ def slither(tree, forge, threshold, accepted, details):
                 'Slither analysis completion marker missing')
         require(int(markers[0][2]) == len(detectors), 'Slither summary disagrees with findings')
         details['slitherSelection']['detectorsRun'] = int(markers[0][1])
-        levels = ['Optimization', 'Informational', 'Low', 'Medium', 'High']
-        ids = []
-        for item in detectors:
-            require(item['impact'] in levels and isinstance(item['id'], str) and item['id'], 'invalid Slither detector')
-            if levels.index(item['impact']) >= levels.index(threshold):
-                ids.append(item['id'])
-        require(len(ids) == len(set(ids)), 'duplicate Slither finding IDs')
-        require(isinstance(accepted, list) and all(isinstance(x, dict) and set(x) == {'id', 'reason'} and
-                all(isinstance(v, str) and v.strip() for v in x.values()) for x in accepted), 'invalid accepted findings')
-        require(sorted(ids) == sorted(x['id'] for x in accepted), 'unreviewed or stale accepted Slither findings')
-        details['slither'] = data
-        return dict(findings=dict(threshold=threshold, aboveThreshold=ids, accepted=accepted)), 1, version
+        routed = route_slither(normalized_detectors(detectors, tree), scope, threshold)
+        ids, outside = routed['aboveThreshold'], routed['outOfScope']
+        require(isinstance(accepted, list), 'invalid accepted findings')
+        for item in accepted:
+            require(isinstance(item, dict) and {'id', 'classification', 'reason'} <= set(item)
+                    and set(item) <= {'id', 'classification', 'reason', 'row', 'check', 'location'}
+                    and item['classification'] in ('false-positive', 'accepted')
+                    and all(isinstance(item[k], str) and item[k].strip() for k in ('id', 'reason')),
+                    'invalid accepted findings')
+        classified = [x['id'] for x in accepted]
+        require(len(classified) == len(set(classified)), 'duplicate classifications')
+        require(len(ids) == len(classified) and set(ids) == set(classified),
+                'unreviewed or stale accepted Slither findings; in-scope total must equal classification count')
+        return dict(findings=dict(threshold=threshold, aboveThreshold=ids, accepted=accepted,
+                                 outOfScope=outside, inScopeTotal=len(ids)),
+                    scope=scope, storageLayout=layouts), 1, version
+
 
 
 def reproducible(commit, version, details):
@@ -389,8 +615,9 @@ def reproducible(commit, version, details):
         return contracts
     first, second = build(), build()
     hashes = {name: art['creationHashes'] for name, art in first.items()}
-    differences = m.compare_build_evidence({'contracts': hashes}, second)
+    differences = m.compare_build_evidence({'contracts': hashes}, second, first)
     details['rebuild'] = dict(metadataOnlyDifferences=differences,
+        creationMetadataLayouts={'OverIssueFraudProofVerifier': m.VERIFIER_METADATA_LAYOUT},
         verifierCreationHashes=hashes['OverIssueFraudProofVerifier'],
         secondCreationHashes={name: art['creationHashes'] for name, art in second.items()})
     return dict(contracts=hashes), len(hashes)
@@ -418,6 +645,9 @@ def generate(kind, commit, tree, out, forge, threshold='Medium', accepted=None):
                 payload, passed, slither_version = slither(tree, forge, threshold, accepted or [], details)
                 tool = dict(name='slither', version=slither_version)
                 details['tools']['slither'] = slither_version
+                raw = out / 'slither.raw.json'
+                write_json(raw, portable_slither_report(details['slither'], tree))
+                payload['rawReport'] = dict(path=raw.name, sha256=hashlib.sha256(raw.read_bytes()).hexdigest())
             elif kind == 'reproducible-build':
                 payload, passed = reproducible(commit, version, details)
             else:
@@ -427,6 +657,8 @@ def generate(kind, commit, tree, out, forge, threshold='Medium', accepted=None):
             # Validate before publishing; the schema intentionally allows no audit fields.
             with tempfile.TemporaryDirectory() as tmp:
                 candidate = Path(tmp) / 'evidence.json'
+                if kind == 'slither':
+                    shutil.copyfile(raw, Path(tmp) / raw.name)
                 write_json(candidate, evidence)
                 m.evidence_file(dict(path=str(candidate), sha256=hashlib.sha256(candidate.read_bytes()).hexdigest()), kind, commit)
             write_json(path, evidence)
@@ -446,7 +678,7 @@ def main(argv=None):
         p.add_argument('--commit', required=True, help='existing local tag or exactly tagged commit')
         p.add_argument('--out', required=True, type=Path, help='new/empty directory outside the repository')
         p.add_argument('--threshold', choices=['Informational', 'Low', 'Medium', 'High'], default='Medium')
-        p.add_argument('--accepted-findings', type=Path, help='JSON array of {id, reason}; defaults to none')
+        p.add_argument('--accepted-findings', type=Path, help='JSON array of {id, classification, reason, row?}; DSR check/location fields accepted')
     args = parser.parse_args(argv)
     out = args.out.resolve()
     previous_engine = a.ENGINE
@@ -454,7 +686,7 @@ def main(argv=None):
         require(not out.is_relative_to(m.u.ROOT.resolve()), '--out must be outside the source tree')
         require(not out.exists() or not any(out.iterdir()), '--out must be new or empty; stale evidence is refused')
         commit = clean_commit(args.commit, m.u.ROOT)
-        accepted = json.loads(args.accepted_findings.read_text()) if args.accepted_findings else []
+        accepted = json.loads(args.accepted_findings.read_text(), object_pairs_hook=unique_object) if args.accepted_findings else []
         forge = a.REBUILD_FORGE.resolve()
         a.ENGINE = forge.parent
         out.mkdir(parents=True, exist_ok=True)

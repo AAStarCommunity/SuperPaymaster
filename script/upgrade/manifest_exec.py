@@ -46,6 +46,7 @@ MUTATIONS = {
 DVT_SUITES = {'CC115CrossRepoConformance': 7, 'CC115GenuinePragueCrossRepo': 11, 'provenance': 5}
 
 VERIFIER_CREATION = '0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab'
+VERIFIER_EXECUTABLE = '0x697b97795dfc4547e615c048a5583d31f4c7f9a969b53d85d5ecb9e42e218d54'
 
 
 def reviewed_bytes(path, digest, gate):
@@ -81,6 +82,10 @@ def verifier_artifact(v):
 
 NAMES = ('SuperPaymaster', 'SuperPaymasterAdmin', 'GlobalTierSource', 'AOAProtocolRegistry',
          'xPNTsTokenV2Ext', 'xPNTsTokenV2', 'xPNTsFactoryV2', 'SuperPaymasterLens', 'Registry', 'BLSAggregator')
+LAYOUT_PAIRS = (
+    ('SuperPaymaster', 'SuperPaymasterAdmin', 'scripts/check-sp-layout.py'),
+    ('xPNTsTokenV2', 'xPNTsTokenV2Ext', 'scripts/check-xpnts-v2-layout.py'),
+)
 IMMUTABLES = dict(SuperPaymaster=u.SP_IMMUTABLES, SuperPaymasterAdmin=u.SP_IMMUTABLES[:-1],
     GlobalTierSource=('REGISTRY',), AOAProtocolRegistry=(),
     xPNTsTokenV2Ext=tuple(a.EIP712_IMMUTABLES)+('PROTOCOL_REGISTRY',),
@@ -101,7 +106,7 @@ def evidence_file(ref, kind, commit=None):
     required(ref, ('path', 'sha256'), 'evidence_reference')
     e = reviewed_file(ref['path'], ref['sha256'], 'evidence_'+kind)
     fields = ['kind', 'subjectCommit', 'tool', 'counts', 'result']
-    fields += {'conformance':['controls', 'scope'], 'mutation':['controls'], 'slither':['findings'],
+    fields += {'conformance':['controls', 'scope'], 'mutation':['controls'], 'slither':['findings', 'scope', 'storageLayout', 'rawReport'],
                'reproducible-build':['contracts'], 'dvt-ci':['suites', 'ciRun', 'acceptedFailures'],
                'dvt-conformance-4.12':['suites']}[kind]
     if kind.startswith('dvt-'):
@@ -120,7 +125,7 @@ def evidence_file(ref, kind, commit=None):
     a.need('evidence_skipped', e['counts']['skipped'], 0)
     if kind == 'dvt-ci':
         validate_ci_run(e)
-    validate_evidence_details(e, kind)
+    validate_evidence_details(e, kind, Path(ref['path']).parent)
     if kind.startswith('dvt-'):
         a.need('evidence_dvt_commit', e['subjectCommit'], VERIFIER_COMMIT)
         a.need('evidence_aggregator_version', e['aggregatorVersion'], AGG_VERSION)
@@ -146,7 +151,7 @@ def validate_ci_run(e):
     a.need('evidence_ci_overall', not failing if run['overall'] == 'success' else bool(direct & accepted), True)
 
 
-def validate_evidence_details(e, kind):
+def validate_evidence_details(e, kind, evidence_dir=None):
     if kind == 'conformance':
         schema = json.loads(Path(__file__).with_name('release-evidence.schema.json').read_text())['oneOf'][0]
         _fraud_schema(e, schema, 'conformance')
@@ -176,38 +181,142 @@ def validate_evidence_details(e, kind):
         a.need('evidence_suite_totals', e['counts'], dict(passed=sum(DVT_SUITES.values()), failed=0, skipped=0))
     elif kind == 'slither':
         a.need('evidence_slither_tool', e['tool']['name'], 'slither')
+        from release_evidence import canonical_path_syntax, canonical_source_path, normalized_detectors, route_slither, source_mappings, Stop
         f = e['findings']
-        a.exact_keys('evidence_findings', f, ('threshold', 'aboveThreshold', 'accepted'))
+        a.exact_keys('evidence_findings', f, ('threshold', 'aboveThreshold', 'accepted', 'outOfScope', 'inScopeTotal'))
         a.need('evidence_threshold', f['threshold'] in ('Informational', 'Low', 'Medium', 'High'), True)
-        a.need('evidence_findings_list', isinstance(f['aboveThreshold'], list) and isinstance(f['accepted'], list), True)
+        a.need('evidence_findings_list', all(isinstance(f[k], list) for k in ('aboveThreshold', 'accepted', 'outOfScope')), True)
         for item in f['accepted']:
-            a.exact_keys('evidence_accepted_finding', item, ('id', 'reason'))
-            a.need('evidence_acceptance_reason', all(isinstance(v,str) and v.strip() for v in item.values()), True)
-        a.need('evidence_unaccepted_findings', sorted(f['aboveThreshold']), sorted(x['id'] for x in f['accepted']))
+            a.need('evidence_accepted_fields', {'id', 'classification', 'reason'} <= set(item)
+                   and set(item) <= {'id', 'classification', 'reason', 'row', 'check', 'location'}, True)
+            a.need('evidence_classification', item['classification'] in ('false-positive', 'accepted'), True)
+            a.need('evidence_acceptance_reason', all(isinstance(item[k],str) and item[k].strip() for k in ('id', 'reason')), True)
+        ids = f['aboveThreshold']
+        a.need('evidence_unique_findings', len(ids), len(set(ids)))
+        a.need('evidence_unaccepted_findings', sorted(ids), sorted(x['id'] for x in f['accepted']))
+        a.need('evidence_in_scope_total', f['inScopeTotal'], len(ids))
+        scope = e['scope']
+        a.exact_keys('evidence_scope', scope, ('contracts', 'files'))
+        a.need('evidence_scope_contracts', scope['contracts'], list(NAMES))
+        files = scope['files']
+        a.need('evidence_scope_files', isinstance(files, list) and bool(files) and files == sorted(set(files))
+               and all(canonical_path_syntax(x)
+                       and x.endswith('.sol') for x in files), True)
+        built = rebuild_commit(e['subjectCommit'])
+        a.need('evidence_rebuild_commit', built['commit'], e['subjectCommit'])
+        recomputed = built['scope']
+        tree = built.get('tree', Path('/__evidence_tree__'))
+        for item in f['outOfScope']:
+            for filename in item.get('files', []):
+                a.need('evidence_finding_path_canonical', canonical_path_syntax(filename) and
+                       canonical_source_path(filename, tree) == filename, True)
+        a.need('evidence_scope_recomputed', scope, recomputed)
+        outside_ids = []
+        for item in f['outOfScope']:
+            a.exact_keys('evidence_outside', item, ('id', 'impact', 'files', 'classification'))
+            a.need('evidence_outside_unclassified', item['classification'], 'unclassified')
+            a.need('evidence_outside_files', bool(item['files']) and not set(item['files']).intersection(recomputed['files']), True)
+            outside_ids.append(item['id'])
+        a.need('evidence_outside_unique', len(outside_ids), len(set(outside_ids)))
+        a.need('evidence_outside_not_reviewed', bool(set(outside_ids).intersection(ids)), False)
+        a.need('evidence_unique_findings', len(ids + outside_ids), len(set(ids + outside_ids)))
+        # Do not rerun Slither: report completeness rests on the generator at the release commit.
+        # Re-derive classification under the independently rebuilt scope.
+        ref = e.get('rawReport')
+        a.exact_keys('evidence_slither_rederived', ref, ('path', 'sha256'))
+        a.need('evidence_slither_rederived', canonical_path_syntax(ref['path']), True)
+        evidence_root = (evidence_dir or Path.cwd()).resolve()
+        try:
+            raw_path = (evidence_root / ref['path']).resolve()
+            a.need('evidence_slither_rederived',
+                   raw_path.is_relative_to(evidence_root) and raw_path.is_file(), True)
+        except (OSError, RuntimeError) as error:
+            raise a.Gate('evidence_slither_rederived', str(error), 'contained regular raw report') from None
+        raw = reviewed_file(str(raw_path), ref['sha256'], 'evidence_slither_rederived')
+        try:
+            a.need('evidence_slither_rederived', raw.get('success') is True and raw.get('error') is None, True)
+            for mapping in source_mappings(raw):
+                for field in ('filename_relative', 'filename_absolute', 'filename_short'):
+                    filename = mapping.get(field)
+                    if filename:
+                        a.need('evidence_slither_rederived', canonical_path_syntax(filename), True)
+            routed = route_slither(normalized_detectors(raw['results'].get('detectors', []), tree), recomputed, f['threshold'])
+        except (Stop, KeyError, TypeError, ValueError) as error:
+            raise a.Gate('evidence_slither_rederived', str(error), 'valid raw report') from None
+        a.need('evidence_slither_rederived', {k: f[k] for k in routed}, routed)
+        a.need('evidence_layout_pair_count', len(e['storageLayout']), len(LAYOUT_PAIRS))
+        for pair, (core, extension, reference) in zip(e['storageLayout'], LAYOUT_PAIRS):
+            a.exact_keys('evidence_layout_pair', pair, ('core', 'extension', 'reference', 'testReferences', 'coreTable', 'extensionTable'))
+            a.need('evidence_layout_identity', (pair['core'], pair['extension'], pair['reference']), (core, extension, reference))
+            for table in (pair['coreTable'], pair['extensionTable']):
+                a.exact_keys('evidence_layout_table', table, ('storage', 'namespaces'))
+                a.need('evidence_layout_nonempty', isinstance(table['storage'], list) and bool(table['storage'])
+                       and isinstance(table['namespaces'], list), True)
+                for row in table['storage'] + table['namespaces']:
+                    a.exact_keys('evidence_layout_row', row, ('label', 'slot', 'offset', 'type'))
+            a.need('evidence_layout_parity', pair['coreTable'], pair['extensionTable'])
     elif kind == 'reproducible-build':
         a.exact_keys('evidence_contracts', e['contracts'], (*NAMES, 'OverIssueFraudProofVerifier'))
-        for hashes in e['contracts'].values():
+        for name, hashes in e['contracts'].items():
             a.exact_keys('evidence_creation_hashes', hashes, ('fullCreationKeccak', 'strippedCreationKeccak'))
             for value in hashes.values(): a.typed(value, a.HASH32)
+            if name != 'OverIssueFraudProofVerifier':
+                a.need('evidence_full_creation_'+name, hashes['strippedCreationKeccak'], hashes['fullCreationKeccak'])
 
 
-def creation_hashes(code):
-    # Solidity's trailing length includes only the CBOR map, not the two length bytes.
-    a.cbor_tail(code)
-    raw = bytes.fromhex(code[2:])
-    length = int.from_bytes(raw[-2:], 'big') + 2
-    return dict(fullCreationKeccak=a.keccak(code), strippedCreationKeccak=a.keccak('0x'+raw[:-length].hex()))
+# Release packet pin: verifier 72aca4fa, compiler runtime is the final data object.
+# Offsets include the two-byte Solidity CBOR length suffix. No pattern search.
+VERIFIER_METADATA_LAYOUT = {'byteLength': 3300, 'segments': [{'offset': 3247, 'length': 53}]}
 
 
-def compare_build_evidence(e, contracts):
+def verifier_executable(code, layout=None):
+    layout = VERIFIER_METADATA_LAYOUT if layout is None else layout
+    a.need('verifier_metadata_layout', layout, VERIFIER_METADATA_LAYOUT)
+    raw = bytes.fromhex(a.typed(code, a.HEXDATA)[2:])
+    a.need('verifier_creation_length', len(raw), layout['byteLength'])
+    chunks, cursor = [], 0
+    for segment in layout['segments']:
+        start, size = segment['offset'], segment['length']
+        end = start + size
+        a.need('verifier_segment_length', int.from_bytes(raw[end-2:end], 'big') + 2, size)
+        metadata = a.cbor_tail('0x' + raw[start:end].hex())
+        a.exact_keys('verifier_metadata_keys', metadata, ('ipfs', 'solc'))
+        a.need('verifier_metadata_solc', metadata['solc'], bytes.fromhex('000821'))
+        a.need('verifier_metadata_ipfs', isinstance(metadata['ipfs'], bytes) and
+               len(metadata['ipfs']) == 34 and metadata['ipfs'][:2] == b'\x12\x20', True)
+        chunks.append(raw[cursor:start])
+        cursor = end
+    chunks.append(raw[cursor:])
+    return b''.join(chunks)
+
+
+def creation_hashes(code, name=None):
+    full = a.keccak(code)
+    stripped = (a.keccak('0x' + verifier_executable(code).hex())
+                if name == 'OverIssueFraudProofVerifier' else full)
+    return dict(fullCreationKeccak=full, strippedCreationKeccak=stripped)
+
+
+def compare_build_evidence(e, contracts, reference_contracts=None):
     a.exact_keys('reproducible_contracts', e['contracts'], contracts)
+    if reference_contracts is not None:
+        a.exact_keys('reproducible_reference_contracts', reference_contracts, contracts)
     differences = []
     for name, art in contracts.items():
-        expected = creation_hashes(art['bytecode'])
+        if reference_contracts is not None:
+            left, right = reference_contracts[name]['bytecode'], art['bytecode']
+            if name == 'OverIssueFraudProofVerifier':
+                left, right = verifier_executable(left), verifier_executable(right)
+            else:
+                left, right = bytes.fromhex(left[2:]), bytes.fromhex(right[2:])
+            a.need('reproducible_bytes_'+name, left, right)
+        expected = creation_hashes(art['bytecode'], name)
         a.need('rebuild_record_'+name, art['creationHashes'], expected)
         actual = e['contracts'][name]
         a.need('reproducible_executable_'+name, actual['strippedCreationKeccak'], expected['strippedCreationKeccak'])
-        if actual['fullCreationKeccak'] != expected['fullCreationKeccak']:
+        if name != 'OverIssueFraudProofVerifier':
+            a.need('reproducible_full_'+name, actual['fullCreationKeccak'], expected['fullCreationKeccak'])
+        elif actual['fullCreationKeccak'] != expected['fullCreationKeccak']:
             differences.append(name)
     return differences
 
@@ -345,7 +454,10 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     a.need('fraud_token_runtime', token['runtime'] != '0x', True)
     a.need('fraud_token_pin_available', MOCK_TOKEN_RUNTIME_HASH is not None, True)
     a.need('fraud_token_pinned_runtime', a.keccak(token['runtime']), MOCK_TOKEN_RUNTIME_HASH)
-    a.need('fraud_token_stripped_runtime', creation_hashes(token['runtime'])['strippedCreationKeccak'], MOCK_TOKEN_STRIPPED_RUNTIME_HASH)
+    a.cbor_tail(token['runtime'])
+    raw = bytes.fromhex(token['runtime'][2:])
+    size = int.from_bytes(raw[-2:], 'big') + 2
+    a.need('fraud_token_stripped_runtime', a.keccak('0x' + raw[:-size].hex()), MOCK_TOKEN_STRIPPED_RUNTIME_HASH)
     raw_runtime = bytes.fromhex(token['runtime'][2:])
     for offset in (130, 210):
         a.need('fraud_token_zero_owner_'+str(offset), raw_runtime[offset:offset+32].hex(), '00'*32)
@@ -526,25 +638,39 @@ def validate_external(data, stage="full"):
 @lru_cache(maxsize=1)
 def rebuild():
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=u.ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    return {k: v for k, v in rebuild_commit(head).items() if k not in ('tree', 'treeOwner')}
+
+
+@lru_cache(maxsize=4)
+def rebuild_commit(head):
     version = subprocess.run([str(a.REBUILD_FORGE), '--version'], capture_output=True, text=True, check=True).stdout
     a.need('forge_version', version.splitlines()[0], 'forge Version: 1.7.1')
     arts, cfg = a.compile_commit(head, version, NAMES, tuple(IMMUTABLES.items()))
     # Inspect the same committed source/configuration in an isolated build tree.
-    with tempfile.TemporaryDirectory(prefix='manifest-layout-') as directory:
-        tree = Path(directory)/'tree'
-        a.archive_commit(u.ROOT, head, tree)
-        env = {k: os.environ[k] for k in ('HOME', 'PATH', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SVM_HOME') if k in os.environ}
-        env['FOUNDRY_PROFILE'] = 'default'
-        result = subprocess.run([str(a.REBUILD_FORGE), 'inspect', 'BLSAggregator', 'storage-layout', '--offline', '--json'],
-            cwd=tree, env=env, capture_output=True, text=True)
-        a.need('fraud_layout_inspect', result.returncode, 0)
-        layout = a.plan_json(result.stdout)
-        a.need('fraud_layout_build_parity', commitment_slot(layout, 1),
-               commitment_slot(arts['BLSAggregator']['storageLayout'], 1))
-        arts['BLSAggregator']['storageLayout'] = layout
+    directory = tempfile.TemporaryDirectory(prefix='manifest-layout-')
+    tree = Path(directory.name)/'tree'
+    a.archive_commit(u.ROOT, head, tree)
+    env = {k: os.environ[k] for k in ('HOME', 'PATH', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SVM_HOME') if k in os.environ}
+    env['FOUNDRY_PROFILE'] = 'default'
+    # Retain the pinned tree with the cached build for canonical finding-path resolution.
+    from release_evidence import compiled_scope, Stop
+    built = subprocess.run([str(a.REBUILD_FORGE), 'build', '--offline', '--ast', '--build-info'],
+                           cwd=tree, env=env, capture_output=True, text=True)
+    a.need('evidence_scope_build', built.returncode, 0)
+    try:
+        scope, _, _ = compiled_scope(tree)
+    except Stop as error:
+        raise a.Gate('evidence_scope_recomputed', str(error), 'valid compiled release scope') from None
+    result = subprocess.run([str(a.REBUILD_FORGE), 'inspect', 'BLSAggregator', 'storage-layout', '--offline', '--json'],
+        cwd=tree, env=env, capture_output=True, text=True)
+    a.need('fraud_layout_inspect', result.returncode, 0)
+    layout = a.plan_json(result.stdout)
+    a.need('fraud_layout_build_parity', commitment_slot(layout, 1),
+           commitment_slot(arts['BLSAggregator']['storageLayout'], 1))
+    arts['BLSAggregator']['storageLayout'] = layout
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
     a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
-    return dict(commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
+    return dict(tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
         bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']), runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})
@@ -552,9 +678,11 @@ def rebuild():
 
 @lru_cache(maxsize=1)
 def rebuild_dvt():
+    a.need('dvt_repo_configured', bool(os.environ.get('MANIFEST_DVT_REPO')), True)
     version = subprocess.run([str(a.REBUILD_FORGE), '--version'], capture_output=True, text=True, check=True).stdout
     a.need('dvt_forge_version', version.splitlines()[0], 'forge Version: 1.7.1')
-    repo = Path('/Users/jason/Dev/aastar/YetAnotherAA-Validator')
+    # Local clone of DVT (YetAnotherAA-Validator) containing VERIFIER_COMMIT; never a hardcoded machine path.
+    repo = Path(os.environ['MANIFEST_DVT_REPO'])
     with tempfile.TemporaryDirectory(prefix='manifest-dvt-') as directory:
         tree = Path(directory)/'tree'
         a.archive_commit(repo, VERIFIER_COMMIT, tree)
@@ -564,10 +692,10 @@ def rebuild_dvt():
                                 cwd=tree/'contracts', env=env, capture_output=True)
         a.need('dvt_offline_rebuild', result.returncode, 0)
         art = a.raw_artifact(tree/'contracts', 'OverIssueFraudProofVerifier')
-        a.need('dvt_rebuilt_creation', a.keccak(art['bytecode']['object']), VERIFIER_CREATION)
+        a.need('dvt_rebuilt_creation', creation_hashes(art['bytecode']['object'], 'OverIssueFraudProofVerifier')['strippedCreationKeccak'], VERIFIER_EXECUTABLE)
         mock = a.raw_artifact(tree/'contracts', 'MockOverIssuableToken')
         a.need('dvt_mock_rebuilt_runtime', a.keccak(mock['deployedBytecode']['object']), MOCK_TOKEN_RUNTIME_HASH)
-        return dict(bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']),
+        return dict(bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object'], 'OverIssueFraudProofVerifier'),
                     mockRuntimeHash=a.keccak(mock['deployedBytecode']['object']))
 
 
@@ -582,7 +710,8 @@ def release_gate(inputs, build, pin):
         evidence_file(data['releaseEvidence'].get(kind), kind, build['commit'])
     evidence_file(dict(path=data['verifier']['ciPath'], sha256=data['verifier']['ciSha256']), 'dvt-ci', build['commit'])
     verifier = rebuild_dvt()
-    a.need('dvt_artifact_rebuild', verifier['bytecode'], verifier_artifact(data['verifier'])['bytecode'])
+    a.need('dvt_artifact_rebuild', verifier_executable(verifier['bytecode']),
+           verifier_executable(verifier_artifact(data['verifier'])['bytecode']))
     contracts = dict(build['contracts'], OverIssueFraudProofVerifier=verifier)
     evidence = evidence_file(data['releaseEvidence']['reproducible-build'], 'reproducible-build', build['commit'])
     build['metadataOnlyDifferences'] = compare_build_evidence(evidence, contracts)
@@ -1209,6 +1338,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     def finish():
         plan = dict(schema='3.1', route='manifest-A-B-D', stage=stage, final=stage == 'full', stageSources=sources,
             pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs), rebuild=arts,
+            creationMetadataLayouts={'OverIssueFraudProofVerifier': copy.deepcopy(VERIFIER_METADATA_LAYOUT)},
             addresses=addresses, implementation=impl, extension=extension, operations=operations,
             steps=steps, controls=CONTROLS,
             expectedDomainSeparator=domain_separator(agg),
