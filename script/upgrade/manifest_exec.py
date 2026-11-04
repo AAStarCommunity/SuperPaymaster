@@ -181,7 +181,7 @@ def validate_evidence_details(e, kind, evidence_dir=None):
         a.need('evidence_suite_totals', e['counts'], dict(passed=sum(DVT_SUITES.values()), failed=0, skipped=0))
     elif kind == 'slither':
         a.need('evidence_slither_tool', e['tool']['name'], 'slither')
-        from release_evidence import canonical_path_syntax, canonical_source_path, normalized_detectors, route_slither, Stop
+        from release_evidence import canonical_path_syntax, canonical_source_path, normalized_detectors, route_slither, source_mappings, Stop
         f = e['findings']
         a.exact_keys('evidence_findings', f, ('threshold', 'aboveThreshold', 'accepted', 'outOfScope', 'inScopeTotal'))
         a.need('evidence_threshold', f['threshold'] in ('Informational', 'Low', 'Medium', 'High'), True)
@@ -225,9 +225,21 @@ def validate_evidence_details(e, kind, evidence_dir=None):
         ref = e.get('rawReport')
         a.exact_keys('evidence_slither_rederived', ref, ('path', 'sha256'))
         a.need('evidence_slither_rederived', canonical_path_syntax(ref['path']), True)
-        raw = reviewed_file(str((evidence_dir or Path.cwd()) / ref['path']), ref['sha256'], 'evidence_slither_rederived')
+        evidence_root = (evidence_dir or Path.cwd()).resolve()
+        try:
+            raw_path = (evidence_root / ref['path']).resolve()
+            a.need('evidence_slither_rederived',
+                   raw_path.is_relative_to(evidence_root) and raw_path.is_file(), True)
+        except (OSError, RuntimeError) as error:
+            raise a.Gate('evidence_slither_rederived', str(error), 'contained regular raw report') from None
+        raw = reviewed_file(str(raw_path), ref['sha256'], 'evidence_slither_rederived')
         try:
             a.need('evidence_slither_rederived', raw.get('success') is True and raw.get('error') is None, True)
+            for mapping in source_mappings(raw):
+                for field in ('filename_relative', 'filename_absolute', 'filename_short'):
+                    filename = mapping.get(field)
+                    if filename:
+                        a.need('evidence_slither_rederived', canonical_path_syntax(filename), True)
             routed = route_slither(normalized_detectors(raw['results'].get('detectors', []), tree), recomputed, f['threshold'])
         except (Stop, KeyError, TypeError, ValueError) as error:
             raise a.Gate('evidence_slither_rederived', str(error), 'valid raw report') from None

@@ -440,6 +440,7 @@ class RebuiltScopeTests(unittest.TestCase):
         from test_release_evidence import compiled_fixture
         import release_evidence
         m.rebuild_commit.cache_clear()
+        self.addCleanup(m.rebuild_commit.cache_clear)
         m.rebuild.cache_clear()
         self.addCleanup(m.rebuild.cache_clear)
         arts = {name: dict(bytecode=dict(object=art['bytecode']),
@@ -2155,6 +2156,44 @@ class ManifestTests(unittest.TestCase):
                 with self.assertRaises(a.Gate) as caught:
                     m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
                 self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+
+    def test_raw_absolute_mapping_rejected(self):
+        for field in ('filename_relative', 'filename_absolute', 'filename_short'):
+            for top_level in (False, True):
+                with self.subTest(field=field, top_level=top_level):
+                    value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+                    self.raw_findings(value, [('outside', 'High', 'contracts/lib/Outside.sol')])
+                    value['findings']['outOfScope'] = [dict(id='outside', impact='High',
+                        files=['contracts/lib/Outside.sol'], classification='unclassified')]
+                    raw_path = Path(self.tmp.name) / 'slither.raw.json'
+                    raw = json.loads(raw_path.read_text())
+                    item = raw['results']['detectors'][0]
+                    mapping = {field: '/__evidence_tree__/contracts/lib/Outside.sol'}
+                    if top_level:
+                        item['source_mapping'] = mapping
+                    else:
+                        item['elements'][0]['source_mapping'].update(mapping)
+                    ref = self.file_ref('slither.raw', raw)
+                    value['rawReport']['sha256'] = ref['sha256']
+                    with self.assertRaises(a.Gate) as caught:
+                        m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+
+    def test_raw_report_symlink_escape_rejected(self):
+        for parent in (False, True):
+            with self.subTest(parent=parent), tempfile.TemporaryDirectory() as external:
+                value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+                raw = Path(self.tmp.name) / 'slither.raw.json'
+                outside = Path(external) / 'report.json'
+                outside.write_bytes(raw.read_bytes())
+                link = Path(self.tmp.name) / ('linked-parent' if parent else 'linked-file')
+                link.symlink_to(Path(external) if parent else outside, target_is_directory=parent)
+                value['rawReport']['path'] = link.name + ('/report.json' if parent else '')
+                with patch.object(m, 'reviewed_file', wraps=m.reviewed_file) as reviewed:
+                    with self.assertRaises(a.Gate) as caught:
+                        m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+                    reviewed.assert_not_called()
 
     def test_outside_high_medium_allowed(self):
         for impact in ('High', 'Medium'):

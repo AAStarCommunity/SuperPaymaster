@@ -3,6 +3,7 @@
 import sys
 sys.dont_write_bytecode = True
 import os
+import shutil
 import hashlib
 import json
 from pathlib import Path
@@ -270,7 +271,7 @@ class EvidenceTests(unittest.TestCase):
         self.skip_suite = False
         self.slither_findings = []
         self.calls = []
-        self.compiled_tree = self.tree
+        self.compiled_tree = self.root / 'consumer-tree'
         rebuilt = patch.object(e.m, 'rebuild_commit', side_effect=lambda commit: dict(commit=commit, tree=self.compiled_tree, scope=e.compiled_scope(self.compiled_tree)[0]))
         rebuilt.start()
         self.addCleanup(rebuilt.stop)
@@ -290,10 +291,12 @@ class EvidenceTests(unittest.TestCase):
             Path(command[command.index('--json') + 1]).write_text(json.dumps(dict(success=True, error=None, results=dict(detectors=self.slither_findings) if self.slither_findings else {})))
             return result(stderr=f'INFO:Slither:. analyzed (42 contracts with 101 detectors), {len(self.slither_findings)} result(s) found\n')
         if 'build' in command:
-            self.compiled_tree = Path(kwargs['cwd'])
-            compiled_fixture(self.compiled_tree)
+            generator_tree = Path(kwargs['cwd'])
+            self.assertNotEqual(generator_tree.resolve(), self.compiled_tree.resolve())
+            compiled_fixture(generator_tree)
             if hasattr(self, 'import_transitive'):
                 self.add_imported_lib(self.import_transitive)
+            shutil.copytree(generator_tree, self.compiled_tree, dirs_exist_ok=True)
             return result()
         if 'inspect' in command:
             return result(json.dumps(layout_fixture()))
@@ -356,6 +359,33 @@ class EvidenceTests(unittest.TestCase):
         self.slither_findings = [finding('reviewed-1')]
         value = self.generate('slither', accepted=[dict(id='reviewed-1', classification='accepted', reason='Reviewed mitigation in release decision')])
         self.assertEqual(value['findings']['aboveThreshold'], ['reviewed-1'])
+
+    def test_portable_raw_mappings_between_distinct_trees(self):
+        source = 'contracts/src/SuperPaymaster.sol'
+        for field in ('filename_relative', 'filename_absolute', 'mixed'):
+            for top_level in (False, True):
+                with self.subTest(field=field, top_level=top_level):
+                    for path in self.out.iterdir():
+                        path.unlink()
+                    mapping = {field: source if field == 'filename_relative' else str(self.tree / source)}
+                    if field == 'mixed':
+                        mapping = dict(filename_absolute=str(self.tree / source),
+                                       filename_relative='contracts/lib/Wrong.sol',
+                                       filename_short=str(self.tree / source))
+                    item = dict(id='portable', impact='High')
+                    if top_level:
+                        item['source_mapping'] = mapping
+                    else:
+                        item['elements'] = [dict(source_mapping=mapping)]
+                    self.slither_findings = [item]
+                    value = self.generate('slither', accepted=[
+                        dict(id='portable', classification='accepted', reason='reviewed')])
+                    self.assertNotEqual(self.tree.resolve(), self.compiled_tree.resolve())
+                    self.assertEqual(value['findings']['aboveThreshold'], ['portable'])
+                    raw = json.loads((self.out / 'slither.raw.json').read_text())
+                    detector = raw['results']['detectors'][0]
+                    published = detector['source_mapping'] if top_level else detector['elements'][0]['source_mapping']
+                    self.assertEqual(published, dict(filename_relative=source))
 
     def test_generator_validates_evidence_commit_not_head(self):
         other = 'e' * 40

@@ -483,11 +483,41 @@ def canonical_source_path(filename, tree, *, scope=False):
     return path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
 
 
+def source_mappings(value):
+    """Visit source mappings at every level of a Slither report."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key == 'source_mapping':
+                require(isinstance(child, dict), 'invalid Slither source mapping')
+                yield child
+            else:
+                yield from source_mappings(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from source_mappings(child)
+
+
+def source_filename(mapping):
+    # Absolute locations are authoritative until the report is made portable.
+    return mapping.get('filename_absolute') or mapping.get('filename_relative')
+
+
+def portable_slither_report(report, tree):
+    for mapping in source_mappings(report):
+        filename = source_filename(mapping)
+        if filename:
+            relative = canonical_source_path(filename, tree)
+            require(canonical_path_syntax(relative), 'Slither source outside generator tree')
+            mapping['filename_relative'] = relative
+        mapping.pop('filename_absolute', None)
+        mapping.pop('filename_short', None)
+    return report
+
+
 def finding_files(item, tree):
     files = set()
-    for element in item.get('elements', []):
-        mapping = element.get('source_mapping', {})
-        filename = mapping.get('filename_relative') or mapping.get('filename_absolute')
+    for mapping in source_mappings(item):
+        filename = source_filename(mapping)
         if filename:
             files.add(canonical_source_path(filename, tree))
     require(files, 'Slither finding has no source location: ' + item['id'])
@@ -616,7 +646,7 @@ def generate(kind, commit, tree, out, forge, threshold='Medium', accepted=None):
                 tool = dict(name='slither', version=slither_version)
                 details['tools']['slither'] = slither_version
                 raw = out / 'slither.raw.json'
-                write_json(raw, details['slither'])
+                write_json(raw, portable_slither_report(details['slither'], tree))
                 payload['rawReport'] = dict(path=raw.name, sha256=hashlib.sha256(raw.read_bytes()).hexdigest())
             elif kind == 'reproducible-build':
                 payload, passed = reproducible(commit, version, details)
