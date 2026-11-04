@@ -2096,6 +2096,8 @@ class ExecutorTests(unittest.TestCase):
             commands = []
             def run(args, **kwargs):
                 commands.append(args)
+                if args[:2] == ['git', 'cat-file']:
+                    return SimpleNamespace(returncode=0)
                 if args[:2] == ['git', 'archive']:
                     kwargs['stdout'].write(tar_bytes('root.txt' if args[-1] == 'HEAD' else 'child.txt'))
                     return SimpleNamespace(returncode=0)
@@ -2109,6 +2111,18 @@ class ExecutorTests(unittest.TestCase):
             self.assertTrue((tree/'root.txt').is_file())
             self.assertTrue((tree/'vendor/child.txt').is_file())
             self.assertIn(['git', 'archive', '--format=tar', 'c'*40], commands)
+            shared = root/'.git/modules/vendor'
+            shared.mkdir(parents=True)
+            def shared_store(args, **kwargs):
+                if args[:2] == ['git', 'rev-parse']:
+                    value = (root if args[-1] == '--show-toplevel' else
+                             root/'.git' if args[-1] == '--git-common-dir' else
+                             root/'.git/worktrees/test/modules/vendor')
+                    return SimpleNamespace(returncode=0, stdout=str(value)+'\n')
+                return run(args, **kwargs)
+            with patch.object(ex.subprocess, 'run', side_effect=shared_store):
+                ex.archive_commit(root, 'HEAD', Path(d)/'shared')
+            self.assertTrue((Path(d)/'shared/vendor/child.txt').is_file())
             def unavailable(args, **kwargs):
                 if args[:2] == ['git', 'rev-parse']:
                     return SimpleNamespace(returncode=0, stdout=str(root if args[-1] == '--show-toplevel' else root/'.git/modules/missing')+'\n')
@@ -2116,7 +2130,16 @@ class ExecutorTests(unittest.TestCase):
             with patch.object(ex.subprocess, 'run', side_effect=unavailable):
                 with self.assertRaises(ex.Gate) as caught: ex.archive_commit(root, 'HEAD', Path(d)/'unavailable')
             self.assertEqual(caught.exception.record['gate'], 'rebuild_submodule_unavailable')
-            with patch.object(ex.subprocess, 'run', return_value=SimpleNamespace(returncode=1)):
+            self.assertEqual(caught.exception.record['observed'], dict(path='vendor', commit='c'*40))
+            def missing_commit(args, **kwargs):
+                if args[:2] == ['git', 'cat-file']:
+                    return SimpleNamespace(returncode=1)
+                return run(args, **kwargs)
+            with patch.object(ex.subprocess, 'run', side_effect=missing_commit):
+                with self.assertRaises(ex.Gate) as caught: ex.archive_commit(root, 'HEAD', Path(d)/'missing-child')
+            self.assertEqual(caught.exception.record['gate'], 'rebuild_submodule_unavailable')
+            self.assertEqual(caught.exception.record['observed'], dict(path='vendor', commit='c'*40))
+            with patch.object(ex.subprocess, 'run', return_value=SimpleNamespace(returncode=1, stderr=b'missing commit')):
                 with self.assertRaises(ex.Gate) as caught: ex.archive_commit(root, 'missing', Path(d)/'missing')
             self.assertEqual(caught.exception.record['gate'], 'rebuild_archive_unavailable')
 

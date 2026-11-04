@@ -14,6 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 import subprocess
 import sp_upgrade_exec as u
+import old_owner_isolation as isolation
 
 a = u.a
 ANNI = '0xecaacb915f7d92e9916f449f7ad42bd0408733c9'
@@ -670,7 +671,7 @@ def rebuild_commit(head):
     arts['BLSAggregator']['storageLayout'] = layout
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
     a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
-    return dict(tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
+    return dict(calldataSignatures=isolation.signature_catalogue(tree), oldOwnerInventory=isolation.inventory_source(tree, mode="release"), tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
         bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']), runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})
@@ -1144,6 +1145,7 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     validate_external(inputs['data'], stage)
     pin = u.collect(rpc, block)
     d = inputs['data']
+    pin['isolationControlCases'] = copy.deepcopy(d.get('isolationControlCases',{}))
     block = pin['stateBlock']
     who = d['anni']
     n = a.nonce(rpc, who, block)
@@ -1174,6 +1176,22 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     a.need('deposit_info_shape', len(deposit), 5)
     pin['entryPointDeposit'], _, pin['stake'], pin['stakeDelay'], pin['withdrawTime'] = deposit
     a.need('stake_not_unlocking', pin['withdrawTime'], 0)
+    # Isolation records discovery calls, bounded role-event history and canonical blocks
+    # so build_plan can replay every new inventory gate on both endpoint transcripts.
+    pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), fork=isolation.local_control_fork(), pending=inputs['data'].get('pendingDsrRuling'))
+    return pin
+
+
+def collect_pair(primary, secondary, block, inputs, stage='full'):
+    pin = collect(primary, block, inputs, stage, (primary, secondary))
+    independent = collect(secondary, block, inputs, stage, (primary, secondary))
+    a.need('independent_pin', independent, pin)
+    pin['oldOwnerIsolation']['endpointResults'] = dict(
+        primary=copy.deepcopy(pin['oldOwnerIsolation']['reads']),
+        secondary=copy.deepcopy(independent['oldOwnerIsolation']['reads']))
+    if 'sourceSelection' in pin['oldOwnerIsolation']:
+        pin['oldOwnerIsolation']['endpointIdentities'] = {label:isolation.endpoint_identity(rpc,label) for label,rpc in (('primary',primary),('secondary',secondary))}
+        isolation.assert_endpoint_identities(pin['oldOwnerIsolation']['endpointIdentities'])
     return pin
 
 
@@ -1339,6 +1357,8 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     for label, who in a.SENDERS.items():
         a.need('sender_'+label, pin['senders'][label]['address'], who)
     arts = copy.deepcopy(rebuild())
+    a.need('old_owner_control_cases_binding',pin.get('isolationControlCases',{}),d.get('isolationControlCases',{}))
+    isolation.validate_deployed(pin.get('oldOwnerIsolation'), pin, d.get('deployedSources'), pending=d.get('pendingDsrRuling'))
     release_gate(inputs, arts, pin)
     counters = {label: x['nonce'] for label, x in pin['senders'].items()}
     steps, addresses, runtimes = [], {}, {}
@@ -1354,6 +1374,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
             b4Disclosure='B4 always consumes its reserved deployer nonce. If already applied, one empty, zero-value self-transfer costs gas only.',
             gasPolicy=copy.deepcopy(u.GAS_POLICY), gasParams=list(u.GAS),
             activationScheduleNotBefore=max(0, pin['pendingAPNTsTokenEta']-u.DELAY))
+        isolation.assert_manifest_calldata(steps, arts['calldataSignatures'])
         bind_timing(plan)
         plan['prefixDigest'] = prefix_digest(plan)
         for name, source in sources.items():
@@ -1381,7 +1402,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         a.need('nonempty_runtime_'+name, rt != '0x', True)
         runtimes[target] = rt
         add(sid, None, art['bytecode']+a.cast('abi-encode', signature, *args)[2:],
-            [dict(kind='code', target=target, expected=rt)], creates=target)
+            [dict(kind='code', target=target, expected=rt)], creates=target, constructor=dict(signature=signature,bytecode=art['bytecode']))
         if name == 'OverIssueFraudProofVerifier':
             alternate = runtime_bytes(art, {'AGGREGATOR': vals['REGISTRY'], 'REGISTRY': vals['AGGREGATOR']})
             steps[-1]['readbacks'][0] = dict(kind='verifierCode', target=target, expected=[rt, alternate])
@@ -2337,8 +2358,7 @@ def main(argv=None):
         else:
             remote = a.RPC(args.rpc_file.read_text().strip())
             secondary = a.RPC(args.rpc_file_secondary.read_text().strip())
-            pin = collect(remote, args.block, inputs, args.stage, (remote, secondary))
-            a.need('independent_pin', collect(secondary, args.block, inputs, args.stage, (remote, secondary)), pin)
+            pin = collect_pair(remote, secondary, args.block, inputs, args.stage)
             plan = load_artifact(args.plan) if args.plan else build_plan(pin, inputs, args.stage, sources)
             replay_frozen = bool(args.plan) and (plan['stage'] == 'full' or 'budgetsWei' in plan)
             a.need('simulation_pin', plan['pin'], pin)
@@ -2356,7 +2376,7 @@ def main(argv=None):
                         input('Stage stopped. Press Enter to terminate the fork: ')
             a.relay_evidence(out)
             a.need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
-            a.need('pin_recheck', collect(remote, args.block, inputs, args.stage, (remote, secondary)), pin)
+            a.need('pin_recheck', collect_pair(remote, secondary, args.block, inputs, args.stage), pin)
             if replay_frozen:
                 a.need('frozen_plan_unchanged', plan, frozen)
             save_artifact(out, plan)
