@@ -1,0 +1,469 @@
+{
+  "command": "python3 -B -m unittest discover -s script/upgrade -p test_old_owner_isolation.py -q",
+  "engine": "default nightly",
+  "baseHead": "9868c670c98341002e5a8cf5cfa8d0890a011b98",
+  "testSummary": "Ran 49 tests in 13.307s\nOK (skipped=2)",
+  "logSha256": "cd24f1e0a37b1963bc41e39a8f0baf6167d977ca49c59a7860bc97906b9a4725",
+  "probes": [
+    {
+      "gate": "old_owner_clone_standard",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_clone_standard",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_clone_implementation",
+      "outcome": "caught_elsewhere:old_owner_clone_factory_nonce1"
+    },
+    {
+      "gate": "old_owner_clone_implementation",
+      "outcome": "caught_elsewhere:old_owner_clone_factory_nonce1"
+    },
+    {
+      "gate": "old_owner_clone_same_implementation",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_clone_standard",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_clone_standard",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_clone_implementation",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_clone_factory_nonce1",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_clone_implementation",
+      "outcome": "caught_elsewhere:old_owner_clone_factory_nonce1"
+    },
+    {
+      "gate": "old_owner_log_partition",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_log_partition",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_log_limit",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_runtime_parity",
+      "outcome": "caught_elsewhere:old_owner_inventory"
+    },
+    {
+      "gate": "old_owner_record_sha256",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_record_commit",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_record_address",
+      "outcome": "caught_elsewhere:old_owner_record_plan_address"
+    },
+    {
+      "gate": "old_owner_record_receipt",
+      "outcome": "crash:IndexError"
+    },
+    {
+      "gate": "old_owner_record_source_commit",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_record_required",
+      "outcome": "crash:TypeError"
+    },
+    {
+      "gate": "old_owner_fork_pin",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_fork_head",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_fork_positive",
+      "outcome": "caught_elsewhere:old_owner_fork_negative"
+    },
+    {
+      "gate": "old_owner_fork_restore",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_uncancelled_grants",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_log_partition",
+      "outcome": "caught_elsewhere:old_owner_history_old_filter"
+    },
+    {
+      "gate": "old_owner_history_address",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_history_removed",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_history_signature",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_history_canonical",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_history_log_range",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_history_positive",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_immutable_not_old",
+      "outcome": "caught_elsewhere:old_owner_immutable_expected"
+    },
+    {
+      "gate": "old_owner_immutable_expected",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_immutable_not_old",
+      "outcome": "caught_elsewhere:old_owner_immutable_expectation_missing"
+    },
+    {
+      "gate": "old_owner_immutable_expectation_missing",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_immutable_ast",
+      "outcome": "crash:TypeError"
+    },
+    {
+      "gate": "old_owner_immutable_address_encoding",
+      "outcome": "caught_elsewhere:old_owner_immutable_expected"
+    },
+    {
+      "gate": "old_owner_immutable_values",
+      "outcome": "crash:IndexError"
+    },
+    {
+      "gate": "old_owner_source_rule4",
+      "outcome": "caught_elsewhere:old_owner_runtime_parity"
+    },
+    {
+      "gate": "old_owner_metadata_unmasked",
+      "outcome": "caught_elsewhere:old_owner_immutable_ast"
+    },
+    {
+      "gate": "old_owner_source_rule4",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_source_rule4",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_source_rule4",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_authority_xPNTsToken_communityOwner",
+      "outcome": "caught_elsewhere:old_owner_control_xPNTsToken"
+    },
+    {
+      "gate": "old_owner_mapping_xPNTsToken_approvedFacilitators",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_mapping_xPNTsToken_autoApprovedSpenders",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_allowance_0x696a73701b104c6ccbbaaddd2216788ea08eab89_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_authority_xPNTsToken_communityOwner",
+      "outcome": "caught_elsewhere:old_owner_control_xPNTsToken"
+    },
+    {
+      "gate": "old_owner_mapping_xPNTsToken_approvedFacilitators",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_mapping_xPNTsToken_autoApprovedSpenders",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_allowance_0xe6579a90dc498a710008de12119812d0fb7aa224_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_TimelockController_PROPOSER_ROLE",
+      "outcome": "caught_elsewhere:old_owner_event_role_TimelockController"
+    },
+    {
+      "gate": "old_owner_authority_SuperPaymaster_pendingOwner",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_mapping_Registry_authorized",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_admin_ROLE_COMMUNITY",
+      "outcome": "caught_elsewhere:old_owner_event_role_admin"
+    },
+    {
+      "gate": "old_owner_authority_GTokenStaking_owner",
+      "outcome": "caught_elsewhere:old_owner_control_GTokenStaking"
+    },
+    {
+      "gate": "old_owner_authority_GToken_owner",
+      "outcome": "caught_elsewhere:old_owner_control_GToken"
+    },
+    {
+      "gate": "old_owner_authority_xPNTsFactory_owner",
+      "outcome": "caught_elsewhere:old_owner_control_xPNTsFactory"
+    },
+    {
+      "gate": "old_owner_authority_xPNTsToken_communityOwner",
+      "outcome": "caught_elsewhere:old_owner_control_xPNTsToken"
+    },
+    {
+      "gate": "old_owner_authority_MySBT_daoMultisig",
+      "outcome": "caught_elsewhere:old_owner_control_MySBT"
+    },
+    {
+      "gate": "old_owner_authority_PaymasterFactory_owner",
+      "outcome": "caught_elsewhere:old_owner_control_PaymasterFactory"
+    },
+    {
+      "gate": "old_owner_mapping_GTokenStaking_authorizedSlashers",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_mapping_xPNTsFactory_isXPNTs",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_mapping_xPNTsToken_autoApprovedSpenders",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_Registry_0x7777777777777777777777777777777777777777777777777777777777777777",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_admin_0x7777777777777777777777777777777777777777777777777777777777777777",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_allowance_0x2222222222222222222222222222222222222222_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_operator_treasury_0xb5600060e6de5e11d3636731964218e53caadf0e",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_operator",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_registry_user_roles",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_allowance_0x696a73701b104c6ccbbaaddd2216788ea08eab89_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_safe_owners",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_safe_modules",
+      "outcome": "caught_elsewhere:old_owner_fork_negative"
+    },
+    {
+      "gate": "old_owner_safe_guard",
+      "outcome": "caught_elsewhere:old_owner_fork_negative"
+    },
+    {
+      "gate": "old_owner_safe_fallback",
+      "outcome": "caught_elsewhere:old_owner_fallback_canonical"
+    },
+    {
+      "gate": "old_owner_history_old_filter",
+      "outcome": "caught_elsewhere:old_owner_uncancelled_grants"
+    },
+    {
+      "gate": "old_owner_immutable_not_old",
+      "outcome": "caught_elsewhere:old_owner_immutable_expected"
+    },
+    {
+      "gate": "old_owner_immutable_expected",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_control_GTokenStaking",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_control_GToken",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_control_xPNTsFactory",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_control_PaymasterFactory",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_control_MySBT",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_control_xPNTsToken",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_control_authority",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_control_registration",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_control_operator",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_mapping_control_path",
+      "outcome": "caught_elsewhere:old_owner_mapping_control_case"
+    },
+    {
+      "gate": "old_owner_control_safe",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_runtime_length",
+      "outcome": "caught_elsewhere:old_owner_runtime_parity"
+    },
+    {
+      "gate": "proxy_runtime_all_parity_gates",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_runtime_length",
+      "outcome": "caught_elsewhere:old_owner_runtime_parity"
+    },
+    {
+      "gate": "proxy_runtime_all_parity_gates",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_calldata_bytes",
+      "outcome": "caught_elsewhere:old_owner_calldata_argument"
+    },
+    {
+      "gate": "old_owner_source_claim",
+      "outcome": "caught_elsewhere:old_owner_record_required"
+    },
+    {
+      "gate": "old_owner_role_extraction_empty",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_extraction_empty",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_extraction_empty",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_log_address",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_log_removed",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_log_topic",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_log_canonical",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_role_log_range",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_fallback_canonical",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_module_page",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_implementation",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_creation_before",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "unexpected_proxy",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "unexpected_proxy",
+      "outcome": "accepted"
+    },
+    {
+      "gate": "old_owner_undeclared_clone",
+      "outcome": "caught_elsewhere:metadata_cbor"
+    }
+  ],
+  "reviewGateMutants": {
+    "stable": [
+      "old_owner_history_old_filter mutant suite=RED failures=1",
+      "L1_PROBE old_owner_module_page removed=red accepted",
+      "old_owner_fallback_canonical mutant suite=RED failures=1",
+      "L1_PROBE old_owner_fallback_canonical removed=red accepted",
+      "old_owner_module_page mutant suite=RED failures=1"
+    ],
+    "nightly": [
+      "old_owner_history_old_filter mutant suite=RED failures=1",
+      "L1_PROBE old_owner_module_page removed=red accepted",
+      "old_owner_fallback_canonical mutant suite=RED failures=1",
+      "L1_PROBE old_owner_fallback_canonical removed=red accepted",
+      "old_owner_module_page mutant suite=RED failures=1"
+    ]
+  }
+}

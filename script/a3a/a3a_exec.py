@@ -553,14 +553,14 @@ def archive_commit(repo, commit, destination):
         r = subprocess.run(['git', 'archive', '--format=tar', commit], cwd=repo,
                            stdout=stream, stderr=subprocess.PIPE)
         if r.returncode:
-            raise Gate('rebuild_archive_unavailable', {'commit': commit, 'exit': r.returncode},
+            raise Gate('rebuild_archive_unavailable', {'commit': commit, 'exit': r.returncode, 'error': r.stderr.decode(errors='replace')},
                        'commit and all dependencies available in local object stores; no fetch allowed')
         stream.seek(0)
         try:
             with tarfile.open(fileobj=stream) as archive:
                 archive.extractall(destination, filter='data')
         except (tarfile.TarError, OSError) as error:
-            raise Gate('rebuild_archive_extract', type(error).__name__, 'safe HEAD archive') from None
+            raise Gate('rebuild_archive_extract', dict(type=type(error).__name__, error=str(error)), 'safe HEAD archive') from None
     tree = subprocess.run(['git', 'ls-tree', '-r', '-z', commit], cwd=repo, capture_output=True)
     need('rebuild_tree', tree.returncode, 0)
     for entry in tree.stdout.split(b'\0'):
@@ -580,10 +580,29 @@ def archive_commit(repo, commit, destination):
                                     capture_output=True, text=True)
             store = Path(module.stdout.strip())
             if not store.is_absolute(): store = repo/store
+            if not store.is_dir():
+                common = subprocess.run(['git', 'rev-parse', '--git-common-dir'], cwd=repo,
+                                        capture_output=True, text=True)
+                if common.returncode == 0:
+                    common_path = Path(common.stdout.strip())
+                    if not common_path.is_absolute(): common_path = repo/common_path
+                    store = common_path/'modules'/path
             if module.returncode or not store.is_dir():
-                raise Gate('rebuild_submodule_unavailable', path, 'local initialized submodule or object store; no network fallback')
+                raise Gate('rebuild_submodule_unavailable', dict(path=path, commit=sha.decode()), 'local initialized submodule or object store; no network fallback')
             child = store
-        archive_commit(child, sha.decode(), target)
+        available = subprocess.run(['git', 'cat-file', '-e', sha.decode()+'^{commit}'], cwd=child,
+                                   capture_output=True)
+        if available.returncode:
+            raise Gate('rebuild_submodule_unavailable', dict(path=path, commit=sha.decode()),
+                       'submodule commit available locally; no network fallback')
+        try:
+            archive_commit(child, sha.decode(), target)
+        except Gate as error:
+            if error.record['gate'] == 'rebuild_submodule_unavailable':
+                observed = dict(error.record['observed'])
+                observed['path'] = path+'/'+observed['path']
+                raise Gate('rebuild_submodule_unavailable', observed, error.record['expected']) from None
+            raise
 
 
 def raw_artifact(root, name):
