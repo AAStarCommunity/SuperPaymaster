@@ -1224,7 +1224,7 @@ def domain_separator(aggregator):
 def prefix_payload(plan):
     steps = copy.deepcopy(plan['steps'])
     for step in steps:
-        for key in (u.MEASURED_KEYS - {'executionTimestamp'}) | {'skipped'}:
+        for key in (u.MEASURED_KEYS - {'executionTimestamp'}) | {'skipped', 'gasEvidence', 'variantMeasurements'}:
             step.pop(key, None)
         step['tx'].pop('gas', None)
         for tx in step.get('variants', {}).values():
@@ -1721,23 +1721,19 @@ def execute_b4(remote, rpc, plan, step, context, overrides, calibrate, out=None)
         # Snapshot probes never consume the reserved nonce.
         u.measure_step(remote, rpc, plan, step, overrides, timestamp, True)
         step['variants']['apply'] = copy.deepcopy(step['tx'])
-    tx = step['variants']['placeholder']
-    probe = {k: v for k, v in a.tx_rpc(tx).items() if k != 'gas'}
-    gas = a.qty(rpc('eth_estimateGas', [probe, 'latest']))
-    trial, _ = u.probe(rpc, tx, gas, timestamp)
-    a.need('B4_placeholder_probe', trial['status'], '0x1')
-    gas = a.qty(trial['gasUsed'])
-    a.need('B4_intrinsic_floor', gas >= 21000, True)
-    trial, _ = u.probe(rpc, tx, gas, timestamp)
-    a.need('B4_placeholder_exact', (trial['status'], a.qty(trial['gasUsed'])), ('0x1', gas))
+    placeholder = dict(id=step['id'], tx=step['variants']['placeholder'])
+    if not calibrate:
+        placeholder.update(step['variantMeasurements']['placeholder'])
+    u.measure_step(remote, rpc, plan, placeholder, overrides, timestamp, calibrate)
     if calibrate:
-        tx['gas'] = hex(gas)
-    else:
-        a.need('B4_frozen_intrinsic', tx['gas'], hex(gas))
-    # Do not estimate apply after this read: a concurrent apply can legitimately revert.
+        step['variantMeasurements'] = {'placeholder': {k: copy.deepcopy(v) for k, v in placeholder.items() if k not in ('id', 'tx')}}
+    # Re-estimate the selected payload. A race after this gate is checked by b4_post_state.
     name, tx = select_b4(rpc, plan, step)
     selected = dict(step, tx=tx)
-    pre_send(rpc, plan, selected, context)
+    if name == 'placeholder':
+        selected.update(step['variantMeasurements']['placeholder'])
+    pre_send(rpc, plan, selected, context, measured=True)
+    u.fresh_gas(remote, selected, overrides, timestamp)
     a.need('B4_block_gas', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
     rpc('evm_setNextBlockTimestamp', [timestamp])
     r = u.receipt(rpc, tx, status=None)
@@ -1872,7 +1868,11 @@ def validate_plan(plan, inputs, frozen=False):
         a.need('manifest_'+key, plan[key], expected[key])
     a.need('manifest_length', len(plan['steps']), len(expected['steps']))
     for actual, derived in zip(plan['steps'], expected['steps']):
-        extra = u.MEASURED_KEYS | {'skipped'} if frozen else set()
+        extra = u.MEASURED_KEYS | {'skipped', 'gasEvidence'} if frozen else set()
+        if frozen and 'variants' in derived:
+            extra |= {'variantMeasurements'}
+        if frozen:
+            u.validate_gas_evidence(plan, actual)
         if frozen:
             a.need('no_skipped_nonce', actual.get('skipped'), False)
         a.exact_keys('manifest_step', actual, set(derived) | extra)
@@ -1892,8 +1892,12 @@ def validate_plan(plan, inputs, frozen=False):
             if frozen:
                 a.need('B4_placeholder_intrinsic', a.qty(actual['variants']['placeholder']['gas']) >= 21000, True)
                 a.tx_quantities(actual['variants']['placeholder'])
-        if frozen:
-            u.validate_gas(actual)
+                a.exact_keys('B4_variant_measurements', actual['variantMeasurements'], ('placeholder',))
+                placeholder = dict(id=actual['id'], **actual['variantMeasurements']['placeholder'])
+                placeholder['tx'] = actual['variants']['placeholder']
+                u.validate_gas_evidence(plan, placeholder)
+                a.exact_keys('B4_placeholder_measurements', actual['variantMeasurements']['placeholder'],
+                             u.MEASURED_KEYS | {'gasEvidence'})
     if frozen:
         checked = copy.deepcopy(plan)
         budget(checked)
@@ -2117,6 +2121,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         timestamp = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
         evidence = u.measure_step(remote, rpc, plan, step, overrides, timestamp, calibrate)
         pre_send(rpc, plan, step, context, measured=True)
+        u.fresh_gas(remote, step, overrides, timestamp)
         rpc('evm_setNextBlockTimestamp', [timestamp])
         r = u.receipt(rpc, step['tx'])
         a.need('manifest_receipt_gas', a.qty(r['gasUsed']), step['forkGasUsed'])
