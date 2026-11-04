@@ -32,6 +32,10 @@ verified live at the chosen pin. Supply exactly all discovered targets, includin
 xPNTs clone. Resolve any tag to its full commit SHA. `creationBlock` is the target
 or proxy's deployment block, not its implementation's deployment block.
 
+Deployment-record gates require the recorded source commits to be present locally.
+Use a checkout with full history; CI uses `fetch-depth: 0`. Missing recorded
+commits fail closed even when the deployment-record files are present.
+
 The source gate:
 
 1. Checks the canonical pin before and after source authentication.
@@ -73,8 +77,9 @@ The source gate:
 `build_plan()` reconstructs this evidence from source RPC transcripts and fresh
 cached commit builds with `validate_deployed()`. Both endpoint audits are replayed;
 unused queries, changed queries/results/inventories and extra transcript fields
-stop replay. Endpoint identities hash the public origin plus endpoint label;
-credentials, paths and query parameters are never retained in those identities.
+stop replay. Endpoint identities hash the lowercase hostname, without the endpoint
+label. The endpoint-distinct check proves distinct host strings, not independent
+providers; credentials, ports, paths and query parameters are not retained.
 As before, transcript replay proves predicates, not the honesty of RPC providers.
 Dual-endpoint collection remains mandatory.
 
@@ -110,8 +115,9 @@ live controls. No full live isolation run was performed offline.
 Role IDs are the union of source constants, Registry configuration-event IDs and
 RoleGranted/RoleRevoked IDs. Every inventoried target, including non-AccessControl
 contracts and each clone, gets both an unfiltered role-event query and a query
-filtered to account=OLD. Every OLD grant must be cancelled by a later revoke,
-ordered by block, transaction index and log index. Current `hasRole` and Registry
+filtered to account=OLD. OLD membership is tracked once per role: RoleGranted or
+RoleRegistered sets it, and RoleExited or RoleRevoked clears it, ordered by block,
+transaction index and log index. A later regrant sets it again and STOPs. Current `hasRole` and Registry
 role-owner checks also apply to event-discovered IDs.
 
 History covers deployment block through pin, inclusively, on both endpoints.
