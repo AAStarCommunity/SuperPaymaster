@@ -470,6 +470,11 @@ def storage_consistency(tree, forge, roots, nodes, details):
     return pairs
 
 
+def canonical_path_syntax(filename):
+    return (isinstance(filename, str) and not filename.startswith('/') and '\\' not in filename
+            and all(part not in ('', '.', '..') for part in filename.split('/')))
+
+
 def canonical_source_path(filename, tree, *, scope=False):
     path = (tree / filename).resolve()
     root = tree.resolve()
@@ -487,6 +492,26 @@ def finding_files(item, tree):
             files.add(canonical_source_path(filename, tree))
     require(files, 'Slither finding has no source location: ' + item['id'])
     return sorted(files)
+
+
+def normalized_detectors(detectors, tree):
+    return [dict(item, files=finding_files(item, tree)) for item in detectors]
+
+
+def route_slither(detectors, scope, threshold):
+    """Pure classification of detectors with canonical source files."""
+    levels = ['Optimization', 'Informational', 'Low', 'Medium', 'High']
+    ids, outside, all_ids = [], [], []
+    for item in detectors:
+        require(item['impact'] in levels and isinstance(item['id'], str) and item['id'], 'invalid Slither detector')
+        all_ids.append(item['id'])
+        files = item['files']
+        if not set(files).intersection(scope['files']):
+            outside.append(dict(id=item['id'], impact=item['impact'], files=files, classification='unclassified'))
+        elif levels.index(item['impact']) >= levels.index(threshold):
+            ids.append(item['id'])
+    require(len(all_ids) == len(set(all_ids)), 'duplicate Slither finding IDs')
+    return dict(aboveThreshold=ids, outOfScope=outside, inScopeTotal=len(ids))
 
 
 def slither(tree, forge, threshold, accepted, details):
@@ -529,17 +554,8 @@ def slither(tree, forge, threshold, accepted, details):
                 'Slither analysis completion marker missing')
         require(int(markers[0][2]) == len(detectors), 'Slither summary disagrees with findings')
         details['slitherSelection']['detectorsRun'] = int(markers[0][1])
-        levels = ['Optimization', 'Informational', 'Low', 'Medium', 'High']
-        ids, outside, all_ids = [], [], []
-        for item in detectors:
-            require(item['impact'] in levels and isinstance(item['id'], str) and item['id'], 'invalid Slither detector')
-            all_ids.append(item['id'])
-            files = finding_files(item, tree)
-            if not set(files).intersection(scope['files']):
-                outside.append(dict(id=item['id'], impact=item['impact'], files=files, classification='unclassified'))
-            elif levels.index(item['impact']) >= levels.index(threshold):
-                ids.append(item['id'])
-        require(len(all_ids) == len(set(all_ids)), 'duplicate Slither finding IDs')
+        routed = route_slither(normalized_detectors(detectors, tree), scope, threshold)
+        ids, outside = routed['aboveThreshold'], routed['outOfScope']
         require(isinstance(accepted, list), 'invalid accepted findings')
         for item in accepted:
             require(isinstance(item, dict) and {'id', 'classification', 'reason'} <= set(item)
@@ -599,6 +615,9 @@ def generate(kind, commit, tree, out, forge, threshold='Medium', accepted=None):
                 payload, passed, slither_version = slither(tree, forge, threshold, accepted or [], details)
                 tool = dict(name='slither', version=slither_version)
                 details['tools']['slither'] = slither_version
+                raw = out / 'slither.raw.json'
+                write_json(raw, details['slither'])
+                payload['rawReport'] = dict(path=raw.name, sha256=hashlib.sha256(raw.read_bytes()).hexdigest())
             elif kind == 'reproducible-build':
                 payload, passed = reproducible(commit, version, details)
             else:
@@ -608,6 +627,8 @@ def generate(kind, commit, tree, out, forge, threshold='Medium', accepted=None):
             # Validate before publishing; the schema intentionally allows no audit fields.
             with tempfile.TemporaryDirectory() as tmp:
                 candidate = Path(tmp) / 'evidence.json'
+                if kind == 'slither':
+                    shutil.copyfile(raw, Path(tmp) / raw.name)
                 write_json(candidate, evidence)
                 m.evidence_file(dict(path=str(candidate), sha256=hashlib.sha256(candidate.read_bytes()).hexdigest()), kind, commit)
             write_json(path, evidence)

@@ -413,6 +413,8 @@ clean reports whose `results` object is empty. `--accepted-findings` is a JSON a
 `{"id": "<Slither detector id>", "reason": "<review rationale>"}`; the default is
 `[]`. Unexpected and stale acceptances both stop generation. The `passed` count
 for Slither is one completed, reviewed analysis, not an invented test count.
+Slither evidence includes `rawReport: {path, sha256}` pointing to `slither.raw.json` beside the evidence. The consumer does not re-run Slither: completeness of the raw report rests on the generator run at the release commit. The consumer verifies the hash and proves that the evidence faithfully classifies that report under the independently recomputed scope at `subjectCommit`. Older evidence without this reference must be regenerated.
+
 Review detector IDs in `slither.audit.json` after a refusal, then rerun with a new
 output directory. Tool environments omit inherited wallet/RPC credentials and
 build overrides, including `VIRTUAL_ENV`.

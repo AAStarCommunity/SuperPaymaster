@@ -271,7 +271,7 @@ class EvidenceTests(unittest.TestCase):
         self.slither_findings = []
         self.calls = []
         self.compiled_tree = self.tree
-        rebuilt = patch.object(e.m, 'rebuild', side_effect=lambda: dict(scope=e.compiled_scope(self.compiled_tree)[0]))
+        rebuilt = patch.object(e.m, 'rebuild_commit', side_effect=lambda commit: dict(commit=commit, tree=self.compiled_tree, scope=e.compiled_scope(self.compiled_tree)[0]))
         rebuilt.start()
         self.addCleanup(rebuilt.stop)
 
@@ -356,6 +356,21 @@ class EvidenceTests(unittest.TestCase):
         self.slither_findings = [finding('reviewed-1')]
         value = self.generate('slither', accepted=[dict(id='reviewed-1', classification='accepted', reason='Reviewed mitigation in release decision')])
         self.assertEqual(value['findings']['aboveThreshold'], ['reviewed-1'])
+
+    def test_generator_validates_evidence_commit_not_head(self):
+        other = 'e' * 40
+        with patch.object(e.m, 'rebuild_commit', side_effect=lambda commit: dict(
+                commit=commit, tree=self.tree, scope=e.compiled_scope(self.tree)[0])) as build, \
+             patch.object(e.m, 'rebuild', side_effect=AssertionError('HEAD build used')), \
+             patch.object(e.subprocess, 'run', side_effect=self.fake_run), \
+             patch.object(e.shutil, 'which', return_value='/mock/bin/slither'):
+            e.generate('slither', other, self.tree, self.out, FORGE)
+        build.assert_called_once_with(other)
+        value = json.loads((self.out / 'slither.json').read_text())
+        with patch.object(e.m, 'rebuild_commit', return_value=dict(commit=COMMIT, scope=value['scope'])):
+            with self.assertRaises(e.a.Gate) as caught:
+                e.m.validate_evidence_details(value, 'slither', self.out)
+        self.assertEqual(caught.exception.record['gate'], 'evidence_rebuild_commit')
 
     def test_unaccepted_slither_has_no_pass(self):
         self.slither_findings = [finding('unreviewed', impact='Medium')]

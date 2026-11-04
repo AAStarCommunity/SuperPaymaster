@@ -439,6 +439,7 @@ class RebuiltScopeTests(unittest.TestCase):
         import subprocess
         from test_release_evidence import compiled_fixture
         import release_evidence
+        m.rebuild_commit.cache_clear()
         m.rebuild.cache_clear()
         self.addCleanup(m.rebuild.cache_clear)
         arts = {name: dict(bytecode=dict(object=art['bytecode']),
@@ -476,8 +477,11 @@ class RebuiltScopeTests(unittest.TestCase):
             self.assertIn('contracts/src/SuperPaymaster.sol', built['scope']['files'])
             self.assertEqual(built['scope']['contracts'], list(m.NAMES))
             self.assertIs(m.rebuild(), built)
+            json.dumps(built)  # Manifest rebuild metadata must remain serializable.
             scope.assert_called_once_with(trees[0])
-        self.assertFalse(trees[0].exists())
+        self.assertTrue(trees[0].exists())
+        m.rebuild_commit(ART['commit'])['treeOwner'].cleanup()
+        m.rebuild_commit.cache_clear()
 
 
 class ManifestTests(unittest.TestCase):
@@ -514,6 +518,8 @@ class ManifestTests(unittest.TestCase):
                 e.update(ciRun=dvt_ci_run(), acceptedFailures=dvt_accepted_failures())
             if kind == 'slither':
                 e['tool']['name'] = 'slither'
+                e['rawReport'] = file_ref('slither.raw', dict(success=True, error=None, results={}))
+                e['rawReport']['path'] = 'slither.raw.json'
                 e['findings'] = dict(threshold='Low', aboveThreshold=[], accepted=[], outOfScope=[], inScopeTotal=0)
                 e['scope'] = dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymaster.sol'])
                 table = dict(storage=[dict(label='balance', slot='0', offset=0, type='uint256')], namespaces=[])
@@ -551,6 +557,8 @@ class ManifestTests(unittest.TestCase):
             mock.start()
             self.addCleanup(mock.stop)
         self.path.write_text(json.dumps(self.data))
+        self.commit_patch = patch.object(m, 'rebuild_commit', return_value=ART)
+        self.commit_patch.start(); self.addCleanup(self.commit_patch.stop)
         self.patch = patch.object(m, 'rebuild', return_value=ART)
         self.patch.start()
         self.addCleanup(self.patch.stop)
@@ -2103,15 +2111,59 @@ class ManifestTests(unittest.TestCase):
         with self.assertRaises(a.Gate): m.evidence_file(self.file_ref('finding',e),'slither')
         e['findings']['accepted'] = [dict(id='unreviewed',classification='accepted',reason='reviewed exception')]
         e['findings']['inScopeTotal'] = 1
+        self.raw_findings(e, [('unreviewed', 'High', 'contracts/src/SuperPaymaster.sol')])
         m.evidence_file(self.file_ref('accepted-finding',e),'slither')
+
+    def raw_findings(self, value, findings):
+        raw = dict(success=True, error=None, results=dict(detectors=[dict(id=id, impact=impact,
+            elements=[dict(source_mapping=dict(filename_relative=file))]) for id, impact, file in findings]))
+        ref = self.file_ref('slither.raw', raw)
+        value['rawReport'] = dict(path='slither.raw.json', sha256=ref['sha256'])
+
+    def test_finding_path_canonical_gate(self):
+        for path in ('./contracts/src/SuperPaymaster.sol', 'contracts//src/X.sol',
+                     'contracts/../X.sol', '/tmp/X.sol', 'contracts\\X.sol', ''):
+            value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+            value['findings']['outOfScope'] = [dict(id='hidden', impact='High', files=[path], classification='unclassified')]
+            with self.subTest(path=path):
+                with self.assertRaises(a.Gate) as caught:
+                    m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+                self.assertEqual(caught.exception.record['gate'], 'evidence_finding_path_canonical')
+
+    def test_finding_symlink_canonical_gate(self):
+        value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+        tree = Path(self.tmp.name) / 'tree'
+        tree.mkdir()
+        (tree / 'Alias.sol').symlink_to('Actual.sol')
+        value['findings']['outOfScope'] = [dict(id='alias', impact='High',
+            files=['Alias.sol'], classification='unclassified')]
+        with patch.object(m, 'rebuild_commit', return_value=dict(ART, tree=tree)):
+            with self.assertRaises(a.Gate) as caught:
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+        self.assertEqual(caught.exception.record['gate'], 'evidence_finding_path_canonical')
+
+    def test_slither_raw_rederived_gate(self):
+        for attack in ('drop', 'hash', 'move'):
+            value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
+            self.raw_findings(value, [('hidden', 'High', 'contracts/src/SuperPaymaster.sol')])
+            if attack == 'hash':
+                value['rawReport']['sha256'] = 'f' * 64
+            if attack == 'move':
+                value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
+                    files=['contracts/lib/Fake.sol'], classification='unclassified')]
+            with self.subTest(attack=attack):
+                with self.assertRaises(a.Gate) as caught:
+                    m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
+                self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
 
     def test_outside_high_medium_allowed(self):
         for impact in ('High', 'Medium'):
             value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
             value['findings']['outOfScope'] = [dict(id='lib', impact=impact,
                 files=['contracts/lib/Token.sol'], classification='unclassified')]
+            self.raw_findings(value, [('lib', impact, 'contracts/lib/Token.sol')])
             with self.subTest(impact=impact):
-                m.validate_evidence_details(value, 'slither')
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
 
     def test_scope_empty_and_dependency_disjointness(self):
         original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
@@ -2119,19 +2171,19 @@ class ManifestTests(unittest.TestCase):
             value = copy.deepcopy(original)
             value['scope']['files'] = files
             with self.assertRaises(a.Gate) as caught:
-                m.validate_evidence_details(value, 'slither')
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
             self.assertEqual(caught.exception.record['gate'], 'evidence_scope_files')
         original['scope']['files'] = ['contracts/lib/Base.sol']
         with self.assertRaises(a.Gate) as caught:
-            m.validate_evidence_details(original, 'slither')
+            m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
         self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
-        with patch.object(m, 'rebuild', return_value=dict(scope=copy.deepcopy(original['scope']))):
-            m.validate_evidence_details(original, 'slither')
+        with patch.object(m, 'rebuild_commit', return_value=dict(commit=ART['commit'], scope=copy.deepcopy(original['scope']))):
+            m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
         original['scope']['files'] = ART['scope']['files']
         original['findings']['outOfScope'] = [dict(id='lib', impact='High',
             files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
         with self.assertRaises(a.Gate) as caught:
-            m.validate_evidence_details(original, 'slither')
+            m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
         self.assertEqual(caught.exception.record['gate'], 'evidence_outside_files')
 
     def test_fabricated_scope_hides_high_finding(self):
@@ -2140,7 +2192,7 @@ class ManifestTests(unittest.TestCase):
         value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
             files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
         with self.assertRaises(a.Gate) as caught:
-            m.validate_evidence_details(value, 'slither')
+            m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
         self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
 
     def test_finding_ids_unique_across_scope_partitions(self):
@@ -2154,7 +2206,7 @@ class ManifestTests(unittest.TestCase):
                 value['findings'].update(aboveThreshold=['duplicate'], inScopeTotal=1,
                     accepted=[dict(id='duplicate', classification='accepted', reason='reviewed')])
             with self.subTest(overlap=overlap), self.assertRaises(a.Gate) as caught:
-                m.validate_evidence_details(value, 'slither')
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
             self.assertEqual(caught.exception.record['gate'],
                              'evidence_outside_not_reviewed' if overlap else 'evidence_outside_unique')
 
@@ -2163,7 +2215,7 @@ class ManifestTests(unittest.TestCase):
         value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
             files=ART['scope']['files'], classification='unclassified')]
         with self.assertRaises(a.Gate) as caught:
-            m.validate_evidence_details(value, 'slither')
+            m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
         self.assertEqual(caught.exception.record['gate'], 'evidence_outside_files')
 
     def test_evidence_full_creation_required(self):
@@ -2182,14 +2234,14 @@ class ManifestTests(unittest.TestCase):
                 value = copy.deepcopy(original)
                 value['storageLayout'][index][field] = 'substituted'
                 with self.subTest(index=index, field=field), self.assertRaises(a.Gate) as caught:
-                    m.validate_evidence_details(value, 'slither')
+                    m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
                 self.assertEqual(caught.exception.record['gate'], 'evidence_layout_identity')
 
     def test_layout_pair_parity_required(self):
         value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
         value['storageLayout'][0]['extensionTable']['storage'][0]['slot'] = '999'
         with self.assertRaises(a.Gate) as caught:
-            m.validate_evidence_details(value, 'slither')
+            m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
         self.assertEqual(caught.exception.record['gate'], 'evidence_layout_parity')
 
     def test_slither_scope_counts_and_parity_tampering_rejected(self):
@@ -2208,7 +2260,7 @@ class ManifestTests(unittest.TestCase):
             value = copy.deepcopy(original)
             mutate(value)
             with self.subTest(mutation=mutate.__name__), self.assertRaises(a.Gate):
-                m.validate_evidence_details(value, 'slither')
+                m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
 
     def test_collect_registry_version_negative(self):
         with patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \

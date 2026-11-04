@@ -811,7 +811,8 @@
         "result",
         "findings",
         "scope",
-        "storageLayout"
+        "storageLayout",
+        "rawReport"
       ],
       "properties": {
         "kind": {
@@ -1222,6 +1223,25 @@
           },
           "minItems": 2,
           "maxItems": 2
+        },
+        "rawReport": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Canonical relative path to the raw Slither JSON, relative to this evidence file."
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
         }
       }
     },

@@ -106,7 +106,7 @@ def evidence_file(ref, kind, commit=None):
     required(ref, ('path', 'sha256'), 'evidence_reference')
     e = reviewed_file(ref['path'], ref['sha256'], 'evidence_'+kind)
     fields = ['kind', 'subjectCommit', 'tool', 'counts', 'result']
-    fields += {'conformance':['controls', 'scope'], 'mutation':['controls'], 'slither':['findings', 'scope', 'storageLayout'],
+    fields += {'conformance':['controls', 'scope'], 'mutation':['controls'], 'slither':['findings', 'scope', 'storageLayout', 'rawReport'],
                'reproducible-build':['contracts'], 'dvt-ci':['suites', 'ciRun', 'acceptedFailures'],
                'dvt-conformance-4.12':['suites']}[kind]
     if kind.startswith('dvt-'):
@@ -125,7 +125,7 @@ def evidence_file(ref, kind, commit=None):
     a.need('evidence_skipped', e['counts']['skipped'], 0)
     if kind == 'dvt-ci':
         validate_ci_run(e)
-    validate_evidence_details(e, kind)
+    validate_evidence_details(e, kind, Path(ref['path']).parent)
     if kind.startswith('dvt-'):
         a.need('evidence_dvt_commit', e['subjectCommit'], VERIFIER_COMMIT)
         a.need('evidence_aggregator_version', e['aggregatorVersion'], AGG_VERSION)
@@ -151,7 +151,7 @@ def validate_ci_run(e):
     a.need('evidence_ci_overall', not failing if run['overall'] == 'success' else bool(direct & accepted), True)
 
 
-def validate_evidence_details(e, kind):
+def validate_evidence_details(e, kind, evidence_dir=None):
     if kind == 'conformance':
         schema = json.loads(Path(__file__).with_name('release-evidence.schema.json').read_text())['oneOf'][0]
         _fraud_schema(e, schema, 'conformance')
@@ -181,6 +181,7 @@ def validate_evidence_details(e, kind):
         a.need('evidence_suite_totals', e['counts'], dict(passed=sum(DVT_SUITES.values()), failed=0, skipped=0))
     elif kind == 'slither':
         a.need('evidence_slither_tool', e['tool']['name'], 'slither')
+        from release_evidence import canonical_path_syntax, canonical_source_path, normalized_detectors, route_slither, Stop
         f = e['findings']
         a.exact_keys('evidence_findings', f, ('threshold', 'aboveThreshold', 'accepted', 'outOfScope', 'inScopeTotal'))
         a.need('evidence_threshold', f['threshold'] in ('Informational', 'Low', 'Medium', 'High'), True)
@@ -199,9 +200,16 @@ def validate_evidence_details(e, kind):
         a.need('evidence_scope_contracts', scope['contracts'], list(NAMES))
         files = scope['files']
         a.need('evidence_scope_files', isinstance(files, list) and bool(files) and files == sorted(set(files))
-               and all(isinstance(x, str) and not x.startswith('/') and all(part not in ('', '.', '..') for part in x.split('/'))
+               and all(canonical_path_syntax(x)
                        and x.endswith('.sol') for x in files), True)
-        recomputed = rebuild()['scope']
+        built = rebuild_commit(e['subjectCommit'])
+        a.need('evidence_rebuild_commit', built['commit'], e['subjectCommit'])
+        recomputed = built['scope']
+        tree = built.get('tree', Path('/__evidence_tree__'))
+        for item in f['outOfScope']:
+            for filename in item.get('files', []):
+                a.need('evidence_finding_path_canonical', canonical_path_syntax(filename) and
+                       canonical_source_path(filename, tree) == filename, True)
         a.need('evidence_scope_recomputed', scope, recomputed)
         outside_ids = []
         for item in f['outOfScope']:
@@ -212,6 +220,18 @@ def validate_evidence_details(e, kind):
         a.need('evidence_outside_unique', len(outside_ids), len(set(outside_ids)))
         a.need('evidence_outside_not_reviewed', bool(set(outside_ids).intersection(ids)), False)
         a.need('evidence_unique_findings', len(ids + outside_ids), len(set(ids + outside_ids)))
+        # Do not rerun Slither: report completeness rests on the generator at the release commit.
+        # Re-derive classification under the independently rebuilt scope.
+        ref = e.get('rawReport')
+        a.exact_keys('evidence_slither_rederived', ref, ('path', 'sha256'))
+        a.need('evidence_slither_rederived', canonical_path_syntax(ref['path']), True)
+        raw = reviewed_file(str((evidence_dir or Path.cwd()) / ref['path']), ref['sha256'], 'evidence_slither_rederived')
+        try:
+            a.need('evidence_slither_rederived', raw.get('success') is True and raw.get('error') is None, True)
+            routed = route_slither(normalized_detectors(raw['results'].get('detectors', []), tree), recomputed, f['threshold'])
+        except (Stop, KeyError, TypeError, ValueError) as error:
+            raise a.Gate('evidence_slither_rederived', str(error), 'valid raw report') from None
+        a.need('evidence_slither_rederived', {k: f[k] for k in routed}, routed)
         a.need('evidence_layout_pair_count', len(e['storageLayout']), len(LAYOUT_PAIRS))
         for pair, (core, extension, reference) in zip(e['storageLayout'], LAYOUT_PAIRS):
             a.exact_keys('evidence_layout_pair', pair, ('core', 'extension', 'reference', 'testReferences', 'coreTable', 'extensionTable'))
@@ -606,34 +626,39 @@ def validate_external(data, stage="full"):
 @lru_cache(maxsize=1)
 def rebuild():
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=u.ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    return {k: v for k, v in rebuild_commit(head).items() if k not in ('tree', 'treeOwner')}
+
+
+@lru_cache(maxsize=4)
+def rebuild_commit(head):
     version = subprocess.run([str(a.REBUILD_FORGE), '--version'], capture_output=True, text=True, check=True).stdout
     a.need('forge_version', version.splitlines()[0], 'forge Version: 1.7.1')
     arts, cfg = a.compile_commit(head, version, NAMES, tuple(IMMUTABLES.items()))
     # Inspect the same committed source/configuration in an isolated build tree.
-    with tempfile.TemporaryDirectory(prefix='manifest-layout-') as directory:
-        tree = Path(directory)/'tree'
-        a.archive_commit(u.ROOT, head, tree)
-        env = {k: os.environ[k] for k in ('HOME', 'PATH', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SVM_HOME') if k in os.environ}
-        env['FOUNDRY_PROFILE'] = 'default'
-        # Compute and cache the closure before the pinned archive is removed.
-        from release_evidence import compiled_scope, Stop
-        built = subprocess.run([str(a.REBUILD_FORGE), 'build', '--offline', '--ast', '--build-info'],
-                               cwd=tree, env=env, capture_output=True, text=True)
-        a.need('evidence_scope_build', built.returncode, 0)
-        try:
-            scope, _, _ = compiled_scope(tree)
-        except Stop as error:
-            raise a.Gate('evidence_scope_recomputed', str(error), 'valid compiled release scope') from None
-        result = subprocess.run([str(a.REBUILD_FORGE), 'inspect', 'BLSAggregator', 'storage-layout', '--offline', '--json'],
-            cwd=tree, env=env, capture_output=True, text=True)
-        a.need('fraud_layout_inspect', result.returncode, 0)
-        layout = a.plan_json(result.stdout)
-        a.need('fraud_layout_build_parity', commitment_slot(layout, 1),
-               commitment_slot(arts['BLSAggregator']['storageLayout'], 1))
-        arts['BLSAggregator']['storageLayout'] = layout
+    directory = tempfile.TemporaryDirectory(prefix='manifest-layout-')
+    tree = Path(directory.name)/'tree'
+    a.archive_commit(u.ROOT, head, tree)
+    env = {k: os.environ[k] for k in ('HOME', 'PATH', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SVM_HOME') if k in os.environ}
+    env['FOUNDRY_PROFILE'] = 'default'
+    # Retain the pinned tree with the cached build for canonical finding-path resolution.
+    from release_evidence import compiled_scope, Stop
+    built = subprocess.run([str(a.REBUILD_FORGE), 'build', '--offline', '--ast', '--build-info'],
+                           cwd=tree, env=env, capture_output=True, text=True)
+    a.need('evidence_scope_build', built.returncode, 0)
+    try:
+        scope, _, _ = compiled_scope(tree)
+    except Stop as error:
+        raise a.Gate('evidence_scope_recomputed', str(error), 'valid compiled release scope') from None
+    result = subprocess.run([str(a.REBUILD_FORGE), 'inspect', 'BLSAggregator', 'storage-layout', '--offline', '--json'],
+        cwd=tree, env=env, capture_output=True, text=True)
+    a.need('fraud_layout_inspect', result.returncode, 0)
+    layout = a.plan_json(result.stdout)
+    a.need('fraud_layout_build_parity', commitment_slot(layout, 1),
+           commitment_slot(arts['BLSAggregator']['storageLayout'], 1))
+    arts['BLSAggregator']['storageLayout'] = layout
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
     a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
-    return dict(scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
+    return dict(tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
         bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']), runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})
