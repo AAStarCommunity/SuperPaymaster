@@ -1,0 +1,19 @@
+# gate=B2_operator_balances function=b2_gate line=1695
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1695 --failfast
+# exit=0 seconds=7.7
+PROBE line=1695 mutation=replace a.need statement with pass failfast=True
+........................................................F
+======================================================================
+FAIL: test_b2_stop_conditions (test_manifest_exec.ManifestTests.test_b2_stop_conditions) (mutate=<function ManifestTests.test_b2_stop_conditions.<locals>.<lambda> at 0x7f7f85a7ee80>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1139, in test_b2_stop_conditions
+    with self.subTest(mutate=mutate), self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 57 tests in 7.356s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_b2_stop_conditions (mutate=<function ManifestTests.test_b2_stop_conditions.<locals>.<lambda> at 0x7f7f85a7ee80>)
+PROBE_RESULT killed ran 57 failures 1 errors 0 expectedFailures 0

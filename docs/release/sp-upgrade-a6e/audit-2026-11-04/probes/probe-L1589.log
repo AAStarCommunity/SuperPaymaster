@@ -1,0 +1,19 @@
+# gate=committee_transfer_selector function=handover_gate line=1589
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1589 --failfast
+# exit=0 seconds=37.6
+PROBE line=1589 mutation=replace a.need statement with pass failfast=True
+...............................................................................................................F
+======================================================================
+FAIL: test_handover_gates_require_each_completed_step (test_manifest_exec.ManifestTests.test_handover_gates_require_each_completed_step)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 889, in test_handover_gates_require_each_completed_step
+    with self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 112 tests in 37.212s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_handover_gates_require_each_completed_step
+PROBE_RESULT killed ran 112 failures 1 errors 0 expectedFailures 0

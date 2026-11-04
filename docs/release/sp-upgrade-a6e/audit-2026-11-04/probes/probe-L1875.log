@@ -1,0 +1,19 @@
+# gate='budget_' + label function=budget line=1875
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1875 --failfast
+# exit=0 seconds=12.3
+PROBE line=1875 mutation=replace a.need statement with pass failfast=True
+..................................................................F
+======================================================================
+FAIL: test_budget_includes_stake_and_deposit (test_manifest_exec.ManifestTests.test_budget_includes_stake_and_deposit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1229, in test_budget_includes_stake_and_deposit
+    with self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 67 tests in 11.892s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_budget_includes_stake_and_deposit
+PROBE_RESULT killed ran 67 failures 1 errors 0 expectedFailures 0

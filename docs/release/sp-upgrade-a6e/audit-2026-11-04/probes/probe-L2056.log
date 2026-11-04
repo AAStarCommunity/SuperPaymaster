@@ -1,0 +1,95 @@
+# gate=early_swap_restore function=early_swap_control line=2056
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 2056 --failfast
+# exit=0 seconds=69.1
+PROBE line=2056 mutation=replace a.need statement with pass failfast=True
+...............................................................................................................................................................................................F
+======================================================================
+FAIL: test_early_swap_detects_missing_eta_guard (test_manifest_exec.Round8Controls.test_early_swap_detects_missing_eta_guard)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 429, in swap_control
+    m.controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
+  File "/home/user/SuperPaymaster/script/upgrade/manifest_exec.py", line 2078, in controls_at
+    controls.append(early_swap_control(rpc, plan))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/SuperPaymaster/script/upgrade/manifest_exec.py", line 2046, in early_swap_control
+    result = a.negative(rpc, tx, a.calldata('InvalidConfiguration()'), 'early_swap')
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/SuperPaymaster/script/a3a/a3a_exec.py", line 1132, in negative
+    r = receipt(rpc, bad, status='0x0')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/unittest/mock.py", line 1124, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/unittest/mock.py", line 1128, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/unittest/mock.py", line 1189, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 415, in receipt
+    a.need('receipt_status', actual, status)
+  File "/home/user/SuperPaymaster/script/a3a/a3a_exec.py", line 93, in need
+    raise Gate(name, observed, expected)
+a3a_exec.Gate: receipt_status
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 442, in test_early_swap_detects_missing_eta_guard
+    with self.assertRaises(a.Gate) as caught: self.swap_control(broken_eta=True)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 435, in swap_control
+    self.assertEqual(state, original)
+AssertionError: {'time': 1791813317, 'eta': 1792418117, 'pending': '0x34343[164 chars]878'} != {'time': 1791813316, 'eta': 1791899716, 'pending': '0x34343[164 chars]878'}
+- {'eta': 1792418117,
+?            --   ^^
+
++ {'eta': 1791899716,
+?              +++ ^
+
+   'implementation': '0x7878787878787878787878787878787878787878',
+-  'nonce': 11,
+?            ^
+
++  'nonce': 10,
+?            ^
+
+   'pending': '0x3434343434343434343434343434343434343434',
+-  'time': 1791813317,
+?                   ^
+
++  'time': 1791813316,
+?                   ^
+
+   'token': '0x5656565656565656565656565656565656565656'}
+
+----------------------------------------------------------------------
+Ran 192 tests in 68.688s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.Round8Controls.test_early_swap_detects_missing_eta_guard
+PROBE_RESULT killed ran 192 failures 1 errors 0 expectedFailures 0
+STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: stage_not_final
+STOP: stage_not_final
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: plan_hash
+STOP: plan_hash
+STOP: simulation_stage
