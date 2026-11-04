@@ -707,13 +707,32 @@ def governance_trace(diff, row, miner):
     allowed = {sender, miner} | ({a.SAFE} if row['status'] else set())
     # Pre-only accounts are deletions in diffMode, not harmless reads.
     a.need('safe_gap_trace_accounts', set(pre) | set(post) <= allowed, True)
+    for accounts in (pre, post):
+        for account in accounts.values():
+            a.need('safe_gap_trace_account_shape', isinstance(account, dict) and
+                   set(account) <= {'balance', 'nonce', 'code', 'storage'}, True)
+            if 'balance' in account:
+                a.typed(account['balance'], a.QTY, gate='safe_gap_trace_balance')
+            if 'nonce' in account:
+                a.need('safe_gap_trace_nonce', type(account['nonce']) is int and account['nonce'] >= 0, True)
+            if 'code' in account:
+                a.typed(account['code'], a.HEXDATA, gate='safe_gap_trace_code')
+            storage = account.get('storage', {})
+            a.need('safe_gap_trace_storage', isinstance(storage, dict), True)
+            for key, value in storage.items():
+                a.typed(key, a.HASH32, gate='safe_gap_trace_storage')
+                a.typed(value, a.HASH32, gate='safe_gap_trace_storage')
     a.need('safe_gap_trace_sender', sender in pre and sender in post, True)
     a.need('safe_gap_sender_fields', set(post[sender]), {'nonce', 'balance'})
     a.need('safe_gap_sender_nonce', [pre[sender].get('nonce'), post[sender]['nonce']], [tx['nonce'], tx['nonce']+1])
+    a.need('safe_gap_sender_pre_balance', 'balance' in pre[sender], True)
     a.need('safe_gap_sender_balance', a.qty(post[sender]['balance']) < a.qty(pre[sender]['balance']), True)
     a.need('safe_gap_sender_storage', pre[sender].get('storage', {}), {})
     a.need('safe_gap_sender_code', pre[sender].get('code', '0x'), '0x')
     a.need('safe_gap_miner_fields', set(post.get(miner, {})) <= {'balance'} and miner in post, True)
+    a.typed(post[miner].get('balance'), a.QTY, gate='safe_gap_miner_balance')
+    if 'balance' in pre.get(miner, {}):
+        a.need('safe_gap_miner_balance', a.qty(post[miner]['balance']) > a.qty(pre[miner]['balance']), True)
     a.need('safe_gap_miner_storage', pre.get(miner, {}).get('storage', {}), {})
     if not row['status']:
         return
@@ -734,7 +753,7 @@ def governance_trace(diff, row, miner):
         a.need('safe_gap_storage_value', (int(old.get(key, '0x0'), 16), int(new.get(key, '0x0'), 16)), values)
 
 
-def governance_logs(logs, row):
+def governance_logs(logs, row, receipt):
     packet, tx = row['packet'], row['tx']
     topics = list(SAFE_EVENTS.values())
     pad = lambda addr: '0x'+addr[2:].zfill(64)
@@ -746,7 +765,17 @@ def governance_logs(logs, row):
             expected = [[topics[1]], [topics[2], pad(packet['swapOwner']['old'])],
                         [topics[3], pad(packet['swapOwner']['new'])], [topics[4], packet['safeTxHash']]]
     a.need('safe_gap_logs', [(x.get('address'), x.get('topics')) for x in logs], [(a.SAFE, x) for x in expected])
+    previous = None
+    if logs:
+        a.typed(receipt.get('transactionIndex'), a.QTY, gate='safe_gap_log_transactionIndex')
     for log in logs:
+        for field in ('transactionHash', 'blockHash', 'blockNumber', 'transactionIndex'):
+            a.need('safe_gap_log_' + field, log.get(field),
+                   row['entry']['hash'] if field == 'transactionHash' else receipt.get(field))
+        index = a.qty(a.typed(log.get('logIndex'), a.QTY, gate='safe_gap_log_logIndex'))
+        if previous is not None:
+            a.need('safe_gap_log_logIndex', index, previous + 1)
+        previous = index
         a.need('safe_gap_log_removed', log.get('removed', False), False)
     if expected:
         if tx['step'] == 'approveHash':
@@ -766,8 +795,8 @@ def check_governance(rpcs, pin, inputs):
     counts = []
     for row in rows:
         tx, entry = row['tx'], row['entry']
-        count, identities = 0, []
-        for rpc in rpcs:
+        labels, identities = [], []
+        for label, rpc in zip(('a', 'b'), rpcs):
             mined = rpc('eth_getTransactionByHash', [entry['hash']])
             a.need('safe_gap_found', isinstance(mined, dict), True)
             a.need('safe_gap_hash', mined.get('hash'), entry['hash'])
@@ -784,22 +813,25 @@ def check_governance(rpcs, pin, inputs):
             a.need('safe_gap_block', isinstance(block, dict), True)
             a.need('safe_gap_canonical', block.get('hash'), mined.get('blockHash'))
             a.need('safe_gap_block_number', block.get('number'), number)
+            miner = a.typed(block.get('miner'), a.ADDRESS_RX, gate='safe_gap_miner')
+            owners = set(a.safe_owners(hex(a.OWNER_SWAP_BLOCK - 1))) | set(row['packet']['expectedReadback']['owners'])
+            a.need('safe_gap_miner_alias', miner.lower() not in {a.SAFE, tx['from']} | owners, True)
             receipt = rpc('eth_getTransactionReceipt', [entry['hash']])
             a.need('safe_gap_receipt', isinstance(receipt, dict), True)
             a.need('safe_gap_receipt_identity', [receipt.get(k) for k in ('transactionHash', 'blockNumber', 'blockHash')],
                    [entry['hash'], number, block['hash']])
             a.need('safe_gap_status', receipt.get('status'), hex(row['status']))
             a.need('safe_gap_logs_shape', isinstance(receipt.get('logs'), list), True)
-            governance_logs(receipt['logs'], row)
+            governance_logs(receipt['logs'], row, receipt)
             identities.append([number, block['hash'], block['miner']])
             diff = rpc('debug_traceTransaction', [entry['hash'], {'tracer': 'prestateTracer', 'tracerConfig': {'diffMode': True}}])
             if diff is None or (isinstance(diff, dict) and '__error' in diff):
                 continue
             governance_trace(diff, row, block['miner'])
-            count += 1
+            labels.append(label)
         a.need('safe_gap_dual_identity', identities[0], identities[1])
-        a.need('safe_gap_trace_available', count > 0, True)
-        counts.append(dict(hash=entry['hash'], traceEndpoints=count))
+        a.need('safe_gap_trace_available', len(labels) > 0, True)
+        counts.append(dict(hash=entry['hash'], traceEndpoints=len(labels), traceEndpointLabels=labels))
     swaps = [r for r in rows if r['tx']['step'] == 'execTransaction']
     a.need('safe_gap_swap_required', len(swaps), 1)
     expected = swaps[0]['packet']['expectedReadback']
@@ -825,6 +857,9 @@ def governance_evidence(pin, inputs, rpcs=None):
         evidence = dict(partOfA3aPlan=False, reads={'a': [], 'b': []})
         def recording(label, rpc):
             def read(method, params):
+                for recorded in evidence['reads'][label]:
+                    if (recorded['method'], recorded['params']) == (method, params):
+                        return recorded['result']
                 try:
                     result = rpc(method, params)
                 except a.Gate as error:
@@ -840,14 +875,24 @@ def governance_evidence(pin, inputs, rpcs=None):
     evidence = pin['safeGovernanceGaps']
     a.need('safe_gap_not_a3a', evidence['partOfA3aPlan'], False)
     a.exact_keys('safe_gap_evidence_endpoints', evidence['reads'], ('a', 'b'))
+    # Offline replay proves internal consistency, not endpoint provenance. Provenance
+    # relies on live collection on both endpoints, main() pin_recheck, and plan sha256.
+    remaining = {}
+    def key(method, params):
+        return json.dumps([method, params], sort_keys=True)
+    for label, reads in evidence['reads'].items():
+        keys = [key(r['method'], r['params']) for r in reads]
+        a.need('safe_gap_proof_duplicate', len(keys), len(set(keys)))
+        remaining[label] = set(keys)
     def replay(label):
         def read(method, params):
             matches = [r['result'] for r in evidence['reads'][label] if r['method'] == method and r['params'] == params]
             a.need('safe_gap_proof_read', bool(matches), True)
-            a.need('safe_gap_proof_consistent', all(x == matches[0] for x in matches), True)
+            remaining[label].discard(key(method, params))
             return matches[0]
         return read
     a.need('safe_gap_trace_counts', check_governance([replay('a'), replay('b')], pin, inputs), evidence['transactions'])
+    a.need('safe_gap_proof_unused', all(not keys for keys in remaining.values()), True)
 
 
 def nonce_expectations(pin, inputs):

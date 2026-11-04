@@ -438,6 +438,15 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(ex.safe_owners(hex(12060359), reviewed), reviewed)
         self.assertEqual(ex.safe_owners(hex(12060358), reviewed), old)
 
+    def test_preflight_after_owner_swap(self):
+        for number in (ex.OWNER_SWAP_BLOCK, ex.OWNER_SWAP_BLOCK + 1):
+            with self.subTest(block=number):
+                def unread(*args):
+                    raise AssertionError('post-swap preflight must stop before RPC reads')
+                with self.assertRaises(ex.Gate) as caught:
+                    ex.preflight(unread, hex(number))
+                self.assertEqual(caught.exception.record['gate'], 'a3a_preflight_after_owner_swap')
+
     def test_distinct_preflight_gates(self):
         cases = {'chain': 'chain_id', 'missing': 'fork_config_missing',
                  'activation': 'fork_activation', 'fork': 'fork_id',

@@ -38,6 +38,8 @@ ENGINE = Path(os.environ.get('A3A_ENGINE_DIR', Path.home() / 'Dev/aastar/tools/f
 COMMIT = '4e8874b2bdc840929585ca73e170993c50a4a531'
 PACKET = ROOT / 'docs/release/a3a-precheck-v4/a3a-precheck.json'
 CHAIN = 11155111
+# Packet 460e0244 execTransaction block; A3a is complete before this owner swap.
+OWNER_SWAP_BLOCK = 12060359
 ACTIVATION = 1791294816
 FORK_ID = '0x6c1d9423'
 MARGIN_NUM, MARGIN_DEN = 13, 10
@@ -694,13 +696,14 @@ def safe_extensions(rpc, block):
 
 
 def safe_owners(block, reviewed=None):
-    if qty(block) < 12060359:
+    if qty(block) < OWNER_SWAP_BLOCK:
         return (EXECUTOR, APPROVER, '0x92a30ef64b0b750220b2b3bafe4f3121263d45b3')
     need('safe_owners_reviewed', reviewed is not None, True)
     return tuple(reviewed)
 
 
 def preflight(rpc, block):
+    need('a3a_preflight_after_owner_swap', qty(block) < OWNER_SWAP_BLOCK, True)
     need('chain_id', qty(rpc('eth_chainId', [])), CHAIN)
     config = rpc('eth_config', [])
     if not isinstance(config, dict) or not isinstance(config.get('current'), dict):

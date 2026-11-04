@@ -2130,6 +2130,72 @@ class SafeGovernanceTests(unittest.TestCase):
         with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_input')
 
+    def test_replay_duplicate_unused_and_endpoint_copy(self):
+        for mutation, gate in [('duplicate', 'safe_gap_proof_duplicate'),
+                               ('unused', 'safe_gap_proof_unused'), ('copy', 'safe_gap_trace_counts')]:
+            with self.subTest(mutation=mutation):
+                self.verify()
+                evidence = self.pin['safeGovernanceGaps']
+                if mutation == 'duplicate':
+                    evidence['reads']['a'].append(copy.deepcopy(evidence['reads']['a'][0]))
+                elif mutation == 'unused':
+                    evidence['reads']['a'].append(dict(method='eth_unused', params=[], result=None))
+                else:
+                    evidence['reads']['b'] = copy.deepcopy(evidence['reads']['a'])
+                    for tx in evidence['transactions']: tx['traceEndpoints'] = 2
+                with self.assertRaises(a.Gate) as caught:
+                    m.governance_evidence(self.pin, self.inputs)
+                self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_miner_aliases(self):
+        for miner in (a.SAFE, a.APPROVER, a.EXECUTOR, self.packet['swapOwner']['old'], self.packet['swapOwner']['new']):
+            with self.subTest(miner=miner):
+                self.setUp()
+                for endpoint in ('a', 'b'):
+                    original = self.chain['A99'][endpoint]['block']['miner']
+                    self.stop('safe_gap_miner_alias', lambda: self.chain['A99'][endpoint]['block'].update(miner=miner))
+                    self.chain['A99'][endpoint]['block']['miner'] = original
+
+    def test_log_identity_fields(self):
+        for field in ('transactionHash', 'blockHash', 'blockNumber', 'transactionIndex', 'logIndex'):
+            with self.subTest(field=field):
+                self.setUp()
+                log = self.chain['E755']['a']['receipt']['logs'][1]
+                value = a.ZERO32 if field.endswith('Hash') else hex(a.qty(log[field]) + 2)
+                self.stop('safe_gap_log_' + field, lambda: log.update({field:value}))
+
+    def test_malformed_trace_gates(self):
+        cases = [
+            ('shape', 'safe_gap_trace_account_shape'), ('unknown', 'safe_gap_trace_account_shape'),
+            ('balance', 'safe_gap_trace_balance'), ('nonce', 'safe_gap_trace_nonce'),
+            ('storage_list', 'safe_gap_trace_storage'), ('storage_key', 'safe_gap_trace_storage'),
+            ('storage_value', 'safe_gap_trace_storage'), ('code', 'safe_gap_trace_code'),
+            ('missing_sender', 'safe_gap_sender_pre_balance'),
+            ('missing_miner', 'safe_gap_miner_balance'), ('miner_equal', 'safe_gap_miner_balance'),
+            ('miner_less', 'safe_gap_miner_balance'), ('miner_invalid', 'safe_gap_trace_balance')]
+        for case, gate in cases:
+            with self.subTest(case=case):
+                self.setUp()
+                def mutate():
+                    item = self.chain['A99']['a']
+                    pre, post = item['diff']['pre'], item['diff']['post']
+                    sender, miner = item['tx']['from'], item['block']['miner']
+                    if case == 'shape': pre[sender] = []
+                    elif case == 'unknown': pre[sender]['other'] = 0
+                    elif case == 'balance': pre[sender]['balance'] = 1
+                    elif case == 'nonce': pre[sender]['nonce'] = '0x63'
+                    elif case == 'storage_list': pre[sender]['storage'] = []
+                    elif case == 'storage_key': pre[sender]['storage'] = {'bad':a.ZERO32}
+                    elif case == 'storage_value': pre[sender]['storage'] = {a.ZERO32:False}
+                    elif case == 'code': pre[sender]['code'] = 1
+                    elif case == 'missing_sender': del pre[sender]['balance']
+                    elif case == 'missing_miner': post[miner] = {}
+                    elif case == 'miner_invalid': post[miner]['balance'] = 'invalid'
+                    else:
+                        pre.setdefault(miner, {})['balance'] = post[miner]['balance']
+                        if case == 'miner_less': post[miner]['balance'] = '0x0'
+                self.stop(gate, mutate)
+
     def test_event_topics_derived_offline(self):
         for signature, topic in m.SAFE_EVENTS.items(): self.assertEqual(a.keccak(signature), topic)
         self.verify()
@@ -2161,7 +2227,7 @@ class SafeGovernanceTests(unittest.TestCase):
             self.setUp()
             self.stop('safe_gap_storage_value', lambda: post().update({key:'0x'+format(5,'064x')}))
         self.setUp()
-        self.stop('safe_gap_storage_slots', lambda: self.chain['E755']['a']['diff']['pre'][a.SAFE]['storage'].update({a.ZERO32:'0x1'}))
+        self.stop('safe_gap_storage_slots', lambda: self.chain['E755']['a']['diff']['pre'][a.SAFE]['storage'].update({a.ZERO32:'0x'+format(1, '064x')}))
 
     def test_trace_account_controls(self):
         for field,value in [('balance','0x1'), ('code','0x00'), ('nonce',2)]:
