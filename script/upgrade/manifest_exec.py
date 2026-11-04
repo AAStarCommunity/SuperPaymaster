@@ -1162,6 +1162,8 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     a.need('deposit_info_shape', len(deposit), 5)
     pin['entryPointDeposit'], _, pin['stake'], pin['stakeDelay'], pin['withdrawTime'] = deposit
     a.need('stake_not_unlocking', pin['withdrawTime'], 0)
+    # Isolation records discovery calls, bounded role-event history and canonical blocks
+    # so build_plan can replay every new inventory gate on both endpoint transcripts.
     pin['oldOwnerIsolation'] = isolation.audit(rpc, pin, rebuild()['oldOwnerInventory'])
     return pin
 

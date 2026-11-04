@@ -3,7 +3,8 @@
 `manifest_exec.collect()` runs the isolation audit at `stateBlock`. `collect_pair()`
 collects both endpoints, applies `independent_pin`, and retains each endpoint's
 query/result transcript in `pin.oldOwnerIsolation.endpointResults`. `build_plan()`
-re-extracts the inventory from the release rebuild and replays both transcripts
+re-extracts the inventory from the release rebuild through the single
+`inventory_source(release_tree)` selection seam and replays both transcripts
 through the same gates without RPC. Removing evidence, changing its query/block,
 changing its extracted inventory, or leaving unused transcript entries stops replay.
 This validates the recorded predicates, not the truth of an untrusted RPC response;
@@ -20,7 +21,7 @@ UTF-8 byte offsets converted to one-based line numbers.
 ## Offline source inventory
 
 These are source-visible candidates, **not an attestation of a successful compiled
-inventory**. The local offline build cannot complete: Chainlink and Solady
+inventory**. The earlier offline build attempt could not complete: Chainlink and Solady
 submodules are absent. Forge's dependency auto-install attempted local submodule
 setup despite `--offline`, failed on filesystem permissions before cloning, and
 was not retried. No RPC, deployment, transaction, or fork was run.
@@ -66,13 +67,15 @@ not a separate address-keyed community-owner mapping.
 `SP.operators(OLD)` must contain nine zero words. Its first word is the operator's
 credited aPNTs deposit/balance (`ISuperPaymaster.sol:21–37`); no separate operator
 deposit balance exists. Other inventoried operators' treasury fields must also
-not equal OLD. Their `xPNTsToken` fields determine the release's existing xPNTs
-allowance targets; an empty xPNTs inventory stops collection. Future CREATE targets
+not equal OLD. Their `xPNTsToken` fields are combined with the pinned factory's
+`getAllTokens()` for authority and allowance targets; an empty xPNTs inventory
+stops collection. Future CREATE targets
 have no token state at this pin.
 
 Allowance targets include APNTsCapped, old aPNTs
 `0x696a73701b104c6ccbbaaddd2216788ea08eab89` (`deployments/config.sepolia.json:2`),
-and those discovered xPNTs. For each, the eight protected holders are Safe,
+GToken discovered through `Registry.GTOKEN_STAKING()` → `GTokenStaking.GTOKEN()`,
+and the union of operator xPNTs and `xPNTsFactory.getAllTokens()`. For each, the eight protected holders are Safe,
 Timelock, SP, Registry, deployer, approver, executor, NEW. `allowance(holder, OLD)`
 must be zero. `allowance(OLD, SP/Registry)` is recorded even when nonzero.
 
@@ -97,7 +100,7 @@ the corresponding expected-STOP assertion becomes red: role, pendingOwner,
 mapping, role-config owner, operator treasury, operator balance/configuration,
 Registry registration, forward allowance,
 Safe owner, Safe module, guard, fallback. Reverse allowances remain record-only.
-The seven positive-control gates also have individual removal probes.
+The expanded positive-control gates also have individual removal probes.
 Additional tests cover inheritance, file-level constants, empty extraction,
 positive-control failures, endpoint disagreement, and offline evidence tampering.
 
@@ -123,24 +126,81 @@ specific STOP gate, and restores a snapshot. It is not run by the offline suite.
    guard, or fallback holder cannot be assumed when the expected Safe has none.
    The storage reads remain mandatory, with separate mocked OLD substitutions.
 
-## Verification results
+## H2/H3/M4 adversarial-review changes
 
-Commands ran from the repository root. Final suite result lines:
+The source choice is unchanged: `inventory_source(release_tree)` returns the
+retained release tree. No deployed-source fallback is introduced. The complete
+required contract set is Registry, SuperPaymaster, APNTsCapped,
+TimelockController, GTokenStaking, GToken, xPNTsFactory, xPNTsToken, MySBT and
+PaymasterFactory. All inherit the same AST/ABI getter and role extraction rules.
+
+| Added target | Address discovery | Authority candidates / controls |
+|---|---|---|
+| GTokenStaking | pinned Registry `GTOKEN_STAKING()` | `owner`, `GTOKEN`, `REGISTRY`, `treasury`, `authorizedSlashers(OLD) == false`; owner must equal deployer |
+| GToken | pinned staking `GTOKEN()` | `owner` controls minting; owner must equal deployer; forward allowances for all eight existing principals |
+| xPNTsFactory | pinned SP `xpntsFactory()` | inherited owner, `SUPERPAYMASTER`, `REGISTRY`, `implementation`, `isXPNTs(OLD) == false`; owner must equal deployer |
+| Every discovered xPNTsToken | union of pinned `SP.operators` for `pauseList` and factory `getAllTokens()` | inherited owner, `communityOwner`, `FACTORY`, `SUPERPAYMASTER_ADDRESS`, `emergencyRevokedAddress`, `autoApprovedSpenders`, `approvedFacilitators`; nonzero community owner must map back to this token through factory `communityToToken` |
+| MySBT | pinned Registry `MYSBT()` | `GTOKEN`, `GTOKEN_STAKING`, `REGISTRY`, `daoMultisig`, `reputationCalculator`; DAO authority must equal deployer |
+| PaymasterFactory | `deployments/config.sepolia.json:paymasterFactory`, frozen as `PAYMASTER_FACTORY` | inherited owner and `registry`; owner must equal deployer |
+
+The manifest's existing operator pin supplies the touched existing xPNTs tokens.
+Factory-only tokens also receive authority, authorization-mapping and allowance
+checks. Future CREATE token/factory targets have no state at this pin. No block
+scan is used for token discovery. Missing getters fail closed under the existing
+release-source policy; the offline run does not attest to installed-runtime ABI
+compatibility or actual control-holder values.
+
+The following existing manifest checks are credited, not duplicated:
+`fixed_old_aggregator`, `old_aggregator_owner` (old aggregator owner is deployer),
+`pointer_owner` (DVT and committee owners are deployer), and `old_pointer` (both
+point to the pinned old aggregator). They run in `manifest_exec.collect()` before
+isolation collection; existing ownership-transfer/readback steps remain intact.
+
+Registry role history uses the compiled ABI to verify the source event signature:
 
 ```text
-script/upgrade/test_manifest_exec.py: Ran 200 tests — OK (skipped=1)
+RoleConfigured(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256),uint256)
+```
+
+The topic is computed with keccak, with only roleId indexed. Queries are filtered
+by Registry address and that topic, bounded from `registryCreation` through
+`stateBlock`, and use `a3a_exec.schedule_logs` (bounded bisection, never a
+block-by-block scan). Returned logs must have the correct address/topic, two
+topics, a valid role id, an in-range block, no removed flag, and a canonical
+block hash. Canonical checks are cached by event block, and the state pin hash is
+checked before and after history extraction. Both endpoints retain successful
+queries and range-limit errors, allowing the same bisection to replay offline.
+
+Every historical role id is retained in `configuredRoles`, even if its current
+configuration is inactive. All configured role owners must differ from OLD and
+`hasRole(role, OLD)` must be false. The standard source-extracted role ids must
+all appear in configuration events; empty or incomplete history stops at
+`old_owner_role_extraction_empty`. Registry `_initRole` does not emit this event:
+a pin lacking subsequent standard-role configuration events intentionally stops,
+as required, and must not be accepted as evidence of isolation.
+
+## Verification results
+
+Offline runs from the repository root; no commit, RPC, transaction or real fork.
+The focused suite exercises 44 gate-removal probes: 24 negative authority,
+role, allowance and Safe probes; 13 positive-holder probes; seven event-history
+probes. Each removed gate makes its specific expected-STOP assertion red.
+Additional tests cover factory-only tokens, operator/factory union, event ABI
+signature verification, the source-selection seam, bounded bisection/replay,
+endpoint disagreement and evidence tampering.
+
+Final suite result lines:
+
+```text
+script/upgrade/test_manifest_exec.py: Ran 205 tests — OK (skipped=1)
+script/upgrade/test_old_owner_isolation.py: Ran 13 tests — OK (skipped=1)
 script/a3a/test_a3a_exec.py: Ran 102 tests — OK
 script/upgrade/test_sp_upgrade_exec.py: Ran 141 tests — OK
 script/upgrade/test_pop_adapter.py: Ran 53 tests — OK
 script/upgrade/test_release_evidence.py: Ran 69 tests — OK
-script/upgrade/test_old_owner_isolation.py: Ran 9 tests — OK (skipped=1)
 ```
 
-The focused isolation run additionally verifies the final mock-fork harness and
-role-source deduplication changes. The skipped test in both relevant suites is
-the opt-in real local fork, not an offline negative control. All 19 removal probes
-passed: each removed gate made its expected-STOP assertion fail, and restoring
-the gate restored the expected STOP. `git diff --check` passed. Nothing committed.
-
-Live probe results, actual allowance values, actual xPNTs addresses at the pin,
-and the complete compiled source inventory remain unknown in this offline run.
+The skipped test is the opt-in real local fork, also imported by the manifest
+suite. All offline controls passed. `git diff --check` passed. Live holder values,
+installed getter compatibility and actual configured-role history remain
+unverified; no live acceptance is claimed.
