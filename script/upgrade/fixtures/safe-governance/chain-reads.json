@@ -45,7 +45,8 @@
     "hash": "0xbfa1491b044c9501f56508e55e1549045a59919b171ce1ea489c8715df5aac07",
     "miner": "0x421df94fe5cb177c666df6402e7de7d368319ec3",
     "parentHash": "0x6470dcb902b52b7c62976e274a3ab5aef9ea52494287f246a663f930de8adc06",
-    "timestamp": "0x6aeaa61c"
+    "timestamp": "0x6aeaa61c",
+    "baseFeePerGas": "0x16"
    },
    "diff": {
     "post": {
@@ -114,7 +115,8 @@
     "hash": "0xbfa1491b044c9501f56508e55e1549045a59919b171ce1ea489c8715df5aac07",
     "miner": "0x421df94fe5cb177c666df6402e7de7d368319ec3",
     "parentHash": "0x6470dcb902b52b7c62976e274a3ab5aef9ea52494287f246a663f930de8adc06",
-    "timestamp": "0x6aeaa61c"
+    "timestamp": "0x6aeaa61c",
+    "baseFeePerGas": "0x16"
    },
    "diff": {
     "__error": "429 exhausted"
@@ -184,7 +186,8 @@
     "hash": "0x7d8aa583c57fb60eb6c05570268e06eaee3dbc94c760cacdfb848b2ea44cded4",
     "miner": "0x421df94fe5cb177c666df6402e7de7d368319ec3",
     "parentHash": "0x2117eedf8e3a44074bee53e36472d98fe5a5f990ed97f553c9bfab1bd9eba72c",
-    "timestamp": "0x6aeac398"
+    "timestamp": "0x6aeac398",
+    "baseFeePerGas": "0x1c"
    },
    "diff": {
     "post": {
@@ -280,7 +283,8 @@
     "hash": "0x7d8aa583c57fb60eb6c05570268e06eaee3dbc94c760cacdfb848b2ea44cded4",
     "miner": "0x421df94fe5cb177c666df6402e7de7d368319ec3",
     "parentHash": "0x2117eedf8e3a44074bee53e36472d98fe5a5f990ed97f553c9bfab1bd9eba72c",
-    "timestamp": "0x6aeac398"
+    "timestamp": "0x6aeac398",
+    "baseFeePerGas": "0x1c"
    },
    "diff": {
     "__error": "429 exhausted"
@@ -393,7 +397,8 @@
     "hash": "0x8d77c4a6131b89e73db88beb6b12311c9a5d3f110fab8502a2c584fda0654784",
     "miner": "0x421df94fe5cb177c666df6402e7de7d368319ec3",
     "parentHash": "0x7d8aa583c57fb60eb6c05570268e06eaee3dbc94c760cacdfb848b2ea44cded4",
-    "timestamp": "0x6aeac3a4"
+    "timestamp": "0x6aeac3a4",
+    "baseFeePerGas": "0x1d"
    },
    "diff": {
     "post": {
@@ -539,7 +544,8 @@
     "hash": "0x8d77c4a6131b89e73db88beb6b12311c9a5d3f110fab8502a2c584fda0654784",
     "miner": "0x421df94fe5cb177c666df6402e7de7d368319ec3",
     "parentHash": "0x7d8aa583c57fb60eb6c05570268e06eaee3dbc94c760cacdfb848b2ea44cded4",
-    "timestamp": "0x6aeac3a4"
+    "timestamp": "0x6aeac3a4",
+    "baseFeePerGas": "0x1d"
    },
    "diff": {
     "__error": "429 exhausted"
