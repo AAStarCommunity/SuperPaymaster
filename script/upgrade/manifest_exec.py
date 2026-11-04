@@ -698,7 +698,7 @@ def governance_nonces(inputs):
     return [dict(r['tx'], nonce=hex(r['tx']['nonce'])) for r in governance_entries(inputs)]
 
 
-def governance_trace(diff, row, miner, receipt):
+def governance_trace(diff, row, miner, receipt, base_fee):
     tx, packet = row['tx'], row['packet']
     a.need('safe_gap_trace_shape', isinstance(diff, dict) and set(diff) == {'pre', 'post'} and
            all(isinstance(x, dict) for x in diff.values()), True)
@@ -733,8 +733,9 @@ def governance_trace(diff, row, miner, receipt):
     a.need('safe_gap_sender_code', pre[sender].get('code', '0x'), '0x')
     a.need('safe_gap_miner_fields', set(post.get(miner, {})) <= {'balance'} and miner in post, True)
     a.typed(post[miner].get('balance'), a.QTY, gate='safe_gap_miner_balance')
-    if 'balance' in pre.get(miner, {}):
-        a.need('safe_gap_miner_balance', a.qty(post[miner]['balance']) > a.qty(pre[miner]['balance']), True)
+    # The fee recipient gains exactly the priority fee; an absent pre balance was zero.
+    miner_pre = a.qty(a.typed(pre.get(miner, {}).get('balance', '0x0'), a.QTY, gate='safe_gap_miner_balance'))
+    a.need('safe_gap_miner_balance', a.qty(post[miner]['balance']) - miner_pre, gas_used * (gas_price - base_fee))
     a.need('safe_gap_miner_storage', pre.get(miner, {}).get('storage', {}), {})
     if not row['status']:
         return
@@ -825,11 +826,12 @@ def check_governance(rpcs, pin, inputs):
             a.need('safe_gap_status', receipt.get('status'), hex(row['status']))
             a.need('safe_gap_logs_shape', isinstance(receipt.get('logs'), list), True)
             governance_logs(receipt['logs'], row, receipt)
-            identities.append([number, block['hash'], block['miner'], mined['transactionIndex']])
+            base_fee = a.qty(a.typed(block.get('baseFeePerGas'), a.QTY, gate='safe_gap_base_fee'))
+            identities.append([number, block['hash'], block['miner'], mined['transactionIndex'], base_fee])
             diff = rpc('debug_traceTransaction', [entry['hash'], {'tracer': 'prestateTracer', 'tracerConfig': {'diffMode': True}}])
             if diff is None or (isinstance(diff, dict) and '__error' in diff):
                 continue
-            governance_trace(diff, row, block['miner'], receipt)
+            governance_trace(diff, row, block['miner'], receipt, base_fee)
             labels.append(label)
         a.need('safe_gap_dual_identity', identities[0], identities[1])
         row['block'] = a.qty(identities[0][0])

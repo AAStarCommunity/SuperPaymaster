@@ -2286,6 +2286,21 @@ class SafeGovernanceTests(unittest.TestCase):
             with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), self.rpc('b')])
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_swap_block')
 
+    def test_miner_priority_fee_exact(self):
+        for key in ('A99', 'A100', 'E755'):
+            for delta in (1, -1):
+                with self.subTest(key=key, delta=delta):
+                    self.setUp()
+                    def shift():
+                        diff, miner = self.chain[key]['a']['diff'], self.chain[key]['a']['block']['miner']
+                        diff['post'][miner]['balance'] = hex(int(diff['post'][miner]['balance'], 16) + delta)
+                    self.stop('safe_gap_miner_balance', shift)
+
+    def test_base_fee_required_and_agreed(self):
+        self.stop('safe_gap_base_fee', lambda: self.chain['A100']['a']['block'].pop('baseFeePerGas'))
+        self.setUp()
+        self.stop('safe_gap_dual_identity', lambda: self.chain['A100']['b']['block'].update(baseFeePerGas='0x1b'))
+
     def test_exact_nonce_coverage(self):
         self.stop('prepin_nonce_approver', lambda: self.pin['senders']['approver'].update(nonce=102))
         self.setUp()
