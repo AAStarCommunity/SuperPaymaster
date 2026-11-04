@@ -452,3 +452,104 @@ python3 -B script/upgrade/test_release_evidence.py
 
 
 Rehearsal gas checks record `mode='pinned-consistency'`: they repeat the pinned block, accumulated state overrides, and execution time used by measurement. They do not detect chain changes after the pin. Freshness is enforced only at live send time (`pre_send` on `latest`, without overrides) and by re-pinning. The live `fresh_gas` mode remains `live`; rehearsal's local pre-send checks only the fork's latest state. Manifest signing/sending remain disabled. See [the H2 gas gate report](H2_GAS_GATE_REPORT.md).
+
+## Gated live sender for the frozen manifest packet (disabled by default)
+
+`manifest_exec.py sign|send` still refuse with rc=3. `manifest_send.py` is a separate module, modelled on
+`script/a3a/a3a_send.py`. It is **not authorised to run** until DSR has reviewed it and the author has given a separate
+go for one packet sha256. Without `MANIFEST_SEND_ENABLE=<that sha256>` in the environment, it exits rc=3 before reading
+any file. No CI job runs it against a network; its tests use a local anvil only.
+
+```sh
+MANIFEST_SEND_ENABLE=<approved sha256> python3 -B script/upgrade/manifest_send.py \
+  --packet /path/to/plan.json --approved-sha256 <approved sha256> \
+  --first A1 --last A5 [--prior /path/to/earlier-run/sent.json ...] \
+  --rpc-file /path/to/endpoint-a-url --rpc-file-secondary /path/to/endpoint-b-url \
+  --accounts /path/to/accounts.json --password-file /path/to/0600/password --out /new/empty/dir [--dry-run]
+```
+
+Inputs:
+- `--packet` and `--approved-sha256`: the packet file is read once. Its sha256 must equal the approved value. It must be
+  the final full-stage artifact and pass `manifest_exec.validate_plan(frozen=True)`, which rebuilds the plan from its pin.
+- Two endpoint files: the URLs must differ. Only the primary receives `eth_sendRawTransaction`. Every check and
+  read-back runs on both endpoints.
+- `--accounts` maps packet sender labels (`deployer`, `approver`, `executor`, `anni`) to Foundry keystore names.
+  Signing uses `cast mktx --account <name> --password-file <path>` offline: a whitelisted environment, no RPC URL, and
+  never a raw key. The password file must be a regular file you own, with mode 0600 or stricter (0400 is accepted),
+  in a directory you own that is closed to group and others. It must also be outside this repository and every other
+  git worktree: `git rev-parse --show-toplevel` in its directory must fail, and no ancestor directory may hold a
+  `.git` entry. The sender checks only its
+  metadata, never its contents.
+- `--first/--last`: one contiguous range of packet steps per run. Timelock and ETA waits are never warped; a step that is
+  not ready STOPs and is run later. Every step before `--first` must appear in an earlier run's `sent.json`. Each record
+  is re-read on both endpoints (receipt, canonical block, mined fields equal to the packet, the same receipt on both,
+  Safe `ExecutionSuccess` for `_exec` steps). The executor context comes
+  from those receipts: the passed set, the 5b upgrade block and the 6c schedule timestamp.
+- Authorization. The go is the author's own phrase, `SEND <first>..<last> <first 12 hex of the sha256>`. Passing it
+  as `--confirm` bypasses `/dev/tty`, so the sender does **not** enforce a terminal: `--confirm` carries the author's
+  go. The orchestrating session passes it only after the author personally sent that full phrase. It is copied
+  verbatim and never written for the author; a bare "yes" is not a go. Without `--confirm` the phrase is read from
+  `/dev/tty`. A live run also needs `--authorized-at` (ISO-8601 with an offset: when the phrase was received). That
+  time may not be in the future (beyond 5 minutes of clock skew, `send_authorized_at_future`). It also may not predate
+  the packet's pin block timestamp, which the packet hash covers (`send_authorized_at_before_pin`); a file mtime is not
+  used because copying resets it. The run then writes `authorization.json` (the phrase verbatim, that time, the packet sha256 and the range) and reads it back
+  before the first signature; otherwise it STOPs (`send_operator_confirmation`, `send_authorized_at`,
+  `send_authorization_record`). `--dry-run` uses the phrase `DRY-RUN ...` and needs neither. The phrase is asked once
+  per run, before the first signature.
+
+Before **each** signature, on both endpoints:
+- the chain id;
+- the sender nonce, `latest == pending ==` the planned nonce;
+- `manifest_exec.pre_send_reads`: the executor's state re-reads, split out of `pre_send`, which still requires the fork;
+- timelock, 6c-floor and B4 readiness;
+- the B4 variant, which both endpoints must select identically;
+- the fee cap and the sender balance;
+- `sp_upgrade_exec.fresh_gas` in live mode (`latest`, no overrides). The DSR #599 rules apply: STOP
+  `send_live_gas_over_limit` if the estimate exceeds the frozen limit, and STOP `send_live_gas_repin` (re-pin required)
+  if it exceeds `floor(limit / 1.1)`.
+
+`gas-comparisons.json` records every comparison (endpoint, latest block number before and after the estimate, estimate,
+limit, threshold, result) before the decision is acted on.
+
+After signing, `cast decode-transaction` and a local keccak (both over stdin) must match every packet field. Nonces are
+re-read, then the transaction is broadcast once. The signed bytes are held only in memory until then. The receipt must
+appear on both endpoints with the same block. The status must be 1, except a B4 `apply` mined with status 0 whose
+post-state holds. The step's packet read-backs then run on both endpoints before the next step starts. Any failure
+after the broadcast is `send_after_broadcast` with the hash: nothing is retried, re-signed or repriced. Records are
+scrubbed against both URLs with the `a3a_send.py` helpers.
+
+`--dry-run` takes the same code path, including every gate, the in-memory signature, the decode/compare and the final
+nonce re-read. It stops right before the first step's broadcast and writes `result.json` with status `DRY_RUN`; its
+phrase starts with `DRY-RUN`. A dry run can rehearse only the **first** step of a range: every later step's nonce and
+state gates depend on the previous step having been mined. A test asserts that its gate sequence equals the live run's up to the broadcast; the
+only exception is the two authorization gates, which live runs alone carry. A second
+test runs a dry run with a real `cast wallet` keystore and password file, and checks that no key, password or keystore
+field appears in stdout, stderr, any file or any exception text.
+
+Reconciling after `send_after_broadcast`: `FAILURE.json` carries the locally computed hash and the cause. Nothing
+is retried, so the operator reconciles by hand, and never by re-running the step: its nonce gate STOPs while that
+nonce is consumed, and an unmined transaction must not be replaced without a new review.
+1. Read the receipt for that hash on both endpoints.
+2. If it was mined with the allowed status, check the step's post-state, as the fork rehearsal and DSR's checklist
+   define it.
+3. Then write a one-record prior file, `{"packetSha256": ..., "sent": [{"step", "variant", "hash", "blockNumber",
+   "blockHash"}]}`, have it reviewed, and pass it with `--prior`.
+
+The prefix proof re-reads that record on both endpoints: receipt, canonical block, mined fields, the same receipt on
+both, and Safe `ExecutionSuccess` for `_exec` steps. It does not re-run the step's read-backs, which is why step 2 is
+manual. A verify-only `--reconcile <hash>` mode that reuses the post-state code is a proposed follow-up.
+
+Debug traces (the fork's `safe_trace`, `mint_trace` and `handover_trace`) are not read live; Safe execution is checked
+from the receipt's `ExecutionSuccess` event.
+
+Offline verification uses a local anvil and the public anvil keys only; no network, keystore or real key. Each
+test class starts its own anvil with `--port 0` and reads the bound port from anvil's output, so no pre-picked port can
+be taken by a concurrent process. Both endpoint URLs are literal `127.0.0.1` strings; nothing resolves `localhost`.
+The test process ignores environment proxies. A transport error on a test read is retried by the test harness only,
+at most twice; each retry is printed (`HARNESS RETRY`), and the run ends with `HARNESS_RETRIES <count>`. The sender
+itself never retries.
+
+```sh
+A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_send.py
+A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/probe_send_gates.py
+```

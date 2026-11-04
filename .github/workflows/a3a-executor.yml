@@ -1,6 +1,6 @@
 name: a3a-executor
-# Offline tests of script/a3a/a3a_exec.py and the live sender script/a3a/a3a_send.py (mocked RPC; no network,
-# no keys: the sender tests sign with the public anvil test key through a cast wrapper).
+# Offline tests of script/a3a/a3a_exec.py and the live senders script/a3a/a3a_send.py and script/upgrade/manifest_send.py
+# (mocked RPC or a local anvil; no network, no real keys: the sender tests sign with the public anvil test keys).
 # The tests use `cast` only for ABI encoding / keccak, which is identical across foundry versions;
 # the executor itself still pins and verifies the Amsterdam engine commit at fork start.
 on:
@@ -54,6 +54,12 @@ jobs:
       - name: Offline pre-sampling manifest tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_exec.py
+      - name: Offline manifest live-sender tests (local anvil with the public anvil keys; no network, no real key)
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_send.py </dev/null
+      - name: Manifest live-sender gate-removal probes (each control must turn red without its gate)
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/probe_send_gates.py </dev/null
       - name: Offline PoP adapter tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_pop_adapter.py
