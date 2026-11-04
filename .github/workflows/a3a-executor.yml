@@ -54,6 +54,9 @@ jobs:
       - name: Offline pre-sampling manifest tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_exec.py
+      - name: Offline manifest Phase C tests
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_phase_c.py
       - name: Offline PoP adapter tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_pop_adapter.py

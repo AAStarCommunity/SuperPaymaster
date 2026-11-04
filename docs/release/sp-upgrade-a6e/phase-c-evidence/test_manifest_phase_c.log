@@ -1,0 +1,16 @@
+....................................................................................................../usr/lib/python3.11/unittest/case.py:678: DeprecationWarning: It is deprecated to return a value that is not None from a test case (<bound method <lambda> of <__main__.PhaseCTests testMethod=test_rebuild_baseline_constructor_count_TokenPaymaster>>)
+  return self.run(*args, **kwds)
+./usr/lib/python3.11/unittest/case.py:678: DeprecationWarning: It is deprecated to return a value that is not None from a test case (<bound method <lambda> of <__main__.PhaseCTests testMethod=test_rebuild_baseline_forge_version>>)
+  return self.run(*args, **kwds)
+./usr/lib/python3.11/unittest/case.py:678: DeprecationWarning: It is deprecated to return a value that is not None from a test case (<bound method <lambda> of <__main__.PhaseCTests testMethod=test_rebuild_baseline_immutables_F1TestToken>>)
+  return self.run(*args, **kwds)
+./usr/lib/python3.11/unittest/case.py:678: DeprecationWarning: It is deprecated to return a value that is not None from a test case (<bound method <lambda> of <__main__.PhaseCTests testMethod=test_rebuild_baseline_offline_build>>)
+  return self.run(*args, **kwds)
+./usr/lib/python3.11/unittest/case.py:678: DeprecationWarning: It is deprecated to return a value that is not None from a test case (<bound method <lambda> of <__main__.PhaseCTests testMethod=test_rebuild_baseline_source_VerifyingPaymaster>>)
+  return self.run(*args, **kwds)
+............
+----------------------------------------------------------------------
+Ran 118 tests in 198.174s
+
+OK
+rc=0
