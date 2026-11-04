@@ -1692,6 +1692,37 @@ class ManifestTests(unittest.TestCase):
                 bad['a3aHistory'][sid]['transaction']['input'] = '0x1234'
                 with self.assertRaises(a.Gate): m.validate_nonce_history(bad, self.inputs)
 
+    def test_governance_evidence_revalidated_by_builder(self):
+        harness = SafeGovernanceTests()
+        harness.setUp()
+        self.addCleanup(harness.doCleanups)
+        ap = json.loads(Path(self.inputs['data']['a3aPlan']['path']).read_text())
+        for label, last in [('approver', 98), ('executor', 754)]:
+            who = a.SENDERS[label]
+            steps = [s for s in ap['steps'] if s['tx']['from'] == who]
+            shift = last-max(a.qty(s['tx']['nonce']) for s in steps)
+            for step in steps:
+                step['tx']['nonce'] = hex(a.qty(step['tx']['nonce'])+shift)
+                self.pin['a3aHistory'][step['id']]['transaction']['nonce'] = step['tx']['nonce']
+            ap['pin']['senders'][label]['nonce'] += shift
+            self.pin['senders'][label]['nonce'] = harness.pin['senders'][label]['nonce']
+        spec = self.inputs['data']['a3aPlan']
+        receipts = spec['receipts']
+        spec.update(self.file_ref('governance-a3a', ap), receipts=receipts)
+        digest = spec['sha256']
+        self.inputs['data']['safeGovernanceGaps'] = harness.inputs['data']['safeGovernanceGaps']
+        self.pin['stateBlock'] = harness.pin['stateBlock']
+        self.pin['safeNonce'] = harness.pin['safeNonce']
+        self.pin['safe']['owners'] = harness.pin['safe']['owners']
+        self.pin['safe']['codes'] = {who:code for who,code in self.pin['safe']['codes'].items() if who in (a.SAFE, a.DEPLOYER)}
+        self.pin['safe']['codes'].update(harness.pin['safe']['codes'])
+        m.governance_evidence(self.pin, self.inputs, [harness.rpc('a'), harness.rpc('b')])
+        m.build_plan(self.pin, self.inputs, 'a7')
+        self.assertEqual(spec['sha256'], digest)
+        self.pin['safeGovernanceGaps']['reads']['b'][0]['result']['input'] = '0x00'
+        with self.assertRaises(a.Gate) as caught: m.build_plan(self.pin, self.inputs, 'a7')
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_input')
+
     def test_embedded_a3a_contract_call_gap_refused(self):
         inputs = copy.deepcopy(self.inputs)
         spec = inputs['data']['a3aPlan']
@@ -2040,6 +2071,271 @@ class ManifestTests(unittest.TestCase):
     def test_sign_send_refused(self):
         self.assertEqual(m.main(['sign']), 3)
         self.assertEqual(m.main(['send']), 3)
+
+
+class SafeGovernanceTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(__file__).with_name('fixtures')/'safe-governance'
+        self.chain = json.loads((self.root/'chain-reads.json').read_text())
+        self.inputs = dict(data=json.loads((self.root/'inputs.json').read_text()))
+        self.packet = json.loads((self.root/'packet-460e0244.json').read_text())
+        self.pin = dict(stateBlock=hex(12060363), safeNonce=4,
+            safe=dict(owners=sorted(self.packet['expectedReadback']['owners']), threshold=2,
+                      codes={w:'0x' for w in self.packet['expectedReadback']['owners']}),
+            senders={label:dict(address=who, nonce=n) for label,who,n in
+                     [('deployer', a.DEPLOYER, 12139), ('approver', a.APPROVER, 101), ('executor', a.EXECUTOR, 756)]})
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        path = Path(self.tmp.name)/'plan.json'
+        path.write_text(json.dumps(dict(steps=[dict(id=sid, tx={'from':who, 'nonce':hex(n)}) for sid,who,n in
+            [('S7',a.DEPLOYER,12138), ('S6a',a.APPROVER,98), ('S6b',a.EXECUTOR,754)]])))
+        self.inputs['data']['a3aPlan'] = dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+
+    def rpc(self, endpoint):
+        def read(method, params):
+            for key, endpoints in self.chain.items():
+                original = json.loads((self.root/'chain-reads.json').read_text())[key][endpoint]
+                value = endpoints[endpoint]
+                if params[0] == original['tx']['hash']:
+                    return value[{'eth_getTransactionByHash':'tx', 'eth_getTransactionReceipt':'receipt', 'debug_traceTransaction':'diff'}[method]]
+                if method == 'eth_getBlockByNumber' and params[0] == value['tx']['blockNumber']:
+                    return value['block']
+            if method == 'eth_getCode': return self.pin['safe']['codes'][params[0]]
+            if method == 'eth_call':
+                data = params[0]['data']
+                if data == a.calldata('getOwners()'):
+                    return a.cast('abi-encode', 'c(address[])', '['+','.join(self.pin['safe']['owners'])+']')
+                if data == a.calldata('getThreshold()'): return '0x'+format(self.pin['safe']['threshold'], '064x')
+                if data == a.calldata('nonce()'): return '0x'+format(self.pin['safeNonce'], '064x')
+            raise AssertionError((method, params))
+        return read
+
+    def verify(self):
+        m.nonce_expectations(self.pin, self.inputs)
+        m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), self.rpc('b')])
+        m.governance_evidence(self.pin, self.inputs)
+
+    def stop(self, gate, mutate):
+        self.verify()  # The same harness must pass before each mutation.
+        mutate()
+        with self.assertRaises(a.Gate) as caught: self.verify()
+        self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_real_chain_and_offline_replay(self):
+        self.verify()
+        evidence = self.pin['safeGovernanceGaps']
+        self.assertFalse(evidence['partOfA3aPlan'])
+        self.assertEqual([r['traceEndpoints'] for r in evidence['transactions']], [1, 1, 1])
+        evidence['reads']['a'][0]['result']['input'] = '0x00'
+        with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_input')
+
+    def test_replay_duplicate_unused_and_endpoint_copy(self):
+        for mutation, gate in [('duplicate', 'safe_gap_proof_duplicate'),
+                               ('unused', 'safe_gap_proof_unused'), ('copy', 'safe_gap_trace_counts')]:
+            with self.subTest(mutation=mutation):
+                self.verify()
+                evidence = self.pin['safeGovernanceGaps']
+                if mutation == 'duplicate':
+                    evidence['reads']['a'].append(copy.deepcopy(evidence['reads']['a'][0]))
+                elif mutation == 'unused':
+                    evidence['reads']['a'].append(dict(method='eth_unused', params=[], result=None))
+                else:
+                    evidence['reads']['b'] = copy.deepcopy(evidence['reads']['a'])
+                    for tx in evidence['transactions']: tx['traceEndpoints'] = 2
+                with self.assertRaises(a.Gate) as caught:
+                    m.governance_evidence(self.pin, self.inputs)
+                self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_miner_aliases(self):
+        for miner in (a.SAFE, a.APPROVER, a.EXECUTOR, self.packet['swapOwner']['old'], self.packet['swapOwner']['new']):
+            with self.subTest(miner=miner):
+                self.setUp()
+                for endpoint in ('a', 'b'):
+                    original = self.chain['A99'][endpoint]['block']['miner']
+                    self.stop('safe_gap_miner_alias', lambda: self.chain['A99'][endpoint]['block'].update(miner=miner))
+                    self.chain['A99'][endpoint]['block']['miner'] = original
+
+    def test_log_identity_fields(self):
+        for field in ('transactionHash', 'blockHash', 'blockNumber', 'transactionIndex', 'logIndex'):
+            with self.subTest(field=field):
+                self.setUp()
+                log = self.chain['E755']['a']['receipt']['logs'][1]
+                value = a.ZERO32 if field.endswith('Hash') else hex(a.qty(log[field]) + 2)
+                self.stop('safe_gap_log_' + field, lambda: log.update({field:value}))
+
+    def test_receipt_index_bound_to_mined_transaction(self):
+        # Receipt and all logs moved together to another index: only the mined tx binds it.
+        def move():
+            for endpoint in ('a', 'b'):
+                receipt = self.chain['E755'][endpoint]['receipt']
+                receipt['transactionIndex'] = '0x0'
+                for log in receipt['logs']: log['transactionIndex'] = '0x0'
+        self.stop('safe_gap_receipt_identity', move)
+
+    def test_malformed_trace_gates(self):
+        cases = [
+            ('shape', 'safe_gap_trace_account_shape'), ('unknown', 'safe_gap_trace_account_shape'),
+            ('balance', 'safe_gap_trace_balance'), ('nonce', 'safe_gap_trace_nonce'),
+            ('storage_list', 'safe_gap_trace_storage'), ('storage_key', 'safe_gap_trace_storage'),
+            ('storage_value', 'safe_gap_trace_storage'), ('code', 'safe_gap_trace_code'),
+            ('missing_sender', 'safe_gap_sender_pre_balance'),
+            ('missing_miner', 'safe_gap_miner_balance'), ('miner_equal', 'safe_gap_miner_balance'),
+            ('miner_less', 'safe_gap_miner_balance'), ('miner_invalid', 'safe_gap_trace_balance')]
+        for case, gate in cases:
+            with self.subTest(case=case):
+                self.setUp()
+                def mutate():
+                    item = self.chain['A99']['a']
+                    pre, post = item['diff']['pre'], item['diff']['post']
+                    sender, miner = item['tx']['from'], item['block']['miner']
+                    if case == 'shape': pre[sender] = []
+                    elif case == 'unknown': pre[sender]['other'] = 0
+                    elif case == 'balance': pre[sender]['balance'] = 1
+                    elif case == 'nonce': pre[sender]['nonce'] = '0x63'
+                    elif case == 'storage_list': pre[sender]['storage'] = []
+                    elif case == 'storage_key': pre[sender]['storage'] = {'bad':a.ZERO32}
+                    elif case == 'storage_value': pre[sender]['storage'] = {a.ZERO32:False}
+                    elif case == 'code': pre[sender]['code'] = 1
+                    elif case == 'missing_sender': del pre[sender]['balance']
+                    elif case == 'missing_miner': post[miner] = {}
+                    elif case == 'miner_invalid': post[miner]['balance'] = 'invalid'
+                    else:
+                        pre.setdefault(miner, {})['balance'] = post[miner]['balance']
+                        if case == 'miner_less': post[miner]['balance'] = '0x0'
+                self.stop(gate, mutate)
+
+    def test_event_topics_derived_offline(self):
+        for signature, topic in m.SAFE_EVENTS.items(): self.assertEqual(a.keccak(signature), topic)
+        self.verify()
+
+    def test_transaction_controls(self):
+        for field, value, gate in [('input',self.chain['A99']['a']['tx']['input'][:-2]+'00','input'), ('authorizationList',[{}],'authorizations'), ('authorizationList',None,'authorizations'),
+                                 ('chainId','0x1','chainId'), ('gas','0x1','gas'), ('type','0x4','type')]:
+            with self.subTest(field=field):
+                self.setUp()
+                self.stop('safe_gap_'+gate, lambda: self.chain['A99']['a']['tx'].update({field:value}))
+
+    def test_status_controls(self):
+        for key,status in [('A99','0x1'), ('A100','0x0'), ('E755','0x0')]:
+            with self.subTest(key=key):
+                self.setUp()
+                self.stop('safe_gap_status', lambda: self.chain[key]['a']['receipt'].update(status=status))
+
+    def test_log_controls(self):
+        self.stop('safe_gap_logs', lambda: self.chain['A100']['a']['receipt']['logs'].append(copy.deepcopy(self.chain['A100']['a']['receipt']['logs'][0])))
+        self.setUp()
+        self.stop('safe_gap_logs', lambda: self.chain['E755']['b']['receipt']['logs'][1]['topics'].__setitem__(0, a.ZERO32))
+        self.setUp()
+        self.stop('safe_gap_logs', lambda: self.chain['A99']['a']['receipt']['logs'].append(self.chain['A100']['a']['receipt']['logs'][0]))
+
+    def test_storage_controls(self):
+        post = lambda: self.chain['E755']['a']['diff']['post'][a.SAFE]['storage']
+        self.stop('safe_gap_storage_slots', lambda: post().update({a.ZERO32:a.ZERO32}))
+        for key in ['0x'+format(5,'064x'), a.keccak('0x'+a.APPROVER[2:].zfill(64)+format(2,'064x'))]:
+            self.setUp()
+            self.stop('safe_gap_storage_value', lambda: post().update({key:'0x'+format(5,'064x')}))
+        self.setUp()
+        self.stop('safe_gap_storage_slots', lambda: self.chain['E755']['a']['diff']['pre'][a.SAFE]['storage'].update({a.ZERO32:'0x'+format(1, '064x')}))
+
+    def test_trace_account_controls(self):
+        for field,value in [('balance','0x1'), ('code','0x00'), ('nonce',2)]:
+            self.setUp()
+            self.stop('safe_gap_safe_fields', lambda: self.chain['A100']['a']['diff']['post'][a.SAFE].update({field:value}))
+        self.setUp()
+        self.stop('safe_gap_trace_accounts', lambda: self.chain['E755']['a']['diff']['post'].update({a.ZERO:{'balance':'0x1'}}))
+        self.setUp()
+        self.stop('safe_gap_trace_accounts', lambda: self.chain['A99']['a']['diff']['post'].update({a.SAFE:{'storage':{a.ZERO32:'0x1'}}}))
+        self.setUp()
+        self.stop('safe_gap_trace_available', lambda: self.chain['A99']['a'].update(diff={'__error':'unavailable'}))
+
+    def test_packet_digest(self):
+        self.stop('safe_gap_packet', lambda: self.inputs['data']['safeGovernanceGaps'][0].update(sha256='1'*64))
+
+    def test_pin_owner_controls(self):
+        self.stop('safe_gap_pin_owners', lambda: self.pin['safe'].update(owners=sorted(a.safe_owners(hex(12060358)))))
+        self.setUp()
+        self.stop('safe_gap_owner_eoa', lambda: self.pin['safe']['codes'].update({a.APPROVER:'0xef0100'+'11'*20}))
+        self.setUp()
+        self.stop('safe_gap_pin_nonce', lambda: self.pin.update(safeNonce=5))
+        self.setUp()
+        self.stop('safe_gap_pin_threshold', lambda: self.pin['safe'].update(threshold=1))
+
+    def test_live_owner_code_on_one_endpoint(self):
+        self.verify()
+        original = self.rpc('b')
+        def delegated(method, params):
+            if method == 'eth_getCode' and params[0] == a.APPROVER: return '0xef0100'+'11'*20
+            return original(method, params)
+        with self.assertRaises(a.Gate) as caught:
+            m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), delegated])
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_eoa')
+
+    def test_dual_identity_and_sender_balance(self):
+        self.stop('safe_gap_dual_identity', lambda: self.chain['E755']['b']['block'].update(miner='0x'+'22'*20))
+        self.setUp()
+        def unpaid():
+            diff = self.chain['A100']['a']['diff']
+            diff['post'][a.APPROVER]['balance'] = diff['pre'][a.APPROVER]['balance']
+        self.stop('safe_gap_sender_balance', unpaid)
+
+    def test_owner_swap_block_bound_to_chain(self):
+        self.verify()
+        with patch.object(a, 'OWNER_SWAP_BLOCK', 12060360):
+            with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), self.rpc('b')])
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_swap_block')
+
+    def test_exact_nonce_coverage(self):
+        self.stop('prepin_nonce_approver', lambda: self.pin['senders']['approver'].update(nonce=102))
+        self.setUp()
+        self.stop('prepin_nonce_approver', lambda: self.inputs['data']['safeGovernanceGaps'].pop(0))
+        self.setUp()
+        self.stop('safe_gap_unique', lambda: self.inputs['data']['safeGovernanceGaps'].append(self.inputs['data']['safeGovernanceGaps'][0]))
+        self.setUp()
+        self.stop('prepin_nonce_approver', lambda: self.inputs['data']['a3aPlan'].update(nonceGaps=[
+            {'from':a.APPROVER, 'nonce':hex(99), 'hash':self.chain['A99']['a']['tx']['hash']}]))
+        self.setUp()
+        self.stop('prepin_nonce_deployer', lambda: self.pin['senders']['deployer'].update(nonce=12140))
+
+    def test_missing_transaction(self):
+        self.verify()
+        original = self.rpc('b')
+        def missing(method, params):
+            if method == 'eth_getTransactionByHash': return None
+            return original(method, params)
+        with self.assertRaises(a.Gate) as caught:
+            m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), missing])
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_found')
+
+    def test_block_controls(self):
+        self.stop('safe_gap_before_pin', lambda: self.chain['E755']['a']['tx'].update(blockNumber=hex(12060364)))
+        self.setUp()
+        self.stop('safe_gap_canonical', lambda: self.chain['A100']['b']['block'].update(hash=a.ZERO32))
+
+    def test_trace_rpc_failure_is_recorded_and_fails_closed(self):
+        self.verify()
+        def unavailable(endpoint):
+            original = self.rpc(endpoint)
+            def read(method, params):
+                if method == 'debug_traceTransaction':
+                    raise a.Gate('rpc_fault', {'method':method, 'code':-32601}, 'successful RPC')
+                return original(method, params)
+            return read
+        m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), unavailable('b')])
+        m.governance_evidence(self.pin, self.inputs)
+        self.assertEqual([r['traceEndpoints'] for r in self.pin['safeGovernanceGaps']['transactions']], [1,1,1])
+        with self.assertRaises(a.Gate) as caught:
+            m.governance_evidence(self.pin, self.inputs, [unavailable('a'), unavailable('b')])
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_trace_available')
+
+    def test_replay_evidence_required_and_counts_checked(self):
+        self.verify()
+        self.pin['safeGovernanceGaps']['transactions'][0]['traceEndpoints'] = 2
+        with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_trace_counts')
+        del self.pin['safeGovernanceGaps']
+        with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_evidence')
 
 
 if __name__ == '__main__':

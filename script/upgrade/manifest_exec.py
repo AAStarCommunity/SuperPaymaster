@@ -659,6 +659,245 @@ def drain_gate(pin):
     a.need('drain_senders', all(v == 0 or k in authorized for k, v in pin['operatorBalances'].items()), True)
 
 
+# keccak256 of the canonical Safe event signatures (checked offline in tests).
+SAFE_EVENTS = {
+    'ApproveHash(bytes32,address)': '0xf2a0eb156472d1440255b0d7c1e19cc07115d1051fe605b0dce69acfec884d9c',
+    'SafeMultiSigTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,bytes)': '0x66753cd2356569ee081232e3be8909b950e0a76c1f8460c3a5e3c2be32b11bed',
+    'RemovedOwner(address)': '0xf8d49fc529812e9a7c5c50e69c20f0dccc0db8fa95c98bc58cc9a4f1c1299eaf',
+    'AddedOwner(address)': '0x9465fa0c962cc76958e6373a993326400c1c94f8be2fe3a952adfa7f60b2ea26',
+    'ExecutionSuccess(bytes32,uint256)': '0x442e715f626346e8c54381002da614f62bee8d27386535b2521ec8540898556e',
+}
+SAFE_SWAP_PACKET = '460e024407694772a511b283f62442f2521b297bddfad2b823ddc2dee80654d1'
+SAFE_VOID_PACKET = 'ea2a4f09a3d0ab6826c3df51db7026be150f46a43e3bed3c3fc5f527f23390c3'
+
+
+def governance_entries(inputs):
+    entries = inputs['data'].get('safeGovernanceGaps', [])
+    a.need('safe_gap_list', isinstance(entries, list), True)
+    rows = []
+    for entry in entries:
+        a.exact_keys('safe_gap_entry', entry, ('path', 'sha256', 'step', 'hash'))
+        packet = reviewed_file(entry['path'], entry['sha256'], 'safe_gap_packet')
+        a.need('safe_gap_reviewed_packet', entry['sha256'] in (SAFE_SWAP_PACKET, SAFE_VOID_PACKET), True)
+        a.need('safe_gap_step', entry['step'] in ('approveHash', 'execTransaction') and
+               (entry['sha256'] != SAFE_VOID_PACKET or entry['step'] == 'approveHash'), True)
+        steps = [t for t in packet['transactions'] if t['step'] == entry['step']]
+        a.need('safe_gap_packet_step', len(steps), 1)
+        tx = steps[0]
+        a.typed(entry['hash'], a.HASH32, gate='safe_gap_hash')
+        a.need('safe_gap_safe', tx['to'], a.SAFE)
+        a.need('safe_gap_packet_chain', packet['chainId'], a.CHAIN)
+        a.need('safe_gap_safe_hash', packet['safeTxHash'], safe_hash(packet['swapOwner']['data'], packet['safeNonce'], a.SAFE))
+        rows.append(dict(entry=entry, packet=packet, tx=tx, status=int(entry['sha256'] == SAFE_SWAP_PACKET)))
+    keys = [(r['tx']['from'], r['tx']['nonce']) for r in rows]
+    a.need('safe_gap_unique', len(keys), len(set(keys)))
+    return rows
+
+
+def governance_nonces(inputs):
+    return [dict(r['tx'], nonce=hex(r['tx']['nonce'])) for r in governance_entries(inputs)]
+
+
+def governance_trace(diff, row, miner):
+    tx, packet = row['tx'], row['packet']
+    a.need('safe_gap_trace_shape', isinstance(diff, dict) and set(diff) == {'pre', 'post'} and
+           all(isinstance(x, dict) for x in diff.values()), True)
+    pre, post = diff['pre'], diff['post']
+    sender = tx['from']
+    allowed = {sender, miner} | ({a.SAFE} if row['status'] else set())
+    # Pre-only accounts are deletions in diffMode, not harmless reads.
+    a.need('safe_gap_trace_accounts', set(pre) | set(post) <= allowed, True)
+    for accounts in (pre, post):
+        for account in accounts.values():
+            a.need('safe_gap_trace_account_shape', isinstance(account, dict) and
+                   set(account) <= {'balance', 'nonce', 'code', 'storage'}, True)
+            if 'balance' in account:
+                a.typed(account['balance'], a.QTY, gate='safe_gap_trace_balance')
+            if 'nonce' in account:
+                a.need('safe_gap_trace_nonce', type(account['nonce']) is int and account['nonce'] >= 0, True)
+            if 'code' in account:
+                a.typed(account['code'], a.HEXDATA, gate='safe_gap_trace_code')
+            storage = account.get('storage', {})
+            a.need('safe_gap_trace_storage', isinstance(storage, dict), True)
+            for key, value in storage.items():
+                a.typed(key, a.HASH32, gate='safe_gap_trace_storage')
+                a.typed(value, a.HASH32, gate='safe_gap_trace_storage')
+    a.need('safe_gap_trace_sender', sender in pre and sender in post, True)
+    a.need('safe_gap_sender_fields', set(post[sender]), {'nonce', 'balance'})
+    a.need('safe_gap_sender_nonce', [pre[sender].get('nonce'), post[sender]['nonce']], [tx['nonce'], tx['nonce']+1])
+    a.need('safe_gap_sender_pre_balance', 'balance' in pre[sender], True)
+    a.need('safe_gap_sender_balance', a.qty(post[sender]['balance']) < a.qty(pre[sender]['balance']), True)
+    a.need('safe_gap_sender_storage', pre[sender].get('storage', {}), {})
+    a.need('safe_gap_sender_code', pre[sender].get('code', '0x'), '0x')
+    a.need('safe_gap_miner_fields', set(post.get(miner, {})) <= {'balance'} and miner in post, True)
+    a.typed(post[miner].get('balance'), a.QTY, gate='safe_gap_miner_balance')
+    if 'balance' in pre.get(miner, {}):
+        a.need('safe_gap_miner_balance', a.qty(post[miner]['balance']) > a.qty(pre[miner]['balance']), True)
+    a.need('safe_gap_miner_storage', pre.get(miner, {}).get('storage', {}), {})
+    if not row['status']:
+        return
+    a.need('safe_gap_safe_fields', set(post.get(a.SAFE, {})), {'storage'})
+    old = pre.get(a.SAFE, {}).get('storage', {})
+    new = post[a.SAFE]['storage']
+    def slot(addr): return a.keccak('0x'+addr[2:].zfill(64)+format(2, '064x'))
+    if tx['step'] == 'approveHash':
+        key = a.keccak(packet['safeTxHash']+a.keccak('0x'+a.APPROVER[2:].zfill(64)+format(8, '064x'))[2:])
+        expected = {key: (0, 1)}
+    else:
+        swap = packet['swapOwner']
+        expected = {slot(swap['prev']): (int(swap['old'], 16), int(swap['new'], 16)),
+                    slot(swap['new']): (0, 1), slot(swap['old']): (1, 0),
+                    '0x'+format(5, '064x'): (packet['safeNonce'], packet['expectedReadback']['nonce'])}
+    a.need('safe_gap_storage_slots', set(old) | set(new), set(expected))
+    for key, values in expected.items():
+        a.need('safe_gap_storage_value', (int(old.get(key, '0x0'), 16), int(new.get(key, '0x0'), 16)), values)
+
+
+def governance_logs(logs, row, receipt):
+    packet, tx = row['packet'], row['tx']
+    topics = list(SAFE_EVENTS.values())
+    pad = lambda addr: '0x'+addr[2:].zfill(64)
+    expected = []
+    if row['status']:
+        if tx['step'] == 'approveHash':
+            expected = [[topics[0], packet['safeTxHash'], pad(a.APPROVER)]]
+        else:
+            expected = [[topics[1]], [topics[2], pad(packet['swapOwner']['old'])],
+                        [topics[3], pad(packet['swapOwner']['new'])], [topics[4], packet['safeTxHash']]]
+    a.need('safe_gap_logs', [(x.get('address'), x.get('topics')) for x in logs], [(a.SAFE, x) for x in expected])
+    previous = None
+    if logs:
+        a.typed(receipt.get('transactionIndex'), a.QTY, gate='safe_gap_log_transactionIndex')
+    for log in logs:
+        for field in ('transactionHash', 'blockHash', 'blockNumber', 'transactionIndex'):
+            a.need('safe_gap_log_' + field, log.get(field),
+                   row['entry']['hash'] if field == 'transactionHash' else receipt.get(field))
+        index = a.qty(a.typed(log.get('logIndex'), a.QTY, gate='safe_gap_log_logIndex'))
+        if previous is not None:
+            a.need('safe_gap_log_logIndex', index, previous + 1)
+        previous = index
+        a.need('safe_gap_log_removed', log.get('removed', False), False)
+    if expected:
+        if tx['step'] == 'approveHash':
+            a.need('safe_gap_log_data', logs[0]['data'], '0x')
+        else:
+            a.need('safe_gap_log_data', [x['data'] for x in logs[1:]], ['0x', '0x', a.ZERO32])
+            signatures = '0x'+''.join(who[2:].zfill(64)+'0'*64+'01' for who in sorted((a.APPROVER, a.EXECUTOR)))
+            info = a.cast('abi-encode', 'c(uint256,address,uint256)', packet['safeNonce'], a.EXECUTOR, 2)
+            data = a.cast('abi-encode', 'c(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,bytes)',
+                          a.SAFE, 0, packet['swapOwner']['data'], 0, 0, 0, 0, a.ZERO, a.ZERO, signatures, info)
+            a.need('safe_gap_log_data', logs[0]['data'], data)
+
+
+def check_governance(rpcs, pin, inputs):
+    rows = governance_entries(inputs)
+    a.need('safe_gap_endpoints', len(rpcs), 2)
+    counts = []
+    for row in rows:
+        tx, entry = row['tx'], row['entry']
+        labels, identities = [], []
+        for label, rpc in zip(('a', 'b'), rpcs):
+            mined = rpc('eth_getTransactionByHash', [entry['hash']])
+            a.need('safe_gap_found', isinstance(mined, dict), True)
+            a.need('safe_gap_hash', mined.get('hash'), entry['hash'])
+            for field in ('from', 'to', 'nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value', 'chainId'):
+                expected = hex(tx[field]) if type(tx[field]) is int else tx[field]
+                a.need('safe_gap_'+field, mined.get(field), expected)
+            a.need('safe_gap_input', mined.get('input'), tx['data'])
+            a.need('safe_gap_type', mined.get('type'), '0x2')
+            a.need('safe_gap_authorizations', 'authorizationList' not in mined or mined['authorizationList'] == [], True)
+            number = a.typed(mined.get('blockNumber'), a.QTY, gate='safe_gap_mined')
+            a.need('safe_gap_before_pin', a.qty(number) <= a.qty(pin['stateBlock']), True)
+            a.typed(mined.get('blockHash'), a.HASH32, gate='safe_gap_block_hash')
+            block = rpc('eth_getBlockByNumber', [number, False])
+            a.need('safe_gap_block', isinstance(block, dict), True)
+            a.need('safe_gap_canonical', block.get('hash'), mined.get('blockHash'))
+            a.need('safe_gap_block_number', block.get('number'), number)
+            miner = a.typed(block.get('miner'), a.ADDRESS_RX, gate='safe_gap_miner')
+            owners = set(a.safe_owners(hex(a.OWNER_SWAP_BLOCK - 1))) | set(row['packet']['expectedReadback']['owners'])
+            a.need('safe_gap_miner_alias', miner.lower() not in {a.SAFE, tx['from']} | owners, True)
+            receipt = rpc('eth_getTransactionReceipt', [entry['hash']])
+            a.need('safe_gap_receipt', isinstance(receipt, dict), True)
+            a.need('safe_gap_receipt_identity', [receipt.get(k) for k in ('transactionHash', 'blockNumber', 'blockHash', 'transactionIndex')],
+                   [entry['hash'], number, block['hash'], a.typed(mined.get('transactionIndex'), a.QTY, gate='safe_gap_receipt_identity')])
+            a.need('safe_gap_status', receipt.get('status'), hex(row['status']))
+            a.need('safe_gap_logs_shape', isinstance(receipt.get('logs'), list), True)
+            governance_logs(receipt['logs'], row, receipt)
+            identities.append([number, block['hash'], block['miner']])
+            diff = rpc('debug_traceTransaction', [entry['hash'], {'tracer': 'prestateTracer', 'tracerConfig': {'diffMode': True}}])
+            if diff is None or (isinstance(diff, dict) and '__error' in diff):
+                continue
+            governance_trace(diff, row, block['miner'])
+            labels.append(label)
+        a.need('safe_gap_dual_identity', identities[0], identities[1])
+        row['block'] = a.qty(identities[0][0])
+        a.need('safe_gap_trace_available', len(labels) > 0, True)
+        counts.append(dict(hash=entry['hash'], traceEndpoints=len(labels), traceEndpointLabels=labels))
+    swaps = [r for r in rows if r['tx']['step'] == 'execTransaction']
+    a.need('safe_gap_swap_required', len(swaps), 1)
+    # The hand-written owner-set boundary must be the block that actually executed the swap.
+    a.need('safe_gap_owner_swap_block', swaps[0]['block'], a.OWNER_SWAP_BLOCK)
+    expected = swaps[0]['packet']['expectedReadback']
+    a.need('safe_gap_pin_owners', pin['safe']['owners'], sorted(a.safe_owners(pin['stateBlock'], expected['owners'])))
+    a.need('safe_gap_pin_threshold', pin['safe']['threshold'], expected['threshold'])
+    a.need('safe_gap_pin_nonce', pin['safeNonce'], expected['nonce'])
+    for rpc in rpcs:
+        a.need('safe_gap_pin_owners', sorted(u.addr_array(a.call(rpc, a.SAFE, 'getOwners()', block=pin['stateBlock']))), sorted(expected['owners']))
+        a.need('safe_gap_pin_threshold', a.word(rpc, a.SAFE, 'getThreshold()', block=pin['stateBlock']), expected['threshold'])
+        a.need('safe_gap_pin_nonce', a.word(rpc, a.SAFE, 'nonce()', block=pin['stateBlock']), expected['nonce'])
+        for who in expected['owners']:
+            a.need('safe_gap_owner_eoa', rpc('eth_getCode', [who, pin['stateBlock']]), '0x')
+            a.need('safe_gap_owner_eoa', pin['safe']['codes'].get(who), '0x')
+    return counts
+
+
+def governance_evidence(pin, inputs, rpcs=None):
+    if not inputs['data'].get('safeGovernanceGaps'):
+        a.need('safe_gap_evidence_undeclared', 'safeGovernanceGaps' in pin, False)
+        return
+    if rpcs is not None:
+        a.need('safe_gap_endpoints', len(rpcs), 2)
+        evidence = dict(partOfA3aPlan=False, reads={'a': [], 'b': []})
+        def recording(label, rpc):
+            def read(method, params):
+                for recorded in evidence['reads'][label]:
+                    if (recorded['method'], recorded['params']) == (method, params):
+                        return recorded['result']
+                try:
+                    result = rpc(method, params)
+                except a.Gate as error:
+                    if method != 'debug_traceTransaction' or error.record['gate'] not in ('rpc_fault', 'rpc_transport'):
+                        raise
+                    result = {'__error': error.record['gate']}
+                evidence['reads'][label].append(dict(method=method, params=params, result=result))
+                return result
+            return read
+        evidence['transactions'] = check_governance([recording(k, r) for k, r in zip(('a', 'b'), rpcs)], pin, inputs)
+        pin['safeGovernanceGaps'] = evidence
+    required(pin, ('safeGovernanceGaps',), 'safe_gap_evidence')
+    evidence = pin['safeGovernanceGaps']
+    a.need('safe_gap_not_a3a', evidence['partOfA3aPlan'], False)
+    a.exact_keys('safe_gap_evidence_endpoints', evidence['reads'], ('a', 'b'))
+    # Offline replay proves internal consistency, not endpoint provenance. Provenance
+    # relies on live collection on both endpoints, main() pin_recheck, and plan sha256.
+    remaining = {}
+    def key(method, params):
+        return json.dumps([method, params], sort_keys=True)
+    for label, reads in evidence['reads'].items():
+        keys = [key(r['method'], r['params']) for r in reads]
+        a.need('safe_gap_proof_duplicate', len(keys), len(set(keys)))
+        remaining[label] = set(keys)
+    def replay(label):
+        def read(method, params):
+            matches = [r['result'] for r in evidence['reads'][label] if r['method'] == method and r['params'] == params]
+            a.need('safe_gap_proof_read', bool(matches), True)
+            remaining[label].discard(key(method, params))
+            return matches[0]
+        return read
+    a.need('safe_gap_trace_counts', check_governance([replay('a'), replay('b')], pin, inputs), evidence['transactions'])
+    a.need('safe_gap_proof_unused', all(not keys for keys in remaining.values()), True)
+
+
 def nonce_expectations(pin, inputs):
     spec = inputs['data']['a3aPlan']
     plan = reviewed_file(spec['path'], spec['sha256'], 'a3a_plan')
@@ -671,9 +910,10 @@ def nonce_expectations(pin, inputs):
                {'deployer':'S7', 'approver':'S6a', 'executor':'S6b'}[label])
         start = a.qty(last[label]['tx']['nonce'])+1
         end = pin['senders'][label]['nonce']
-        gaps = spec.get('nonceGaps', [])
+        gaps = spec.get('nonceGaps', []) + governance_nonces(inputs)
+        a.need('prepin_gap_sender', all(g['from'] in (a.APPROVER, a.EXECUTOR) for g in gaps), True)
         supplied = [a.qty(g['nonce']) for g in gaps if g['from'] == pin['senders'][label]['address']]
-        a.need('prepin_nonce_'+label, supplied, list(range(start, end)))
+        a.need('prepin_nonce_'+label, sorted(supplied), list(range(start, end)))
         a.need('prepin_nonce_floor_'+label, end >= start, True)
         if label == 'deployer':
             a.need('post_S7_nonce', end, start)
@@ -689,7 +929,7 @@ def history_steps(pin, inputs):
         sender = pin['senders'][label]
         start = plan['pin']['senders'][label]['nonce']
         steps = [a.qty(s['tx']['nonce']) for s in plan['steps'] if s['tx']['from'] == sender['address']]
-        gaps = [a.qty(g['nonce']) for source in (plan, spec) for g in source.get('nonceGaps', []) if g['from'] == sender['address']]
+        gaps = [a.qty(g['nonce']) for source in (plan, spec, {'nonceGaps': governance_nonces(inputs)}) for g in source.get('nonceGaps', []) if g['from'] == sender['address']]
         a.need('a3a_nonce_complete_'+label, sorted(steps+gaps), list(range(start, sender['nonce'])))
     a.need('a3a_all_steps', [s['id'] for s in plan['steps']], list(a.STEP_IDS))
     for gap in plan.get('nonceGaps', []):
@@ -731,9 +971,10 @@ def validate_nonce_history(pin, inputs):
             a.need('a3a_gap_mined_before_pin', a.qty(result['blockNumber']) <= a.qty(pin['stateBlock']), True)
         return result
     history_gaps(replay, pin, spec, plan)
+    governance_evidence(pin, inputs)
 
 
-def reconcile_nonces(rpc, pin, inputs):
+def reconcile_nonces(rpc, pin, inputs, governance_rpcs=None):
     spec = inputs['data']['a3aPlan']
     plan = history_steps(pin, inputs)
     pin['a3aHistory'] = {}
@@ -753,10 +994,11 @@ def reconcile_nonces(rpc, pin, inputs):
         pin['a3aGapReads'].append(dict(method=method, params=params, result=result))
         return result
     history_gaps(recording, pin, spec, plan)
+    governance_evidence(pin, inputs, governance_rpcs)
     validate_nonce_history(pin, inputs)
 
 
-def collect(rpc, block, inputs, stage="full"):
+def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     validate_external(inputs['data'], stage)
     pin = u.collect(rpc, block)
     d = inputs['data']
@@ -769,7 +1011,7 @@ def collect(rpc, block, inputs, stage="full"):
     a.need('registry_version', a.call(rpc, u.REG, 'version()', block=block), a.cast('abi-encode', 'c(string)', 'Registry-5.8.0'))
     pin['registryImplementation'] = u.addr_word(int(rpc('eth_getStorageAt', [u.REG, u.IMPL_SLOT, block]), 16))
     pin['registryImplementationCode'] = u.code(rpc, pin['registryImplementation'], block)
-    reconcile_nonces(rpc, pin, inputs)
+    reconcile_nonces(rpc, pin, inputs, governance_rpcs)
     pin['oldAggregator'] = a.address(rpc, u.REG, 'blsAggregator()', block)
     a.need('fixed_old_aggregator', pin['oldAggregator'], OLD_AGGREGATOR)
     maximum = a.word(rpc, pin['oldAggregator'], 'MAX_VALIDATORS()', block=block)
@@ -1935,8 +2177,8 @@ def main(argv=None):
         else:
             remote = a.RPC(args.rpc_file.read_text().strip())
             secondary = a.RPC(args.rpc_file_secondary.read_text().strip())
-            pin = collect(remote, args.block, inputs, args.stage)
-            a.need('independent_pin', collect(secondary, args.block, inputs, args.stage), pin)
+            pin = collect(remote, args.block, inputs, args.stage, (remote, secondary))
+            a.need('independent_pin', collect(secondary, args.block, inputs, args.stage, (remote, secondary)), pin)
             plan = load_artifact(args.plan) if args.plan else build_plan(pin, inputs, args.stage, sources)
             replay_frozen = bool(args.plan) and (plan['stage'] == 'full' or 'budgetsWei' in plan)
             a.need('simulation_pin', plan['pin'], pin)
@@ -1954,7 +2196,7 @@ def main(argv=None):
                         input('Stage stopped. Press Enter to terminate the fork: ')
             a.relay_evidence(out)
             a.need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
-            a.need('pin_recheck', collect(remote, args.block, inputs, args.stage), pin)
+            a.need('pin_recheck', collect(remote, args.block, inputs, args.stage, (remote, secondary)), pin)
             if replay_frozen:
                 a.need('frozen_plan_unchanged', plan, frozen)
             save_artifact(out, plan)
