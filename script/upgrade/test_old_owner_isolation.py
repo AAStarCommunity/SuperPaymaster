@@ -301,7 +301,8 @@ class OldOwnerIsolationTests(unittest.TestCase):
 
     def test_pair_and_independent_endpoint_failure(self):
         import manifest_exec as m
-        value = dict(self.pin,oldOwnerIsolation=o.audit(fixture_rpc(self.pin),self.pin,inventory()))
+        value = dict(self.pin, oldActivityReads=dict(primary=[]),
+                     oldOwnerIsolation=o.audit(fixture_rpc(self.pin),self.pin,inventory()))
         with patch.object(m,'collect',side_effect=[copy.deepcopy(value),copy.deepcopy(value)]) as collect:
             paired = m.collect_pair('primary','secondary','0x123',{})
             self.assertEqual(collect.call_count,2)
@@ -1125,7 +1126,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         removed_probe(self,action,'old_owner_endpoint_distinct')
         o.assert_endpoint_identities(dict(primary=first,secondary=o.endpoint_identity(SimpleNamespace(url='https://other.example'),'secondary')))
         import manifest_exec as m
-        value = dict(oldOwnerIsolation=dict(reads=[],sourceSelection={}))
+        value = dict(oldActivityReads=dict(primary=[]), oldOwnerIsolation=dict(reads=[],sourceSelection={}))
         with patch.object(m,'collect',side_effect=lambda *args:copy.deepcopy(value)):
             action = lambda:m.collect_pair(SimpleNamespace(url='https://rpc.example/a'),SimpleNamespace(url='https://rpc.example/b'),'0x123',{})
             with self.assertRaises(a.Gate) as caught: action()

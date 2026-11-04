@@ -270,3 +270,16 @@ Current adversarial controls and results: [ADVERSARIAL_REVIEW_RESULTS.md](ADVERS
 RoleConfigured coverage is independent of grant/revoke history: its own results
 must be nonempty and contain every extracted standard role for each emitting
 contract. Empty full-range and both partition results cannot satisfy this gate.
+
+## Known residuals — DSR 2026-11-04
+
+`0xf36c9317765634e4995ce1e7210b5738225425b0` still holds Registry ROLE_DVT
+and a locked stake forever: its SDK regression-test one-shot key was generated
+in memory and discarded (aastar-sdk #413, `667b1bb2`,
+`tests/regression/onchain-evidence/dvt-onboard-e2e.ts:145`). It has no governance
+authority over SP/Registry. The lapsed BLSAggregator-4.11.0 exit request cannot
+be consumed (`GuardianExitRequestExpired`); only the lost guardian key could
+cancel it. The address-exact exemption requires absence from all 13 old
+aggregator slots at the pin on both endpoints and at every pre-send, alongside
+expiry, zero pending slash and A7 PoP exclusion. It does not erase the residual
+role/stake. See the [A7 evidence notes](../../docs/release/sp-upgrade-a6e/MANIFEST-DESIGN.md#a7-evidence-notes--dsr-2026-11-04-exit-exemption).

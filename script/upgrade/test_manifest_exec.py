@@ -110,6 +110,36 @@ def fraud_export(f):
     return dict(toolCommit=f['toolCommit'], verifierCommit=f['verifierCommit'], export=e)
 
 
+def old_exit_rpc(p, guardian=None, expires=1789019460, occupied=0, slash=0, maximum=13):
+    def rpc(method, params):
+        if method == 'eth_getCode': return '0x' if a.qty(params[1]) == 0 else '0x6000'
+        if method == 'eth_getBlockByNumber':
+            return dict(number=p['stateBlock'], hash=p['stateBlockHash'], timestamp=hex(p['stateTimestamp']))
+        if method == 'eth_getLogs':
+            if guardian is None: return []
+            return [dict(address=OLD, topics=[a.keccak('GuardianExitRequested(address,uint256,uint256)'),
+                '0x'+guardian[2:].zfill(64)], data='0x', blockNumber='0x1', blockHash='0x'+'ab'*32,
+                transactionHash='0x'+'cd'*32, transactionIndex='0x0', logIndex='0x0')]
+        if method == 'eth_call':
+            data = params[0]['data']
+            calls = [('guardianExitRequests(address)', (guardian,), [1788933060, expires]),
+                     ('MAX_VALIDATORS()', (), [maximum]),
+                     ('pendingGuardianSlashCount(address)', (guardian,), [slash])]
+            calls += [('validatorAtSlot(uint8)', (i,), [int(guardian,16) if i == occupied else 0]) for i in range(1,14)]
+            for sig, args, values in calls:
+                if data == a.calldata(sig, *args):
+                    return '0x'+''.join(format(v, '064x') for v in values)
+        raise AssertionError((method, params))
+    return rpc
+
+
+def set_old_exit_evidence(p, guardian=None, **kw):
+    activity, reads = m.record_old_activity(old_exit_rpc(p, guardian, **kw), OLD, p['stateBlock'], [])
+    p['oldActivity'] = activity
+    p['oldActivityReads'] = dict(primary=reads, secondary=copy.deepcopy(reads))
+    return p
+
+
 def pin():
     p = base.pin()
     p['senders']['anni'] = dict(address=ANNI, nonce=55, balance=100*10**18)
@@ -122,6 +152,7 @@ def pin():
     p['guardianInventory'] = [dict(slot=i, validator=('0x'+format(i, '040x')) if i <= 3 else a.ZERO) for i in range(1, 14)]
     p['pendingAPNTsTokenEta'] = p['timestamp']+7*m.DAY
     p['oldOwnerIsolation'] = isolation_tests.evidence(p)
+    set_old_exit_evidence(p)
     return p
 
 
@@ -1816,9 +1847,16 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'], 'B2_upgrade_identity')
 
     def test_guardian_inventory_and_anni_required(self):
+        # guardian_inventory is load-bearing for the stage-a7 old-exit derivation (the PoP
+        # set equals the slot inventory), so assert this exact gate, not any later one.
         bad = copy.deepcopy(self.pin)
         bad['guardianInventory'][0]['validator'] = ANNI
-        with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
+        with self.assertRaises(a.Gate) as caught: m.build_plan(bad, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'guardian_inventory')
+        bad = copy.deepcopy(self.pin)
+        bad['guardianInventory'][3]['validator'] = '0xf36c9317765634e4995ce1e7210b5738225425b0'
+        with self.assertRaises(a.Gate) as caught: m.build_plan(bad, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'guardian_inventory')
         bad = copy.deepcopy(self.pin)
         bad['guardianInventory'][0]['slot'] = 4
         with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
@@ -1852,6 +1890,7 @@ class ManifestTests(unittest.TestCase):
         digest = spec['sha256']
         self.inputs['data']['safeGovernanceGaps'] = harness.inputs['data']['safeGovernanceGaps']
         self.pin['stateBlock'] = harness.pin['stateBlock']
+        set_old_exit_evidence(self.pin)
         self.pin['oldOwnerIsolation'] = isolation_tests.evidence(self.pin)
         self.pin['safeNonce'] = harness.pin['safeNonce']
         self.pin['safe']['owners'] = harness.pin['safe']['owners']
@@ -3270,6 +3309,165 @@ class GasProbeReportingTests(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 probes.suppressed_outcome('test_missing_remote', 'remote_estimate_missing')
 
+
+
+class OldExitExemptionTests(unittest.TestCase):
+    guardian = '0xf36c9317765634e4995ce1e7210b5738225425b0'
+
+    def fixture(self, **kw):
+        p = base.pin()
+        p.update(oldAggregator=OLD, stateTimestamp=1789019461)
+        return p, old_exit_rpc(p, kw.pop('guardian', self.guardian), **kw)
+
+    def control(self, gate, **kw):
+        pop = kw.pop('pop', [])
+        p, rpc = self.fixture(**kw)
+        with self.assertRaises(a.Gate) as caught:
+            m.old_activity(rpc, OLD, p['stateBlock'], pop)
+        self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_not_expired(self):
+        self.control('old_exit_exempt_expired', expires=1789019461)
+
+    def test_slot(self):
+        self.control('old_exit_exempt_slot', occupied=13)
+
+    def test_slash(self):
+        self.control('old_exit_exempt_slash', slash=1)
+
+    def test_listed(self):
+        self.control('old_exit_exempt_listed', guardian='0x'+'99'*20)
+
+    def test_pop(self):
+        self.control('old_exit_exempt_pop', pop=[dict(validator=self.guardian.upper())])
+
+    def test_stage_b4_pop_containing_exempt_guardian_stops(self):
+        # Once the PoP exists (b4/full), condition (4) is checked against it directly.
+        self.control('old_exit_exempt_pop', pop=[dict(validator=self.guardian)])
+
+    def test_stage_a7_pop_derived_from_slot_inventory(self):
+        # Stage a7 has no PoP input yet: condition (4) follows from (2), because the PoP
+        # validator set must equal the old aggregator's nonempty slot inventory.
+        p, rpc = self.fixture()
+        result = m.old_activity(rpc, OLD, p['stateBlock'], None)
+        self.assertEqual([(x['inPop'], x['popSource']) for x in result['exemptions']], [(False, 'slot-inventory')])
+        # A slot holder still STOPs, at the load-bearing slot gate.
+        self.control('old_exit_exempt_slot', occupied=13, pop=None)
+
+    def test_maximum(self):
+        self.control('old_exit_max_validators', maximum=14)
+
+    def test_gate_removal_probes(self):
+        for suffix, test in [('expired','not_expired'), ('slot','slot'), ('slash','slash'),
+                             ('listed','listed'), ('pop','pop'), ('max_validators','maximum')]:
+            gate = 'old_exit_'+suffix if suffix == 'max_validators' else 'old_exit_exempt_'+suffix
+            with self.subTest(gate=gate):
+                tree = ast.parse(Path(m.__file__).read_text())
+                function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'old_activity')
+                class RemoveGate(ast.NodeTransformer):
+                    count = 0
+                    def visit_Expr(self, node):
+                        call = node.value
+                        if (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                                and call.func.attr == 'need' and call.args
+                                and isinstance(call.args[0], ast.Constant) and call.args[0].value == gate):
+                            self.count += 1
+                            return ast.copy_location(ast.Pass(), node)
+                        return self.generic_visit(node)
+                remover = RemoveGate()
+                mutant = remover.visit(ast.Module(body=[function], type_ignores=[]))
+                self.assertEqual(remover.count, 1)
+                namespace = dict(vars(m))
+                exec(compile(ast.fix_missing_locations(mutant), m.__file__, 'exec'), namespace)
+                with patch.object(m, 'old_activity', namespace['old_activity']):
+                    with self.assertRaises(AssertionError):
+                        getattr(self, 'test_'+test)()
+                getattr(self, 'test_'+test)()
+                print('OLD_EXIT_PROBE '+gate+' removed=RED restored=PASS')
+
+    def test_pin_replay_both_endpoints_and_tampering(self):
+        p, rpc = self.fixture()
+        activity, reads = m.record_old_activity(rpc, OLD, p['stateBlock'], [])
+        p.update(oldActivity=activity, oldActivityReads=dict(primary=reads, secondary=copy.deepcopy(reads)))
+        m.validate_old_activity(p, [])
+        evidence = activity['exemptions'][0]
+        self.assertEqual(len(evidence['slotScan']), 13)
+        self.assertEqual(evidence['pinTime'], p['stateTimestamp'])
+        for endpoint in ('primary', 'secondary'):
+            bad = copy.deepcopy(p)
+            bad['oldActivityReads'][endpoint].pop()
+            with self.assertRaises(a.Gate): m.validate_old_activity(bad, [])
+        bad = copy.deepcopy(p)
+        bad['oldActivity']['exemptions'][0]['slashCount'] = 1
+        with self.assertRaises(a.Gate) as caught: m.validate_old_activity(bad, [])
+        self.assertEqual(caught.exception.record['gate'], 'old_exit_evidence')
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_old_activity(p, [dict(validator=self.guardian)])
+        self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_pop')
+
+    def test_pre_send_rereads_slots_and_time(self):
+        p, rpc = self.fixture()
+        p['oldActivity'] = m.old_activity(rpc, OLD, p['stateBlock'], [])
+        plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
+        later = copy.deepcopy(p)
+        later['stateTimestamp'] += 100
+        m.unchanged_old_activity(old_exit_rpc(later, self.guardian), plan, later['stateBlock'])
+        for slot in range(1, 14):
+            with self.assertRaises(a.Gate) as caught:
+                m.unchanged_old_activity(old_exit_rpc(later, self.guardian, occupied=slot), plan, later['stateBlock'])
+            self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_slot')
+
+    def test_pre_send_enforces_exit_gate(self):
+        p, good = self.fixture()
+        p['oldActivity'] = m.old_activity(good, OLD, p['stateBlock'], [])
+        p.update(bindings={}, safe={})
+        plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
+        step = dict(tx={'from':u.DEPLOYER, 'nonce':'0x0'}, safeNonce=0)
+        bad = old_exit_rpc(p, self.guardian, occupied=13)
+        def rpc(method, params):
+            if method == 'eth_chainId': return hex(a.CHAIN)
+            return bad(method, params)
+        rpc.local = True
+        original_word = a.word
+        def word(r, target, sig, *args, **kw):
+            if target == u.SAFE and sig == 'nonce()': return 0
+            return original_word(r, target, sig, *args, **kw)
+        with patch.object(m, 'handover_gate'), patch.object(a, 'nonce', return_value=0), \
+             patch.object(a, 'word', side_effect=word), patch.object(u, 'safe_state', return_value={}), \
+             patch.object(u, 'governance'):
+            p['timelockCreation'] = 1
+            with self.assertRaises(a.Gate) as caught: m.pre_send(rpc, plan, step, {})
+        self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_slot')
+
+    def test_endpoint_replay_reruns_predicates(self):
+        for kwargs, gate in [({'expires':1789019461}, 'old_exit_exempt_expired'),
+                             ({'occupied':13}, 'old_exit_exempt_slot'),
+                             ({'slash':1}, 'old_exit_exempt_slash'),
+                             ({'maximum':12}, 'old_exit_max_validators'),
+                             ({'guardian':'0x'+'99'*20}, 'old_exit_exempt_listed')]:
+            p, good = self.fixture()
+            activity, reads = m.record_old_activity(good, OLD, p['stateBlock'], [])
+            _, bad = self.fixture(**kwargs)
+            original = a.need
+            def removed(name, actual, expected):
+                if name != gate: return original(name, actual, expected)
+            with patch.object(a, 'need', side_effect=removed):
+                _, bad_reads = m.record_old_activity(bad, OLD, p['stateBlock'], [])
+            for endpoint in ('primary','secondary'):
+                with self.subTest(gate=gate, endpoint=endpoint):
+                    p.update(oldActivity=activity, oldActivityReads=dict(primary=reads, secondary=reads))
+                    p['oldActivityReads'][endpoint] = bad_reads
+                    with self.assertRaises(a.Gate) as caught: m.validate_old_activity(p, [])
+                    self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_cleared_notice_needs_no_exemption(self):
+        p, rpc = self.fixture()
+        original = a.call
+        def cleared(rpc, old, sig, *args, **kw):
+            if sig == 'guardianExitRequests(address)': return '0x'+'00'*64
+            return original(rpc, old, sig, *args, **kw)
+        with patch.object(a, 'call', side_effect=cleared):
+            self.assertEqual(m.old_activity(rpc, OLD, p['stateBlock'])['exemptions'], [])
 
 if __name__ == '__main__':
     unittest.main()

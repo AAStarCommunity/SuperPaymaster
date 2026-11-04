@@ -51,7 +51,8 @@ Chain preconditions at the pin block:
 - The three A3a signers have sent nothing outside the plans, or every such transaction is a proven gap (#571).
 - SP is 5.4.2 and owned by the deployer. The timelock `0xCCdF…C34B` has the A3a role sets.
 - Registry is 5.8.0 with storage layout identical to 5.9.0 (32 variables, `_owner` at slot 0). **VERIFY**.
-- The old BLSAggregator has no in-flight proposal or exit notice, scanned from its deployment block. **VERIFY**.
+- The old BLSAggregator has no in-flight proposal or uncleared exit notice, scanned from its deployment block, except **DSR 2026-11-04 ruling: address-exact exemption**. Only `0xf36c9317765634e4995ce1e7210b5738225425b0` is hard-coded in the repository; plans/external inputs cannot add exemptions. For a nonzero `guardianExitRequests` value, independently require `expiresAt < block.timestamp` (`old_exit_exempt_expired`), absence from **every** `validatorAtSlot(1..13)` (`old_exit_exempt_slot`), on-chain `MAX_VALIDATORS == 13` (`old_exit_max_validators`), zero `pendingGuardianSlashCount` (`old_exit_exempt_slash`), absence from the A7 PoP inventory (`old_exit_exempt_pop`; at stage a7, before the PoP exists, this follows from the slot scan because the PoP validator set must equal the old aggregator's nonempty slot inventory, recorded as `popSource: slot-inventory`), and exact exemption-list membership (`old_exit_exempt_listed`). Otherwise STOP under the `old_exit_cleared` precondition with the specific failing gate. Read at the pin on both endpoints, record and replay both transcripts offline, and re-read all conditions at every `pre_send`.
+  - In 4.11.0 the notice affects only `_reconstructPkAgg` (slot holders in the signer mask) and `_requireCommitteeSurvivesExit` (iterates `validatorAtSlot`). A guardian in no slot affects neither signing nor quorum counting on the forward **or rollback** path. The slot condition is load-bearing; rollback during A7–A12b can point back to this aggregator. The expired request cannot be consumed to exit the DVT role (`GuardianExitRequestExpired`).
 - Token-swap balances (current, re-read at the pin):
   - `totalTrackedBalance` = 2934.14 aPNTs;
   - deployer operator 1690.01;
@@ -487,3 +488,55 @@ Resolved by DSR 2026-11-02, Q4 fields (included with hash go, no separate author
 
 The first Phase C/D executor output on a real pin goes to DSR **before** asking the author for go.
 The packet sha256 comes last, as the identifier.
+
+### A7 evidence notes — DSR 2026-11-04 exit exemption
+
+Old aggregator `0xeaec2f512ea50708211fa95533e4dbb60e3d2e5d` is
+BLSAggregator-4.11.0, source `7c732e70`. The sole exempt guardian
+`0xf36c9317765634e4995ce1e7210b5738225425b0` came from aastar-sdk #413,
+commit `667b1bb2`, `tests/regression/onchain-evidence/dvt-onboard-e2e.ts:145`:
+a one-shot key generated in memory and discarded. The notice has
+`readyAt=1788933060`, `expiresAt=1789019460`.
+Request tx: `0xe4737f3924f5488e1d037532dbae71b1f0efc91fa6544f92799e112402c82d38`;
+committee syncExitNotice tx: `0xaad53b17a7a3d59ab0d171c7126a7d2341c82d54741c0f1ea04420d130425524`.
+Only the guardian can cancel it, and the key is gone.
+Even the A7 stage must supply `inputs.pop` validators to use this exemption;
+missing inventory fails `old_exit_exempt_pop`. A7 does not yet require signed
+PoP calldata, but later stages still enforce the full PoP schema and inventory.
+
+The pin records guardian, readyAt, expiresAt, pin time and block hash, all 13
+slot values, MAX_VALIDATORS, slash count and PoP exclusion, with ordered RPC
+transcripts for both endpoints. Offline replay reruns the gates and binds the
+result to the pin timestamp/hash and current input PoP inventory. Every pre-send
+repeats the reads, including the full slot scan; advancing time/hash alone is
+allowed. These offline controls are not a fresh live-chain observation.
+
+Known residual: this guardian still holds Registry ROLE_DVT and a locked stake
+forever (key gone). It has no governance authority over SP/Registry. The
+exemption does not clear that role, unlock the stake, or cancel the notice.
+
+Offline verification (run from the repository root; no commits or chain writes):
+`A3A_ENGINE_DIR=$HOME/.foundry/bin python3 <suite>` uses cast 1.7.1
+(`4072e487`); `env -u A3A_ENGINE_DIR python3 <suite>` uses the default
+1.8.7-nightly (`4e8874b2`). The complete manifest reruns used unittest `-f`
+(fail-fast); all 304 tests completed. Suite paths are `script/upgrade/` except
+`script/a3a/test_a3a_exec.py`.
+
+| Suite | Stable final summary | Nightly final summary |
+| --- | --- | --- |
+| `test_manifest_exec.py` | Ran 304 tests in 291.740s; OK (skipped=2) | Ran 304 tests in 316.905s; OK (skipped=2) |
+| `test_old_owner_isolation.py` | Ran 56 tests in 17.252s; OK (skipped=2) | Ran 56 tests in 17.766s; OK (skipped=2) |
+| `test_a3a_exec.py` | Ran 102 tests in 3.211s; OK | Ran 102 tests in 3.876s; OK |
+| `test_sp_upgrade_exec.py` | Ran 141 tests in 1.434s; OK | Ran 141 tests in 1.842s; OK |
+| `test_pop_adapter.py` | Ran 53 tests in 0.253s; OK | Ran 53 tests in 0.315s; OK |
+| `test_release_evidence.py` | Ran 69 tests in 3.354s; OK | Ran 69 tests in 3.511s; OK |
+
+The two skips are opt-in local-fork isolation controls requiring configured fork
+RPC/pin inputs (also imported by the manifest suite), not exit-exemption tests.
+All 13 dedicated exit tests passed under both engines. Literal AST replacement
+of each named gate call with `pass` made its specific negative control RED;
+restoration passed for all six: `old_exit_exempt_expired`,
+`old_exit_exempt_slot`, `old_exit_exempt_slash`, `old_exit_exempt_listed`,
+`old_exit_exempt_pop`, and `old_exit_max_validators`. Endpoint replay controls
+exercise both transcripts; pre-send controls cover each of slots 1–13 and the
+real `pre_send` call path. `git diff --check` passed.
