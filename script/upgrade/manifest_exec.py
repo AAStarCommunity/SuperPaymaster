@@ -818,8 +818,8 @@ def check_governance(rpcs, pin, inputs):
             a.need('safe_gap_miner_alias', miner.lower() not in {a.SAFE, tx['from']} | owners, True)
             receipt = rpc('eth_getTransactionReceipt', [entry['hash']])
             a.need('safe_gap_receipt', isinstance(receipt, dict), True)
-            a.need('safe_gap_receipt_identity', [receipt.get(k) for k in ('transactionHash', 'blockNumber', 'blockHash')],
-                   [entry['hash'], number, block['hash']])
+            a.need('safe_gap_receipt_identity', [receipt.get(k) for k in ('transactionHash', 'blockNumber', 'blockHash', 'transactionIndex')],
+                   [entry['hash'], number, block['hash'], a.typed(mined.get('transactionIndex'), a.QTY, gate='safe_gap_receipt_identity')])
             a.need('safe_gap_status', receipt.get('status'), hex(row['status']))
             a.need('safe_gap_logs_shape', isinstance(receipt.get('logs'), list), True)
             governance_logs(receipt['logs'], row, receipt)

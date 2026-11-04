@@ -2164,6 +2164,15 @@ class SafeGovernanceTests(unittest.TestCase):
                 value = a.ZERO32 if field.endswith('Hash') else hex(a.qty(log[field]) + 2)
                 self.stop('safe_gap_log_' + field, lambda: log.update({field:value}))
 
+    def test_receipt_index_bound_to_mined_transaction(self):
+        # Receipt and all logs moved together to another index: only the mined tx binds it.
+        def move():
+            for endpoint in ('a', 'b'):
+                receipt = self.chain['E755'][endpoint]['receipt']
+                receipt['transactionIndex'] = '0x0'
+                for log in receipt['logs']: log['transactionIndex'] = '0x0'
+        self.stop('safe_gap_receipt_identity', move)
+
     def test_malformed_trace_gates(self):
         cases = [
             ('shape', 'safe_gap_trace_account_shape'), ('unknown', 'safe_gap_trace_account_shape'),
