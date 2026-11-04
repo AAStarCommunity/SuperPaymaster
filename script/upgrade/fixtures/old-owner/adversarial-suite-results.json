@@ -1,0 +1,34 @@
+[
+  {
+    "suite": "old-owner",
+    "command": "python3 script/upgrade/test_old_owner_isolation.py",
+    "summary": "Ran 39 tests in 5.404s\n\nOK (skipped=2)",
+    "exitCode": 0,
+    "log": "/private/tmp/owner-fixes-tests.log",
+    "sha256": "9246ac6895d92e9c59ce27c53188db59d3ae769db60bba6393abcab08f1e936f"
+  },
+  {
+    "suite": "manifest",
+    "command": "python3 script/upgrade/test_manifest_exec.py",
+    "summary": "Ran 231 tests in 294.067s\n\nOK (skipped=2)",
+    "exitCode": 0,
+    "log": "/private/tmp/owner-fixes-manifest.log",
+    "sha256": "c7cddb360db874edb8ce3dbaa103fb1a253feb8d52c81939f9994a668ce4474c"
+  },
+  {
+    "suite": "a3a exec",
+    "command": "python3 script/a3a/test_a3a_exec.py",
+    "summary": "Ran 102 tests in 3.258s\n\nOK",
+    "exitCode": 0,
+    "log": "/private/tmp/owner-fixes-a3a-exec.log",
+    "sha256": "b9931ff51c2a6dab75eb13cec7e9317b83885311037e69261293b316fa8d3c0c"
+  },
+  {
+    "suite": "a3a send (PTY)",
+    "command": "python3 script/a3a/test_a3a_send.py",
+    "summary": "Ran 73 tests in 32.304s\n\nOK",
+    "exitCode": 0,
+    "log": "/private/tmp/owner-fixes-a3a-send.log",
+    "sha256": "c8eb460648e64634ae15f233a6a3c2084f292d0716cca0652e9a2df332e1efeb"
+  }
+]

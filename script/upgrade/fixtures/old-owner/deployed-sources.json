@@ -1,0 +1,92 @@
+{
+  "deployedSources": {
+    "0x9eb17fac022557f64924aa2f9e018db3a330e1e7": {
+      "contract": "APNTsCapped",
+      "implementation": "0x9eb17fac022557f64924aa2f9e018db3a330e1e7",
+      "commit": "5be39abf44ec01b60fda738fd732533b797fd6c7",
+      "creationBlock": 12032447,
+      "claim": "deployment-record + runtime parity",
+      "deploymentRecord": {
+        "path": "docs/release/a3a-exec-ams/plan-11981108/plan.json",
+        "sha256": "e797e9bddb4f78883ba9ea646c0fac4e08a46ed017f114c289d87869d751b71f",
+        "receipt": {
+          "path": "docs/release/a3a-testsafe-12025632/live/S3/receipt.json",
+          "sha256": "06042ee82a6072a9e2c5b578722f7a6bf138198a4189818f11e48814746c9327"
+        },
+        "txHash": "0x93e0fe11f4de1cd88b087b5ef9b40fcc4ee9355d940e169825f23d6c2a721abe",
+        "contractAddress": "0x9eb17fac022557f64924aa2f9e018db3a330e1e7",
+        "commit": "5be39abf44ec01b60fda738fd732533b797fd6c7"
+      }
+    },
+    "0x86c86c789edc099801cc6a5f48334f1d67dc9564": {
+      "contract": "TimelockController",
+      "implementation": "0x86c86c789edc099801cc6a5f48334f1d67dc9564",
+      "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "creationBlock": 11151057,
+      "claim": "behavioral-equivalence"
+    },
+    "0x472297b557c1d0f030f281a5bb8a535f6c5ab65e": {
+      "contract": "GTokenStaking",
+      "implementation": "0x472297b557c1d0f030f281a5bb8a535f6c5ab65e",
+      "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "creationBlock": 11151005,
+      "claim": "behavioral-equivalence"
+    },
+    "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08": {
+      "contract": "GToken",
+      "implementation": "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08",
+      "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "creationBlock": 11151004,
+      "claim": "behavioral-equivalence"
+    },
+    "0x67422d2e44a33c8da99b3b776841bf316bd209a2": {
+      "contract": "xPNTsFactory",
+      "implementation": "0x67422d2e44a33c8da99b3b776841bf316bd209a2",
+      "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "creationBlock": 11151003,
+      "claim": "behavioral-equivalence"
+    },
+    "0x4867b4302bf4c7818b71f55e53a3520ee1855aa7": {
+      "contract": "MySBT",
+      "implementation": "0x4867b4302bf4c7818b71f55e53a3520ee1855aa7",
+      "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "creationBlock": 11151006,
+      "claim": "behavioral-equivalence"
+    },
+    "0xa936f8e3d682b0ecf280e6f5c05ff4204ee87180": {
+      "contract": "PaymasterFactory",
+      "implementation": "0xa936f8e3d682b0ecf280e6f5c05ff4204ee87180",
+      "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "creationBlock": 11151021,
+      "claim": "behavioral-equivalence"
+    },
+    "0x09df0d2e3722ec0e401fe3819e64278a42ae4de9": {
+      "contract": "SuperPaymaster",
+      "implementation": "0xe25f88dbeafc64200270a948df8e9dd2f9b22c27",
+      "commit": "6a6d2d1785e1f03bcf72091930c6bca03f7090a8",
+      "creationBlock": 11151016,
+      "claim": "behavioral-equivalence"
+    },
+    "0x696a73701b104c6ccbbaaddd2216788ea08eab89": {
+      "contract": "xPNTsToken",
+      "implementation": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+      "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "creationBlock": 11151014,
+      "claim": "behavioral-equivalence"
+    },
+    "0xe6579a90dc498a710008de12119812d0fb7aa224": {
+      "contract": "xPNTsToken",
+      "implementation": "0xfdfb993ddce4d95407c893e09556e31732a5beb8",
+      "commit": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "creationBlock": 11151051,
+      "claim": "behavioral-equivalence"
+    },
+    "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71": {
+      "contract": "Registry",
+      "implementation": "0x9bed0f58d6001b0006923eb8c4b1cc548d42ccee",
+      "commit": "a839347e04b40da287522c3641e12121ef2e8e9e",
+      "creationBlock": 11151002,
+      "claim": "behavioral-equivalence"
+    }
+  }
+}

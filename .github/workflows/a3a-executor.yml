@@ -31,6 +31,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
+          # Full history: deployment-record gates resolve recorded historical commits (fail closed if absent).
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: '3.11'

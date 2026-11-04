@@ -1,0 +1,134 @@
+{
+  "records": [
+    {
+      "path": "broadcast/DeployLive.s.sol/11155111/run-1782562837353.json",
+      "sha256": "866e22cc5ea06ba3c11f7f8aa0d52d29304270efca3eb3960550a8fedf917b1b",
+      "commit": "cf26915e",
+      "committed": false,
+      "receipts": [
+        {
+          "transactionHash": "0x47690d8a99c67e30fa4747a60674f19f85038f32606340e994141bee1e30a499",
+          "contractAddress": "0xbf7c92fe98577af642fda7497e30dcfca316aaf5",
+          "blockNumber": "0xaa2699",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0xf401fa907a5abbecaf6da1fa88a493ea945b3eea84cdebd48552fd03ec6e5820",
+          "contractAddress": "0xf5bf37ca83afdaab73691ba7eccdfa69b8708e71",
+          "blockNumber": "0xaa269a",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x33b0d466ed7cdfe4c6e642fc24b34a2de163aaef3d33b1265817fad7b3762f33",
+          "contractAddress": "0x67422d2e44a33c8da99b3b776841bf316bd209a2",
+          "blockNumber": "0xaa269b",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x77ec581eb2ba96713c35a48d02a425e19651a979a71824fbda5ee58a4e36418f",
+          "contractAddress": "0x4c09ae57503aa1e2a43b05621a38dbdd43b0aa08",
+          "blockNumber": "0xaa269c",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x2d64cee124081c281869235905397558a56ad0f5702bd366eed6a5a8b80b5786",
+          "contractAddress": "0x472297b557c1d0f030f281a5bb8a535f6c5ab65e",
+          "blockNumber": "0xaa269d",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x9391bc749fb32c7c7c5c429030f4f170117cc6c0f1df6e6c8395f8ad544d2e83",
+          "contractAddress": "0x4867b4302bf4c7818b71f55e53a3520ee1855aa7",
+          "blockNumber": "0xaa269e",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x0a3c4d1e5d0a64a2f9e95b597002b5d16d9d7f28936941d860bdd9249d51cb4b",
+          "contractAddress": "0x168a7be0abb0c3b90cfd2ad30061fb3d61f9c700",
+          "blockNumber": "0xaa26a7",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x082600baff8a1bf1c4159150fc6f102e3f3fd4b8f0a87c153c7bbc189221eea0",
+          "contractAddress": "0x09df0d2e3722ec0e401fe3819e64278a42ae4de9",
+          "blockNumber": "0xaa26a8",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0xb9ba68b7d128bdcbedea73a0593873353216448debcca521011379fb08c010e7",
+          "contractAddress": "0x4ec2d49d75d5d4206b64387a7d6a6c3c5c90fb5a",
+          "blockNumber": "0xaa26a9",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0xe105724ede1bc0cefc8b73d7f578b8fd147895396dfc8b69a6cb7d9785f5e200",
+          "contractAddress": "0x9946953af7aaa8f56e8df4e46f68fffa0c4f593d",
+          "blockNumber": "0xaa26aa",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x52760085608f4fd0d3b2e217c65960fba7f45788b4368edb574c96155d0675a0",
+          "contractAddress": "0x893b8fb7b3d203c288b481400fe05ade5edd6d11",
+          "blockNumber": "0xaa26ab",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x4888f02f5a8cea3c144a9db68e545a05ee15e28ed2408ad878e112d5d4e2472b",
+          "contractAddress": "0x37578b70b231cc0eda5991ca633ae99eb35f3818",
+          "blockNumber": "0xaa26ac",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0xe64b2aeea22e6313d44cd716014671790aa8d7e5c5a973f24eb189283ea0e844",
+          "contractAddress": "0xa936f8e3d682b0ecf280e6f5c05ff4204ee87180",
+          "blockNumber": "0xaa26ad",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x9fcef0f21ab1601d713af1417539956f72536e6163440e795760cc9b20d9b78e",
+          "contractAddress": "0xc0f968625e3ac0a2ad7f107cd5857425f672d268",
+          "blockNumber": "0xaa26ae",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0xdf796d222c4f0e1ca35b5561ba92d85552b74e2aa82f7b32de4ff418d09196af",
+          "contractAddress": "0xfe1db01e1d6622e722b92ed5993af61325db92af",
+          "blockNumber": "0xaa26d0",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x3824498c9d1f69848709d0e4e96a1b50551c86ebb884e501204b33775d25801c",
+          "contractAddress": "0x86c86c789edc099801cc6a5f48334f1d67dc9564",
+          "blockNumber": "0xaa26d1",
+          "status": "0x1"
+        },
+        {
+          "transactionHash": "0x5688721711d3bd41367a9bd82a64974cb24c47d1361c05a41c99710d05230e67",
+          "contractAddress": "0x29253bf61310b63866dfb9e9f464b6d95e09f2c1",
+          "blockNumber": "0xaa26d2",
+          "status": "0x1"
+        }
+      ]
+    },
+    {
+      "path": "broadcast/UpgradeToV5_4_2.s.sol/11155111/run-1783499317168.json",
+      "sha256": "04ff43a6d6ada8d0bd2991689a0604739d3eb026b5aad885142438fe2ea904d0",
+      "commit": "6a6d2d17",
+      "committed": false,
+      "receipts": [
+        {
+          "transactionHash": "0xc73a1f1ba653a0691427e547b935c4ba35d47ba30a7d6aa3cda13741015c3fcf",
+          "contractAddress": "0xe25f88dbeafc64200270a948df8e9dd2f9b22c27",
+          "blockNumber": "0xab542a",
+          "status": "0x1"
+        }
+      ]
+    }
+  ],
+  "discrepancy": {
+    "contract": "SuperPaymaster",
+    "listedCreateHash": "0xae0399f86c25b1b4cfe95c396488feadfc11c80319862e6292c89560ecc33ec6",
+    "realCreateHash": "0xc73a1f1ba653a0691427e547b935c4ba35d47ba30a7d6aa3cda13741015c3fcf",
+    "explanation": "transactions[] swaps CREATE and upgradeToAndCall hashes; receipt contractAddress binds the real CREATE. Local uncommitted broadcast is corroboration only."
+  }
+}
