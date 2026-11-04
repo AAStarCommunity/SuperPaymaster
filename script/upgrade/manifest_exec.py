@@ -34,6 +34,20 @@ OLD_AGGREGATOR = '0xeaec2f512ea50708211fa95533e4dbb60e3d2e5d'
 # Request: 0xe4737f3924f5488e1d037532dbae71b1f0efc91fa6544f92799e112402c82d38
 # syncExitNotice: 0xaad53b17a7a3d59ab0d171c7126a7d2341c82d54741c0f1ea04420d130425524
 OLD_EXIT_EXEMPTIONS = frozenset({'0xf36c9317765634e4995ce1e7210b5738225425b0'})
+# Duplicate DVT E2E credit-over-limit proposals (2026-07-07/08, blocks 11223327-11228495):
+# each validator proposed the same event and one sibling per evidence hash executed.
+# DVTValidator has no cancel path, so these stay open; exact ids only, never plan-supplied.
+STALE_PROPOSAL_OPERATOR = '0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c'
+STALE_PROPOSAL_NEXT_ID = 10
+STALE_PROPOSALS = {
+    1: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    2: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    4: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    5: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    6: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    8: (7, 0x64357531834ff863e1207cea92dcf62db5ecf498d87cd629cb0e27e9d1247d79),
+    9: (7, 0x64357531834ff863e1207cea92dcf62db5ecf498d87cd629cb0e27e9d1247d79),
+}
 VERIFIER_COMMIT = '72aca4fa0ba4aaa8c8a96210b1124534431294d6'
 VERIFIER_SHA256 = '4d7e0125094c381a0dca5e2d8dd56efa79b284e43119fd64130dfaa78d33e7d6'
 # Offline archive rebuild of 72aca4fa, Forge 1.7.1 / solc 0.8.33.
@@ -838,10 +852,19 @@ def dvt_activity(rpc, dvt, block):
     # DVT owns proposal creation; aggregation events alone cannot find unsigned proposals.
     start = u.creation(rpc, dvt, block)
     proposals = u.scan(rpc, dvt, start, block, [a.keccak('ProposalCreated(uint256,address,uint8)')])
+    words = {}
     for log in proposals:
         proposal = int(log['topics'][1], 16)
-        words = u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))
-        a.need('dvt_proposal_executed', words[3], 1)
+        words[proposal] = u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))
+    for proposal, w in words.items():
+        if w[3] == 1:
+            continue
+        a.need('dvt_stale_proposal_listed', proposal in STALE_PROPOSALS, True)
+        sibling, evidence = STALE_PROPOSALS[proposal]
+        a.need('dvt_stale_proposal_shape', (w[0], w[1], w[4], w[5]), (int(STALE_PROPOSAL_OPERATOR, 16), 1, 1, evidence))
+        peer = words.get(sibling, [0]*6)
+        a.need('dvt_stale_sibling_executed', (peer[0], peer[3], peer[5]), (w[0], 1, evidence))
+        a.need('dvt_stale_next_id', a.word(rpc, dvt, 'nextProposalId()', block=block), STALE_PROPOSAL_NEXT_ID)
     return proposals
 
 

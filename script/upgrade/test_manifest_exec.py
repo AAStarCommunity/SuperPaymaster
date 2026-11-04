@@ -1522,6 +1522,41 @@ class ManifestTests(unittest.TestCase):
                     with self.assertRaises(a.Gate):
                         m.dvt_activity(None, DVT, '0x100')
 
+    def stale_proposals(self, edit=None, next_id=10):
+        rows = {i: dict(operator=m.STALE_PROPOSAL_OPERATOR, level=1, executed=i in (3, 7),
+                        evidence=m.STALE_PROPOSALS.get(i, (0, m.STALE_PROPOSALS[1 if i < 7 else 8][1]))[1])
+                for i in range(1, 10)}
+        if edit:
+            edit(rows)
+        logs = [dict(topics=[a.keccak('ProposalCreated(uint256,address,uint8)'), '0x'+format(i, '064x')]) for i in rows]
+        def call(rpc, target, sig, proposal, block=None):
+            r = rows[proposal]
+            return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', r['operator'], r['level'],
+                          'fixture', str(r['executed']).lower(), 'true', '0x'+format(r['evidence'], '064x'))
+        with patch.object(u, 'creation', return_value=1), patch.object(u, 'scan', return_value=logs), \
+             patch.object(a, 'call', side_effect=call), patch.object(a, 'word', return_value=next_id):
+            return m.dvt_activity(None, DVT, '0x100')
+
+    def test_stale_dvt_proposals_accepted_only_exactly(self):
+        self.assertEqual(len(self.stale_proposals()), 9)
+        def unexecuted(i): return lambda rows: rows[i].update(executed=False)
+        def extra(rows): rows[10] = dict(rows[8])
+        def operator(rows): rows[2].update(operator=u.DEPLOYER)
+        def level(rows): rows[4].update(level=2)
+        def evidence(rows): rows[8].update(evidence=m.STALE_PROPOSALS[1][1])
+        def sibling(rows): rows[3].update(evidence=m.STALE_PROPOSALS[8][1])
+        cases = [(unexecuted(3), 'dvt_stale_sibling_executed'), (extra, 'dvt_stale_proposal_listed'),
+                 (operator, 'dvt_stale_proposal_shape'), (level, 'dvt_stale_proposal_shape'),
+                 (evidence, 'dvt_stale_proposal_shape'), (sibling, 'dvt_stale_sibling_executed')]
+        for edit, gate in cases:
+            with self.subTest(gate=gate, edit=edit.__name__ if hasattr(edit, '__name__') else edit):
+                with self.assertRaises(a.Gate) as caught:
+                    self.stale_proposals(edit)
+                self.assertEqual(caught.exception.record['gate'], gate)
+        with self.assertRaises(a.Gate) as caught:
+            self.stale_proposals(next_id=11)
+        self.assertEqual(caught.exception.record['gate'], 'dvt_stale_next_id')
+
     def test_unhandled_external_fields_do_not_allow_partial_builder(self):
         for key in ('verifier', 'pop', 'committee'):
             inputs = copy.deepcopy(self.inputs)
