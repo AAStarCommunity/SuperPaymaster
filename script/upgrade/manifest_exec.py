@@ -14,6 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 import subprocess
 import sp_upgrade_exec as u
+import old_owner_isolation as isolation
 
 a = u.a
 ANNI = '0xecaacb915f7d92e9916f449f7ad42bd0408733c9'
@@ -670,7 +671,7 @@ def rebuild_commit(head):
     arts['BLSAggregator']['storageLayout'] = layout
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
     a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
-    return dict(tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
+    return dict(oldOwnerInventory=isolation.extract(tree), tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
         bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']), runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})
@@ -1161,6 +1162,17 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     a.need('deposit_info_shape', len(deposit), 5)
     pin['entryPointDeposit'], _, pin['stake'], pin['stakeDelay'], pin['withdrawTime'] = deposit
     a.need('stake_not_unlocking', pin['withdrawTime'], 0)
+    pin['oldOwnerIsolation'] = isolation.audit(rpc, pin, rebuild()['oldOwnerInventory'])
+    return pin
+
+
+def collect_pair(primary, secondary, block, inputs, stage='full'):
+    pin = collect(primary, block, inputs, stage, (primary, secondary))
+    independent = collect(secondary, block, inputs, stage, (primary, secondary))
+    a.need('independent_pin', independent, pin)
+    pin['oldOwnerIsolation']['endpointResults'] = dict(
+        primary=copy.deepcopy(pin['oldOwnerIsolation']['reads']),
+        secondary=copy.deepcopy(independent['oldOwnerIsolation']['reads']))
     return pin
 
 
@@ -1326,6 +1338,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     for label, who in a.SENDERS.items():
         a.need('sender_'+label, pin['senders'][label]['address'], who)
     arts = copy.deepcopy(rebuild())
+    isolation.validate(pin.get('oldOwnerIsolation'), pin, arts['oldOwnerInventory'])
     release_gate(inputs, arts, pin)
     counters = {label: x['nonce'] for label, x in pin['senders'].items()}
     steps, addresses, runtimes = [], {}, {}
@@ -2307,8 +2320,7 @@ def main(argv=None):
         else:
             remote = a.RPC(args.rpc_file.read_text().strip())
             secondary = a.RPC(args.rpc_file_secondary.read_text().strip())
-            pin = collect(remote, args.block, inputs, args.stage, (remote, secondary))
-            a.need('independent_pin', collect(secondary, args.block, inputs, args.stage, (remote, secondary)), pin)
+            pin = collect_pair(remote, secondary, args.block, inputs, args.stage)
             plan = load_artifact(args.plan) if args.plan else build_plan(pin, inputs, args.stage, sources)
             replay_frozen = bool(args.plan) and (plan['stage'] == 'full' or 'budgetsWei' in plan)
             a.need('simulation_pin', plan['pin'], pin)
@@ -2326,7 +2338,7 @@ def main(argv=None):
                         input('Stage stopped. Press Enter to terminate the fork: ')
             a.relay_evidence(out)
             a.need('engine_stderr', (out/'engine.stderr').stat().st_size, 0)
-            a.need('pin_recheck', collect(remote, args.block, inputs, args.stage, (remote, secondary)), pin)
+            a.need('pin_recheck', collect_pair(remote, secondary, args.block, inputs, args.stage), pin)
             if replay_frozen:
                 a.need('frozen_plan_unchanged', plan, frozen)
             save_artifact(out, plan)

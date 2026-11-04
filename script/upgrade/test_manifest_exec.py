@@ -13,6 +13,8 @@ import unittest
 from unittest.mock import patch
 import manifest_exec as m
 import test_sp_upgrade_exec as base
+import test_old_owner_isolation as isolation_tests
+from test_old_owner_isolation import OldOwnerIsolationTests
 
 a, u = m.a, m.u
 REAL_RELEASE_GATE = m.release_gate
@@ -26,6 +28,8 @@ OLD = m.OLD_AGGREGATOR
 ART = dict(scope=dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymaster.sol']), commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
     bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
+
+ART['oldOwnerInventory'] = isolation_tests.inventory()
 
 for art in ART['contracts'].values(): art['creationHashes'] = m.creation_hashes(art['bytecode'])
 
@@ -87,6 +91,7 @@ def pin():
         operatorBalances={u.DEPLOYER:169001*10**16, ANNI:84454*10**16, base.HOLDER:0})
     p['guardianInventory'] = [dict(slot=i, validator=('0x'+format(i, '040x')) if i <= 3 else a.ZERO) for i in range(1, 14)]
     p['pendingAPNTsTokenEta'] = p['timestamp']+7*m.DAY
+    p['oldOwnerIsolation'] = isolation_tests.evidence(p)
     return p
 
 
@@ -468,6 +473,7 @@ class RebuiltScopeTests(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, '')
             return subprocess.CompletedProcess(command, 0, json.dumps(ART['contracts']['BLSAggregator']['storageLayout']))
         with patch.object(m.subprocess, 'run', side_effect=run), \
+             patch.object(m.isolation, 'extract', return_value=ART['oldOwnerInventory']) as extracted, \
              patch.object(a, 'archive_commit', side_effect=archive), \
              patch.object(a, 'compile_commit', return_value=(arts, {})), \
              patch.object(a, 'metadata_identity', return_value={}), \
@@ -480,6 +486,8 @@ class RebuiltScopeTests(unittest.TestCase):
             self.assertIs(m.rebuild(), built)
             json.dumps(built)  # Manifest rebuild metadata must remain serializable.
             scope.assert_called_once_with(trees[0])
+            extracted.assert_called_once_with(trees[0])
+            self.assertEqual(built['oldOwnerInventory'], ART['oldOwnerInventory'])
         self.assertTrue(trees[0].exists())
         m.rebuild_commit(ART['commit'])['treeOwner'].cleanup()
         m.rebuild_commit.cache_clear()
@@ -1789,6 +1797,7 @@ class ManifestTests(unittest.TestCase):
         digest = spec['sha256']
         self.inputs['data']['safeGovernanceGaps'] = harness.inputs['data']['safeGovernanceGaps']
         self.pin['stateBlock'] = harness.pin['stateBlock']
+        self.pin['oldOwnerIsolation'] = isolation_tests.evidence(self.pin)
         self.pin['safeNonce'] = harness.pin['safeNonce']
         self.pin['safe']['owners'] = harness.pin['safe']['owners']
         self.pin['safe']['codes'] = {who:code for who,code in self.pin['safe']['codes'].items() if who in (a.SAFE, a.DEPLOYER)}
@@ -2118,7 +2127,8 @@ class ManifestTests(unittest.TestCase):
             if sig == 'version()': return a.cast('abi-encode', 'c(string)', 'Registry-5.8.0')
             if sig.startswith('getDepositInfo'): return a.cast('abi-encode','c(uint256,bool,uint256,uint256,uint256)', 1, 'true', 1, 86400, 0)
             raise AssertionError(sig)
-        with patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
+        with patch.object(m.isolation, 'audit', return_value=self.pin['oldOwnerIsolation']), \
+             patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
              patch.object(a, 'nonce', return_value=55), patch.object(u, 'code', side_effect=lambda r,t,b:'0x' if t == ANNI else '0x6000'), \
              patch.object(a, 'call', side_effect=call), patch.object(a, 'word', side_effect=word), \
              patch.object(a, 'address', side_effect=address), patch.object(m, 'old_activity', return_value={}), \
@@ -2333,7 +2343,8 @@ class ManifestTests(unittest.TestCase):
                 m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
 
     def test_collect_registry_version_negative(self):
-        with patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
+        with patch.object(m.isolation, 'audit', return_value=self.pin['oldOwnerIsolation']), \
+             patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
              patch.object(a, 'nonce', return_value=55), patch.object(u, 'code', return_value='0x'), \
              patch.object(a, 'call', return_value='0x'):
             with self.assertRaises(a.Gate) as caught: m.collect(lambda method,params:'0x1', '0x100', self.inputs)
