@@ -33,21 +33,30 @@ Offline evidence checks detect absent override context and replay detects change
 
 ## Negative controls and gate-removal probes
 
-`python3 -B script/upgrade/probe_gas_gates.py` suppresses one named gate at a time in memory and observes the actual control action. It requires the suppressed gate to be exercised but never raised. Other exceptions or test failures fail the probe; they cannot be mislabeled as acceptance. A secondary gate is reported as defense in depth, not proof that the removed gate alone is load-bearing. Production files are not modified by these probes.
+`python3 -B script/upgrade/probe_gas_gates.py` suppresses one named gate at a time in memory and observes the actual control action. It requires the suppressed gate to be exercised but never raised. The two missing-object controls explicitly report downstream `AttributeError` as an unstructured rejection, not acceptance or a named defensive gate. Other exceptions or test failures fail the probe. A secondary gate is reported as defense in depth, not proof that the removed gate alone is load-bearing. Production files are not modified by these probes.
 
-| Suppressed gate | Baseline | Suppressed outcome |
-|---|---|---|
-| measured_gas_limit | PASS | accepted (load-bearing) |
-| remote_estimate_missing | PASS | caught by measurement_estimateGas (defense in depth) |
-| remote_estimate_pin | PASS | accepted (load-bearing) |
-| remote_estimate_overrides | PASS | accepted (load-bearing) |
-| fresh_estimate | PASS | accepted (load-bearing) |
-| block_gas_limit | PASS | accepted (load-bearing) |
-
+| Control | Suppressed gate | Baseline | Suppressed outcome |
+|---|---|---|---|
+| test_gas_evidence_missing | gas_evidence_missing | PASS | rejected by AttributeError (unstructured failure) |
+| test_remote_estimate_context | remote_estimate_context | PASS | rejected by AttributeError (unstructured failure) |
+| test_measurement_executionTimestamp | measurement_executionTimestamp | PASS | accepted (load-bearing) |
+| test_measurement_blockGasLimit | measurement_blockGasLimit | PASS | accepted (load-bearing) |
+| test_B4_variant_measurements | B4_variant_measurements | PASS | accepted (load-bearing) |
+| test_B4_placeholder_measurements_tx | B4_placeholder_measurements | PASS | accepted (load-bearing) |
+| test_B4_placeholder_measurements_unexpected | B4_placeholder_measurements | PASS | accepted (load-bearing) |
+| test_fresh_estimate_pin | fresh_estimate_pin | PASS | accepted (load-bearing) |
+| test_remote_margin | measured_gas_limit | PASS | accepted (load-bearing) |
+| test_missing_remote | remote_estimate_missing | PASS | caught by measurement_estimateGas (defense in depth) |
+| test_wrong_pin | remote_estimate_pin | PASS | accepted (load-bearing) |
+| test_missing_override | remote_estimate_overrides | PASS | accepted (load-bearing) |
+| test_fresh_estimate | fresh_estimate | PASS | accepted (load-bearing) |
+| test_block_limit | block_gas_limit | PASS | accepted (load-bearing) |
+| test_wrong_time_override | remote_estimate_time | PASS | accepted (load-bearing) |
+| test_wrong_prior_steps | remote_estimate_prior_steps | PASS | accepted (load-bearing) |
 
 Additional controls cover a consistent plan, unsupported remote estimation, shared-measurement serialization/replay, changed overrides, and every step in each manifest stage (including independent placeholder evidence). Each missing-measurement mutation now uses a fresh deep copy. All gas controls assert the failing step ID as well as the gate, including Phase D. Shared gas failures preserve this ID in `record.step`.
 
-Execution tests assert one remote fresh check for every manifest step. Mode tests assert both the estimate block tag/overrides and the block-ceiling lookup for live calls and rehearsal calls (including empty overrides). Probe tests check the six observed outcomes and reject a supposedly suppressed gate that still raises.
+Execution tests assert one remote fresh check for every manifest step. Mode tests assert both the estimate block tag/overrides and the block-ceiling lookup for live calls and rehearsal calls (including empty overrides). Probe tests check all 16 observed outcomes and reject a supposedly suppressed gate that still raises.
 
 ## Fix-removal checks
 
@@ -145,3 +154,41 @@ FIX_REMOVAL fresh_gas RED_CONFIRMED
   - STOP and re-pin if the live estimate exceeds `floor(limit / 1.1)`: the limit is the pinned estimate x1.3, so a rise of more than about 18% means the state changed after the pin;
   - write the live estimate, block number and limit of every comparison into the send record.
   DSR reviews this together with the sender.
+
+
+## Review gate coverage at 5d6991cd (uncommitted)
+
+Added nine named negative controls covering all eight requested gates; the placeholder gate has separate `tx` and `unexpected` key injections. Each test starts with an independent fixture, asserts both gate and step ID, and exercises exactly one mutation. The B4 controls validate an unmodified frozen fixture first, then run the real frozen validator with one injected key. Only deterministic plan construction is stubbed. The two B4 structural checks now preserve `step='B4'` using the existing `gas_step` context manager.
+
+Both placeholder injections were executed and STOP at `B4_placeholder_measurements`; suppressing that gate accepts both inputs. Eight new controls fit the `a.need` harness, bringing it to 16 cases. Suppression is by gate name, so both occurrences of `measurement_executionTimestamp` are suppressed together. The float block ceiling control isolates the integer-type requirement while keeping the ceiling high enough for the subsequent limit comparison.
+
+`test_remote_fresh_estimate_unavailable` passes with the gate and step assertion. This gate raises directly rather than calling `a.need`, so it is not in `CASES`. A separate executed in-memory source-removal probe replaced only that direct raise with `pass`: the bad RPC result was rejected by `UnboundLocalError` because no estimate existed. This is an unstructured failure, not a secondary named gate or acceptance. No production file was changed by suppression probes.
+
+The focused gas/probe run passed 26 tests. The complete results below were run from the repository root; no commit, remote RPC, fork launch, signing, or broadcasting was performed.
+
+```text
+python3 -B script/upgrade/test_manifest_exec.py
+Ran 230 tests in 244.318s
+OK
+
+python3 -B script/a3a/test_a3a_exec.py
+Ran 102 tests in 3.076s
+OK
+
+python3 -B script/upgrade/test_sp_upgrade_exec.py
+Ran 141 tests in 1.549s
+OK
+
+python3 -B script/upgrade/test_pop_adapter.py
+Ran 53 tests in 0.273s
+OK
+
+python3 -B script/upgrade/test_release_evidence.py
+Ran 69 tests in 3.457s
+OK
+
+python3 -B script/upgrade/probe_gas_gates.py
+GAS_GATE_PROBES PASS 16/16
+```
+
+All 595 tests across the five suites passed. `git diff --check` passed.

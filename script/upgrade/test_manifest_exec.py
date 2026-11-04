@@ -2924,6 +2924,65 @@ class GasGateControls(unittest.TestCase):
     def test_positive(self):
         u.validate_gas_evidence(self.plan, self.step)
 
+    def test_gas_evidence_missing(self):
+        del self.step['gasEvidence']
+        self.stop('gas_evidence_missing')
+
+    def test_remote_estimate_context(self):
+        del self.step['gasEvidence']['estimateContext']
+        self.stop('remote_estimate_context')
+
+    def test_measurement_executionTimestamp(self):
+        self.step['executionTimestamp'] = 0
+        self.step['gasEvidence']['estimateContext']['blockOverrides'] = {'time': '0x0'}
+        self.stop('measurement_executionTimestamp')
+
+    def test_measurement_blockGasLimit(self):
+        self.step['gasEvidence']['blockGasLimit'] = 200_000_000.0
+        self.stop('measurement_blockGasLimit')
+
+    def test_fresh_estimate_pin(self):
+        def rpc(method, params):
+            if method == 'eth_estimateGas': return hex(120000)
+            return dict(gasLimit=hex(200_000_000), hash='0x'+'ab'*32,
+                        number='0x123', timestamp='0x64')
+        self.stop('fresh_estimate_pin', lambda: u.fresh_gas(
+            rpc, self.step, {}, 100, pin_block=None))
+
+    def test_remote_fresh_estimate_unavailable(self):
+        def rpc(method, params):
+            self.assertEqual(method, 'eth_estimateGas')
+            raise RuntimeError('remote estimate unavailable')
+        self.stop('remote_fresh_estimate_unavailable', lambda: u.fresh_gas(rpc, self.step))
+
+    def b4_measurement_control(self, gate, key):
+        # Each invocation builds an independent plan before injecting one key.
+        derived = dict(pin={'block': '0x123', 'senders': {}}, externalInputs={}, steps=[
+            dict(id='B4', executionTimestamp=100, sender='approver',
+                 tx={k: v for k, v in self.step['tx'].items() if k != 'gas'})])
+        derived['steps'][0]['variants'] = {
+            name: copy.deepcopy(derived['steps'][0]['tx']) for name in ('apply', 'placeholder')}
+        self.plan = copy.deepcopy(derived)
+        self.step = self.plan['steps'][0]
+        freeze_gas(self.plan, self.step)
+        m.budget(self.plan)
+        with patch.object(m, 'build_plan', return_value=derived):
+            m.validate_plan(self.plan, {}, frozen=True)
+            target = self.step['variantMeasurements']
+            if gate == 'B4_placeholder_measurements':
+                target = target['placeholder']
+            target[key] = copy.deepcopy(self.step['tx']) if key == 'tx' else 'unexpected'
+            self.stop(gate, lambda: m.validate_plan(self.plan, {}, frozen=True))
+
+    def test_B4_variant_measurements(self):
+        self.b4_measurement_control('B4_variant_measurements', 'unexpected')
+
+    def test_B4_placeholder_measurements_tx(self):
+        self.b4_measurement_control('B4_placeholder_measurements', 'tx')
+
+    def test_B4_placeholder_measurements_unexpected(self):
+        self.b4_measurement_control('B4_placeholder_measurements', 'unexpected')
+
     def test_remote_margin(self):
         self.step['tx']['gas'] = hex(u.margin_limit(68394))
         self.stop('measured_gas_limit')
@@ -3112,7 +3171,10 @@ class GasProbeReportingTests(unittest.TestCase):
         for name, gate in probes.CASES.items():
             with self.subTest(gate=gate):
                 expected = ('caught by measurement_estimateGas (defense in depth)'
-                            if gate == 'remote_estimate_missing' else 'accepted (load-bearing)')
+                            if gate == 'remote_estimate_missing' else
+                            'rejected by AttributeError (unstructured failure)'
+                            if gate in ('gas_evidence_missing', 'remote_estimate_context') else
+                            'accepted (load-bearing)')
                 self.assertEqual(probes.suppressed_outcome(name, gate), expected)
 
     def test_suppressed_gate_cannot_be_reported_as_another_defense(self):

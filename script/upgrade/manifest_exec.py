@@ -1900,12 +1900,14 @@ def validate_plan(plan, inputs, frozen=False):
             if frozen:
                 a.need('B4_placeholder_intrinsic', a.qty(actual['variants']['placeholder']['gas']) >= 21000, True)
                 a.tx_quantities(actual['variants']['placeholder'])
-                a.exact_keys('B4_variant_measurements', actual['variantMeasurements'], ('placeholder',))
+                with u.gas_step(actual):
+                    a.exact_keys('B4_variant_measurements', actual['variantMeasurements'], ('placeholder',))
                 placeholder = dict(id=actual['id'], **actual['variantMeasurements']['placeholder'])
                 placeholder['tx'] = actual['variants']['placeholder']
                 u.validate_gas_evidence(plan, placeholder)
-                a.exact_keys('B4_placeholder_measurements', actual['variantMeasurements']['placeholder'],
-                             u.MEASURED_KEYS | {'gasEvidence'})
+                with u.gas_step(actual):
+                    a.exact_keys('B4_placeholder_measurements', actual['variantMeasurements']['placeholder'],
+                                 u.MEASURED_KEYS | {'gasEvidence'})
     if frozen:
         checked = copy.deepcopy(plan)
         budget(checked)

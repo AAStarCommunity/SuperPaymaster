@@ -6,6 +6,14 @@ from unittest.mock import patch
 import test_manifest_exec as tests
 
 CASES = {
+    'test_gas_evidence_missing': 'gas_evidence_missing',
+    'test_remote_estimate_context': 'remote_estimate_context',
+    'test_measurement_executionTimestamp': 'measurement_executionTimestamp',
+    'test_measurement_blockGasLimit': 'measurement_blockGasLimit',
+    'test_B4_variant_measurements': 'B4_variant_measurements',
+    'test_B4_placeholder_measurements_tx': 'B4_placeholder_measurements',
+    'test_B4_placeholder_measurements_unexpected': 'B4_placeholder_measurements',
+    'test_fresh_estimate_pin': 'fresh_estimate_pin',
     'test_remote_margin': 'measured_gas_limit',
     'test_missing_remote': 'remote_estimate_missing',
     'test_wrong_pin': 'remote_estimate_pin',
@@ -36,6 +44,10 @@ def suppressed_outcome(name, gate):
             case.assertNotEqual(error.record['gate'], gate)
             case.assertEqual(error.record['step'], case.step['id'])
             outcomes.append('caught by '+error.record['gate']+' (defense in depth)')
+        except AttributeError:
+            if gate not in ('gas_evidence_missing', 'remote_estimate_context'):
+                raise
+            outcomes.append('rejected by AttributeError (unstructured failure)')
         else:
             outcomes.append('accepted (load-bearing)')
 
@@ -57,11 +69,11 @@ def main():
         baseline = unittest.TextTestRunner(stream=stream).run(tests.GasGateControls(name))
         if not baseline.wasSuccessful():
             raise AssertionError(f'{name}: baseline failed\n{stream.getvalue()}')
-        rows.append((gate, suppressed_outcome(name, gate)))
-    print('| Suppressed gate | Baseline | Suppressed outcome |')
-    print('|---|---|---|')
-    for gate, outcome in rows:
-        print(f'| {gate} | PASS | {outcome} |')
+        rows.append((name, gate, suppressed_outcome(name, gate)))
+    print('| Control | Suppressed gate | Baseline | Suppressed outcome |')
+    print('|---|---|---|---|')
+    for name, gate, outcome in rows:
+        print(f'| {name} | {gate} | PASS | {outcome} |')
     print(f'GAS_GATE_PROBES PASS {len(rows)}/{len(CASES)}')
 
 
