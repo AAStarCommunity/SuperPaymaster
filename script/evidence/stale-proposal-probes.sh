@@ -23,7 +23,8 @@ run() { python3 -B script/upgrade/test_manifest_exec.py $tests 2>&1 | grep -E '^
 base=$(run); echo "baseline: $base"; case "$base" in OK*) ;; *) echo "baseline not green"; exit 1;; esac
 red() { case "$1" in *errors=*) return 1;; FAILED*failures=*) return 0;; *) return 1;; esac; }
 for gate in dvt_stale_next_id dvt_proposal_inventory dvt_stale_proposal_listed dvt_stale_proposal_shape \
-            dvt_stale_sibling_executed dvt_stale_open_set closing_dvt_pointer closing_dvt_activity \
+            dvt_stale_sibling_executed dvt_stale_open_set closing_registry_pointer closing_dvt_pointer \
+            closing_committee_pointer closing_dvt_activity \
             closing_stale_unexecuted old_pointer pointer_owner; do
   git checkout -q HEAD -- "$src"
   python3 - "$src" "$gate" <<'PY'

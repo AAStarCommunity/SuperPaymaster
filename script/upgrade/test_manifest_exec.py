@@ -150,7 +150,7 @@ def pin():
         totalTrackedBalance=293414*10**16, protocolRevenue=39959*10**16,
         operatorBalances={u.DEPLOYER:169001*10**16, ANNI:84454*10**16, base.HOLDER:0})
     p['guardianInventory'] = [dict(slot=i, validator=('0x'+format(i, '040x')) if i <= 3 else a.ZERO) for i in range(1, 14)]
-    p['pendingAPNTsTokenEta'] = p['timestamp']+7*m.DAY
+    p['pendingAPNTsTokenEta'] = 1794226596
     p['oldOwnerIsolation'] = isolation_tests.evidence(p)
     set_old_exit_evidence(p)
     return p
@@ -166,7 +166,7 @@ def input_data(p):
         sig = '('+','.join([a.ZERO32]*8)+')'
         pops.append(dict(validator=validator, slot=i+1, aggregator=agg, domainSeparator=m.domain_separator(agg), pinBlockHash=p['blockHash'],
                          calldata=a.calldata(m.POP, validator, pk, i+1, sig)))
-    return dict(anni=ANNI, dvt=DVT, committee=COMMITTEE, sampled=sorted([u.DEPLOYER, ANNI]),
+    return dict(anni=ANNI, dvt=DVT, committee=COMMITTEE, sampled=[u.DEPLOYER],
         depositTargetWei=10**18, releaseTag='unit-fixture', registryBaselineCommit='b'*40,
         releaseEvidence={key:'c'*64 for key in m.EVIDENCE_KINDS},
         verifier=dict(commit=m.VERIFIER_COMMIT, artifactPath='unit-fixture', ciSha256='e'*64, buildSha256=m.VERIFIER_SHA256,
@@ -1278,9 +1278,13 @@ class ManifestTests(unittest.TestCase):
         d_steps = [s for s in self.plan['steps'] if s['sender'] == 'deployer']
         self.assertEqual(self.plan['budgetsWei']['deployer'],
                          len(d_steps)*100000*a.MAX_FEE+18*10**17)
-        self.plan['pin']['senders']['deployer']['balance'] = 0
-        with self.assertRaises(a.Gate):
+        required = self.plan['budgetsWei']['deployer']
+        self.plan['pin']['senders']['deployer']['balance'] = required-1
+        with self.assertRaises(a.Gate) as caught:
             m.budget(self.plan)
+        self.assertEqual(caught.exception.record['gate'], 'budget_deployer')
+        self.assertEqual(caught.exception.record['observed'],
+                         dict(required=required, balance=required-1, shortfallWei=1))
 
     def test_runtime_patches_named_immutables(self):
         art = dict(runtimeIdentity=dict(artifactRuntime='0x'+'00'*32+'ab',
@@ -1331,6 +1335,40 @@ class ManifestTests(unittest.TestCase):
         self.assertNotIn('budgetsWei', self.plan)
         self.assertTrue(all('gas' not in s['tx'] for s in self.plan['steps']))
 
+    def test_sampled_deployer_only(self):
+        for sampled in (sorted([u.DEPLOYER, ANNI]), [ANNI], [], [u.DEPLOYER, u.DEPLOYER]):
+            with self.subTest(sampled=sampled):
+                data = copy.deepcopy(self.data)
+                data['sampled'] = sampled
+                with self.assertRaises(a.Gate) as caught:
+                    m.validate_external(data)
+                self.assertEqual(caught.exception.record['gate'], 'sampled_deployer_only')
+
+    def test_pin_pending_token_eta(self):
+        pin = copy.deepcopy(self.pin)
+        pin['pendingAPNTsTokenEta'] = 1794226597
+        with self.assertRaises(a.Gate) as caught:
+            m.build_plan(pin, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'pin_pending_token_eta')
+
+    def test_unpause_outside_6d_refused(self):
+        m.validate_plan(self.plan, self.inputs)
+        plan = copy.deepcopy(self.plan)
+        step = next(s for s in plan['steps'] if s['id'].startswith('A14.'))
+        step['tx']['data'] = a.calldata('setOperatorPaused(address,bool)', u.DEPLOYER, 'false')
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_plan(plan, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'manifest_tx_data')
+
+    def test_unpause_only_in_activation_batch(self):
+        # DSR Q4: setOperatorPaused(op,false) for any op appears only in the 6c/6d activation batch, and only for D.
+        sel = a.calldata('setOperatorPaused(address,bool)', u.DEPLOYER, 'false')[2:10]
+        unpause = re.compile(sel+'0{24}([0-9a-f]{40})'+'0'*64)
+        found = {s['id']: unpause.findall(s['tx']['data'].lower()) for s in self.plan['steps']}
+        found = {k: v for k, v in found.items() if v}
+        self.assertEqual(found, {'activation_schedule_exec': [u.DEPLOYER[2:]], 'activation_execute_exec': [u.DEPLOYER[2:]]})
+        self.assertEqual(unpause.findall(''.join(self.plan['operations']['activation']['data']).lower()), [u.DEPLOYER[2:]])
+
     def test_unsampled_operator_remains_paused(self):
         checks = []
         def capture(rpc, pred, timestamp=None):
@@ -1339,7 +1377,7 @@ class ManifestTests(unittest.TestCase):
                           *u.GAS, 0, 0, 0, 0, 0)), patch.object(m, 'check_predicate', side_effect=capture):
             m.batch_readback(None, self.plan, True, 100)
         pauses = {p['args'][0]:p['expected'] for p in checks if p.get('signature') == 'operators(address)'}
-        self.assertEqual(pauses, {u.DEPLOYER:0, ANNI:0, base.HOLDER:1})
+        self.assertEqual(pauses, {u.DEPLOYER:0, ANNI:1, base.HOLDER:1})
 
     def test_solvency_probe_accrues_before_withdrawing(self):
         for backing in (0, m.BUFFER):
@@ -1566,22 +1604,31 @@ class ManifestTests(unittest.TestCase):
                     self.stale_proposals(**kw)
                 self.assertEqual(caught.exception.record['gate'], gate)
 
-    def closing_rpc(self, pointer, activity='pin', executed=()):
-        def address(r, target, sig, block='latest'):
-            self.assertEqual((target, sig), (DVT, 'BLS_AGGREGATOR()'))
-            return pointer
-        def call(r, target, sig, proposal, **kw):
+    def closing_rpc(self, pointer, activity='pin', executed=(), stray=None):
+        # Every read must name the one closing block (0x200); `stray` points one target elsewhere.
+        getters = {u.REG: 'blsAggregator()', DVT: 'BLS_AGGREGATOR()', COMMITTEE: 'blsAggregator()'}
+        def address(r, target, sig, block=None):
+            self.assertEqual((sig, block), (getters[target], '0x200'))
+            return u.SP if target == stray else pointer
+        def call(r, target, sig, proposal, block=None):
+            self.assertEqual((target, sig, block), (DVT, 'proposals(uint256)', '0x200'))
             return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', m.STALE_PROPOSAL_OPERATOR, 1,
                           'fixture', str(proposal in executed).lower(), 'true', a.ZERO32)
-        seen = [{'recorded': True}] if activity == 'pin' else [{'changed': True}]
+        def activity_at(r, target, block):
+            self.assertEqual((target, block), (DVT, '0x200'))
+            return [{'recorded': True}] if activity == 'pin' else [{'changed': True}]
         return [patch.object(a, 'address', side_effect=address), patch.object(a, 'call', side_effect=call),
                 patch.object(a, 'block_data', return_value=dict(number='0x200')),
-                patch.object(m, 'dvt_activity', return_value=copy.deepcopy(seen))]
+                patch.object(m, 'dvt_activity', side_effect=activity_at)]
 
     def test_dvt_closing_binds_pointer_and_stale_proposals(self):
         new, old = self.plan['addresses']['BLSAggregator'], self.plan['pin']['oldAggregator']
         cases = [('full', new, {}, None), ('b4', new, {}, None), ('a7', old, {}, None),
-                 ('full', old, {}, 'closing_dvt_pointer'), ('a7', new, {}, 'closing_dvt_pointer'),
+                 ('full', old, {}, 'closing_registry_pointer'), ('a7', new, {}, 'closing_registry_pointer'),
+                 ('full', new, dict(stray=u.REG), 'closing_registry_pointer'),
+                 ('full', new, dict(stray=DVT), 'closing_dvt_pointer'), ('a7', old, dict(stray=DVT), 'closing_dvt_pointer'),
+                 ('full', new, dict(stray=COMMITTEE), 'closing_committee_pointer'),
+                 ('a7', old, dict(stray=COMMITTEE), 'closing_committee_pointer'),
                  ('full', new, dict(activity='changed'), 'closing_dvt_activity'),
                  ('full', new, dict(executed=(8,)), 'closing_stale_unexecuted')]
         for stage, pointer, extra, gate in cases:
@@ -1590,7 +1637,10 @@ class ManifestTests(unittest.TestCase):
                 plan = copy.deepcopy(dict(self.plan, stage=stage))
                 plan['pin'].setdefault('oldActivity', {})['dvtProposals'] = [{'recorded': True}]
                 if gate is None:
-                    self.assertEqual(m.dvt_closing(None, plan)['staleUnexecuted'], [1, 2, 4, 5, 6, 8, 9])
+                    closing = m.dvt_closing(None, plan)
+                    self.assertEqual(closing['staleUnexecuted'], [1, 2, 4, 5, 6, 8, 9])
+                    self.assertEqual((closing['block'], closing['pointers']),
+                                     ('0x200', dict(registry=pointer, dvt=pointer, committee=pointer)))
                 else:
                     with self.assertRaises(a.Gate) as caught:
                         m.dvt_closing(None, plan)
@@ -2311,7 +2361,7 @@ class ManifestTests(unittest.TestCase):
             if method == 'eth_getStorageAt': return '0x'+ANNI[2:].zfill(64)
             return history(method, params)
         def address(rpc, target, sig, block):
-            return u.DEPLOYER if sig == 'owner()' else OLD
+            return u.DEPLOYER if sig in ('owner()', 'slashPolicyAdmin()') else OLD
         def word(rpc, target, sig, *args, **kw):
             if sig == 'MAX_VALIDATORS()': return 13
             if sig == 'validatorAtSlot(uint8)': return args[0] if args[0] <= 3 else 0
@@ -2327,6 +2377,12 @@ class ManifestTests(unittest.TestCase):
              patch.object(a, 'address', side_effect=address), patch.object(m, 'old_activity', return_value={}), \
              patch.object(m, 'dvt_activity', return_value=[]), patch.object(m, 'balances', return_value={k:self.pin[k] for k in ('totalTrackedBalance','protocolRevenue','operatorBalances')}):
             collected = m.collect(rpc, '0x100', self.inputs)
+            def wrong_admin(rpc, target, sig, block):
+                return ANNI if sig == 'slashPolicyAdmin()' else address(rpc, target, sig, block)
+            with patch.object(a, 'address', side_effect=wrong_admin):
+                with self.assertRaises(a.Gate) as caught:
+                    m.collect(rpc, '0x100', self.inputs)
+            self.assertEqual(caught.exception.record['gate'], 'old_aggregator_slash_policy_admin')
         self.assertEqual(collected['a3aHistory'], self.pin['a3aHistory'])
         self.assertEqual(collected['guardianInventory'], self.pin['guardianInventory'])
 

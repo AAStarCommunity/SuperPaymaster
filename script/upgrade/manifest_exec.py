@@ -23,6 +23,7 @@ FRAUD_SIG = 'queueGuardianSlash(uint256,address[],bytes)'
 EVIDENCE_KINDS = ('conformance', 'mutation', 'slither', 'reproducible-build', 'dvt-ci', 'dvt-conformance-4.12')
 BUFFER = 10**17
 DAY = 86400
+PENDING_TOKEN_ETA = 1794226596
 PENDING_OWNER_SLOT = '0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d27120286f742a00'
 DVT = '0x568b1486bfe036e603ea11f0d03dc47fa62c9e0e'
 COMMITTEE = '0x7ac7e9d471742fa4397beef0b5b11fbd22d196a9'
@@ -645,6 +646,7 @@ def validate_external(data, stage="full"):
             a.need('pop_slot_range', 1 <= p['slot'] <= 13, True)
         for key in ('validator', 'slot'):
             a.need('pop_unique_'+key, len({p[key] for p in data['pop']}), 3)
+    a.need('sampled_deployer_only', data['sampled'], [u.DEPLOYER])
     a.need('sampled_unique', data['sampled'], sorted(set(data['sampled'])))
     a.need('sampled_nonempty', bool(data['sampled']), True)
     for who in data['sampled']:
@@ -881,14 +883,20 @@ def old_pointers(rpc, d, old, block):
 
 def dvt_closing(rpc, plan):
     # After the last step: per-step pre_send reads cannot see anything that lands after it.
-    dvt = plan['externalInputs']['data']['dvt']
+    # Every read is bound to one block (DSR #606 L2); all three A8 pointers are re-read (L1).
+    d = plan['externalInputs']['data']
+    dvt, block = d['dvt'], a.block_data(rpc, 'latest')['number']
     expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
-    a.need('closing_dvt_pointer', a.address(rpc, dvt, 'BLS_AGGREGATOR()'), expected)
-    latest = dvt_activity(rpc, dvt, a.block_data(rpc, 'latest')['number'])
+    pointers = dict(registry=a.address(rpc, u.REG, 'blsAggregator()', block), dvt=a.address(rpc, dvt, 'BLS_AGGREGATOR()', block),
+                    committee=a.address(rpc, d['committee'], 'blsAggregator()', block))
+    a.need('closing_registry_pointer', pointers['registry'], expected)
+    a.need('closing_dvt_pointer', pointers['dvt'], expected)
+    a.need('closing_committee_pointer', pointers['committee'], expected)
+    latest = dvt_activity(rpc, dvt, block)
     a.need('closing_dvt_activity', latest, plan['pin']['oldActivity']['dvtProposals'])
     for proposal in sorted(STALE_PROPOSALS):
-        a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal))[3]), (proposal, 0))
-    return dict(dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS))
+        a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))[3]), (proposal, 0))
+    return dict(block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS))
 
 
 def balances(rpc, operators, block='latest'):
@@ -1286,6 +1294,7 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     pin['oldActivity'], reads = record_old_activity(rpc, pin['oldAggregator'], block, d.get('pop'))
     pin['oldActivityReads'] = dict(primary=reads)
     a.need('old_aggregator_owner', a.address(rpc, pin['oldAggregator'], 'owner()', block), u.DEPLOYER)
+    a.need('old_aggregator_slash_policy_admin', a.address(rpc, pin['oldAggregator'], 'slashPolicyAdmin()', block), u.DEPLOYER)
     pin['oldActivity']['dvtProposals'] = dvt_activity(rpc, d['dvt'], block)
     pin['bindings'] = old_pointers(rpc, d, pin['oldAggregator'], block)
     pin.update(balances(rpc, pin['pauseList'], block))
@@ -1462,6 +1471,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     base_pin = {key: copy.deepcopy(pin[key]) for key in u.PIN_KEYS}
     base_pin['senders'].pop('anni', None)
     u.validate_pin(base_pin)
+    a.need('pin_pending_token_eta', pin['pendingAPNTsTokenEta'], PENDING_TOKEN_ETA)
     drain_gate(pin)
     a.need('sampled_inventory', set(d['sampled']) <= set(pin['pauseList']), True)
     a.need('drain_inventory', set(pin['operatorBalances']), set(pin['pauseList']))
@@ -2014,7 +2024,9 @@ def budget(plan):
     for label in plan['pin']['senders']:
         cost = sum(max(a.qty(t['gas']) for t in s.get('variants', {'apply': s['tx']}).values())*a.qty(s['tx']['maxFeePerGas'])+a.qty(s['tx']['value'])
                    for s in plan['steps'] if s['sender'] == label and not s.get('skipped', False))
-        a.need('budget_'+label, plan['pin']['senders'][label]['balance'] >= cost, True)
+        balance = plan['pin']['senders'][label]['balance']
+        if balance < cost:
+            a.need('budget_'+label, dict(required=cost, balance=balance, shortfallWei=cost-balance), 'balance >= required')
         result[label] = cost
     plan['budgetsWei'] = result
 
