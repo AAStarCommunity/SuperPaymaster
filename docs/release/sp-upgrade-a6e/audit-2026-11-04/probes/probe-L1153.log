@@ -1,0 +1,22 @@
+# gate=registry_version function=collect line=1153
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1153 --failfast
+# exit=0 seconds=16.3
+PROBE line=1153 mutation=replace a.need statement with pass failfast=True
+.........................................................................F
+======================================================================
+FAIL: test_collect_registry_version_negative (test_manifest_exec.ManifestTests.test_collect_registry_version_negative)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 2384, in test_collect_registry_version_negative
+    self.assertEqual(caught.exception.record['gate'], 'registry_version')
+AssertionError: 'a3a_mined_S1' != 'registry_version'
+- a3a_mined_S1
++ registry_version
+
+
+----------------------------------------------------------------------
+Ran 74 tests in 15.955s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_collect_registry_version_negative
+PROBE_RESULT killed ran 74 failures 1 errors 0 expectedFailures 0

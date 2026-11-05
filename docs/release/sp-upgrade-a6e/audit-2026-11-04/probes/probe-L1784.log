@@ -1,0 +1,33 @@
+# gate=B4_control_initial function=b4_controls line=1784
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1784 --failfast
+# exit=0 seconds=74.7
+PROBE line=1784 mutation=replace a.need statement with pass failfast=True
+...........................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 235 tests in 74.330s
+
+OK
+PROBE_RESULT survived ran 235 failures 0 errors 0 expectedFailures 0
+STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: stage_not_final
+STOP: stage_not_final
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: plan_hash
+STOP: plan_hash
+STOP: simulation_stage

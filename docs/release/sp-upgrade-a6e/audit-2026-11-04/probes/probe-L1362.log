@@ -1,0 +1,41 @@
+# gate=source_plan_bytes function=build_plan line=1362
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1362 --failfast
+# exit=0 seconds=62.0
+PROBE line=1362 mutation=replace a.need statement with pass failfast=True
+...............................................................................................................................................................F
+======================================================================
+FAIL: test_stage_source_is_exact_rebuild (test_manifest_exec.ManifestTests.test_stage_source_is_exact_rebuild)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 677, in test_stage_source_is_exact_rebuild
+    with self.assertRaisesRegex(a.Gate, 'source_plan_bytes'):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 160 tests in 61.594s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_stage_source_is_exact_rebuild
+PROBE_RESULT killed ran 160 failures 1 errors 0 expectedFailures 0
+STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: stage_not_final
+STOP: stage_not_final
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: plan_hash
+STOP: plan_hash

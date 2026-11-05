@@ -1,0 +1,22 @@
+# gate=handover_trace_call_count function=handover_trace line=1612
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1612 --failfast
+# exit=0 seconds=54.3
+PROBE line=1612 mutation=replace a.need statement with pass failfast=True
+........................................................................................................................................E
+======================================================================
+ERROR: test_registry_accept_trace_requires_timelock_caller (test_manifest_exec.ManifestTests.test_registry_accept_trace_requires_timelock_caller) (field='input')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1063, in test_registry_accept_trace_requires_timelock_caller
+    m.handover_trace(lambda *args:bad, self.plan, step, {'transactionHash':base.HASH})
+  File "/home/user/SuperPaymaster/script/upgrade/manifest_exec.py", line 1613, in handover_trace
+    a.need('handover_trace_caller', matches[0].get('from', '').lower(), sender)
+                                    ~~~~~~~^^^
+IndexError: list index out of range
+
+----------------------------------------------------------------------
+Ran 137 tests in 53.865s
+
+FAILED (errors=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_registry_accept_trace_requires_timelock_caller (field='input')
+PROBE_RESULT killed ran 137 failures 0 errors 1 expectedFailures 0

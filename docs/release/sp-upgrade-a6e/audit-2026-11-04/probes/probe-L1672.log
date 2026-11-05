@@ -1,0 +1,22 @@
+# gate=handover_setter_restore function=handover_controls line=1672
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1672 --failfast
+# exit=0 seconds=35.9
+PROBE line=1672 mutation=replace a.need statement with pass failfast=True
+..............................................................................................................F
+======================================================================
+FAIL: test_handover_controls_assert_reasons_success_and_restore (test_manifest_exec.ManifestTests.test_handover_controls_assert_reasons_success_and_restore)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1050, in test_handover_controls_assert_reasons_success_and_restore
+    self.assertEqual(history[-1], 'evm_revert')
+AssertionError: 'evm_snapshot' != 'evm_revert'
+- evm_snapshot
++ evm_revert
+
+
+----------------------------------------------------------------------
+Ran 111 tests in 35.519s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_handover_controls_assert_reasons_success_and_restore
+PROBE_RESULT killed ran 111 failures 1 errors 0 expectedFailures 0

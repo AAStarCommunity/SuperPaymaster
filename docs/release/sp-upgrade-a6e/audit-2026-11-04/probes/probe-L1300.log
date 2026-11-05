@@ -1,0 +1,42 @@
+# gate=stage_local function=stage_readback line=1300
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1300 --failfast
+# exit=0 seconds=67.6
+PROBE line=1300 mutation=replace a.need statement with pass failfast=True
+..................................................................................................................................................................F
+======================================================================
+FAIL: test_staged_domain_guards (test_manifest_exec.ManifestTests.test_staged_domain_guards)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 799, in test_staged_domain_guards
+    with self.assertRaises(a.Gate): m.stage_readback(self.plan, SimpleNamespace(local=False))
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 163 tests in 67.172s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_staged_domain_guards
+PROBE_RESULT killed ran 163 failures 1 errors 0 expectedFailures 0
+STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: stage_not_final
+STOP: stage_not_final
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: plan_hash
+STOP: plan_hash
+STOP: simulation_stage
