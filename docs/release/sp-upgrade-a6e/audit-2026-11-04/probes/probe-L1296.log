@@ -1,0 +1,42 @@
+# gate=prefix_exact function=verify_prefix line=1296
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1296 --failfast
+# exit=0 seconds=70.4
+PROBE line=1296 mutation=replace a.need statement with pass failfast=True
+....................................................................................................................................................................F
+======================================================================
+FAIL: test_staged_prefix_guards (test_manifest_exec.ManifestTests.test_staged_prefix_guards) (kind='constructor')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 629, in test_staged_prefix_guards
+    with self.subTest(kind=kind), self.assertRaises(a.Gate): m.verify_prefix(bad, a7, 'a7')
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 165 tests in 70.032s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_staged_prefix_guards (kind='constructor')
+PROBE_RESULT killed ran 165 failures 1 errors 0 expectedFailures 0
+STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: stage_not_final
+STOP: stage_not_final
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: plan_hash
+STOP: plan_hash
+STOP: simulation_stage

@@ -1,0 +1,19 @@
+# gate=committee_no_accept_ownership function=handover_gate line=1590
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1590 --failfast
+# exit=0 seconds=18.2
+PROBE line=1590 mutation=replace a.need statement with pass failfast=True
+...........................................................................F
+======================================================================
+FAIL: test_committee_rejects_two_step_runtime (test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime) (selector='79ba5097')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 932, in test_committee_rejects_two_step_runtime
+    with self.assertRaises(a.Gate) as caught:
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 76 tests in 17.692s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime (selector='79ba5097')
+PROBE_RESULT killed ran 76 failures 1 errors 0 expectedFailures 0

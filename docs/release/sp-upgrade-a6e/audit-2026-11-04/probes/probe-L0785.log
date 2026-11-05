@@ -1,0 +1,19 @@
+# gate=drain_sum_closes function=drain_gate line=785
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 785 --failfast
+# exit=0 seconds=19.7
+PROBE line=785 mutation=replace a.need statement with pass failfast=True
+...................................................................................F
+======================================================================
+FAIL: test_drain_refusals (test_manifest_exec.ManifestTests.test_drain_refusals)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1162, in test_drain_refusals
+    with self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 84 tests in 19.290s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_drain_refusals
+PROBE_RESULT killed ran 84 failures 1 errors 0 expectedFailures 0
