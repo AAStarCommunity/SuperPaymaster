@@ -220,7 +220,8 @@ def input_data(p):
                       artifact=dict(bytecode=VERIFIER_CODE, runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
 
 
-def old_timelock_rpc(pin, block, bad=None):
+def orphan_replies(pin):
+    # The orphaned-timelock reads (roles, authorities, Safe, allowances) answered as "holds nothing".
     o = m.isolation
     raw = isolation_tests.raw
     replies = {}
@@ -238,6 +239,23 @@ def old_timelock_rpc(pin, block, bad=None):
     for token in pin['oldOwnerIsolation']['tokens']:
         for holder in o.allowance_holders():
             replies[(token, a.calldata('allowance(address,address)', holder, o.OLD_TIMELOCK))] = raw([0])
+    return replies
+
+
+def with_orphan_reads(rpc, pin, block):
+    # pre_send re-checks the orphaned timelock before every send; fixtures for other pre_send gates answer
+    # exactly those reads at `block` and pass every other request to their own strict handler.
+    replies = orphan_replies(pin)
+    def wrapped(method, params):
+        if method == 'eth_call' and (params[0]['to'], params[0]['data']) in replies and params[1] == block:
+            return replies[(params[0]['to'], params[0]['data'])]
+        return rpc(method, params)
+    wrapped.local = getattr(rpc, 'local', False)
+    return wrapped
+
+
+def old_timelock_rpc(pin, block, bad=None):
+    replies = orphan_replies(pin)
     discovery = isolation_tests.fixture_rpc(copy.deepcopy(dict(pin, stateBlock=block)))
     if bad:
         target, sig, args, value = bad
@@ -1088,6 +1106,7 @@ class ManifestTests(unittest.TestCase):
             self.assertEqual((method, params), ('eth_chainId', []))
             return hex(a.CHAIN)
         rpc.local = True
+        rpc = with_orphan_reads(rpc, self.plan['pin'], '0x150')
         for accepted in (False, True):
             passed = {s['id'] for s in self.plan['steps']}-{'D.registry_execute_exec'}
             if accepted: passed.add('D.registry_execute_exec')
@@ -2198,6 +2217,7 @@ class ManifestTests(unittest.TestCase):
             if method == 'eth_chainId': return hex(a.CHAIN)
             return chain(method, params)
         rpc.local = True
+        rpc = with_orphan_reads(rpc, self.plan['pin'], '0x200')
         with patch.object(a, 'nonce', return_value=a.qty(step['tx']['nonce'])), \
              patch.object(a, 'word', side_effect=word), \
              patch.object(a, 'address', side_effect=lambda r,t,s,*args: self.pin['capped'] if s == 'pendingAPNTsToken()' else u.DEPLOYER), \
@@ -3842,6 +3862,8 @@ class GasGateControls(unittest.TestCase):
                 if method == 'eth_chainId': raise ReachedPreSend()
                 raise AssertionError(method)
             fork.local = True
+            fork = with_orphan_reads(fork, self.plan['pin'], '0x123')
+            self.plan['pin']['oldTimelock'] = dict(approvalOwners={t: [] for t in self.plan['pin']['oldOwnerIsolation']['tokens']})
             with self.subTest(tamper=tamper):
                 if tamper:
                     self.stop('replay_estimateGas' if tamper == 'estimate' else 'replay_gasEvidence',
@@ -4056,6 +4078,8 @@ class OldExitExemptionTests(unittest.TestCase):
             if method == 'eth_call' and params[0]['data'].startswith(a.keccak('hasRole(bytes32,address)')[:10]): return a.ZERO32
             return bad(method, params)
         rpc.local = True
+        rpc = with_orphan_reads(rpc, p, p['stateBlock'])
+        p['oldTimelock'] = dict(approvalOwners={t: [] for t in p['oldOwnerIsolation']['tokens']})
         original_word = a.word
         def word(r, target, sig, *args, **kw):
             if target == u.SAFE and sig == 'nonce()': return 0
@@ -4138,6 +4162,7 @@ class F05PreSendGates(F05Fixture):
                 return hex(a.qty(step['tx']['gas']) + int(gate == 'fresh_estimate'))
             raise AssertionError((method, params))
         rpc.local = True
+        rpc = with_orphan_reads(rpc, self.plan['pin'], '0x200')
         def word(rpc, target, sig, *args, **kw):
             if sig == 'nonce()': return step['safeNonce'] + int(gate == 'safe_nonce')
             if sig == 'pendingAPNTsTokenEta()':
