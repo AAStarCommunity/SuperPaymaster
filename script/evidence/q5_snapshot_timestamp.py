@@ -9,14 +9,13 @@ Usage (repository root):
   python3 -B script/evidence/q5_snapshot_timestamp.py --engine DIR --mode local
   python3 -B script/evidence/q5_snapshot_timestamp.py --engine DIR --mode fork --rpc-file FILE --block N
 The RPC URL is read from FILE and only ever held by this process: anvil forks from a local relay
-(127.0.0.1), relay failures return a bare 502, and error text is scrubbed of URLs. Engine output is discarded.
+(127.0.0.1), relay failures return a bare 502, and JSON-RPC errors are reported by code only. Engine output is discarded.
 """
 import sys
 sys.dont_write_bytecode = True
 import argparse
 import http.server
 import json
-import re
 import socket
 import subprocess
 import threading
@@ -28,13 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'a3a'))  # script/a
 import a3a_exec  # noqa: E402  (COMMIT only)
 
 DAY = 86400
-# Upper bound on wall-clock/RPC latency between the no-jump baseline block and the post-revert block.
+# Bound (both directions) on wall-clock/RPC latency between the no-jump baseline block and the post-revert block.
 TOLERANCE = 60
 SENDER = '0x000000000000000000000000000000000000c0de'
-
-
-def scrub(text):
-    return re.sub(r'(?i)\b(?:https?|wss?)://\S+', '<url>', text)
 
 
 def relay(upstream):
@@ -71,7 +66,9 @@ class Local:
         req = urllib.request.Request(self.url, body, {'content-type': 'application/json'})
         out = json.load(urllib.request.urlopen(req, timeout=120))
         if 'error' in out:
-            raise RuntimeError(scrub(f'{method}: {out["error"]}'))
+            # Upstream error text can carry credentials in any form; report the code only.
+            code = out['error'].get('code') if isinstance(out['error'], dict) else None
+            raise RuntimeError(f'{method}: JSON-RPC error code {code}')
         return out['result']
 
 
@@ -133,9 +130,10 @@ def run(rpc):
     s = rpc('evm_snapshot', [])
     after_tx = tx_delta(rpc, t0)
     rpc('evm_revert', [s])
-    # The next auto-timestamped block must not inherit the jump: within TOLERANCE s of the no-jump baseline.
-    check('single_next_block_not_jumped', after_mine - base_mine < TOLERANCE, True)
-    check('single_next_tx_block_not_jumped', after_tx - base_tx < TOLERANCE, True)
+    # The next auto-timestamped block must be within TOLERANCE s (either way) of the no-jump baseline: neither the
+    # jump inherited nor the clock left at the jump's offset when the pin is older than wall time.
+    check('single_next_block_not_jumped', abs(after_mine - base_mine) < TOLERANCE, True)
+    check('single_next_tx_block_not_jumped', abs(after_tx - base_tx) < TOLERANCE, True)
     # Main path sets an explicit executionTimestamp earlier than the control's jump; it must be accepted.
     s = rpc('evm_snapshot', [])
     rpc('evm_setNextBlockTimestamp', [t0 + 100])
@@ -159,8 +157,8 @@ def run(rpc):
     s = rpc('evm_snapshot', [])
     nested_tx = tx_delta(rpc, t0)
     rpc('evm_revert', [s])
-    check('nested_next_block_not_jumped', nested_mine - base_mine < TOLERANCE, True)
-    check('nested_next_tx_block_not_jumped', nested_tx - base_tx < TOLERANCE, True)
+    check('nested_next_block_not_jumped', abs(nested_mine - base_mine) < TOLERANCE, True)
+    check('nested_next_tx_block_not_jumped', abs(nested_tx - base_tx) < TOLERANCE, True)
     # Inner-only revert: the next block follows the outer jump (+1 day), not the inner one (+6 days).
     outer = rpc('evm_snapshot', [])
     wait_until(rpc, t0 + DAY)
