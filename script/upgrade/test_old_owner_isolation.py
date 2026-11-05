@@ -391,8 +391,11 @@ class OldOwnerIsolationTests(unittest.TestCase):
         def recording(name, observed, expected):
             if name != 'old_owner_role_control_path':
                 return original(name, observed, expected)
-        with patch.object(a,'need',side_effect=recording):
-            self.assert_gate('old_owner_role_control_case',lambda:o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory()))
+        # Catch any exception so that deleting the case gate fails this test by assertion, not by a TypeError error.
+        with patch.object(a,'need',side_effect=recording), self.assertRaises(Exception) as caught:
+            o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory())
+        self.assertIsInstance(caught.exception,a.Gate)
+        self.assertEqual(caught.exception.record['gate'],'old_owner_role_control_case')
 
     # Codex P2: every listed role, by name, so a role-specific shortcut in mapping_control cannot pass.
     MAPPING_ROLES = ('ROLE_ANODE','ROLE_KMS','ROLE_ENDUSER')
