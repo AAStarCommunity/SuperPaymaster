@@ -11,9 +11,12 @@
 set -u
 cd "$(git rev-parse --show-toplevel)"
 src=script/upgrade/manifest_exec.py
-bak=$(mktemp "${TMPDIR:-/tmp}/manifest_exec.XXXXXX")
-cp "$src" "$bak"
-trap 'cp "$bak" "$src"; rm -f "$bak"' EXIT
+git diff --quiet HEAD -- "$src" || { echo "refusing: $src has uncommitted changes"; exit 1; }
+bak=$(mktemp "${TMPDIR:-/tmp}/manifest_exec.XXXXXX") || { echo "mktemp failed"; exit 1; }
+cp "$src" "$bak" && cmp -s "$src" "$bak" || { echo "backup failed; source untouched"; rm -f "$bak"; exit 1; }
+# Restore from HEAD (the source is clean) and keep the backup if that fails.
+restore() { git checkout -q HEAD -- "$src" && cmp -s "$src" "$bak" && rm -f "$bak" || echo "RESTORE FAILED; backup kept at $bak"; }
+trap restore EXIT
 tests='-k stale_dvt -k unsigned_dvt -k dvt_closing -k old_pointers'
 status=0
 run() { python3 -B script/upgrade/test_manifest_exec.py $tests 2>&1 | grep -E '^(OK|FAILED)' | tail -1; }
@@ -22,7 +25,7 @@ red() { case "$1" in *errors=*) return 1;; FAILED*failures=*) return 0;; *) retu
 for gate in dvt_stale_next_id dvt_proposal_inventory dvt_stale_proposal_listed dvt_stale_proposal_shape \
             dvt_stale_sibling_executed dvt_stale_open_set closing_dvt_pointer closing_dvt_activity \
             closing_stale_unexecuted old_pointer pointer_owner; do
-  cp "$bak" "$src"
+  git checkout -q HEAD -- "$src"
   python3 - "$src" "$gate" <<'PY'
 import sys
 p, g = sys.argv[1:]
@@ -35,7 +38,7 @@ open(p, 'w').write('\n'.join(lines))
 PY
   r=$(run); echo "remove $gate -> $r"; red "$r" || status=1
 done
-cp "$bak" "$src"
+git checkout -q HEAD -- "$src"
 python3 - "$src" <<'PY'
 import sys
 p = sys.argv[1]; s = open(p).read()
