@@ -34,6 +34,9 @@ class Chain:
     def clock(self):
         return self.wall
 
+    def sleep(self, seconds):
+        self.wall += seconds
+
     def __call__(self, method, params):
         self.wall += self.step
         if method == 'eth_getBlockByNumber':
@@ -47,6 +50,8 @@ class Chain:
             return '0x0'
         if method == 'evm_snapshot':
             sid = hex(len(self.snaps) + 1)
+            if not self.stack:
+                self.snaps_base = self.offset
             self.snaps[sid] = (copy.copy(self.blocks), self.offset, len(self.stack))
             self.stack.append(sid)
             return sid
@@ -56,6 +61,14 @@ class Chain:
                 pass
             self.blocks = blocks
             if self.fault is None or (self.fault == 'nested' and depth == 0) or (self.fault == 'outer' and depth > 0):
+                self.offset = offset
+            elif self.fault == 'low':
+                # Restored, but a day too low: only the parent + 1 clamp keeps later blocks moving.
+                self.offset = offset - q5.DAY
+            elif self.fault == 'lost_inner' and depth > 0:
+                # The inner revert drops the outer jump's offset back to the pre-outer one.
+                self.offset = self.snaps_base
+            elif self.fault == 'lost_inner':
                 self.offset = offset
             return True
         if method in ('anvil_setBalance', 'anvil_impersonateAccount'):
@@ -77,7 +90,7 @@ CASES = [(lag, step) for lag in LAGS for step in STEPS]
 class Q5Controls(unittest.TestCase):
     def failed(self, fault, lag, step=0):
         chain = Chain(fault, lag, step)
-        return [c['name'] for c in q5.run(chain, clock=chain.clock)['checks'] if not c['ok']]
+        return [c['name'] for c in q5.run(chain, clock=chain.clock, sleep=chain.sleep)['checks'] if not c['ok']]
 
     def test_correct_engine_passes(self):
         for lag, step in CASES:
@@ -88,7 +101,7 @@ class Q5Controls(unittest.TestCase):
         # The step=15 case is a real slow run: the whole run spans far more than the old fixed 60 s budget, and
         # the nested comparison alone (DSR's two failing checks) spans more than 60 s too.
         chain = Chain(step=15)
-        out = q5.run(chain, clock=chain.clock)
+        out = q5.run(chain, clock=chain.clock, sleep=chain.sleep)
         self.assertGreater(chain.wall - T0, 600)
         nested = {c['name']: c for c in out['checks']}['nested_next_block_not_jumped']
         self.assertTrue(nested['ok'])
@@ -103,7 +116,7 @@ class Q5Controls(unittest.TestCase):
         # DSR: a revert that leaves the time where the control put it (gap ~ +DAY or more) must FAIL even
         # with the window widened by a slow endpoint.
         chain = Chain('all', 0, 15)
-        checks = {c['name']: c for c in q5.run(chain, clock=chain.clock)['checks']}
+        checks = {c['name']: c for c in q5.run(chain, clock=chain.clock, sleep=chain.sleep)['checks']}
         for name in ('single_next_block_not_jumped', 'nested_next_block_not_jumped'):
             self.assertFalse(checks[name]['ok'], name)
             self.assertGreaterEqual(checks[name]['gap'], q5.DAY)
@@ -120,6 +133,17 @@ class Q5Controls(unittest.TestCase):
             with self.subTest(lag=lag, step=step):
                 self.assertIn('single_next_block_not_jumped', self.failed('outer', lag, step))
 
+    def test_offset_restored_too_low_fails(self):
+        # Codex Q5 challenge P1: the parent + 1 clamp hides a low offset unless the compared blocks are SEPARATION apart.
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                self.assertIn('single_next_block_not_jumped', self.failed('low', lag, step))
+
+    def test_outer_offset_lost_on_inner_revert_fails(self):
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                self.assertIn('inner_revert_next_block_follows_outer', self.failed('lost_inner', lag, step))
+
     def test_undecidable_window_fails(self):
         # A run so slow that a window reaches DAY/2 cannot tell a leak from latency: FAIL, even for a correct engine.
         failed = self.failed(None, 0, q5.DAY // 8)
@@ -127,18 +151,23 @@ class Q5Controls(unittest.TestCase):
         self.assertIn('inner_revert_next_block_follows_outer', failed)
 
     def test_baseline_is_mined_before_the_jump(self):
-        # A baseline taken after the jump would move with a leak and hide it: each segment's first evm_mine
-        # must precede its first evm_setNextBlockTimestamp.
+        # A baseline taken after the jump would move with a leak and hide it. For both baseline segments (the
+        # 10-day jump and the first 1-day jump), a block and a tx must be mined after the previous explicit
+        # timestamp and before the segment's jump.
         calls = []
         class Log(Chain):
             def __call__(self, method, params):
-                calls.append(method)
+                calls.append((method, params))
                 return super().__call__(method, params)
         chain = Log()
-        q5.run(chain, clock=chain.clock)
-        sets = [i for i, m in enumerate(calls) if m == 'evm_setNextBlockTimestamp']
-        mines = [i for i, m in enumerate(calls) if m in ('evm_mine', 'eth_sendTransaction')]
-        self.assertLess(mines[0], sets[0])
+        q5.run(chain, clock=chain.clock, sleep=chain.sleep)
+        sets = [(i, p[0]) for i, (m, p) in enumerate(calls) if m == 'evm_setNextBlockTimestamp']
+        for jump in (T0 + 10 * q5.DAY, T0 + q5.DAY):
+            with self.subTest(jump=jump):
+                at = next(n for n, (i, v) in enumerate(sets) if v == jump)
+                lo, hi = (sets[at - 1][0] if at else -1), sets[at][0]
+                between = {m for m, _ in calls[lo + 1:hi]}
+                self.assertLessEqual({'evm_mine', 'eth_sendTransaction'}, between)
 
     def test_rpc_error_text_never_surfaces(self):
         rpc = q5.Local(0)
