@@ -12,6 +12,14 @@ run cannot leave a mutated source or test another run's mutation. Gates are remo
 stdout), with the probe name and the ids of the tests it ran; a missing, malformed or mismatched result is a
 failure, never a pass.
 
+A mutation counts only if the controls actually executed the changed site: the removed gate is replaced by a
+statement that records it was reached (the sibling edit records its statement too), so a control that fails
+before reaching the site (e.g. in setUp) cannot stand in for the gate.
+
+Trust boundary: the controls themselves are reviewed code in the same commit. The harness defends against
+accidental mismatches (wrong statement, stale or mixed results, concurrent runs, an unreached site), not
+against test code that deliberately forges its own result; that is for review.
+
 Limitation: controls assert the gate *name*, so a removal can turn red because a later gate rejects the same
 state under another name. A red probe proves the control is bound to that gate; it does not by itself prove
 the state would otherwise be accepted end to end.
@@ -58,19 +66,32 @@ def mutate(source, name):
         before, after = functions(tree), functions(mutated)
         # A textual edit must change code, and only dvt_activity's (never a comment, never elsewhere).
         assert [f for f in before if before[f] != after.get(f)] == ['dvt_activity'], name
-        return mutated
+        site = [x for x in probe.sites(mutated) if x['gate'] == 'dvt_stale_sibling_executed']
+        assert len(site) == 1, (name, site)
+        # Keep the edited statement; record that it ran.
+        return probe.Record([site[0]['line']]).visit(mutated)
     # Gate removal by AST statement (probe_gate_removal.Remove), never by text: a comment or another
     # statement mentioning the gate cannot be removed in its place.
     site = [s for s in probe.sites(tree) if s['gate'] == name and s['function'] in FUNCTIONS]
     assert len(site) == 1, (name, site)
-    remover = probe.Remove(site[0]['line'])
+    remover = Reached(site[0]['line'])
     tree = remover.visit(tree)
     assert remover.hits == 1, (name, remover.hits)
     return tree
 
 
+class Reached(probe.Remove):
+    """Like probe_gate_removal.Remove, but the gate becomes a record that its site was reached."""
+    def visit_Expr(self, node):
+        if probe.is_need(node) and node.lineno == self.line:
+            self.hits += 1
+            return ast.copy_location(ast.parse(f'__probe_hits__.add({node.lineno})').body[0], node)
+        return node
+
+
 def child(name, result_path):
-    probe.install(mutate(probe.TARGET.read_text(), name))
+    hits = set()
+    probe.install(mutate(probe.TARGET.read_text(), name), {'__probe_hits__': hits})
     tests = __import__('test_manifest_exec')
     loader = unittest.TestLoader()
     loader.testNamePatterns = PATTERNS
@@ -78,7 +99,7 @@ def child(name, result_path):
     ids = sorted(t.id() for t in probe.flatten(suite))
     result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
     # The result goes to a file the parent named, never through stdout, which tests can write to.
-    Path(result_path).write_text(json.dumps(dict(name=name, ids=ids, ran=result.testsRun,
+    Path(result_path).write_text(json.dumps(dict(name=name, ids=ids, ran=result.testsRun, reached=bool(hits),
                                                  failures=len(result.failures), errors=len(result.errors))))
 
 
@@ -90,9 +111,10 @@ def run(name):
         try:
             r = json.loads(path.read_text())
             assert p.returncode == 0 and r['name'] == name
-            assert set(r) == {'name', 'ids', 'ran', 'failures', 'errors'}
+            assert set(r) == {'name', 'ids', 'ran', 'reached', 'failures', 'errors'}
         except Exception:
-            return dict(name=name, ids=[], ran=0, failures=0, errors=-1, note='child did not report (rc=%d)' % p.returncode)
+            return dict(name=name, ids=[], ran=0, reached=False, failures=0, errors=-1,
+                        note='child did not report (rc=%d)' % p.returncode)
     return r
 
 
@@ -109,10 +131,11 @@ def main():
     for name in GATES + ['sibling_level']:
         r = run(name)
         # Same tests as the baseline (by id), all run, red by assertion failures only.
-        red = r['ids'] == base['ids'] and r['ran'] == base['ran'] and r['failures'] > 0 and r['errors'] == 0
+        red = (r['ids'] == base['ids'] and r['ran'] == base['ran'] and r['reached']
+               and r['failures'] > 0 and r['errors'] == 0)
         ok &= red
-        print('remove %s -> ran=%d failures=%d errors=%d %s' % (name, r['ran'], r['failures'], r['errors'],
-              'red' if red else 'NOT RED ' + r.get('note', '')), flush=True)
+        print('remove %s -> ran=%d reached=%d failures=%d errors=%d %s' % (name, r['ran'], r['reached'], r['failures'],
+              r['errors'], 'red' if red else 'NOT RED ' + r.get('note', '')), flush=True)
     # The parent never writes the source; assert it anyway.
     unchanged = probe.TARGET.read_bytes() == before
     print('SOURCE_UNCHANGED', int(unchanged))
