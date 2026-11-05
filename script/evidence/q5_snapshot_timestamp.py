@@ -189,11 +189,12 @@ def run(rpc, clock=time.time, sleep=time.sleep):
     # Neither the jump inherited nor the clock left at the jump's offset (behind, when the pin is older than wall time).
     follows('single_next_block_not_jumped', after_mine, base_mine)
     follows('single_next_tx_block_not_jumped', after_tx, base_tx)
-    # Main path sets an explicit executionTimestamp earlier than the control's jump; it must be accepted.
+    # Main path sets an explicit executionTimestamp of exactly latest + 1 (earlier than the control's jump); it
+    # must be accepted.
     s = rpc('evm_snapshot', [])
-    rpc('evm_setNextBlockTimestamp', [t0 + 100])
+    rpc('evm_setNextBlockTimestamp', [t0 + 1])
     rpc('evm_mine', [])
-    check('single_explicit_earlier_ts', latest(rpc)[1], t0 + 100)
+    check('single_explicit_earlier_ts', latest(rpc)[1], t0 + 1)
     restore(rpc, s)
 
     # 2. Nested snapshots (controls run inside an outer snapshot).
@@ -225,11 +226,19 @@ def run(rpc, clock=time.time, sleep=time.sleep):
     lo, hi = w2 - w1 - SLACK, clock() - w0 + SLACK
     check('inner_revert_next_block_follows_outer', lo <= inner_mine - DAY <= hi and hi - lo < DAY // 2, True,
           gap=inner_mine - DAY, window=[lo, hi])
+    # Main path inside the still-active outer snapshot, after a control's inner revert: latest + 1 must be
+    # accepted. After the auto-mined check, so its explicit timestamp cannot reset an offset that check measures.
+    s = rpc('evm_snapshot', [])
+    nxt = latest(rpc)[1] + 1
+    rpc('evm_setNextBlockTimestamp', [nxt])
+    rpc('evm_mine', [])
+    check('inner_explicit_latest_plus_one', latest(rpc)[1], nxt)
+    restore(rpc, s)
     check('inner_outer_revert', reverted(rpc, outer), True)
     s = rpc('evm_snapshot', [])
-    rpc('evm_setNextBlockTimestamp', [t0 + 50])
+    rpc('evm_setNextBlockTimestamp', [t0 + 1])
     rpc('evm_mine', [])
-    check('nested_explicit_earlier_ts', latest(rpc)[1], t0 + 50)
+    check('nested_explicit_earlier_ts', latest(rpc)[1], t0 + 1)
     restore(rpc, s)
     check('final_state', latest(rpc), (n0, t0))
     return dict(slackSeconds=SLACK, separationSeconds=SEPARATION, pinBlock=n0, pinTimestamp=t0,

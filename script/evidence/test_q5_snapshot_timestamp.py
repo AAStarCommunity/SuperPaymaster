@@ -17,6 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import q5_snapshot_timestamp as q5  # noqa: E402
 
 T0 = 1793816148
+# Faults in how evm_revert restores the clock offset; every other fault restores it correctly.
+OFFSET_FAULTS = ('all', 'nested', 'outer', 'low', 'lost_inner')
 
 
 class Chain:
@@ -24,10 +26,14 @@ class Chain:
         # lag: how far wall time is ahead of the pin block (an old fork pin).
         self.fault, self.wall, self.offset, self.pending, self.step = fault, T0 + lag, 0, None, step
         self.blocks, self.snaps, self.stack, self.receipts = [T0], {}, [], {}
+        self.tx_offset = 0  # fault 'tx': the offset tx-mined blocks use, never restored by a revert
+        self.high = T0  # highest timestamp ever mined, kept until the outermost revert (fault 'high_water')
 
-    def mine(self):
-        ts = self.pending if self.pending is not None else max(self.blocks[-1] + 1, self.wall + self.offset + 1)
+    def mine(self, tx=False):
+        offset = self.tx_offset if tx and self.fault == 'tx' else self.offset
+        ts = self.pending if self.pending is not None else max(self.blocks[-1] + 1, self.wall + offset + 1)
         self.pending = None
+        self.high = max(self.high, ts)
         self.blocks.append(ts)
         return len(self.blocks) - 1
 
@@ -43,7 +49,13 @@ class Chain:
             n = len(self.blocks) - 1 if params[0] == 'latest' else int(params[0], 16)
             return dict(number=hex(n), timestamp=hex(self.blocks[n]))
         if method == 'evm_setNextBlockTimestamp':
+            # Faulty validators reject a valid timestamp the way anvil reports one: a JSON-RPC error.
+            if self.fault == 'off_by_one' and params[0] <= self.blocks[-1] + 1:
+                raise RuntimeError('evm_setNextBlockTimestamp: JSON-RPC error code -32602')
+            if self.fault == 'high_water' and params[0] <= self.high:
+                raise RuntimeError('evm_setNextBlockTimestamp: JSON-RPC error code -32602')
             self.pending, self.offset = params[0], params[0] - self.wall
+            self.tx_offset = self.offset
             return None
         if method == 'evm_mine':
             self.mine()
@@ -60,7 +72,9 @@ class Chain:
             while self.stack and self.stack.pop() != params[0]:
                 pass
             self.blocks = blocks
-            if self.fault is None or (self.fault == 'nested' and depth == 0) or (self.fault == 'outer' and depth > 0):
+            if depth == 0:
+                self.high = blocks[-1]
+            if self.fault not in OFFSET_FAULTS or (self.fault == 'nested' and depth == 0) or (self.fault == 'outer' and depth > 0):
                 self.offset = offset
             elif self.fault == 'low':
                 # Restored, but a day too low: only the parent + 1 clamp keeps later blocks moving.
@@ -75,7 +89,7 @@ class Chain:
             return None
         if method == 'eth_sendTransaction':
             h = '0x%064x' % (len(self.receipts) + 1)
-            self.receipts[h] = dict(blockNumber=hex(self.mine()))
+            self.receipts[h] = dict(blockNumber=hex(self.mine(tx=True)))
             return h
         if method == 'eth_getTransactionReceipt':
             return self.receipts.get(params[0])
@@ -85,12 +99,23 @@ class Chain:
 LAGS = (0, 30 * q5.DAY)
 STEPS = (0, 15)
 CASES = [(lag, step) for lag in LAGS for step in STEPS]
+# Every check run() must return, in order; a dropped check fails every fault test.
+CHECKS = ['single_jumped', 'single_revert', 'single_latest_restored', 'single_next_block_not_jumped',
+          'single_next_tx_block_not_jumped', 'single_explicit_earlier_ts', 'nested_inner_revert',
+          'nested_inner_restored_ts', 'nested_outer_revert', 'nested_outer_restored', 'nested_next_block_not_jumped',
+          'nested_next_tx_block_not_jumped', 'inner_revert_next_block_follows_outer', 'inner_explicit_latest_plus_one',
+          'inner_outer_revert', 'nested_explicit_earlier_ts', 'final_state']
 
 
 class Q5Controls(unittest.TestCase):
     def failed(self, fault, lag, step=0):
         chain = Chain(fault, lag, step)
-        return [c['name'] for c in q5.run(chain, clock=chain.clock, sleep=chain.sleep)['checks'] if not c['ok']]
+        try:
+            checks = q5.run(chain, clock=chain.clock, sleep=chain.sleep)['checks']
+        except RuntimeError:
+            return ['raised']
+        self.assertEqual([c['name'] for c in checks], CHECKS)
+        return [c['name'] for c in checks if not c['ok']]
 
     def test_correct_engine_passes(self):
         for lag, step in CASES:
@@ -143,6 +168,36 @@ class Q5Controls(unittest.TestCase):
         for lag, step in CASES:
             with self.subTest(lag=lag, step=step):
                 self.assertIn('inner_revert_next_block_follows_outer', self.failed('lost_inner', lag, step))
+
+    def test_tx_blocks_inheriting_the_jump_fail(self):
+        # Codex Q5 round 2 P3: only transaction-mined blocks leak; the two tx comparisons must catch it.
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                failed = self.failed('tx', lag, step)
+                self.assertIn('single_next_tx_block_not_jumped', failed)
+                self.assertIn('nested_next_tx_block_not_jumped', failed)
+                self.assertNotIn('single_next_block_not_jumped', failed)
+
+    def test_latest_plus_one_rejected_fails(self):
+        # Codex Q5 round 2 P2: the main path uses exactly latest + 1. The first probe to hit it is the single
+        # segment's explicit timestamp (t0 + 1), so that probe itself must be at the boundary.
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                chain, calls = Chain('off_by_one', lag, step), []
+                with self.assertRaises(RuntimeError):
+                    q5.run(lambda m, p: (calls.append((m, p)), chain(m, p))[1], clock=chain.clock, sleep=chain.sleep)
+                self.assertEqual(calls[-1], ('evm_setNextBlockTimestamp', [T0 + 1]))
+
+    def test_high_water_kept_until_outer_revert_fails(self):
+        # Codex Q5 round 2 P2: explicit timestamps inside a still-active outer snapshot after an inner revert.
+        chain = Chain('high_water')
+        calls = []
+        real = chain.__call__
+        with self.assertRaises(RuntimeError):
+            q5.run(lambda m, p: (calls.append((m, p)), real(m, p))[1], clock=chain.clock, sleep=chain.sleep)
+        self.assertEqual(calls[-1][0], 'evm_setNextBlockTimestamp')
+        # The rejected call is the in-outer probe, not one of the earlier explicit probes.
+        self.assertGreater(calls[-1][1][0], T0 + q5.DAY)
 
     def test_undecidable_window_fails(self):
         # A run so slow that a window reaches DAY/2 cannot tell a leak from latency: FAIL, even for a correct engine.
