@@ -17,9 +17,11 @@ cp "$src" "$bak" && cmp -s "$src" "$bak" || { echo "backup failed; source untouc
 # Restore from HEAD (the source is clean) and keep the backup if that fails.
 log=$(mktemp "${TMPDIR:-/tmp}/stale-probes.XXXXXX") || { echo "mktemp failed"; rm -f "$bak"; exit 1; }
 restore() {
-  rm -f "$log"
+  # Nothing may interrupt the restore itself; the source comes back before any other cleanup.
+  trap '' INT TERM
   if git checkout -q HEAD -- "$src" && cmp -s "$src" "$bak"; then rm -f "$bak"
-  else echo "RESTORE FAILED; backup kept at $bak"; exit 1; fi
+  else echo "RESTORE FAILED; backup kept at $bak"; rm -f "$log"; exit 1; fi
+  rm -f "$log"
 }
 # Every reset must reproduce HEAD byte for byte, or later probes would run on an earlier mutation.
 reset() { git checkout -q HEAD -- "$src" && cmp -s "$src" "$bak" || { echo "RESET FAILED"; exit 1; }; }
@@ -30,11 +32,22 @@ trap restore EXIT
 child=
 on_signal() { if [ -n "$child" ]; then kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; fi; exit 1; }
 trap on_signal INT TERM
+pending=
 tests='-k stale_dvt -k unsigned_dvt -k dvt_closing -k old_pointers'
 status=0
 run() {
+  # A fresh log per run: a failed redirect must not leave an earlier probe's result to be read as this one's.
+  rm -f "$log" || { echo "LOG RESET FAILED"; exit 1; }
+  # Between `&` and `child=$!` a signal only marks pending; it is handled once the child is known.
+  trap 'pending=1' INT TERM
   python3 -B script/upgrade/test_manifest_exec.py $tests > "$log" 2>&1 &
-  child=$!; wait "$child"; child=
+  child=$!
+  trap on_signal INT TERM
+  [ -z "$pending" ] || on_signal
+  wait "$child"; rc=$?; child=
+  # unittest exits 0 (OK) or 1 (FAILED); anything else (no interpreter, redirect failure, crash) is not a result.
+  case "$rc" in 0|1) ;; *) echo "SUITE DID NOT RUN (rc=$rc)"; exit 1;; esac
+  grep -qE '^Ran [0-9]+ test' "$log" || { echo "SUITE DID NOT RUN (no Ran line)"; exit 1; }
   R=$(grep -E '^(OK|FAILED)' "$log" | tail -1)
 }
 run; base=$R; echo "baseline: $base"; case "$base" in OK*) ;; *) echo "baseline not green"; exit 1;; esac
