@@ -52,6 +52,8 @@ class Chain:
             # Faulty validators reject a valid timestamp the way anvil reports one: a JSON-RPC error.
             if self.fault == 'off_by_one' and params[0] <= self.blocks[-1] + 1:
                 raise RuntimeError('evm_setNextBlockTimestamp: JSON-RPC error code -32602')
+            if self.fault == 'off_by_one_in_outer' and len(self.stack) >= 2 and params[0] <= self.blocks[-1] + 1:
+                raise RuntimeError('evm_setNextBlockTimestamp: JSON-RPC error code -32602')
             if self.fault == 'high_water' and params[0] <= self.high:
                 raise RuntimeError('evm_setNextBlockTimestamp: JSON-RPC error code -32602')
             self.pending, self.offset = params[0], params[0] - self.wall
@@ -195,9 +197,19 @@ class Q5Controls(unittest.TestCase):
         real = chain.__call__
         with self.assertRaises(RuntimeError):
             q5.run(lambda m, p: (calls.append((m, p)), real(m, p))[1], clock=chain.clock, sleep=chain.sleep)
-        self.assertEqual(calls[-1][0], 'evm_setNextBlockTimestamp')
-        # The rejected call is the in-outer probe, not one of the earlier explicit probes.
+        # The rejected call is the in-outer probe, at exactly the latest header + 1.
+        self.assertEqual(calls[-1], ('evm_setNextBlockTimestamp', [chain.blocks[-1] + 1]))
         self.assertGreater(calls[-1][1][0], T0 + q5.DAY)
+
+    def test_latest_plus_one_rejected_inside_outer_fails(self):
+        # Codex Q5 round 3 P3: the in-outer probe itself must sit at latest + 1, not merely above the outer jump.
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                chain, calls = Chain('off_by_one_in_outer', lag, step), []
+                with self.assertRaises(RuntimeError):
+                    q5.run(lambda m, p: (calls.append((m, p)), chain(m, p))[1], clock=chain.clock, sleep=chain.sleep)
+                self.assertEqual(calls[-1], ('evm_setNextBlockTimestamp', [chain.blocks[-1] + 1]))
+                self.assertGreater(calls[-1][1][0], T0 + q5.DAY)
 
     def test_undecidable_window_fails(self):
         # A run so slow that a window reaches DAY/2 cannot tell a leak from latency: FAIL, even for a correct engine.
