@@ -335,11 +335,22 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 seen.append(params[0]['data'])
             return result
         rpc.fork = base.fork
-        result = o.audit(rpc,self.pin,inventory())
+        calls = []
+        real = o.mapping_control
+        def spy(spec,target,role,word):
+            # Record the COMMUNITY control reads this ENDUSER call makes, not ones ANODE/KMS make elsewhere.
+            start = len(seen)
+            result = real(spec,target,role,word)
+            calls.append((target,role,result,seen[start:]))
+            return result
+        with patch.object(o,'mapping_control',side_effect=spy):
+            result = o.audit(rpc,self.pin,inventory())
         self.assertIn(o.ROLE_ENDUSER, result['roleHistory'][u.REG])
-        # The mapping controls ran: COMMUNITY read for DEPLOYER (positive) and OLD (negative).
+        enduser = [c for c in calls if c[:2] == (u.REG,o.ROLE_ENDUSER)]
+        self.assertEqual([c[2] for c in enduser],[True])
+        # This call's own controls: COMMUNITY read for DEPLOYER (positive) and OLD (negative).
         for who in (u.DEPLOYER,o.OLD):
-            self.assertIn(a.calldata('hasRole(bytes32,address)',o.ROLE_COMMUNITY,who),seen)
+            self.assertIn(a.calldata('hasRole(bytes32,address)',o.ROLE_COMMUNITY,who),enduser[0][3])
 
     def test_role_control_case_without_path_gate(self):
         # With the path gate only recording (diagnostic mode), a missing case still STOPs as a gate, not a TypeError.

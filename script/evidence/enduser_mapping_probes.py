@@ -26,6 +26,12 @@ PROBES = [
      '',
      'OldOwnerIsolationTests.test_role_control_case_without_path_gate',
      "TypeError: 'NoneType' object is not subscriptable"),
+    # Codex P2: ENDUSER in roleHistory proves discovery only; skipping its control path must still go red.
+    ('enduser_role_control_skipped',
+     '                role_control(name,target,role,spec)\n',
+     '                if role != ROLE_ENDUSER: role_control(name,target,role,spec)\n',
+     'OldOwnerIsolationTests.test_mapping_enduser_without_control_holder',
+     'AssertionError: Lists differ: [] != [True]'),
 ]
 
 
