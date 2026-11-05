@@ -66,6 +66,7 @@ CASES += [(base_tests.ManifestTests, 'test_old_timelock_approval_history', 'old_
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_never_granted_range_grant', 'old_owner_never_granted_set')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_never_granted_control_holder', 'old_owner_never_granted_holder')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_function_falls_back', 'old_owner_mapping_getter')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_role_control_case_without_path_gate', 'old_owner_role_control_case')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_positive_zero', 'old_owner_mapping_positive')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_negative_one', 'old_owner_mapping_negative')]
 CASES += [(base_tests.ManifestTests, 'test_never_granted_closing_change', 'old_owner_never_granted_recheck')]

@@ -312,6 +312,45 @@ class OldOwnerIsolationTests(unittest.TestCase):
         key = ('eth_call',str([dict(to=u.REG,data=a.calldata('hasRole(bytes32,address)',CUSTOM_ROLE,u.SAFE)),self.pin['stateBlock']]))
         self.assert_gate('old_owner_role_control_path',lambda:o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory()))
 
+    def test_mapping_enduser_without_control_holder(self):
+        # DSR 2026-11-05: ENDUSER has history but no control holder; the mapping-getter proof is its control path.
+        self.assertEqual(o.ROLE_ENDUSER, a.keccak('ENDUSER'))
+        def query(sig,args):
+            return ('eth_call',str([dict(to=u.REG,data=a.calldata(sig,*args)),self.pin['stateBlock']]))
+        cfg = [32]+[0]*13
+        cfg[10],cfg[11] = 384,int(u.DEPLOYER,16)
+        overrides = {query('hasRole(bytes32,address)',[o.ROLE_ENDUSER,who]):raw([0])
+                     for who in {o.OLD,u.SAFE,u.DEPLOYER,*self.pin['pauseList']}}
+        overrides[query('getRoleConfig(bytes32)',[o.ROLE_ENDUSER])] = raw(cfg)
+        base = fixture_rpc(self.pin,overrides)
+        seen = []
+        def rpc(method,params):
+            result = base(method,params)
+            query = params[0] if method == 'eth_getLogs' else {}
+            if query.get('address') == u.REG and len(query['topics']) == 1 and len(query['topics'][0]) == 4 and result:
+                # One RoleGranted(ENDUSER) to the Safe, appended to the Registry grant history.
+                grant = next(log for log in result if log['topics'][0] == a.keccak(o.GRANTED))
+                result = result+[dict(grant,topics=[grant['topics'][0],o.ROLE_ENDUSER,*grant['topics'][2:]],logIndex=hex(len(result)))]
+            if method == 'eth_call':
+                seen.append(params[0]['data'])
+            return result
+        rpc.fork = base.fork
+        result = o.audit(rpc,self.pin,inventory())
+        self.assertIn(o.ROLE_ENDUSER, result['roleHistory'][u.REG])
+        # The mapping controls ran: COMMUNITY read for DEPLOYER (positive) and OLD (negative).
+        for who in (u.DEPLOYER,o.OLD):
+            self.assertIn(a.calldata('hasRole(bytes32,address)',o.ROLE_COMMUNITY,who),seen)
+
+    def test_role_control_case_without_path_gate(self):
+        # With the path gate only recording (diagnostic mode), a missing case still STOPs as a gate, not a TypeError.
+        key = ('eth_call',str([dict(to=u.REG,data=a.calldata('hasRole(bytes32,address)',CUSTOM_ROLE,u.SAFE)),self.pin['stateBlock']]))
+        original = a.need
+        def recording(name, observed, expected):
+            if name != 'old_owner_role_control_path':
+                return original(name, observed, expected)
+        with patch.object(a,'need',side_effect=recording):
+            self.assert_gate('old_owner_role_control_case',lambda:o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory()))
+
     def test_mapping_positive_zero(self):
         self.assert_gate('old_owner_mapping_positive',lambda:o.mapping_control(inventory()['Registry'],u.REG,o.ROLE_ANODE,lambda *args:0))
 
