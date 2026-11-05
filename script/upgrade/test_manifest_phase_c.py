@@ -569,7 +569,7 @@ BUILD_CASES = {
     'phase_c_maintenance_unique': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'],
                                             [dict(name='x', gas=1), dict(name='x', gas=2)]),
     'stage_inputs': data_case(['phaseC'], delete=True),
-    'C_sampled_operator': data_case(['sampled'], sorted([u.DEPLOYER, t.ANNI])),
+    'sampled_deployer_only': data_case(['sampled'], sorted([u.DEPLOYER, t.ANNI])),
     'C_amax_cap': data_case(ARM+['SP', 'call'], 10**9),
     'stage_pin_phase_c': lambda data, pin, case: pin.pop('phaseC'),
     'phase_c_pin': pin_case(['phaseC', 'extra'], 1),
@@ -766,6 +766,31 @@ class LiveGateTests(PhaseCTests):
         target['tx']['gas'] = hex(target['gasBound']+1)
         record = self.stop('budget_owner', lambda: m.budget(plan))
         self.assertEqual(record['observed']['shortfallWei'], a.MAX_FEE)
+
+    def test_budget_reports_exact_one_wei_shortfall(self):
+        # DSR F-02 (2026-11-05): both Phase C budget reports use {requiredWei, balanceWei, shortfallWei} and
+        # report the shortfall to the wei.
+        values = self.pc['deployerValueWei']
+        pin = copy.deepcopy(self.pin)
+        pin['senders']['deployer']['balance'] = values-1
+        record = self.stop('budget_deployer_values', lambda: self.build(pin=pin))
+        self.assertEqual(record['observed'], dict(balanceWei=values-1, requiredWei=values, shortfallWei=1))
+        # O must hold a real (non-negative) balance: build with O already holding some ETH, so the planned C20
+        # top-up covers only the rest, then lose one wei of it before sending.
+        pin = copy.deepcopy(self.pin)
+        held = 10**15
+        pin['phaseC']['owner']['balance'] = held
+        plan = self.build(pin=pin)
+        for s in plan['steps']:
+            s['tx']['gas'] = hex(s.get('gasBound', 100000))
+            for tx in s.get('variants', {}).values(): tx['gas'] = hex(100000)
+        m.budget(plan)
+        pc = plan['phaseC']
+        required = plan['budgetsWei']['owner']+pc['ownerMaintenanceWei']
+        self.assertEqual(held+pc['ownerTopUp'], required)
+        plan['pin']['phaseC']['owner']['balance'] = held-1
+        record = self.stop('budget_owner', lambda: m.budget(plan))
+        self.assertEqual(record['observed'], dict(balanceWei=required-1, requiredWei=required, shortfallWei=1))
 
     def test_handover_requires_phase_c(self):
         step = self.step('D.registry.transfer')

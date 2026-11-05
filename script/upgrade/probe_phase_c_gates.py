@@ -45,6 +45,12 @@ CASES += [
     (base_tests.ManifestTests, 'test_rehearsal_after_6d_accounting', 'after_6d_accounting'),
     (base_tests.ManifestTests, 'test_rehearsal_accounting_unchanged_since_phase_c', 'accounting_unchanged_since_phase_c'),
     (base_tests.ManifestTests, 'test_rehearsal_funding_rechecked_after_phase_c', 'C_funding_bundler'),
+    # #605 audit fixes and #606 L1 (DSR 2026-11-05): gates added outside Phase C, bound to their named controls.
+    (base_tests.ManifestTests, 'test_pin_pending_token_eta', 'pin_pending_token_eta'),
+    (base_tests.ManifestTests, 'test_collect_direct_fake_chain', 'old_aggregator_slash_policy_admin'),
+    (base_tests.ManifestTests, 'test_dvt_closing_binds_pointer_and_stale_proposals', 'closing_registry_pointer'),
+    (base_tests.ManifestTests, 'test_dvt_closing_binds_pointer_and_stale_proposals', 'closing_committee_pointer'),
+    (base_tests.F05ExecuteB4Gates, 'test_B4_timestamp', 'B4_timestamp'),
 ]
 GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")
 # Gate literals whose control is a whole family (name+'_gate', name+'_restore').
@@ -63,7 +69,8 @@ def run(cls, name, gate=None):
 
     stream = io.StringIO()
     with patch.object(a, 'need', side_effect=without_gate):
-        result = unittest.TextTestRunner(stream=stream).run(cls(name))
+        # A suite (not a bare case) so class fixtures (setUpClass) run.
+        result = unittest.TextTestRunner(stream=stream).run(unittest.TestSuite([cls(name)]))
     return result.wasSuccessful(), bool(suppressed), stream.getvalue()
 
 
