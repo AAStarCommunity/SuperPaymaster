@@ -309,3 +309,19 @@ pre-send/closing re-read (STOP). Within `contracts/src`, ROLE_ANODE and ROLE_KMS
 gate no access control: apart from their constant declarations, they appear only
 in Registry.sol role arrays and `_syncExitFeeForRole` calls. These observations do
 not establish exclusive control of COMMUNITY holders.
+
+What each re-read covers (pre-send vs closing):
+
+- Every `hasRole(role, OLD)` read at the pin (`oldRoleReads`) is re-read in one
+  block before every send and at closing (`old_owner_role_recheck`), so a post-pin
+  grant of any inventoried role to OLD stops before the next transaction.
+- Declared-never-granted rows (`neverGrantedReads`: OLD and every control holder)
+  are re-read the same way (`old_owner_never_granted_recheck`). A first ANODE/KMS
+  grant to an address outside that set, or a grant later revoked, is not seen
+  before sending; closing refreshes the role history and stops on it
+  (`old_owner_never_granted_set`). Such an address gains no permission in
+  `contracts/src`.
+- The orphaned timelock is re-checked before every send against the pin's
+  Approval owners (no log scan) plus the fixed principals: TL roles, authorities,
+  allowances and the Safe. An allowance granted after the pin by an owner that
+  had never approved it is found only at closing, which rediscovers owners.

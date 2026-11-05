@@ -1900,6 +1900,25 @@ class ManifestTests(unittest.TestCase):
                 m.dvt_closing(rpc, plan)
             self.assertEqual(caught.exception.record['gate'], 'old_timelock_allowance')
 
+    def test_old_timelock_external_approval_pre_send(self):
+        # Challenge round 2 P2: a pinned Approval owner grants the orphan an allowance after the pin; pre_send
+        # (not only closing) must stop before any transaction is sent.
+        rpc, token, holder = self.approval_rpc('0x200')
+        plan = copy.deepcopy(self.plan)
+        plan['pin']['oldTimelock'] = dict(plan['pin'].get('oldTimelock') or {}, approvalOwners={token: [holder]})
+        def sender(method, params):
+            if method == 'eth_getLogs':
+                raise AssertionError('pre_send uses the pinned owners, no log scan')
+            if method == 'eth_chainId': return '0x0'
+            return rpc(method, params)
+        sender.local = True
+        with contextlib.ExitStack() as stack:
+            for item in self.closing_rpc(plan['pin']['oldAggregator']): stack.enter_context(item)
+            stack.enter_context(patch.object(m, 'handover_gate'))
+            with self.assertRaises(a.Gate) as caught:
+                m.pre_send(sender, plan, dict(tx={}), {})
+            self.assertEqual(caught.exception.record['gate'], 'old_timelock_allowance')
+
     def test_old_timelock_external_approval_revoked(self):
         rpc, token, holder = self.approval_rpc(self.pin['stateBlock'], amount=0)
         pin = copy.deepcopy(self.pin)

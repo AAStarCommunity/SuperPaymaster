@@ -938,7 +938,9 @@ def closing_timelock_inventory(rpc, pin, block):
     return dict(pin, oldOwnerIsolation=section)
 
 
-def old_timelock_holds_nothing(rpc, pin, block):
+def old_timelock_holds_nothing(rpc, pin, block, owners=None):
+    # owners: the pin's discovered Approval owners per token. pre_send passes them to skip the log scan (every
+    # other read and predicate runs live at `block`); closing and the pin rediscover them.
     section = pin['oldOwnerIsolation']
     reads = []
     def call(target, sig, *args):
@@ -970,18 +972,21 @@ def old_timelock_holds_nothing(rpc, pin, block):
         reads.append(dict(method=method, params=copy.deepcopy(params), block=block, result=copy.deepcopy(result)))
         return result
     for token in section['tokens']:
-        creation = deployments.get(token, pin.get('isolationDeployments', {}).get(token, 1))
-        a.need('old_timelock_approval_history', type(creation) is int and 0 < creation <= a.qty(block), True)
-        logs = isolation.bounded_history_logs(recorded_logs, dict(address=token,
-            fromBlock=hex(creation), toBlock=block, topics=[approval, None, spender]))
-        holders = set()
-        for log in logs:
-            topics = log.get('topics', [])
-            a.need('old_timelock_approval_history', log.get('address') == token and
-                   not log.get('removed', False) and len(topics) == 3 and
-                   topics[0] == approval and topics[2] == spender and
-                   creation <= a.qty(log.get('blockNumber', '0x0')) <= a.qty(block), True)
-            holders.add(u.addr_word(int(a.typed(topics[1], a.HASH32), 16)))
+        if owners is not None:
+            holders = set(owners.get(token, []))
+        else:
+            creation = deployments.get(token, pin.get('isolationDeployments', {}).get(token, 1))
+            a.need('old_timelock_approval_history', type(creation) is int and 0 < creation <= a.qty(block), True)
+            logs = isolation.bounded_history_logs(recorded_logs, dict(address=token,
+                fromBlock=hex(creation), toBlock=block, topics=[approval, None, spender]))
+            holders = set()
+            for log in logs:
+                topics = log.get('topics', [])
+                a.need('old_timelock_approval_history', log.get('address') == token and
+                       not log.get('removed', False) and len(topics) == 3 and
+                       topics[0] == approval and topics[2] == spender and
+                       creation <= a.qty(log.get('blockNumber', '0x0')) <= a.qty(block), True)
+                holders.add(u.addr_word(int(a.typed(topics[1], a.HASH32), 16)))
         approval_owners[token] = sorted(holders)
         for holder in sorted(holders | set(isolation.allowance_holders())):
             a.need('old_timelock_allowance', u.uints(call(token, 'allowance(address,address)', holder, isolation.OLD_TIMELOCK)), [0])
@@ -2995,7 +3000,12 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
-    isolation.never_granted_recheck(rpc,plan['pin'],a.block_data(rpc,'latest')['number'])
+    block = a.block_data(rpc,'latest')['number']
+    isolation.never_granted_recheck(rpc,plan['pin'],block)
+    # Before every send, not only at closing: a post-pin allowance, role or authority of the orphaned timelock.
+    # Without the pin's owner set (never for a valid plan) fall back to full rediscovery.
+    owners = (plan['pin'].get('oldTimelock') or {}).get('approvalOwners')
+    old_timelock_holds_nothing(rpc, plan['pin'], block, owners if isinstance(owners, dict) else None)
     handover_gate(rpc, plan, step, context)
     if step.get('phase') == 'C':
         phase_c_pre_send(rpc, plan, step, context)
