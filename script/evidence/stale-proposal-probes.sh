@@ -22,6 +22,8 @@ restore() {
 # Every reset must reproduce HEAD byte for byte, or later probes would run on an earlier mutation.
 reset() { git checkout -q HEAD -- "$src" && cmp -s "$src" "$bak" || { echo "RESET FAILED"; exit 1; }; }
 trap restore EXIT
+# A signal must still restore the source: exit (and so run the EXIT trap) on INT/TERM.
+trap 'exit 1' INT TERM
 tests='-k stale_dvt -k unsigned_dvt -k dvt_closing -k old_pointers'
 status=0
 run() { python3 -B script/upgrade/test_manifest_exec.py $tests 2>&1 | grep -E '^(OK|FAILED)' | tail -1; }

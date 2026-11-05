@@ -3862,13 +3862,18 @@ class F05RunManifestGates(F05Fixture):
     def check(self, gate):
         run = m.run_manifest
         def injected(remote, rpc, plan, out, calibrate=True):
-            nonce, word, receipt, execute = a.nonce, a.word, u.receipt, m.execute_b4
+            nonce, word, receipt, execute, balances = a.nonce, a.word, u.receipt, m.execute_b4, m.balances
+            terminal = False
+            def handover(rpc, plan):
+                nonlocal terminal
+                terminal = True
+                return dict(control='missing' if gate == 'controls_complete' else 'owner_handover')
             def read_nonce(*args, **kw):
                 return nonce(*args, **kw) + int(gate == 'post_nonce')
             def read_word(r, target, sig, *args, **kw):
                 value = word(r, target, sig, *args, **kw)
                 return value + int((sig == 'nonce()' and gate == 'post_safe_nonce') or
-                                   (sig == 'balanceOf(address)' and gate == 'post_swap_capped_balance'))
+                                   (terminal and sig == 'balanceOf(address)' and gate == 'post_swap_capped_balance'))
             def mined(*args, **kw):
                 result = receipt(*args, **kw)
                 if gate == 'manifest_receipt_gas': result['gasUsed'] = hex(a.qty(result['gasUsed'])+1)
@@ -3877,14 +3882,16 @@ class F05RunManifestGates(F05Fixture):
                 result = execute(*args, **kw)
                 if gate == 'steps_complete': result['step'] = 'wrong'
                 return result
-            accounting = dict(totalTrackedBalance=m.BUFFER + int(gate == 'post_swap_tracked'),
-                protocolRevenue=m.BUFFER + int(gate == 'post_swap_revenue'),
-                operatorBalances={x:0 for x in self.pin['pauseList']})
+            def accounting(*args, **kw):
+                state = balances(*args, **kw)
+                if terminal:
+                    state['totalTrackedBalance'] += int(gate == 'post_swap_tracked')
+                    state['protocolRevenue'] += int(gate == 'post_swap_revenue')
+                return state
             with patch.object(a, 'nonce', side_effect=read_nonce), patch.object(a, 'word', side_effect=read_word), \
                  patch.object(u, 'receipt', side_effect=mined), patch.object(m, 'execute_b4', side_effect=b4), \
-                 patch.object(m, 'balances', return_value=accounting), \
-                 patch.object(m, 'handover_controls', return_value=dict(control=
-                     'missing' if gate == 'controls_complete' else 'owner_handover')), \
+                 patch.object(m, 'balances', side_effect=accounting), \
+                 patch.object(m, 'handover_controls', side_effect=handover), \
                  patch.object(m, 'solvency_probe', return_value=dict(allSolvent=gate != 'post_swap_solvency')):
                 return run(remote, rpc, plan, out, calibrate)
         with patch.object(m, 'run_manifest', side_effect=injected):
@@ -3973,6 +3980,7 @@ class F05CollectGates(F05Fixture):
                 patch.object(m, 'reconcile_nonces'), patch.object(m, 'record_old_activity', return_value=({}, [])),
                 patch.object(m, 'dvt_activity', return_value=[]), patch.object(m, 'old_pointers', return_value={}),
                 patch.object(m, 'balances', return_value={}),
+                patch.object(m, 'collect_phase_c', return_value=self.pin['phaseC']),
                 patch.object(m.isolation, 'collect_deployed', return_value=self.pin['oldOwnerIsolation'])]:
                 stack.enter_context(item)
             self.stop(gate, lambda:m.collect(rpc, self.pin['block'], self.inputs))
