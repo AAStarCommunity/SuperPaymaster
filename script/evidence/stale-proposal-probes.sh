@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Gate-removal probes for the DVT stale-proposal exemption, closing readback and pointer gates.
 # Each probe replaces one gate with `pass` (or drops the sibling level comparison) in a scratch
-# copy of manifest_exec.py, runs the named controls, and requires them to turn red.
+# copy of manifest_exec.py, runs the named controls, and requires them to turn red by an
+# assertion failure (FAILED with failures=N and no errors=): an exception elsewhere is not
+# evidence that the forbidden state was accepted.
 # Usage: script/evidence/stale-proposal-probes.sh   (from repo root; set A3A_ENGINE_DIR as in CI)
 set -u
 cd "$(git rev-parse --show-toplevel)"
@@ -9,12 +11,14 @@ src=script/upgrade/manifest_exec.py
 bak=$(mktemp "${TMPDIR:-/tmp}/manifest_exec.XXXXXX")
 cp "$src" "$bak"
 trap 'cp "$bak" "$src"; rm -f "$bak"' EXIT
-tests='-k stale_dvt -k dvt_closing -k old_pointers'
+tests='-k stale_dvt -k unsigned_dvt -k dvt_closing -k old_pointers'
 status=0
 run() { python3 -B script/upgrade/test_manifest_exec.py $tests 2>&1 | grep -E '^(OK|FAILED)' | tail -1; }
 base=$(run); echo "baseline: $base"; case "$base" in OK*) ;; *) echo "baseline not green"; exit 1;; esac
-for gate in dvt_stale_proposal_listed dvt_stale_proposal_shape dvt_stale_sibling_executed dvt_stale_next_id \
-            closing_dvt_pointer closing_dvt_next_id closing_stale_unexecuted old_pointer pointer_owner; do
+red() { case "$1" in *errors=*) return 1;; FAILED*failures=*) return 0;; *) return 1;; esac; }
+for gate in dvt_stale_next_id dvt_proposal_inventory dvt_stale_proposal_listed dvt_stale_proposal_shape \
+            dvt_stale_sibling_executed dvt_stale_open_set closing_dvt_pointer closing_dvt_activity \
+            closing_stale_unexecuted old_pointer pointer_owner; do
   cp "$bak" "$src"
   python3 - "$src" "$gate" <<'PY'
 import sys
@@ -26,7 +30,7 @@ l = lines[hits[0]]
 lines[hits[0]] = l[:len(l)-len(l.lstrip())] + 'pass'
 open(p, 'w').write('\n'.join(lines))
 PY
-  r=$(run); echo "remove $gate -> $r"; case "$r" in FAILED*) ;; *) status=1;; esac
+  r=$(run); echo "remove $gate -> $r"; red "$r" || status=1
 done
 cp "$bak" "$src"
 python3 - "$src" <<'PY'
@@ -36,6 +40,6 @@ old = "(peer[0], peer[1], peer[3], peer[5]), (w[0], w[1], 1, evidence)"
 assert s.count(old) == 1
 open(p, 'w').write(s.replace(old, "(peer[0], peer[3], peer[5]), (w[0], 1, evidence)"))
 PY
-r=$(run); echo "drop sibling level -> $r"; case "$r" in FAILED*) ;; *) status=1;; esac
+r=$(run); echo "drop sibling level -> $r"; red "$r" || status=1
 echo "PROBES_ALL_RED=$((1-status))"
 exit $status

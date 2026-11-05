@@ -1516,78 +1516,79 @@ class ManifestTests(unittest.TestCase):
 
 
     def test_unsigned_dvt_proposal_stops(self):
-        logs = [dict(topics=[a.keccak('ProposalCreated(uint256,address,uint8)'), '0x'+format(1, '064x')])]
-        for executed in (False, True):
-            raw = a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)',
-                         u.DEPLOYER, 0, 'fixture', str(executed).lower(), 'true', a.ZERO32)
-            with patch.object(u, 'creation', return_value=1), patch.object(u, 'scan', return_value=logs), patch.object(a, 'call', return_value=raw):
-                if executed:
-                    self.assertEqual(m.dvt_activity(None, DVT, '0x100'), logs)
-                else:
-                    with self.assertRaises(a.Gate):
-                        m.dvt_activity(None, DVT, '0x100')
+        # Superseded fixture shape: the getter inventory is now authoritative (see stale tests).
+        self.assertEqual(len(self.stale_proposals()), 9)
+        with self.assertRaises(a.Gate) as caught:
+            self.stale_proposals(lambda rows: rows[7].update(executed=False))
+        self.assertEqual(caught.exception.record['gate'], 'dvt_stale_proposal_listed')
 
-    def stale_proposals(self, edit=None, next_id=10):
+    def stale_proposals(self, edit=None, next_id=10, omit_log=()):
         rows = {i: dict(operator=m.STALE_PROPOSAL_OPERATOR, level=1, executed=i in (3, 7),
-                        evidence=m.STALE_PROPOSALS.get(i, (0, m.STALE_PROPOSALS[1 if i < 7 else 8][1]))[1])
-                for i in range(1, 10)}
+                        evidence=m.STALE_PROPOSALS[1 if i < 7 else 8][1]) for i in range(1, 10)}
         if edit:
             edit(rows)
-        logs = [dict(topics=[a.keccak('ProposalCreated(uint256,address,uint8)'), '0x'+format(i, '064x')]) for i in rows]
+        logs = [dict(topics=[a.keccak('ProposalCreated(uint256,address,uint8)'), '0x'+format(i, '064x')])
+                for i in rows if i not in omit_log]
         def call(rpc, target, sig, proposal, block=None):
-            r = rows[proposal]
+            self.assertEqual((target, sig), (DVT, 'proposals(uint256)'))
+            r = rows.get(proposal, dict(operator=a.ZERO, level=0, executed=False, evidence=0, exists=False))
             return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', r['operator'], r['level'],
-                          'fixture', str(r['executed']).lower(), 'true', '0x'+format(r['evidence'], '064x'))
+                          'fixture', str(r['executed']).lower(), str(r.get('exists', True)).lower(), '0x'+format(r['evidence'], '064x'))
+        def word(rpc, target, sig, *args, **kw):
+            self.assertEqual((target, sig), (DVT, 'nextProposalId()'))
+            return next_id
         with patch.object(u, 'creation', return_value=1), patch.object(u, 'scan', return_value=logs), \
-             patch.object(a, 'call', side_effect=call), patch.object(a, 'word', return_value=next_id):
+             patch.object(a, 'call', side_effect=call), patch.object(a, 'word', side_effect=word):
             return m.dvt_activity(None, DVT, '0x100')
 
     def test_stale_dvt_proposals_accepted_only_exactly(self):
         self.assertEqual(len(self.stale_proposals()), 9)
         def unexecuted(i): return lambda rows: rows[i].update(executed=False)
         def extra(rows): rows[10] = dict(rows[8])
+        def extra_executed(rows): rows[10] = dict(rows[7])
         def operator(rows): rows[2].update(operator=u.DEPLOYER)
         def level(rows): rows[4].update(level=2)
         def evidence(rows): rows[8].update(evidence=m.STALE_PROPOSALS[1][1])
         def sibling(rows): rows[3].update(evidence=m.STALE_PROPOSALS[8][1])
         def sibling_level(rows): rows[7].update(level=2)
         def sibling_operator(rows): rows[3].update(operator=u.DEPLOYER)
-        cases = [(unexecuted(3), 'dvt_stale_sibling_executed'), (extra, 'dvt_stale_proposal_listed'),
-                 (operator, 'dvt_stale_proposal_shape'), (level, 'dvt_stale_proposal_shape'),
-                 (evidence, 'dvt_stale_proposal_shape'), (sibling, 'dvt_stale_sibling_executed'),
-                 (sibling_level, 'dvt_stale_sibling_executed'), (sibling_operator, 'dvt_stale_sibling_executed')]
-        for edit, gate in cases:
-            with self.subTest(gate=gate, edit=edit.__name__ if hasattr(edit, '__name__') else edit):
+        def stale_executed(rows): rows[8].update(executed=True)
+        cases = [(dict(edit=unexecuted(3)), 'dvt_stale_proposal_listed'),
+                 (dict(edit=extra), 'dvt_proposal_inventory'), (dict(edit=extra_executed), 'dvt_proposal_inventory'),
+                 (dict(omit_log=(2,)), 'dvt_proposal_inventory'), (dict(omit_log=tuple(range(1, 10))), 'dvt_proposal_inventory'),
+                 (dict(edit=operator), 'dvt_stale_proposal_shape'), (dict(edit=level), 'dvt_stale_proposal_shape'),
+                 (dict(edit=evidence), 'dvt_stale_proposal_shape'), (dict(edit=sibling), 'dvt_stale_sibling_executed'),
+                 (dict(edit=sibling_level), 'dvt_stale_sibling_executed'), (dict(edit=sibling_operator), 'dvt_stale_sibling_executed'),
+                 (dict(edit=stale_executed), 'dvt_stale_open_set'), (dict(next_id=11), 'dvt_stale_next_id')]
+        for kw, gate in cases:
+            with self.subTest(gate=gate, case=getattr(kw.get('edit'), '__name__', kw)):
                 with self.assertRaises(a.Gate) as caught:
-                    self.stale_proposals(edit)
+                    self.stale_proposals(**kw)
                 self.assertEqual(caught.exception.record['gate'], gate)
-        with self.assertRaises(a.Gate) as caught:
-            self.stale_proposals(next_id=11)
-        self.assertEqual(caught.exception.record['gate'], 'dvt_stale_next_id')
 
-    def closing_rpc(self, pointer, next_id=10, executed=()):
+    def closing_rpc(self, pointer, activity='pin', executed=()):
         def address(r, target, sig, block='latest'):
             self.assertEqual((target, sig), (DVT, 'BLS_AGGREGATOR()'))
             return pointer
-        def word(r, target, sig, *args, **kw):
-            self.assertEqual((target, sig), (DVT, 'nextProposalId()'))
-            return next_id
         def call(r, target, sig, proposal, **kw):
             return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', m.STALE_PROPOSAL_OPERATOR, 1,
                           'fixture', str(proposal in executed).lower(), 'true', a.ZERO32)
-        return [patch.object(a, 'address', side_effect=address), patch.object(a, 'word', side_effect=word),
-                patch.object(a, 'call', side_effect=call)]
+        seen = [{'recorded': True}] if activity == 'pin' else [{'changed': True}]
+        return [patch.object(a, 'address', side_effect=address), patch.object(a, 'call', side_effect=call),
+                patch.object(a, 'block_data', return_value=dict(number='0x200')),
+                patch.object(m, 'dvt_activity', return_value=copy.deepcopy(seen))]
 
     def test_dvt_closing_binds_pointer_and_stale_proposals(self):
         new, old = self.plan['addresses']['BLSAggregator'], self.plan['pin']['oldAggregator']
         cases = [('full', new, {}, None), ('b4', new, {}, None), ('a7', old, {}, None),
                  ('full', old, {}, 'closing_dvt_pointer'), ('a7', new, {}, 'closing_dvt_pointer'),
-                 ('full', new, dict(next_id=11), 'closing_dvt_next_id'),
+                 ('full', new, dict(activity='changed'), 'closing_dvt_activity'),
                  ('full', new, dict(executed=(8,)), 'closing_stale_unexecuted')]
         for stage, pointer, extra, gate in cases:
             with self.subTest(stage=stage, pointer=pointer, extra=extra), contextlib.ExitStack() as stack:
                 for p in self.closing_rpc(pointer, **extra): stack.enter_context(p)
-                plan = dict(self.plan, stage=stage)
+                plan = copy.deepcopy(dict(self.plan, stage=stage))
+                plan['pin'].setdefault('oldActivity', {})['dvtProposals'] = [{'recorded': True}]
                 if gate is None:
                     self.assertEqual(m.dvt_closing(None, plan)['staleUnexecuted'], [1, 2, 4, 5, 6, 8, 9])
                 else:

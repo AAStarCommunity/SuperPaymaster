@@ -850,21 +850,23 @@ def unchanged_old_activity(rpc, plan, block):
 
 def dvt_activity(rpc, dvt, block):
     # DVT owns proposal creation; aggregation events alone cannot find unsigned proposals.
+    # Getters are the inventory; logs must reconcile with them exactly (missing logs are not "none").
     start = u.creation(rpc, dvt, block)
     proposals = u.scan(rpc, dvt, start, block, [a.keccak('ProposalCreated(uint256,address,uint8)')])
-    words = {}
-    for log in proposals:
-        proposal = int(log['topics'][1], 16)
-        words[proposal] = u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))
-    for proposal, w in words.items():
-        if w[3] == 1:
-            continue
+    a.need('dvt_stale_next_id', a.word(rpc, dvt, 'nextProposalId()', block=block), STALE_PROPOSAL_NEXT_ID)
+    ids = list(range(1, STALE_PROPOSAL_NEXT_ID))
+    a.need('dvt_proposal_inventory', sorted(int(log['topics'][1], 16) for log in proposals), ids)
+    words = {i: u.uints(a.call(rpc, dvt, 'proposals(uint256)', i, block=block)) for i in ids}
+    open_ids = [i for i in ids if words[i][3] != 1]
+    for proposal in open_ids:
         a.need('dvt_stale_proposal_listed', proposal in STALE_PROPOSALS, True)
-        sibling, evidence = STALE_PROPOSALS[proposal]
-        a.need('dvt_stale_proposal_shape', (w[0], w[1], w[4], w[5]), (int(STALE_PROPOSAL_OPERATOR, 16), 1, 1, evidence))
+    for proposal in open_ids:
+        w = words[proposal]
+        sibling, evidence = STALE_PROPOSALS.get(proposal, (None, None))
+        a.need('dvt_stale_proposal_shape', (w[0], w[1], w[3], w[4], w[5]), (int(STALE_PROPOSAL_OPERATOR, 16), 1, 0, 1, evidence))
         peer = words.get(sibling, [0]*6)
         a.need('dvt_stale_sibling_executed', (peer[0], peer[1], peer[3], peer[5]), (w[0], w[1], 1, evidence))
-        a.need('dvt_stale_next_id', a.word(rpc, dvt, 'nextProposalId()', block=block), STALE_PROPOSAL_NEXT_ID)
+    a.need('dvt_stale_open_set', open_ids, sorted(STALE_PROPOSALS))
     return proposals
 
 
@@ -882,7 +884,8 @@ def dvt_closing(rpc, plan):
     dvt = plan['externalInputs']['data']['dvt']
     expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
     a.need('closing_dvt_pointer', a.address(rpc, dvt, 'BLS_AGGREGATOR()'), expected)
-    a.need('closing_dvt_next_id', a.word(rpc, dvt, 'nextProposalId()'), STALE_PROPOSAL_NEXT_ID)
+    latest = dvt_activity(rpc, dvt, a.block_data(rpc, 'latest')['number'])
+    a.need('closing_dvt_activity', latest, plan['pin']['oldActivity']['dvtProposals'])
     for proposal in sorted(STALE_PROPOSALS):
         a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal))[3]), (proposal, 0))
     return dict(dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS))

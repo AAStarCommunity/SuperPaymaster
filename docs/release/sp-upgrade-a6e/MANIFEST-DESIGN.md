@@ -53,7 +53,7 @@ Chain preconditions at the pin block:
 - Registry is 5.8.0 with storage layout identical to 5.9.0 (32 variables, `_owner` at slot 0). **VERIFY**.
 - The old BLSAggregator has no in-flight proposal or uncleared exit notice, scanned from its deployment block, except **DSR 2026-11-04 ruling: address-exact exemption**. Only `0xf36c9317765634e4995ce1e7210b5738225425b0` is hard-coded in the repository; plans/external inputs cannot add exemptions. For a nonzero `guardianExitRequests` value, independently require `expiresAt < block.timestamp` (`old_exit_exempt_expired`), absence from **every** `validatorAtSlot(1..13)` (`old_exit_exempt_slot`), on-chain `MAX_VALIDATORS == 13` (`old_exit_max_validators`), zero `pendingGuardianSlashCount` (`old_exit_exempt_slash`), absence from the A7 PoP inventory (`old_exit_exempt_pop`; at stage a7, before the PoP exists, this follows from the slot scan because the PoP validator set must equal the old aggregator's nonempty slot inventory, recorded as `popSource: slot-inventory`), and exact exemption-list membership (`old_exit_exempt_listed`). Otherwise STOP under the `old_exit_cleared` precondition with the specific failing gate. Read at the pin on both endpoints, record and replay both transcripts offline, and re-read all conditions at every `pre_send`.
   - In 4.11.0 the notice affects only `_reconstructPkAgg` (slot holders in the signer mask) and `_requireCommitteeSurvivesExit` (iterates `validatorAtSlot`). A guardian in no slot affects neither signing nor quorum counting on the forward **or rollback** path. The slot condition is load-bearing; rollback during A7–A12b can point back to this aggregator. The expired request cannot be consumed to exit the DVT role (`GuardianExitRequestExpired`).
-- DVTValidator `0x568b…9E0e` has no unexecuted proposal, except **DSR 2026-11-05 ruling: id-exact exemption** for the seven duplicate E2E proposals `{1,2,4,5,6,8,9}` (see *A7 evidence notes — DSR 2026-11-05 stale DVT proposals*). The id set is hard-coded; plans/external inputs cannot add ids. Each must pass `dvt_stale_proposal_listed`, `dvt_stale_proposal_shape`, `dvt_stale_sibling_executed` and `dvt_stale_next_id`; at the pin `old_pointer` requires DVTValidator and the committee to point at the old aggregator; `A8.dvt` reads back `BLS_AGGREGATOR == A7`; after the last step `dvt_closing` re-checks the pointer, `nextProposalId == 10` and the seven `executed == false`.
+- DVTValidator `0x568b…9E0e` has no unexecuted proposal, except **DSR 2026-11-05 ruling: id-exact exemption** for the seven duplicate E2E proposals `{1,2,4,5,6,8,9}` (see *A7 evidence notes — DSR 2026-11-05 stale DVT proposals*). The id set is hard-coded; plans/external inputs cannot add ids. The getters are the inventory: `nextProposalId == 10` (`dvt_stale_next_id`), `proposals(1..9)` are read directly, and the `ProposalCreated` log ids must equal exactly `1..9` (`dvt_proposal_inventory`; a missing or extra log STOPs). Each unexecuted id must pass `dvt_stale_proposal_listed`, `dvt_stale_proposal_shape` and `dvt_stale_sibling_executed`, and the unexecuted set must equal the seven ids (`dvt_stale_open_set`, so executing any of them also STOPs). At the pin `old_pointer` requires DVTValidator and the committee to point at the old aggregator; `A8.dvt` reads back `BLS_AGGREGATOR == A7`; after the last step `dvt_closing` re-checks the pointer (`closing_dvt_pointer`), re-runs the inventory against the pin record (`closing_dvt_activity`) and the seven `executed == false` (`closing_stale_unexecuted`).
 - Token-swap balances (current, re-read at the pin):
   - `totalTrackedBalance` = 2934.14 aPNTs;
   - deployer operator 1690.01;
@@ -560,16 +560,21 @@ same evidence and one sibling executed (DVT #186 fixed the orphaning). DVTValida
 no cancel or expiry path, and `markProposalExecuted` is aggregator-only, so they stay open.
 DSR independently read the same values on two endpoints at the pin and at latest.
 
-The exemption accepts an unexecuted proposal only if its id is listed, its
-(operator, level, exists, evidenceHash) equals the recorded tuple, its sibling (3 or 7)
-is executed with equal operator, level and evidenceHash, and `nextProposalId == 10`.
-Gate-removal probes: `script/evidence/stale-proposal-probes.sh`.
+The getters `nextProposalId` and `proposals(1..9)` are the inventory; the log ids must
+equal `1..9` exactly, so incomplete logs (even if both endpoints agree) STOP instead of
+hiding a proposal. The exemption accepts an unexecuted proposal only if its id is listed,
+its (operator, level, executed, exists, evidenceHash) equals the recorded tuple, and its
+sibling (3 or 7) is executed with equal operator, level and evidenceHash; the unexecuted
+set must be exactly the seven ids.
+Gate-removal probes: `script/evidence/stale-proposal-probes.sh` (each removal must turn its
+control red by an assertion failure, not by an exception).
 
 Known residual (also for the paper's disclosure):
 - the seven proposals remain executable on-chain against `0xF7Bf…642C` (Jammy: guardian
   and test-Safe executor), level 1 each;
 - executing one needs an active validator plus a BLS co-signature that meets the A7
-  threshold, the same bar as creating a new proposal, so no capability is added;
+  threshold. That is the same bar as creating **and executing** a fresh proposal
+  (creation alone needs only an active validator, no BLS proof), so no capability is added;
 - DVT reports that its nodes never execute them (master `830a544e` and the running
   containers: no enumeration of on-chain proposals, `executeWithProof` only for ids from
   the node's own round, audit execution disabled). DSR has not re-verified this.
