@@ -32,6 +32,27 @@ PROBES = [
      '                if role != ROLE_ENDUSER: role_control(name,target,role,spec)\n',
      'OldOwnerIsolationTests.test_mapping_enduser_without_control_holder',
      'AssertionError: Lists differ: [] != [True]'),
+    ('enduser_configured_call_skipped',
+     '\n            role_control(name,target,role,spec)\n',
+     '\n            if role != ROLE_ENDUSER: role_control(name,target,role,spec)\n',
+     'OldOwnerIsolationTests.test_mapping_enduser_configured_only',
+     'AssertionError: Lists differ: [] != [True]'),
+    # Role-specific shortcuts inside mapping_control (each must be rejected by the per-role negative cases).
+    ('enduser_skips_getter_proof',
+     "    try:\n        a.need('old_owner_mapping_getter',",
+     "    try:\n        if role != ROLE_ENDUSER: a.need('old_owner_mapping_getter',",
+     'OldOwnerIsolationTests.test_mapping_function_getter_rejected_per_role',
+     "AssertionError: True is not False"),
+    ('enduser_ignores_positive_control',
+     "    a.need('old_owner_mapping_positive',word(target,'hasRole(bytes32,address)',ROLE_COMMUNITY,u.DEPLOYER),1)\n",
+     "    positive = word(target,'hasRole(bytes32,address)',ROLE_COMMUNITY,u.DEPLOYER)\n    if role != ROLE_ENDUSER: a.need('old_owner_mapping_positive',positive,1)\n",
+     'OldOwnerIsolationTests.test_mapping_positive_zero',
+     'AssertionError: Gate not raised'),
+    ('enduser_ignores_negative_control',
+     "    a.need('old_owner_mapping_negative',word(target,'hasRole(bytes32,address)',ROLE_COMMUNITY,OLD),0)\n",
+     "    negative = word(target,'hasRole(bytes32,address)',ROLE_COMMUNITY,OLD)\n    if role != ROLE_ENDUSER: a.need('old_owner_mapping_negative',negative,0)\n",
+     'OldOwnerIsolationTests.test_mapping_negative_one',
+     'AssertionError: Gate not raised'),
 ]
 
 

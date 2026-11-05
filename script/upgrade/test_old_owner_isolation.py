@@ -312,9 +312,10 @@ class OldOwnerIsolationTests(unittest.TestCase):
         key = ('eth_call',str([dict(to=u.REG,data=a.calldata('hasRole(bytes32,address)',CUSTOM_ROLE,u.SAFE)),self.pin['stateBlock']]))
         self.assert_gate('old_owner_role_control_path',lambda:o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory()))
 
-    def test_mapping_enduser_without_control_holder(self):
-        # DSR 2026-11-05: ENDUSER has history but no control holder; the mapping-getter proof is its control path.
-        self.assertEqual(o.ROLE_ENDUSER, a.keccak('ENDUSER'))
+    def enduser_audit(self, source):
+        # DSR 2026-11-05: ENDUSER has no control holder; the mapping-getter proof is its control path. `source`
+        # picks the role_control call site: 'granted' (grant history) or 'configured' (RoleConfigured only, the
+        # configured-non-standard loop). Returns the (Registry, ENDUSER) mapping_control calls and their reads.
         def query(sig,args):
             return ('eth_call',str([dict(to=u.REG,data=a.calldata(sig,*args)),self.pin['stateBlock']]))
         cfg = [32]+[0]*13
@@ -327,10 +328,13 @@ class OldOwnerIsolationTests(unittest.TestCase):
         def rpc(method,params):
             result = base(method,params)
             query = params[0] if method == 'eth_getLogs' else {}
-            if query.get('address') == u.REG and len(query['topics']) == 1 and len(query['topics'][0]) == 4 and result:
+            if source == 'granted' and query.get('address') == u.REG and len(query['topics']) == 1 \
+                    and len(query['topics'][0]) == 4 and result:
                 # One RoleGranted(ENDUSER) to the Safe, appended to the Registry grant history.
                 grant = next(log for log in result if log['topics'][0] == a.keccak(o.GRANTED))
                 result = result+[dict(grant,topics=[grant['topics'][0],o.ROLE_ENDUSER,*grant['topics'][2:]],logIndex=hex(len(result)))]
+            if source == 'configured' and query.get('topics') == [a.keccak(o.ROLE_EVENT)] and result:
+                result = result+[dict(result[0],topics=[a.keccak(o.ROLE_EVENT),o.ROLE_ENDUSER])]
             if method == 'eth_call':
                 seen.append(params[0]['data'])
             return result
@@ -338,19 +342,30 @@ class OldOwnerIsolationTests(unittest.TestCase):
         calls = []
         real = o.mapping_control
         def spy(spec,target,role,word):
-            # Record the COMMUNITY control reads this ENDUSER call makes, not ones ANODE/KMS make elsewhere.
+            # Record the reads this call makes, not the COMMUNITY reads ANODE/KMS make elsewhere.
             start = len(seen)
             result = real(spec,target,role,word)
             calls.append((target,role,result,seen[start:]))
             return result
         with patch.object(o,'mapping_control',side_effect=spy):
             result = o.audit(rpc,self.pin,inventory())
-        self.assertIn(o.ROLE_ENDUSER, result['roleHistory'][u.REG])
-        enduser = [c for c in calls if c[:2] == (u.REG,o.ROLE_ENDUSER)]
+        self.assertEqual(o.ROLE_ENDUSER in result['roleHistory'][u.REG], source == 'granted')
+        self.assertIn(o.ROLE_ENDUSER, result['configuredRoles'])
+        return [c for c in calls if c[:2] == (u.REG,o.ROLE_ENDUSER)]
+
+    def assert_enduser_controls(self, enduser):
         self.assertEqual([c[2] for c in enduser],[True])
         # This call's own controls: COMMUNITY read for DEPLOYER (positive) and OLD (negative).
         for who in (u.DEPLOYER,o.OLD):
             self.assertIn(a.calldata('hasRole(bytes32,address)',o.ROLE_COMMUNITY,who),enduser[0][3])
+
+    def test_mapping_enduser_without_control_holder(self):
+        self.assertEqual(o.ROLE_ENDUSER, a.keccak('ENDUSER'))
+        self.assert_enduser_controls(self.enduser_audit('granted'))
+
+    def test_mapping_enduser_configured_only(self):
+        # Codex P2: the configured-non-standard call site of role_control must reach ENDUSER's controls too.
+        self.assert_enduser_controls(self.enduser_audit('configured'))
 
     def test_role_control_case_without_path_gate(self):
         # With the path gate only recording (diagnostic mode), a missing case still STOPs as a gate, not a TypeError.
@@ -362,11 +377,28 @@ class OldOwnerIsolationTests(unittest.TestCase):
         with patch.object(a,'need',side_effect=recording):
             self.assert_gate('old_owner_role_control_case',lambda:o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory()))
 
+    # Codex P2: every listed role, by name, so a role-specific shortcut in mapping_control cannot pass.
+    MAPPING_ROLES = ('ROLE_ANODE','ROLE_KMS','ROLE_ENDUSER')
+
+    def mapping_word(self, positive=1, negative=0):
+        return lambda target,sig,role,who: positive if who == u.DEPLOYER else negative if who == o.OLD else 0
+
     def test_mapping_positive_zero(self):
-        self.assert_gate('old_owner_mapping_positive',lambda:o.mapping_control(inventory()['Registry'],u.REG,o.ROLE_ANODE,lambda *args:0))
+        for name in self.MAPPING_ROLES:
+            with self.subTest(role=name):
+                self.assert_gate('old_owner_mapping_positive',lambda:o.mapping_control(inventory()['Registry'],u.REG,getattr(o,name),self.mapping_word(positive=0)))
 
     def test_mapping_negative_one(self):
-        self.assert_gate('old_owner_mapping_negative',lambda:o.mapping_control(inventory()['Registry'],u.REG,o.ROLE_ANODE,lambda *args:1))
+        for name in self.MAPPING_ROLES:
+            with self.subTest(role=name):
+                self.assert_gate('old_owner_mapping_negative',lambda:o.mapping_control(inventory()['Registry'],u.REG,getattr(o,name),self.mapping_word(negative=1)))
+
+    def test_mapping_function_getter_rejected_per_role(self):
+        spec = dict(inventory()['Registry'],hasRoleGetter='function')
+        for name in self.MAPPING_ROLES:
+            with self.subTest(role=name):
+                self.assertIs(o.mapping_control(inventory()['Registry'],u.REG,getattr(o,name),self.mapping_word()),True)
+                self.assertIs(o.mapping_control(spec,u.REG,getattr(o,name),self.mapping_word()),False)
 
     def test_imported_roles_without_has_role_remain_in_standard_union(self):
         spec = copy.deepcopy(inventory()['SuperPaymaster'])
