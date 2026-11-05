@@ -1907,6 +1907,8 @@ def execute_b4(remote, rpc, plan, step, context, overrides, calibrate, out=None)
     rpc('evm_setNextBlockTimestamp', [timestamp])
     r = u.receipt(rpc, tx, status=None)
     a.mined_identity(rpc('eth_getTransactionByHash', [r['transactionHash']]), tx, 'B4')
+    # Codex audit605 round 4: like manifest_timestamp, B4 must be mined at the timestamp it was measured for.
+    a.need('B4_timestamp', a.qty(a.block_data(rpc, r['blockNumber'])['timestamp']), timestamp)
     a.need('B4_nonce_consumed', a.nonce(rpc, tx['from']), a.qty(tx['nonce'])+1)
     a.need('B4_safe_nonce', a.word(rpc, u.SAFE, 'nonce()'), step['safeNonce'])
     a.need('B4_receipt_gas', a.qty(r['gasUsed']) <= a.qty(tx['gas']), True)

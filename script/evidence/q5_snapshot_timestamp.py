@@ -9,15 +9,17 @@ Usage (repository root):
   python3 -B script/evidence/q5_snapshot_timestamp.py --engine DIR --mode local
   python3 -B script/evidence/q5_snapshot_timestamp.py --engine DIR --mode fork --rpc-file FILE --block N
 Scope (trust root): main-path executionTimestamps are explicit (latest header + 1, set with
-evm_setNextBlockTimestamp right before the step is mined) and asserted by manifest_timestamp /
-mined_execution_timestamp. What they need from the engine is (a) evm_revert restores the latest header,
+evm_setNextBlockTimestamp right before the step is mined) and asserted by manifest_timestamp,
+B4_timestamp (manifest_exec) and mined_execution_timestamp (sp_upgrade_exec). What they need from the engine is (a) evm_revert restores the latest header,
 (b) an explicit timestamp below the control's jump is accepted afterwards; both are checked for single and
 nested snapshots. The auto-mined checks additionally show the jump is not inherited; they do not pin the exact
 clock offset (an offset restored too low is masked by header clamping and cannot move an explicit timestamp).
 A wall-clock step larger than TOLERANCE during the run makes it FAIL (fail-closed).
 
 The RPC URL is read from FILE and only ever held by this process: anvil forks from a local relay
-(127.0.0.1), relay failures return a bare 502, and JSON-RPC errors are reported by code only. Engine output is discarded.
+(127.0.0.1), relay failures return a bare 502, JSON-RPC errors are reported by code only and transport errors
+by exception type only. Engine stdout/stderr are discarded; the only engine text kept is the first line of
+`anvil --version` (the engine identity, checked against a3a_exec.COMMIT).
 """
 import sys
 sys.dont_write_bytecode = True
@@ -73,7 +75,11 @@ class Local:
         self.n += 1
         body = json.dumps(dict(jsonrpc='2.0', id=self.n, method=method, params=params)).encode()
         req = urllib.request.Request(self.url, body, {'content-type': 'application/json'})
-        out = json.load(urllib.request.urlopen(req, timeout=120))
+        try:
+            out = json.load(urllib.request.urlopen(req, timeout=120))
+        except Exception as e:
+            # Transport errors (e.g. an HTTP reason phrase) are engine content too: type name only.
+            raise RuntimeError(f'{method}: transport error {type(e).__name__}') from None
         if 'error' in out:
             # Upstream error text can carry credentials in any form; report the code only.
             code = out['error'].get('code') if isinstance(out['error'], dict) else None

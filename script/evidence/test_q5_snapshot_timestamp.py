@@ -138,6 +138,17 @@ class Q5Controls(unittest.TestCase):
         finally:
             q5.urllib.request.urlopen = real
         self.assertEqual(str(caught.exception), 'eth_chainId: JSON-RPC error code non-integer')
+        # Codex round 4: an HTTP error's reason phrase must not surface either.
+        def http_error(*a, **k):
+            raise q5.urllib.error.HTTPError('http://127.0.0.1:0', 500, 'SYNTHETIC_SECRET', {}, None)
+        q5.urllib.request.urlopen, real = http_error, q5.urllib.request.urlopen
+        try:
+            with self.assertRaises(RuntimeError) as caught:
+                rpc('eth_chainId', [])
+        finally:
+            q5.urllib.request.urlopen = real
+        self.assertEqual(str(caught.exception), 'eth_chainId: transport error HTTPError')
+        self.assertIsNone(caught.exception.__cause__)
 
 
 if __name__ == '__main__':

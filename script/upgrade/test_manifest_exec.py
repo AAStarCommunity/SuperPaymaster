@@ -1869,11 +1869,13 @@ class ManifestTests(unittest.TestCase):
                 sent.append(tx)
                 state['verifier'] = ANNI if mode == 'wrong' else expected
                 return dict(status='0x1' if mode == 'preapplied' else '0x0',
-                    gasUsed=hex(21000), transactionHash='0x'+'12'*32)
+                    gasUsed=hex(21000), transactionHash='0x'+'12'*32, blockNumber='0xb4')
             def call(rpc, target, signature, *args):
                 value = int(state['verifier'], 16) if signature == 'fraudProofVerifier()' else 0
                 return '0x'+format(value, '064x')
-            with patch.object(a, 'block_data', return_value=dict(timestamp='0x100', gasLimit=hex(a.GAS_CAP))), \
+            def block_data(rpc, block):
+                return dict(timestamp='0x101' if block == '0xb4' else '0x100', gasLimit=hex(a.GAS_CAP))
+            with patch.object(a, 'block_data', side_effect=block_data), \
                  patch.object(a, 'call', side_effect=call), \
                  patch.object(a, 'address', side_effect=lambda *args:state['verifier']), \
                  patch.object(a, 'nonce', side_effect=lambda *args:state['nonce']), \
@@ -3806,14 +3808,20 @@ class F05ExecuteB4Gates(F05Fixture):
             if method == 'eth_getTransactionByHash': return {}
             if method == 'evm_setNextBlockTimestamp': return True
             raise AssertionError((method, params))
-        with patch.object(a, 'block_data', return_value=dict(timestamp='0x100', gasLimit='0xbebc200')), \
+        def block_data(rpc, block):
+            # latest is 0x100, so B4 is measured for 0x101; the mined block (0xb4) reports when it was mined.
+            mined = 0x101 + int(gate == 'B4_timestamp')
+            return dict(timestamp=hex(mined) if block == '0xb4' else '0x100', gasLimit='0xbebc200')
+        with patch.object(a, 'block_data', side_effect=block_data), \
              patch.object(u, 'measure_step'), patch.object(m, 'pre_send'), \
              patch.object(u, 'fresh_gas', return_value={}), patch.object(a, 'mined_identity'), \
              patch.object(m, 'b4_needed', return_value=True), patch.object(m, 'b4_post_state', return_value=[]), \
-             patch.object(u, 'receipt', return_value=dict(transactionHash=base.HASH, gasUsed='0x1', status='0x1')), \
+             patch.object(u, 'receipt', return_value=dict(transactionHash=base.HASH, gasUsed='0x1', status='0x1', blockNumber='0xb4')), \
              patch.object(a, 'nonce', return_value=a.qty(tx['nonce']) + int(gate != 'B4_nonce_consumed')), \
              patch.object(a, 'word', return_value=step['safeNonce'] + int(gate == 'B4_safe_nonce')):
             self.stop(gate, lambda:m.execute_b4(None, rpc, self.plan, step, {}, {}, True))
+
+    def test_B4_timestamp(self): self.check('B4_timestamp')
 
     def test_B4_nonce_consumed(self): self.check('B4_nonce_consumed')
 

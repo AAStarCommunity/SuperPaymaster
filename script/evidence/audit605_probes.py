@@ -33,7 +33,7 @@ F05 = {
                  'pending_token', 'pending_token_eta', 'onchain_safe_hash', 'fresh_estimate', 'block_gas_limit'],
     'run_manifest': ['post_nonce', 'post_safe_nonce', 'manifest_receipt_gas', 'steps_complete', 'controls_complete',
                      'post_swap_tracked', 'post_swap_revenue', 'post_swap_capped_balance', 'post_swap_solvency'],
-    'execute_b4': ['B4_nonce_consumed', 'B4_safe_nonce'],
+    'execute_b4': ['B4_timestamp', 'B4_nonce_consumed', 'B4_safe_nonce'],
     'collect': ['old_aggregator_owner', 'anni_eoa', 'stake_not_unlocking'],
     'build_plan': ['stake_not_unlocking'],
     'collect_pair': ['independent_pin'],
