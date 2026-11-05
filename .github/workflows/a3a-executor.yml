@@ -54,6 +54,12 @@ jobs:
       - name: Offline pre-sampling manifest tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_exec.py
+      - name: Offline manifest Phase C tests
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_phase_c.py
+      - name: Phase C gate-removal probes (every new gate's control must turn red)
+        run: |
+          cd script/upgrade && A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B probe_phase_c_gates.py "${{ github.event.pull_request.base.sha || github.event.before }}"
       - name: Offline manifest audit findings
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/audit/test_audit_findings.py

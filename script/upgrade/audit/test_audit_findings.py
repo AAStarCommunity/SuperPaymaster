@@ -61,7 +61,7 @@ class F01SampledOperators(AuditFixture):
 
 class F02BudgetShortfall(AuditFixture):
     def test_F02_budget_stop_reports_exact_shortfall(self):
-        """F-02: budget STOP reports {required, balance, shortfallWei} (MD section 4)."""
+        """F-02: budget STOP reports {requiredWei, balanceWei, shortfallWei} (MD section 4; DSR 2026-11-05 key names)."""
         plan = copy.deepcopy(self.plan)
         for step in plan['steps']:
             tm.freeze_gas(plan, step)
@@ -73,7 +73,9 @@ class F02BudgetShortfall(AuditFixture):
         record = caught.exception.record
         self.assertEqual(record['gate'], 'budget_deployer')
         self.assertIsInstance(record['observed'], dict)
-        self.assertEqual(record['observed'].get('shortfallWei'), 1)
+        observed = record['observed']
+        self.assertEqual(set(observed), {'requiredWei', 'balanceWei', 'shortfallWei'})
+        self.assertEqual((observed['shortfallWei'], observed['requiredWei']-observed['balanceWei']), (1, 1))
 
 
 class F03TokenEtaBinding(AuditFixture):

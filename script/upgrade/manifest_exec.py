@@ -66,6 +66,7 @@ MUTATIONS = {
     'subset_comparison': 'VerifierAcceptsGuardianSubset',
     'length_not_equal_to_less_than': 'VerifierAcceptsGuardianSuperset',
 }
+STAGES = ('a7', 'b4', 'c', 'full')
 DVT_SUITES = {'CC115CrossRepoConformance': 7, 'CC115GenuinePragueCrossRepo': 11, 'provenance': 5}
 
 VERIFIER_CREATION = '0x736520628b9e5ed4163f440e4e7b5d064b4e4cb4571c29d926941964e038e3ab'
@@ -606,8 +607,9 @@ def external(path, stage="full"):
 
 
 def validate_external(data, stage="full"):
-    a.need("stage", stage in ("a7", "b4", "full"), True)
-    required(data, (() if stage == "a7" else ("pop",)) + (("fraudProofFixture",) if stage == "full" else ()), "stage_inputs")
+    a.need("stage", stage in STAGES, True)
+    required(data, (() if stage == "a7" else ("pop",)) + (("fraudProofFixture",) if stage == "full" else ())
+             + (("phaseC",) if stage in PC_STAGES else ()), "stage_inputs")
     required(data, ('verifier', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei',
                     'releaseTag', 'releaseEvidence', 'registryBaselineCommit', 'a3aPlan'), 'external_inputs_complete')
     v = data['verifier']
@@ -617,6 +619,8 @@ def validate_external(data, stage="full"):
     evidence_file(dict(path=v['ciPath'], sha256=v['ciSha256']), 'dvt-ci')
     if stage == 'full':
         fraud_fixture(data['fraudProofFixture'])
+    if stage in PC_STAGES:
+        validate_phase_c_inputs(data['phaseC'])
     a.need('fixed_anni', data['anni'], ANNI)
     required(data['a3aPlan'], ('path', 'sha256', 'receipts'), 'a3a_input')
     reviewed_file(data['a3aPlan']['path'], data['a3aPlan']['sha256'], 'a3a_plan')
@@ -917,6 +921,320 @@ def drain_gate(pin):
     a.need('revenue_buffer', pin['protocolRevenue'] >= BUFFER, True)
     authorized = {pin['senders'][x]['address'] for x in ('deployer', 'anni')}
     a.need('drain_senders', all(v == 0 or k in authorized for k, v in pin['operatorBalances'].items()), True)
+
+
+# ---------------------------------------------------------------------------
+# Phase C: funding and sampling configuration (MANIFEST-DESIGN.md §3, after 6d).
+# Every value below is a DSR 2026-11-02 literal; none is chosen at execution time.
+# ---------------------------------------------------------------------------
+PC_STAGES = ('c', 'full')
+PC_ATTEMPTS = 100                 # n per arm (50 formal + 20 pilot + 30 margin); never reduced
+PC_FEE = 5*10**9                  # f: formal/pilot max fee per gas
+PC_PRIORITY = 10**9
+PC_PRICE_CAP = 3500*10**8         # P*: upper bound for positive cached ETH/USD
+PC_PRICE_DECIMALS = 8             # d
+PC_RATE = 10**18                  # e: X exchange rate
+PC_BETA = 5                       # beta_A / extra_EP_j / beta_X / beta_Q = 5x per-attempt maxima
+PC_BUNDLER_BETA = 2*10**17        # beta_B
+PC_SP_POSTOP = 480000             # initial pp_SP; SP_RENEW is never set
+PC_AMAX_CAP = 5000*10**18
+PC_XPNTS_TX_LIMIT = 5000*10**18   # xPNTsTokenV2.initialize default maxSingleTxLimit
+PC_CAP_L = 50000*10**18           # L: autoAllowance and userTotal cap, no renewal
+PC_TASK_UNIT = 1                  # u
+PC_TASK_SENDER = 3*PC_ATTEMPTS*PC_TASK_UNIT+PC_TASK_UNIT
+DEAD = '0x000000000000000000000000000000000000dead'   # R, TPM wrappedNative/uniswap
+PC_STAKE = 10**18
+PC_VALIDATION_BUFFER_BPS = 1000   # SuperPaymasterStorage.sol VALIDATION_BUFFER_BPS
+PC_TPM_MARKUP = 10**26
+PC_TPM_REFUND = 40000
+PC_TPM_AGE = 864000
+PC_TPM_THRESHOLD = 10**25
+PC_TOKEN = ('AOA Research Points', 'xARP', 'AOA Research', '')
+PC_TREASURY = u.SAFE
+FLAG_SP_RENEW = 1
+ACCOUNT_FACTORY = '0x91e60e0613810449d098b0b5ec8b51a0fe8c8985'
+ARMS = ('SP', 'VPM', 'TPM')
+# ISuperPaymaster.OperatorConfig declaration order = the public getter's return order.
+OPERATOR_FIELDS = ('aPNTsBalance', 'isConfigured', 'isPaused', 'xPNTsToken', 'reputation', 'minTxInterval',
+                   'treasury', 'totalSpent', 'totalTxSponsored')
+OP = {name: i for i, name in enumerate(OPERATOR_FIELDS)}
+ARM_FIELDS = ('call', 'verification', 'paymasterVerification', 'postOp', 'preVerification', 'outer')
+OWNER_PREPARATION = ('C9.allowance', 'C9.total', 'C9.mode', 'C18.approve')
+PC_RUNTIMES = ('accountFactory', 'accountImplementation', 'account', 'VerifyingPaymaster', 'TokenPaymaster')
+BASELINE_ARTIFACTS = {'VerifyingPaymaster': 'script/a6-collector/artifacts/VerifyingPaymaster.json',
+                      'TokenPaymaster': 'script/a6-collector/artifacts/TokenPaymaster.json'}
+F1_SOURCE = 'contracts/test/bundler/F1Fixtures.sol'
+VPM_CONSTRUCTOR = 'c(address,address)'
+TPM_CONSTRUCTOR = ('c(address,address,address,address,(uint256,uint128,uint48,uint48),'
+                   '(uint48,uint48,address,address,bool,bool,bool,uint256),(uint256,uint24,uint8),address)')
+F1_SCOPE_NOTE = ('F1Fixtures.sol header says "local nodes only"; DSR 2026-11-02 permits F1TestToken (separate '
+                 'T and Q instances) and F1Oracle on Sepolia for this gas experiment without source changes. '
+                 'The local Anvil deployment recipe (deploy-baselines.mjs) is not used.')
+
+
+@lru_cache(maxsize=8)
+def role_id(name):
+    return a.keccak(name)
+
+
+def abi_type(item):
+    if item['type'].startswith('tuple'):
+        return '('+','.join(abi_type(x) for x in item['components'])+')'+item['type'][5:]
+    return item['type']
+
+
+@lru_cache(maxsize=2)
+def rebuild_baselines(head):
+    """Comparator artifacts: F1 fixtures compiled from the release tree; the two unchanged
+    v0.7 sample paymasters from their committed artifacts, source-hash bound to the same tree."""
+    version = subprocess.run([str(a.REBUILD_FORGE), '--version'], capture_output=True, text=True, check=True).stdout
+    a.need('baseline_forge_version', version.splitlines()[0], 'forge Version: 1.7.1')
+    result = {}
+    with tempfile.TemporaryDirectory(prefix='manifest-baselines-') as directory:
+        tree = Path(directory)/'tree'
+        a.archive_commit(u.ROOT, head, tree)
+        env = {k: os.environ[k] for k in ('HOME', 'PATH', 'TMPDIR', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SVM_HOME') if k in os.environ}
+        env['FOUNDRY_PROFILE'] = 'default'
+        built = subprocess.run([str(a.REBUILD_FORGE), 'build', '--offline', '--ast', '--build-info'],
+                               cwd=tree, env=env, capture_output=True)
+        a.need('baseline_offline_build', built.returncode, 0)
+        for name, immutables in (('F1TestToken', ('MINTER',)), ('F1Oracle', ())):
+            art = json.loads((tree/'out/F1Fixtures.sol'/(name+'.json')).read_text())
+            refs = art['deployedBytecode'].get('immutableReferences', {})
+            identity = (a.immutable_identity(art, tree/'out/build-info', name, frozenset(immutables)) if refs else
+                        dict(artifactRuntime=art['deployedBytecode']['object'], ranges=[]))
+            a.need('baseline_immutables_'+name, sorted({r['name'] for r in identity['ranges']}), sorted(immutables))
+            result[name] = dict(bytecode=art['bytecode']['object'], runtimeIdentity=identity, source=F1_SOURCE, commit=head)
+        for name, path in BASELINE_ARTIFACTS.items():
+            raw = (tree/path).read_bytes()
+            art = a.plan_json(raw)
+            source = hashlib.sha256((tree/art['source']).read_bytes()).hexdigest()
+            a.need('baseline_source_'+name, art['sourceSha256'], source)
+            ctor = [x for x in art['abi'] if x.get('type') == 'constructor']
+            a.need('baseline_constructor_count_'+name, len(ctor), 1)
+            result[name] = dict(bytecode=art['bytecode'], artifact=path, artifactSha256=hashlib.sha256(raw).hexdigest(),
+                                source=art['source'], sourceSha256=source, commit=head,
+                                constructor='c('+','.join(abi_type(x) for x in ctor[0]['inputs'])+')')
+    return result
+
+
+def ceil_div(n, d):
+    return (n+d-1)//d
+
+
+def positive(x):
+    return max(0, x)
+
+
+def pre_pilot(x):
+    # Amsterdam rehearsal measurement x 1.5, rounded up (§3).
+    return ceil_div(3*x, 2)
+
+
+def single_line(value):
+    return isinstance(value, str) and re.fullmatch(r'\S(?:[^\r\n]*\S)?', value) is not None
+
+
+def pc_address(gate, value):
+    a.need(gate, isinstance(value, str) and a.ADDRESS_RX.fullmatch(value) is not None
+           and value == value.lower() and value != a.ZERO, True)
+    return value
+
+
+def pc_hash(gate, value):
+    a.need(gate, isinstance(value, str) and a.HASH32.fullmatch(value) is not None and value == value.lower()
+           and int(value, 16) != 0 and value != a.EMPTY_KECCAK, True)
+    return value
+
+
+def pc_integer(gate, value, minimum=1):
+    a.need(gate, type(value) is int and minimum <= value < 2**256, True)
+    return value
+
+
+def validate_phase_c_inputs(c):
+    a.exact_keys('phase_c_inputs', c, ('bundler', 'accountOwner', 'verifyingSigner', 'account', 'salt',
+                                       'accountImplementation', 'runtimeKeccak', 'accountEvidence', 'rehearsal'))
+    for key in ('bundler', 'accountOwner', 'verifyingSigner', 'account', 'accountImplementation'):
+        pc_address('phase_c_address_'+key, c[key])
+    identities = [c['bundler'], c['accountOwner'], c['verifyingSigner']]
+    # B/O/V are fresh dedicated keystores, distinct from D/N/A/E and from each other.
+    a.need('phase_c_identity_distinct', len(set(identities+[u.DEPLOYER, ANNI, a.APPROVER, a.EXECUTOR])), 7)
+    a.need('phase_c_account_distinct', c['account'] not in set(identities+[u.DEPLOYER, ANNI, a.APPROVER,
+           a.EXECUTOR, DEAD, u.SP, u.SAFE, ACCOUNT_FACTORY]), True)
+    pc_integer('phase_c_salt', c['salt'], 0)
+    a.exact_keys('phase_c_runtime_keys', c['runtimeKeccak'], PC_RUNTIMES)
+    for key in PC_RUNTIMES:
+        pc_hash('phase_c_runtime_'+key, c['runtimeKeccak'][key])
+    required(c['accountEvidence'], ('path', 'sha256'), 'phase_c_account_evidence')
+    a.need('phase_c_account_evidence_nonempty', bool(reviewed_bytes(
+        c['accountEvidence']['path'], c['accountEvidence']['sha256'], 'phase_c_account_evidence').strip()), True)
+    r = c['rehearsal']
+    a.exact_keys('phase_c_rehearsal', r, ('evidence', 'arms', 'ownerPreparation', 'ownerMaintenance', 'bundlerMaintenance'))
+    required(r['evidence'], ('path', 'sha256'), 'phase_c_rehearsal_evidence')
+    a.need('phase_c_rehearsal_evidence_nonempty', bool(reviewed_bytes(
+        r['evidence']['path'], r['evidence']['sha256'], 'phase_c_rehearsal_evidence').strip()), True)
+    a.exact_keys('phase_c_arms', r['arms'], ARMS)
+    for arm in ARMS:
+        # pp_SP is the fixed initial 480000; an SP postOp measurement cannot replace it.
+        fields = tuple(f for f in ARM_FIELDS if not (arm == 'SP' and f == 'postOp'))
+        a.exact_keys('phase_c_arm_fields_'+arm, r['arms'][arm], fields)
+        for field in fields:
+            pc_integer('phase_c_measurement', r['arms'][arm][field], 0 if field == 'postOp' else 1)
+    a.exact_keys('phase_c_owner_preparation', r['ownerPreparation'], OWNER_PREPARATION)
+    for value in r['ownerPreparation'].values():
+        pc_integer('phase_c_measurement', value)
+    for key in ('ownerMaintenance', 'bundlerMaintenance'):
+        a.need('phase_c_maintenance_list', isinstance(r[key], list), True)
+        for item in r[key]:
+            a.exact_keys('phase_c_maintenance_fields', item, ('name', 'gas'))
+            a.need('phase_c_maintenance_name', single_line(item['name']), True)
+            pc_integer('phase_c_measurement', item['gas'])
+        names = [item['name'] for item in r[key]]
+        a.need('phase_c_maintenance_unique', len(names), len(set(names)))
+
+
+def addr_call(rpc, target, sig, *args, block='latest'):
+    return u.addr_word(a.word(rpc, target, sig, *args, block=block))
+
+
+def account_status(rpc, account, mysbt, block='latest'):
+    return [a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('ENDUSER'), account, block=block),
+            a.word(rpc, mysbt, 'verifyCommunityMembership(address,address)', account, u.DEPLOYER, block=block),
+            a.word(rpc, u.SP, 'sbtHolders(address)', account, block=block)]
+
+
+def collect_phase_c(rpc, block, inputs, pin):
+    """Public pin reads for Phase C; the builder re-checks every gate from these values."""
+    c = inputs['data']['phaseC']
+    out = {}
+    for label, key in (('owner', 'accountOwner'), ('bundler', 'bundler'), ('verifyingSigner', 'verifyingSigner')):
+        who = c[key]
+        n = a.nonce(rpc, who, block)
+        a.need('phase_c_pending_nonce_'+label, a.nonce(rpc, who, 'pending'), n)
+        out[label] = dict(address=who, nonce=n, balance=a.qty(rpc('eth_getBalance', [who, block])),
+                          code=u.code(rpc, who, block))
+    capped = pin['capped']
+    out['capped'] = dict(cap=a.word(rpc, capped, 'cap()', block=block),
+        totalSupply=a.word(rpc, capped, 'totalSupply()', block=block),
+        minter=a.address(rpc, capped, 'minter()', block),
+        deployerBalance=a.word(rpc, capped, 'balanceOf(address)', u.DEPLOYER, block=block))
+    out['sp'] = dict(aPNTsPriceUSD=a.word(rpc, u.SP, 'aPNTsPriceUSD()', block=block),
+        protocolFeeBPS=a.word(rpc, u.SP, 'protocolFeeBPS()', block=block),
+        cachedPrice=u.uints(a.call(rpc, u.SP, 'cachedPrice()', block=block)),
+        deployerOperator=u.uints(a.call(rpc, u.SP, 'operators(address)', u.DEPLOYER, block=block)))
+    out['roles'] = {name: a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id(name), u.DEPLOYER, block=block)
+                    for name in ('COMMUNITY', 'PAYMASTER_SUPER')}
+    staking = a.address(rpc, u.REG, 'GTOKEN_STAKING()', block)
+    gtoken = a.address(rpc, staking, 'GTOKEN()', block)
+    mysbt = a.address(rpc, u.REG, 'MYSBT()', block)
+    out['endUser'] = dict(roleConfig=a.call(rpc, u.REG, 'getRoleConfig(bytes32)', role_id('ENDUSER'), block=block),
+        staking=staking, gtoken=gtoken, mysbt=mysbt,
+        deployerGToken=a.word(rpc, gtoken, 'balanceOf(address)', u.DEPLOYER, block=block))
+    impl = addr_call(rpc, ACCOUNT_FACTORY, 'accountImplementation()', block=block)
+    account = c['account']
+    code = u.code(rpc, account, block)
+    out['account'] = dict(factoryCodeHash=a.keccak(u.code(rpc, ACCOUNT_FACTORY, block)), implementation=impl,
+        implementationCodeHash=a.keccak(u.code(rpc, impl, block)),
+        implementationEntryPoint=addr_call(rpc, impl, 'entryPoint()', block=block),
+        counterfactual=addr_call(rpc, ACCOUNT_FACTORY, 'getAddress(address,uint256)', c['accountOwner'], c['salt'], block=block),
+        codeHash=a.keccak(code), status=account_status(rpc, account, mysbt, block))
+    if code != '0x':
+        out['account'].update(owner=addr_call(rpc, account, 'owner()', block=block),
+            entryPoint=addr_call(rpc, account, 'entryPoint()', block=block),
+            implementationSlot=u.addr_word(int(rpc('eth_getStorageAt', [account, u.IMPL_SLOT, block]), 16)))
+    return out
+
+
+def phase_c_pin_gates(pin, c):
+    """Chain preconditions for Phase C, evaluated offline from the archived pin reads."""
+    p = pin['phaseC']
+    a.exact_keys('phase_c_pin', p, ('owner', 'bundler', 'verifyingSigner', 'capped', 'sp', 'roles', 'endUser', 'account'))
+    for label, key in (('owner', 'accountOwner'), ('bundler', 'bundler'), ('verifyingSigner', 'verifyingSigner')):
+        a.need('phase_c_pin_identity_'+label, p[label]['address'], c[key])
+        a.need('phase_c_eoa_'+label, p[label]['code'], '0x')
+    a.need('C1_minter', p['capped']['minter'], u.SAFE)
+    price = p['sp']['cachedPrice']
+    a.need('C_price_shape', len(price), 4)
+    # A pin price alone does not bound future reservations: P* bounds funding, and the
+    # live cache is re-read before every Phase C transaction.
+    a.need('C_price_bound', 0 < price[0] <= PC_PRICE_CAP, True)
+    a.need('C_pricing_nonzero', p['sp']['aPNTsPriceUSD'] > 0, True)
+    a.need('C_operator_shape', len(p['sp']['deployerOperator']), len(OPERATOR_FIELDS))
+    a.need('C2_operator_role', p['roles']['PAYMASTER_SUPER'], 1)
+    a.need('C3_community', p['roles']['COMMUNITY'], 1)
+    cfg = u.config(p['endUser']['roleConfig'])
+    a.need('C7_enduser_active', cfg['isActive'], True)
+    acct = p['account']
+    a.need('C5_factory_runtime', acct['factoryCodeHash'], c['runtimeKeccak']['accountFactory'])
+    a.need('C5_factory_implementation', acct['implementation'], c['accountImplementation'])
+    a.need('C5_implementation_runtime', acct['implementationCodeHash'], c['runtimeKeccak']['accountImplementation'])
+    a.need('C5_implementation_entrypoint', acct['implementationEntryPoint'], pin['immutables']['entryPoint'])
+    a.need('C5_counterfactual', acct['counterfactual'], c['account'])
+    exists = acct['codeHash'] != a.EMPTY_KECCAK
+    if exists:
+        a.need('C5_existing_account', [acct.get('codeHash'), acct.get('owner'), acct.get('entryPoint'), acct.get('implementationSlot')],
+               [c['runtimeKeccak']['account'], c['accountOwner'], pin['immutables']['entryPoint'], c['accountImplementation']])
+    # Membership is all or nothing; D cannot repair SP status directly (Registry-only).
+    a.need('C_account_status', acct['status'] in ([0, 0, 0], [1, 1, 1]), True)
+    return dict(accountExists=exists, member=acct['status'] == [1, 1, 1], minStake=cfg['minStake'], ticketPrice=cfg['ticketPrice'])
+
+
+def phase_c_worksheet(pin, c, sp_deposit_before):
+    """§3 funding worksheet with integer rounding exactly as written in the design."""
+    p, r = pin['phaseC'], c['rehearsal']
+    facts = phase_c_pin_gates(pin, c)
+    n = PC_ATTEMPTS
+    bounds, maxima, outer = {}, {}, {}
+    for arm in ARMS:
+        b = {k: pre_pilot(v) for k, v in r['arms'][arm].items()}
+        if arm == 'SP':
+            b['postOp'] = PC_SP_POSTOP
+        bounds[arm] = b
+        gas = sum(b[k] for k in ARM_FIELDS if k != 'outer')        # v0.7 sum, no v0.6 multiplier
+        maxima[arm] = gas*PC_FEE                                    # M_j
+        outer[arm] = b['outer']                                     # H_j
+    price_a, fee_b = p['sp']['aPNTsPriceUSD'], p['sp']['protocolFeeBPS']
+    a0 = ceil_div(maxima['SP']*PC_PRICE_CAP*10**18, 10**PC_PRICE_DECIMALS*price_a)
+    amax = ceil_div(a0*(10000+fee_b+PC_VALIDATION_BUFFER_BPS), 10000)
+    # Amax <= 5000e18 also gives Amax <= min(L, default maxSingleTxLimit) and a uint128-safe
+    # operator target (105 x 5000e18 < 2^128); the live X limit is re-read before C8.
+    a.need('C_amax_cap', amax <= PC_AMAX_CAP, True)
+    target_a = n*amax+PC_BETA*amax
+    # A15 drains every operator and the 6d swap requires totalTracked == revenue.
+    delta_a = positive(target_a-0)
+    delta_m = positive(delta_a-p['capped']['deployerBalance'])
+    supply = p['capped']['totalSupply']+BUFFER                   # B2a minted the buffer
+    a.need('C1_cap_headroom', supply+delta_m <= p['capped']['cap'], True)
+    xmax = ceil_div(amax*PC_RATE, 10**18)
+    target_x = n*xmax+PC_BETA*xmax
+    deposits = {arm: n*maxima[arm]+maxima[arm]+PC_BETA*maxima[arm] for arm in ARMS}
+    before = dict(SP=sp_deposit_before, VPM=0, TPM=0)
+    qmax = ceil_div((maxima['TPM']+PC_TPM_REFUND*PC_FEE)*PC_TPM_MARKUP, PC_TPM_MARKUP)
+    target_q = n*qmax+PC_BETA*qmax
+    aux = [dict(name=x['name'], gas=pre_pilot(x['gas'])) for x in r['bundlerMaintenance']]
+    target_b = n*PC_FEE*sum(outer.values())+PC_FEE*sum(x['gas'] for x in aux)+PC_BUNDLER_BETA
+    prep = {k: pre_pilot(v) for k, v in r['ownerPreparation'].items()}
+    maintenance = [dict(name=x['name'], gas=pre_pilot(x['gas'])) for x in r['ownerMaintenance']]
+    maintenance_wei = sum(x['gas'] for x in maintenance)*PC_FEE
+    target_o = sum(prep.values())*a.MAX_FEE+maintenance_wei
+    stake_cost = 0 if facts['member'] else facts['minStake']+facts['ticketPrice']
+    a.need('C6_gtoken_balance', p['endUser']['deployerGToken'] >= stake_cost, True)
+    return dict(attempts=n, feeCap=PC_FEE, priorityCap=PC_PRIORITY, priceCap=PC_PRICE_CAP, priceDecimals=PC_PRICE_DECIMALS,
+        exchangeRate=PC_RATE, betaMultiplier=PC_BETA, bundlerBeta=PC_BUNDLER_BETA, allowanceCap=PC_CAP_L,
+        spRenew=False, spPostOp=PC_SP_POSTOP, bounds=bounds, maxPrefund=maxima, outerBound=outer,
+        aPNTsPriceUSD=price_a, protocolFeeBPS=fee_b, A0=a0, Amax=amax, operatorTarget=target_a,
+        operatorTopUp=delta_a, cappedMint=delta_m, cappedSupplyBefore=supply, Xmax=xmax, userTarget=target_x,
+        entryPointTargets=deposits, entryPointBefore=before,
+        entryPointTopUps={arm: positive(deposits[arm]-before[arm]) for arm in ARMS},
+        Qmax=qmax, feeTokenTarget=target_q, taskSender=PC_TASK_SENDER, taskRecipient=PC_TASK_UNIT,
+        bundlerMaintenance=aux, bundlerTarget=target_b, bundlerTopUp=positive(target_b-p['bundler']['balance']),
+        ownerPreparation=prep, ownerMaintenance=maintenance, ownerMaintenanceWei=maintenance_wei,
+        ownerTarget=target_o, ownerTopUp=positive(target_o-p['owner']['balance']),
+        endUserStake=facts['minStake'], endUserTicket=facts['ticketPrice'],
+        accountExists=facts['accountExists'], accountMember=facts['member'],
+        token=dict(zip(('name', 'symbol', 'communityName', 'communityENS'), PC_TOKEN)), treasury=PC_TREASURY,
+        recipient=DEAD, f1Provenance=F1_SCOPE_NOTE)
 
 
 # keccak256 of the canonical Safe event signatures (checked offline in tests).
@@ -1307,6 +1625,8 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     # Isolation records discovery calls, bounded role-event history and canonical blocks
     # so build_plan can replay every new inventory gate on both endpoint transcripts.
     pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), fork=isolation.local_control_fork(), pending=inputs['data'].get('pendingDsrRuling'))
+    if stage in PC_STAGES:
+        pin['phaseC'] = collect_phase_c(rpc, block, inputs, pin)
     return pin
 
 
@@ -1389,7 +1709,9 @@ def prefix_payload(plan):
         step['tx'].pop('gas', None)
         for tx in step.get('variants', {}).values():
             tx.pop('gas', None)
-    return dict(pin=plan['pin'], addresses=plan['addresses'], steps=steps,
+    # Phase C pin reads never affect the A/B prefix; a7/b4 sources are collected without them.
+    pin = {k: v for k, v in plan['pin'].items() if k != 'phaseC'}
+    return dict(pin=pin, addresses=plan['addresses'], steps=steps,
                 activationScheduleNotBefore=plan['activationScheduleNotBefore'])
 
 
@@ -1439,7 +1761,13 @@ def verify_prefix(plan, prior, stage):
     expected = prefix_payload(plan)
     expected['steps'] = expected['steps'][:len(prior['steps'])]
     expected['addresses'] = {k: expected['addresses'].get(k) for k in prior['addresses']}
-    a.need('prefix_boundary', prior['steps'][-1]['id'], 'A7' if stage == 'a7' else 'B4')
+    if stage == 'c':
+        # Stage c ends with the complete Phase C expansion.
+        a.need('prefix_boundary', [s['id'] for s in prior['steps'] if s.get('phase') == 'C'][-1:],
+               [s['id'] for s in plan['steps'] if s.get('phase') == 'C'][-1:])
+        a.need('prefix_boundary_last', prior['steps'][-1].get('phase'), 'C')
+    else:
+        a.need('prefix_boundary', prior['steps'][-1]['id'], 'A7' if stage == 'a7' else 'B4')
     a.need('prefix_exact', prefix_payload(prior), expected)
 
 
@@ -1457,6 +1785,12 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     a.need('external_digest_nonzero', int(inputs['sha256'], 16) != 0, True)
     d = inputs['data']
     validate_external(d, stage)
+    # Phase C pin reads belong only to the stages that build Phase C; a7/b4 prefixes are
+    # byte-identical whether or not the supplied pin carries them.
+    if stage in PC_STAGES:
+        a.need('stage_pin_phase_c', 'phaseC' in pin, True)
+    else:
+        pin = {k: v for k, v in pin.items() if k != 'phaseC'}
     sources = copy.deepcopy(stage_sources or {})
     a.need("stage_sources", set(sources), set() if stage == "a7" else ({"a7"} if stage == "b4" else ({"a7", "b4"} if sources else set())))
     salt_digest = sources["b4"]["plan"]["externalInputs"]["sha256"] if "b4" in sources else inputs["sha256"]
@@ -1492,6 +1826,11 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     isolation.validate_deployed(pin.get('oldOwnerIsolation'), pin, d.get('deployedSources'), pending=d.get('pendingDsrRuling'))
     release_gate(inputs, arts, pin)
     counters = {label: x['nonce'] for label, x in pin['senders'].items()}
+    sender_of = {label: x['address'] for label, x in pin['senders'].items()}
+    if stage in PC_STAGES:
+        counters['owner'] = pin['phaseC']['owner']['nonce']
+        sender_of['owner'] = pin['phaseC']['owner']['address']
+    phase_c = {}
     steps, addresses, runtimes = [], {}, {}
     safe_n = pin['safeNonce']
     operations = {}
@@ -1500,16 +1839,19 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
             pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs), rebuild=arts,
             creationMetadataLayouts={'OverIssueFraudProofVerifier': copy.deepcopy(VERIFIER_METADATA_LAYOUT)},
             addresses=addresses, implementation=impl, extension=extension, operations=operations,
-            steps=steps, controls=CONTROLS,
+            steps=steps, controls=CONTROLS+(PC_CONTROLS if stage in PC_STAGES else []),
             expectedDomainSeparator=domain_separator(agg),
             b4Disclosure='B4 always consumes its reserved deployer nonce. If already applied, one empty, zero-value self-transfer costs gas only.',
             gasPolicy=copy.deepcopy(u.GAS_POLICY), gasParams=list(u.GAS),
             activationScheduleNotBefore=max(0, pin['pendingAPNTsTokenEta']-u.DELAY))
         isolation.assert_manifest_calldata(steps, arts['calldataSignatures'])
+        if stage in PC_STAGES:
+            plan['phaseC'] = phase_c
         bind_timing(plan)
         plan['prefixDigest'] = prefix_digest(plan)
+        prefix_pin = {k: v for k, v in pin.items() if k != 'phaseC'}
         for name, source in sources.items():
-            rebuilt = build_plan(pin, source['plan']['externalInputs'], name,
+            rebuilt = build_plan(prefix_pin, source['plan']['externalInputs'], name,
                                  {'a7': sources['a7']} if name == 'b4' else None)
             a.need('source_plan_bytes', source_plan_bytes(source['plan']) == source_plan_bytes(rebuilt), True)
             verify_prefix(plan, source['plan'], name)
@@ -1520,7 +1862,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         a.need('readback_required', bool(checks), True)
         tx = dict(to=target, data=data, value=hex(value), nonce=hex(counters[sender]),
             chainId=hex(a.CHAIN), maxFeePerGas=hex(a.MAX_FEE), maxPriorityFeePerGas=hex(a.PRIORITY),
-            **{'from': pin['senders'][sender]['address']})
+            **{'from': sender_of[sender]})
         counters[sender] += 1
         steps.append(dict(id=sid, sender=sender, tx=tx, readbacks=checks, safeNonce=safe_n, **extra))
         return steps[-1]
@@ -1675,8 +2017,166 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         placeholder=dict(b4['tx'], to=u.DEPLOYER, value='0x0', data='0x'))
     if stage == 'b4':
         return finish()
-    # PHASE C INSERTION POINT: funding/sampling is NOT implemented in this slice.
-    # Future Phase C steps must precede D and consume these same nonce counters.
+    # Phase C (§3): after 6d and B4, before Phase D, on the same sender/Safe counters.
+    c, p = d['phaseC'], pin['phaseC']
+    # DSR 2026-11-02: D is the only sampled operator; N stays paused and unfunded.
+    a.need('C_sampled_operator', d['sampled'], [u.DEPLOYER])
+    ws = phase_c_worksheet(pin, c, pin['entryPointDeposit']+deposit)
+    phase_c.update(ws)
+    base = rebuild_baselines(arts['commit'])
+    a.need('C12_constructor_abi', base['VerifyingPaymaster']['constructor'], VPM_CONSTRUCTOR)
+    a.need('C14_constructor_abi', base['TokenPaymaster']['constructor'], TPM_CONSTRUCTOR)
+    for name in ('F1TestToken', 'F1Oracle', 'VerifyingPaymaster', 'TokenPaymaster'):
+        a.need('C_baseline_commit_'+name, base[name]['commit'], arts['commit'])
+    phase_c['artifacts'] = {name: {k: v for k, v in base[name].items() if k not in ('bytecode', 'runtimeIdentity')}
+                            | dict(creationKeccak=a.keccak(base[name]['bytecode'])) for name in sorted(base)}
+    D, S, O, capped = u.DEPLOYER, c['account'], c['accountOwner'], pin['capped']
+    X = a.create_address(factory, 1)   # first Clones.clone CREATE of the A4 factory
+    staking, gtoken, mysbt = (p['endUser'][k] for k in ('staking', 'gtoken', 'mysbt'))
+    words = list(p['sp']['deployerOperator'])
+    def c_add(sid, target, data, checks, **kw):
+        return add(sid, target, data, checks, phase='C', **kw)
+    def c_call(sid, target, sig, args, checks, **kw):
+        return c_add(sid, target, a.calldata(sig, *args), checks, **kw)
+    def c_deploy(sid, key, art, signature, args, checks):
+        target = a.create_address(D, counters['deployer'])
+        code = (dict(kind='code', target=target, expected=runtime_bytes(art, {'MINTER': int(D, 16)}))
+                if 'runtimeIdentity' in art else dict(kind='codeHash', target=target, expected=c['runtimeKeccak'][key]))
+        c_add(sid, None, art['bytecode']+a.cast('abi-encode', signature, *args)[2:], [code]+checks(target), creates=target,
+              constructor=dict(signature=signature, bytecode=art['bytecode']))
+        return target
+    def account_exec(target, inner):
+        return a.calldata('execute(address,uint256,bytes)', target, 0, inner)
+    phase_c['addresses'] = dict(X=X, S=S, R=DEAD)
+    delta_m, delta_a = ws['cappedMint'], ws['operatorTopUp']
+    held = p['capped']['deployerBalance']+delta_m
+    if delta_m:
+        inner = a.calldata('mint(address,uint256)', D, delta_m)
+        h = safe_hash(inner, safe_n, capped)
+        c_add('C1_approve', u.SAFE, a.calldata('approveHash(bytes32)', h),
+            [word_pred(u.SAFE, 'approvedHashes(address,bytes32)', 1, a.APPROVER, h)],
+            sender='approver', safeHash=h, inner=inner, safeTarget=capped)
+        c_add('C1_exec', u.SAFE, safe_payload(inner, capped),
+            [word_pred(capped, 'balanceOf(address)', held, D),
+             word_pred(capped, 'totalSupply()', ws['cappedSupplyBefore']+delta_m),
+             word_pred(capped, 'cap()', p['capped']['cap']), address_pred(capped, 'minter()', u.SAFE)],
+            sender='executor', safeHash=h, inner=inner, safeTarget=capped)
+        safe_n += 1
+    if delta_a:
+        c_call('C2.approve', capped, 'approve(address,uint256)', (u.SP, delta_a),
+            [word_pred(capped, 'allowance(address,address)', delta_a, D, u.SP)])
+        c_call('C2.deposit', u.SP, 'deposit(uint256)', (delta_a,),
+            [word_pred(u.SP, 'operators(address)', ws['operatorTarget'], D, index=OP['aPNTsBalance']),
+             word_pred(u.SP, 'totalTrackedBalance()', BUFFER+delta_a), word_pred(u.SP, 'protocolRevenue()', BUFFER),
+             word_pred(capped, 'balanceOf(address)', BUFFER+delta_a, u.SP),
+             word_pred(capped, 'balanceOf(address)', held-delta_a, D),
+             word_pred(capped, 'allowance(address,address)', 0, D, u.SP)])
+    before = words[:]
+    before[OP['aPNTsBalance']], before[OP['isPaused']] = ws['operatorTarget'], 0
+    phase_c['operatorBefore'] = before
+    string = lambda value: a.cast('abi-encode', 'c(string)', value)
+    c_call('C3.deploy', factory, 'deployxPNTsToken(string,string,string,string,uint256,address)', (*PC_TOKEN, PC_RATE, a.ZERO),
+        [address_pred(factory, 'getTokenAddress(address)', X, D), word_pred(factory, 'isXPNTs(address)', 1, X),
+         word_pred(factory, 'getDeployedCount()', 1),
+         dict(kind='code', target=X, expected='0x363d3d373d3d3d363d73'+addresses['xPNTsTokenV2'][2:]+'5af43d82803e903d91602b57fd5bf3'),
+         address_pred(X, 'FACTORY()', factory), address_pred(X, 'communityOwner()', D), address_pred(X, 'community()', D),
+         word_pred(X, 'exchangeRate()', PC_RATE), address_pred(X, 'SUPERPAYMASTER_ADDRESS()', u.SP),
+         address_pred(X, 'creditTierSource()', tier), word_pred(X, 'creditPolicy()', 0), word_pred(X, 'pendingPolicyEta()', 0),
+         word_pred(X, 'maxSingleTxLimit()', PC_XPNTS_TX_LIMIT), word_pred(X, 'BALANCE_MODE_VERSION()', 1),
+         predicate(X, 'name()', (), string(PC_TOKEN[0])), predicate(X, 'symbol()', (), string(PC_TOKEN[1])),
+         predicate(X, 'communityName()', (), string(PC_TOKEN[2])), predicate(X, 'communityENS()', (), string(PC_TOKEN[3])),
+         predicate(u.SP, 'operators(address)', (D,), before)])
+    after = before[:]
+    after[OP['isConfigured']], after[OP['xPNTsToken']], after[OP['treasury']] = 1, int(X, 16), int(PC_TREASURY, 16)
+    phase_c['operatorAfter'] = after
+    c_call('C3.configure', u.SP, 'configureOperator(address,address)', (X, PC_TREASURY),
+        [predicate(u.SP, 'operators(address)', (D,), after), word_pred(X, 'creditPolicy()', 0),
+         word_pred(X, 'pendingPolicyEta()', 0), word_pred(X, 'maxSingleTxLimit()', PC_XPNTS_TX_LIMIT)])
+    if not ws['accountExists']:
+        c_call('C5', ACCOUNT_FACTORY, 'createAccount(address,uint256)', (O, c['salt']),
+            [dict(kind='codeHash', target=S, expected=c['runtimeKeccak']['account']),
+             dict(kind='storage', target=S, slot=u.IMPL_SLOT, expected=int(c['accountImplementation'], 16)),
+             address_pred(S, 'owner()', O), address_pred(S, 'entryPoint()', ep)])
+    ticket = ws['endUserStake']+ws['endUserTicket']
+    if not ws['accountMember']:
+        c_call('C6', gtoken, 'approve(address,uint256)', (staking, ticket),
+            [word_pred(gtoken, 'allowance(address,address)', ticket, D, staking)])
+        c_call('C7', u.REG, 'safeMintForRole(bytes32,address,bytes)',
+            (role_id('ENDUSER'), S, a.cast('abi-encode', 'c(address,uint256)', D, ws['endUserStake'])),
+            [word_pred(u.REG, 'hasRole(bytes32,address)', 1, role_id('ENDUSER'), S),
+             word_pred(mysbt, 'verifyCommunityMembership(address,address)', 1, S, D),
+             word_pred(u.SP, 'sbtHolders(address)', 1, S), word_pred(u.SP, 'isEligibleForSponsorship(address)', 1, S),
+             word_pred(u.REG, 'getRoleStake(bytes32,address)', ws['endUserStake'], role_id('ENDUSER'), S),
+             word_pred(gtoken, 'allowance(address,address)', 0, D, staking),
+             word_pred(gtoken, 'balanceOf(address)', p['endUser']['deployerGToken']-ticket, D)])
+    c_call('C8', X, 'mint(address,uint256)', (S, ws['userTarget']),
+        [word_pred(X, 'balanceOf(address)', ws['userTarget'], S), word_pred(X, 'totalSupply()', ws['userTarget']),
+         word_pred(X, 'debts(address)', 0, S), word_pred(X, 'creditPolicy()', 0), word_pred(X, 'pendingPolicyEta()', 0)])
+    if ws['ownerTopUp']:
+        c_add('C20', O, '0x', [dict(kind='balance', target=O, expected=p['owner']['balance']+ws['ownerTopUp'])],
+              value=ws['ownerTopUp'])
+    owner_steps = [('C9.allowance', 'setAutoAllowance(address,uint256)', (u.SP, PC_CAP_L)),
+                   ('C9.total', 'setUserTotalCap(uint256)', (PC_CAP_L,)), ('C9.mode', 'setRenewalMode(uint8)', (0,))]
+    checks = []
+    for sid, sig, args in owner_steps:
+        checks = checks + {'C9.allowance': [predicate(X, 'autoAllowance(address,address)', (S, u.SP), [PC_CAP_L, 0])],
+                           'C9.total': [predicate(X, 'userTotal(address)', (S,), [PC_CAP_L, 0])],
+                           'C9.mode': [word_pred(X, 'renewalMode(address)', 0, S), word_pred(X, 'autoRenewUsed(address)', 0, S),
+                                       word_pred(X, 'creditPolicy()', 0)]}[sid]
+        c_add(sid, S, account_exec(X, a.calldata(sig, *args)), list(checks), sender='owner',
+              gasBound=ws['ownerPreparation'][sid])
+    f1 = lambda target: [address_pred(target, 'MINTER()', D), word_pred(target, 'decimals()', 18), word_pred(target, 'totalSupply()', 0)]
+    task = c_deploy('C10', 'T', base['F1TestToken'], 'c()', (), f1)
+    transfer = a.calldata('transfer(address,uint256)', DEAD, PC_TASK_UNIT)
+    phase_c['taskCallData'] = account_exec(task, transfer)
+    phase_c['callDataHash'] = a.keccak(phase_c['taskCallData'])
+    for sid, who, amount in (('C11.S', S, PC_TASK_SENDER), ('C11.R', DEAD, PC_TASK_UNIT)):
+        c_call(sid, task, 'mint(address,uint256)', (who, amount), [word_pred(task, 'balanceOf(address)', amount, who)])
+    vpm = c_deploy('C12', 'VerifyingPaymaster', base['VerifyingPaymaster'], VPM_CONSTRUCTOR, (ep, c['verifyingSigner']),
+        lambda t: [address_pred(t, 'owner()', D), address_pred(t, 'entryPoint()', ep),
+                   address_pred(t, 'verifyingSigner()', c['verifyingSigner'])])
+    fee = c_deploy('C13.token', 'Q', base['F1TestToken'], 'c()', (), f1)
+    oracle = c_deploy('C13.oracle', 'oracle', base['F1Oracle'], 'c()', (),
+        lambda t: [word_pred(t, 'decimals()', 8), word_pred(t, 'latestRoundData()', 10**8, index=1)])
+    config = (PC_TPM_MARKUP, 0, PC_TPM_REFUND, PC_TPM_AGE)
+    tpm = c_deploy('C14', 'TokenPaymaster', base['TokenPaymaster'], TPM_CONSTRUCTOR,
+        (fee, ep, DEAD, DEAD, '(%d,%d,%d,%d)' % config,
+         '(%d,%d,%s,%s,true,false,false,%d)' % (PC_TPM_AGE, PC_TPM_AGE, oracle, a.ZERO, PC_TPM_THRESHOLD),
+         '(1,3000,5)', D),
+        lambda t: [address_pred(t, 'owner()', D), address_pred(t, 'entryPoint()', ep), address_pred(t, 'token()', fee),
+                   address_pred(t, 'wrappedNative()', DEAD), address_pred(t, 'uniswap()', DEAD),
+                   predicate(t, 'tokenPaymasterConfig()', (), list(config))])
+    c_call('C15', tpm, 'updateCachedPrice(bool)', ('true',),
+        [word_pred(tpm, 'cachedPrice()', PC_TPM_MARKUP), dict(kind='eta', target=tpm, signature='cachedPriceTimestamp()', delay=0)])
+    targets = dict(SP=u.SP, VPM=vpm, TPM=tpm)
+    for arm in ('VPM', 'TPM'):
+        c_call('C16.'+arm.lower(), targets[arm], 'addStake(uint32)', (DAY,),
+            [predicate(ep, 'getDepositInfo(address)', (targets[arm],), [0, 1, PC_STAKE, DAY, 0])], value=PC_STAKE)
+    stakes = dict(SP=pin['stake']+stake, VPM=PC_STAKE, TPM=PC_STAKE)
+    for arm in ARMS:
+        top = ws['entryPointTopUps'][arm]
+        if top:
+            c_call('C17.'+arm.lower(), ep, 'depositTo(address)', (targets[arm],),
+                [word_pred(ep, 'balanceOf(address)', ws['entryPointBefore'][arm]+top, targets[arm]),
+                 word_pred(ep, 'getDepositInfo(address)', stakes[arm], targets[arm], index=2)], value=top)
+    c_call('C18.mint', fee, 'mint(address,uint256)', (S, ws['feeTokenTarget']),
+        [word_pred(fee, 'balanceOf(address)', ws['feeTokenTarget'], S)])
+    c_add('C18.approve', S, account_exec(fee, a.calldata('approve(address,uint256)', tpm, ws['feeTokenTarget'])),
+        [word_pred(fee, 'allowance(address,address)', ws['feeTokenTarget'], S, tpm)], sender='owner',
+        gasBound=ws['ownerPreparation']['C18.approve'])
+    if ws['bundlerTopUp']:
+        c_add('C19', c['bundler'], '0x', [dict(kind='balance', target=c['bundler'],
+              expected=p['bundler']['balance']+ws['bundlerTopUp'])], value=ws['bundlerTopUp'])
+    phase_c['addresses'].update(T=task, Q=fee, oracle=oracle, VPM=vpm, TPM=tpm)
+    phase_c['steps'] = [s['id'] for s in steps if s.get('phase') == 'C']
+    values = sum(a.qty(s['tx']['value']) for s in steps if s['sender'] == 'deployer')
+    # Values alone (stakes, deposits, B/O funding) must fit D before gas is even measured.
+    report = dict(balanceWei=pin['senders']['deployer']['balance'], requiredWei=values,
+                  shortfallWei=positive(values-pin['senders']['deployer']['balance']))
+    a.need('budget_deployer_values', report, dict(report, shortfallWei=0))
+    phase_c['deployerValueWei'] = values
+    if stage == 'c':
+        return finish()
     call('D.registry.transfer', u.REG, 'transferOwnership(address)', (u.TL,),
          registry_ownership(u.DEPLOYER, u.TL))
     op = dict(batch=False, targets=[u.REG], data=[a.calldata('acceptOwnership()')],
@@ -1728,6 +2228,12 @@ def handover_gate(rpc, plan, step, context):
     required_steps = {'activation_execute_exec', 'B4'}
     if sid.startswith(('D.aggregator.', 'D.old_aggregator.')):
         required_steps.update(('A10.0', 'A10.1', 'A10.2', 'A11.min', 'A11.default'))
+    if 'phaseC' in plan:
+        # Phase C funding precedes Phase D (§3 ordering, §4 critical path), and every
+        # funding target, including omitted rows, still holds before each handover step.
+        required_steps.update(plan['phaseC']['steps'])
+        if required_steps <= passed:
+            context.setdefault('handoverFunding', []).append(funding_gate(rpc, plan))
     if sid.startswith('D.registry_'):
         required_steps.add('D.registry.transfer')
         for pred in registry_ownership(u.DEPLOYER, u.TL):
@@ -1981,6 +2487,10 @@ def check_predicate(rpc, p, timestamp=None):
         return value
     if kind == 'code':
         value = u.code(rpc, p['target'], 'latest')
+    elif kind == 'codeHash':
+        value = a.keccak(u.code(rpc, p['target'], 'latest'))
+    elif kind == 'balance':
+        value = a.qty(rpc('eth_getBalance', [p['target'], 'latest']))
     elif kind == 'storage':
         value = int(rpc('eth_getStorageAt', [p['target'], p['slot'], 'latest']), 16)
     else:
@@ -2023,12 +2533,21 @@ def batch_readback(rpc, plan, activated, timestamp):
 
 def budget(plan):
     result = {}
-    for label in plan['pin']['senders']:
+    senders = dict(plan['pin']['senders'])
+    pc = plan.get('phaseC')
+    if pc is not None:
+        senders['owner'] = plan['pin']['phaseC']['owner']
+    for label, sender in senders.items():
         cost = sum(max(a.qty(t['gas']) for t in s.get('variants', {'apply': s['tx']}).values())*a.qty(s['tx']['maxFeePerGas'])+a.qty(s['tx']['value'])
                    for s in plan['steps'] if s['sender'] == label and not s.get('skipped', False))
-        balance = plan['pin']['senders'][label]['balance']
-        if balance < cost:
-            a.need('budget_'+label, dict(required=cost, balance=balance, shortfallWei=cost-balance), 'balance >= required')
+        available, required_wei = sender['balance'], cost
+        if label == 'owner':
+            # D funds O (C20) for its packet calls plus the listed in-window maintenance.
+            available += pc['ownerTopUp']
+            required_wei += pc['ownerMaintenanceWei']
+        # Report the exact shortfall; n is never reduced to fit a balance (§4).
+        report = dict(balanceWei=available, requiredWei=required_wei, shortfallWei=positive(required_wei-available))
+        a.need('budget_'+label, report, dict(report, shortfallWei=0))
         result[label] = cost
     plan['budgetsWei'] = result
 
@@ -2046,6 +2565,7 @@ def validate_plan(plan, inputs, frozen=False):
             extra |= {'variantMeasurements'}
         if frozen:
             u.validate_gas_evidence(plan, actual)
+            owner_gas_gate(dict(actual, gasBound=derived['gasBound'])) if 'gasBound' in derived else None
         if frozen:
             a.need('no_skipped_nonce', actual.get('skipped'), False)
         a.exact_keys('manifest_step', actual, set(derived) | extra)
@@ -2079,6 +2599,283 @@ def validate_plan(plan, inputs, frozen=False):
         a.need('manifest_budget', checked['budgetsWei'], plan['budgetsWei'])
 
 
+def owner_gas_gate(step):
+    # O's funding (OD) was computed from this reviewed bound; a larger limit is STOP.
+    if 'gasBound' in step:
+        a.need('C_owner_gas_bound', a.qty(step['tx']['gas']) <= step['gasBound'], True)
+
+
+def price_gate(rpc, block='latest'):
+    price = u.uints(a.call(rpc, u.SP, 'cachedPrice()', block=block))
+    a.need('C_price_decimals', price[3], PC_PRICE_DECIMALS)
+    a.need('C_price_bound', 0 < price[0] <= PC_PRICE_CAP, True)
+    return price
+
+
+def phase_c_state(rpc, plan, context):
+    """§3 C1 preconditions held for every Phase C transaction (B3/B4 complete)."""
+    a.need('C_after_activation', {'activation_execute_exec', 'B4'} <= context.get('passed', set())
+           and bool(context.get('activated')), True)
+    a.need('C_after_token_eta', a.qty(a.block_data(rpc, 'latest')['timestamp']) >= plan['pin']['pendingAPNTsTokenEta'], True)
+    a.need('C_token_swapped', a.address(rpc, u.SP, 'APNTS_TOKEN()'), plan['pin']['capped'])
+    gas = u.uints(a.call(rpc, u.SP, 'gasParams()'))
+    a.need('C_gas_tuple', [gas[:4], gas[4:]], [u.GAS, [0]*(len(gas)-4)])
+    a.need('C_global_unpaused', a.word(rpc, u.SP, 'paused()'), 0)
+    sampled = set(plan['externalInputs']['data']['sampled'])
+    for who in plan['pin']['pauseList']:
+        a.need('C_sampled_unpaused' if who in sampled else 'C_unsampled_paused',
+               u.uints(a.call(rpc, u.SP, 'operators(address)', who))[OP['isPaused']], int(who not in sampled))
+    price_gate(rpc)
+    pc = plan['phaseC']
+    a.need('C_pricing_unchanged', [a.word(rpc, u.SP, 'aPNTsPriceUSD()'), a.word(rpc, u.SP, 'protocolFeeBPS()')],
+           [pc['aPNTsPriceUSD'], pc['protocolFeeBPS']])
+
+
+def phase_c_pre_send(rpc, plan, step, context):
+    phase_c_state(rpc, plan, context)
+    pc, pin, sid = plan['phaseC'], plan['pin'], step['id']
+    p, c = pin['phaseC'], plan['externalInputs']['data']['phaseC']
+    capped, D, S, O = pin['capped'], u.DEPLOYER, c['account'], c['accountOwner']
+    addr = pc['addresses']
+    X, factory = addr['X'], plan['addresses']['xPNTsFactoryV2']
+    if sid.startswith('C1_'):
+        a.need('C1_minter', a.address(rpc, capped, 'minter()'), u.SAFE)
+        a.need('C1_cap_headroom', a.word(rpc, capped, 'totalSupply()')+pc['cappedMint'] <= a.word(rpc, capped, 'cap()'), True)
+        a.need('C1_pinned_balance', a.word(rpc, capped, 'balanceOf(address)', D), p['capped']['deployerBalance'])
+    if sid == 'C2.approve':
+        a.need('C2_operator_role', a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('PAYMASTER_SUPER'), D), 1)
+        a.need('C2_token_balance', a.word(rpc, capped, 'balanceOf(address)', D) >= pc['operatorTopUp'], True)
+        expected = list(pc['operatorBefore'])
+        expected[OP['aPNTsBalance']] = pc['operatorTarget']-pc['operatorTopUp']
+        a.need('C_operator_before', u.uints(a.call(rpc, u.SP, 'operators(address)', D)), expected)
+    if sid == 'C3.deploy':
+        a.need('C3_factory_active', a.address(rpc, u.SP, 'xpntsFactory()'), factory)
+        a.need('C3_community', a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('COMMUNITY'), D), 1)
+        # X is the factory's first CREATE; any earlier clone changes the planned address.
+        a.need('C3_factory_fresh', [addr_call(rpc, factory, 'getTokenAddress(address)', D),
+               a.word(rpc, factory, 'getDeployedCount()'), u.code(rpc, X, 'latest')], [a.ZERO, 0, '0x'])
+    if sid == 'C3.configure':
+        a.need('C_operator_before', u.uints(a.call(rpc, u.SP, 'operators(address)', D)), pc['operatorBefore'])
+    if sid == 'C5':
+        a.need('C5_counterfactual', addr_call(rpc, ACCOUNT_FACTORY, 'getAddress(address,uint256)', O, c['salt']), S)
+        a.need('C5_absent', u.code(rpc, S, 'latest'), '0x')
+    if sid in ('C6', 'C7', 'C8'):
+        cfg = u.config(a.call(rpc, u.REG, 'getRoleConfig(bytes32)', role_id('ENDUSER')))
+        a.need('C7_enduser_active', cfg['isActive'], True)
+        a.need('C7_enduser_config', [cfg['minStake'], cfg['ticketPrice']], [pc['endUserStake'], pc['endUserTicket']])
+        member = pc['accountMember'] or sid == 'C8'
+        a.need('C_account_status', account_status(rpc, S, p['endUser']['mysbt']), [int(member)]*3)
+    if sid == 'C6':
+        a.need('C6_gtoken_balance', a.word(rpc, p['endUser']['gtoken'], 'balanceOf(address)', D),
+               p['endUser']['deployerGToken'])
+    if sid == 'C8':
+        a.need('C8_community_owner', addr_call(rpc, X, 'communityOwner()'), D)
+        a.need('C8_policy_off', [a.word(rpc, X, 'creditPolicy()'), a.word(rpc, X, 'pendingPolicyEta()')], [0, 0])
+        a.need('C8_user_clean', [a.word(rpc, X, sig, S) for sig in ('debts(address)', 'lockedOf(address)',
+               'creditReservedOf(address)', 'balanceOf(address)')], [0, 0, 0, 0])
+        a.need('C8_amax_limit', pc['Amax'] <= min(PC_CAP_L, a.word(rpc, X, 'maxSingleTxLimit()')), True)
+    if step['sender'] == 'owner':
+        a.need('C9_account_owner', addr_call(rpc, S, 'owner()'), O)
+        # O must still cover every remaining O transaction plus the listed maintenance.
+        index = next(i for i, s in enumerate(plan['steps']) if s['id'] == sid)
+        remaining = sum(a.qty(s['tx'].get('gas', hex(s['gasBound'])))*a.qty(s['tx']['maxFeePerGas'])
+                        for s in plan['steps'][index:] if s['sender'] == 'owner')
+        a.need('C_owner_budget', a.qty(rpc('eth_getBalance', [O, 'latest'])) >= remaining+pc['ownerMaintenanceWei'], True)
+    if sid.startswith('C9.'):
+        a.need('C9_counters', [*u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, u.SP))[1:],
+               *u.uints(a.call(rpc, X, 'userTotal(address)', S))[1:], a.word(rpc, X, 'lockedOf(address)', S),
+               a.word(rpc, X, 'creditReservedOf(address)', S)], [0, 0, 0, 0])
+    if step['tx']['to'] is None:
+        a.need('C_create_unused', u.code(rpc, step['creates'], 'latest'), '0x')
+    if sid.startswith('C17.'):
+        arm = sid.split('.')[1].upper()
+        target = dict(SP=u.SP, VPM=addr['VPM'], TPM=addr['TPM'])[arm]
+        a.need('C17_deposit_before', a.word(rpc, plan['pin']['immutables']['entryPoint'], 'balanceOf(address)', target),
+               pc['entryPointBefore'][arm])
+    if sid == 'C18.mint':
+        a.need('C18_fee_balance', a.word(rpc, addr['Q'], 'balanceOf(address)', S), 0)
+    if sid in ('C19', 'C20'):
+        who = c['bundler'] if sid == 'C19' else O
+        label = 'bundler' if sid == 'C19' else 'owner'
+        a.need(sid+'_recipient_balance', a.qty(rpc('eth_getBalance', [who, 'latest'])), p[label]['balance'])
+        a.need(sid+'_recipient_eoa', u.code(rpc, who, 'latest'), '0x')
+
+
+def sp_attempt_precheck(rpc, plan, flags=0):
+    """SP-attempt precheck: no renewal, frozen L with L-used >= Amax, price within P*.
+
+    Exported helper. The executor runs it once at the end of Phase C; the A6 sampler does not
+    call it yet, so per-attempt enforcement belongs to the pilot tooling (not this module).
+    """
+    a.need('SP_RENEW_never', flags & FLAG_SP_RENEW, 0)
+    pc = plan['phaseC']
+    X, S = pc['addresses']['X'], pc['addresses']['S']
+    # Every read is bound to one block; the record names it.
+    head = a.block_data(rpc, 'latest')
+    block = head['number']
+    price = price_gate(rpc, block)
+    a.need('precheck_renewal_mode', [a.word(rpc, X, 'renewalMode(address)', S, block=block),
+           a.word(rpc, X, 'autoRenewUsed(address)', S, block=block)], [0, 0])
+    allow = u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, u.SP, block=block))
+    total = u.uints(a.call(rpc, X, 'userTotal(address)', S, block=block))
+    # L is frozen in the packet (§3): any cap change, up or down, is STOP before the used test.
+    a.need('precheck_allowance_cap', allow[0], PC_CAP_L)
+    a.need('precheck_total_cap', total[0], PC_CAP_L)
+    a.need('precheck_allowance', allow[1] <= PC_CAP_L and PC_CAP_L-allow[1] >= pc['Amax'], True)
+    a.need('precheck_total', total[1] <= PC_CAP_L and PC_CAP_L-total[1] >= pc['Amax'], True)
+    return dict(block=block, blockHash=head['hash'], flags=flags, cachedPrice=price,
+                autoAllowance=allow, userTotal=total, Amax=pc['Amax'], L=PC_CAP_L)
+
+
+def funding_gate(rpc, plan):
+    """Re-read every Phase C funding target, executed or omitted at build time (§3: a later
+    discrepancy is STOP). O only needs its remaining in-window maintenance after its calls."""
+    pc, pin = plan['phaseC'], plan['pin']
+    addr, ep = pc['addresses'], pin['immutables']['entryPoint']
+    S = addr['S']
+    head = a.block_data(rpc, 'latest')
+    block = head['number']
+    observed = {}
+    for arm, target in (('SP', u.SP), ('VPM', addr['VPM']), ('TPM', addr['TPM'])):
+        observed['entryPoint'+arm] = a.word(rpc, ep, 'balanceOf(address)', target, block=block)
+        a.need('C_funding_entrypoint_'+arm, observed['entryPoint'+arm] >= pc['entryPointTargets'][arm], True)
+    for label, who, target in (('bundler', plan['externalInputs']['data']['phaseC']['bundler'], pc['bundlerTarget']),
+                               ('owner', plan['externalInputs']['data']['phaseC']['accountOwner'], pc['ownerMaintenanceWei'])):
+        observed[label] = a.qty(rpc('eth_getBalance', [who, block]))
+        a.need('C_funding_'+label, observed[label] >= target, True)
+    # D's operator deposit (AD), the largest single target, sits in SP's own accounting.
+    observed['operator'] = u.uints(a.call(rpc, u.SP, 'operators(address)', u.DEPLOYER, block=block))[OP['aPNTsBalance']]
+    a.need('C_funding_operator', observed['operator'] >= pc['operatorTarget'], True)
+    for label, token, holder, target in (('user', addr['X'], S, pc['userTarget']), ('feeToken', addr['Q'], S, pc['feeTokenTarget']),
+                                         ('taskSender', addr['T'], S, pc['taskSender']), ('taskRecipient', addr['T'], DEAD, pc['taskRecipient'])):
+        observed[label] = a.word(rpc, token, 'balanceOf(address)', holder, block=block)
+        a.need('C_funding_'+label, observed[label] >= target, True)
+    observed['feeAllowance'] = a.word(rpc, addr['Q'], 'allowance(address,address)', S, addr['TPM'], block=block)
+    a.need('C_funding_feeAllowance', observed['feeAllowance'], pc['feeTokenTarget'])
+    return dict(block=block, blockHash=head['hash'], **observed)
+
+
+PC_CONTROLS = ['C_price_above_cap', 'C_cap_exhausted', 'C_factory_used', 'C_enduser_inactive', 'C_status_mismatch',
+               'C_policy_pending', 'C_owner_underfunded', 'C_deposit_front_run', 'C_allowance_exhausted',
+               'C_total_exhausted', 'C_sp_renew', 'C_renewal_mode', 'C_bundler_drained']
+
+
+def layout_slot(plan, contract, label):
+    entries = [x for x in plan['rebuild']['contracts'][contract]['storageLayout'].get('storage', []) if x['label'] == label]
+    a.need('C_control_layout_'+label, [(len(entries), entries[0]['offset'] if entries else None)], [(1, 0)])
+    return int(entries[0]['slot'])
+
+
+def mapping_slot(key, slot):
+    return int(a.keccak(a.cast('abi-encode', 'c(address,uint256)', key, slot)), 16)
+
+
+def stop_control(rpc, name, gate, mutate, check):
+    """Mutate a reverted snapshot, require the named STOP, then require the clean state to pass."""
+    snap = rpc('evm_snapshot', [])
+    try:
+        detail = mutate()
+        tripped = None
+        try:
+            check()
+        except a.Gate as error:
+            tripped = error.record['gate']
+        # Acceptance (None) and a different gate both fail: the named STOP must fire.
+        a.need(name+'_gate', tripped, gate)
+    finally:
+        a.need(name+'_restore', rpc('evm_revert', [snap]), True)
+    check()
+    return dict(control=name, gate=gate, snapshot=snap, mutation=detail, restored=True)
+
+
+def write_word(rpc, target, slot, value, getter):
+    """Snapshot-only storage write; the getter read-back catches a wrong slot."""
+    rpc('anvil_setStorageAt', [target, '0x'+format(slot, '064x'), '0x'+format(value, '064x')])
+    observed = getter()
+    return dict(target=target, slot=hex(slot), value=hex(value), readback=observed)
+
+
+def phase_c_controls(rpc, plan, sid, controls, context):
+    pc = plan.get('phaseC')
+    if pc is None or sid not in pc['steps']+['after_phase_c']:
+        return
+    step = next((s for s in plan['steps'] if s['id'] == sid), None)
+    c = plan['externalInputs']['data']['phaseC']
+    X, S, O = pc['addresses']['X'], pc['addresses']['S'], c['accountOwner']
+    pre = lambda: phase_c_pre_send(rpc, plan, step, context)
+    def fixture(sender, target, data, value=0):
+        return u.receipt(rpc, dict(u.fixture_tx(rpc, sender, target, data), value=hex(value)))
+    def add(name, gate, mutate, check=pre):
+        controls.append(stop_control(rpc, name, gate, mutate, check))
+    def not_applicable(name, reason):
+        controls.append(dict(control=name, notApplicable=reason))
+    if sid == pc['steps'][0]:
+        slot = layout_slot(plan, 'SuperPaymaster', 'cachedPrice')
+        def high_price():
+            value = PC_PRICE_CAP+1
+            detail = write_word(rpc, u.SP, slot, value, lambda: u.uints(a.call(rpc, u.SP, 'cachedPrice()'))[0])
+            a.need('C_control_slot', detail['readback'], value)
+            return detail
+        add('C_price_above_cap', 'C_price_bound', high_price)
+        if 'C1_approve' not in pc['steps']:
+            not_applicable('C_cap_exhausted', 'C1 omitted: zero mint deficit')
+    if sid == 'C1_approve':
+        capped = plan['pin']['capped']
+        def exhaust():
+            room = a.word(rpc, capped, 'cap()')-a.word(rpc, capped, 'totalSupply()')-pc['cappedMint']+1
+            return fixture(u.SAFE, capped, a.calldata('mint(address,uint256)', DEAD, room))
+        add('C_cap_exhausted', 'C1_cap_headroom', exhaust)
+    if sid == 'C3.deploy':
+        add('C_factory_used', 'C3_factory_fresh', lambda: fixture(u.DEPLOYER, plan['addresses']['xPNTsFactoryV2'],
+            step['tx']['data']))
+    if sid == 'C8':
+        raw = a.call(rpc, u.REG, 'getRoleConfig(bytes32)', role_id('ENDUSER'))
+        data = (a.keccak('configureRole(bytes32,'+u.CONFIG_TYPE+')')[:10]+role_id('ENDUSER')[2:]
+                +format(64, '064x')+u.frozen_config(raw)[66:])
+        add('C_enduser_inactive', 'C7_enduser_active', lambda: fixture(u.DEPLOYER, u.REG, data))
+        add('C_status_mismatch', 'C_account_status', lambda: fixture(u.REG, u.SP,
+            a.calldata('updateSBTStatus(address,bool)', S, 'false')))
+        add('C_policy_pending', 'C8_policy_off', lambda: fixture(u.DEPLOYER, X, a.calldata('queueCreditPolicy(uint8)', 1)))
+    if sid == 'C9.allowance':
+        add('C_owner_underfunded', 'C_owner_budget', lambda: rpc('anvil_setBalance', [O, hex(pc['ownerMaintenanceWei'])]))
+    first_deposit = next((x for x in pc['steps'] if x.startswith('C17.')), None)
+    if sid == pc['steps'][0] and first_deposit is None:
+        not_applicable('C_deposit_front_run', 'C17 omitted: all EntryPoint deposits already at target')
+    if sid == first_deposit:
+        arm = sid.split('.')[1].upper()
+        target = dict(SP=u.SP, VPM=pc['addresses']['VPM'], TPM=pc['addresses']['TPM'])[arm]
+        add('C_deposit_front_run', 'C17_deposit_before', lambda: fixture(a.EXECUTOR,
+            plan['pin']['immutables']['entryPoint'], a.calldata('depositTo(address)', target), 1))
+    if sid == 'after_phase_c':
+        check = lambda: sp_attempt_precheck(rpc, plan)
+        for name, gate, label, args in (('C_allowance_exhausted', 'precheck_allowance', '_auto', (u.SP,)),
+                                        ('C_total_exhausted', 'precheck_total', '_budget', ())):
+            def exhaust(label=label, args=args):
+                base = layout_slot(plan, 'xPNTsTokenV2', label)
+                slot = mapping_slot(S, mapping_slot(args[0], base)) if args else mapping_slot(S, base)
+                old = int(rpc('eth_getStorageAt', [X, hex(slot), 'latest']), 16)
+                used = PC_CAP_L-pc['Amax']+1
+                getter = (lambda: u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, u.SP))[1]) if args else \
+                         (lambda: u.uints(a.call(rpc, X, 'userTotal(address)', S))[1])
+                detail = write_word(rpc, X, slot, (old >> 128 << 128) | used, getter)
+                a.need('C_control_slot', detail['readback'], used)
+                return detail
+            add(name, gate, exhaust, check)
+        state = dict(flags=0)
+        def renew():
+            state['flags'] = FLAG_SP_RENEW
+            return dict(flags=FLAG_SP_RENEW)
+        def check_flags():
+            # One proposed attempt per call; the clean re-check uses no renewal flag.
+            flags, state['flags'] = state['flags'], 0
+            return sp_attempt_precheck(rpc, plan, flags)
+        add('C_sp_renew', 'SP_RENEW_never', renew, check_flags)
+        add('C_bundler_drained', 'C_funding_bundler', lambda: rpc('anvil_setBalance', [c['bundler'], hex(pc['bundlerTarget']-1)]),
+            lambda: funding_gate(rpc, plan))
+        add('C_renewal_mode', 'precheck_renewal_mode', lambda: fixture(O, S, a.calldata('execute(address,uint256,bytes)',
+            X, 0, a.calldata('setRenewalMode(uint8)', 1))), check)
+
+
 def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
     # Keep the shared role/config checks, but follow the completed owner transition.
     u.assert_frozen(rpc, dict(pin, registryOwner=u.TL if registry_handed_over else pin['registryOwner']))
@@ -2087,6 +2884,8 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
     handover_gate(rpc, plan, step, context)
+    if step.get('phase') == 'C':
+        phase_c_pre_send(rpc, plan, step, context)
     tx = step['tx']
     a.need('chain', a.qty(rpc('eth_chainId', [])), a.CHAIN)
     a.need('sender_nonce', a.nonce(rpc, tx['from']), a.qty(tx['nonce']))
@@ -2127,6 +2926,7 @@ def pre_send(rpc, plan, step, context, measured=False):
             u.check_op_hash(rpc, plan['operations'][step['operation']])
     if measured:
         u.validate_gas(step)
+        owner_gas_gate(step)
         probe = {k: v for k, v in a.tx_rpc(tx, gas_cap=u.MAX_CREATE_GAS if tx['to'] is None else a.GAS_CAP).items() if k != 'gas'}
         a.need('fresh_estimate', a.qty(rpc('eth_estimateGas', [probe, 'latest'])) <= a.qty(tx['gas']), True)
         a.need('block_gas_limit', a.qty(tx['gas']) <= a.qty(a.block_data(rpc, 'latest')['gasLimit']), True)
@@ -2268,12 +3068,16 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     validate_plan(plan, plan['externalInputs'], frozen=not calibrate)
     for sender in plan['pin']['senders'].values():
         rpc('anvil_impersonateAccount', [sender['address']])
+    pc = plan.get('phaseC')
+    if pc is not None:
+        rpc('anvil_impersonateAccount', [plan['pin']['phaseC']['owner']['address']])
     context, records, controls = {'passed': set()}, [], []
     overrides = copy.deepcopy(getattr(rpc, 'archive_overrides', {}))
     for step in plan['steps']:
         a.process_alive(rpc.engine_process)
         sid = step['id']
         controls_at(rpc, plan, sid, controls)
+        phase_c_controls(rpc, plan, sid, controls, context)
         if not calibrate:
             a.need('frozen_step_not_skipped', step['skipped'], False)
         if sid == 'activation_schedule_approve':
@@ -2317,6 +3121,9 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
             context['activated'] = True
             context['after6d'] = balances(rpc, plan['pin']['pauseList'])
             context['after6d']['cappedBalance'] = a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP)
+            observed6d = context['after6d']
+            a.need('after_6d_accounting', [observed6d['totalTrackedBalance'], observed6d['protocolRevenue'],
+                   observed6d['cappedBalance'], sum(observed6d['operatorBalances'].values())], [BUFFER, BUFFER, BUFFER, 0])
         if sid == 'A16':
             context['frozen'] = True
             u.check_inventory(rpc, plan['pin'])
@@ -2342,6 +3149,14 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         a.trace_overrides(rpc, r, overrides)
         if sid == 'upgrade_execute_exec':
             controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
+        if pc is not None and sid == pc['steps'][-1]:
+            context['afterC'] = phase_c_accounting(rpc, plan)
+            context['funding'] = funding_gate(rpc, plan)
+            context['precheck'] = sp_attempt_precheck(rpc, plan)
+            phase_c_controls(rpc, plan, 'after_phase_c', controls, context)
+    if pc is not None:
+        a.need('phase_c_controls_complete', sorted(x['control'] for x in controls if x['control'] in PC_CONTROLS),
+               sorted(PC_CONTROLS))
     if plan['stage'] != 'full':
         a.need('stage_steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
         closing = dvt_closing(rpc, plan)
@@ -2349,18 +3164,24 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         a.write_json(out/'stage-readback.json', readback)
         budget(plan)
         validate_plan(plan, plan['externalInputs'], frozen=True)
-        return dict(status='PASS', stage=plan['stage'], steps=records, readback=readback)
+        result = dict(status='PASS', stage=plan['stage'], steps=records, readback=readback)
+        if pc is not None:
+            result.update(phaseCAccounting=context['afterC'], phaseCFunding=context['funding'], spAttemptPrecheck=context['precheck'],
+                          negativeControls=[x for x in controls if x['control'] in PC_CONTROLS])
+        return result
     controls.append(handover_controls(rpc, plan))
-    a.need('controls_complete', sorted(x['control'] for x in controls), sorted(CONTROLS))
+    a.need('controls_complete', sorted(x['control'] for x in controls), sorted(plan['controls']))
     a.need('steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
     closing = dvt_closing(rpc, plan)
     assert_manifest_frozen(rpc, plan['pin'], True)
     accounting = balances(rpc, plan['pin']['pauseList'])
     accounting['cappedBalance'] = a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP)
-    a.need('post_swap_tracked', accounting['totalTrackedBalance'], BUFFER)
+    funded = BUFFER+plan['phaseC']['operatorTopUp']
+    a.need('post_swap_tracked', accounting['totalTrackedBalance'], funded)
     a.need('post_swap_revenue', accounting['protocolRevenue'], BUFFER)
-    a.need('post_swap_capped_balance', accounting['cappedBalance'], BUFFER)
-    a.need('accounting_unchanged_since_6d', accounting, context['after6d'])
+    a.need('post_swap_capped_balance', accounting['cappedBalance'], funded)
+    # Phase C's deposit is the only accounting change after 6d; Phase D changes none.
+    a.need('accounting_unchanged_since_phase_c', accounting, context['afterC'])
     fraud = fraud_rehearsal(rpc, plan)
     a.write_json(out/'manifest-fraud-proof.json', fraud)
     solvency = solvency_probe(rpc, plan, context['after6d'])
@@ -2368,10 +3189,23 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     a.need('post_swap_solvency', solvency['allSolvent'], True)
     budget(plan)
     validate_plan(plan, plan['externalInputs'], frozen=True)
-    result = dict(status='PASS', scope='Phases A/B/D; Phase C not implemented', steps=records, negativeControls=controls,
-                  B2=context['B2'], postSwapAccounting=accounting, fraudProof=fraud, dvtClosing=closing)
+    result = dict(status='PASS', scope='Phases A/B/C/D', steps=records, negativeControls=controls,
+                  B2=context['B2'], postSwapAccounting=accounting, phaseCAccounting=context['afterC'],
+                  phaseCFunding=context['funding'], handoverFunding=context.get('handoverFunding', []),
+                  spAttemptPrecheck=context['precheck'], fraudProof=fraud, dvtClosing=closing)
     a.write_json(out/'manifest-simulate.json', result)
     return result
+
+
+def phase_c_accounting(rpc, plan):
+    pc = plan['phaseC']
+    state = balances(rpc, plan['pin']['pauseList'])
+    state['cappedBalance'] = a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP)
+    funded = BUFFER+pc['operatorTopUp']
+    expected = {who: (pc['operatorTarget'] if who == u.DEPLOYER else 0) for who in plan['pin']['pauseList']}
+    a.need('C_accounting', [state['totalTrackedBalance'], state['protocolRevenue'], state['cappedBalance'], state['operatorBalances']],
+           [funded, BUFFER, funded, expected])
+    return state
 
 
 def solvency_probe(rpc, plan, initial):
@@ -2417,25 +3251,31 @@ def solvency_probe(rpc, plan, initial):
                 invariant='APNTsCapped.balanceOf(SP) >= totalTrackedBalance', restored=True)
 
 
+def require_final(plan):
+    # a3a's check predates stage c; a renamed or relabelled stage artifact is never final.
+    a.require_final_artifact(plan)
+    a.need('final_stage', plan.get('stage', 'full'), 'full')
+
+
 def save_artifact(out, plan):
-    if plan['stage'] in ('a7', 'b4'):
+    if plan['stage'] in STAGES[:-1]:
         a.need('stage_not_final', plan['final'], False)
         path = out/('stage-'+plan['stage']+'.json')
         a.write_json(path, plan)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         path.with_name(path.name+'.sha256').write_text(digest+'  '+path.name+'\n')
     else:
-        a.require_final_artifact(plan)
+        require_final(plan)
         u.save_plan(out, plan)
 
 
 def load_artifact(path):
     # Integrity is independent of release eligibility and of the filename.
     plan = a.load_plan(path)
-    if plan.get('stage') in ('a7', 'b4'):
+    if plan.get('stage') in STAGES[:-1]:
         a.need('stage_not_final', plan.get('final'), False)
     else:
-        a.require_final_artifact(plan)
+        require_final(plan)
     return plan
 
 
@@ -2444,7 +3284,7 @@ def main(argv=None):
     sub = parser.add_subparsers(dest='command', required=True)
     for name in ('plan', 'simulate'):
         p = sub.add_parser(name)
-        p.add_argument('--stage', choices=('a7', 'b4', 'full'), default='full')
+        p.add_argument('--stage', choices=STAGES, default='full')
         p.add_argument('--a7-source', type=Path, help='JSON containing plan and readback from A7 fork')
         p.add_argument('--b4-source', type=Path, help='JSON containing plan and readback from B4 fork')
         p.add_argument('--dump-state', type=Path)
@@ -2466,7 +3306,7 @@ def main(argv=None):
         if args.command in ('sign', 'send'):
             if args.plan:
                 try:
-                    a.require_final_artifact(a.plan_json(args.plan.read_bytes()))
+                    require_final(a.plan_json(args.plan.read_bytes()))
                 except a.Gate as error:
                     print('STOP: '+error.record['gate'], file=sys.stderr)
                     return 1

@@ -364,7 +364,7 @@ STOP conditions (each is a hard stop; nothing later is sent):
 - cached ETH/USD exceeds `P* = 3500e8`, Amax exceeds 5000e18, ENDUSER is inactive or S status mismatches;
 - before any SP attempt, either used counter leaves `L-used < Amax`: STOP, new packet; SP_RENEW is never set;
 - any renewal is proposed, or a required post-pilot transaction is absent from a new reviewed packet/hash go;
-- the full D budget is short: report integer wei fields `required`, `balance`, and `shortfallWei`, never reduce n; or B/O/other sender funding is insufficient;
+- the full D budget is short: report integer wei fields `requiredWei`, `balanceWei` and `shortfallWei` (DSR 2026-11-05; both the `budget_<sender>` and Phase C `budget_deployer_values` reports), never reduce n; or B/O/other sender funding is insufficient;
 - the DVT CI run binding is missing or any failing job is outside the closed "Security Audit" (npm) exception.
 
 | Stopped during | State left | Recovery |

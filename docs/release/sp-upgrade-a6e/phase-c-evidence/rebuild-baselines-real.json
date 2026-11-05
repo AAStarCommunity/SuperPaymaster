@@ -1,0 +1,50 @@
+{
+ "head": "7f0a0f4b9eb81384a62e994fdf69d4f11c31540a",
+ "baselines": {
+  "F1TestToken": {
+   "bytecode": "0x0295da717bef457ddb3ab70259f88e13f229ce907c9a5d99882c8bf6b774fa3d",
+   "source": "contracts/test/bundler/F1Fixtures.sol",
+   "commit": "7f0a0f4b9eb81384a62e994fdf69d4f11c31540a",
+   "ranges": [
+    {
+     "id": "96235",
+     "name": "MINTER",
+     "start": 180,
+     "length": 32
+    },
+    {
+     "id": "96235",
+     "name": "MINTER",
+     "start": 730,
+     "length": 32
+    }
+   ],
+   "runtimeLen": 3682
+  },
+  "F1Oracle": {
+   "bytecode": "0xaeaf3c482f8d6b4bac37c0cfd180a53472a320fd108bdb5e2ca634a78e7245cb",
+   "source": "contracts/test/bundler/F1Fixtures.sol",
+   "commit": "7f0a0f4b9eb81384a62e994fdf69d4f11c31540a",
+   "ranges": [],
+   "runtimeLen": 284
+  },
+  "VerifyingPaymaster": {
+   "bytecode": "0x2c075d9058a5580bdbaec1ca9f0ac78beb87a23d19a751b09383f20814774d78",
+   "artifact": "script/a6-collector/artifacts/VerifyingPaymaster.json",
+   "artifactSha256": "44cbe5cdf0a66afef9ac6d24d2cd8c40ee9a5151ae7f60f0db7da2d9faa81547",
+   "source": "singleton-paymaster/lib/account-abstraction-v7/contracts/samples/VerifyingPaymaster.sol",
+   "sourceSha256": "fd6c9b7677672ab812a35a2867f9fdb64401d7fbac868f833b6f7b771e45f6bd",
+   "commit": "7f0a0f4b9eb81384a62e994fdf69d4f11c31540a",
+   "constructor": "c(address,address)"
+  },
+  "TokenPaymaster": {
+   "bytecode": "0xf3fce820bfcf47653750cb02e119edb117110ebb2667c7dba9fd1bace4b82dd6",
+   "artifact": "script/a6-collector/artifacts/TokenPaymaster.json",
+   "artifactSha256": "e54501a6b56462767094e1830e5a76ea86bdd89ee84935b7e8f9b37c26606961",
+   "source": "singleton-paymaster/lib/account-abstraction-v7/contracts/samples/TokenPaymaster.sol",
+   "sourceSha256": "6a1bc0692fa162138445a7b073e649877b6c4008ce52c248c7859f4c68bc7301",
+   "commit": "7f0a0f4b9eb81384a62e994fdf69d4f11c31540a",
+   "constructor": "c(address,address,address,address,(uint256,uint128,uint48,uint48),(uint48,uint48,address,address,bool,bool,bool,uint256),(uint256,uint24,uint8),address)"
+  }
+ }
+}

@@ -47,6 +47,51 @@ ART['contracts']['BLSAggregator']['storageLayout'] = dict(storage=[dict(label='p
 
 
 
+PC_OWNER, PC_BUNDLER, PC_SIGNER = '0x'+'a1'*20, '0x'+'b1'*20, '0x'+'c1'*20
+PC_ACCOUNT, PC_IMPL = '0x'+'d1'*20, '0x'+'e1'*20
+PC_STAKING, PC_GTOKEN, PC_MYSBT = '0x'+'71'*20, '0x'+'72'*20, '0x'+'73'*20
+PC_RUNTIMES = {k: '0x'+format(i+1, '064x') for i, k in enumerate(m.PC_RUNTIMES)}
+BASELINES = {
+    'F1TestToken': dict(bytecode='0x60006000f3a00002', runtimeIdentity=dict(artifactRuntime='0x'+'00'*32+'60',
+        ranges=[dict(name='MINTER', start=0, length=32)]), source=m.F1_SOURCE, commit=ART['commit']),
+    'F1Oracle': dict(bytecode='0x60006000f3a00003', runtimeIdentity=dict(artifactRuntime='0x6001', ranges=[]),
+        source=m.F1_SOURCE, commit=ART['commit']),
+    'VerifyingPaymaster': dict(bytecode='0x60006000f3a00004', artifact=m.BASELINE_ARTIFACTS['VerifyingPaymaster'],
+        artifactSha256='f1'*32, source='samples/VerifyingPaymaster.sol', sourceSha256='f2'*32, commit=ART['commit'],
+        constructor=m.VPM_CONSTRUCTOR),
+    'TokenPaymaster': dict(bytecode='0x60006000f3a00005', artifact=m.BASELINE_ARTIFACTS['TokenPaymaster'],
+        artifactSha256='f3'*32, source='samples/TokenPaymaster.sol', sourceSha256='f4'*32, commit=ART['commit'],
+        constructor=m.TPM_CONSTRUCTOR)}
+for _name, _label in (('SuperPaymaster', 'cachedPrice'), ('xPNTsTokenV2', '_auto'), ('xPNTsTokenV2', '_budget')):
+    ART['contracts'][_name]['storageLayout'].setdefault('storage', []).append(
+        dict(label=_label, slot=str(40+len(ART['contracts'][_name]['storageLayout']['storage'])), offset=0, type='t'))
+
+
+def phase_c_pin(p):
+    return dict(owner=dict(address=PC_OWNER, nonce=0, balance=0, code='0x'),
+        bundler=dict(address=PC_BUNDLER, nonce=0, balance=10**17, code='0x'),
+        verifyingSigner=dict(address=PC_SIGNER, nonce=0, balance=0, code='0x'),
+        capped=dict(cap=10**27, totalSupply=0, minter=u.SAFE, deployerBalance=10**18),
+        sp=dict(aPNTsPriceUSD=2*10**16, protocolFeeBPS=1000, cachedPrice=[3000*10**8, p['timestamp'], 1, 8],
+                deployerOperator=[169001*10**16, 1, 0, int('0x'+'5a'*20, 16), 100, 0, int(u.DEPLOYER, 16), 7, 3]),
+        roles=dict(COMMUNITY=1, PAYMASTER_SUPER=1),
+        endUser=dict(roleConfig=base.cfg(), staking=PC_STAKING, gtoken=PC_GTOKEN, mysbt=PC_MYSBT, deployerGToken=1000*10**18),
+        account=dict(factoryCodeHash=PC_RUNTIMES['accountFactory'], implementation=PC_IMPL,
+            implementationCodeHash=PC_RUNTIMES['accountImplementation'], implementationEntryPoint=p['immutables']['entryPoint'],
+            counterfactual=PC_ACCOUNT, codeHash=a.EMPTY_KECCAK, status=[0, 0, 0]))
+
+
+def phase_c_inputs(file_ref):
+    arm = dict(call=60000, verification=80000, paymasterVerification=120000, postOp=40000, preVerification=50000, outer=300000)
+    return dict(bundler=PC_BUNDLER, accountOwner=PC_OWNER, verifyingSigner=PC_SIGNER, account=PC_ACCOUNT, salt=7,
+        accountImplementation=PC_IMPL, runtimeKeccak=dict(PC_RUNTIMES),
+        accountEvidence=file_ref('account-evidence', {'synthetic': True}),
+        rehearsal=dict(evidence=file_ref('rehearsal-evidence', {'synthetic': True}),
+            arms=dict(SP={k: v for k, v in arm.items() if k != 'postOp'}, VPM=dict(arm, postOp=0), TPM=dict(arm)),
+            ownerPreparation={k: 100000 for k in m.OWNER_PREPARATION},
+            ownerMaintenance=[dict(name='tpm-refresh-1', gas=50000)], bundlerMaintenance=[dict(name='withdraw', gas=40000)]))
+
+
 def gas_evidence(plan, step):
     index = next(i for i, item in enumerate(plan['steps']) if item['id'] == step['id'])
     return dict(estimateContext=dict(block=plan['pin']['block'],
@@ -153,6 +198,7 @@ def pin():
     p['pendingAPNTsTokenEta'] = 1794226596
     p['oldOwnerIsolation'] = isolation_tests.evidence(p)
     set_old_exit_evidence(p)
+    p['phaseC'] = phase_c_pin(p)
     return p
 
 
@@ -602,6 +648,7 @@ class ManifestTests(unittest.TestCase):
                 e['contracts']['OverIssueFraudProofVerifier'] = m.creation_hashes(VERIFIER_CODE, 'OverIssueFraudProofVerifier')
             self.data['releaseEvidence'][kind] = file_ref(kind, e)
         self.data['releaseEvidence']['sourceVerificationPlan'] = file_ref('source-plan', {'synthetic':True})
+        self.data['phaseC'] = phase_c_inputs(file_ref)
         rows = []
         for sid in a.STEP_IDS:
             label = 'approver' if sid in ('S5a', 'S6a') else 'executor' if sid in ('S5b', 'S6b') else 'deployer'
@@ -629,6 +676,12 @@ class ManifestTests(unittest.TestCase):
             mock.start()
             self.addCleanup(mock.stop)
         self.path.write_text(json.dumps(self.data))
+        # Phase C funding re-reads are exercised against a stateful fake in test_manifest_phase_c.py;
+        # here they are isolated so the A/B/D fakes need not model post-Phase-C balances.
+        self.funding_patch = patch.object(m, 'funding_gate', return_value={'synthetic': 'funding'})
+        self.funding_patch.start(); self.addCleanup(self.funding_patch.stop)
+        self.baseline_patch = patch.object(m, 'rebuild_baselines', return_value=BASELINES)
+        self.baseline_patch.start(); self.addCleanup(self.baseline_patch.stop)
         self.commit_patch = patch.object(m, 'rebuild_commit', return_value=ART)
         self.commit_patch.start(); self.addCleanup(self.commit_patch.stop)
         self.patch = patch.object(m, 'rebuild', return_value=ART)
@@ -786,7 +839,9 @@ class ManifestTests(unittest.TestCase):
         out = saved/'replay'
         rpc_file = saved/'rpc'
         rpc_file.write_text('https://offline.invalid')
-        with patch.object(a, 'RPC'), patch.object(m, 'collect', return_value=copy.deepcopy(self.pin)), \
+        # collect() reads Phase C state only for the stages that build Phase C.
+        collected = {k: v for k, v in copy.deepcopy(self.pin).items() if k != 'phaseC' or stage in m.PC_STAGES}
+        with patch.object(a, 'RPC'), patch.object(m, 'collect', return_value=collected), \
              patch.object(a, 'fork', side_effect=a.Gate('test_fork_boundary', False, True)) as fork:
             code = m.main(['simulate', '--stage', stage, '--inputs', str(self.path),
                            '--out', str(out), '--rpc-file', str(rpc_file),
@@ -852,6 +907,7 @@ class ManifestTests(unittest.TestCase):
     def test_staged_runner_guards(self):
         plan = copy.deepcopy(self.plan)
         plan.update(stage='b4', steps=[self.step('B4')])
+        plan.pop('phaseC')
         rpc = unittest.mock.Mock(local=True, archive_overrides={})
         with contextlib.ExitStack() as stack:
             for obj, name in ((m, 'validate_plan'), (a, 'process_alive'), (m, 'controls_at'),
@@ -896,7 +952,10 @@ class ManifestTests(unittest.TestCase):
         for offset, (step, (_, target, sig, owner)) in enumerate(zip(direct, expected), 1):
             self.assertEqual(step['tx']['to'], target)
             self.assertEqual(step['tx']['data'], a.calldata(sig, owner))
-            self.assertEqual(a.qty(step['tx']['nonce']), a.qty(self.step('B4')['tx']['nonce'])+offset)
+            # Phase C deployer transactions sit between B4 and Phase D on the same counter.
+            last = [s for s in self.plan['steps'] if s['sender'] == 'deployer' and not s['id'].startswith('D.')][-1]
+            self.assertEqual(last.get('phase'), 'C')
+            self.assertEqual(a.qty(step['tx']['nonce']), a.qty(last['tx']['nonce'])+offset)
             self.assertTrue(step['readbacks'])
         self.assertEqual(self.plan['schema'], '3.1')
         self.assertEqual([s['id'] for s in rows[1:5]], [
@@ -917,7 +976,8 @@ class ManifestTests(unittest.TestCase):
         for i, verb in enumerate(('schedule', 'execute'), 5):
             for suffix in ('approve', 'exec'):
                 step = self.step('D.registry_'+verb+'_'+suffix)
-                self.assertEqual(step['safeNonce'], self.pin['safeNonce']+i)
+                # Phase C's C1 Safe mint takes the nonce after 6d (§4), before Phase D.
+                self.assertEqual(step['safeNonce'], self.pin['safeNonce']+i+int('C1_exec' in self.plan['phaseC']['steps']))
                 self.assertEqual(step['inner'], u.op_call(op, verb))
                 self.assertEqual(step['safeHash'], m.safe_hash(step['inner'], step['safeNonce']))
 
@@ -1026,13 +1086,15 @@ class ManifestTests(unittest.TestCase):
         plan = copy.deepcopy(self.plan)
         plan['steps'] = []
         plan['pin']['senders'] = {}
+        plan['controls'] = ['owner_handover']
         def rpc(method, params):
+            if (method, params) == ('anvil_impersonateAccount', [PC_OWNER]): return True
             raise AssertionError((method, params))
         rpc.local = True
         class CheckpointPassed(Exception): pass
         for owner in (u.TL, u.DEPLOYER):
             with self.subTest(owner=owner), patch.object(m, 'validate_plan'), \
-                 patch.object(m, 'CONTROLS', ['owner_handover']), \
+                 patch.object(m, 'CONTROLS', ['owner_handover']), patch.object(m, 'PC_CONTROLS', []), \
                  patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}), \
                  patch.object(a, 'address', return_value=owner), \
                  patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])), \
@@ -1136,7 +1198,9 @@ class ManifestTests(unittest.TestCase):
 
     def test_create_addresses(self):
         creates = [s for s in self.plan['steps'] if s['tx']['to'] is None]
-        self.assertEqual(len(creates), 10)
+        # Ten A/B CREATEs plus Phase C's T, VPM, Q, oracle and TPM.
+        self.assertEqual(len(creates), 15)
+        self.assertEqual([s['id'] for s in creates if s.get('phase') == 'C'], ['C10', 'C12', 'C13.token', 'C13.oracle', 'C14'])
         for s in creates:
             self.assertEqual(s['creates'], a.create_address(s['tx']['from'], a.qty(s['tx']['nonce'])))
         self.assertEqual(self.plan['extension'], a.create_address(self.plan['implementation'], 1))
@@ -1260,7 +1324,7 @@ class ManifestTests(unittest.TestCase):
     def test_each_step_concrete_and_readback(self):
         for s in self.plan['steps']:
             self.assertTrue(s['readbacks'])
-            self.assertIn(s['sender'], self.pin['senders'])
+            self.assertIn(s['sender'], set(self.pin['senders']) | ({'owner'} if s.get('phase') == 'C' else set()))
             self.assertTrue(s['tx']['data'].startswith('0x'))
         self.assertTrue(any(s['id'] == 'A12a' for s in self.plan['steps']))
         self.assertTrue(any(s['id'] == 'A12b' for s in self.plan['steps']))
@@ -1276,15 +1340,18 @@ class ManifestTests(unittest.TestCase):
             for tx in s.get('variants', {}).values(): tx['gas'] = hex(100000)
         m.budget(self.plan)
         d_steps = [s for s in self.plan['steps'] if s['sender'] == 'deployer']
-        self.assertEqual(self.plan['budgetsWei']['deployer'],
-                         len(d_steps)*100000*a.MAX_FEE+18*10**17)
+        pc = self.plan['phaseC']
+        values = (18*10**17+2*m.PC_STAKE+sum(pc['entryPointTopUps'].values())+pc['ownerTopUp']+pc['bundlerTopUp'])
+        self.assertEqual(pc['deployerValueWei'], values)
+        self.assertEqual(self.plan['budgetsWei']['deployer'], len(d_steps)*100000*a.MAX_FEE+values)
+        # DSR F-02 (2026-11-05): exact shortfall, 1 wei short; keys {requiredWei, balanceWei, shortfallWei}.
         required = self.plan['budgetsWei']['deployer']
         self.plan['pin']['senders']['deployer']['balance'] = required-1
         with self.assertRaises(a.Gate) as caught:
             m.budget(self.plan)
         self.assertEqual(caught.exception.record['gate'], 'budget_deployer')
         self.assertEqual(caught.exception.record['observed'],
-                         dict(required=required, balance=required-1, shortfallWei=1))
+                         dict(balanceWei=required-1, requiredWei=required, shortfallWei=1))
 
     def test_runtime_patches_named_immutables(self):
         art = dict(runtimeIdentity=dict(artifactRuntime='0x'+'00'*32+'ab',
@@ -1426,9 +1493,14 @@ class ManifestTests(unittest.TestCase):
             'funded_swap','old_reputation','registry_nonowner','early_verifier','repeat_verifier','verifier_placeholder','verifier_frontrun','verifier_wrong','unbacked_swap','owner_handover'})
 
 
-    def rehearse_fake(self, already_applied=False, solvent=True, frontrun=False):
+    def rehearse_fake(self, already_applied=False, solvent=True, frontrun=False, fault=None, gate='post_swap_solvency'):
         state = dict(now=self.pin['timestamp'], safe=self.pin['safeNonce'], next=None,
-                     nonces={v['address']:v['nonce'] for v in self.pin['senders'].values()}, etas={})
+                     nonces={v['address']:v['nonce'] for v in [*self.pin['senders'].values(), self.pin['phaseC']['owner']]}, etas={})
+        funded = lambda: m.BUFFER+(self.plan['phaseC']['operatorTopUp'] if 'C2.deposit' in dict(sent) else 0)
+        def accounting(*args):
+            balances = {x:0 for x in self.pin['pauseList']}
+            if 'C2.deposit' in dict(sent): balances[u.DEPLOYER] = self.plan['phaseC']['operatorTarget']
+            return dict(totalTrackedBalance=funded(), protocolRevenue=m.BUFFER+int(fault == 'after6d'), operatorBalances=balances)
         sent, waits, gates = [], [], []
         def rpc(method, params):
             if method == 'anvil_impersonateAccount': return True
@@ -1448,7 +1520,7 @@ class ManifestTests(unittest.TestCase):
             if sig == 'nonce()': return state['safe']
             if sig == 'getTimestamp(bytes32)': return state['etas'][args[0]]
             if sig == 'pendingFraudProofVerifierReadyAt()': return state['verifierEta']
-            if sig == 'balanceOf(address)': return m.BUFFER
+            if sig == 'balanceOf(address)': return funded()
             raise AssertionError(sig)
         def measure(remote, r, plan, step, overrides, ts, calibrate):
             step.update(executionTimestamp=ts, estimateGas=100000, localEstimateGas=100000,
@@ -1469,7 +1541,7 @@ class ManifestTests(unittest.TestCase):
             if sid == 'A12b': state['verifierEta'] = state['now']+4*m.DAY
             if sid == 'upgrade_execute_exec': state['gasEta'] = state['now']+u.DELAY
             sent.append((sid, state['now']))
-            return dict(status='0x0' if sid == 'B4' and frontrun else '0x1', gasUsed=hex(21000 if tx['data'] == '0x' else 90000), blockNumber='0x150', transactionHash='0x'+'12'*32, logs=[])
+            return dict(status='0x0' if sid == 'B4' and frontrun else '0x1', gasUsed=hex(21000 if tx['data'] == '0x' and sid == 'B4' else 90000), blockNumber='0x150', transactionHash='0x'+'12'*32, logs=[])
         def pre(r, plan, step, context, measured=False):
             if step['id'] == 'activation_execute_exec':
                 self.assertIn('upgradeBlock', context)
@@ -1480,7 +1552,15 @@ class ManifestTests(unittest.TestCase):
             if sid == 'after_upgrade_execute_exec':
                 self.assertEqual(sent[-1][0], 'upgrade_execute_exec')
             if sid == 'after_B4': output.extend(dict(control=x) for x in m.CONTROLS if x != 'owner_handover')
+        def phase_c_controls(r, plan, sid, output, context):
+            if sid == 'after_phase_c':
+                self.assertEqual(sent[-1][0], plan['phaseC']['steps'][-1])
+                self.assertEqual({'activation_execute_exec', 'B4'} <= context['passed'], True)
+                output.extend(dict(control=x) for x in m.PC_CONTROLS[int(fault == 'drop_control'):])
         patches = [
+            patch.object(m, 'phase_c_controls', side_effect=phase_c_controls),
+            patch.object(m, 'phase_c_accounting', side_effect=lambda r, plan: dict(accounting(), cappedBalance=funded()+int(fault == 'drift'))),
+            patch.object(m, 'sp_attempt_precheck', return_value={'synthetic': True}),
             patch.object(a, 'process_alive'), patch.object(a, 'nonce', side_effect=lambda r,who,*args:state['nonces'][who]),
             patch.object(a, 'word', side_effect=word),
             patch.object(a, 'block_data', side_effect=lambda *args:dict(timestamp=hex(state['now']), number='0x150', gasLimit='0xbebc200')),
@@ -1495,14 +1575,13 @@ class ManifestTests(unittest.TestCase):
             patch.object(u, 'assert_frozen'), patch.object(m, 'pre_send', side_effect=pre),
             patch.object(m, 'controls_at', side_effect=controls), patch.object(m, 'check_predicate', return_value=True), patch.object(m, 'batch_readback', return_value={}),
             patch.object(m, 'b4_needed', return_value=not already_applied),
-            patch.object(m, 'balances', return_value=dict(totalTrackedBalance=m.BUFFER, protocolRevenue=m.BUFFER,
-                operatorBalances={x:0 for x in self.pin['pauseList']})),
+            patch.object(m, 'balances', side_effect=accounting),
             patch.object(m, 'fraud_rehearsal', return_value={'synthetic':True}),
             patch.object(m, 'dvt_closing', return_value={'closing':True}),
             patch.object(m, 'solvency_probe', return_value={'allSolvent':solvent})]
         with contextlib.ExitStack() as stack:
             for p in patches: stack.enter_context(p)
-            if solvent:
+            if solvent and fault is None:
                 m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
                 self.assertEqual(u.fresh_gas.call_count, len(self.plan['steps']))
                 self.assertEqual([c.args[1]['id'] for c in u.fresh_gas.call_args_list],
@@ -1514,8 +1593,28 @@ class ManifestTests(unittest.TestCase):
             else:
                 with self.assertRaises(a.Gate) as caught:
                     m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
-                self.assertEqual(caught.exception.record['gate'], 'post_swap_solvency')
+                self.assertEqual(caught.exception.record['gate'], gate)
         return sent, waits, gates, state
+
+    def test_rehearsal_phase_c_controls_complete(self):
+        sent, _, _, _ = self.rehearse_fake(fault='drop_control', gate='phase_c_controls_complete')
+        self.assertEqual(sent[-1][0], 'D.old_aggregator.transfer')
+
+    def test_rehearsal_after_6d_accounting(self):
+        sent, _, _, _ = self.rehearse_fake(fault='after6d', gate='after_6d_accounting')
+        self.assertEqual(sent[-1][0], 'activation_execute_exec')
+
+    def test_rehearsal_accounting_unchanged_since_phase_c(self):
+        self.rehearse_fake(fault='drift', gate='accounting_unchanged_since_phase_c')
+
+    def test_rehearsal_funding_rechecked_after_phase_c(self):
+        # run_manifest must call the funding re-read right after the last Phase C step and stop
+        # on its gate before any Phase D transaction (the real gate is tested in the Phase C suite).
+        def drained(rpc, plan):
+            a.need('C_funding_bundler', False, True)
+        with patch.object(m, 'funding_gate', side_effect=drained):
+            sent, _, _, _ = self.rehearse_fake(fault='funding', gate='C_funding_bundler')
+        self.assertEqual(sent[-1][0], self.plan['phaseC']['steps'][-1])
 
     def test_rehearsal_orders_all_steps_warps_and_b2(self):
         sent, waits, gates, state = self.rehearse_fake()
@@ -1527,6 +1626,14 @@ class ManifestTests(unittest.TestCase):
         self.assertGreaterEqual(times['activation_execute_exec'], times['activation_schedule_exec']+u.DELAY)
         self.assertGreaterEqual(times['D.registry_execute_exec'], times['D.registry_schedule_exec']+u.DELAY)
         self.assertGreaterEqual(times['B4'], times['A12b']+4*m.DAY)
+        # Phase C runs after 6d and B4 and before every Phase D transaction (§3, §4).
+        ids = [x[0] for x in sent]
+        c_ids = self.plan['phaseC']['steps']
+        self.assertEqual(ids[ids.index('B4')+1:ids.index('B4')+1+len(c_ids)], c_ids)
+        self.assertEqual(ids[ids.index('B4')+1+len(c_ids)], 'D.registry.transfer')
+        for sid in c_ids:
+            self.assertGreater(times[sid], times['activation_execute_exec'])
+            self.assertGreaterEqual(times[sid], self.pin['pendingAPNTsTokenEta'])
         self.assertEqual(gates, [[x[0] for x in sent].index('activation_execute_exec')]*2)
         self.assertTrue(waits)
         m.validate_plan(self.plan, self.inputs, frozen=True)
@@ -1544,6 +1651,8 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(result['status'], 'PASS')
         record = next(x for x in result['steps'] if x['step'] == 'B4')
         self.assertEqual((record['step'], record['variant'], record['receipt']['status']), ('B4', 'apply', '0x0'))
+        # Phase C funding is re-read at the end of Phase C (stubbed here; real gate in the Phase C suite).
+        self.assertEqual(result['phaseCFunding'], {'synthetic': 'funding'})
         self.assertEqual(state['nonces'][u.DEPLOYER], a.qty(self.plan['steps'][-1]['tx']['nonce'])+1)
 
     def test_rehearsal_stops_on_solvency_without_pass_record(self):
@@ -2377,7 +2486,8 @@ class ManifestTests(unittest.TestCase):
              patch.object(a, 'nonce', return_value=55), patch.object(u, 'code', side_effect=lambda r,t,b:'0x' if t == ANNI else '0x6000'), \
              patch.object(a, 'call', side_effect=call), patch.object(a, 'word', side_effect=word), \
              patch.object(a, 'address', side_effect=address), patch.object(m, 'old_activity', return_value={}), \
-             patch.object(m, 'dvt_activity', return_value=[]), patch.object(m, 'balances', return_value={k:self.pin[k] for k in ('totalTrackedBalance','protocolRevenue','operatorBalances')}):
+             patch.object(m, 'dvt_activity', return_value=[]), patch.object(m, 'balances', return_value={k:self.pin[k] for k in ('totalTrackedBalance','protocolRevenue','operatorBalances')}), \
+             patch.object(m, 'collect_phase_c', return_value=copy.deepcopy(self.pin['phaseC'])) as phase_c:
             collected = m.collect(rpc, '0x100', self.inputs)
             def wrong_admin(rpc, target, sig, block):
                 return ANNI if sig == 'slashPolicyAdmin()' else address(rpc, target, sig, block)
@@ -2385,6 +2495,8 @@ class ManifestTests(unittest.TestCase):
                 with self.assertRaises(a.Gate) as caught:
                     m.collect(rpc, '0x100', self.inputs)
             self.assertEqual(caught.exception.record['gate'], 'old_aggregator_slash_policy_admin')
+        phase_c.assert_called_once()
+        self.assertEqual(collected['phaseC'], self.pin['phaseC'])
         self.assertEqual(collected['a3aHistory'], self.pin['a3aHistory'])
         self.assertEqual(collected['guardianInventory'], self.pin['guardianInventory'])
 
