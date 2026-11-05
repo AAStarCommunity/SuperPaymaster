@@ -15,19 +15,29 @@ git diff --quiet HEAD -- "$src" || { echo "refusing: $src has uncommitted change
 bak=$(mktemp "${TMPDIR:-/tmp}/manifest_exec.XXXXXX") || { echo "mktemp failed"; exit 1; }
 cp "$src" "$bak" && cmp -s "$src" "$bak" || { echo "backup failed; source untouched"; rm -f "$bak"; exit 1; }
 # Restore from HEAD (the source is clean) and keep the backup if that fails.
+log=$(mktemp "${TMPDIR:-/tmp}/stale-probes.XXXXXX") || { echo "mktemp failed"; rm -f "$bak"; exit 1; }
 restore() {
+  rm -f "$log"
   if git checkout -q HEAD -- "$src" && cmp -s "$src" "$bak"; then rm -f "$bak"
   else echo "RESTORE FAILED; backup kept at $bak"; exit 1; fi
 }
 # Every reset must reproduce HEAD byte for byte, or later probes would run on an earlier mutation.
 reset() { git checkout -q HEAD -- "$src" && cmp -s "$src" "$bak" || { echo "RESET FAILED"; exit 1; }; }
 trap restore EXIT
-# A signal must still restore the source: exit (and so run the EXIT trap) on INT/TERM.
-trap 'exit 1' INT TERM
+# A signal must restore the source promptly: the suite runs as a background child awaited with an interruptible
+# `wait` (not inside $(...), where bash defers traps until the child ends); on INT/TERM it is terminated and reaped,
+# then exit runs the EXIT trap.
+child=
+on_signal() { if [ -n "$child" ]; then kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; fi; exit 1; }
+trap on_signal INT TERM
 tests='-k stale_dvt -k unsigned_dvt -k dvt_closing -k old_pointers'
 status=0
-run() { python3 -B script/upgrade/test_manifest_exec.py $tests 2>&1 | grep -E '^(OK|FAILED)' | tail -1; }
-base=$(run); echo "baseline: $base"; case "$base" in OK*) ;; *) echo "baseline not green"; exit 1;; esac
+run() {
+  python3 -B script/upgrade/test_manifest_exec.py $tests > "$log" 2>&1 &
+  child=$!; wait "$child"; child=
+  R=$(grep -E '^(OK|FAILED)' "$log" | tail -1)
+}
+run; base=$R; echo "baseline: $base"; case "$base" in OK*) ;; *) echo "baseline not green"; exit 1;; esac
 red() { case "$1" in *errors=*) return 1;; FAILED*failures=*) return 0;; *) return 1;; esac; }
 for gate in dvt_stale_next_id dvt_proposal_inventory dvt_stale_proposal_listed dvt_stale_proposal_shape \
             dvt_stale_sibling_executed dvt_stale_open_set closing_registry_pointer closing_dvt_pointer \
@@ -44,7 +54,7 @@ l = lines[hits[0]]
 lines[hits[0]] = l[:len(l)-len(l.lstrip())] + 'pass'
 open(p, 'w').write('\n'.join(lines))
 PY
-  r=$(run); echo "remove $gate -> $r"; red "$r" || status=1
+  run; r=$R; echo "remove $gate -> $r"; red "$r" || status=1
 done
 reset
 python3 - "$src" <<'PY' || { echo "MUTATION FAILED: sibling level"; exit 1; }
@@ -54,6 +64,6 @@ old = "(peer[0], peer[1], peer[3], peer[5]), (w[0], w[1], 1, evidence)"
 assert s.count(old) == 1
 open(p, 'w').write(s.replace(old, "(peer[0], peer[3], peer[5]), (w[0], 1, evidence)"))
 PY
-r=$(run); echo "drop sibling level -> $r"; red "$r" || status=1
+run; r=$R; echo "drop sibling level -> $r"; red "$r" || status=1
 echo "PROBES_ALL_RED=$((1-status))"
 exit $status

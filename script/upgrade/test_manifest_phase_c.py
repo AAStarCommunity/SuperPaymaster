@@ -775,14 +775,20 @@ class LiveGateTests(PhaseCTests):
         pin['senders']['deployer']['balance'] = values-1
         record = self.stop('budget_deployer_values', lambda: self.build(pin=pin))
         self.assertEqual(record['observed'], dict(balanceWei=values-1, requiredWei=values, shortfallWei=1))
-        plan = copy.deepcopy(self.plan)
+        # O must hold a real (non-negative) balance: build with O already holding some ETH, so the planned C20
+        # top-up covers only the rest, then lose one wei of it before sending.
+        pin = copy.deepcopy(self.pin)
+        held = 10**15
+        pin['phaseC']['owner']['balance'] = held
+        plan = self.build(pin=pin)
         for s in plan['steps']:
             s['tx']['gas'] = hex(s.get('gasBound', 100000))
             for tx in s.get('variants', {}).values(): tx['gas'] = hex(100000)
         m.budget(plan)
         pc = plan['phaseC']
         required = plan['budgetsWei']['owner']+pc['ownerMaintenanceWei']
-        plan['pin']['phaseC']['owner']['balance'] = required-pc['ownerTopUp']-1
+        self.assertEqual(held+pc['ownerTopUp'], required)
+        plan['pin']['phaseC']['owner']['balance'] = held-1
         record = self.stop('budget_owner', lambda: m.budget(plan))
         self.assertEqual(record['observed'], dict(balanceWei=required-1, requiredWei=required, shortfallWei=1))
 
