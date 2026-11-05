@@ -60,6 +60,8 @@ jobs:
       - name: Offline manifest audit regression check
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/audit/check_expected_failure_causes.py
+      - name: Offline Q5 snapshot-timestamp harness controls
+        run: python3 -B script/evidence/test_q5_snapshot_timestamp.py
       - name: Offline PoP adapter tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_pop_adapter.py
