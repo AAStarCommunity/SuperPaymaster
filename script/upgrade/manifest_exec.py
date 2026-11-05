@@ -27,6 +27,27 @@ PENDING_OWNER_SLOT = '0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d2712028
 DVT = '0x568b1486bfe036e603ea11f0d03dc47fa62c9e0e'
 COMMITTEE = '0x7ac7e9d471742fa4397beef0b5b11fbd22d196a9'
 OLD_AGGREGATOR = '0xeaec2f512ea50708211fa95533e4dbb60e3d2e5d'
+# DSR 2026-11-04: sole address-exact exception; never supplied by a plan.
+# BLSAggregator-4.11.0 (7c732e70), SDK #413 / 667b1bb2,
+# tests/regression/onchain-evidence/dvt-onboard-e2e.ts:145: one-shot key
+# generated in memory and discarded. readyAt=1788933060, expiresAt=1789019460.
+# Request: 0xe4737f3924f5488e1d037532dbae71b1f0efc91fa6544f92799e112402c82d38
+# syncExitNotice: 0xaad53b17a7a3d59ab0d171c7126a7d2341c82d54741c0f1ea04420d130425524
+OLD_EXIT_EXEMPTIONS = frozenset({'0xf36c9317765634e4995ce1e7210b5738225425b0'})
+# DSR 2026-11-05: duplicate DVT E2E credit-over-limit proposals (2026-07-07/08, blocks 11223327-11228495):
+# each validator proposed the same event and one sibling per evidence hash executed.
+# DVTValidator has no cancel path, so these stay open; exact ids only, never plan-supplied.
+STALE_PROPOSAL_OPERATOR = '0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c'
+STALE_PROPOSAL_NEXT_ID = 10
+STALE_PROPOSALS = {
+    1: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    2: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    4: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    5: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    6: (3, 0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237),
+    8: (7, 0x64357531834ff863e1207cea92dcf62db5ecf498d87cd629cb0e27e9d1247d79),
+    9: (7, 0x64357531834ff863e1207cea92dcf62db5ecf498d87cd629cb0e27e9d1247d79),
+}
 VERIFIER_COMMIT = '72aca4fa0ba4aaa8c8a96210b1124534431294d6'
 VERIFIER_SHA256 = '4d7e0125094c381a0dca5e2d8dd56efa79b284e43119fd64130dfaa78d33e7d6'
 # Offline archive rebuild of 72aca4fa, Forge 1.7.1 / solc 0.8.33.
@@ -748,29 +769,130 @@ def release_gate(inputs, build, pin):
     a.need('registry_owner_slot', next(x['slot'] for x in layout['storage'] if x['label'] == '_owner'), '0')
 
 
-def old_activity(rpc, old, block):
+def old_activity(rpc, old, block, pop=None):
     start = u.creation(rpc, old, block)
     events = ('SignatureAggregated(uint256,bytes,uint256)', 'GuardianExitRequested(address,uint256,uint256)')
     logs = u.scan(rpc, old, start, block, [[a.keccak(x) for x in events]])
+    exemptions = []
     for log in logs:
         subject = int(log['topics'][1], 16)
         if log['topics'][0] == a.keccak(events[0]):
             a.need('old_proposal_complete', a.word(rpc, old, 'executedProposals(uint256)', subject, block=block), 1)
         else:
             values = u.uints(a.call(rpc, old, 'guardianExitRequests(address)', u.addr_word(subject), block=block))
-            a.need('old_exit_cleared', all(v == 0 for v in values), True)
-    return dict(creation=start, logs=logs)
+            a.need('old_exit_shape', len(values), 2)
+            if any(values):
+                guardian = u.addr_word(subject)
+                header = a.block_data(rpc, block)
+                maximum = a.word(rpc, old, 'MAX_VALIDATORS()', block=block)
+                a.need('old_exit_max_validators', maximum, 13)
+                slots = [dict(slot=i, validator=u.addr_word(a.word(
+                    rpc, old, 'validatorAtSlot(uint8)', i, block=block))) for i in range(1, 14)]
+                slash = a.word(rpc, old, 'pendingGuardianSlashCount(address)', guardian, block=block)
+                # Before the A7 PoP exists (stage a7) condition (4) follows from (2): the PoP
+                # validator set must equal the old aggregator's nonempty slot inventory.
+                pop_source = 'slot-inventory' if pop is None else 'pop'
+                in_pop = (guardian in {x['validator'] for x in slots} if pop is None
+                          else guardian in {x['validator'].lower() for x in pop})
+                # 4.11.0 checks slot holders only in _reconstructPkAgg (signer mask)
+                # and _requireCommitteeSurvivesExit (validatorAtSlot). No slot means
+                # no signing/quorum effect, including rollback A7–A12b. This slot
+                # condition is load-bearing and re-read at EVERY pre_send. An expired
+                # request cannot be consumed to exit DVT (GuardianExitRequestExpired).
+                a.need('old_exit_exempt_expired', values[1] < a.qty(header['timestamp']), True)
+                a.need('old_exit_exempt_slot', all(x['validator'] != guardian for x in slots), True)
+                a.need('old_exit_exempt_slash', slash, 0)
+                a.need('old_exit_exempt_pop', in_pop, False)
+                a.need('old_exit_exempt_listed', guardian in OLD_EXIT_EXEMPTIONS, True)
+                exemptions.append(dict(guardian=guardian, readyAt=values[0], expiresAt=values[1],
+                    pinTime=a.qty(header['timestamp']), blockHash=header['hash'],
+                    slotScan=slots, maxValidators=maximum, slashCount=slash, inPop=in_pop, popSource=pop_source))
+            # Backstop only: any nonzero request is decided by the exemption gates above.
+            a.need('old_exit_cleared', all(v == 0 for v in values) or bool(exemptions), True)
+    return dict(creation=start, logs=logs, exemptions=exemptions)
+
+
+def record_old_activity(rpc, old, block, pop):
+    reads = []
+    def recording(method, params):
+        result = rpc(method, params)
+        reads.append(dict(method=method, params=params, result=copy.deepcopy(result)))
+        return result
+    return old_activity(recording, old, block, pop), reads
+
+
+def validate_old_activity(pin, pop):
+    evidence = pin.get('oldActivityReads', {})
+    a.need('old_exit_endpoints', set(evidence), {'primary', 'secondary'})
+    expected = {k:v for k,v in pin['oldActivity'].items() if k != 'dvtProposals'}
+    for label in ('primary', 'secondary'):
+        reads = iter(evidence[label])
+        def replay(method, params):
+            row = next(reads, None)
+            a.need('old_exit_proof_read', row is not None, True)
+            a.need('old_exit_proof_request', (row['method'], row['params']), (method, params))
+            return copy.deepcopy(row['result'])
+        actual = old_activity(replay, pin['oldAggregator'], pin['stateBlock'], pop)
+        a.need('old_exit_proof_unused', next(reads, None), None)
+        a.need('old_exit_evidence', actual, expected)
+        for item in actual['exemptions']:
+            a.need('old_exit_pin_time', item['pinTime'], pin['stateTimestamp'])
+            a.need('old_exit_pin_hash', item['blockHash'], pin['stateBlockHash'])
+
+
+def unchanged_old_activity(rpc, plan, block):
+    actual = old_activity(rpc, plan['pin']['oldAggregator'], block,
+                          plan['externalInputs']['data'].get('pop'))
+    expected = {k:copy.deepcopy(v) for k,v in plan['pin']['oldActivity'].items() if k != 'dvtProposals'}
+    # Time/hash advance on the fork; all exemption predicates have just run again.
+    for activity in (actual, expected):
+        for item in activity.get('exemptions', []):
+            item.pop('pinTime', None)
+            item.pop('blockHash', None)
+    a.need('old_activity_unchanged', actual, expected)
 
 
 def dvt_activity(rpc, dvt, block):
     # DVT owns proposal creation; aggregation events alone cannot find unsigned proposals.
+    # Getters are the inventory; logs must reconcile with them exactly (missing logs are not "none").
     start = u.creation(rpc, dvt, block)
     proposals = u.scan(rpc, dvt, start, block, [a.keccak('ProposalCreated(uint256,address,uint8)')])
-    for log in proposals:
-        proposal = int(log['topics'][1], 16)
-        words = u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))
-        a.need('dvt_proposal_executed', words[3], 1)
+    a.need('dvt_stale_next_id', a.word(rpc, dvt, 'nextProposalId()', block=block), STALE_PROPOSAL_NEXT_ID)
+    ids = list(range(1, STALE_PROPOSAL_NEXT_ID))
+    a.need('dvt_proposal_inventory', sorted(int(log['topics'][1], 16) for log in proposals), ids)
+    words = {i: u.uints(a.call(rpc, dvt, 'proposals(uint256)', i, block=block)) for i in ids}
+    open_ids = [i for i in ids if words[i][3] != 1]
+    for proposal in open_ids:
+        a.need('dvt_stale_proposal_listed', proposal in STALE_PROPOSALS, True)
+    for proposal in open_ids:
+        w = words[proposal]
+        sibling, evidence = STALE_PROPOSALS.get(proposal, (None, None))
+        a.need('dvt_stale_proposal_shape', (w[0], w[1], w[3], w[4], w[5]), (int(STALE_PROPOSAL_OPERATOR, 16), 1, 0, 1, evidence))
+        peer = words.get(sibling, [0]*6)
+        a.need('dvt_stale_sibling_executed', (peer[0], peer[1], peer[3], peer[5]), (w[0], w[1], 1, evidence))
+    a.need('dvt_stale_open_set', open_ids, sorted(STALE_PROPOSALS))
     return proposals
+
+
+def old_pointers(rpc, d, old, block):
+    bindings = {}
+    for target, getter in ((d['dvt'], 'BLS_AGGREGATOR()'), (d['committee'], 'blsAggregator()')):
+        a.need('pointer_owner', a.address(rpc, target, 'owner()', block), u.DEPLOYER)
+        a.need('old_pointer', a.address(rpc, target, getter, block), old)
+        bindings[target] = u.code(rpc, target, block)
+    return bindings
+
+
+def dvt_closing(rpc, plan):
+    # After the last step: per-step pre_send reads cannot see anything that lands after it.
+    dvt = plan['externalInputs']['data']['dvt']
+    expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
+    a.need('closing_dvt_pointer', a.address(rpc, dvt, 'BLS_AGGREGATOR()'), expected)
+    latest = dvt_activity(rpc, dvt, a.block_data(rpc, 'latest')['number'])
+    a.need('closing_dvt_activity', latest, plan['pin']['oldActivity']['dvtProposals'])
+    for proposal in sorted(STALE_PROPOSALS):
+        a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal))[3]), (proposal, 0))
+    return dict(dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS))
 
 
 def balances(rpc, operators, block='latest'):
@@ -1479,14 +1601,11 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     maximum = a.word(rpc, pin['oldAggregator'], 'MAX_VALIDATORS()', block=block)
     a.need('guardian_maximum', maximum, 13)
     pin['guardianInventory'] = [dict(slot=slot, validator=u.addr_word(a.word(rpc, pin['oldAggregator'], 'validatorAtSlot(uint8)', slot, block=block))) for slot in range(1, maximum+1)]
-    pin['oldActivity'] = old_activity(rpc, pin['oldAggregator'], block)
+    pin['oldActivity'], reads = record_old_activity(rpc, pin['oldAggregator'], block, d.get('pop'))
+    pin['oldActivityReads'] = dict(primary=reads)
     a.need('old_aggregator_owner', a.address(rpc, pin['oldAggregator'], 'owner()', block), u.DEPLOYER)
     pin['oldActivity']['dvtProposals'] = dvt_activity(rpc, d['dvt'], block)
-    pin['bindings'] = {}
-    for target, getter in ((d['dvt'], 'BLS_AGGREGATOR()'), (d['committee'], 'blsAggregator()')):
-        a.need('pointer_owner', a.address(rpc, target, 'owner()', block), u.DEPLOYER)
-        a.need('old_pointer', a.address(rpc, target, getter, block), pin['oldAggregator'])
-        pin['bindings'][target] = u.code(rpc, target, block)
+    pin['bindings'] = old_pointers(rpc, d, pin['oldAggregator'], block)
     pin.update(balances(rpc, pin['pauseList'], block))
     drain_gate(pin)
     ep = pin['immutables']['entryPoint']
@@ -1506,6 +1625,7 @@ def collect_pair(primary, secondary, block, inputs, stage='full'):
     pin = collect(primary, block, inputs, stage, (primary, secondary))
     independent = collect(secondary, block, inputs, stage, (primary, secondary))
     a.need('independent_pin', independent, pin)
+    pin['oldActivityReads']['secondary'] = copy.deepcopy(independent['oldActivityReads']['primary'])
     pin['oldOwnerIsolation']['endpointResults'] = dict(
         primary=copy.deepcopy(pin['oldOwnerIsolation']['reads']),
         secondary=copy.deepcopy(independent['oldOwnerIsolation']['reads']))
@@ -1671,6 +1791,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         a.need('binding_nonempty', code != '0x', True)
     a.need('fixed_old_aggregator', pin['oldAggregator'], OLD_AGGREGATOR)
     validate_nonce_history(pin, inputs)
+    validate_old_activity(pin, d.get('pop'))
     required(d, ('verifier', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei'), 'manifest_external_complete')
     base_pin = {key: copy.deepcopy(pin[key]) for key in u.PIN_KEYS}
     base_pin['senders'].pop('anni', None)
@@ -2762,8 +2883,7 @@ def pre_send(rpc, plan, step, context, measured=False):
     u.governance(rpc, 'latest', plan['pin']['timelockCreation'])
     for target, expected in plan['pin']['bindings'].items():
         a.need('bound_runtime', u.code(rpc, target, 'latest'), expected)
-    a.need('old_activity_unchanged', old_activity(rpc, plan['pin']['oldAggregator'],
-        a.block_data(rpc, 'latest')['number']), {k:v for k,v in plan['pin']['oldActivity'].items() if k != 'dvtProposals'})
+    unchanged_old_activity(rpc, plan, a.block_data(rpc, 'latest')['number'])
     a.need('dvt_activity_unchanged', dvt_activity(rpc, plan['externalInputs']['data']['dvt'],
         a.block_data(rpc, 'latest')['number']), plan['pin']['oldActivity']['dvtProposals'])
     a.need('registry_owner', a.address(rpc, u.REG, 'owner()'),
@@ -3027,7 +3147,8 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
                sorted(PC_CONTROLS))
     if plan['stage'] != 'full':
         a.need('stage_steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
-        readback = stage_readback(plan, rpc)
+        closing = dvt_closing(rpc, plan)
+        readback = dict(stage_readback(plan, rpc), dvtClosing=closing)
         a.write_json(out/'stage-readback.json', readback)
         budget(plan)
         validate_plan(plan, plan['externalInputs'], frozen=True)
@@ -3039,6 +3160,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     controls.append(handover_controls(rpc, plan))
     a.need('controls_complete', sorted(x['control'] for x in controls), sorted(plan['controls']))
     a.need('steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
+    closing = dvt_closing(rpc, plan)
     assert_manifest_frozen(rpc, plan['pin'], True)
     accounting = balances(rpc, plan['pin']['pauseList'])
     accounting['cappedBalance'] = a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP)
@@ -3058,7 +3180,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     result = dict(status='PASS', scope='Phases A/B/C/D', steps=records, negativeControls=controls,
                   B2=context['B2'], postSwapAccounting=accounting, phaseCAccounting=context['afterC'],
                   phaseCFunding=context['funding'], handoverFunding=context.get('handoverFunding', []),
-                  spAttemptPrecheck=context['precheck'], fraudProof=fraud)
+                  spAttemptPrecheck=context['precheck'], fraudProof=fraud, dvtClosing=closing)
     a.write_json(out/'manifest-simulate.json', result)
     return result
 

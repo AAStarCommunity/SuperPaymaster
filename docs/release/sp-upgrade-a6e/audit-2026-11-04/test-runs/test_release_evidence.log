@@ -1,0 +1,25 @@
+........F....Running conformance (offline; may take several minutes)
+Running mutation (offline; may take several minutes)
+STOP: failed mutation
+.....................Running conformance (offline; may take several minutes)
+.Running conformance (offline; may take several minutes)
+STOP: named checker test failed or skipped: test_c1_wrong_implementation
+.Running slither (offline; may take several minutes)
+.................................
+======================================================================
+FAIL: test_real_offline_two_unit_build (__main__.CompiledScopeTests.test_real_offline_two_unit_build)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_release_evidence.py", line 234, in test_real_offline_two_unit_build
+    self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+AssertionError: 1 != 0 : Error: error sending request for url (https://binaries.soliditylang.org/linux-amd64/list.json)
+
+Context:
+- Error #0: client error (Connect)
+- Error #1: tunnel error: unsuccessful
+
+
+----------------------------------------------------------------------
+Ran 69 tests in 3.293s
+
+FAILED (failures=1)

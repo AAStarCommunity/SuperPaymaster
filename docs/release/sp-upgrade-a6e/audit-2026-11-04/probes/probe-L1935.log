@@ -1,0 +1,29 @@
+# gate=chain function=pre_send line=1935
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1935 --failfast
+# exit=0 seconds=0.4
+PROBE line=1935 mutation=replace a.need statement with pass failfast=True
+........................F
+======================================================================
+FAIL: test_b4_preapplied_real_measurement (test_manifest_exec.GasGateControls.test_b4_preapplied_real_measurement) (tamper=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 3192, in test_b4_preapplied_real_measurement
+    m.execute_b4(remote, fork, self.plan, self.step, {}, overrides, False)
+  File "/home/user/SuperPaymaster/script/upgrade/manifest_exec.py", line 1752, in execute_b4
+    pre_send(rpc, plan, selected, context, measured=True)
+  File "/home/user/SuperPaymaster/script/upgrade/manifest_exec.py", line 1936, in pre_send
+    a.need('sender_nonce', a.nonce(rpc, tx['from']), a.qty(tx['nonce']))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/SuperPaymaster/script/a3a/a3a_exec.py", line 387, in nonce
+    return qty(rpc('eth_getTransactionCount', [who, block]))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 3183, in fork
+    raise AssertionError(method)
+AssertionError: eth_getTransactionCount
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.084s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.GasGateControls.test_b4_preapplied_real_measurement (tamper=None)
+PROBE_RESULT killed ran 25 failures 1 errors 0 expectedFailures 0

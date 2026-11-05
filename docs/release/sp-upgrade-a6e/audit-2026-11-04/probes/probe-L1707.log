@@ -1,0 +1,19 @@
+# gate=B2_single_upgrade function=b2_gate line=1707
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1707 --failfast
+# exit=0 seconds=7.3
+PROBE line=1707 mutation=replace a.need statement with pass failfast=True
+.......................................................F
+======================================================================
+FAIL: test_b2_single_upgrade_required (test_manifest_exec.ManifestTests.test_b2_single_upgrade_required)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1786, in test_b2_single_upgrade_required
+    with self.assertRaises(a.Gate) as caught: m.b2_gate(rpc, self.plan, '0x100')
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 56 tests in 6.987s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_b2_single_upgrade_required
+PROBE_RESULT killed ran 56 failures 1 errors 0 expectedFailures 0

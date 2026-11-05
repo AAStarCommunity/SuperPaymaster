@@ -32,6 +32,10 @@ verified live at the chosen pin. Supply exactly all discovered targets, includin
 xPNTs clone. Resolve any tag to its full commit SHA. `creationBlock` is the target
 or proxy's deployment block, not its implementation's deployment block.
 
+Deployment-record gates require the recorded source commits to be present locally.
+Use a checkout with full history; CI uses `fetch-depth: 0`. Missing recorded
+commits fail closed even when the deployment-record files are present.
+
 The source gate:
 
 1. Checks the canonical pin before and after source authentication.
@@ -73,8 +77,9 @@ The source gate:
 `build_plan()` reconstructs this evidence from source RPC transcripts and fresh
 cached commit builds with `validate_deployed()`. Both endpoint audits are replayed;
 unused queries, changed queries/results/inventories and extra transcript fields
-stop replay. Endpoint identities hash the public origin plus endpoint label;
-credentials, paths and query parameters are never retained in those identities.
+stop replay. Endpoint identities hash the lowercase hostname, without the endpoint
+label. The endpoint-distinct check proves distinct host strings, not independent
+providers; credentials, ports, paths and query parameters are not retained.
 As before, transcript replay proves predicates, not the honesty of RPC providers.
 Dual-endpoint collection remains mandatory.
 
@@ -110,8 +115,9 @@ live controls. No full live isolation run was performed offline.
 Role IDs are the union of source constants, Registry configuration-event IDs and
 RoleGranted/RoleRevoked IDs. Every inventoried target, including non-AccessControl
 contracts and each clone, gets both an unfiltered role-event query and a query
-filtered to account=OLD. Every OLD grant must be cancelled by a later revoke,
-ordered by block, transaction index and log index. Current `hasRole` and Registry
+filtered to account=OLD. OLD membership is tracked once per role: RoleGranted or
+RoleRegistered sets it, and RoleExited or RoleRevoked clears it, ordered by block,
+transaction index and log index. A later regrant sets it again and STOPs. Current `hasRole` and Registry
 role-owner checks also apply to event-discovered IDs.
 
 History covers deployment block through pin, inclusively, on both endpoints.
@@ -264,3 +270,16 @@ Current adversarial controls and results: [ADVERSARIAL_REVIEW_RESULTS.md](ADVERS
 RoleConfigured coverage is independent of grant/revoke history: its own results
 must be nonempty and contain every extracted standard role for each emitting
 contract. Empty full-range and both partition results cannot satisfy this gate.
+
+## Known residuals — DSR 2026-11-04
+
+`0xf36c9317765634e4995ce1e7210b5738225425b0` still holds Registry ROLE_DVT
+and a locked stake forever: its SDK regression-test one-shot key was generated
+in memory and discarded (aastar-sdk #413, `667b1bb2`,
+`tests/regression/onchain-evidence/dvt-onboard-e2e.ts:145`). It has no governance
+authority over SP/Registry. The lapsed BLSAggregator-4.11.0 exit request cannot
+be consumed (`GuardianExitRequestExpired`); only the lost guardian key could
+cancel it. The address-exact exemption requires absence from all 13 old
+aggregator slots at the pin on both endpoints and at every pre-send, alongside
+expiry, zero pending slash and A7 PoP exclusion. It does not erase the residual
+role/stake. See the [A7 evidence notes](../../docs/release/sp-upgrade-a6e/MANIFEST-DESIGN.md#a7-evidence-notes--dsr-2026-11-04-exit-exemption).

@@ -1,0 +1,19 @@
+# gate=6d_timelock_eta function=activation_eta_gate line=1686
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1686 --failfast
+# exit=0 seconds=23.4
+PROBE line=1686 mutation=replace a.need statement with pass failfast=True
+......................................................................................F
+======================================================================
+FAIL: test_eta_rule (test_manifest_exec.ManifestTests.test_eta_rule)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1124, in test_eta_rule
+    with self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 87 tests in 23.020s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_eta_rule
+PROBE_RESULT killed ran 87 failures 1 errors 0 expectedFailures 0

@@ -892,10 +892,9 @@ def role_history(rpc, pin, target, spec, creation, counts=None):
     active = set()
     for log in sorted(expected_old,key=lambda l:(a.qty(l['blockNumber']),a.qty(l['transactionIndex']),a.qty(l['logIndex']))):
         if log['topics'][0] in grants:
-            active.add((log['topics'][0],log['topics'][1]))
+            active.add(log['topics'][1])
         else:
-            grant = a.keccak(REGISTERED) if log['topics'][0] == a.keccak(EXITED) else a.keccak(GRANTED)
-            active.discard((grant,log['topics'][1]))
+            active.discard(log['topics'][1])
     a.need('old_owner_uncancelled_grants',sorted(active),[])
     return sorted(roles | standard)
 
@@ -1016,8 +1015,9 @@ def assert_manifest_calldata(steps, signatures):
         payload_index = 2 if sig.startswith(('execTransaction(', 'schedule(', 'execute(', 'scheduleBatch(', 'executeBatch(')) else 1 if sig.startswith('upgradeToAndCall(') else 0 if sig.startswith('multicall(bytes[])') else None
         if payload_index is not None:
             a.need('old_owner_calldata_payload',len(values) > payload_index,True)
-            payload = values[payload_index]
+            payload = next(iter(values[payload_index:payload_index+1]),None)
             for child in payload if isinstance(payload,list) else [payload]:
+                a.typed(child,a.HEXDATA,gate='old_owner_calldata_payload_shape')
                 inspect(child,depth=depth+1)
         decoded.append(dict(signature=sig,arguments=values))
         return values

@@ -1,0 +1,42 @@
+# gate=dvt_proposal_executed function=dvt_activity line=767
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 767 --failfast
+# exit=0 seconds=68.7
+PROBE line=767 mutation=replace a.need statement with pass failfast=True
+.............................................................................................................................................................................F
+======================================================================
+FAIL: test_unsigned_dvt_proposal_stops (test_manifest_exec.ManifestTests.test_unsigned_dvt_proposal_stops)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1472, in test_unsigned_dvt_proposal_stops
+    with self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 174 tests in 68.268s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_unsigned_dvt_proposal_stops
+PROBE_RESULT killed ran 174 failures 1 errors 0 expectedFailures 0
+STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: stage_not_final
+STOP: stage_not_final
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: plan_hash
+STOP: plan_hash
+STOP: simulation_stage

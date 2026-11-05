@@ -1,0 +1,19 @@
+# gate=B4_status function=b4_post_state line=1720
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1720 --failfast
+# exit=0 seconds=11.7
+PROBE line=1720 mutation=replace a.need statement with pass failfast=True
+...............................................................F
+======================================================================
+FAIL: test_b4_poststate_status_exception_is_narrow (test_manifest_exec.ManifestTests.test_b4_poststate_status_exception_is_narrow) (variant='apply', status=2, values={'fraudProofVerifier()': 196464281818105414612061400431828927693469387727, 'pendingFraudProofVerifier()': 0, 'pendingFraudProofVerifierReadyAt()': 0})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1645, in test_b4_poststate_status_exception_is_narrow
+    with self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 64 tests in 11.304s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_b4_poststate_status_exception_is_narrow (variant='apply', status=2, values={'fraudProofVerifier()': 196464281818105414612061400431828927693469387727, 'pendingFraudProofVerifier()': 0, 'pendingFraudProofVerifierReadyAt()': 0})
+PROBE_RESULT killed ran 64 failures 1 errors 0 expectedFailures 0

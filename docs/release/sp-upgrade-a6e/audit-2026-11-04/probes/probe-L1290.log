@@ -1,0 +1,42 @@
+# gate=prefix_stage function=verify_prefix line=1290
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1290 --failfast
+# exit=0 seconds=66.9
+PROBE line=1290 mutation=replace a.need statement with pass failfast=True
+...................................................................................................................................................................F
+======================================================================
+FAIL: test_staged_metadata_guards (test_manifest_exec.ManifestTests.test_staged_metadata_guards) (field='stage')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 781, in test_staged_metadata_guards
+    with self.subTest(field=field), self.assertRaises(a.Gate): m.verify_prefix(b4, bad, 'a7')
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 164 tests in 66.501s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_staged_metadata_guards (field='stage')
+PROBE_RESULT killed ran 164 failures 1 errors 0 expectedFailures 0
+STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: stage_not_final
+STOP: stage_not_final
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: plan_hash
+STOP: plan_hash
+STOP: simulation_stage

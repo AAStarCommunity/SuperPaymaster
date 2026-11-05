@@ -1,0 +1,19 @@
+# gate=verifier_bound_runtime function=check_predicate line=1826
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1826 --failfast
+# exit=0 seconds=2.6
+PROBE line=1826 mutation=replace a.need statement with pass failfast=True
+................................................F
+======================================================================
+FAIL: test_a12a_runtime_is_enforced (test_manifest_exec.ManifestTests.test_a12a_runtime_is_enforced)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1550, in test_a12a_runtime_is_enforced
+    with patch.object(u, 'code', return_value='0xdead'), self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 49 tests in 2.224s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_a12a_runtime_is_enforced
+PROBE_RESULT killed ran 49 failures 1 errors 0 expectedFailures 0

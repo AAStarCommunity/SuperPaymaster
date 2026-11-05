@@ -1,0 +1,23 @@
+# gate=manifest_local_only function=run_manifest line=2112
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 2112 --failfast
+# exit=0 seconds=49.6
+PROBE line=2112 mutation=replace a.need statement with pass failfast=True
+................................................................................................................................................F
+======================================================================
+FAIL: test_remote_execution_refused (test_manifest_exec.ManifestTests.test_remote_execution_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1217, in test_remote_execution_refused
+    m.run_manifest(None, FakeChain(self.plan), self.plan, Path(self.tmp.name))
+  File "/home/user/SuperPaymaster/script/upgrade/manifest_exec.py", line 2115, in run_manifest
+    rpc('anvil_impersonateAccount', [sender['address']])
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 172, in __call__
+    raise AssertionError((method, params))
+AssertionError: ('anvil_impersonateAccount', ['0xb5600060e6de5e11d3636731964218e53caadf0e'])
+
+----------------------------------------------------------------------
+Ran 145 tests in 49.179s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_remote_execution_refused
+PROBE_RESULT killed ran 145 failures 1 errors 0 expectedFailures 0

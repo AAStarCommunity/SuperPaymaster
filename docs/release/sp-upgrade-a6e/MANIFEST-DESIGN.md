@@ -51,7 +51,9 @@ Chain preconditions at the pin block:
 - The three A3a signers have sent nothing outside the plans, or every such transaction is a proven gap (#571).
 - SP is 5.4.2 and owned by the deployer. The timelock `0xCCdF…C34B` has the A3a role sets.
 - Registry is 5.8.0 with storage layout identical to 5.9.0 (32 variables, `_owner` at slot 0). **VERIFY**.
-- The old BLSAggregator has no in-flight proposal or exit notice, scanned from its deployment block. **VERIFY**.
+- The old BLSAggregator has no in-flight proposal or uncleared exit notice, scanned from its deployment block, except **DSR 2026-11-04 ruling: address-exact exemption**. Only `0xf36c9317765634e4995ce1e7210b5738225425b0` is hard-coded in the repository; plans/external inputs cannot add exemptions. For a nonzero `guardianExitRequests` value, independently require `expiresAt < block.timestamp` (`old_exit_exempt_expired`), absence from **every** `validatorAtSlot(1..13)` (`old_exit_exempt_slot`), on-chain `MAX_VALIDATORS == 13` (`old_exit_max_validators`), zero `pendingGuardianSlashCount` (`old_exit_exempt_slash`), absence from the A7 PoP inventory (`old_exit_exempt_pop`; at stage a7, before the PoP exists, this follows from the slot scan because the PoP validator set must equal the old aggregator's nonempty slot inventory, recorded as `popSource: slot-inventory`), and exact exemption-list membership (`old_exit_exempt_listed`). Otherwise STOP under the `old_exit_cleared` precondition with the specific failing gate. Read at the pin on both endpoints, record and replay both transcripts offline, and re-read all conditions at every `pre_send`.
+  - In 4.11.0 the notice affects only `_reconstructPkAgg` (slot holders in the signer mask) and `_requireCommitteeSurvivesExit` (iterates `validatorAtSlot`). A guardian in no slot affects neither signing nor quorum counting on the forward **or rollback** path. The slot condition is load-bearing; rollback during A7–A12b can point back to this aggregator. The expired request cannot be consumed to exit the DVT role (`GuardianExitRequestExpired`).
+- DVTValidator `0x568b…9E0e` has no unexecuted proposal, except **DSR 2026-11-05 ruling: id-exact exemption** for the seven duplicate E2E proposals `{1,2,4,5,6,8,9}` (see *A7 evidence notes — DSR 2026-11-05 stale DVT proposals*). The id set is hard-coded; plans/external inputs cannot add ids. The getters are the inventory: `nextProposalId == 10` (`dvt_stale_next_id`), `proposals(1..9)` are read directly, and the `ProposalCreated` log ids must equal exactly `1..9` (`dvt_proposal_inventory`; a missing or extra log STOPs). Each unexecuted id must pass `dvt_stale_proposal_listed`, `dvt_stale_proposal_shape` and `dvt_stale_sibling_executed`, and the unexecuted set must equal the seven ids (`dvt_stale_open_set`, so executing any of them also STOPs). At the pin `old_pointer` requires DVTValidator and the committee to point at the old aggregator; `A8.dvt` reads back `BLS_AGGREGATOR == A7`; after the last step `dvt_closing` re-checks the pointer (`closing_dvt_pointer`), re-runs the inventory against the pin record (`closing_dvt_activity`) and the seven `executed == false` (`closing_stale_unexecuted`).
 - Token-swap balances (current, re-read at the pin):
   - `totalTrackedBalance` = 2934.14 aPNTs;
   - deployer operator 1690.01;
@@ -487,3 +489,93 @@ Resolved by DSR 2026-11-02, Q4 fields (included with hash go, no separate author
 
 The first Phase C/D executor output on a real pin goes to DSR **before** asking the author for go.
 The packet sha256 comes last, as the identifier.
+
+### A7 evidence notes — DSR 2026-11-04 exit exemption
+
+Old aggregator `0xeaec2f512ea50708211fa95533e4dbb60e3d2e5d` is
+BLSAggregator-4.11.0, source `7c732e70`. The sole exempt guardian
+`0xf36c9317765634e4995ce1e7210b5738225425b0` came from aastar-sdk #413,
+commit `667b1bb2`, `tests/regression/onchain-evidence/dvt-onboard-e2e.ts:145`:
+a one-shot key generated in memory and discarded. The notice has
+`readyAt=1788933060`, `expiresAt=1789019460`.
+Request tx: `0xe4737f3924f5488e1d037532dbae71b1f0efc91fa6544f92799e112402c82d38`;
+committee syncExitNotice tx: `0xaad53b17a7a3d59ab0d171c7126a7d2341c82d54741c0f1ea04420d130425524`.
+Only the guardian can cancel it, and the key is gone.
+Even the A7 stage must supply `inputs.pop` validators to use this exemption;
+missing inventory fails `old_exit_exempt_pop`. A7 does not yet require signed
+PoP calldata, but later stages still enforce the full PoP schema and inventory.
+
+The pin records guardian, readyAt, expiresAt, pin time and block hash, all 13
+slot values, MAX_VALIDATORS, slash count and PoP exclusion, with ordered RPC
+transcripts for both endpoints. Offline replay reruns the gates and binds the
+result to the pin timestamp/hash and current input PoP inventory. Every pre-send
+repeats the reads, including the full slot scan; advancing time/hash alone is
+allowed. These offline controls are not a fresh live-chain observation.
+
+Known residual: this guardian still holds Registry ROLE_DVT and a locked stake
+forever (key gone). It has no governance authority over SP/Registry. The
+exemption does not clear that role, unlock the stake, or cancel the notice.
+
+Offline verification (run from the repository root; no commits or chain writes):
+`A3A_ENGINE_DIR=$HOME/.foundry/bin python3 <suite>` uses cast 1.7.1
+(`4072e487`); `env -u A3A_ENGINE_DIR python3 <suite>` uses the default
+1.8.7-nightly (`4e8874b2`). The complete manifest reruns used unittest `-f`
+(fail-fast); all 304 tests completed. Suite paths are `script/upgrade/` except
+`script/a3a/test_a3a_exec.py`.
+
+| Suite | Stable final summary | Nightly final summary |
+| --- | --- | --- |
+| `test_manifest_exec.py` | Ran 304 tests in 291.740s; OK (skipped=2) | Ran 304 tests in 316.905s; OK (skipped=2) |
+| `test_old_owner_isolation.py` | Ran 56 tests in 17.252s; OK (skipped=2) | Ran 56 tests in 17.766s; OK (skipped=2) |
+| `test_a3a_exec.py` | Ran 102 tests in 3.211s; OK | Ran 102 tests in 3.876s; OK |
+| `test_sp_upgrade_exec.py` | Ran 141 tests in 1.434s; OK | Ran 141 tests in 1.842s; OK |
+| `test_pop_adapter.py` | Ran 53 tests in 0.253s; OK | Ran 53 tests in 0.315s; OK |
+| `test_release_evidence.py` | Ran 69 tests in 3.354s; OK | Ran 69 tests in 3.511s; OK |
+
+The two skips are opt-in local-fork isolation controls requiring configured fork
+RPC/pin inputs (also imported by the manifest suite), not exit-exemption tests.
+All 13 dedicated exit tests passed under both engines. Literal AST replacement
+of each named gate call with `pass` made its specific negative control RED;
+restoration passed for all six: `old_exit_exempt_expired`,
+`old_exit_exempt_slot`, `old_exit_exempt_slash`, `old_exit_exempt_listed`,
+`old_exit_exempt_pop`, and `old_exit_max_validators`. Endpoint replay controls
+exercise both transcripts; pre-send controls cover each of slots 1–13 and the
+real `pre_send` call path. `git diff --check` passed.
+
+### A7 evidence notes — DSR 2026-11-05 stale DVT proposals
+
+The A7 dry-run on `e2e56562` (pin 12,064,139) stopped at `dvt_proposal_executed`.
+DVTValidator `0x568b1486bfe036e603ea11f0d03dc47fa62c9e0e` had `nextProposalId = 10`
+and `BLS_AGGREGATOR = 0xEaeC…2E5D` (the old aggregator). All nine proposals target
+operator `0xF7Bf79AcB7F3702b9DbD397d8140ac9DE6Ce642C`, level 1, reason
+`credit-over-limit: debt 400e18 EXCEEDS limit 300e18`:
+
+| ids | blocks | creators | executed | evidenceHash |
+| --- | --- | --- | --- | --- |
+| 1–6 | 11223327–11223331 (2026-07-07) | D, E, F, two each | 3 only | `0x6d1c0d602056be56edf7a5086903bc1a4b9dc082ca8a31df4c4e6ca3d77d5237` |
+| 7–9 | 11228494–11228495 (2026-07-08) | D, E, F, one each | 7 only | `0x64357531834ff863e1207cea92dcf62db5ecf498d87cd629cb0e27e9d1247d79` |
+
+They are duplicates left by DVT slash-consensus E2E runs: every validator proposed the
+same evidence and one sibling executed (DVT #186 fixed the orphaning). DVTValidator has
+no cancel or expiry path, and `markProposalExecuted` is aggregator-only, so they stay open.
+DSR independently read the same values on two endpoints at the pin and at latest.
+
+The getters `nextProposalId` and `proposals(1..9)` are the inventory; the log ids must
+equal `1..9` exactly, so incomplete logs (even if both endpoints agree) STOP instead of
+hiding a proposal. The exemption accepts an unexecuted proposal only if its id is listed,
+its (operator, level, executed, exists, evidenceHash) equals the recorded tuple, and its
+sibling (3 or 7) is executed with equal operator, level and evidenceHash; the unexecuted
+set must be exactly the seven ids.
+Gate-removal probes: `script/evidence/stale-proposal-probes.sh` (each removal must turn its
+control red by an assertion failure, not by an exception).
+
+Known residual (also for the paper's disclosure):
+- the seven proposals remain executable on-chain against `0xF7Bf…642C` (Jammy: guardian
+  and test-Safe executor), level 1 each;
+- executing one needs an active validator plus a BLS co-signature that meets the A7
+  threshold. That is the same bar as creating **and executing** a fresh proposal
+  (creation alone needs only an active validator, no BLS proof), so no capability is added;
+- DVT reports that its nodes never execute them (master `830a544e` and the running
+  containers: no enumeration of on-chain proposals, `executeWithProof` only for ids from
+  the node's own round, audit execution disabled). DSR has not re-verified this.
+

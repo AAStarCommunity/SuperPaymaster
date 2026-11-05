@@ -1,0 +1,19 @@
+# gate='manifest_' + key function=validate_plan line=1885
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1885 --failfast
+# exit=0 seconds=20.1
+PROBE line=1885 mutation=replace a.need statement with pass failfast=True
+.................................................................................F
+======================================================================
+FAIL: test_creation_layout_packet (test_manifest_exec.ManifestTests.test_creation_layout_packet)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 2089, in test_creation_layout_packet
+    with self.assertRaises(a.Gate): m.validate_plan(changed, self.inputs)
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 82 tests in 19.765s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_creation_layout_packet
+PROBE_RESULT killed ran 82 failures 1 errors 0 expectedFailures 0

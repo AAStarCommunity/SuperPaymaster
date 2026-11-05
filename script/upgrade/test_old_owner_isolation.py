@@ -301,7 +301,8 @@ class OldOwnerIsolationTests(unittest.TestCase):
 
     def test_pair_and_independent_endpoint_failure(self):
         import manifest_exec as m
-        value = dict(self.pin,oldOwnerIsolation=o.audit(fixture_rpc(self.pin),self.pin,inventory()))
+        value = dict(self.pin, oldActivityReads=dict(primary=[]),
+                     oldOwnerIsolation=o.audit(fixture_rpc(self.pin),self.pin,inventory()))
         with patch.object(m,'collect',side_effect=[copy.deepcopy(value),copy.deepcopy(value)]) as collect:
             paired = m.collect_pair('primary','secondary','0x123',{})
             self.assertEqual(collect.call_count,2)
@@ -1055,6 +1056,65 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 self.assertEqual(caught.exception.record['gate'],gate)
                 removed_probe(self,action,gate)
 
+    def test_calldata_payload_removal_hits_named_gate(self):
+        steps = [dict(tx=dict(to=u.REG,data=a.calldata('execute(uint256)',1)))]
+        original = a.need
+        def removed(label,actual,expected):
+            if label != 'old_owner_calldata_payload':
+                original(label,actual,expected)
+        with patch.object(a,'need',side_effect=removed):
+            with self.assertRaises(a.Gate) as caught:
+                o.assert_manifest_calldata(steps,['execute(uint256)'])
+        self.assertEqual(caught.exception.record['gate'],'old_owner_calldata_payload_shape')
+
+    def test_endpoint_without_hostname(self):
+        from types import SimpleNamespace
+        with self.assertRaises(a.Gate) as caught:
+            o.endpoint_identity(SimpleNamespace(url='https:///rpc'),'primary')
+        self.assertEqual(caught.exception.record['gate'],'old_owner_endpoint_host')
+
+    def test_registered_wrong_data_length(self):
+        baseline = fixture_rpc(self.pin)
+        def rpc(method,params):
+            result = baseline(method,params)
+            if method == 'eth_getLogs':
+                for log in result:
+                    if log['topics'][0] == a.keccak(o.REGISTERED):
+                        log['data'] = raw([123])
+            return result
+        with self.assertRaises(a.Gate) as caught:
+            o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1)
+        self.assertEqual(caught.exception.record['gate'],'old_owner_history_data')
+
+    def test_safe_mint_exit_and_regrant(self):
+        query = ('eth_call',str([dict(to=u.REG,data=a.calldata('hasRole(bytes32,address)',CUSTOM_ROLE,o.OLD)),self.pin['stateBlock']]))
+        baseline = fixture_rpc(self.pin,{query:raw([0])})
+        def event(kind,index):
+            topics = [a.keccak(kind),CUSTOM_ROLE,raw([int(o.OLD,16)])]
+            if kind in (o.GRANTED,o.REVOKED):
+                topics.append(raw([int(u.TL,16)]))
+            return dict(address=u.REG,topics=topics,data=raw([0,123]),
+                        blockNumber=self.pin['stateBlock'],blockHash=BLOCK_HASH,
+                        transactionHash='0x'+'ab'*32,transactionIndex='0x1',logIndex=hex(index))
+        extra = [event(o.GRANTED,100),event(o.REGISTERED,101),event(o.EXITED,102)]
+        def rpc(method,params):
+            result = baseline(method,params)
+            if method == 'eth_getLogs' and a.qty(params[0]['toBlock']) >= a.qty(self.pin['stateBlock']):
+                result += list(reversed(extra))
+            return result
+        action = lambda:o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1)
+        self.assertIn(CUSTOM_ROLE,action())
+        self.assertEqual(a.word(baseline,u.REG,'hasRole(bytes32,address)',
+                               CUSTOM_ROLE,o.OLD,block=self.pin['stateBlock']),0)
+        for kind in (o.GRANTED,o.REGISTERED):
+            with self.subTest(regrant=kind):
+                extra.append(event(kind,103))
+                with self.assertRaises(a.Gate) as caught: action()
+                self.assertEqual(caught.exception.record['gate'],'old_owner_uncancelled_grants')
+                extra.pop()
+        extra[-1] = event(o.REVOKED,102)
+        self.assertIn(CUSTOM_ROLE,action())
+
     def test_review_low_endpoint_identity(self):
         from types import SimpleNamespace
         first = o.endpoint_identity(SimpleNamespace(url='https://user:secret@rpc.example/a?key=x'),'primary')
@@ -1066,7 +1126,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         removed_probe(self,action,'old_owner_endpoint_distinct')
         o.assert_endpoint_identities(dict(primary=first,secondary=o.endpoint_identity(SimpleNamespace(url='https://other.example'),'secondary')))
         import manifest_exec as m
-        value = dict(oldOwnerIsolation=dict(reads=[],sourceSelection={}))
+        value = dict(oldActivityReads=dict(primary=[]), oldOwnerIsolation=dict(reads=[],sourceSelection={}))
         with patch.object(m,'collect',side_effect=lambda *args:copy.deepcopy(value)):
             action = lambda:m.collect_pair(SimpleNamespace(url='https://rpc.example/a'),SimpleNamespace(url='https://rpc.example/b'),'0x123',{})
             with self.assertRaises(a.Gate) as caught: action()

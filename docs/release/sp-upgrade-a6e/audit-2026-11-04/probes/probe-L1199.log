@@ -1,0 +1,22 @@
+# gate='immutable_supplied_' + entry['name'] function=runtime_bytes line=1199
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1199 --failfast
+# exit=0 seconds=56.3
+PROBE line=1199 mutation=replace a.need statement with pass failfast=True
+...................................................................................................................................................E
+======================================================================
+ERROR: test_runtime_patches_named_immutables (test_manifest_exec.ManifestTests.test_runtime_patches_named_immutables)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1237, in test_runtime_patches_named_immutables
+    m.runtime_bytes(art, {})
+  File "/home/user/SuperPaymaster/script/upgrade/manifest_exec.py", line 1200, in runtime_bytes
+    raw[entry['start']:entry['start']+entry['length']] = int(values[entry['name']]).to_bytes(32, 'big')
+                                                             ~~~~~~^^^^^^^^^^^^^^^
+KeyError: 'REGISTRY'
+
+----------------------------------------------------------------------
+Ran 148 tests in 55.929s
+
+FAILED (errors=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_runtime_patches_named_immutables
+PROBE_RESULT killed ran 148 failures 0 errors 1 expectedFailures 0

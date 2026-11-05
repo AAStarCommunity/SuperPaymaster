@@ -1,0 +1,19 @@
+# gate=manifest_length function=validate_plan line=1886
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1886 --failfast
+# exit=0 seconds=40.0
+PROBE line=1886 mutation=replace a.need statement with pass failfast=True
+.........................................................................................................................F
+======================================================================
+FAIL: test_partial_or_mutated_plan_refused (test_manifest_exec.ManifestTests.test_partial_or_mutated_plan_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1204, in test_partial_or_mutated_plan_refused
+    with self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 122 tests in 39.640s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_partial_or_mutated_plan_refused
+PROBE_RESULT killed ran 122 failures 1 errors 0 expectedFailures 0
