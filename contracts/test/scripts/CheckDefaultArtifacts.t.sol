@@ -33,6 +33,14 @@ contract CheckDefaultArtifactsHarness is CheckDefaultArtifacts {
         return (passes, fails);
     }
 
+    function classifyConfig(string memory json, string memory key) external returns (uint256, uint256) {
+        cfg = json;
+        fails = 0;
+        passes = 0;
+        _classify(key);
+        return (passes, fails);
+    }
+
     function deployLegacyImplementation() external returns (address) {
         return _deployDefault("xPNTsToken", "");
     }
@@ -77,6 +85,26 @@ contract CheckDefaultArtifactsTest is Test {
 
     function _capped(address owner) internal returns (APNTsCapped) {
         return new APNTsCapped("AAStar PNTs", "aPNTs", 10_000_000e18, owner, SAFE, SAFE);
+    }
+
+    function test_legacyTimelockKey_passes() public {
+        (uint256 passed, uint256 failed) = checker.classifyConfig(
+            '{"timelockController":"0x0000000000000000000000000000000000000001","timelockControllerLegacy":"0x0000000000000000000000000000000000000002"}',
+            "timelockControllerLegacy");
+        assertEq(passed, 1);
+        assertEq(failed, 0);
+    }
+
+    function test_legacyTimelockKey_sameAsCanonical_rejected() public {
+        (, uint256 failed) = checker.classifyConfig(
+            '{"timelockController":"0x0000000000000000000000000000000000000001","timelockControllerLegacy":"0x0000000000000000000000000000000000000001"}',
+            "timelockControllerLegacy");
+        assertEq(failed, 1);
+    }
+
+    function test_unknownTimelockKey_rejected() public {
+        (, uint256 failed) = checker.classifyConfig('{}', "timelockControllerTypo");
+        assertEq(failed, 1);
     }
 
     function test_legacyClone_passes() public {
