@@ -3,7 +3,8 @@
 
 evm_setNextBlockTimestamp(t) also moves the engine clock offset to t - wall, so a revert that restores the
 block headers but not the offset leaves later auto-timestamped blocks in the future. The correct model must
-pass every check; both faulty models must fail at least one.
+pass every check; every faulty model must fail at least one. step: wall seconds each RPC call takes (DSR
+2026-11-05 measured 10-20 s per call on a remote fork), so a correct engine must also pass on a slow endpoint.
 Repository root: python3 -B script/evidence/test_q5_snapshot_timestamp.py
 """
 import sys
@@ -19,9 +20,9 @@ T0 = 1793816148
 
 
 class Chain:
-    def __init__(self, fault=None, lag=0):
+    def __init__(self, fault=None, lag=0, step=0):
         # lag: how far wall time is ahead of the pin block (an old fork pin).
-        self.fault, self.wall, self.offset, self.pending = fault, T0 + lag, 0, None
+        self.fault, self.wall, self.offset, self.pending, self.step = fault, T0 + lag, 0, None, step
         self.blocks, self.snaps, self.stack, self.receipts = [T0], {}, [], {}
 
     def mine(self):
@@ -30,7 +31,11 @@ class Chain:
         self.blocks.append(ts)
         return len(self.blocks) - 1
 
+    def clock(self):
+        return self.wall
+
     def __call__(self, method, params):
+        self.wall += self.step
         if method == 'eth_getBlockByNumber':
             n = len(self.blocks) - 1 if params[0] == 'latest' else int(params[0], 16)
             return dict(number=hex(n), timestamp=hex(self.blocks[n]))
@@ -65,33 +70,75 @@ class Chain:
 
 
 LAGS = (0, 30 * q5.DAY)
+STEPS = (0, 15)
+CASES = [(lag, step) for lag in LAGS for step in STEPS]
 
 
 class Q5Controls(unittest.TestCase):
-    def failed(self, fault, lag):
-        return [c['name'] for c in q5.run(Chain(fault, lag))['checks'] if not c['ok']]
+    def failed(self, fault, lag, step=0):
+        chain = Chain(fault, lag, step)
+        return [c['name'] for c in q5.run(chain, clock=chain.clock)['checks'] if not c['ok']]
 
     def test_correct_engine_passes(self):
-        for lag in LAGS:
-            with self.subTest(lag=lag):
-                self.assertEqual(self.failed(None, lag), [])
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                self.assertEqual(self.failed(None, lag, step), [])
+
+    def test_slow_endpoint_is_slow(self):
+        # The step=15 case is a real slow run: the whole run spans far more than the old fixed 60 s budget, and
+        # the nested comparison alone (DSR's two failing checks) spans more than 60 s too.
+        chain = Chain(step=15)
+        out = q5.run(chain, clock=chain.clock)
+        self.assertGreater(chain.wall - T0, 600)
+        nested = {c['name']: c for c in out['checks']}['nested_next_block_not_jumped']
+        self.assertTrue(nested['ok'])
+        self.assertGreater(nested['window'][1] - nested['window'][0], 60)
 
     def test_offset_never_restored_fails(self):
-        for lag in LAGS:
-            with self.subTest(lag=lag):
-                self.assertIn('single_next_block_not_jumped', self.failed('all', lag))
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                self.assertIn('single_next_block_not_jumped', self.failed('all', lag, step))
+
+    def test_leaked_jump_of_a_day_fails_on_a_slow_endpoint(self):
+        # DSR: a revert that leaves the time where the control put it (gap ~ +DAY or more) must FAIL even
+        # with the window widened by a slow endpoint.
+        chain = Chain('all', 0, 15)
+        checks = {c['name']: c for c in q5.run(chain, clock=chain.clock)['checks']}
+        for name in ('single_next_block_not_jumped', 'nested_next_block_not_jumped'):
+            self.assertFalse(checks[name]['ok'], name)
+            self.assertGreaterEqual(checks[name]['gap'], q5.DAY)
 
     def test_offset_not_restored_for_nested_snapshots_fails(self):
         # Headers and explicit timestamps still look right; only auto-mined blocks expose it.
-        for lag in LAGS:
-            with self.subTest(lag=lag):
-                self.assertIn('inner_revert_next_block_follows_outer', self.failed('nested', lag))
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                self.assertIn('inner_revert_next_block_follows_outer', self.failed('nested', lag, step))
 
     def test_offset_not_restored_for_outer_snapshots_fails(self):
         # Codex round 2: with an old pin the post-revert block is far *behind* the baseline, not ahead of it.
-        for lag in LAGS:
-            with self.subTest(lag=lag):
-                self.assertIn('single_next_block_not_jumped', self.failed('outer', lag))
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                self.assertIn('single_next_block_not_jumped', self.failed('outer', lag, step))
+
+    def test_undecidable_window_fails(self):
+        # A run so slow that a window reaches DAY/2 cannot tell a leak from latency: FAIL, even for a correct engine.
+        failed = self.failed(None, 0, q5.DAY // 8)
+        self.assertIn('single_next_block_not_jumped', failed)
+        self.assertIn('inner_revert_next_block_follows_outer', failed)
+
+    def test_baseline_is_mined_before_the_jump(self):
+        # A baseline taken after the jump would move with a leak and hide it: each segment's first evm_mine
+        # must precede its first evm_setNextBlockTimestamp.
+        calls = []
+        class Log(Chain):
+            def __call__(self, method, params):
+                calls.append(method)
+                return super().__call__(method, params)
+        chain = Log()
+        q5.run(chain, clock=chain.clock)
+        sets = [i for i, m in enumerate(calls) if m == 'evm_setNextBlockTimestamp']
+        mines = [i for i, m in enumerate(calls) if m in ('evm_mine', 'eth_sendTransaction')]
+        self.assertLess(mines[0], sets[0])
 
     def test_rpc_error_text_never_surfaces(self):
         rpc = q5.Local(0)
