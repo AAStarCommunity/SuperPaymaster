@@ -70,6 +70,9 @@ contract UpgradeLive is V54Bootstrap {
         string memory configPath = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
         string memory config = vm.readFile(configPath);
 
+        require(!vm.keyExistsJson(config, ".timelockControllerLegacy"),
+            "UpgradeLive: migrated timelock config; use reviewed Safe upgrade/deployment flow");
+
         address registryProxy = vm.parseJsonAddress(config, ".registry");
         address spProxy       = vm.parseJsonAddress(config, ".superPaymaster");
         address entryPoint    = vm.parseJsonAddress(config, ".entryPoint");

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LEGACY: historical pre-A3a fork rehearsal; old timelock reads use the legacy config key.
 # A3a precheck v2: simulate runbook 03-final-spec §6 step 1 ①–③ (+ the Safe-only GOV-1 timelock that
 # becomes the single canonical timelock) on a LOCAL anvil fork of Sepolia at a pinned block.
 #
@@ -24,7 +25,7 @@ case "$RPC" in http://127.0.0.1:*) ;; *) echo "refusing: RPC is not local"; exit
 EOA=0xb5600060e6de5E11D3636731964218E53caadf0E
 SAFE=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
 SP=0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
-OLD_TL=0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+OLD_TL=$(jq -er '.timelockControllerLegacy | select(type == "string") | select(test("^0x[0-9a-fA-F]{40}$"))' deployments/config.sepolia.json) || { echo 'timelockControllerLegacy missing or invalid' >&2; exit 2; }
 # Safe owners (ascending address order — Safe requires signatures sorted by owner address)
 OA=0x871608cBA092105b91e91295A1d79fFC539BFb48   # executor of S5b/S6b (signs by being msg.sender)
 OB=0x8c3499252232105A1615767C459DB9BBbf1273D6   # approver of S5a/S6a (approveHash)

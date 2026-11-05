@@ -385,3 +385,23 @@ The historical sections above describe prior runs. See
 [ADVERSARIAL_REVIEW_RESULTS.md](ADVERSARIAL_REVIEW_RESULTS.md) for this run's proxy
 rebuild, final suite results and gate-removal probes. No live RPC verification,
 transaction, or commit was performed.
+
+## Timelock address correction (DSR 2026-11-05)
+
+The TimelockController parity result previously recorded here was for
+`0x86c86c789edc099801cc6a5f48334f1d67dc9564`, the earlier 48h timelock.
+The canonical A3a S2 timelock is `0xccdf8e0d29fb2c3061910d79484a2b653757c34b`
+(block 12032424, transaction
+`0xe2c6b4276e8be5ea26057499b924c2550d29ff983fccac790784d715c117d48c`,
+built at `cd9aa1c410ac926a6007b0dc0b7e95b0b3effad2`).
+Both runtimes are identical and both delays are 172800, so the recorded parity
+values stand. Runtime parity cannot distinguish their addresses. Address binding
+comes only from `discover_targets` and its `old_owner_source_targets` equality gate.
+Retained parity measurements and the earlier deployment record in
+`deployed_source_candidates.json` remain explicitly bound to the legacy address;
+this offline correction makes no new on-chain measurement.
+
+`old_timelock_holds_nothing` runs at the pin and at closing. It checks all four
+roles on the new timelock, the isolation authority getters, role holders and
+mappings, and Safe ownership/module membership, recording every call at that
+phase's single block. See [reader impact](../../docs/release/sp-upgrade-a6e/OLD_TIMELOCK_CORRECTION.md).
