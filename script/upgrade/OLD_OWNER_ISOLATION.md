@@ -323,5 +323,9 @@ What each re-read covers (pre-send vs closing):
   `contracts/src`.
 - The orphaned timelock is re-checked before every send against the pin's
   Approval owners (no log scan) plus the fixed principals: TL roles, authorities,
-  allowances and the Safe. An allowance granted after the pin by an owner that
-  had never approved it is found only at closing, which rediscovers owners.
+  allowances and the Safe. Pre-send uses the pin's target, token and role
+  inventory. Found only at closing (which rediscovers the inventory and the
+  Approval owners and requires the inventory to equal the pin's): an allowance
+  granted after the pin by an owner that had never approved the orphan, and a
+  token, target or role ID that appeared after the pin, including any orphan
+  authority on it.
