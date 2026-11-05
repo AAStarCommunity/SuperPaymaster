@@ -110,6 +110,36 @@ def fraud_export(f):
     return dict(toolCommit=f['toolCommit'], verifierCommit=f['verifierCommit'], export=e)
 
 
+def old_exit_rpc(p, guardian=None, expires=1789019460, occupied=0, slash=0, maximum=13):
+    def rpc(method, params):
+        if method == 'eth_getCode': return '0x' if a.qty(params[1]) == 0 else '0x6000'
+        if method == 'eth_getBlockByNumber':
+            return dict(number=p['stateBlock'], hash=p['stateBlockHash'], timestamp=hex(p['stateTimestamp']))
+        if method == 'eth_getLogs':
+            if guardian is None: return []
+            return [dict(address=OLD, topics=[a.keccak('GuardianExitRequested(address,uint256,uint256)'),
+                '0x'+guardian[2:].zfill(64)], data='0x', blockNumber='0x1', blockHash='0x'+'ab'*32,
+                transactionHash='0x'+'cd'*32, transactionIndex='0x0', logIndex='0x0')]
+        if method == 'eth_call':
+            data = params[0]['data']
+            calls = [('guardianExitRequests(address)', (guardian,), [1788933060, expires]),
+                     ('MAX_VALIDATORS()', (), [maximum]),
+                     ('pendingGuardianSlashCount(address)', (guardian,), [slash])]
+            calls += [('validatorAtSlot(uint8)', (i,), [int(guardian,16) if i == occupied else 0]) for i in range(1,14)]
+            for sig, args, values in calls:
+                if data == a.calldata(sig, *args):
+                    return '0x'+''.join(format(v, '064x') for v in values)
+        raise AssertionError((method, params))
+    return rpc
+
+
+def set_old_exit_evidence(p, guardian=None, **kw):
+    activity, reads = m.record_old_activity(old_exit_rpc(p, guardian, **kw), OLD, p['stateBlock'], [])
+    p['oldActivity'] = activity
+    p['oldActivityReads'] = dict(primary=reads, secondary=copy.deepcopy(reads))
+    return p
+
+
 def pin():
     p = base.pin()
     p['senders']['anni'] = dict(address=ANNI, nonce=55, balance=100*10**18)
@@ -122,6 +152,7 @@ def pin():
     p['guardianInventory'] = [dict(slot=i, validator=('0x'+format(i, '040x')) if i <= 3 else a.ZERO) for i in range(1, 14)]
     p['pendingAPNTsTokenEta'] = p['timestamp']+7*m.DAY
     p['oldOwnerIsolation'] = isolation_tests.evidence(p)
+    set_old_exit_evidence(p)
     return p
 
 
@@ -830,10 +861,12 @@ class ManifestTests(unittest.TestCase):
             stack.enter_context(patch.object(m, 'b4_controls', return_value=[]))
             execute = stack.enter_context(patch.object(m, 'execute_b4', return_value=dict(step='wrong', receipt={})))
             stack.enter_context(patch.object(m, 'stage_readback', return_value={}))
+            closing = stack.enter_context(patch.object(m, 'dvt_closing', return_value={}))
             fraud = stack.enter_context(patch.object(m, 'fraud_rehearsal'))
             with self.assertRaises(a.Gate): m.run_manifest(None, rpc, plan, Path(self.tmp.name))
             execute.return_value = dict(step='B4', receipt={})
             self.assertEqual(m.run_manifest(None, rpc, plan, Path(self.tmp.name))['stage'], 'b4')
+            closing.assert_called_once_with(rpc, plan)
             fraud.assert_not_called()
 
     def test_staged_cli_guard(self):
@@ -1003,6 +1036,7 @@ class ManifestTests(unittest.TestCase):
                  patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}), \
                  patch.object(a, 'address', return_value=owner), \
                  patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])), \
+                 patch.object(m, 'dvt_closing', return_value={}), \
                  patch.object(m, 'balances', side_effect=CheckpointPassed):
                 if owner == u.TL:
                     with self.assertRaises(CheckpointPassed):
@@ -1426,6 +1460,7 @@ class ManifestTests(unittest.TestCase):
             patch.object(m, 'balances', return_value=dict(totalTrackedBalance=m.BUFFER, protocolRevenue=m.BUFFER,
                 operatorBalances={x:0 for x in self.pin['pauseList']})),
             patch.object(m, 'fraud_rehearsal', return_value={'synthetic':True}),
+            patch.object(m, 'dvt_closing', return_value={'closing':True}),
             patch.object(m, 'solvency_probe', return_value={'allSolvent':solvent})]
         with contextlib.ExitStack() as stack:
             for p in patches: stack.enter_context(p)
@@ -1437,6 +1472,7 @@ class ManifestTests(unittest.TestCase):
                 self.assertEqual(sum(call.args[2] == 'after_upgrade_execute_exec'
                                      for call in m.controls_at.call_args_list), 1)
                 m.fraud_rehearsal.assert_called_once_with(rpc, self.plan)
+                m.dvt_closing.assert_called_once_with(rpc, self.plan)
             else:
                 with self.assertRaises(a.Gate) as caught:
                     m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
@@ -1480,16 +1516,110 @@ class ManifestTests(unittest.TestCase):
 
 
     def test_unsigned_dvt_proposal_stops(self):
-        logs = [dict(topics=[a.keccak('ProposalCreated(uint256,address,uint8)'), '0x'+format(1, '064x')])]
-        for executed in (False, True):
-            raw = a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)',
-                         u.DEPLOYER, 0, 'fixture', str(executed).lower(), 'true', a.ZERO32)
-            with patch.object(u, 'creation', return_value=1), patch.object(u, 'scan', return_value=logs), patch.object(a, 'call', return_value=raw):
-                if executed:
-                    self.assertEqual(m.dvt_activity(None, DVT, '0x100'), logs)
+        # Superseded fixture shape: the getter inventory is now authoritative (see stale tests).
+        self.assertEqual(len(self.stale_proposals()), 9)
+        with self.assertRaises(a.Gate) as caught:
+            self.stale_proposals(lambda rows: rows[7].update(executed=False))
+        self.assertEqual(caught.exception.record['gate'], 'dvt_stale_proposal_listed')
+
+    def stale_proposals(self, edit=None, next_id=10, omit_log=()):
+        rows = {i: dict(operator=m.STALE_PROPOSAL_OPERATOR, level=1, executed=i in (3, 7),
+                        evidence=m.STALE_PROPOSALS[1 if i < 7 else 8][1]) for i in range(1, 10)}
+        if edit:
+            edit(rows)
+        logs = [dict(topics=[a.keccak('ProposalCreated(uint256,address,uint8)'), '0x'+format(i, '064x')])
+                for i in rows if i not in omit_log]
+        def call(rpc, target, sig, proposal, block=None):
+            self.assertEqual((target, sig), (DVT, 'proposals(uint256)'))
+            r = rows.get(proposal, dict(operator=a.ZERO, level=0, executed=False, evidence=0, exists=False))
+            return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', r['operator'], r['level'],
+                          'fixture', str(r['executed']).lower(), str(r.get('exists', True)).lower(), '0x'+format(r['evidence'], '064x'))
+        def word(rpc, target, sig, *args, **kw):
+            self.assertEqual((target, sig), (DVT, 'nextProposalId()'))
+            return next_id
+        with patch.object(u, 'creation', return_value=1), patch.object(u, 'scan', return_value=logs), \
+             patch.object(a, 'call', side_effect=call), patch.object(a, 'word', side_effect=word):
+            return m.dvt_activity(None, DVT, '0x100')
+
+    def test_stale_dvt_proposals_accepted_only_exactly(self):
+        self.assertEqual(len(self.stale_proposals()), 9)
+        def unexecuted(i): return lambda rows: rows[i].update(executed=False)
+        def extra(rows): rows[10] = dict(rows[8])
+        def extra_executed(rows): rows[10] = dict(rows[7])
+        def operator(rows): rows[2].update(operator=u.DEPLOYER)
+        def level(rows): rows[4].update(level=2)
+        def evidence(rows): rows[8].update(evidence=m.STALE_PROPOSALS[1][1])
+        def sibling(rows): rows[3].update(evidence=m.STALE_PROPOSALS[8][1])
+        def sibling_level(rows): rows[7].update(level=2)
+        def sibling_operator(rows): rows[3].update(operator=u.DEPLOYER)
+        def stale_executed(rows): rows[8].update(executed=True)
+        cases = [(dict(edit=unexecuted(3)), 'dvt_stale_proposal_listed'),
+                 (dict(edit=extra), 'dvt_proposal_inventory'), (dict(edit=extra_executed), 'dvt_proposal_inventory'),
+                 (dict(omit_log=(2,)), 'dvt_proposal_inventory'), (dict(omit_log=tuple(range(1, 10))), 'dvt_proposal_inventory'),
+                 (dict(edit=operator), 'dvt_stale_proposal_shape'), (dict(edit=level), 'dvt_stale_proposal_shape'),
+                 (dict(edit=evidence), 'dvt_stale_proposal_shape'), (dict(edit=sibling), 'dvt_stale_sibling_executed'),
+                 (dict(edit=sibling_level), 'dvt_stale_sibling_executed'), (dict(edit=sibling_operator), 'dvt_stale_sibling_executed'),
+                 (dict(edit=stale_executed), 'dvt_stale_open_set'), (dict(next_id=11), 'dvt_stale_next_id')]
+        for kw, gate in cases:
+            with self.subTest(gate=gate, case=getattr(kw.get('edit'), '__name__', kw)):
+                with self.assertRaises(a.Gate) as caught:
+                    self.stale_proposals(**kw)
+                self.assertEqual(caught.exception.record['gate'], gate)
+
+    def closing_rpc(self, pointer, activity='pin', executed=()):
+        def address(r, target, sig, block='latest'):
+            self.assertEqual((target, sig), (DVT, 'BLS_AGGREGATOR()'))
+            return pointer
+        def call(r, target, sig, proposal, **kw):
+            return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', m.STALE_PROPOSAL_OPERATOR, 1,
+                          'fixture', str(proposal in executed).lower(), 'true', a.ZERO32)
+        seen = [{'recorded': True}] if activity == 'pin' else [{'changed': True}]
+        return [patch.object(a, 'address', side_effect=address), patch.object(a, 'call', side_effect=call),
+                patch.object(a, 'block_data', return_value=dict(number='0x200')),
+                patch.object(m, 'dvt_activity', return_value=copy.deepcopy(seen))]
+
+    def test_dvt_closing_binds_pointer_and_stale_proposals(self):
+        new, old = self.plan['addresses']['BLSAggregator'], self.plan['pin']['oldAggregator']
+        cases = [('full', new, {}, None), ('b4', new, {}, None), ('a7', old, {}, None),
+                 ('full', old, {}, 'closing_dvt_pointer'), ('a7', new, {}, 'closing_dvt_pointer'),
+                 ('full', new, dict(activity='changed'), 'closing_dvt_activity'),
+                 ('full', new, dict(executed=(8,)), 'closing_stale_unexecuted')]
+        for stage, pointer, extra, gate in cases:
+            with self.subTest(stage=stage, pointer=pointer, extra=extra), contextlib.ExitStack() as stack:
+                for p in self.closing_rpc(pointer, **extra): stack.enter_context(p)
+                plan = copy.deepcopy(dict(self.plan, stage=stage))
+                plan['pin'].setdefault('oldActivity', {})['dvtProposals'] = [{'recorded': True}]
+                if gate is None:
+                    self.assertEqual(m.dvt_closing(None, plan)['staleUnexecuted'], [1, 2, 4, 5, 6, 8, 9])
                 else:
-                    with self.assertRaises(a.Gate):
-                        m.dvt_activity(None, DVT, '0x100')
+                    with self.assertRaises(a.Gate) as caught:
+                        m.dvt_closing(None, plan)
+                    self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_old_pointers_require_old_aggregator(self):
+        d = dict(dvt=DVT, committee=COMMITTEE)
+        old = self.plan['pin']['oldAggregator']
+        for bad, gate in ((None, None), ('dvt', 'old_pointer'), ('committee', 'old_pointer'), ('owner', 'pointer_owner')):
+            def address(r, target, sig, block):
+                if sig == 'owner()': return u.SP if bad == 'owner' else u.DEPLOYER
+                return u.SP if {'dvt': DVT, 'committee': COMMITTEE}.get(bad) == target else old
+            with self.subTest(bad=bad), patch.object(a, 'address', side_effect=address), \
+                 patch.object(u, 'code', return_value='0x00'):
+                if gate is None:
+                    self.assertEqual(set(m.old_pointers(None, d, old, '0x1')), {DVT, COMMITTEE})
+                else:
+                    with self.assertRaises(a.Gate) as caught:
+                        m.old_pointers(None, d, old, '0x1')
+                    self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_runner_and_collector_wire_closing_and_pointer_gates(self):
+        tree = ast.parse(Path(m.__file__).read_text())
+        def calls(fn, name):
+            node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == fn)
+            return sum(isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == name for c in ast.walk(node))
+        self.assertEqual(calls('run_manifest', 'dvt_closing'), 2)
+        self.assertEqual(calls('collect', 'old_pointers'), 1)
+        self.assertEqual(calls('collect', 'dvt_activity'), 1)
 
     def test_unhandled_external_fields_do_not_allow_partial_builder(self):
         for key in ('verifier', 'pop', 'committee'):
@@ -1816,9 +1946,16 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'], 'B2_upgrade_identity')
 
     def test_guardian_inventory_and_anni_required(self):
+        # guardian_inventory is load-bearing for the stage-a7 old-exit derivation (the PoP
+        # set equals the slot inventory), so assert this exact gate, not any later one.
         bad = copy.deepcopy(self.pin)
         bad['guardianInventory'][0]['validator'] = ANNI
-        with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
+        with self.assertRaises(a.Gate) as caught: m.build_plan(bad, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'guardian_inventory')
+        bad = copy.deepcopy(self.pin)
+        bad['guardianInventory'][3]['validator'] = '0xf36c9317765634e4995ce1e7210b5738225425b0'
+        with self.assertRaises(a.Gate) as caught: m.build_plan(bad, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], 'guardian_inventory')
         bad = copy.deepcopy(self.pin)
         bad['guardianInventory'][0]['slot'] = 4
         with self.assertRaises(a.Gate): m.build_plan(bad, self.inputs)
@@ -1852,6 +1989,7 @@ class ManifestTests(unittest.TestCase):
         digest = spec['sha256']
         self.inputs['data']['safeGovernanceGaps'] = harness.inputs['data']['safeGovernanceGaps']
         self.pin['stateBlock'] = harness.pin['stateBlock']
+        set_old_exit_evidence(self.pin)
         self.pin['oldOwnerIsolation'] = isolation_tests.evidence(self.pin)
         self.pin['safeNonce'] = harness.pin['safeNonce']
         self.pin['safe']['owners'] = harness.pin['safe']['owners']
@@ -3270,6 +3408,193 @@ class GasProbeReportingTests(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 probes.suppressed_outcome('test_missing_remote', 'remote_estimate_missing')
 
+
+
+class OldExitExemptionTests(unittest.TestCase):
+    guardian = '0xf36c9317765634e4995ce1e7210b5738225425b0'
+
+    def fixture(self, **kw):
+        p = base.pin()
+        p.update(oldAggregator=OLD, stateTimestamp=1789019461)
+        return p, old_exit_rpc(p, kw.pop('guardian', self.guardian), **kw)
+
+    def control(self, gate, **kw):
+        pop = kw.pop('pop', [])
+        p, rpc = self.fixture(**kw)
+        with self.assertRaises(a.Gate) as caught:
+            m.old_activity(rpc, OLD, p['stateBlock'], pop)
+        self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_not_expired(self):
+        self.control('old_exit_exempt_expired', expires=1789019461)
+
+    def test_slot(self):
+        self.control('old_exit_exempt_slot', occupied=13)
+
+    def test_slash(self):
+        self.control('old_exit_exempt_slash', slash=1)
+
+    def test_listed(self):
+        self.control('old_exit_exempt_listed', guardian='0x'+'99'*20)
+
+    def test_pop(self):
+        self.control('old_exit_exempt_pop', pop=[dict(validator=self.guardian.upper())])
+
+    def test_stage_b4_pop_containing_exempt_guardian_stops(self):
+        # Once the PoP exists (b4/full), condition (4) is checked against it directly.
+        self.control('old_exit_exempt_pop', pop=[dict(validator=self.guardian)])
+
+    def test_stage_a7_pop_derived_from_slot_inventory(self):
+        # Stage a7 has no PoP input yet: condition (4) follows from (2), because the PoP
+        # validator set must equal the old aggregator's nonempty slot inventory.
+        p, rpc = self.fixture()
+        result = m.old_activity(rpc, OLD, p['stateBlock'], None)
+        self.assertEqual([(x['inPop'], x['popSource']) for x in result['exemptions']], [(False, 'slot-inventory')])
+        # A slot holder still STOPs, at the load-bearing slot gate.
+        self.control('old_exit_exempt_slot', occupied=13, pop=None)
+
+    def test_maximum(self):
+        self.control('old_exit_max_validators', maximum=14)
+
+    def test_gate_removal_probes(self):
+        for suffix, test in [('expired','not_expired'), ('slot','slot'), ('slash','slash'),
+                             ('listed','listed'), ('pop','pop'), ('max_validators','maximum')]:
+            gate = 'old_exit_'+suffix if suffix == 'max_validators' else 'old_exit_exempt_'+suffix
+            with self.subTest(gate=gate):
+                tree = ast.parse(Path(m.__file__).read_text())
+                function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'old_activity')
+                class RemoveGate(ast.NodeTransformer):
+                    count = 0
+                    def visit_Expr(self, node):
+                        call = node.value
+                        if (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                                and call.func.attr == 'need' and call.args
+                                and isinstance(call.args[0], ast.Constant) and call.args[0].value == gate):
+                            self.count += 1
+                            return ast.copy_location(ast.Pass(), node)
+                        return self.generic_visit(node)
+                remover = RemoveGate()
+                mutant = remover.visit(ast.Module(body=[function], type_ignores=[]))
+                self.assertEqual(remover.count, 1)
+                namespace = dict(vars(m))
+                exec(compile(ast.fix_missing_locations(mutant), m.__file__, 'exec'), namespace)
+                with patch.object(m, 'old_activity', namespace['old_activity']):
+                    with self.assertRaises(AssertionError):
+                        getattr(self, 'test_'+test)()
+                getattr(self, 'test_'+test)()
+                print('OLD_EXIT_PROBE '+gate+' removed=RED restored=PASS')
+
+    def test_pin_replay_both_endpoints_and_tampering(self):
+        p, rpc = self.fixture()
+        activity, reads = m.record_old_activity(rpc, OLD, p['stateBlock'], [])
+        p.update(oldActivity=activity, oldActivityReads=dict(primary=reads, secondary=copy.deepcopy(reads)))
+        m.validate_old_activity(p, [])
+        evidence = activity['exemptions'][0]
+        self.assertEqual(len(evidence['slotScan']), 13)
+        self.assertEqual(evidence['pinTime'], p['stateTimestamp'])
+        for endpoint in ('primary', 'secondary'):
+            bad = copy.deepcopy(p)
+            bad['oldActivityReads'][endpoint].pop()
+            with self.assertRaises(a.Gate): m.validate_old_activity(bad, [])
+        bad = copy.deepcopy(p)
+        bad['oldActivity']['exemptions'][0]['slashCount'] = 1
+        with self.assertRaises(a.Gate) as caught: m.validate_old_activity(bad, [])
+        self.assertEqual(caught.exception.record['gate'], 'old_exit_evidence')
+        with self.assertRaises(a.Gate) as caught:
+            m.validate_old_activity(p, [dict(validator=self.guardian)])
+        self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_pop')
+
+    def test_pre_send_rereads_slots_and_time(self):
+        p, rpc = self.fixture()
+        p['oldActivity'] = m.old_activity(rpc, OLD, p['stateBlock'], [])
+        plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
+        later = copy.deepcopy(p)
+        later['stateTimestamp'] += 100
+        m.unchanged_old_activity(old_exit_rpc(later, self.guardian), plan, later['stateBlock'])
+        for slot in range(1, 14):
+            with self.assertRaises(a.Gate) as caught:
+                m.unchanged_old_activity(old_exit_rpc(later, self.guardian, occupied=slot), plan, later['stateBlock'])
+            self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_slot')
+
+    def test_unchanged_old_activity_detects_new_activity_after_pin(self):
+        # Passes every internal gate (the proposal is executed) but changes the activity:
+        # only the pin comparison old_activity_unchanged can catch it.
+        p, rpc = self.fixture()
+        p['oldActivity'] = m.old_activity(rpc, OLD, p['stateBlock'], [])
+        plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
+        base_rpc = old_exit_rpc(p, self.guardian)
+        aggregated = a.keccak('SignatureAggregated(uint256,bytes,uint256)')
+        def later(method, params):
+            if method == 'eth_getLogs':
+                return base_rpc(method, params) + [dict(address=OLD, topics=[aggregated, '0x'+'0'*63+'7'],
+                    data='0x', blockNumber='0x2', blockHash='0x'+'ef'*32, transactionHash='0x'+'12'*32,
+                    transactionIndex='0x0', logIndex='0x0')]
+            if method == 'eth_call' and params[0]['data'] == a.calldata('executedProposals(uint256)', 7):
+                return '0x'+format(1, '064x')
+            return base_rpc(method, params)
+        with self.assertRaises(a.Gate) as caught:
+            m.unchanged_old_activity(later, plan, p['stateBlock'])
+        self.assertEqual(caught.exception.record['gate'], 'old_activity_unchanged')
+
+    def test_pre_send_calls_unchanged_old_activity(self):
+        # Wiring guard: the helper above is only effective if pre_send invokes it.
+        tree = ast.parse(Path(m.__file__).read_text())
+        pre_send = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'pre_send')
+        calls = [c for c in ast.walk(pre_send) if isinstance(c, ast.Call)
+                 and isinstance(c.func, ast.Name) and c.func.id == 'unchanged_old_activity']
+        self.assertEqual(len(calls), 1)
+
+    def test_pre_send_enforces_exit_gate(self):
+        p, good = self.fixture()
+        p['oldActivity'] = m.old_activity(good, OLD, p['stateBlock'], [])
+        p.update(bindings={}, safe={})
+        plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
+        step = dict(tx={'from':u.DEPLOYER, 'nonce':'0x0'}, safeNonce=0)
+        bad = old_exit_rpc(p, self.guardian, occupied=13)
+        def rpc(method, params):
+            if method == 'eth_chainId': return hex(a.CHAIN)
+            return bad(method, params)
+        rpc.local = True
+        original_word = a.word
+        def word(r, target, sig, *args, **kw):
+            if target == u.SAFE and sig == 'nonce()': return 0
+            return original_word(r, target, sig, *args, **kw)
+        with patch.object(m, 'handover_gate'), patch.object(a, 'nonce', return_value=0), \
+             patch.object(a, 'word', side_effect=word), patch.object(u, 'safe_state', return_value={}), \
+             patch.object(u, 'governance'):
+            p['timelockCreation'] = 1
+            with self.assertRaises(a.Gate) as caught: m.pre_send(rpc, plan, step, {})
+        self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_slot')
+
+    def test_endpoint_replay_reruns_predicates(self):
+        for kwargs, gate in [({'expires':1789019461}, 'old_exit_exempt_expired'),
+                             ({'occupied':13}, 'old_exit_exempt_slot'),
+                             ({'slash':1}, 'old_exit_exempt_slash'),
+                             ({'maximum':12}, 'old_exit_max_validators'),
+                             ({'guardian':'0x'+'99'*20}, 'old_exit_exempt_listed')]:
+            p, good = self.fixture()
+            activity, reads = m.record_old_activity(good, OLD, p['stateBlock'], [])
+            _, bad = self.fixture(**kwargs)
+            original = a.need
+            def removed(name, actual, expected):
+                if name != gate: return original(name, actual, expected)
+            with patch.object(a, 'need', side_effect=removed):
+                _, bad_reads = m.record_old_activity(bad, OLD, p['stateBlock'], [])
+            for endpoint in ('primary','secondary'):
+                with self.subTest(gate=gate, endpoint=endpoint):
+                    p.update(oldActivity=activity, oldActivityReads=dict(primary=reads, secondary=reads))
+                    p['oldActivityReads'][endpoint] = bad_reads
+                    with self.assertRaises(a.Gate) as caught: m.validate_old_activity(p, [])
+                    self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_cleared_notice_needs_no_exemption(self):
+        p, rpc = self.fixture()
+        original = a.call
+        def cleared(rpc, old, sig, *args, **kw):
+            if sig == 'guardianExitRequests(address)': return '0x'+'00'*64
+            return original(rpc, old, sig, *args, **kw)
+        with patch.object(a, 'call', side_effect=cleared):
+            self.assertEqual(m.old_activity(rpc, OLD, p['stateBlock'])['exemptions'], [])
 
 if __name__ == '__main__':
     unittest.main()
