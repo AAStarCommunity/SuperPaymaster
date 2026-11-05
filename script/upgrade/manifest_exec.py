@@ -2019,8 +2019,8 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         return finish()
     # Phase C (§3): after 6d and B4, before Phase D, on the same sender/Safe counters.
     c, p = d['phaseC'], pin['phaseC']
-    # DSR 2026-11-02: D is the only sampled operator; N stays paused and unfunded.
-    a.need('C_sampled_operator', d['sampled'], [u.DEPLOYER])
+    # DSR 2026-11-02: D is the only sampled operator; N stays paused and unfunded. Enforced for every stage by
+    # validate_external's sampled_deployer_only (DSR 2026-11-05, F-01).
     ws = phase_c_worksheet(pin, c, pin['entryPointDeposit']+deposit)
     phase_c.update(ws)
     base = rebuild_baselines(arts['commit'])

@@ -569,7 +569,7 @@ BUILD_CASES = {
     'phase_c_maintenance_unique': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'],
                                             [dict(name='x', gas=1), dict(name='x', gas=2)]),
     'stage_inputs': data_case(['phaseC'], delete=True),
-    'C_sampled_operator': data_case(['sampled'], sorted([u.DEPLOYER, t.ANNI])),
+    'sampled_deployer_only': data_case(['sampled'], sorted([u.DEPLOYER, t.ANNI])),
     'C_amax_cap': data_case(ARM+['SP', 'call'], 10**9),
     'stage_pin_phase_c': lambda data, pin, case: pin.pop('phaseC'),
     'phase_c_pin': pin_case(['phaseC', 'extra'], 1),
