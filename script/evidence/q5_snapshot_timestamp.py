@@ -8,6 +8,14 @@ the time jump. This measures it on the pinned engine, offline (local chain) and 
 Usage (repository root):
   python3 -B script/evidence/q5_snapshot_timestamp.py --engine DIR --mode local
   python3 -B script/evidence/q5_snapshot_timestamp.py --engine DIR --mode fork --rpc-file FILE --block N
+Scope (trust root): main-path executionTimestamps are explicit (latest header + 1, set with
+evm_setNextBlockTimestamp right before the step is mined) and asserted by manifest_timestamp /
+mined_execution_timestamp. What they need from the engine is (a) evm_revert restores the latest header,
+(b) an explicit timestamp below the control's jump is accepted afterwards; both are checked for single and
+nested snapshots. The auto-mined checks additionally show the jump is not inherited; they do not pin the exact
+clock offset (an offset restored too low is masked by header clamping and cannot move an explicit timestamp).
+A wall-clock step larger than TOLERANCE during the run makes it FAIL (fail-closed).
+
 The RPC URL is read from FILE and only ever held by this process: anvil forks from a local relay
 (127.0.0.1), relay failures return a bare 502, and JSON-RPC errors are reported by code only. Engine output is discarded.
 """
@@ -16,6 +24,7 @@ sys.dont_write_bytecode = True
 import argparse
 import http.server
 import json
+import re
 import socket
 import subprocess
 import threading
@@ -68,13 +77,31 @@ class Local:
         if 'error' in out:
             # Upstream error text can carry credentials in any form; report the code only.
             code = out['error'].get('code') if isinstance(out['error'], dict) else None
+            code = code if type(code) is int else 'non-integer'
             raise RuntimeError(f'{method}: JSON-RPC error code {code}')
         return out['result']
 
 
+def qty(value):
+    # Never echo engine/upstream content in an error.
+    if not (isinstance(value, str) and re.fullmatch(r'0x[0-9a-fA-F]{1,64}', value)):
+        raise RuntimeError('malformed quantity from engine')
+    return int(value, 16)
+
+
+def reverted(rpc, snap):
+    # Recorded as a bool only; a revert that does not return true also stops unchecked reverts below.
+    return rpc('evm_revert', [snap]) is True
+
+
+def restore(rpc, snap):
+    if not reverted(rpc, snap):
+        raise RuntimeError('evm_revert did not return true')
+
+
 def latest(rpc):
     b = rpc('eth_getBlockByNumber', ['latest', False])
-    return int(b['number'], 16), int(b['timestamp'], 16)
+    return qty(b['number']), qty(b['timestamp'])
 
 
 def wait_until(rpc, timestamp):
@@ -101,7 +128,7 @@ def tx_delta(rpc, t0):
     else:
         raise RuntimeError('no receipt')
     b = rpc('eth_getBlockByNumber', [r['blockNumber'], False])
-    return int(b['timestamp'], 16) - t0
+    return qty(b['timestamp']) - t0
 
 
 def run(rpc):
@@ -113,23 +140,23 @@ def run(rpc):
     # Baseline: what the next block looks like with no time jump (wall clock still advances).
     s = rpc('evm_snapshot', [])
     base_mine = mined_delta(rpc, t0)
-    check('baseline_revert', rpc('evm_revert', [s]), True)
+    check('baseline_revert', reverted(rpc, s), True)
     s = rpc('evm_snapshot', [])
     base_tx = tx_delta(rpc, t0)
-    check('baseline_tx_revert', rpc('evm_revert', [s]), True)
+    check('baseline_tx_revert', reverted(rpc, s), True)
 
     # 1. Single snapshot: jump 10 days, revert.
     s = rpc('evm_snapshot', [])
     wait_until(rpc, t0 + 10 * DAY)
     check('single_jumped', latest(rpc)[1], t0 + 10 * DAY)
-    check('single_revert', rpc('evm_revert', [s]), True)
+    check('single_revert', reverted(rpc, s), True)
     check('single_latest_restored', latest(rpc), (n0, t0))
     s = rpc('evm_snapshot', [])
     after_mine = mined_delta(rpc, t0)
-    rpc('evm_revert', [s])
+    restore(rpc, s)
     s = rpc('evm_snapshot', [])
     after_tx = tx_delta(rpc, t0)
-    rpc('evm_revert', [s])
+    restore(rpc, s)
     # The next auto-timestamped block must be within TOLERANCE s (either way) of the no-jump baseline: neither the
     # jump inherited nor the clock left at the jump's offset when the pin is older than wall time.
     check('single_next_block_not_jumped', abs(after_mine - base_mine) < TOLERANCE, True)
@@ -139,24 +166,24 @@ def run(rpc):
     rpc('evm_setNextBlockTimestamp', [t0 + 100])
     rpc('evm_mine', [])
     check('single_explicit_earlier_ts', latest(rpc)[1], t0 + 100)
-    rpc('evm_revert', [s])
+    restore(rpc, s)
 
     # 2. Nested snapshots (controls run inside an outer snapshot).
     outer = rpc('evm_snapshot', [])
     wait_until(rpc, t0 + DAY)
     inner = rpc('evm_snapshot', [])
     wait_until(rpc, t0 + 6 * DAY)
-    check('nested_inner_revert', rpc('evm_revert', [inner]), True)
+    check('nested_inner_revert', reverted(rpc, inner), True)
     check('nested_inner_restored_ts', latest(rpc)[1], t0 + DAY)
-    check('nested_outer_revert', rpc('evm_revert', [outer]), True)
+    check('nested_outer_revert', reverted(rpc, outer), True)
     check('nested_outer_restored', latest(rpc), (n0, t0))
     # Auto-timestamped blocks after the nested reverts must not inherit either jump (header restore alone is not enough).
     s = rpc('evm_snapshot', [])
     nested_mine = mined_delta(rpc, t0)
-    rpc('evm_revert', [s])
+    restore(rpc, s)
     s = rpc('evm_snapshot', [])
     nested_tx = tx_delta(rpc, t0)
-    rpc('evm_revert', [s])
+    restore(rpc, s)
     check('nested_next_block_not_jumped', abs(nested_mine - base_mine) < TOLERANCE, True)
     check('nested_next_tx_block_not_jumped', abs(nested_tx - base_tx) < TOLERANCE, True)
     # Inner-only revert: the next block follows the outer jump (+1 day), not the inner one (+6 days).
@@ -164,15 +191,15 @@ def run(rpc):
     wait_until(rpc, t0 + DAY)
     inner = rpc('evm_snapshot', [])
     wait_until(rpc, t0 + 6 * DAY)
-    rpc('evm_revert', [inner])
+    restore(rpc, inner)
     inner_mine = mined_delta(rpc, t0)
     check('inner_revert_next_block_follows_outer', 0 < inner_mine - DAY < TOLERANCE, True)
-    check('inner_outer_revert', rpc('evm_revert', [outer]), True)
+    check('inner_outer_revert', reverted(rpc, outer), True)
     s = rpc('evm_snapshot', [])
     rpc('evm_setNextBlockTimestamp', [t0 + 50])
     rpc('evm_mine', [])
     check('nested_explicit_earlier_ts', latest(rpc)[1], t0 + 50)
-    rpc('evm_revert', [s])
+    restore(rpc, s)
     check('final_state', latest(rpc), (n0, t0))
     return dict(toleranceSeconds=TOLERANCE, pinBlock=n0, pinTimestamp=t0, baselineMineDelta=base_mine, baselineTxDelta=base_tx,
                 afterJumpMineDelta=after_mine, afterJumpTxDelta=after_tx, nestedMineDelta=nested_mine,

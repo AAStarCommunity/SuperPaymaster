@@ -107,5 +107,38 @@ class Q5Controls(unittest.TestCase):
         self.assertEqual(str(caught.exception), 'eth_chainId: JSON-RPC error code -32000')
 
 
+    def test_engine_content_never_surfaces(self):
+        # Codex round 3: non-integer error code, malformed quantity, non-boolean revert result.
+        class Secret(Chain):
+            def __init__(self, shape):
+                super().__init__()
+                self.shape = shape
+            def __call__(self, method, params):
+                if self.shape == 'block' and method == 'eth_getBlockByNumber':
+                    return dict(number='SYNTHETIC_SECRET', timestamp='0x1')
+                if self.shape == 'revert' and method == 'evm_revert':
+                    super().__call__(method, params)
+                    return 'SYNTHETIC_SECRET'
+                return super().__call__(method, params)
+        for shape in ('block', 'revert'):
+            with self.subTest(shape=shape):
+                try:
+                    text = repr(q5.run(Secret(shape)))
+                except RuntimeError as e:
+                    text = str(e)
+                self.assertNotIn('SYNTHETIC_SECRET', text)
+        rpc = q5.Local(0)
+        body = b'{"jsonrpc":"2.0","id":1,"error":{"code":"SYNTHETIC_SECRET"}}'
+        class Reply:
+            def read(self): return body
+        q5.urllib.request.urlopen, real = (lambda *a, **k: Reply()), q5.urllib.request.urlopen
+        try:
+            with self.assertRaises(RuntimeError) as caught:
+                rpc('eth_chainId', [])
+        finally:
+            q5.urllib.request.urlopen = real
+        self.assertEqual(str(caught.exception), 'eth_chainId: JSON-RPC error code non-integer')
+
+
 if __name__ == '__main__':
     unittest.main()
