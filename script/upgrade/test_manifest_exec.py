@@ -1930,6 +1930,11 @@ class ManifestTests(unittest.TestCase):
                     values = [32]+[0]*13
                     values[10], values[11] = 384, int(m.isolation.OLD_TIMELOCK, 16)
                     return isolation_tests.raw(values)
+                # The forbidden state: the orphan holds the role configured after the pin. With the inventory
+                # gate removed, a later gate must reject it under another name (an assertion failure, not an error).
+                if new_role and data.startswith(a.calldata('hasRole(bytes32,address)', role, '0x'+'00'*20)[:74]):
+                    holder = '0x'+data[-40:]
+                    return isolation_tests.raw([int(holder == m.isolation.OLD_TIMELOCK.lower())])
                 if not new_role and data == a.calldata('getAllTokens()'):
                     tokens = u.addr_array(rpc(method, params)) + [new]
                     return isolation_tests.raw([32, len(tokens), *(int(t, 16) for t in tokens)])
