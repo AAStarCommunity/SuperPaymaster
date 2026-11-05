@@ -131,11 +131,15 @@ def extract(tree, names=NAMES):
     return result
 
 
+def allowance_holders():
+    return sorted({u.SAFE,u.TL,u.SP,u.REG,u.DEPLOYER,a.APPROVER,a.EXECUTOR,NEW})
+
+
 def authority_rows(section):
     inventory = section['inventory']
     targets = dict(section['targets'])
     rows = []
-    for name, target in [*targets.items(), *(('xPNTsToken', t) for t in section['xpnts'])]:
+    for name, target in [*sorted(targets.items()), *(('xPNTsToken', t) for t in section['xpnts'])]:
         spec = inventory.get('targetInventories', {}).get(target, inventory[name])
         for row in spec['authorities']:
             rows.append((target, row['signature'], [], 'address'))
@@ -368,7 +372,7 @@ def audit(rpc, pin, inventory, fork=None):
             for who in sorted({u.DEPLOYER,*pin['pauseList']}):
                 mapping_controls.append(word(targets[name],row['signature'],who))
     a.need('old_owner_control_mapping', 1 in mapping_controls or fork is not None, True)
-    principals = sorted({u.SAFE,u.TL,u.SP,u.REG,u.DEPLOYER,a.APPROVER,a.EXECUTOR,NEW})
+    principals = allowance_holders()
     reverse, controls = [], []
     for token in sorted(tokens):
         for who in principals:

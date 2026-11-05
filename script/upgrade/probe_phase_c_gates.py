@@ -54,7 +54,15 @@ CASES += [
 ]
 CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
           ('old_timelock_holds_nothing', 'old_timelock_tl_roles', 'old_timelock_authority', 'old_timelock_safe')]
+CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
+          ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_replay',
+           'old_timelock_unused', 'old_timelock_allowance')]
+CASES += [(base_tests.ManifestTests, 'test_old_timelock_inventory_new_role', 'old_timelock_inventory'),
+          (base_tests.ManifestTests, 'test_old_timelock_inventory_new_token', 'old_timelock_inventory')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_legacy_timelock_source_targets', 'old_owner_source_targets')]
+CASES += [(base_tests.ManifestTests, 'test_old_timelock_approval_history', 'old_timelock_approval_history'),
+          (base_tests.ManifestTests, 'test_old_timelock_external_approval', 'old_timelock_allowance'),
+          (base_tests.ManifestTests, 'test_old_timelock_approval_incomplete', 'old_owner_log_partition')]
 GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")
 # Gate literals whose control is a whole family (name+'_gate', name+'_restore').
 FAMILIES = {'_gate': 'X_gate', '_restore': 'X_restore'}

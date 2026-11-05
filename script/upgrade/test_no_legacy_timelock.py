@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Offline tracked-file gate; historical exceptions are explicit and reviewable."""
+"""Offline tracked-file gate; historical exceptions are explicit and reviewable.
+
+This guards accidental hardcoding, not deliberate evasion. Solidity hex literals,
+split string literals, and raw bytes are out of scope."""
 import json
 from pathlib import Path
 import re
@@ -17,13 +20,16 @@ def scan(root, paths, allowlist):
     errors = []
     for name in paths:
         path = root / name
-        # Never open environment files. A tracked one must be removed from the index.
-        if path.name == '.env':
+        # Never open environment files, including tracked example templates.
+        if path.name == '.env.example':
+            continue
+        # A tracked environment file must be removed from the index.
+        if path.name == '.env' or path.name.startswith('.env.'):
             errors.append(f'{name}: environment file in tracked scan (refused to read)')
             continue
         if path.is_dir():  # gitlink, not a blob
             continue
-        if name.startswith('docs/design/') or name in allowlist:
+        if (name.startswith('docs/design/') and path.suffix in {'.md', '.json', '.jsonl', '.csv', '.tsv', '.txt', '.log', '.out', '.err', '.stdout', '.diff', '.patch', '.gz', '.hex', '.sha256', '.toml', '.ref', '.redacted', '.exit', '.start', '.end', '.load', '.ps-after', '.superseded'}) or name in allowlist:
             continue
         data = str(path.readlink()).encode() if path.is_symlink() else path.read_bytes()
         for number, line in enumerate(data.splitlines(), 1):
@@ -36,6 +42,14 @@ def scan(root, paths, allowlist):
             remainder = re.sub(allowed, b'', line, flags=re.I)
             if PATTERN.search(remainder):
                 errors.append(f'{name}:{number}: forbidden legacy timelock')
+        if name.startswith('deployments/') and path.suffix == '.json':
+            decoded = json.loads(data)
+            if name == 'deployments/config.sepolia.json' and isinstance(decoded, dict):
+                legacy = decoded.get('timelockControllerLegacy')
+                if isinstance(legacy, str) and legacy.lower() == OLD_TIMELOCK:
+                    decoded.pop('timelockControllerLegacy')
+            if PATTERN.search(json.dumps(decoded, ensure_ascii=False).encode()) and not any(e.startswith(name+':') for e in errors):
+                errors.append(f'{name}: forbidden decoded legacy timelock')
     return errors
 
 
@@ -75,6 +89,22 @@ class NoLegacyTimelockTests(unittest.TestCase):
             (root / name).write_text(json.dumps({'timelockControllerLegacy': OLD_TIMELOCK}))
             self.assertEqual(scan(root, [name], {}), [])
             (root / name).write_text(json.dumps({'timelockControllerLegacy': OLD_TIMELOCK, 'timelockController': OLD_TIMELOCK}))
+            self.assertEqual(len(scan(root, [name], {})), 1)
+
+    def test_negative_design_executable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            name = 'docs/design/run.sh'
+            (root / name).parent.mkdir(parents=True)
+            (root / name).write_text(OLD_TIMELOCK)
+            self.assertEqual(len(scan(root, [name], {})), 1)
+
+    def test_negative_decoded_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            name = 'deployments/config.test.json'
+            (root / name).parent.mkdir()
+            (root / name).write_text(json.dumps({'owner': OLD_TIMELOCK}).replace('x', r'\u0078'))
             self.assertEqual(len(scan(root, [name], {})), 1)
 
     def test_negative_release_source_not_blanket_exempt(self):
