@@ -596,3 +596,15 @@ roles and address-to-bool authority mappings. This does not prove absence of
 powers outside the isolation scope or between the two observations.
 
 See [canonical source correction and config reader impact](OLD_TIMELOCK_CORRECTION.md).
+
+### Old-owner isolation: never-granted ANODE/KMS disclosure
+
+See [the isolation design](../../../script/upgrade/OLD_OWNER_ISOLATION.md#declared-never-granted-roles-and-residual-community-exposure).
+Registry `safeMintForRole` (`a839347e:416-440`) lets any COMMUNITY holder grant any
+active role to any user, including OLD, subject to registration checks. DSR reports
+9 COMMUNITY grants, and not all holders are controlled. This exposure cannot be
+excluded in advance; the pre-send/closing re-read detects a changed holder row and
+STOPs. Within `contracts/src`, ROLE_ANODE/ROLE_KMS gate no access control; beyond
+their declarations, their uses are Registry.sol role arrays and `_syncExitFeeForRole`.
+The fixed never-granted set and AST-proven mapping control path include only ANODE
+and KMS. ROLE_ENDUSER awaits DSR review of the pin pauseList.

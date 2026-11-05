@@ -279,6 +279,8 @@ class FakeChain:
                 return [dict(log, topics=[topic, '0x'+self.plan['implementation'][2:].zfill(64)], data='0x')]
         if method == 'eth_call':
             data = params[0]['data']
+            if data.startswith(a.keccak('hasRole(bytes32,address)')[:10]):
+                return a.ZERO32
             calls = {'totalTrackedBalance()':self.balances['totalTrackedBalance'],
                      'protocolRevenue()':self.balances['protocolRevenue'], 'paused()':self.paused,
                      'fraudProofVerifier()':int(self.verifier, 16)}
@@ -1098,7 +1100,7 @@ class ManifestTests(unittest.TestCase):
                         patch.object(a, 'nonce', return_value=a.qty(step['tx']['nonce'])),
                         patch.object(a, 'word', return_value=step['safeNonce']),
                         patch.object(a, 'address', side_effect=address),
-                        patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])),
+                        patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' else u.frozen_config(self.pin['roleConfig'])),
                         patch.object(a, 'block_data', return_value={'number':'0x150'}),
                         patch.object(u, 'safe_state', return_value=self.pin['safe']),
                         patch.object(u, 'governance'),
@@ -1130,7 +1132,7 @@ class ManifestTests(unittest.TestCase):
                  patch.object(m, 'CONTROLS', ['owner_handover']), patch.object(m, 'PC_CONTROLS', []), \
                  patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}), \
                  patch.object(a, 'address', return_value=owner), \
-                 patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])), \
+                 patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' else u.frozen_config(self.pin['roleConfig'])), \
                  patch.object(m, 'dvt_closing', return_value={}), \
                  patch.object(m, 'balances', side_effect=CheckpointPassed):
                 if owner == u.TL:
@@ -1745,6 +1747,37 @@ class ManifestTests(unittest.TestCase):
                 with self.assertRaises(a.Gate) as caught:
                     self.stale_proposals(**kw)
                 self.assertEqual(caught.exception.record['gate'], gate)
+
+    def never_recheck_change(self, closing):
+        plan = copy.deepcopy(self.plan)
+        plan['pin']['oldActivity']['dvtProposals'] = [{'recorded':True}]
+        row = plan['pin']['oldOwnerIsolation']['neverGrantedReads'][0]
+        rpc = old_timelock_rpc(plan['pin'],'0x200',
+            (row['target'],'hasRole(bytes32,address)',[row['role'],row['holder']],isolation_tests.raw([1])))
+        rpc.local = True
+        with contextlib.ExitStack() as stack:
+            for item in self.closing_rpc(plan['pin']['oldAggregator']):
+                stack.enter_context(item)
+            if not closing:
+                # Reach the normal chain guard if the recheck gate is removed.
+                original = rpc
+                def rpc(method,params):
+                    if method == 'eth_chainId': return '0x0'
+                    return original(method,params)
+                rpc.local = True
+                stack.enter_context(patch.object(m,'handover_gate'))
+            with self.assertRaises(a.Gate) as caught:
+                if closing:
+                    m.dvt_closing(rpc,plan)
+                else:
+                    m.pre_send(rpc,plan,dict(tx={}),{})
+            self.assertEqual(caught.exception.record['gate'],'old_owner_never_granted_recheck')
+
+    def test_never_granted_closing_change(self):
+        self.never_recheck_change(True)
+
+    def test_never_granted_pre_send_change(self):
+        self.never_recheck_change(False)
 
     def closing_rpc(self, pointer, activity='pin', executed=(), stray=None):
         # Every read must name the one closing block (0x200); `stray` points one target elsewhere.
@@ -3737,7 +3770,8 @@ class GasGateControls(unittest.TestCase):
                     select.assert_not_called()
 
     def test_b4_preapplied_real_measurement(self):
-        # Stop at the first pre-send RPC: all replay and selection helpers are real.
+        self.plan['pin']['oldOwnerIsolation'] = pin()['oldOwnerIsolation']
+        # Stop at the pre-send chain check: all replay and selection helpers are real.
         class ReachedPreSend(Exception):
             pass
         self.step.update(id='B4', estimateGas=120000, localEstimateGas=120000,
@@ -3770,7 +3804,9 @@ class GasGateControls(unittest.TestCase):
                 raise AssertionError(method)
             def fork(method, params):
                 if method == 'eth_getBlockByNumber': return remote(method, params)
-                if method == 'eth_call': return '0x'+format(int(verifier, 16), '064x')
+                if method == 'eth_call':
+                    if params[0]['data'].startswith(a.keccak('hasRole(bytes32,address)')[:10]): return a.ZERO32
+                    return '0x'+format(int(verifier, 16), '064x')
                 if method == 'eth_estimateGas':
                     if params[0]['data'] != '0x': raise RuntimeError('NoPendingVerifierRotation')
                     self.assertEqual(params[1:], ['latest'])
@@ -3984,12 +4020,13 @@ class OldExitExemptionTests(unittest.TestCase):
     def test_pre_send_enforces_exit_gate(self):
         p, good = self.fixture()
         p['oldActivity'] = m.old_activity(good, OLD, p['stateBlock'], [])
-        p.update(bindings={}, safe={})
+        p.update(bindings={}, safe={}, oldOwnerIsolation=pin()['oldOwnerIsolation'])
         plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
         step = dict(tx={'from':u.DEPLOYER, 'nonce':'0x0'}, safeNonce=0)
         bad = old_exit_rpc(p, self.guardian, occupied=13)
         def rpc(method, params):
             if method == 'eth_chainId': return hex(a.CHAIN)
+            if method == 'eth_call' and params[0]['data'].startswith(a.keccak('hasRole(bytes32,address)')[:10]): return a.ZERO32
             return bad(method, params)
         rpc.local = True
         original_word = a.word
@@ -4089,7 +4126,7 @@ class F05PreSendGates(F05Fixture):
                 patch.object(a, 'nonce', side_effect=lambda r,w,block='latest':
                     nonce + int(gate == ('pending_nonce' if block == 'pending' else 'sender_nonce'))),
                 patch.object(a, 'word', side_effect=word), patch.object(a, 'address', side_effect=address),
-                patch.object(a, 'call', return_value=a.ZERO32 if gate == 'onchain_safe_hash' else step['safeHash']),
+                patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' or gate == 'onchain_safe_hash' else step['safeHash']),
                 patch.object(a, 'block_data', return_value=dict(number='0x200',
                     gasLimit=hex(a.qty(step['tx']['gas']) - int(gate == 'block_gas_limit')))),
                 patch.object(u, 'safe_state', return_value={} if gate == 'safe_state' else self.pin['safe']),

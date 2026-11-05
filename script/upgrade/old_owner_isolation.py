@@ -23,6 +23,12 @@ VERIFIED_PROXIES = frozenset((u.REG, u.SP))
 IMPLEMENTATION_SLOT = hex(int(a.keccak('eip1967.proxy.implementation'),16)-1)
 BEACON_SLOT = hex(int(a.keccak('eip1967.proxy.beacon'),16)-1)
 PROXY_COMMIT = 'cf26915e032ccc9e8e02f9aaf3769afd4335027e'
+ROLE_ANODE = '0x3aa2e9509f29532b71f822e18bcde843a8070a508d564188ec8a6adf59eff28a'
+ROLE_KMS = '0x6fb2b25080d21c908f32ff8ff99eb1d552c210854f7de48a40406764c09c68f8'
+NEVER_GRANTED = {u.REG: sorted([ROLE_ANODE, ROLE_KMS])}
+# ROLE_ENDUSER may be added only after DSR sees the pin pauseList.
+MAPPING_CONTROL_ROLES = {u.REG: [ROLE_ANODE, ROLE_KMS]}
+ROLE_COMMUNITY = a.keccak('COMMUNITY')
 ROLE_EVENT = 'RoleConfigured(bytes32,'+u.CONFIG_TYPE+',uint256)'
 
 
@@ -117,6 +123,15 @@ def extract(tree, names=NAMES):
                 a.need('old_owner_role_event_signature', event['name']+'('+','.join(abi_type(v) for v in event['inputs'])+')', ROLE_EVENT)
                 a.need('old_owner_role_event_indexed', [v['indexed'] for v in event['inputs']], [True, False, False])
                 groups['roleEventTopic'] = a.keccak(ROLE_EVENT)
+            groups['hasRoleGetter'] = 'public-mapping' if any(
+                n.get('nodeType') == 'VariableDeclaration' and n.get('name') == 'hasRole'
+                and n.get('stateVariable') and n.get('visibility') == 'public'
+                and n.get('typeName', {}).get('nodeType') == 'Mapping'
+                and n['typeName']['keyType'].get('name') == 'bytes32'
+                and n['typeName']['valueType'].get('nodeType') == 'Mapping'
+                and n['typeName']['valueType']['keyType'].get('name') == 'address'
+                and n['typeName']['valueType']['valueType'].get('name') == 'bool'
+                for _, n in entries) else 'function'
             groups['hasRole'] = 'hasRole(bytes32,address)' in signatures
             groups['roleStatus'] = 'hasRole' if groups['hasRole'] else 'ABI has no hasRole(bytes32,address)'
             groups['operatorOutputs'] = [v['type'] for v in signatures.get('operators(address)', {}).get('outputs', [])]
@@ -157,7 +172,7 @@ def authority_rows(section):
 def audit(rpc, pin, inventory, fork=None):
     block = pin['stateBlock']
     reads, fork_controls, histories = [], [], {}
-    history_counts = {}
+    history_counts, declared_never, never_reads = {}, {}, []
     fork = fork or getattr(rpc,'fork',None)
     def probe(case):
         a.need('old_owner_control_verified', 'available' if fork else 'unverified', 'available')
@@ -217,9 +232,11 @@ def audit(rpc, pin, inventory, fork=None):
         changed[11] = int(OLD,16)
         negative(gate,'0x'+''.join(format(v,'064x') for v in changed))
         a.need(gate,cfg['owner'] != OLD,True)
-    def role_control(name,target,role):
+    def role_control(name,target,role,spec):
         values = [word(target,'hasRole(bytes32,address)',role,holder) for holder in sorted({u.SAFE,u.DEPLOYER,*pin['pauseList']})]
         if 1 in values:
+            return
+        if mapping_control(spec,target,role,word):
             return
         case = pin.get('isolationControlCases',{}).get(target+':'+role)
         if case is None and name == 'TimelockController':
@@ -232,6 +249,14 @@ def audit(rpc, pin, inventory, fork=None):
         probe(case)
     def check_target(name, target):
         spec = inventory.get('targetInventories',{}).get(target,inventory[name])
+        deployments = {r['target']:r['creationBlock'] for r in inventory.get('deployedSources',[])}
+        creation = deployments.get(target,pin.get('isolationDeployments',{}).get(target))
+        histories[target] = role_history(recorded,pin,target,spec,creation,history_counts,declared_never)
+        for role in declared_never.get(target,[]):
+            for holder in sorted(control_holders | {OLD}):
+                value = word(target,'hasRole(bytes32,address)',role,holder)
+                a.need('old_owner_never_granted_holder',value,0)
+                never_reads.append(dict(target=target,role=role,holder=holder,result=value))
         if spec['hasRole']:
             for role in spec['roles']:
                 value = word(target,'hasRole(bytes32,address)',role['value'],OLD)
@@ -240,15 +265,12 @@ def audit(rpc, pin, inventory, fork=None):
                 a.need(gate,value,0)
                 if name == 'Registry':
                     role_owner(target,role['value'],'old_owner_role_admin_'+role['name'])
-        deployments = {r['target']:r['creationBlock'] for r in inventory.get('deployedSources',[])}
-        creation = deployments.get(target,pin.get('isolationDeployments',{}).get(target))
-        histories[target] = role_history(recorded,pin,target,spec,creation,history_counts)
         for role in histories[target]:
             if spec['hasRole']:
                 value = word(target,'hasRole(bytes32,address)',role,OLD)
                 negative('old_owner_event_role_'+name,1)
                 a.need('old_owner_event_role_'+name,value,0)
-                role_control(name,target,role)
+                role_control(name,target,role,spec)
                 if name == 'Registry':
                     role_owner(target,role,'old_owner_event_role_admin')
         for row in spec['authorities']:
@@ -325,7 +347,7 @@ def audit(rpc, pin, inventory, fork=None):
             a.need('old_owner_role_'+name+'_'+role,value,0)
             if name == 'Registry':
                 role_owner(target,role,'old_owner_role_admin_'+role)
-            role_control(name,target,role)
+            role_control(name,target,role,spec)
     roles = configured_by_target[u.REG]
     proposer = next((r['value'] for r in inventory['TimelockController']['roles'] if r['name'] == 'PROPOSER_ROLE'), None)
     a.need('old_owner_control_role_extracted', proposer is not None, True)
@@ -416,7 +438,7 @@ def audit(rpc, pin, inventory, fork=None):
                getter=dict(target=u.SAFE,signature='isModuleEnabled(address)',args=['$ACCOUNT'])))
     canonical_pin()
     roles.update(histories.get(u.REG,[]))
-    return dict(safeFallback=dict(address=FALLBACK_HANDLER,provenance='docs/release/a3a-precheck-v4/snapshot.json; DSR canonical deployment-list confirmation required'), forkControls=fork_controls, roleHistory=histories, roleHistoryCounts=history_counts, inventory=inventory, targets=targets, configuredRoles=sorted(roles), xpnts=sorted(xpnts), tokens=sorted(tokens), reverseAllowances=reverse, reads=reads)
+    return dict(declaredNeverGranted=declared_never, neverGrantedReads=never_reads, safeFallback=dict(address=FALLBACK_HANDLER,provenance='docs/release/a3a-precheck-v4/snapshot.json; DSR canonical deployment-list confirmation required'), forkControls=fork_controls, roleHistory=histories, roleHistoryCounts=history_counts, inventory=inventory, targets=targets, configuredRoles=sorted(roles), xpnts=sorted(xpnts), tokens=sorted(tokens), reverseAllowances=reverse, reads=reads)
 
 
 def validate(section, pin, inventory):
@@ -869,7 +891,7 @@ def bounded_history_logs(rpc, query):
     return logs
 
 
-def role_history(rpc, pin, target, spec, creation, counts=None):
+def role_history(rpc, pin, target, spec, creation, counts=None, declared=None):
     """Bounded history, canonical event identities, and independent OLD filter."""
     start, stop = creation, a.qty(pin['stateBlock'])
     a.need('old_owner_history_range',type(start) is int and 0 < start <= stop,True)
@@ -910,7 +932,12 @@ def role_history(rpc, pin, target, spec, creation, counts=None):
     standard = {r['value'] for r in spec['roles']}
     roles = {l['topics'][1] for l in logs}
     grant_roles = {l['topics'][1] for l in logs if l['topics'][0] in grants}
-    a.need('old_owner_history_positive',not spec['hasRole'] or standard <= grant_roles,True)
+    a.need('old_owner_history_positive',not spec['hasRole'] or bool(standard & grant_roles),True)
+    # Imported constants on contracts without hasRole are not local role memberships.
+    never = sorted(standard - roles) if spec['hasRole'] else []
+    a.need('old_owner_never_granted_set',never,NEVER_GRANTED.get(target,[]))
+    if declared is not None and never:
+        declared[target] = never
     if counts is not None:
         counts[target] = {event.split('(')[0]:sum(l['topics'][0] == topic for l in logs) for event,topic in zip(events,topics)}
     active = set()
@@ -921,6 +948,30 @@ def role_history(rpc, pin, target, spec, creation, counts=None):
             active.discard(log['topics'][1])
     a.need('old_owner_uncancelled_grants',sorted(active),[])
     return sorted(roles | standard)
+
+
+def mapping_control(spec, target, role, word):
+    if role not in MAPPING_CONTROL_ROLES.get(target, []):
+        return False
+    try:
+        a.need('old_owner_mapping_getter',spec.get('hasRoleGetter'),'public-mapping')
+    except a.Gate as fault:
+        if fault.record['gate'] != 'old_owner_mapping_getter':
+            raise
+        return False
+    a.need('old_owner_mapping_positive',word(target,'hasRole(bytes32,address)',ROLE_COMMUNITY,u.DEPLOYER),1)
+    a.need('old_owner_mapping_negative',word(target,'hasRole(bytes32,address)',ROLE_COMMUNITY,OLD),0)
+    return True
+
+
+def never_granted_recheck(rpc, pin, block):
+    section = pin['oldOwnerIsolation']
+    a.need('old_owner_never_granted_recheck', isinstance(section.get('neverGrantedReads'), list), True)
+    rows = section['neverGrantedReads']
+    values = [u.uints(a.call(rpc,row['target'],'hasRole(bytes32,address)',row['role'],row['holder'],block=block))
+              for row in rows]
+    a.need('old_owner_never_granted_recheck',values,[[row['result']] for row in rows])
+    return dict(block=block,rows=rows,values=values)
 
 
 def absent(raw, gate):

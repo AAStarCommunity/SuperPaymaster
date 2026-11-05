@@ -998,6 +998,7 @@ def dvt_closing(rpc, plan):
     # Every read is bound to one block (DSR #606 L2); all three A8 pointers are re-read (L1).
     d = plan['externalInputs']['data']
     dvt, block = d['dvt'], a.block_data(rpc, 'latest')['number']
+    never_granted = isolation.never_granted_recheck(rpc,plan['pin'],block)
     expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
     pointers = dict(registry=a.address(rpc, u.REG, 'blsAggregator()', block), dvt=a.address(rpc, dvt, 'BLS_AGGREGATOR()', block),
                     committee=a.address(rpc, d['committee'], 'blsAggregator()', block))
@@ -1008,7 +1009,7 @@ def dvt_closing(rpc, plan):
     a.need('closing_dvt_activity', latest, plan['pin']['oldActivity']['dvtProposals'])
     for proposal in sorted(STALE_PROPOSALS):
         a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))[3]), (proposal, 0))
-    return dict(block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS),
+    return dict(neverGranted=never_granted, block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS),
                 oldTimelock=old_timelock_holds_nothing(rpc, closing_timelock_inventory(rpc, plan['pin'], block), block))
 
 
@@ -2994,6 +2995,7 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
+    isolation.never_granted_recheck(rpc,plan['pin'],a.block_data(rpc,'latest')['number'])
     handover_gate(rpc, plan, step, context)
     if step.get('phase') == 'C':
         phase_c_pre_send(rpc, plan, step, context)
