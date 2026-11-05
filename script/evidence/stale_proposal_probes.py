@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate-removal probes for the DVT stale-proposal exemption, closing read-back and pointer gates (#606).
 
-Each probe replaces one gate statement with `pass` (or drops the sibling level comparison) in an IN-MEMORY copy
+Each probe replaces one gate statement with a reach recorder (or drops the sibling level comparison) in an IN-MEMORY copy
 of manifest_exec.py, installs it as `manifest_exec` in a fresh child interpreter (probe_gate_removal.install),
 runs the named controls there, and requires them to turn red by assertion failures only (failures > 0,
 errors == 0): an exception elsewhere is not evidence that the forbidden state was accepted.
@@ -12,9 +12,12 @@ run cannot leave a mutated source or test another run's mutation. Gates are remo
 stdout), with the probe name and the ids of the tests it ran; a missing, malformed or mismatched result is a
 failure, never a pass.
 
-A mutation counts only if the controls actually executed the changed site: the removed gate is replaced by a
-statement that records it was reached (the sibling edit records its statement too), so a control that fails
-before reaching the site (e.g. in setUp) cannot stand in for the gate.
+A mutation counts only if a FAILING control is one that executed the changed site: the removed gate is replaced
+by a statement that records which test reached it (the sibling edit records its statement too), and at least one
+failing test must be among those. A control that fails before reaching the site (e.g. in setUp), or a failure in
+a test that never reached it, cannot stand in for the gate.
+Limitation (scope closed here): the correlation is per test method, not per subTest; a method whose one subTest
+reaches the site while another subTest fails elsewhere is not distinguished.
 
 Trust boundary: the controls themselves are reviewed code in the same commit. The harness defends against
 accidental mismatches (wrong statement, stale or mixed results, concurrent runs, an unreached site), not
@@ -68,8 +71,8 @@ def mutate(source, name):
         assert [f for f in before if before[f] != after.get(f)] == ['dvt_activity'], name
         site = [x for x in probe.sites(mutated) if x['gate'] == 'dvt_stale_sibling_executed']
         assert len(site) == 1, (name, site)
-        # Keep the edited statement; record that it ran.
-        return probe.Record([site[0]['line']]).visit(mutated)
+        # Keep the edited statement; record which test ran it.
+        return Recorded([site[0]['line']]).visit(mutated)
     # Gate removal by AST statement (probe_gate_removal.Remove), never by text: a comment or another
     # statement mentioning the gate cannot be removed in its place.
     site = [s for s in probe.sites(tree) if s['gate'] == name and s['function'] in FUNCTIONS]
@@ -85,21 +88,44 @@ class Reached(probe.Remove):
     def visit_Expr(self, node):
         if probe.is_need(node) and node.lineno == self.line:
             self.hits += 1
-            return ast.copy_location(ast.parse(f'__probe_hits__.add({node.lineno})').body[0], node)
+            return ast.copy_location(ast.parse('__probe_hits__.add(__probe_test__[0])').body[0], node)
         return node
+
+
+class Recorded(probe.Record):
+    """Like probe_gate_removal.Record, but records the running test's id."""
+    def visit_Expr(self, node):
+        if probe.is_need(node) and node.lineno in self.lines:
+            return [ast.copy_location(ast.parse('__probe_hits__.add(__probe_test__[0])').body[0], node), node]
+        return node
+
+
+class Tracking(unittest.TextTestResult):
+    """Publishes the running test's id so a reached site can be attributed to it."""
+    current = [None]
+
+    def startTest(self, test):
+        self.current[0] = test.id()
+        super().startTest(test)
+
+
+def failed_id(test):
+    # A failing subTest is reported as _SubTest; attribute it to its test method.
+    return getattr(test, 'test_case', test).id()
 
 
 def child(name, result_path):
     hits = set()
-    probe.install(mutate(probe.TARGET.read_text(), name), {'__probe_hits__': hits})
+    probe.install(mutate(probe.TARGET.read_text(), name), {'__probe_hits__': hits, '__probe_test__': Tracking.current})
     tests = __import__('test_manifest_exec')
     loader = unittest.TestLoader()
     loader.testNamePatterns = PATTERNS
     suite = loader.loadTestsFromModule(tests)
     ids = sorted(t.id() for t in probe.flatten(suite))
-    result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
+    result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0, resultclass=Tracking).run(suite)
+    failed = {failed_id(t) for t, _ in result.failures}
     # The result goes to a file the parent named, never through stdout, which tests can write to.
-    Path(result_path).write_text(json.dumps(dict(name=name, ids=ids, ran=result.testsRun, reached=bool(hits),
+    Path(result_path).write_text(json.dumps(dict(name=name, ids=ids, ran=result.testsRun, reached=bool(failed & hits),
                                                  failures=len(result.failures), errors=len(result.errors))))
 
 
