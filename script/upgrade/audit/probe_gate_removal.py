@@ -22,6 +22,8 @@ Usage (repository root):
   ... --coverage --out DIR
   ... --all --jobs 4 --out DIR
   ... --site LINE            (child mode, used by --all)
+  ... --site LINE --select Class.test_name[,..]   (run only the named tests against the mutation)
+  ... --baseline [--select ...]                    (same tests, no mutation)
 """
 import sys
 sys.dont_write_bytecode = True
@@ -137,27 +139,43 @@ class MemoAst:
         return iter(self._walks[key][1])
 
 
-def run_suite(failfast):
+def flatten(suite):
+    for t in suite:
+        yield from (flatten(t) if isinstance(t, unittest.TestSuite) else (t,))
+
+
+def run_suite(failfast, select=None):
     os.chdir(ROOT)
     tests = __import__(TESTS)
     suite = unittest.defaultTestLoader.loadTestsFromModule(tests)
+    if select:
+        # Exact test-id suffixes ("Class.test_name"); an unmatched selector is a harness error, not a pass.
+        chosen = [t for t in flatten(suite) if any(t.id().endswith('.'+name) for name in select)]
+        unmatched = [name for name in select if not any(t.id().endswith('.'+name) for t in chosen)]
+        if unmatched:
+            raise SystemExit(f'PROBE_ERROR unmatched --select {unmatched}')
+        suite = unittest.TestSuite(chosen)
     result = unittest.TextTestRunner(stream=sys.stdout, verbosity=1, failfast=failfast).run(suite)
     return result
 
 
-def child(line, failfast):
+def child(line, failfast, select=None):
     tree = ast.parse(TARGET.read_text(), str(TARGET))
-    remover = Remove(line)
-    tree = remover.visit(tree)
-    if remover.hits != 1:
-        print(f'PROBE_ERROR line {line}: {remover.hits} statements matched')
-        return 2
+    if line:
+        remover = Remove(line)
+        tree = remover.visit(tree)
+        if remover.hits != 1:
+            print(f'PROBE_ERROR line {line}: {remover.hits} statements matched')
+            return 2
     install(tree)
-    print(f'PROBE line={line} mutation=replace a.need statement with pass failfast={failfast}', flush=True)
-    result = run_suite(failfast)
+    mutation = 'replace a.need statement with pass' if line else 'none (baseline)'
+    print(f'PROBE line={line} mutation={mutation} failfast={failfast} select={select}', flush=True)
+    result = run_suite(failfast, select)
     first = (result.failures + result.errors)[:1]
     if first:
         print('FIRST_FAILING_TEST', first[0][0].id())
+    for test, _ in result.failures:
+        print('FAILED_TEST', test.id())
     print('PROBE_RESULT', 'killed' if not result.wasSuccessful() else 'survived', 'ran', result.testsRun,
           'failures', len(result.failures), 'errors', len(result.errors), 'expectedFailures', len(result.expectedFailures))
     return 0
@@ -227,6 +245,8 @@ def main():
     p.add_argument('--all', action='store_true')
     p.add_argument('--site', type=int)
     p.add_argument('--failfast', action='store_true')
+    p.add_argument('--select', type=lambda v: v.split(','), help='comma-separated exact test-id suffixes')
+    p.add_argument('--baseline', action='store_true', help='run (selected) tests on the unmodified module')
     p.add_argument('--jobs', type=int, default=4)
     p.add_argument('--out', type=Path)
     args = p.parse_args()
@@ -236,7 +256,9 @@ def main():
         print(len(sites()), 'sites')
         return 0
     if args.site:
-        return child(args.site, args.failfast)
+        return child(args.site, args.failfast, args.select)
+    if args.baseline:
+        return child(0, args.failfast, args.select)
     args.out = args.out.resolve()
     args.out.mkdir(parents=True, exist_ok=True)
     if args.coverage:

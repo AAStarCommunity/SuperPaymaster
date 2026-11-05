@@ -8,14 +8,18 @@ the time jump. This measures it on the pinned engine, offline (local chain) and 
 Usage (repository root):
   python3 -B script/evidence/q5_snapshot_timestamp.py --engine DIR --mode local
   python3 -B script/evidence/q5_snapshot_timestamp.py --engine DIR --mode fork --rpc-file FILE --block N
-The RPC URL is read from FILE and never printed; engine output is discarded.
+The RPC URL is read from FILE and only ever held by this process: anvil forks from a local relay
+(127.0.0.1), relay failures return a bare 502, and error text is scrubbed of URLs. Engine output is discarded.
 """
 import sys
 sys.dont_write_bytecode = True
 import argparse
+import http.server
 import json
+import re
 import socket
 import subprocess
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -29,6 +33,34 @@ TOLERANCE = 60
 SENDER = '0x000000000000000000000000000000000000c0de'
 
 
+def scrub(text):
+    return re.sub(r'(?i)\b(?:https?|wss?)://\S+', '<url>', text)
+
+
+def relay(upstream):
+    class Relay(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers['content-length']))
+            try:
+                req = urllib.request.Request(upstream, body, {'content-type': 'application/json'})
+                data = urllib.request.urlopen(req, timeout=60).read()
+            except Exception:
+                self.send_response(502)
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header('content-type', 'application/json')
+            self.send_header('content-length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *args):
+            pass
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Relay)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
 class Local:
     def __init__(self, port):
         self.url, self.n = f'http://127.0.0.1:{port}', 0
@@ -39,7 +71,7 @@ class Local:
         req = urllib.request.Request(self.url, body, {'content-type': 'application/json'})
         out = json.load(urllib.request.urlopen(req, timeout=120))
         if 'error' in out:
-            raise RuntimeError(f'{method}: {out["error"]}')
+            raise RuntimeError(scrub(f'{method}: {out["error"]}'))
         return out['result']
 
 
@@ -120,6 +152,24 @@ def run(rpc):
     check('nested_inner_restored_ts', latest(rpc)[1], t0 + DAY)
     check('nested_outer_revert', rpc('evm_revert', [outer]), True)
     check('nested_outer_restored', latest(rpc), (n0, t0))
+    # Auto-timestamped blocks after the nested reverts must not inherit either jump (header restore alone is not enough).
+    s = rpc('evm_snapshot', [])
+    nested_mine = mined_delta(rpc, t0)
+    rpc('evm_revert', [s])
+    s = rpc('evm_snapshot', [])
+    nested_tx = tx_delta(rpc, t0)
+    rpc('evm_revert', [s])
+    check('nested_next_block_not_jumped', nested_mine - base_mine < TOLERANCE, True)
+    check('nested_next_tx_block_not_jumped', nested_tx - base_tx < TOLERANCE, True)
+    # Inner-only revert: the next block follows the outer jump (+1 day), not the inner one (+6 days).
+    outer = rpc('evm_snapshot', [])
+    wait_until(rpc, t0 + DAY)
+    inner = rpc('evm_snapshot', [])
+    wait_until(rpc, t0 + 6 * DAY)
+    rpc('evm_revert', [inner])
+    inner_mine = mined_delta(rpc, t0)
+    check('inner_revert_next_block_follows_outer', 0 < inner_mine - DAY < TOLERANCE, True)
+    check('inner_outer_revert', rpc('evm_revert', [outer]), True)
     s = rpc('evm_snapshot', [])
     rpc('evm_setNextBlockTimestamp', [t0 + 50])
     rpc('evm_mine', [])
@@ -127,7 +177,8 @@ def run(rpc):
     rpc('evm_revert', [s])
     check('final_state', latest(rpc), (n0, t0))
     return dict(toleranceSeconds=TOLERANCE, pinBlock=n0, pinTimestamp=t0, baselineMineDelta=base_mine, baselineTxDelta=base_tx,
-                afterJumpMineDelta=after_mine, afterJumpTxDelta=after_tx, checks=checks)
+                afterJumpMineDelta=after_mine, afterJumpTxDelta=after_tx, nestedMineDelta=nested_mine,
+                nestedTxDelta=nested_tx, innerRevertMineDelta=inner_mine, checks=checks)
 
 
 def main():
@@ -143,9 +194,10 @@ def main():
         port = s.getsockname()[1]
     cmd = [str(args.engine / 'anvil'), '--hardfork', 'amsterdam', '--order', 'fifo', '--host', '127.0.0.1',
            '--port', str(port), '--silent']
+    server = None
     if args.mode == 'fork':
-        url = args.rpc_file.read_text().strip()
-        cmd += ['--fork-url', url, '--fork-block-number', str(args.block), '--chain-id', '11155111',
+        server = relay(args.rpc_file.read_text().strip())
+        cmd += ['--fork-url', f'http://127.0.0.1:{server.server_port}', '--fork-block-number', str(args.block), '--chain-id', '11155111',
                 '--no-fork-node-info', '--accounts', '0']
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -165,6 +217,8 @@ def main():
     finally:
         proc.terminate()
         proc.wait(timeout=10)
+        if server:
+            server.shutdown()
     print(json.dumps(out, indent=1))
     ok = out['engineCommitPinned'] and all(c['ok'] for c in out['checks'])
     print('Q5', 'PASS' if ok else 'FAIL')

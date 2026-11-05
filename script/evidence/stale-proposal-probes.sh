@@ -15,7 +15,12 @@ git diff --quiet HEAD -- "$src" || { echo "refusing: $src has uncommitted change
 bak=$(mktemp "${TMPDIR:-/tmp}/manifest_exec.XXXXXX") || { echo "mktemp failed"; exit 1; }
 cp "$src" "$bak" && cmp -s "$src" "$bak" || { echo "backup failed; source untouched"; rm -f "$bak"; exit 1; }
 # Restore from HEAD (the source is clean) and keep the backup if that fails.
-restore() { git checkout -q HEAD -- "$src" && cmp -s "$src" "$bak" && rm -f "$bak" || echo "RESTORE FAILED; backup kept at $bak"; }
+restore() {
+  if git checkout -q HEAD -- "$src" && cmp -s "$src" "$bak"; then rm -f "$bak"
+  else echo "RESTORE FAILED; backup kept at $bak"; exit 1; fi
+}
+# Every reset must reproduce HEAD byte for byte, or later probes would run on an earlier mutation.
+reset() { git checkout -q HEAD -- "$src" && cmp -s "$src" "$bak" || { echo "RESET FAILED"; exit 1; }; }
 trap restore EXIT
 tests='-k stale_dvt -k unsigned_dvt -k dvt_closing -k old_pointers'
 status=0
@@ -26,8 +31,8 @@ for gate in dvt_stale_next_id dvt_proposal_inventory dvt_stale_proposal_listed d
             dvt_stale_sibling_executed dvt_stale_open_set closing_registry_pointer closing_dvt_pointer \
             closing_committee_pointer closing_dvt_activity \
             closing_stale_unexecuted old_pointer pointer_owner; do
-  git checkout -q HEAD -- "$src"
-  python3 - "$src" "$gate" <<'PY'
+  reset
+  python3 - "$src" "$gate" <<'PY' || { echo "MUTATION FAILED: $gate"; exit 1; }
 import sys
 p, g = sys.argv[1:]
 lines = open(p).read().split('\n')
@@ -39,8 +44,8 @@ open(p, 'w').write('\n'.join(lines))
 PY
   r=$(run); echo "remove $gate -> $r"; red "$r" || status=1
 done
-git checkout -q HEAD -- "$src"
-python3 - "$src" <<'PY'
+reset
+python3 - "$src" <<'PY' || { echo "MUTATION FAILED: sibling level"; exit 1; }
 import sys
 p = sys.argv[1]; s = open(p).read()
 old = "(peer[0], peer[1], peer[3], peer[5]), (w[0], w[1], 1, evidence)"
