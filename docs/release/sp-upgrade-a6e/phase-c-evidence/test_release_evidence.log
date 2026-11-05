@@ -1,0 +1,13 @@
+.............Running conformance (offline; may take several minutes)
+Running mutation (offline; may take several minutes)
+STOP: failed mutation
+.....................Running conformance (offline; may take several minutes)
+.Running conformance (offline; may take several minutes)
+STOP: named checker test failed or skipped: test_c1_wrong_implementation
+.Running slither (offline; may take several minutes)
+.................................
+----------------------------------------------------------------------
+Ran 69 tests in 18.167s
+
+OK
+rc=0 engine=Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
