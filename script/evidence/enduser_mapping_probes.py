@@ -25,7 +25,7 @@ PROBES = [
      "        a.need('old_owner_role_control_case',isinstance(case,dict),True)\n",
      '',
      'OldOwnerIsolationTests.test_role_control_case_without_path_gate',
-     """AssertionError: TypeError("'NoneType' object is not subscriptable") is not an instance of"""),
+     'TypeError raised at old_owner_isolation.py:role_control'),
     # Codex P2: ENDUSER in roleHistory proves discovery only; skipping its control path must still go red.
     ('enduser_role_control_skipped',
      '                role_control(name,target,role,spec)\n',

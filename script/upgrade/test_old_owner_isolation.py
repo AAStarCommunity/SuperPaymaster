@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import tempfile
+import traceback
 import unittest
 from functools import lru_cache
 from pathlib import Path
@@ -392,10 +393,19 @@ class OldOwnerIsolationTests(unittest.TestCase):
             if name != 'old_owner_role_control_path':
                 return original(name, observed, expected)
         # Catch any exception so that deleting the case gate fails this test by assertion, not by a TypeError error.
-        with patch.object(a,'need',side_effect=recording), self.assertRaises(Exception) as caught:
-            o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory())
-        self.assertIsInstance(caught.exception,a.Gate)
-        self.assertEqual(caught.exception.record['gate'],'old_owner_role_control_case')
+        # assertRaises strips the traceback, so catch by hand: the failure names where the exception was raised,
+        # letting a probe tell a missing case gate from an unrelated failure.
+        with patch.object(a,'need',side_effect=recording):
+            try:
+                o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory())
+            except Exception as exc:
+                caught = exc
+            else:
+                self.fail('audit returned without stopping')
+        origin = traceback.extract_tb(caught.__traceback__)[-1]
+        where = f'{type(caught).__name__} raised at {os.path.basename(origin.filename)}:{origin.name}'
+        self.assertIsInstance(caught,a.Gate,where)
+        self.assertEqual(caught.record['gate'],'old_owner_role_control_case')
 
     # Codex P2: every listed role, by name, so a role-specific shortcut in mapping_control cannot pass.
     MAPPING_ROLES = ('ROLE_ANODE','ROLE_KMS','ROLE_ENDUSER')
