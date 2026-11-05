@@ -53,6 +53,18 @@ PROBES = [
      "    negative = word(target,'hasRole(bytes32,address)',ROLE_COMMUNITY,OLD)\n    if role != ROLE_ENDUSER: a.need('old_owner_mapping_negative',negative,0)\n",
      'OldOwnerIsolationTests.test_mapping_negative_one',
      'AssertionError: Gate not raised'),
+    # Caller-side shortcuts in role_control (Codex P2): accept ENDUSER on False, or swallow its Gate.
+    ('caller_accepts_enduser_on_false',
+     '        if mapping_control(spec,target,role,word):\n            return\n',
+     '        if mapping_control(spec,target,role,word) or role == ROLE_ENDUSER:\n            return\n',
+     'OldOwnerIsolationTests.test_mapping_enduser_faults_stop_audit',
+     'AssertionError: Gate not raised'),
+    ('caller_swallows_enduser_gate',
+     '        if mapping_control(spec,target,role,word):\n            return\n',
+     '        try:\n            if mapping_control(spec,target,role,word):\n                return\n'
+     '        except a.Gate:\n            if role == ROLE_ENDUSER:\n                return\n            raise\n',
+     'OldOwnerIsolationTests.test_mapping_enduser_faults_stop_audit',
+     'AssertionError: Gate not raised'),
 ]
 
 

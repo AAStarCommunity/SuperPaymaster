@@ -312,7 +312,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         key = ('eth_call',str([dict(to=u.REG,data=a.calldata('hasRole(bytes32,address)',CUSTOM_ROLE,u.SAFE)),self.pin['stateBlock']]))
         self.assert_gate('old_owner_role_control_path',lambda:o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory()))
 
-    def enduser_audit(self, source):
+    def enduser_audit(self, source, fault=None):
         # DSR 2026-11-05: ENDUSER has no control holder; the mapping-getter proof is its control path. `source`
         # picks the role_control call site: 'granted' (grant history) or 'configured' (RoleConfigured only, the
         # configured-non-standard loop). Returns the (Registry, ENDUSER) mapping_control calls and their reads.
@@ -342,7 +342,16 @@ class OldOwnerIsolationTests(unittest.TestCase):
         calls = []
         real = o.mapping_control
         def spy(spec,target,role,word):
-            # Record the reads this call makes, not the COMMUNITY reads ANODE/KMS make elsewhere.
+            # Record the reads this call makes, not the COMMUNITY reads ANODE/KMS make elsewhere. A `fault` is
+            # injected into the ENDUSER call only, so a stop can come only from ENDUSER's path (not ANODE/KMS).
+            if role == o.ROLE_ENDUSER and fault == 'getter':
+                spec = dict(spec,hasRoleGetter='function')
+            if role == o.ROLE_ENDUSER and fault in ('positive','negative'):
+                honest, bad = word, dict(positive=(u.DEPLOYER,0),negative=(o.OLD,1))[fault]
+                def word(target,sig,*args):
+                    if args == (o.ROLE_COMMUNITY,bad[0]):
+                        return bad[1]
+                    return honest(target,sig,*args)
             start = len(seen)
             result = real(spec,target,role,word)
             calls.append((target,role,result,seen[start:]))
@@ -362,6 +371,14 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def test_mapping_enduser_without_control_holder(self):
         self.assertEqual(o.ROLE_ENDUSER, a.keccak('ENDUSER'))
         self.assert_enduser_controls(self.enduser_audit('granted'))
+
+    def test_mapping_enduser_faults_stop_audit(self):
+        # Codex P2: the caller must propagate every ENDUSER mapping-control failure, at both call sites.
+        for source in ('granted','configured'):
+            for fault, gate in (('getter','old_owner_role_control_path'),('positive','old_owner_mapping_positive'),
+                                ('negative','old_owner_mapping_negative')):
+                with self.subTest(source=source,fault=fault):
+                    self.assert_gate(gate,lambda:self.enduser_audit(source,fault))
 
     def test_mapping_enduser_configured_only(self):
         # Codex P2: the configured-non-standard call site of role_control must reach ENDUSER's controls too.
