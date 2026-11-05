@@ -34,7 +34,7 @@ OLD_AGGREGATOR = '0xeaec2f512ea50708211fa95533e4dbb60e3d2e5d'
 # Request: 0xe4737f3924f5488e1d037532dbae71b1f0efc91fa6544f92799e112402c82d38
 # syncExitNotice: 0xaad53b17a7a3d59ab0d171c7126a7d2341c82d54741c0f1ea04420d130425524
 OLD_EXIT_EXEMPTIONS = frozenset({'0xf36c9317765634e4995ce1e7210b5738225425b0'})
-# Duplicate DVT E2E credit-over-limit proposals (2026-07-07/08, blocks 11223327-11228495):
+# DSR 2026-11-05: duplicate DVT E2E credit-over-limit proposals (2026-07-07/08, blocks 11223327-11228495):
 # each validator proposed the same event and one sibling per evidence hash executed.
 # DVTValidator has no cancel path, so these stay open; exact ids only, never plan-supplied.
 STALE_PROPOSAL_OPERATOR = '0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c'
@@ -863,9 +863,29 @@ def dvt_activity(rpc, dvt, block):
         sibling, evidence = STALE_PROPOSALS[proposal]
         a.need('dvt_stale_proposal_shape', (w[0], w[1], w[4], w[5]), (int(STALE_PROPOSAL_OPERATOR, 16), 1, 1, evidence))
         peer = words.get(sibling, [0]*6)
-        a.need('dvt_stale_sibling_executed', (peer[0], peer[3], peer[5]), (w[0], 1, evidence))
+        a.need('dvt_stale_sibling_executed', (peer[0], peer[1], peer[3], peer[5]), (w[0], w[1], 1, evidence))
         a.need('dvt_stale_next_id', a.word(rpc, dvt, 'nextProposalId()', block=block), STALE_PROPOSAL_NEXT_ID)
     return proposals
+
+
+def old_pointers(rpc, d, old, block):
+    bindings = {}
+    for target, getter in ((d['dvt'], 'BLS_AGGREGATOR()'), (d['committee'], 'blsAggregator()')):
+        a.need('pointer_owner', a.address(rpc, target, 'owner()', block), u.DEPLOYER)
+        a.need('old_pointer', a.address(rpc, target, getter, block), old)
+        bindings[target] = u.code(rpc, target, block)
+    return bindings
+
+
+def dvt_closing(rpc, plan):
+    # After the last step: per-step pre_send reads cannot see anything that lands after it.
+    dvt = plan['externalInputs']['data']['dvt']
+    expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
+    a.need('closing_dvt_pointer', a.address(rpc, dvt, 'BLS_AGGREGATOR()'), expected)
+    a.need('closing_dvt_next_id', a.word(rpc, dvt, 'nextProposalId()'), STALE_PROPOSAL_NEXT_ID)
+    for proposal in sorted(STALE_PROPOSALS):
+        a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal))[3]), (proposal, 0))
+    return dict(dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS))
 
 
 def balances(rpc, operators, block='latest'):
@@ -1264,11 +1284,7 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     pin['oldActivityReads'] = dict(primary=reads)
     a.need('old_aggregator_owner', a.address(rpc, pin['oldAggregator'], 'owner()', block), u.DEPLOYER)
     pin['oldActivity']['dvtProposals'] = dvt_activity(rpc, d['dvt'], block)
-    pin['bindings'] = {}
-    for target, getter in ((d['dvt'], 'BLS_AGGREGATOR()'), (d['committee'], 'blsAggregator()')):
-        a.need('pointer_owner', a.address(rpc, target, 'owner()', block), u.DEPLOYER)
-        a.need('old_pointer', a.address(rpc, target, getter, block), pin['oldAggregator'])
-        pin['bindings'][target] = u.code(rpc, target, block)
+    pin['bindings'] = old_pointers(rpc, d, pin['oldAggregator'], block)
     pin.update(balances(rpc, pin['pauseList'], block))
     drain_gate(pin)
     ep = pin['immutables']['entryPoint']
@@ -2311,7 +2327,8 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
             controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
     if plan['stage'] != 'full':
         a.need('stage_steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
-        readback = stage_readback(plan, rpc)
+        closing = dvt_closing(rpc, plan)
+        readback = dict(stage_readback(plan, rpc), dvtClosing=closing)
         a.write_json(out/'stage-readback.json', readback)
         budget(plan)
         validate_plan(plan, plan['externalInputs'], frozen=True)
@@ -2319,6 +2336,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     controls.append(handover_controls(rpc, plan))
     a.need('controls_complete', sorted(x['control'] for x in controls), sorted(CONTROLS))
     a.need('steps_complete', [x['step'] for x in records], [x['id'] for x in plan['steps']])
+    closing = dvt_closing(rpc, plan)
     assert_manifest_frozen(rpc, plan['pin'], True)
     accounting = balances(rpc, plan['pin']['pauseList'])
     accounting['cappedBalance'] = a.word(rpc, plan['pin']['capped'], 'balanceOf(address)', u.SP)
@@ -2334,7 +2352,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     budget(plan)
     validate_plan(plan, plan['externalInputs'], frozen=True)
     result = dict(status='PASS', scope='Phases A/B/D; Phase C not implemented', steps=records, negativeControls=controls,
-                  B2=context['B2'], postSwapAccounting=accounting, fraudProof=fraud)
+                  B2=context['B2'], postSwapAccounting=accounting, fraudProof=fraud, dvtClosing=closing)
     a.write_json(out/'manifest-simulate.json', result)
     return result
 

@@ -861,10 +861,12 @@ class ManifestTests(unittest.TestCase):
             stack.enter_context(patch.object(m, 'b4_controls', return_value=[]))
             execute = stack.enter_context(patch.object(m, 'execute_b4', return_value=dict(step='wrong', receipt={})))
             stack.enter_context(patch.object(m, 'stage_readback', return_value={}))
+            closing = stack.enter_context(patch.object(m, 'dvt_closing', return_value={}))
             fraud = stack.enter_context(patch.object(m, 'fraud_rehearsal'))
             with self.assertRaises(a.Gate): m.run_manifest(None, rpc, plan, Path(self.tmp.name))
             execute.return_value = dict(step='B4', receipt={})
             self.assertEqual(m.run_manifest(None, rpc, plan, Path(self.tmp.name))['stage'], 'b4')
+            closing.assert_called_once_with(rpc, plan)
             fraud.assert_not_called()
 
     def test_staged_cli_guard(self):
@@ -1034,6 +1036,7 @@ class ManifestTests(unittest.TestCase):
                  patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}), \
                  patch.object(a, 'address', return_value=owner), \
                  patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])), \
+                 patch.object(m, 'dvt_closing', return_value={}), \
                  patch.object(m, 'balances', side_effect=CheckpointPassed):
                 if owner == u.TL:
                     with self.assertRaises(CheckpointPassed):
@@ -1457,6 +1460,7 @@ class ManifestTests(unittest.TestCase):
             patch.object(m, 'balances', return_value=dict(totalTrackedBalance=m.BUFFER, protocolRevenue=m.BUFFER,
                 operatorBalances={x:0 for x in self.pin['pauseList']})),
             patch.object(m, 'fraud_rehearsal', return_value={'synthetic':True}),
+            patch.object(m, 'dvt_closing', return_value={'closing':True}),
             patch.object(m, 'solvency_probe', return_value={'allSolvent':solvent})]
         with contextlib.ExitStack() as stack:
             for p in patches: stack.enter_context(p)
@@ -1468,6 +1472,7 @@ class ManifestTests(unittest.TestCase):
                 self.assertEqual(sum(call.args[2] == 'after_upgrade_execute_exec'
                                      for call in m.controls_at.call_args_list), 1)
                 m.fraud_rehearsal.assert_called_once_with(rpc, self.plan)
+                m.dvt_closing.assert_called_once_with(rpc, self.plan)
             else:
                 with self.assertRaises(a.Gate) as caught:
                     m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
@@ -1545,9 +1550,12 @@ class ManifestTests(unittest.TestCase):
         def level(rows): rows[4].update(level=2)
         def evidence(rows): rows[8].update(evidence=m.STALE_PROPOSALS[1][1])
         def sibling(rows): rows[3].update(evidence=m.STALE_PROPOSALS[8][1])
+        def sibling_level(rows): rows[7].update(level=2)
+        def sibling_operator(rows): rows[3].update(operator=u.DEPLOYER)
         cases = [(unexecuted(3), 'dvt_stale_sibling_executed'), (extra, 'dvt_stale_proposal_listed'),
                  (operator, 'dvt_stale_proposal_shape'), (level, 'dvt_stale_proposal_shape'),
-                 (evidence, 'dvt_stale_proposal_shape'), (sibling, 'dvt_stale_sibling_executed')]
+                 (evidence, 'dvt_stale_proposal_shape'), (sibling, 'dvt_stale_sibling_executed'),
+                 (sibling_level, 'dvt_stale_sibling_executed'), (sibling_operator, 'dvt_stale_sibling_executed')]
         for edit, gate in cases:
             with self.subTest(gate=gate, edit=edit.__name__ if hasattr(edit, '__name__') else edit):
                 with self.assertRaises(a.Gate) as caught:
@@ -1556,6 +1564,61 @@ class ManifestTests(unittest.TestCase):
         with self.assertRaises(a.Gate) as caught:
             self.stale_proposals(next_id=11)
         self.assertEqual(caught.exception.record['gate'], 'dvt_stale_next_id')
+
+    def closing_rpc(self, pointer, next_id=10, executed=()):
+        def address(r, target, sig, block='latest'):
+            self.assertEqual((target, sig), (DVT, 'BLS_AGGREGATOR()'))
+            return pointer
+        def word(r, target, sig, *args, **kw):
+            self.assertEqual((target, sig), (DVT, 'nextProposalId()'))
+            return next_id
+        def call(r, target, sig, proposal, **kw):
+            return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', m.STALE_PROPOSAL_OPERATOR, 1,
+                          'fixture', str(proposal in executed).lower(), 'true', a.ZERO32)
+        return [patch.object(a, 'address', side_effect=address), patch.object(a, 'word', side_effect=word),
+                patch.object(a, 'call', side_effect=call)]
+
+    def test_dvt_closing_binds_pointer_and_stale_proposals(self):
+        new, old = self.plan['addresses']['BLSAggregator'], self.plan['pin']['oldAggregator']
+        cases = [('full', new, {}, None), ('b4', new, {}, None), ('a7', old, {}, None),
+                 ('full', old, {}, 'closing_dvt_pointer'), ('a7', new, {}, 'closing_dvt_pointer'),
+                 ('full', new, dict(next_id=11), 'closing_dvt_next_id'),
+                 ('full', new, dict(executed=(8,)), 'closing_stale_unexecuted')]
+        for stage, pointer, extra, gate in cases:
+            with self.subTest(stage=stage, pointer=pointer, extra=extra), contextlib.ExitStack() as stack:
+                for p in self.closing_rpc(pointer, **extra): stack.enter_context(p)
+                plan = dict(self.plan, stage=stage)
+                if gate is None:
+                    self.assertEqual(m.dvt_closing(None, plan)['staleUnexecuted'], [1, 2, 4, 5, 6, 8, 9])
+                else:
+                    with self.assertRaises(a.Gate) as caught:
+                        m.dvt_closing(None, plan)
+                    self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_old_pointers_require_old_aggregator(self):
+        d = dict(dvt=DVT, committee=COMMITTEE)
+        old = self.plan['pin']['oldAggregator']
+        for bad, gate in ((None, None), ('dvt', 'old_pointer'), ('committee', 'old_pointer'), ('owner', 'pointer_owner')):
+            def address(r, target, sig, block):
+                if sig == 'owner()': return u.SP if bad == 'owner' else u.DEPLOYER
+                return u.SP if {'dvt': DVT, 'committee': COMMITTEE}.get(bad) == target else old
+            with self.subTest(bad=bad), patch.object(a, 'address', side_effect=address), \
+                 patch.object(u, 'code', return_value='0x00'):
+                if gate is None:
+                    self.assertEqual(set(m.old_pointers(None, d, old, '0x1')), {DVT, COMMITTEE})
+                else:
+                    with self.assertRaises(a.Gate) as caught:
+                        m.old_pointers(None, d, old, '0x1')
+                    self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_runner_and_collector_wire_closing_and_pointer_gates(self):
+        tree = ast.parse(Path(m.__file__).read_text())
+        def calls(fn, name):
+            node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == fn)
+            return sum(isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == name for c in ast.walk(node))
+        self.assertEqual(calls('run_manifest', 'dvt_closing'), 2)
+        self.assertEqual(calls('collect', 'old_pointers'), 1)
+        self.assertEqual(calls('collect', 'dvt_activity'), 1)
 
     def test_unhandled_external_fields_do_not_allow_partial_builder(self):
         for key in ('verifier', 'pop', 'committee'):
