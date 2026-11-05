@@ -861,10 +861,12 @@ class ManifestTests(unittest.TestCase):
             stack.enter_context(patch.object(m, 'b4_controls', return_value=[]))
             execute = stack.enter_context(patch.object(m, 'execute_b4', return_value=dict(step='wrong', receipt={})))
             stack.enter_context(patch.object(m, 'stage_readback', return_value={}))
+            closing = stack.enter_context(patch.object(m, 'dvt_closing', return_value={}))
             fraud = stack.enter_context(patch.object(m, 'fraud_rehearsal'))
             with self.assertRaises(a.Gate): m.run_manifest(None, rpc, plan, Path(self.tmp.name))
             execute.return_value = dict(step='B4', receipt={})
             self.assertEqual(m.run_manifest(None, rpc, plan, Path(self.tmp.name))['stage'], 'b4')
+            closing.assert_called_once_with(rpc, plan)
             fraud.assert_not_called()
 
     def test_staged_cli_guard(self):
@@ -1034,6 +1036,7 @@ class ManifestTests(unittest.TestCase):
                  patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}), \
                  patch.object(a, 'address', return_value=owner), \
                  patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])), \
+                 patch.object(m, 'dvt_closing', return_value={}), \
                  patch.object(m, 'balances', side_effect=CheckpointPassed):
                 if owner == u.TL:
                     with self.assertRaises(CheckpointPassed):
@@ -1457,6 +1460,7 @@ class ManifestTests(unittest.TestCase):
             patch.object(m, 'balances', return_value=dict(totalTrackedBalance=m.BUFFER, protocolRevenue=m.BUFFER,
                 operatorBalances={x:0 for x in self.pin['pauseList']})),
             patch.object(m, 'fraud_rehearsal', return_value={'synthetic':True}),
+            patch.object(m, 'dvt_closing', return_value={'closing':True}),
             patch.object(m, 'solvency_probe', return_value={'allSolvent':solvent})]
         with contextlib.ExitStack() as stack:
             for p in patches: stack.enter_context(p)
@@ -1468,6 +1472,7 @@ class ManifestTests(unittest.TestCase):
                 self.assertEqual(sum(call.args[2] == 'after_upgrade_execute_exec'
                                      for call in m.controls_at.call_args_list), 1)
                 m.fraud_rehearsal.assert_called_once_with(rpc, self.plan)
+                m.dvt_closing.assert_called_once_with(rpc, self.plan)
             else:
                 with self.assertRaises(a.Gate) as caught:
                     m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
@@ -1511,16 +1516,110 @@ class ManifestTests(unittest.TestCase):
 
 
     def test_unsigned_dvt_proposal_stops(self):
-        logs = [dict(topics=[a.keccak('ProposalCreated(uint256,address,uint8)'), '0x'+format(1, '064x')])]
-        for executed in (False, True):
-            raw = a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)',
-                         u.DEPLOYER, 0, 'fixture', str(executed).lower(), 'true', a.ZERO32)
-            with patch.object(u, 'creation', return_value=1), patch.object(u, 'scan', return_value=logs), patch.object(a, 'call', return_value=raw):
-                if executed:
-                    self.assertEqual(m.dvt_activity(None, DVT, '0x100'), logs)
+        # Superseded fixture shape: the getter inventory is now authoritative (see stale tests).
+        self.assertEqual(len(self.stale_proposals()), 9)
+        with self.assertRaises(a.Gate) as caught:
+            self.stale_proposals(lambda rows: rows[7].update(executed=False))
+        self.assertEqual(caught.exception.record['gate'], 'dvt_stale_proposal_listed')
+
+    def stale_proposals(self, edit=None, next_id=10, omit_log=()):
+        rows = {i: dict(operator=m.STALE_PROPOSAL_OPERATOR, level=1, executed=i in (3, 7),
+                        evidence=m.STALE_PROPOSALS[1 if i < 7 else 8][1]) for i in range(1, 10)}
+        if edit:
+            edit(rows)
+        logs = [dict(topics=[a.keccak('ProposalCreated(uint256,address,uint8)'), '0x'+format(i, '064x')])
+                for i in rows if i not in omit_log]
+        def call(rpc, target, sig, proposal, block=None):
+            self.assertEqual((target, sig), (DVT, 'proposals(uint256)'))
+            r = rows.get(proposal, dict(operator=a.ZERO, level=0, executed=False, evidence=0, exists=False))
+            return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', r['operator'], r['level'],
+                          'fixture', str(r['executed']).lower(), str(r.get('exists', True)).lower(), '0x'+format(r['evidence'], '064x'))
+        def word(rpc, target, sig, *args, **kw):
+            self.assertEqual((target, sig), (DVT, 'nextProposalId()'))
+            return next_id
+        with patch.object(u, 'creation', return_value=1), patch.object(u, 'scan', return_value=logs), \
+             patch.object(a, 'call', side_effect=call), patch.object(a, 'word', side_effect=word):
+            return m.dvt_activity(None, DVT, '0x100')
+
+    def test_stale_dvt_proposals_accepted_only_exactly(self):
+        self.assertEqual(len(self.stale_proposals()), 9)
+        def unexecuted(i): return lambda rows: rows[i].update(executed=False)
+        def extra(rows): rows[10] = dict(rows[8])
+        def extra_executed(rows): rows[10] = dict(rows[7])
+        def operator(rows): rows[2].update(operator=u.DEPLOYER)
+        def level(rows): rows[4].update(level=2)
+        def evidence(rows): rows[8].update(evidence=m.STALE_PROPOSALS[1][1])
+        def sibling(rows): rows[3].update(evidence=m.STALE_PROPOSALS[8][1])
+        def sibling_level(rows): rows[7].update(level=2)
+        def sibling_operator(rows): rows[3].update(operator=u.DEPLOYER)
+        def stale_executed(rows): rows[8].update(executed=True)
+        cases = [(dict(edit=unexecuted(3)), 'dvt_stale_proposal_listed'),
+                 (dict(edit=extra), 'dvt_proposal_inventory'), (dict(edit=extra_executed), 'dvt_proposal_inventory'),
+                 (dict(omit_log=(2,)), 'dvt_proposal_inventory'), (dict(omit_log=tuple(range(1, 10))), 'dvt_proposal_inventory'),
+                 (dict(edit=operator), 'dvt_stale_proposal_shape'), (dict(edit=level), 'dvt_stale_proposal_shape'),
+                 (dict(edit=evidence), 'dvt_stale_proposal_shape'), (dict(edit=sibling), 'dvt_stale_sibling_executed'),
+                 (dict(edit=sibling_level), 'dvt_stale_sibling_executed'), (dict(edit=sibling_operator), 'dvt_stale_sibling_executed'),
+                 (dict(edit=stale_executed), 'dvt_stale_open_set'), (dict(next_id=11), 'dvt_stale_next_id')]
+        for kw, gate in cases:
+            with self.subTest(gate=gate, case=getattr(kw.get('edit'), '__name__', kw)):
+                with self.assertRaises(a.Gate) as caught:
+                    self.stale_proposals(**kw)
+                self.assertEqual(caught.exception.record['gate'], gate)
+
+    def closing_rpc(self, pointer, activity='pin', executed=()):
+        def address(r, target, sig, block='latest'):
+            self.assertEqual((target, sig), (DVT, 'BLS_AGGREGATOR()'))
+            return pointer
+        def call(r, target, sig, proposal, **kw):
+            return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', m.STALE_PROPOSAL_OPERATOR, 1,
+                          'fixture', str(proposal in executed).lower(), 'true', a.ZERO32)
+        seen = [{'recorded': True}] if activity == 'pin' else [{'changed': True}]
+        return [patch.object(a, 'address', side_effect=address), patch.object(a, 'call', side_effect=call),
+                patch.object(a, 'block_data', return_value=dict(number='0x200')),
+                patch.object(m, 'dvt_activity', return_value=copy.deepcopy(seen))]
+
+    def test_dvt_closing_binds_pointer_and_stale_proposals(self):
+        new, old = self.plan['addresses']['BLSAggregator'], self.plan['pin']['oldAggregator']
+        cases = [('full', new, {}, None), ('b4', new, {}, None), ('a7', old, {}, None),
+                 ('full', old, {}, 'closing_dvt_pointer'), ('a7', new, {}, 'closing_dvt_pointer'),
+                 ('full', new, dict(activity='changed'), 'closing_dvt_activity'),
+                 ('full', new, dict(executed=(8,)), 'closing_stale_unexecuted')]
+        for stage, pointer, extra, gate in cases:
+            with self.subTest(stage=stage, pointer=pointer, extra=extra), contextlib.ExitStack() as stack:
+                for p in self.closing_rpc(pointer, **extra): stack.enter_context(p)
+                plan = copy.deepcopy(dict(self.plan, stage=stage))
+                plan['pin'].setdefault('oldActivity', {})['dvtProposals'] = [{'recorded': True}]
+                if gate is None:
+                    self.assertEqual(m.dvt_closing(None, plan)['staleUnexecuted'], [1, 2, 4, 5, 6, 8, 9])
                 else:
-                    with self.assertRaises(a.Gate):
-                        m.dvt_activity(None, DVT, '0x100')
+                    with self.assertRaises(a.Gate) as caught:
+                        m.dvt_closing(None, plan)
+                    self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_old_pointers_require_old_aggregator(self):
+        d = dict(dvt=DVT, committee=COMMITTEE)
+        old = self.plan['pin']['oldAggregator']
+        for bad, gate in ((None, None), ('dvt', 'old_pointer'), ('committee', 'old_pointer'), ('owner', 'pointer_owner')):
+            def address(r, target, sig, block):
+                if sig == 'owner()': return u.SP if bad == 'owner' else u.DEPLOYER
+                return u.SP if {'dvt': DVT, 'committee': COMMITTEE}.get(bad) == target else old
+            with self.subTest(bad=bad), patch.object(a, 'address', side_effect=address), \
+                 patch.object(u, 'code', return_value='0x00'):
+                if gate is None:
+                    self.assertEqual(set(m.old_pointers(None, d, old, '0x1')), {DVT, COMMITTEE})
+                else:
+                    with self.assertRaises(a.Gate) as caught:
+                        m.old_pointers(None, d, old, '0x1')
+                    self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_runner_and_collector_wire_closing_and_pointer_gates(self):
+        tree = ast.parse(Path(m.__file__).read_text())
+        def calls(fn, name):
+            node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == fn)
+            return sum(isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == name for c in ast.walk(node))
+        self.assertEqual(calls('run_manifest', 'dvt_closing'), 2)
+        self.assertEqual(calls('collect', 'old_pointers'), 1)
+        self.assertEqual(calls('collect', 'dvt_activity'), 1)
 
     def test_unhandled_external_fields_do_not_allow_partial_builder(self):
         for key in ('verifier', 'pop', 'committee'):
