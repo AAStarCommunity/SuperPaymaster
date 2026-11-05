@@ -27,7 +27,7 @@ ROLE_ANODE = '0x3aa2e9509f29532b71f822e18bcde843a8070a508d564188ec8a6adf59eff28a
 ROLE_KMS = '0x6fb2b25080d21c908f32ff8ff99eb1d552c210854f7de48a40406764c09c68f8'
 NEVER_GRANTED = {u.REG: sorted([ROLE_ANODE, ROLE_KMS])}
 ROLE_ENDUSER = '0x0c34ecc75d3bf122e0609d2576e167f53fb42429262ce8c9b33cab91ff670e3a'
-# ROLE_ENDUSER added per the DSR ruling of 2026-11-05: at pin block 12068344 no control holder (Safe, deployer,
+# ROLE_ENDUSER added per the DSR ruling of 2026-11-05: at pin block 0xb826f8 (12068600) no control holder (Safe, deployer,
 # pauseList) holds ENDUSER on either endpoint, so only the mapping-getter proof can show its zero is meaningful.
 MAPPING_CONTROL_ROLES = {u.REG: [ROLE_ANODE, ROLE_KMS, ROLE_ENDUSER]}
 ROLE_COMMUNITY = a.keccak('COMMUNITY')
