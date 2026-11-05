@@ -75,9 +75,10 @@ CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, name, gate) for na
     ('test_never_granted_old_holder','old_owner_never_granted_holder'),
     ('test_history_all_roles_zero','old_owner_history_positive'))]
 CASES += [(base_tests.ManifestTests,'test_never_granted_pre_send_change','old_owner_never_granted_recheck')]
+CASES += [(base_tests.ManifestTests, name, 'old_owner_role_recheck') for name in ('test_old_role_closing_change', 'test_old_role_pre_send_change')]
 # These new/changed isolation gates must fail by assertion, with zero test errors.
 ASSERTION_ONLY_GATES = {'old_owner_never_granted_set', 'old_owner_never_granted_holder',
-                        'old_owner_never_granted_recheck', 'old_owner_mapping_getter',
+                        'old_owner_never_granted_recheck', 'old_owner_role_recheck', 'old_owner_mapping_getter',
                         'old_owner_mapping_positive', 'old_owner_mapping_negative',
                         'old_owner_history_positive'}
 GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")

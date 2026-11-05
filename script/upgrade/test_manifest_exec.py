@@ -1748,12 +1748,14 @@ class ManifestTests(unittest.TestCase):
                     self.stale_proposals(**kw)
                 self.assertEqual(caught.exception.record['gate'], gate)
 
-    def never_recheck_change(self, closing):
+    def never_recheck_change(self, closing, field='neverGrantedReads', gate='old_owner_never_granted_recheck'):
         plan = copy.deepcopy(self.plan)
         plan['pin']['oldActivity']['dvtProposals'] = [{'recorded':True}]
-        row = plan['pin']['oldOwnerIsolation']['neverGrantedReads'][0]
+        row = plan['pin']['oldOwnerIsolation'][field][-1]
+        # oldRoleReads rows are OLD's memberships: a post-pin grant to OLD (e.g. via safeMintForRole).
+        holder = row.get('holder', m.isolation.OLD)
         rpc = old_timelock_rpc(plan['pin'],'0x200',
-            (row['target'],'hasRole(bytes32,address)',[row['role'],row['holder']],isolation_tests.raw([1])))
+            (row['target'],'hasRole(bytes32,address)',[row['role'],holder],isolation_tests.raw([1])))
         rpc.local = True
         with contextlib.ExitStack() as stack:
             for item in self.closing_rpc(plan['pin']['oldAggregator']):
@@ -1771,13 +1773,19 @@ class ManifestTests(unittest.TestCase):
                     m.dvt_closing(rpc,plan)
                 else:
                     m.pre_send(rpc,plan,dict(tx={}),{})
-            self.assertEqual(caught.exception.record['gate'],'old_owner_never_granted_recheck')
+            self.assertEqual(caught.exception.record['gate'],gate)
 
     def test_never_granted_closing_change(self):
         self.never_recheck_change(True)
 
     def test_never_granted_pre_send_change(self):
         self.never_recheck_change(False)
+
+    def test_old_role_closing_change(self):
+        self.never_recheck_change(True, 'oldRoleReads', 'old_owner_role_recheck')
+
+    def test_old_role_pre_send_change(self):
+        self.never_recheck_change(False, 'oldRoleReads', 'old_owner_role_recheck')
 
     def closing_rpc(self, pointer, activity='pin', executed=(), stray=None):
         # Every read must name the one closing block (0x200); `stray` points one target elsewhere.

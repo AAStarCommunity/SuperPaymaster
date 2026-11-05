@@ -172,7 +172,7 @@ def authority_rows(section):
 def audit(rpc, pin, inventory, fork=None):
     block = pin['stateBlock']
     reads, fork_controls, histories = [], [], {}
-    history_counts, declared_never, never_reads = {}, {}, []
+    history_counts, declared_never, never_reads, old_role_reads = {}, {}, [], []
     fork = fork or getattr(rpc,'fork',None)
     def probe(case):
         a.need('old_owner_control_verified', 'available' if fork else 'unverified', 'available')
@@ -225,6 +225,13 @@ def audit(rpc, pin, inventory, fork=None):
     control_holders = {u.SAFE,u.TL,u.SP,u.REG,u.DEPLOYER,a.APPROVER,a.EXECUTOR,NEW,OLD_TOKEN,pin['capped'],*pin['pauseList'],*targets.values()}
     control_holders.update(u.addr_array(call(targets['xPNTsFactory'],'getAllTokens()')))
     control_holders.discard(OLD)
+    def old_role(target,role):
+        # Every role membership of OLD read at the pin is re-read at pre_send and closing (DSR: safeMintForRole
+        # lets any COMMUNITY holder grant OLD an active role after the pin).
+        value = word(target,'hasRole(bytes32,address)',role,OLD)
+        if (target,role) not in {(r['target'],r['role']) for r in old_role_reads}:
+            old_role_reads.append(dict(target=target,role=role,result=value))
+        return value
     def role_owner(target,role,gate):
         raw = call(target,'getRoleConfig(bytes32)',role)
         cfg = u.config(raw)
@@ -259,7 +266,7 @@ def audit(rpc, pin, inventory, fork=None):
                 never_reads.append(dict(target=target,role=role,holder=holder,result=value))
         if spec['hasRole']:
             for role in spec['roles']:
-                value = word(target,'hasRole(bytes32,address)',role['value'],OLD)
+                value = old_role(target,role['value'])
                 gate = 'old_owner_role_'+name+'_'+role['name']
                 negative(gate,1)
                 a.need(gate,value,0)
@@ -267,7 +274,7 @@ def audit(rpc, pin, inventory, fork=None):
                     role_owner(target,role['value'],'old_owner_role_admin_'+role['name'])
         for role in histories[target]:
             if spec['hasRole']:
-                value = word(target,'hasRole(bytes32,address)',role,OLD)
+                value = old_role(target,role)
                 negative('old_owner_event_role_'+name,1)
                 a.need('old_owner_event_role_'+name,value,0)
                 role_control(name,target,role,spec)
@@ -342,7 +349,7 @@ def audit(rpc, pin, inventory, fork=None):
         a.need('old_owner_role_extraction_empty', bool(roles) and standard <= roles, True)
         configured_by_target[target] = roles
         for role in sorted(roles-standard):
-            value = word(target,'hasRole(bytes32,address)',role,OLD)
+            value = old_role(target,role)
             negative('old_owner_role_'+name+'_'+role,1)
             a.need('old_owner_role_'+name+'_'+role,value,0)
             if name == 'Registry':
@@ -438,7 +445,7 @@ def audit(rpc, pin, inventory, fork=None):
                getter=dict(target=u.SAFE,signature='isModuleEnabled(address)',args=['$ACCOUNT'])))
     canonical_pin()
     roles.update(histories.get(u.REG,[]))
-    return dict(declaredNeverGranted=declared_never, neverGrantedReads=never_reads, safeFallback=dict(address=FALLBACK_HANDLER,provenance='docs/release/a3a-precheck-v4/snapshot.json; DSR canonical deployment-list confirmation required'), forkControls=fork_controls, roleHistory=histories, roleHistoryCounts=history_counts, inventory=inventory, targets=targets, configuredRoles=sorted(roles), xpnts=sorted(xpnts), tokens=sorted(tokens), reverseAllowances=reverse, reads=reads)
+    return dict(declaredNeverGranted=declared_never, neverGrantedReads=never_reads, oldRoleReads=old_role_reads, safeFallback=dict(address=FALLBACK_HANDLER,provenance='docs/release/a3a-precheck-v4/snapshot.json; DSR canonical deployment-list confirmation required'), forkControls=fork_controls, roleHistory=histories, roleHistoryCounts=history_counts, inventory=inventory, targets=targets, configuredRoles=sorted(roles), xpnts=sorted(xpnts), tokens=sorted(tokens), reverseAllowances=reverse, reads=reads)
 
 
 def validate(section, pin, inventory):
@@ -965,13 +972,21 @@ def mapping_control(spec, target, role, word):
 
 
 def never_granted_recheck(rpc, pin, block):
+    # One statement per gate: a missing pin field (None) and a changed membership both STOP under the gate's name.
     section = pin['oldOwnerIsolation']
-    a.need('old_owner_never_granted_recheck', isinstance(section.get('neverGrantedReads'), list), True)
-    rows = section['neverGrantedReads']
-    values = [u.uints(a.call(rpc,row['target'],'hasRole(bytes32,address)',row['role'],row['holder'],block=block))
-              for row in rows]
-    a.need('old_owner_never_granted_recheck',values,[[row['result']] for row in rows])
-    return dict(block=block,rows=rows,values=values)
+    def reread(field, holder_of):
+        rows = section.get(field)
+        if not isinstance(rows, list):
+            return rows, None, 'present'
+        values = [u.uints(a.call(rpc,row['target'],'hasRole(bytes32,address)',row['role'],holder_of(row),block=block))
+                  for row in rows]
+        return rows, values, [[row['result']] for row in rows]
+    rows, values, expected = reread('neverGrantedReads', lambda row: row['holder'])
+    a.need('old_owner_never_granted_recheck',values,expected)
+    # Built from the same audit and replayed at build time, so it is never empty for a valid pin.
+    old_rows, old_values, old_expected = reread('oldRoleReads', lambda row: OLD)
+    a.need('old_owner_role_recheck',old_values,old_expected)
+    return dict(block=block,rows=rows,values=values,oldRows=old_rows,oldValues=old_values)
 
 
 def absent(raw, gate):

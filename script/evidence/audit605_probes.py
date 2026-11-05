@@ -74,6 +74,7 @@ REQUIRED.update({
     ('mapping_control', 'old_owner_mapping_positive'): 'OldOwnerIsolationTests.test_mapping_positive_zero',
     ('mapping_control', 'old_owner_mapping_negative'): 'OldOwnerIsolationTests.test_mapping_negative_one',
     ('never_granted_recheck', 'old_owner_never_granted_recheck'): 'ManifestTests.test_never_granted_closing_change',
+    ('never_granted_recheck', 'old_owner_role_recheck'): 'ManifestTests.test_old_role_closing_change',
 })
 
 
