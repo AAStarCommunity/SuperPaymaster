@@ -1,0 +1,42 @@
+# gate=early_swap_accounting function=early_swap_control line=2037
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 2037 --failfast
+# exit=0 seconds=71.1
+PROBE line=2037 mutation=replace a.need statement with pass failfast=True
+....................................................................................................................................................................................................F
+======================================================================
+FAIL: test_early_swap_requires_valid_accounting (test_manifest_exec.Round8Controls.test_early_swap_requires_valid_accounting)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 450, in test_early_swap_requires_valid_accounting
+    with self.assertRaises(a.Gate) as caught: self.swap_control(bad_accounting=True)
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 197 tests in 70.648s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.Round8Controls.test_early_swap_requires_valid_accounting
+PROBE_RESULT killed ran 197 failures 1 errors 0 expectedFailures 0
+STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: stage_not_final
+STOP: stage_not_final
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: plan_hash
+STOP: plan_hash
+STOP: simulation_stage

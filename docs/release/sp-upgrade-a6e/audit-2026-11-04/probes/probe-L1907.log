@@ -1,0 +1,19 @@
+# gate='B4_variant_' + key function=validate_plan line=1907
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1907 --failfast
+# exit=0 seconds=9.7
+PROBE line=1907 mutation=replace a.need statement with pass failfast=True
+.............................................................F
+======================================================================
+FAIL: test_b4_exact_variants_and_hash_binding (test_manifest_exec.ManifestTests.test_b4_exact_variants_and_hash_binding)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1610, in test_b4_exact_variants_and_hash_binding
+    with self.assertRaises(a.Gate): m.validate_plan(bad, self.inputs)
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 62 tests in 9.352s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_b4_exact_variants_and_hash_binding
+PROBE_RESULT killed ran 62 failures 1 errors 0 expectedFailures 0

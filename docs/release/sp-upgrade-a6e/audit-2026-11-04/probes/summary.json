@@ -1,0 +1,2500 @@
+{
+ "target": "script/upgrade/manifest_exec.py",
+ "suite": "script/upgrade/test_manifest_exec.py",
+ "functions": [
+  "old_activity",
+  "dvt_activity",
+  "balances",
+  "drain_gate",
+  "collect",
+  "runtime_bytes",
+  "verify_prefix",
+  "stage_readback",
+  "build_plan",
+  "handover_gate",
+  "handover_trace",
+  "handover_controls",
+  "activation_eta_gate",
+  "b2_gate",
+  "b4_post_state",
+  "execute_b4",
+  "b4_controls",
+  "check_predicate",
+  "batch_readback",
+  "budget",
+  "validate_plan",
+  "pre_send",
+  "mint_trace",
+  "unbacked_swap_control",
+  "early_swap_control",
+  "controls_at",
+  "run_manifest",
+  "solvency_probe",
+  "save_artifact",
+  "load_artifact",
+  "main"
+ ],
+ "total": 182,
+ "killed": 57,
+ "survived": [
+  {
+   "line": 753,
+   "function": "old_activity",
+   "gate": "old_proposal_complete",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0753.log"
+  },
+  {
+   "line": 756,
+   "function": "old_activity",
+   "gate": "old_exit_cleared",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0756.log"
+  },
+  {
+   "line": 775,
+   "function": "balances",
+   "gate": "operator_shape",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0775.log"
+  },
+  {
+   "line": 783,
+   "function": "drain_gate",
+   "gate": "drain_nonnegative",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0783.log"
+  },
+  {
+   "line": 786,
+   "function": "drain_gate",
+   "gate": "revenue_buffer",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0786.log"
+  },
+  {
+   "line": 1150,
+   "function": "collect",
+   "gate": "anni_pending_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1150.log"
+  },
+  {
+   "line": 1151,
+   "function": "collect",
+   "gate": "anni_eoa",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1151.log"
+  },
+  {
+   "line": 1158,
+   "function": "collect",
+   "gate": "fixed_old_aggregator",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1158.log"
+  },
+  {
+   "line": 1160,
+   "function": "collect",
+   "gate": "guardian_maximum",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1160.log"
+  },
+  {
+   "line": 1163,
+   "function": "collect",
+   "gate": "old_aggregator_owner",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1163.log"
+  },
+  {
+   "line": 1167,
+   "function": "collect",
+   "gate": "pointer_owner",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1167.log"
+  },
+  {
+   "line": 1168,
+   "function": "collect",
+   "gate": "old_pointer",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1168.log"
+  },
+  {
+   "line": 1174,
+   "function": "collect",
+   "gate": "deposit_info_shape",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1174.log"
+  },
+  {
+   "line": 1176,
+   "function": "collect",
+   "gate": "stake_not_unlocking",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1176.log"
+  },
+  {
+   "line": 1307,
+   "function": "build_plan",
+   "gate": "manifest_inputs_required",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1307.log"
+  },
+  {
+   "line": 1310,
+   "function": "build_plan",
+   "gate": "external_digest_nonzero",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1310.log"
+  },
+  {
+   "line": 1319,
+   "function": "build_plan",
+   "gate": "binding_nonempty",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1319.log"
+  },
+  {
+   "line": 1320,
+   "function": "build_plan",
+   "gate": "fixed_old_aggregator",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1320.log"
+  },
+  {
+   "line": 1327,
+   "function": "build_plan",
+   "gate": "sampled_inventory",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1327.log"
+  },
+  {
+   "line": 1328,
+   "function": "build_plan",
+   "gate": "drain_inventory",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1328.log"
+  },
+  {
+   "line": 1329,
+   "function": "build_plan",
+   "gate": "anni_binding",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1329.log"
+  },
+  {
+   "line": 1330,
+   "function": "build_plan",
+   "gate": "sender_labels",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1330.log"
+  },
+  {
+   "line": 1331,
+   "function": "build_plan",
+   "gate": "sender_unique",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1331.log"
+  },
+  {
+   "line": 1338,
+   "function": "build_plan",
+   "gate": "stake_not_unlocking",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1338.log"
+  },
+  {
+   "line": 1340,
+   "function": "build_plan",
+   "gate": "'sender_' + label",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1340.log"
+  },
+  {
+   "line": 1364,
+   "function": "build_plan",
+   "gate": "source_readback_prefix",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1364.log"
+  },
+  {
+   "line": 1365,
+   "function": "build_plan",
+   "gate": "source_domain",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1365.log"
+  },
+  {
+   "line": 1368,
+   "function": "build_plan",
+   "gate": "readback_required",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1368.log"
+  },
+  {
+   "line": 1381,
+   "function": "build_plan",
+   "gate": "'nonempty_runtime_' + name",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1381.log"
+  },
+  {
+   "line": 1433,
+   "function": "build_plan",
+   "gate": "guardian_slots",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1433.log"
+  },
+  {
+   "line": 1434,
+   "function": "build_plan",
+   "gate": "guardian_inventory",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1434.log"
+  },
+  {
+   "line": 1435,
+   "function": "build_plan",
+   "gate": "pop_count",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1435.log"
+  },
+  {
+   "line": 1470,
+   "function": "build_plan",
+   "gate": "'drain_operator_present_' + label",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1470.log"
+  },
+  {
+   "line": 1601,
+   "function": "handover_trace",
+   "gate": "handover_trace_object",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1601.log"
+  },
+  {
+   "line": 1603,
+   "function": "handover_trace",
+   "gate": "'handover_trace_' + key",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1603.log"
+  },
+  {
+   "line": 1604,
+   "function": "handover_trace",
+   "gate": "handover_trace_success",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1604.log"
+  },
+  {
+   "line": 1619,
+   "function": "handover_controls",
+   "gate": "handover_controls_local",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1619.log"
+  },
+  {
+   "line": 1631,
+   "function": "handover_controls",
+   "gate": "handover_positive_status",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1631.log"
+  },
+  {
+   "line": 1641,
+   "function": "handover_controls",
+   "gate": "handover_admin_status",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1641.log"
+  },
+  {
+   "line": 1667,
+   "function": "handover_controls",
+   "gate": "label + '_status'",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1667.log"
+  },
+  {
+   "line": 1685,
+   "function": "activation_eta_gate",
+   "gate": "6c_schedule_floor",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1685.log"
+  },
+  {
+   "line": 1687,
+   "function": "activation_eta_gate",
+   "gate": "6d_token_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1687.log"
+  },
+  {
+   "line": 1704,
+   "function": "b2_gate",
+   "gate": "B2_pause_history_present",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1704.log"
+  },
+  {
+   "line": 1754,
+   "function": "execute_b4",
+   "gate": "B4_block_gas",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1754.log"
+  },
+  {
+   "line": 1758,
+   "function": "execute_b4",
+   "gate": "B4_nonce_consumed",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1758.log"
+  },
+  {
+   "line": 1759,
+   "function": "execute_b4",
+   "gate": "B4_safe_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1759.log"
+  },
+  {
+   "line": 1760,
+   "function": "execute_b4",
+   "gate": "B4_receipt_gas",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1760.log"
+  },
+  {
+   "line": 1784,
+   "function": "b4_controls",
+   "gate": "B4_control_initial",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1784.log"
+  },
+  {
+   "line": 1793,
+   "function": "b4_controls",
+   "gate": "B4_control_placeholder",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1793.log"
+  },
+  {
+   "line": 1803,
+   "function": "b4_controls",
+   "gate": "B4_wrong_gate",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1803.log"
+  },
+  {
+   "line": 1804,
+   "function": "b4_controls",
+   "gate": "B4_wrong_status",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1804.log"
+  },
+  {
+   "line": 1807,
+   "function": "b4_controls",
+   "gate": "B4_wrong_must_stop",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1807.log"
+  },
+  {
+   "line": 1808,
+   "function": "b4_controls",
+   "gate": "B4_control_status",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1808.log"
+  },
+  {
+   "line": 1811,
+   "function": "b4_controls",
+   "gate": "B4_next_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1811.log"
+  },
+  {
+   "line": 1815,
+   "function": "b4_controls",
+   "gate": "B4_later_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1815.log"
+  },
+  {
+   "line": 1818,
+   "function": "b4_controls",
+   "gate": "B4_control_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1818.log"
+  },
+  {
+   "line": 1835,
+   "function": "check_predicate",
+   "gate": "readback_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1835.log"
+  },
+  {
+   "line": 1852,
+   "function": "batch_readback",
+   "gate": "batch_gas",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1852.log"
+  },
+  {
+   "line": 1854,
+   "function": "batch_readback",
+   "gate": "batch_gas_queue_empty",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1854.log"
+  },
+  {
+   "line": 1860,
+   "function": "batch_readback",
+   "gate": "gas_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1860.log"
+  },
+  {
+   "line": 1881,
+   "function": "validate_plan",
+   "gate": "external_inputs_match",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1881.log"
+  },
+  {
+   "line": 1894,
+   "function": "validate_plan",
+   "gate": "no_skipped_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1894.log"
+  },
+  {
+   "line": 1897,
+   "function": "validate_plan",
+   "gate": "'manifest_step_' + key",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1897.log"
+  },
+  {
+   "line": 1908,
+   "function": "validate_plan",
+   "gate": "B4_apply_binding",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1908.log"
+  },
+  {
+   "line": 1910,
+   "function": "validate_plan",
+   "gate": "B4_placeholder_intrinsic",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1910.log"
+  },
+  {
+   "line": 1923,
+   "function": "validate_plan",
+   "gate": "manifest_budget",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1923.log"
+  },
+  {
+   "line": 1932,
+   "function": "pre_send",
+   "gate": "manifest_local_only",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1932.log"
+  },
+  {
+   "line": 1936,
+   "function": "pre_send",
+   "gate": "sender_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1936.log"
+  },
+  {
+   "line": 1937,
+   "function": "pre_send",
+   "gate": "pending_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1937.log"
+  },
+  {
+   "line": 1938,
+   "function": "pre_send",
+   "gate": "safe_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1938.log"
+  },
+  {
+   "line": 1939,
+   "function": "pre_send",
+   "gate": "safe_state",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1939.log"
+  },
+  {
+   "line": 1943,
+   "function": "pre_send",
+   "gate": "old_activity_unchanged",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1943.log"
+  },
+  {
+   "line": 1945,
+   "function": "pre_send",
+   "gate": "dvt_activity_unchanged",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1945.log"
+  },
+  {
+   "line": 1949,
+   "function": "pre_send",
+   "gate": "SP_owner",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1949.log"
+  },
+  {
+   "line": 1953,
+   "function": "pre_send",
+   "gate": "role_config_unchanged",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1953.log"
+  },
+  {
+   "line": 1955,
+   "function": "pre_send",
+   "gate": "pending_token",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1955.log"
+  },
+  {
+   "line": 1956,
+   "function": "pre_send",
+   "gate": "pending_token_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1956.log"
+  },
+  {
+   "line": 1961,
+   "function": "pre_send",
+   "gate": "transfer_drained",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1961.log"
+  },
+  {
+   "line": 1962,
+   "function": "pre_send",
+   "gate": "transfer_revenue",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1962.log"
+  },
+  {
+   "line": 1970,
+   "function": "pre_send",
+   "gate": "onchain_safe_hash",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1970.log"
+  },
+  {
+   "line": 1976,
+   "function": "pre_send",
+   "gate": "fresh_estimate",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1976.log"
+  },
+  {
+   "line": 1977,
+   "function": "pre_send",
+   "gate": "block_gas_limit",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1977.log"
+  },
+  {
+   "line": 1983,
+   "function": "mint_trace",
+   "gate": "mint_trace_top",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1983.log"
+  },
+  {
+   "line": 1985,
+   "function": "mint_trace",
+   "gate": "mint_trace_success",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1985.log"
+  },
+  {
+   "line": 1988,
+   "function": "mint_trace",
+   "gate": "mint_trace_count",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1988.log"
+  },
+  {
+   "line": 1989,
+   "function": "mint_trace",
+   "gate": "mint_trace_call",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1989.log"
+  },
+  {
+   "line": 1997,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_initial",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1997.log"
+  },
+  {
+   "line": 2007,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_shortfall",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2007.log"
+  },
+  {
+   "line": 2011,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_refusal_gate",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2011.log"
+  },
+  {
+   "line": 2019,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_plan_refusal_gate",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2019.log"
+  },
+  {
+   "line": 2026,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2026.log"
+  },
+  {
+   "line": 2039,
+   "function": "early_swap_control",
+   "gate": "early_swap_token",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2039.log"
+  },
+  {
+   "line": 2040,
+   "function": "early_swap_control",
+   "gate": "early_swap_owner",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2040.log"
+  },
+  {
+   "line": 2042,
+   "function": "early_swap_control",
+   "gate": "early_swap_pending",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2042.log"
+  },
+  {
+   "line": 2044,
+   "function": "early_swap_control",
+   "gate": "early_swap_future_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2044.log"
+  },
+  {
+   "line": 2051,
+   "function": "early_swap_control",
+   "gate": "early_swap_mature_token",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2051.log"
+  },
+  {
+   "line": 2052,
+   "function": "early_swap_control",
+   "gate": "early_swap_mature_pending",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2052.log"
+  },
+  {
+   "line": 2053,
+   "function": "early_swap_control",
+   "gate": "early_swap_mature_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2053.log"
+  },
+  {
+   "line": 2067,
+   "function": "controls_at",
+   "gate": "control_fixture_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2067.log"
+  },
+  {
+   "line": 2090,
+   "function": "controls_at",
+   "gate": "factory_control_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2090.log"
+  },
+  {
+   "line": 2106,
+   "function": "controls_at",
+   "gate": "funded_swap_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2106.log"
+  },
+  {
+   "line": 2123,
+   "function": "run_manifest",
+   "gate": "frozen_step_not_skipped",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2123.log"
+  },
+  {
+   "line": 2146,
+   "function": "run_manifest",
+   "gate": "manifest_receipt_gas",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2146.log"
+  },
+  {
+   "line": 2147,
+   "function": "run_manifest",
+   "gate": "manifest_timestamp",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2147.log"
+  },
+  {
+   "line": 2149,
+   "function": "run_manifest",
+   "gate": "manifest_rr_witness",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2149.log"
+  },
+  {
+   "line": 2151,
+   "function": "run_manifest",
+   "gate": "post_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2151.log"
+  },
+  {
+   "line": 2152,
+   "function": "run_manifest",
+   "gate": "post_safe_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2152.log"
+  },
+  {
+   "line": 2198,
+   "function": "run_manifest",
+   "gate": "controls_complete",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2198.log"
+  },
+  {
+   "line": 2199,
+   "function": "run_manifest",
+   "gate": "steps_complete",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2199.log"
+  },
+  {
+   "line": 2203,
+   "function": "run_manifest",
+   "gate": "post_swap_tracked",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2203.log"
+  },
+  {
+   "line": 2204,
+   "function": "run_manifest",
+   "gate": "post_swap_revenue",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2204.log"
+  },
+  {
+   "line": 2205,
+   "function": "run_manifest",
+   "gate": "post_swap_capped_balance",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2205.log"
+  },
+  {
+   "line": 2206,
+   "function": "run_manifest",
+   "gate": "accounting_unchanged_since_6d",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2206.log"
+  },
+  {
+   "line": 2222,
+   "function": "solvency_probe",
+   "gate": "solvency_probe_local",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2222.log"
+  },
+  {
+   "line": 2232,
+   "function": "solvency_probe",
+   "gate": "capped_minter",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2232.log"
+  },
+  {
+   "line": 2244,
+   "function": "solvency_probe",
+   "gate": "fixture_revenue_accrued",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2244.log"
+  },
+  {
+   "line": 2254,
+   "function": "solvency_probe",
+   "gate": "solvency_difference_explained",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2254.log"
+  },
+  {
+   "line": 2257,
+   "function": "solvency_probe",
+   "gate": "solvency_accounting_sum",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2257.log"
+  },
+  {
+   "line": 2265,
+   "function": "save_artifact",
+   "gate": "stage_not_final",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2265.log"
+  },
+  {
+   "line": 2318,
+   "function": "main",
+   "gate": "output_empty",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2318.log"
+  },
+  {
+   "line": 2335,
+   "function": "main",
+   "gate": "independent_pin",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2335.log"
+  },
+  {
+   "line": 2338,
+   "function": "main",
+   "gate": "simulation_pin",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2338.log"
+  },
+  {
+   "line": 2352,
+   "function": "main",
+   "gate": "engine_stderr",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2352.log"
+  },
+  {
+   "line": 2353,
+   "function": "main",
+   "gate": "pin_recheck",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2353.log"
+  },
+  {
+   "line": 2355,
+   "function": "main",
+   "gate": "frozen_plan_unchanged",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2355.log"
+  }
+ ],
+ "errors": [],
+ "results": [
+  {
+   "line": 753,
+   "function": "old_activity",
+   "gate": "old_proposal_complete",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0753.log"
+  },
+  {
+   "line": 756,
+   "function": "old_activity",
+   "gate": "old_exit_cleared",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0756.log"
+  },
+  {
+   "line": 767,
+   "function": "dvt_activity",
+   "gate": "dvt_proposal_executed",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_unsigned_dvt_proposal_stops",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0767.log"
+  },
+  {
+   "line": 775,
+   "function": "balances",
+   "gate": "operator_shape",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0775.log"
+  },
+  {
+   "line": 783,
+   "function": "drain_gate",
+   "gate": "drain_nonnegative",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0783.log"
+  },
+  {
+   "line": 785,
+   "function": "drain_gate",
+   "gate": "drain_sum_closes",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_drain_refusals",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0785.log"
+  },
+  {
+   "line": 786,
+   "function": "drain_gate",
+   "gate": "revenue_buffer",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0786.log"
+  },
+  {
+   "line": 788,
+   "function": "drain_gate",
+   "gate": "drain_senders",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_drain_refusals",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L0788.log"
+  },
+  {
+   "line": 1150,
+   "function": "collect",
+   "gate": "anni_pending_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1150.log"
+  },
+  {
+   "line": 1151,
+   "function": "collect",
+   "gate": "anni_eoa",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1151.log"
+  },
+  {
+   "line": 1153,
+   "function": "collect",
+   "gate": "registry_version",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_collect_registry_version_negative",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1153.log"
+  },
+  {
+   "line": 1158,
+   "function": "collect",
+   "gate": "fixed_old_aggregator",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1158.log"
+  },
+  {
+   "line": 1160,
+   "function": "collect",
+   "gate": "guardian_maximum",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1160.log"
+  },
+  {
+   "line": 1163,
+   "function": "collect",
+   "gate": "old_aggregator_owner",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1163.log"
+  },
+  {
+   "line": 1167,
+   "function": "collect",
+   "gate": "pointer_owner",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1167.log"
+  },
+  {
+   "line": 1168,
+   "function": "collect",
+   "gate": "old_pointer",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1168.log"
+  },
+  {
+   "line": 1174,
+   "function": "collect",
+   "gate": "deposit_info_shape",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1174.log"
+  },
+  {
+   "line": 1176,
+   "function": "collect",
+   "gate": "stake_not_unlocking",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1176.log"
+  },
+  {
+   "line": 1199,
+   "function": "runtime_bytes",
+   "gate": "'immutable_supplied_' + entry['name']",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_runtime_patches_named_immutables",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1199.log"
+  },
+  {
+   "line": 1290,
+   "function": "verify_prefix",
+   "gate": "prefix_stage",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_metadata_guards (field='stage')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1290.log"
+  },
+  {
+   "line": 1291,
+   "function": "verify_prefix",
+   "gate": "prefix_digest",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_metadata_guards (field='prefixDigest')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1291.log"
+  },
+  {
+   "line": 1295,
+   "function": "verify_prefix",
+   "gate": "prefix_boundary",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_metadata_guards",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1295.log"
+  },
+  {
+   "line": 1296,
+   "function": "verify_prefix",
+   "gate": "prefix_exact",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_prefix_guards (kind='constructor')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1296.log"
+  },
+  {
+   "line": 1300,
+   "function": "stage_readback",
+   "gate": "stage_local",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_domain_guards",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1300.log"
+  },
+  {
+   "line": 1302,
+   "function": "stage_readback",
+   "gate": "stage_domain",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_domain_guards",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1302.log"
+  },
+  {
+   "line": 1307,
+   "function": "build_plan",
+   "gate": "manifest_inputs_required",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1307.log"
+  },
+  {
+   "line": 1310,
+   "function": "build_plan",
+   "gate": "external_digest_nonzero",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1310.log"
+  },
+  {
+   "line": 1314,
+   "function": "build_plan",
+   "gate": "stage_sources",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_metadata_guards",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1314.log"
+  },
+  {
+   "line": 1319,
+   "function": "build_plan",
+   "gate": "binding_nonempty",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1319.log"
+  },
+  {
+   "line": 1320,
+   "function": "build_plan",
+   "gate": "fixed_old_aggregator",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1320.log"
+  },
+  {
+   "line": 1327,
+   "function": "build_plan",
+   "gate": "sampled_inventory",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1327.log"
+  },
+  {
+   "line": 1328,
+   "function": "build_plan",
+   "gate": "drain_inventory",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1328.log"
+  },
+  {
+   "line": 1329,
+   "function": "build_plan",
+   "gate": "anni_binding",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1329.log"
+  },
+  {
+   "line": 1330,
+   "function": "build_plan",
+   "gate": "sender_labels",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1330.log"
+  },
+  {
+   "line": 1331,
+   "function": "build_plan",
+   "gate": "sender_unique",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1331.log"
+  },
+  {
+   "line": 1338,
+   "function": "build_plan",
+   "gate": "stake_not_unlocking",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1338.log"
+  },
+  {
+   "line": 1340,
+   "function": "build_plan",
+   "gate": "'sender_' + label",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1340.log"
+  },
+  {
+   "line": 1362,
+   "function": "build_plan",
+   "gate": "source_plan_bytes",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_stage_source_is_exact_rebuild",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1362.log"
+  },
+  {
+   "line": 1364,
+   "function": "build_plan",
+   "gate": "source_readback_prefix",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1364.log"
+  },
+  {
+   "line": 1365,
+   "function": "build_plan",
+   "gate": "source_domain",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1365.log"
+  },
+  {
+   "line": 1368,
+   "function": "build_plan",
+   "gate": "readback_required",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1368.log"
+  },
+  {
+   "line": 1381,
+   "function": "build_plan",
+   "gate": "'nonempty_runtime_' + name",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1381.log"
+  },
+  {
+   "line": 1433,
+   "function": "build_plan",
+   "gate": "guardian_slots",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1433.log"
+  },
+  {
+   "line": 1434,
+   "function": "build_plan",
+   "gate": "guardian_inventory",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1434.log"
+  },
+  {
+   "line": 1435,
+   "function": "build_plan",
+   "gate": "pop_count",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1435.log"
+  },
+  {
+   "line": 1437,
+   "function": "build_plan",
+   "gate": "pop_domain",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_domain_guards",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1437.log"
+  },
+  {
+   "line": 1438,
+   "function": "build_plan",
+   "gate": "pop_aggregator",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_pop_binding",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1438.log"
+  },
+  {
+   "line": 1439,
+   "function": "build_plan",
+   "gate": "pop_pin",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_pop_binding",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1439.log"
+  },
+  {
+   "line": 1451,
+   "function": "build_plan",
+   "gate": "fixture_domain",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_domain_guards",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1451.log"
+  },
+  {
+   "line": 1470,
+   "function": "build_plan",
+   "gate": "'drain_operator_present_' + label",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1470.log"
+  },
+  {
+   "line": 1589,
+   "function": "handover_gate",
+   "gate": "committee_transfer_selector",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_handover_gates_require_each_completed_step",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1589.log"
+  },
+  {
+   "line": 1590,
+   "function": "handover_gate",
+   "gate": "committee_no_accept_ownership",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime (selector='79ba5097')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1590.log"
+  },
+  {
+   "line": 1591,
+   "function": "handover_gate",
+   "gate": "committee_no_pending_owner",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_committee_rejects_two_step_runtime (selector='e30c3978')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1591.log"
+  },
+  {
+   "line": 1595,
+   "function": "handover_gate",
+   "gate": "handover_dependencies",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_aggregator_transfer_requires_completed_admin (name='aggregator')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1595.log"
+  },
+  {
+   "line": 1601,
+   "function": "handover_trace",
+   "gate": "handover_trace_object",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1601.log"
+  },
+  {
+   "line": 1603,
+   "function": "handover_trace",
+   "gate": "'handover_trace_' + key",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1603.log"
+  },
+  {
+   "line": 1604,
+   "function": "handover_trace",
+   "gate": "handover_trace_success",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1604.log"
+  },
+  {
+   "line": 1612,
+   "function": "handover_trace",
+   "gate": "handover_trace_call_count",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_registry_accept_trace_requires_timelock_caller (field='input')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1612.log"
+  },
+  {
+   "line": 1613,
+   "function": "handover_trace",
+   "gate": "handover_trace_caller",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_registry_accept_trace_requires_timelock_caller (field='from')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1613.log"
+  },
+  {
+   "line": 1614,
+   "function": "handover_trace",
+   "gate": "handover_trace_call_success",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_registry_accept_trace_requires_timelock_caller (field='error')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1614.log"
+  },
+  {
+   "line": 1619,
+   "function": "handover_controls",
+   "gate": "handover_controls_local",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1619.log"
+  },
+  {
+   "line": 1631,
+   "function": "handover_controls",
+   "gate": "handover_positive_status",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1631.log"
+  },
+  {
+   "line": 1641,
+   "function": "handover_controls",
+   "gate": "handover_admin_status",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1641.log"
+  },
+  {
+   "line": 1645,
+   "function": "handover_controls",
+   "gate": "handover_control_restore",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_handover_controls_assert_reasons_success_and_restore",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1645.log"
+  },
+  {
+   "line": 1667,
+   "function": "handover_controls",
+   "gate": "label + '_status'",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1667.log"
+  },
+  {
+   "line": 1672,
+   "function": "handover_controls",
+   "gate": "handover_setter_restore",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_handover_controls_assert_reasons_success_and_restore",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1672.log"
+  },
+  {
+   "line": 1685,
+   "function": "activation_eta_gate",
+   "gate": "6c_schedule_floor",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1685.log"
+  },
+  {
+   "line": 1686,
+   "function": "activation_eta_gate",
+   "gate": "6d_timelock_eta",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_eta_rule",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1686.log"
+  },
+  {
+   "line": 1687,
+   "function": "activation_eta_gate",
+   "gate": "6d_token_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1687.log"
+  },
+  {
+   "line": 1691,
+   "function": "b2_gate",
+   "gate": "B2_capped_buffer",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b2_stop_conditions (mutate=<function ManifestTests.test_b2_stop_conditions.<locals>.<lambda> at 0x7f673a776ac0>)",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1691.log"
+  },
+  {
+   "line": 1693,
+   "function": "b2_gate",
+   "gate": "B2_balances",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b2_stop_conditions (mutate=<function ManifestTests.test_b2_stop_conditions.<locals>.<lambda> at 0x7f9fbb77ec00>)",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1693.log"
+  },
+  {
+   "line": 1694,
+   "function": "b2_gate",
+   "gate": "B2_revenue",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b2_stop_conditions (mutate=<function ManifestTests.test_b2_stop_conditions.<locals>.<lambda> at 0x7f6cf877bc40>)",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1694.log"
+  },
+  {
+   "line": 1695,
+   "function": "b2_gate",
+   "gate": "B2_operator_balances",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b2_stop_conditions (mutate=<function ManifestTests.test_b2_stop_conditions.<locals>.<lambda> at 0x7f7f85a7ee80>)",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1695.log"
+  },
+  {
+   "line": 1697,
+   "function": "b2_gate",
+   "gate": "'B2_pending_slash_' + who",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b2_stop_conditions (mutate=<function ManifestTests.test_b2_stop_conditions.<locals>.<lambda> at 0x7f7e35577100>)",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1697.log"
+  },
+  {
+   "line": 1701,
+   "function": "b2_gate",
+   "gate": "B2_global_pause",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b2_stop_conditions (mutate=<function ManifestTests.test_b2_stop_conditions.<locals>.<lambda> at 0x7f0460e7f060>)",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1701.log"
+  },
+  {
+   "line": 1704,
+   "function": "b2_gate",
+   "gate": "B2_pause_history_present",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1704.log"
+  },
+  {
+   "line": 1705,
+   "function": "b2_gate",
+   "gate": "B2_no_unpause_since_upgrade",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b2_stop_conditions (mutate=<function ManifestTests.test_b2_stop_conditions.<locals>.<lambda> at 0x7f58a7e76d40>)",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1705.log"
+  },
+  {
+   "line": 1707,
+   "function": "b2_gate",
+   "gate": "B2_single_upgrade",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b2_single_upgrade_required",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1707.log"
+  },
+  {
+   "line": 1708,
+   "function": "b2_gate",
+   "gate": "B2_upgrade_identity",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b2_implementation_identity_required",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1708.log"
+  },
+  {
+   "line": 1718,
+   "function": "b4_post_state",
+   "gate": "B4_variant",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b4_poststate_status_exception_is_narrow (variant='third', status=1, values={'fraudProofVerifier()': 196464281818105414612061400431828927693469387727, 'pendingFraudProofVerifier()': 0, 'pendingFraudProofVerifierReadyAt()': 0})",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1718.log"
+  },
+  {
+   "line": 1720,
+   "function": "b4_post_state",
+   "gate": "B4_status",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b4_poststate_status_exception_is_narrow (variant='apply', status=2, values={'fraudProofVerifier()': 196464281818105414612061400431828927693469387727, 'pendingFraudProofVerifier()': 0, 'pendingFraudProofVerifierReadyAt()': 0})",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1720.log"
+  },
+  {
+   "line": 1754,
+   "function": "execute_b4",
+   "gate": "B4_block_gas",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1754.log"
+  },
+  {
+   "line": 1758,
+   "function": "execute_b4",
+   "gate": "B4_nonce_consumed",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1758.log"
+  },
+  {
+   "line": 1759,
+   "function": "execute_b4",
+   "gate": "B4_safe_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1759.log"
+  },
+  {
+   "line": 1760,
+   "function": "execute_b4",
+   "gate": "B4_receipt_gas",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1760.log"
+  },
+  {
+   "line": 1784,
+   "function": "b4_controls",
+   "gate": "B4_control_initial",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1784.log"
+  },
+  {
+   "line": 1793,
+   "function": "b4_controls",
+   "gate": "B4_control_placeholder",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1793.log"
+  },
+  {
+   "line": 1803,
+   "function": "b4_controls",
+   "gate": "B4_wrong_gate",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1803.log"
+  },
+  {
+   "line": 1804,
+   "function": "b4_controls",
+   "gate": "B4_wrong_status",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1804.log"
+  },
+  {
+   "line": 1807,
+   "function": "b4_controls",
+   "gate": "B4_wrong_must_stop",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1807.log"
+  },
+  {
+   "line": 1808,
+   "function": "b4_controls",
+   "gate": "B4_control_status",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1808.log"
+  },
+  {
+   "line": 1811,
+   "function": "b4_controls",
+   "gate": "B4_next_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1811.log"
+  },
+  {
+   "line": 1815,
+   "function": "b4_controls",
+   "gate": "B4_later_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1815.log"
+  },
+  {
+   "line": 1818,
+   "function": "b4_controls",
+   "gate": "B4_control_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1818.log"
+  },
+  {
+   "line": 1826,
+   "function": "check_predicate",
+   "gate": "verifier_bound_runtime",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_a12a_runtime_is_enforced",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1826.log"
+  },
+  {
+   "line": 1835,
+   "function": "check_predicate",
+   "gate": "readback_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1835.log"
+  },
+  {
+   "line": 1841,
+   "function": "check_predicate",
+   "gate": "'readback_' + p.get('signature', kind)",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_a12a_getters_are_enforced (broken='AGGREGATOR()')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1841.log"
+  },
+  {
+   "line": 1852,
+   "function": "batch_readback",
+   "gate": "batch_gas",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1852.log"
+  },
+  {
+   "line": 1854,
+   "function": "batch_readback",
+   "gate": "batch_gas_queue_empty",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1854.log"
+  },
+  {
+   "line": 1860,
+   "function": "batch_readback",
+   "gate": "gas_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1860.log"
+  },
+  {
+   "line": 1875,
+   "function": "budget",
+   "gate": "'budget_' + label",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_budget_includes_stake_and_deposit",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1875.log"
+  },
+  {
+   "line": 1881,
+   "function": "validate_plan",
+   "gate": "external_inputs_match",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1881.log"
+  },
+  {
+   "line": 1885,
+   "function": "validate_plan",
+   "gate": "'manifest_' + key",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_creation_layout_packet",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1885.log"
+  },
+  {
+   "line": 1886,
+   "function": "validate_plan",
+   "gate": "manifest_length",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_partial_or_mutated_plan_refused",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1886.log"
+  },
+  {
+   "line": 1894,
+   "function": "validate_plan",
+   "gate": "no_skipped_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1894.log"
+  },
+  {
+   "line": 1897,
+   "function": "validate_plan",
+   "gate": "'manifest_step_' + key",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1897.log"
+  },
+  {
+   "line": 1900,
+   "function": "validate_plan",
+   "gate": "'manifest_tx_' + key",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_partial_or_mutated_plan_refused",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1900.log"
+  },
+  {
+   "line": 1907,
+   "function": "validate_plan",
+   "gate": "'B4_variant_' + key",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_b4_exact_variants_and_hash_binding",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1907.log"
+  },
+  {
+   "line": 1908,
+   "function": "validate_plan",
+   "gate": "B4_apply_binding",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1908.log"
+  },
+  {
+   "line": 1910,
+   "function": "validate_plan",
+   "gate": "B4_placeholder_intrinsic",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1910.log"
+  },
+  {
+   "line": 1923,
+   "function": "validate_plan",
+   "gate": "manifest_budget",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1923.log"
+  },
+  {
+   "line": 1932,
+   "function": "pre_send",
+   "gate": "manifest_local_only",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1932.log"
+  },
+  {
+   "line": 1935,
+   "function": "pre_send",
+   "gate": "chain",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.GasGateControls.test_b4_preapplied_real_measurement (tamper=None)",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1935.log"
+  },
+  {
+   "line": 1936,
+   "function": "pre_send",
+   "gate": "sender_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1936.log"
+  },
+  {
+   "line": 1937,
+   "function": "pre_send",
+   "gate": "pending_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1937.log"
+  },
+  {
+   "line": 1938,
+   "function": "pre_send",
+   "gate": "safe_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1938.log"
+  },
+  {
+   "line": 1939,
+   "function": "pre_send",
+   "gate": "safe_state",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1939.log"
+  },
+  {
+   "line": 1942,
+   "function": "pre_send",
+   "gate": "bound_runtime",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_pre_send_bound_runtime_is_required",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1942.log"
+  },
+  {
+   "line": 1943,
+   "function": "pre_send",
+   "gate": "old_activity_unchanged",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1943.log"
+  },
+  {
+   "line": 1945,
+   "function": "pre_send",
+   "gate": "dvt_activity_unchanged",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1945.log"
+  },
+  {
+   "line": 1947,
+   "function": "pre_send",
+   "gate": "registry_owner",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_pre_send_registry_owner_follows_completed_accept (accepted=False, owner='0xccdf8e0d29fb2c3061910d79484a2b653757c34b')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1947.log"
+  },
+  {
+   "line": 1949,
+   "function": "pre_send",
+   "gate": "SP_owner",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1949.log"
+  },
+  {
+   "line": 1953,
+   "function": "pre_send",
+   "gate": "role_config_unchanged",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1953.log"
+  },
+  {
+   "line": 1955,
+   "function": "pre_send",
+   "gate": "pending_token",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1955.log"
+  },
+  {
+   "line": 1956,
+   "function": "pre_send",
+   "gate": "pending_token_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1956.log"
+  },
+  {
+   "line": 1961,
+   "function": "pre_send",
+   "gate": "transfer_drained",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1961.log"
+  },
+  {
+   "line": 1962,
+   "function": "pre_send",
+   "gate": "transfer_revenue",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1962.log"
+  },
+  {
+   "line": 1970,
+   "function": "pre_send",
+   "gate": "onchain_safe_hash",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1970.log"
+  },
+  {
+   "line": 1976,
+   "function": "pre_send",
+   "gate": "fresh_estimate",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1976.log"
+  },
+  {
+   "line": 1977,
+   "function": "pre_send",
+   "gate": "block_gas_limit",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1977.log"
+  },
+  {
+   "line": 1983,
+   "function": "mint_trace",
+   "gate": "mint_trace_top",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1983.log"
+  },
+  {
+   "line": 1985,
+   "function": "mint_trace",
+   "gate": "mint_trace_success",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1985.log"
+  },
+  {
+   "line": 1988,
+   "function": "mint_trace",
+   "gate": "mint_trace_count",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1988.log"
+  },
+  {
+   "line": 1989,
+   "function": "mint_trace",
+   "gate": "mint_trace_call",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1989.log"
+  },
+  {
+   "line": 1997,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_initial",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L1997.log"
+  },
+  {
+   "line": 2007,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_shortfall",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2007.log"
+  },
+  {
+   "line": 2011,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_refusal_gate",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2011.log"
+  },
+  {
+   "line": 2019,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_plan_refusal_gate",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2019.log"
+  },
+  {
+   "line": 2026,
+   "function": "unbacked_swap_control",
+   "gate": "unbacked_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2026.log"
+  },
+  {
+   "line": 2034,
+   "function": "early_swap_control",
+   "gate": "early_swap_implementation",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.Round8Controls.test_early_swap_refuses_old_implementation",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2034.log"
+  },
+  {
+   "line": 2037,
+   "function": "early_swap_control",
+   "gate": "early_swap_accounting",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.Round8Controls.test_early_swap_requires_valid_accounting",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2037.log"
+  },
+  {
+   "line": 2039,
+   "function": "early_swap_control",
+   "gate": "early_swap_token",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2039.log"
+  },
+  {
+   "line": 2040,
+   "function": "early_swap_control",
+   "gate": "early_swap_owner",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2040.log"
+  },
+  {
+   "line": 2042,
+   "function": "early_swap_control",
+   "gate": "early_swap_pending",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2042.log"
+  },
+  {
+   "line": 2044,
+   "function": "early_swap_control",
+   "gate": "early_swap_future_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2044.log"
+  },
+  {
+   "line": 2051,
+   "function": "early_swap_control",
+   "gate": "early_swap_mature_token",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2051.log"
+  },
+  {
+   "line": 2052,
+   "function": "early_swap_control",
+   "gate": "early_swap_mature_pending",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2052.log"
+  },
+  {
+   "line": 2053,
+   "function": "early_swap_control",
+   "gate": "early_swap_mature_eta",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2053.log"
+  },
+  {
+   "line": 2056,
+   "function": "early_swap_control",
+   "gate": "early_swap_restore",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.Round8Controls.test_early_swap_detects_missing_eta_guard",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2056.log"
+  },
+  {
+   "line": 2067,
+   "function": "controls_at",
+   "gate": "control_fixture_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2067.log"
+  },
+  {
+   "line": 2090,
+   "function": "controls_at",
+   "gate": "factory_control_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2090.log"
+  },
+  {
+   "line": 2106,
+   "function": "controls_at",
+   "gate": "funded_swap_restore",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2106.log"
+  },
+  {
+   "line": 2112,
+   "function": "run_manifest",
+   "gate": "manifest_local_only",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_remote_execution_refused",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2112.log"
+  },
+  {
+   "line": 2123,
+   "function": "run_manifest",
+   "gate": "frozen_step_not_skipped",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2123.log"
+  },
+  {
+   "line": 2146,
+   "function": "run_manifest",
+   "gate": "manifest_receipt_gas",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2146.log"
+  },
+  {
+   "line": 2147,
+   "function": "run_manifest",
+   "gate": "manifest_timestamp",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2147.log"
+  },
+  {
+   "line": 2149,
+   "function": "run_manifest",
+   "gate": "manifest_rr_witness",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2149.log"
+  },
+  {
+   "line": 2151,
+   "function": "run_manifest",
+   "gate": "post_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2151.log"
+  },
+  {
+   "line": 2152,
+   "function": "run_manifest",
+   "gate": "post_safe_nonce",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2152.log"
+  },
+  {
+   "line": 2191,
+   "function": "run_manifest",
+   "gate": "stage_steps_complete",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_runner_guards",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2191.log"
+  },
+  {
+   "line": 2198,
+   "function": "run_manifest",
+   "gate": "controls_complete",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2198.log"
+  },
+  {
+   "line": 2199,
+   "function": "run_manifest",
+   "gate": "steps_complete",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2199.log"
+  },
+  {
+   "line": 2203,
+   "function": "run_manifest",
+   "gate": "post_swap_tracked",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2203.log"
+  },
+  {
+   "line": 2204,
+   "function": "run_manifest",
+   "gate": "post_swap_revenue",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2204.log"
+  },
+  {
+   "line": 2205,
+   "function": "run_manifest",
+   "gate": "post_swap_capped_balance",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2205.log"
+  },
+  {
+   "line": 2206,
+   "function": "run_manifest",
+   "gate": "accounting_unchanged_since_6d",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2206.log"
+  },
+  {
+   "line": 2211,
+   "function": "run_manifest",
+   "gate": "post_swap_solvency",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_rehearsal_stops_on_solvency_without_pass_record",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2211.log"
+  },
+  {
+   "line": 2222,
+   "function": "solvency_probe",
+   "gate": "solvency_probe_local",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2222.log"
+  },
+  {
+   "line": 2232,
+   "function": "solvency_probe",
+   "gate": "capped_minter",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2232.log"
+  },
+  {
+   "line": 2244,
+   "function": "solvency_probe",
+   "gate": "fixture_revenue_accrued",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2244.log"
+  },
+  {
+   "line": 2249,
+   "function": "solvency_probe",
+   "gate": "solvency_fixture_restore",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_solvency_probe_accrues_before_withdrawing",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2249.log"
+  },
+  {
+   "line": 2254,
+   "function": "solvency_probe",
+   "gate": "solvency_difference_explained",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2254.log"
+  },
+  {
+   "line": 2257,
+   "function": "solvency_probe",
+   "gate": "solvency_accounting_sum",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2257.log"
+  },
+  {
+   "line": 2265,
+   "function": "save_artifact",
+   "gate": "stage_not_final",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2265.log"
+  },
+  {
+   "line": 2279,
+   "function": "load_artifact",
+   "gate": "stage_not_final",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_stage_artifact_loader_rejects_final (stage='a7')",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2279.log"
+  },
+  {
+   "line": 2318,
+   "function": "main",
+   "gate": "output_empty",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2318.log"
+  },
+  {
+   "line": 2335,
+   "function": "main",
+   "gate": "independent_pin",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2335.log"
+  },
+  {
+   "line": 2338,
+   "function": "main",
+   "gate": "simulation_pin",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2338.log"
+  },
+  {
+   "line": 2340,
+   "function": "main",
+   "gate": "simulation_stage",
+   "status": "killed",
+   "firstFailingTest": "test_manifest_exec.ManifestTests.test_staged_cli_guard",
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2340.log"
+  },
+  {
+   "line": 2352,
+   "function": "main",
+   "gate": "engine_stderr",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2352.log"
+  },
+  {
+   "line": 2353,
+   "function": "main",
+   "gate": "pin_recheck",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2353.log"
+  },
+  {
+   "line": 2355,
+   "function": "main",
+   "gate": "frozen_plan_unchanged",
+   "status": "survived",
+   "firstFailingTest": null,
+   "log": "docs/release/sp-upgrade-a6e/audit-2026-11-04/probes/probe-L2355.log"
+  }
+ ]
+}

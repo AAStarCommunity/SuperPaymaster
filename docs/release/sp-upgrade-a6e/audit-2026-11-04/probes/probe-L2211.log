@@ -1,0 +1,22 @@
+# gate=post_swap_solvency function=run_manifest line=2211
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 2211 --failfast
+# exit=0 seconds=50.2
+PROBE line=2211 mutation=replace a.need statement with pass failfast=True
+...............................................................................................................................................F
+======================================================================
+FAIL: test_rehearsal_stops_on_solvency_without_pass_record (test_manifest_exec.ManifestTests.test_rehearsal_stops_on_solvency_without_pass_record)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1457, in test_rehearsal_stops_on_solvency_without_pass_record
+    sent, _, _, _ = self.rehearse_fake(solvent=False)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1422, in rehearse_fake
+    with self.assertRaises(a.Gate) as caught:
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 144 tests in 49.819s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_rehearsal_stops_on_solvency_without_pass_record
+PROBE_RESULT killed ran 144 failures 1 errors 0 expectedFailures 0

@@ -1,0 +1,39 @@
+# gate=stage_not_final function=load_artifact line=2279
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 2279 --failfast
+# exit=0 seconds=56.2
+PROBE line=2279 mutation=replace a.need statement with pass failfast=True
+............................................................................................................................................................F
+======================================================================
+FAIL: test_stage_artifact_loader_rejects_final (test_manifest_exec.ManifestTests.test_stage_artifact_loader_rejects_final) (stage='a7')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 775, in test_stage_artifact_loader_rejects_final
+    self.replay_stage_to_fork(stage, tamper='final')
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 748, in replay_stage_to_fork
+    self.assertEqual(failure['gate'], expected)
+AssertionError: 'manifest_final' != 'stage_not_final'
+- manifest_final
++ stage_not_final
+
+
+----------------------------------------------------------------------
+Ran 157 tests in 55.856s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_stage_artifact_loader_rejects_final (stage='a7')
+PROBE_RESULT killed ran 157 failures 1 errors 0 expectedFailures 0
+STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: manifest_final

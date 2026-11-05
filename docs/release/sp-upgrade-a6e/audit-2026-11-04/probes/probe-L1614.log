@@ -1,0 +1,19 @@
+# gate=handover_trace_call_success function=handover_trace line=1614
+# command: python3 -B script/upgrade/audit/probe_gate_removal.py --site 1614 --failfast
+# exit=0 seconds=53.4
+PROBE line=1614 mutation=replace a.need statement with pass failfast=True
+........................................................................................................................................F
+======================================================================
+FAIL: test_registry_accept_trace_requires_timelock_caller (test_manifest_exec.ManifestTests.test_registry_accept_trace_requires_timelock_caller) (field='error')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/SuperPaymaster/script/upgrade/test_manifest_exec.py", line 1062, in test_registry_accept_trace_requires_timelock_caller
+    with self.subTest(field=field), self.assertRaises(a.Gate):
+AssertionError: Gate not raised
+
+----------------------------------------------------------------------
+Ran 137 tests in 52.993s
+
+FAILED (failures=1)
+FIRST_FAILING_TEST test_manifest_exec.ManifestTests.test_registry_accept_trace_requires_timelock_caller (field='error')
+PROBE_RESULT killed ran 137 failures 1 errors 0 expectedFailures 0
