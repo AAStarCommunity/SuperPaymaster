@@ -569,7 +569,7 @@ hiding a proposal. The exemption accepts an unexecuted proposal only if its id i
 its (operator, level, executed, exists, evidenceHash) equals the recorded tuple, and its
 sibling (3 or 7) is executed with equal operator, level and evidenceHash; the unexecuted
 set must be exactly the seven ids.
-Gate-removal probes: `script/evidence/stale-proposal-probes.sh` (each removal must turn its
+Gate-removal probes: `script/evidence/stale_proposal_probes.py` (mutates an in-memory copy only; each removal must turn its
 control red by an assertion failure, not by an exception).
 
 Known residual (also for the paper's disclosure):
