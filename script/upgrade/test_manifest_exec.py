@@ -3652,5 +3652,396 @@ class OldExitExemptionTests(unittest.TestCase):
         with patch.object(a, 'call', side_effect=cleared):
             self.assertEqual(m.old_activity(rpc, OLD, p['stateBlock'])['exemptions'], [])
 
+
+# F-05 and Q3: one broken precondition per named gate.
+class F05Fixture(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.fixture = ManifestTests('test_determinism')
+        cls.addClassCleanup(cls.fixture.doCleanups)
+        cls.fixture.setUp()
+
+    def setUp(self):
+        self.pin, self.plan = copy.deepcopy((self.fixture.pin, self.fixture.plan))
+        self.inputs = copy.deepcopy(self.fixture.inputs)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = self.fixture.path
+    step = ManifestTests.step
+
+    def stop(self, gate, action):
+        # gate=None is the positive control: the unbroken fixture must pass every gate.
+        if gate is None:
+            return action()
+        with self.assertRaises(a.Gate) as caught:
+            action()
+        self.assertEqual(caught.exception.record['gate'], gate)
+
+
+class F05PreSendGates(F05Fixture):
+    def test_positive_control(self): self.check(None)
+
+    def check(self, gate):
+        step = copy.deepcopy(self.step('B2a_exec'))
+        freeze_gas(self.plan, step)
+        nonce = a.qty(step['tx']['nonce'])
+        self.pin['oldActivity']['dvtProposals'] = []
+        self.plan['pin']['oldActivity']['dvtProposals'] = []
+        def rpc(method, params):
+            if method == 'eth_chainId': return hex(a.CHAIN)
+            if method == 'eth_estimateGas':
+                return hex(a.qty(step['tx']['gas']) + int(gate == 'fresh_estimate'))
+            raise AssertionError((method, params))
+        rpc.local = True
+        def word(rpc, target, sig, *args, **kw):
+            if sig == 'nonce()': return step['safeNonce'] + int(gate == 'safe_nonce')
+            if sig == 'pendingAPNTsTokenEta()':
+                return self.pin['pendingAPNTsTokenEta'] + int(gate == 'pending_token_eta')
+            raise AssertionError(sig)
+        def address(rpc, target, sig, *args):
+            if sig == 'pendingAPNTsToken()':
+                return a.ZERO if gate == 'pending_token' else self.pin['capped']
+            return a.ZERO if target == u.SP and gate == 'SP_owner' else u.DEPLOYER
+        with contextlib.ExitStack() as stack:
+            for item in [
+                patch.object(m, 'handover_gate'), patch.object(m, 'unchanged_old_activity'),
+                patch.object(a, 'nonce', side_effect=lambda r,w,block='latest':
+                    nonce + int(gate == ('pending_nonce' if block == 'pending' else 'sender_nonce'))),
+                patch.object(a, 'word', side_effect=word), patch.object(a, 'address', side_effect=address),
+                patch.object(a, 'call', return_value=a.ZERO32 if gate == 'onchain_safe_hash' else step['safeHash']),
+                patch.object(a, 'block_data', return_value=dict(number='0x200',
+                    gasLimit=hex(a.qty(step['tx']['gas']) - int(gate == 'block_gas_limit')))),
+                patch.object(u, 'safe_state', return_value={} if gate == 'safe_state' else self.pin['safe']),
+                patch.object(u, 'governance'), patch.object(u, 'assert_frozen'),
+                patch.object(u, 'code', side_effect=lambda r,t,b:self.pin['bindings'][t]),
+                patch.object(m, 'dvt_activity', return_value=['changed'] if gate == 'dvt_activity_unchanged'
+                    else self.pin['oldActivity']['dvtProposals'])]:
+                stack.enter_context(item)
+            self.stop(gate, lambda:m.pre_send(rpc, self.plan, step, dict(frozen=True), measured=True))
+
+    def test_sender_nonce(self): self.check('sender_nonce')
+
+    def test_pending_nonce(self): self.check('pending_nonce')
+
+    def test_safe_nonce(self): self.check('safe_nonce')
+
+    def test_safe_state(self): self.check('safe_state')
+
+    def test_dvt_activity_unchanged(self): self.check('dvt_activity_unchanged')
+
+    def test_SP_owner(self): self.check('SP_owner')
+
+    def test_pending_token(self): self.check('pending_token')
+
+    def test_pending_token_eta(self): self.check('pending_token_eta')
+
+    def test_onchain_safe_hash(self): self.check('onchain_safe_hash')
+
+    def test_fresh_estimate(self): self.check('fresh_estimate')
+
+    def test_block_gas_limit(self): self.check('block_gas_limit')
+
+
+class F05RunManifestGates(F05Fixture):
+    def test_positive_control(self): self.check(None)
+
+    def check(self, gate):
+        run = m.run_manifest
+        def injected(remote, rpc, plan, out, calibrate=True):
+            nonce, word, receipt, execute = a.nonce, a.word, u.receipt, m.execute_b4
+            def read_nonce(*args, **kw):
+                return nonce(*args, **kw) + int(gate == 'post_nonce')
+            def read_word(r, target, sig, *args, **kw):
+                value = word(r, target, sig, *args, **kw)
+                return value + int((sig == 'nonce()' and gate == 'post_safe_nonce') or
+                                   (sig == 'balanceOf(address)' and gate == 'post_swap_capped_balance'))
+            def mined(*args, **kw):
+                result = receipt(*args, **kw)
+                if gate == 'manifest_receipt_gas': result['gasUsed'] = hex(a.qty(result['gasUsed'])+1)
+                return result
+            def b4(*args, **kw):
+                result = execute(*args, **kw)
+                if gate == 'steps_complete': result['step'] = 'wrong'
+                return result
+            accounting = dict(totalTrackedBalance=m.BUFFER + int(gate == 'post_swap_tracked'),
+                protocolRevenue=m.BUFFER + int(gate == 'post_swap_revenue'),
+                operatorBalances={x:0 for x in self.pin['pauseList']})
+            with patch.object(a, 'nonce', side_effect=read_nonce), patch.object(a, 'word', side_effect=read_word), \
+                 patch.object(u, 'receipt', side_effect=mined), patch.object(m, 'execute_b4', side_effect=b4), \
+                 patch.object(m, 'balances', return_value=accounting), \
+                 patch.object(m, 'handover_controls', return_value=dict(control=
+                     'missing' if gate == 'controls_complete' else 'owner_handover')), \
+                 patch.object(m, 'solvency_probe', return_value=dict(allSolvent=gate != 'post_swap_solvency')):
+                return run(remote, rpc, plan, out, calibrate)
+        with patch.object(m, 'run_manifest', side_effect=injected):
+            self.stop(gate, lambda:ManifestTests.rehearse_fake(self))
+
+    def test_post_nonce(self): self.check('post_nonce')
+
+    def test_post_safe_nonce(self): self.check('post_safe_nonce')
+
+    def test_manifest_receipt_gas(self): self.check('manifest_receipt_gas')
+
+    def test_steps_complete(self): self.check('steps_complete')
+
+    def test_controls_complete(self): self.check('controls_complete')
+
+    def test_post_swap_tracked(self): self.check('post_swap_tracked')
+
+    def test_post_swap_revenue(self): self.check('post_swap_revenue')
+
+    def test_post_swap_capped_balance(self): self.check('post_swap_capped_balance')
+
+    def test_post_swap_solvency(self): self.check('post_swap_solvency')
+
+
+class F05ExecuteB4Gates(F05Fixture):
+    def test_positive_control(self): self.check(None)
+
+    def check(self, gate):
+        step = self.step('B4')
+        freeze_gas(self.plan, step)
+        tx = step['tx']
+        def rpc(method, params):
+            if method == 'eth_getTransactionByHash': return {}
+            if method == 'evm_setNextBlockTimestamp': return True
+            raise AssertionError((method, params))
+        with patch.object(a, 'block_data', return_value=dict(timestamp='0x100', gasLimit='0xbebc200')), \
+             patch.object(u, 'measure_step'), patch.object(m, 'pre_send'), \
+             patch.object(u, 'fresh_gas', return_value={}), patch.object(a, 'mined_identity'), \
+             patch.object(m, 'b4_needed', return_value=True), patch.object(m, 'b4_post_state', return_value=[]), \
+             patch.object(u, 'receipt', return_value=dict(transactionHash=base.HASH, gasUsed='0x1', status='0x1')), \
+             patch.object(a, 'nonce', return_value=a.qty(tx['nonce']) + int(gate != 'B4_nonce_consumed')), \
+             patch.object(a, 'word', return_value=step['safeNonce'] + int(gate == 'B4_safe_nonce')):
+            self.stop(gate, lambda:m.execute_b4(None, rpc, self.plan, step, {}, {}, True))
+
+    def test_B4_nonce_consumed(self): self.check('B4_nonce_consumed')
+
+    def test_B4_safe_nonce(self): self.check('B4_safe_nonce')
+
+
+class F05BuildPlanGates(F05Fixture):
+    def test_stake_not_unlocking(self):
+        self.pin['withdrawTime'] = 1
+        self.stop('stake_not_unlocking', lambda:m.build_plan(self.pin, self.inputs))
+
+
+class F05CollectGates(F05Fixture):
+    def test_positive_control(self): self.check(None)
+
+    def check(self, gate):
+        def rpc(method, params):
+            if method in ('eth_getBalance', 'eth_getStorageAt'): return '0x1'
+            raise AssertionError((method, params))
+        def call(rpc, target, sig, *args, **kw):
+            if sig == 'version()': return a.cast('abi-encode', 'c(string)', 'Registry-5.8.0')
+            if sig == 'getDepositInfo(address)':
+                return '0x'+''.join(format(x, '064x') for x in (10**18, 1, 10**18, 86400,
+                    int(gate == 'stake_not_unlocking')))
+            raise AssertionError(sig)
+        def address(rpc, target, sig, *args):
+            if sig == 'blsAggregator()': return OLD
+            if sig in ('owner()', 'slashPolicyAdmin()'):
+                return a.ZERO if sig == 'owner()' and gate == 'old_aggregator_owner' else u.DEPLOYER
+            raise AssertionError(sig)
+        with contextlib.ExitStack() as stack:
+            for item in [patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)),
+                patch.object(a, 'nonce', return_value=self.pin['senders']['anni']['nonce']),
+                patch.object(u, 'code', side_effect=lambda r,t,b:'0x6000' if t != ANNI or gate == 'anni_eoa' else '0x'),
+                patch.object(a, 'call', side_effect=call), patch.object(a, 'address', side_effect=address),
+                patch.object(a, 'word', side_effect=lambda r,t,s,*args,**kw:13 if s == 'MAX_VALIDATORS()' else 0),
+                patch.object(m, 'reconcile_nonces'), patch.object(m, 'record_old_activity', return_value=({}, [])),
+                patch.object(m, 'dvt_activity', return_value=[]), patch.object(m, 'old_pointers', return_value={}),
+                patch.object(m, 'balances', return_value={}),
+                patch.object(m.isolation, 'collect_deployed', return_value=self.pin['oldOwnerIsolation'])]:
+                stack.enter_context(item)
+            self.stop(gate, lambda:m.collect(rpc, self.pin['block'], self.inputs))
+
+    def test_old_aggregator_owner(self): self.check('old_aggregator_owner')
+
+    def test_anni_eoa(self): self.check('anni_eoa')
+
+    def test_stake_not_unlocking(self): self.check('stake_not_unlocking')
+
+
+class F05MainGates(F05Fixture):
+    def test_independent_pin(self):
+        changed = copy.deepcopy(self.pin)
+        changed['blockHash'] = a.ZERO32
+        with patch.object(m, 'collect', side_effect=[copy.deepcopy(self.pin), changed]):
+            self.stop('independent_pin', lambda:m.collect_pair(None, None, self.pin['block'], self.inputs))
+
+    def test_positive_control(self): self.check(None)
+
+    def check(self, gate):
+        out = Path(self.tmp.name)/'main'
+        rpc_file = Path(self.tmp.name)/'fake-rpc.txt'
+        rpc_file.write_text('offline-fixture')
+        changed = copy.deepcopy(self.pin)
+        changed['blockHash'] = a.ZERO32
+        @contextlib.contextmanager
+        def fork(*args):
+            (out/'engine.stderr').write_text('')
+            yield SimpleNamespace(local=True)
+        def failure(out, record):
+            raise a.Gate(record['gate'], record.get('observed'), record.get('expected'))
+        pins = dict(simulation_pin=[changed, changed], pin_recheck=[self.pin, changed]).get(gate, [self.pin, self.pin])
+        with patch.object(a, 'RPC', return_value=SimpleNamespace()), \
+             patch.object(m, 'collect_pair', side_effect=pins), patch.object(m, 'build_plan', return_value=self.plan), \
+             patch.object(a, 'fork', side_effect=fork), patch.object(m, 'run_manifest'), \
+             patch.object(a, 'relay_evidence'), patch.object(m, 'save_artifact'), \
+             patch.object(a, 'failure_record', side_effect=failure):
+            self.stop(gate, lambda:m.main(['simulate', '--inputs', str(self.path), '--out', str(out),
+                '--rpc-file', str(rpc_file), '--rpc-file-secondary', str(rpc_file), '--block', self.pin['block']]))
+
+    def test_simulation_pin(self): self.check('simulation_pin')
+
+    def test_pin_recheck(self): self.check('pin_recheck')
+
+
+
+class F05Q3ForkControls(F05Fixture):
+    def mint(self, gate):
+        step = self.step('B2a_exec')
+        child = dict(to=step['safeTarget'], **{'from':u.SAFE}, input=step['inner'])
+        trace = dict(to=u.SAFE, **{'from':step['tx']['from']}, input=step['tx']['data'], calls=[child])
+        if gate == 'mint_trace_top': trace['from'] = a.ZERO
+        if gate == 'mint_trace_success': trace['error'] = 'reverted'
+        if gate == 'mint_trace_count': trace['calls'].append(copy.deepcopy(child))
+        if gate == 'mint_trace_call': child['input'] = '0x'
+        def rpc(method, params):
+            self.assertEqual(method, 'debug_traceTransaction')
+            return trace
+        self.stop(gate, lambda:m.mint_trace(rpc, step, dict(transactionHash=base.HASH)))
+
+    def unbacked(self, gate):
+        chain = FakeChain(self.plan)
+        chain.backing = int(gate == 'unbacked_initial')
+        chain.balances['totalTrackedBalance'] += int(gate == 'unbacked_shortfall')
+        original = copy.deepcopy(chain.balances)
+        def rpc(method, params):
+            if method == 'evm_snapshot': return 'snapshot'
+            if method == 'evm_revert':
+                chain.balances = copy.deepcopy(original)
+                return gate != 'unbacked_restore'
+            if method == 'eth_call' and params[0]['data'] == a.calldata('gasParams()'):
+                return '0x'+''.join(format(x, '064x') for x in (*u.GAS, *u.GAS, self.pin['timestamp']))
+            if method == 'eth_call' and params[0]['data'] == a.calldata('getTimestamp(bytes32)', self.plan['operations']['activation']['id']):
+                return '0x'+format(self.pin['pendingAPNTsTokenEta'], '064x')
+            return chain(method, params)
+        def receipt(rpc, tx, **kw):
+            chain.backing = 0
+            return dict(status='0x1')
+        def fixture(rpc, sender, target, data):
+            return {'from':sender, 'to':target, 'data':data}
+        with contextlib.ExitStack() as stack:
+            for item in [patch.object(u, 'wait_until'), patch.object(u, 'fixture_tx', side_effect=fixture),
+                         patch.object(u, 'receipt', side_effect=receipt)]:
+                stack.enter_context(item)
+            if gate == 'unbacked_refusal_gate':
+                stack.enter_context(patch.object(m, 'b2_gate', side_effect=a.Gate('B2_wrong', False, True)))
+            if gate == 'unbacked_plan_refusal_gate':
+                stack.enter_context(patch.object(m, 'validate_plan', side_effect=a.Gate('manifest_wrong', False, True)))
+            self.stop(gate, lambda:m.unbacked_swap_control(rpc, self.plan))
+
+    def b4(self, gate):
+        step = self.step('B4')
+        verifier = self.plan['addresses']['OverIssueFraudProofVerifier']
+        state = dict(verifier=a.ZERO, pending=verifier, nonce=a.qty(step['tx']['nonce']), sent=0)
+        snapshots = []
+        def rpc(method, params):
+            if method == 'evm_snapshot':
+                snapshots.append(copy.deepcopy(state))
+                return len(snapshots)-1
+            if method == 'evm_revert':
+                state.clear(); state.update(snapshots[params[0]])
+                return gate != 'B4_control_restore'
+            if method == 'eth_call':
+                calls = {'fraudProofVerifier()':int(state['verifier'], 16),
+                    'pendingFraudProofVerifier()':int(state['pending'], 16),
+                    'pendingFraudProofVerifierReadyAt()':0}
+                for sig, value in calls.items():
+                    if params[0]['data'] == a.calldata(sig): return '0x'+format(value, '064x')
+            raise AssertionError((method, params))
+        def fixture(rpc, sender, target, data):
+            return {'from':sender, 'to':target, 'data':data, 'nonce':hex(state['nonce'])}
+        def receipt(rpc, tx, status='0x1'):
+            data = tx['data']
+            if data == a.calldata('proposeFraudProofVerifier(address)', self.pin['oldAggregator']):
+                state['pending'] = self.pin['oldAggregator']
+                state['nonce'] += 1
+                return dict(status='0x1')
+            if tx['from'] == a.EXECUTOR:
+                state['verifier'], state['pending'] = state['pending'], a.ZERO
+                return dict(status='0x1')
+            state['sent'] += 1
+            if not ((gate == 'B4_next_nonce' and state['sent'] == 1) or
+                    (gate == 'B4_later_nonce' and state['sent'] == 2)):
+                state['nonce'] += 1
+            actual = '0x1' if data == '0x' else '0x0'
+            if gate == 'B4_control_status' and len(snapshots) == 2: actual = '0x1'
+            if gate == 'B4_wrong_status' and len(snapshots) == 3: actual = '0x1'
+            return dict(status=actual)
+        select, post = m.select_b4, m.b4_post_state
+        selections = []
+        def selected(*args):
+            name, tx = select(*args)
+            selections.append(name)
+            if gate == 'B4_control_initial' and len(selections) == 1: name = 'placeholder'
+            if gate == 'B4_control_placeholder' and len(selections) == 2: name = 'apply'
+            return name, tx
+        def post_state(*args):
+            if len(snapshots) == 3:
+                if gate == 'B4_wrong_gate': raise a.Gate('readback_wrong', False, True)
+                if gate == 'B4_wrong_must_stop': return []
+            return post(*args)
+        with patch.object(a, 'nonce', side_effect=lambda *args:state['nonce']), \
+             patch.object(u, 'fixture_tx', side_effect=fixture), patch.object(u, 'receipt', side_effect=receipt), \
+             patch.object(u, 'wait_until'), patch.object(m, 'select_b4', side_effect=selected), \
+             patch.object(m, 'b4_post_state', side_effect=post_state):
+            self.stop(gate, lambda:m.b4_controls(rpc, self.plan, step))
+
+    def test_positive_controls(self):
+        for helper in (self.mint, self.unbacked, self.b4):
+            with self.subTest(helper=helper.__name__):
+                helper(None)
+
+    def test_mint_trace_top(self): self.mint('mint_trace_top')
+
+    def test_mint_trace_success(self): self.mint('mint_trace_success')
+
+    def test_mint_trace_count(self): self.mint('mint_trace_count')
+
+    def test_mint_trace_call(self): self.mint('mint_trace_call')
+
+    def test_unbacked_initial(self): self.unbacked('unbacked_initial')
+
+    def test_unbacked_shortfall(self): self.unbacked('unbacked_shortfall')
+
+    def test_unbacked_refusal_gate(self): self.unbacked('unbacked_refusal_gate')
+
+    def test_unbacked_plan_refusal_gate(self): self.unbacked('unbacked_plan_refusal_gate')
+
+    def test_unbacked_restore(self): self.unbacked('unbacked_restore')
+
+    def test_B4_control_initial(self): self.b4('B4_control_initial')
+
+    def test_B4_control_placeholder(self): self.b4('B4_control_placeholder')
+
+    def test_B4_wrong_gate(self): self.b4('B4_wrong_gate')
+
+    def test_B4_wrong_status(self): self.b4('B4_wrong_status')
+
+    def test_B4_wrong_must_stop(self): self.b4('B4_wrong_must_stop')
+
+    def test_B4_control_status(self): self.b4('B4_control_status')
+
+    def test_B4_next_nonce(self): self.b4('B4_next_nonce')
+
+    def test_B4_later_nonce(self): self.b4('B4_later_nonce')
+
+    def test_B4_control_restore(self): self.b4('B4_control_restore')
+
+
 if __name__ == '__main__':
     unittest.main()
