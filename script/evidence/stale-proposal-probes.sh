@@ -4,6 +4,9 @@
 # copy of manifest_exec.py, runs the named controls, and requires them to turn red by an
 # assertion failure (FAILED with failures=N and no errors=): an exception elsewhere is not
 # evidence that the forbidden state was accepted.
+# Limitation: controls assert the gate *name*, so a removal can turn red because a later gate
+# rejects the same state under another name. A red probe proves the control is bound to that
+# gate; it does not by itself prove the state would otherwise be accepted end to end.
 # Usage: script/evidence/stale-proposal-probes.sh   (from repo root; set A3A_ENGINE_DIR as in CI)
 set -u
 cd "$(git rev-parse --show-toplevel)"
