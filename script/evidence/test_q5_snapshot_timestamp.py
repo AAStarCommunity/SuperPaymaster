@@ -65,6 +65,7 @@ class Chain:
             return '0x0'
         if method == 'evm_snapshot':
             sid = hex(len(self.snaps) + 1)
+            self.had_inner.pop(sid, None)  # snapshot ids are reused after a revert
             if not self.stack:
                 self.snaps_base = self.offset
             else:
