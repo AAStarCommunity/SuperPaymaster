@@ -559,6 +559,13 @@ class OldOwnerIsolationTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'],'old_owner_log_limit')
         removed_probe(self,action,'old_owner_log_limit')
 
+    def test_legacy_timelock_source_targets(self):
+        rpc, sources, build = self.source_fixture()
+        sources[o.OLD_TIMELOCK] = sources.pop(u.TL)
+        with patch.object(o, 'deployed_build', side_effect=build), self.assertRaises(a.Gate) as caught:
+            o.deployed_inventory(rpc, self.pin, sources)
+        self.assertEqual(caught.exception.record['gate'], 'old_owner_source_targets')
+
     def test_all_inventory_targets_read_both_slots_at_pin(self):
         baseline,sources,build = self.source_fixture()
         reads = []

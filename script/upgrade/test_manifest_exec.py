@@ -219,6 +219,31 @@ def input_data(p):
                       artifact=dict(bytecode=VERIFIER_CODE, runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
 
 
+def old_timelock_rpc(pin, block, bad=None):
+    o = m.isolation
+    raw = isolation_tests.raw
+    replies = {}
+    for target, sig, args, kind in o.authority_rows(pin['oldOwnerIsolation']):
+        if kind == 'config':
+            values = [32]+[0]*13
+            values[10], values[11] = 384, int(u.DEPLOYER, 16)
+        else:
+            values = [int(u.DEPLOYER, 16) if kind == 'address' else 0]
+        replies[(target, a.calldata(sig, *args))] = raw(values)
+    for role in [a.ZERO32, *(a.keccak(r+'_ROLE') for r in ('PROPOSER', 'EXECUTOR', 'CANCELLER'))]:
+        replies[(u.TL, a.calldata('hasRole(bytes32,address)', role, o.OLD_TIMELOCK))] = raw([0])
+    replies[(u.SAFE, a.calldata('getOwners()'))] = raw([32, 2, int(a.APPROVER, 16), int(a.EXECUTOR, 16)])
+    replies[(u.SAFE, a.calldata('isModuleEnabled(address)', o.OLD_TIMELOCK))] = raw([0])
+    if bad:
+        target, sig, args, value = bad
+        replies[(target, a.calldata(sig, *args))] = value
+    def rpc(method, params):
+        if method != 'eth_call' or params[1] != block:
+            raise AssertionError((method, params))
+        return replies[(params[0]['to'], params[0]['data'])]
+    return rpc
+
+
 class FakeChain:
     """Read-only state for B2/B4; unknown RPC requests always fail the test."""
     def __init__(self, plan):
@@ -1730,6 +1755,62 @@ class ManifestTests(unittest.TestCase):
                 patch.object(a, 'block_data', return_value=dict(number='0x200')),
                 patch.object(m, 'dvt_activity', side_effect=activity_at)]
 
+    def check_old_timelock(self, gate, bad=None, pin=None):
+        pin = pin or self.pin
+        for closing in (False, True):
+            block = '0x200' if closing else pin['stateBlock']
+            rpc = old_timelock_rpc(pin, block, bad)
+            with self.subTest(closing=closing), contextlib.ExitStack() as stack:
+                if closing:
+                    plan = copy.deepcopy(self.plan)
+                    plan['pin'] = copy.deepcopy(pin)
+                    plan['pin']['oldActivity']['dvtProposals'] = [{'recorded': True}]
+                    pointer = plan['addresses']['BLSAggregator']
+                    for item in self.closing_rpc(pointer): stack.enter_context(item)
+                    action = lambda: m.dvt_closing(rpc, plan)
+                else:
+                    action = lambda: m.old_timelock_holds_nothing(rpc, pin, block)
+                with self.assertRaises(a.Gate) as caught: action()
+                self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_old_timelock_tl_roles(self):
+        for role in [a.ZERO32, *(a.keccak(r+'_ROLE') for r in ('PROPOSER', 'EXECUTOR', 'CANCELLER'))]:
+            self.check_old_timelock('old_timelock_tl_roles',
+                (u.TL, 'hasRole(bytes32,address)', [role, m.isolation.OLD_TIMELOCK], isolation_tests.raw([1])))
+
+    def test_old_timelock_authority(self):
+        for target, sig, args, kind in m.isolation.authority_rows(self.pin['oldOwnerIsolation']):
+            if target == u.TL: continue
+            if kind == 'config':
+                values = [32]+[0]*13
+                values[10], values[11] = 384, int(m.isolation.OLD_TIMELOCK, 16)
+            else:
+                values = [1 if kind == 'bool' else int(m.isolation.OLD_TIMELOCK, 16)]
+            with self.subTest(target=target, signature=sig):
+                self.check_old_timelock('old_timelock_authority', (target, sig, args, isolation_tests.raw(values)))
+
+    def test_old_timelock_safe(self):
+        for sig, args, values in [('getOwners()', [], [32, 1, int(m.isolation.OLD_TIMELOCK, 16)]),
+                                 ('isModuleEnabled(address)', [m.isolation.OLD_TIMELOCK], [1])]:
+            self.check_old_timelock('old_timelock_safe', (u.SAFE, sig, args, isolation_tests.raw(values)))
+
+    def test_old_timelock_holds_nothing(self):
+        pin = copy.deepcopy(self.pin)
+        section = pin['oldOwnerIsolation']
+        target = section['targets']['GToken']
+        section['inventory'].setdefault('targetInventories', {})[target] = dict(
+            authorities=[], mappings=[], roles=[], hasRole=False)
+        self.check_old_timelock('old_timelock_holds_nothing', pin=pin)
+
+    def test_old_timelock_reads_bound_to_block(self):
+        for block in (self.pin['stateBlock'], '0x200'):
+            result = m.old_timelock_holds_nothing(old_timelock_rpc(self.pin, block), self.pin, block)
+            self.assertEqual(result['block'], block)
+            self.assertTrue(result['reads'])
+            self.assertEqual({r['block'] for r in result['reads']}, {block})
+            self.assertEqual({r[0] for r in m.isolation.authority_rows(self.pin['oldOwnerIsolation'])},
+                set(self.pin['oldOwnerIsolation']['targets'].values()) | set(self.pin['oldOwnerIsolation']['xpnts']))
+
     def test_dvt_closing_binds_pointer_and_stale_proposals(self):
         new, old = self.plan['addresses']['BLSAggregator'], self.plan['pin']['oldAggregator']
         cases = [('full', new, {}, None), ('b4', new, {}, None), ('a7', old, {}, None),
@@ -1746,13 +1827,13 @@ class ManifestTests(unittest.TestCase):
                 plan = copy.deepcopy(dict(self.plan, stage=stage))
                 plan['pin'].setdefault('oldActivity', {})['dvtProposals'] = [{'recorded': True}]
                 if gate is None:
-                    closing = m.dvt_closing(None, plan)
+                    closing = m.dvt_closing(old_timelock_rpc(plan['pin'], '0x200'), plan)
                     self.assertEqual(closing['staleUnexecuted'], [1, 2, 4, 5, 6, 8, 9])
                     self.assertEqual((closing['block'], closing['pointers']),
                                      ('0x200', dict(registry=pointer, dvt=pointer, committee=pointer)))
                 else:
                     with self.assertRaises(a.Gate) as caught:
-                        m.dvt_closing(None, plan)
+                        m.dvt_closing(old_timelock_rpc(plan['pin'], '0x200'), plan)
                     self.assertEqual(caught.exception.record['gate'], gate)
 
     def test_old_pointers_require_old_aggregator(self):
@@ -2467,7 +2548,9 @@ class ManifestTests(unittest.TestCase):
 
     def test_collect_direct_fake_chain(self):
         history = self.history_rpc()
+        legacy = old_timelock_rpc(self.pin, self.pin['stateBlock'])
         def rpc(method, params):
+            if method == 'eth_call': return legacy(method, params)
             if method == 'eth_getBalance': return '0x100'
             if method == 'eth_getStorageAt': return '0x'+ANNI[2:].zfill(64)
             return history(method, params)
@@ -2495,6 +2578,7 @@ class ManifestTests(unittest.TestCase):
                 with self.assertRaises(a.Gate) as caught:
                     m.collect(rpc, '0x100', self.inputs)
             self.assertEqual(caught.exception.record['gate'], 'old_aggregator_slash_policy_admin')
+        self.assertEqual({r['block'] for r in collected['oldTimelock']['reads']}, {collected['stateBlock']})
         phase_c.assert_called_once()
         self.assertEqual(collected['phaseC'], self.pin['phaseC'])
         self.assertEqual(collected['a3aHistory'], self.pin['a3aHistory'])
@@ -3957,7 +4041,9 @@ class F05CollectGates(F05Fixture):
     def test_positive_control(self): self.check(None)
 
     def check(self, gate):
+        legacy = old_timelock_rpc(self.pin, self.pin['stateBlock'])
         def rpc(method, params):
+            if method == 'eth_call': return legacy(method, params)
             if method in ('eth_getBalance', 'eth_getStorageAt'): return '0x1'
             raise AssertionError((method, params))
         def call(rpc, target, sig, *args, **kw):

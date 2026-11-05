@@ -48,6 +48,7 @@ TESTS = 'test_manifest_exec'
 # purpose: release-evidence parsing, fraud-fixture parsing, Safe governance gaps and
 # A3a nonce history (section-2 release/history preconditions, audited separately).
 PHASE_FUNCTIONS = (
+    'old_timelock_holds_nothing',
     'validate_external', 'collect_pair', 'old_pointers', 'dvt_closing', 'old_activity', 'dvt_activity', 'balances', 'drain_gate', 'collect',
     'runtime_bytes', 'verify_prefix', 'stage_readback', 'build_plan',
     'handover_gate', 'handover_trace', 'handover_controls', 'activation_eta_gate',

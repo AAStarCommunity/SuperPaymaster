@@ -9,6 +9,7 @@ from functools import lru_cache
 import sp_upgrade_exec as u
 
 a = u.a
+OLD_TIMELOCK = '0x86c86c789edc099801cc6a5f48334f1d67dc9564'
 OLD = '0x92a30ef64b0b750220b2b3bafe4f3121263d45b3'
 NEW = '0xd6e95a852d68f99759bf47e77d84fcc8d6f93494'
 OLD_TOKEN = '0x696a73701b104c6ccbbaaddd2216788ea08eab89'
@@ -128,6 +129,25 @@ def extract(tree, names=NAMES):
     a.need('old_owner_extraction_authorities', all(result[n]['authorities'] for n in names if n in NAMES and n != 'TimelockController'), True)
     a.need('old_owner_extraction_mappings', all(result[n]['mappings'] for n in ('Registry','SuperPaymaster') if n in names), True)
     return result
+
+
+def authority_rows(section):
+    inventory = section['inventory']
+    targets = dict(section['targets'])
+    rows = []
+    for name, target in [*targets.items(), *(('xPNTsToken', t) for t in section['xpnts'])]:
+        spec = inventory.get('targetInventories', {}).get(target, inventory[name])
+        for row in spec['authorities']:
+            rows.append((target, row['signature'], [], 'address'))
+        for row in spec['mappings']:
+            rows.append((target, row['signature'], [OLD_TIMELOCK], 'bool'))
+        roles = {r['value'] for r in spec['roles']} | set(section['roleHistory'].get(target, []))
+        if name == 'Registry':
+            roles.update(section['configuredRoles'])
+            rows.extend((target, 'getRoleConfig(bytes32)', [r], 'config') for r in sorted(roles))
+        if spec['hasRole']:
+            rows.extend((target, 'hasRole(bytes32,address)', [r, OLD_TIMELOCK], 'bool') for r in sorted(roles))
+    return rows
 
 
 def audit(rpc, pin, inventory, fork=None):

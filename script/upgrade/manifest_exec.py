@@ -885,6 +885,37 @@ def old_pointers(rpc, d, old, block):
     return bindings
 
 
+def old_timelock_holds_nothing(rpc, pin, block):
+    section = pin['oldOwnerIsolation']
+    reads = []
+    def call(target, sig, *args):
+        raw = a.typed(rpc('eth_call', [dict(to=target, data=a.calldata(sig, *args)), block]), a.HEXDATA)
+        reads.append(dict(target=target, signature=sig, args=list(args), block=block, result=raw))
+        return raw
+    roles = [a.ZERO32, *(a.keccak(r+'_ROLE') for r in ('PROPOSER', 'EXECUTOR', 'CANCELLER'))]
+    values = [u.uints(call(u.TL, 'hasRole(bytes32,address)', r, isolation.OLD_TIMELOCK)) for r in roles]
+    a.need('old_timelock_tl_roles', values, [[0]]*4)
+    rows = isolation.authority_rows(section)
+    authority = []
+    for target, sig, args, kind in rows:
+        raw = call(target, sig, *args)
+        if kind == 'config':
+            clean = u.config(raw)['owner'] != isolation.OLD_TIMELOCK
+        elif kind == 'address':
+            words = u.uints(raw)
+            clean = len(words) == 1 and u.addr_word(words[0]) != isolation.OLD_TIMELOCK
+        else:
+            clean = u.uints(raw) == [0]
+        authority.append(clean)
+    a.need('old_timelock_authority', all(authority), True)
+    owners = u.addr_array(call(u.SAFE, 'getOwners()'))
+    module = u.uints(call(u.SAFE, 'isModuleEnabled(address)', isolation.OLD_TIMELOCK))
+    a.need('old_timelock_safe', isolation.OLD_TIMELOCK not in owners and module == [0], True)
+    wanted = set(section['targets'].values()) | set(section['xpnts'])
+    a.need('old_timelock_holds_nothing', bool(wanted) and {r[0] for r in rows} == wanted, True)
+    return dict(block=block, reads=reads)
+
+
 def dvt_closing(rpc, plan):
     # After the last step: per-step pre_send reads cannot see anything that lands after it.
     # Every read is bound to one block (DSR #606 L2); all three A8 pointers are re-read (L1).
@@ -900,7 +931,8 @@ def dvt_closing(rpc, plan):
     a.need('closing_dvt_activity', latest, plan['pin']['oldActivity']['dvtProposals'])
     for proposal in sorted(STALE_PROPOSALS):
         a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))[3]), (proposal, 0))
-    return dict(block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS))
+    return dict(block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS),
+                oldTimelock=old_timelock_holds_nothing(rpc, plan['pin'], block))
 
 
 def balances(rpc, operators, block='latest'):
@@ -1625,6 +1657,7 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     # Isolation records discovery calls, bounded role-event history and canonical blocks
     # so build_plan can replay every new inventory gate on both endpoint transcripts.
     pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), fork=isolation.local_control_fork(), pending=inputs['data'].get('pendingDsrRuling'))
+    pin['oldTimelock'] = old_timelock_holds_nothing(rpc, pin, block)
     if stage in PC_STAGES:
         pin['phaseC'] = collect_phase_c(rpc, block, inputs, pin)
     return pin

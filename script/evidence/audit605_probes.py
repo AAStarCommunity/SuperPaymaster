@@ -47,6 +47,8 @@ F05 = {
 }
 CLOSING = 'ManifestTests.test_dvt_closing_binds_pointer_and_stale_proposals'
 REQUIRED = {
+    **{('old_timelock_holds_nothing', g): 'ManifestTests.test_'+g for g in
+       ('old_timelock_holds_nothing', 'old_timelock_tl_roles', 'old_timelock_authority', 'old_timelock_safe')},
     ('validate_external', 'sampled_deployer_only'): 'ManifestTests.test_sampled_deployer_only',
     ('budget', "'budget_' + label"): 'ManifestTests.test_budget_includes_stake_and_deposit',
     ('build_plan', 'pin_pending_token_eta'): 'ManifestTests.test_pin_pending_token_eta',

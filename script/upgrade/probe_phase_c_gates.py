@@ -52,6 +52,9 @@ CASES += [
     (base_tests.ManifestTests, 'test_dvt_closing_binds_pointer_and_stale_proposals', 'closing_committee_pointer'),
     (base_tests.F05ExecuteB4Gates, 'test_B4_timestamp', 'B4_timestamp'),
 ]
+CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
+          ('old_timelock_holds_nothing', 'old_timelock_tl_roles', 'old_timelock_authority', 'old_timelock_safe')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_legacy_timelock_source_targets', 'old_owner_source_targets')]
 GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")
 # Gate literals whose control is a whole family (name+'_gate', name+'_restore').
 FAMILIES = {'_gate': 'X_gate', '_restore': 'X_restore'}
