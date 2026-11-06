@@ -31,6 +31,7 @@ ROLE_ENDUSER = '0x0c34ecc75d3bf122e0609d2576e167f53fb42429262ce8c9b33cab91ff670e
 # pauseList) holds ENDUSER on either endpoint, so only the mapping-getter proof can show its zero is meaningful.
 MAPPING_CONTROL_ROLES = {u.REG: [ROLE_ANODE, ROLE_KMS, ROLE_ENDUSER]}
 ROLE_COMMUNITY = a.keccak('COMMUNITY')
+TOKEN_EVENT = 'xPNTsTokenDeployed(address,address,string,string)'
 ROLE_EVENT = 'RoleConfigured(bytes32,'+u.CONFIG_TYPE+',uint256)'
 
 
@@ -535,10 +536,13 @@ def audit(rpc, pin, inventory, fork=None):
     a.need('old_owner_extraction_xpnts', bool(xpnts), True)
     for token in sorted(xpnts):
         a.need('old_owner_xpnts_nonzero', token != a.ZERO, True)
+        owner = addr(token,'communityOwner()')
+        a.need('old_owner_xpnts_owner_pin', owner not in (OLD, OLD_TIMELOCK), True)
         check_target('xPNTsToken',token)
-        community = addr(token,'communityOwner()')
+        community = owner
         a.need('old_owner_control_xPNTsToken_owner', community != a.ZERO, True)
         token_factory = addr(token,'FACTORY()')
+        community = token_deployment_community(recorded, pin, token_factory, token)
         a.need('old_owner_control_xPNTsToken', u.addr_word(word(token_factory,'communityToToken(address)',community)), token)
     tokens.update(xpnts)
     mapping_controls = []
@@ -1117,6 +1121,31 @@ def mapping_control(spec, target, role, word):
     return True
 
 
+def token_deployment_community(rpc, pin, factory, token):
+    block = pin['stateBlock']
+    topic = a.keccak(TOKEN_EVENT)
+    logs = bounded_history_logs(rpc, dict(address=factory, fromBlock='0x0', toBlock=block,
+                                        topics=[topic, None, '0x'+token[2:].zfill(64)]))
+    a.need('old_owner_xpnts_deployment_count', len(logs), 1)
+    # Unreachable unless a gate above is deleted; the zero fallback keeps a deletion probe an assertion
+    # failure (communityToToken(0) is never a token) instead of a TypeError, and never matches a real community.
+    log = logs[0] if logs else {}
+    topics = log.get('topics', [])
+    number = log.get('blockNumber', block)
+    canonical = rpc('eth_getBlockByNumber', [number, False])
+    pin_block = rpc('eth_getBlockByNumber', [block, False])
+    valid = (len(topics) == 3 and topics[0] == topic and
+             topics[2] == '0x'+token[2:].zfill(64) and
+             isinstance(topics[1], str) and len(topics[1]) == 66 and
+             topics[1][:26] == '0x'+'0'*24 and
+             log.get('address') == factory and not log.get('removed', False) and
+             0 <= a.qty(number) <= a.qty(block) and canonical['number'] == number and
+             log.get('blockHash') == canonical['hash'] and
+             pin_block['number'] == block and pin_block['hash'] == pin['stateBlockHash'])
+    a.need('old_owner_xpnts_deployment_log', valid, True)
+    return '0x'+topics[1][-40:] if len(topics) == 3 else a.ZERO
+
+
 def never_granted_recheck(rpc, pin, block):
     # One statement per gate: a missing pin field (None) and a changed membership both STOP under the gate's name.
     section = pin['oldOwnerIsolation']
@@ -1132,7 +1161,10 @@ def never_granted_recheck(rpc, pin, block):
     # Built from the same audit and replayed at build time, so it is never empty for a valid pin.
     old_rows, old_values, old_expected = reread('oldRoleReads', lambda row: OLD)
     a.need('old_owner_role_recheck',old_values,old_expected)
-    return dict(block=block,rows=rows,values=values,oldRows=old_rows,oldValues=old_values)
+    owner_values = [u.addr_word(u.uints(a.call(rpc, token, 'communityOwner()', block=block))[0])
+                    for token in section['xpnts']]
+    a.need('old_owner_xpnts_owner_recheck', all(v not in (OLD, OLD_TIMELOCK) for v in owner_values), True)
+    return dict(communityOwners=owner_values,block=block,rows=rows,values=values,oldRows=old_rows,oldValues=old_values)
 
 
 def absent(raw, gate):

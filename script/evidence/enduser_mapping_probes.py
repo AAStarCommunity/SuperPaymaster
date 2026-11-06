@@ -72,14 +72,14 @@ PROBES = [
 # COMMIT 1: remove complete AST gate statements, never partial multiline expressions.
 _c1_source = (ROOT/ISOLATION).read_text()
 _c1_tree = ast.parse(_c1_source)
-for _suffix in ('role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control'):
+for _suffix in ('role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control', 'xpnts_deployment_count', 'xpnts_deployment_log', 'xpnts_owner_pin'):
     _gate = 'old_owner_'+_suffix
     _nodes = [n for n in ast.walk(_c1_tree) if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
               and isinstance(n.value.func, ast.Attribute) and n.value.func.attr == 'need'
               and n.value.args and isinstance(n.value.args[0], ast.Constant) and n.value.args[0].value == _gate]
     assert len(_nodes) == 1, (_gate, len(_nodes))
     PROBES.append((_gate, ast.get_source_segment(_c1_source, _nodes[0]), 'pass',
-                   'OldOwnerIsolationTests.test_'+_suffix, 'AssertionError: Gate not raised'))
+                   'OldOwnerIsolationTests.test_'+_suffix, 'AssertionError:' if _suffix.startswith('xpnts_') else 'AssertionError: Gate not raised'))
 PROBES.append(('role_write_extraction_call', '                initialized_roles = registry_role_writes(entries)\n', "                initialized_roles = {n['name'] for _, n in entries if n.get('constant') and n.get('typeDescriptions', {}).get('typeString') == 'bytes32' and (n.get('name', '').startswith('ROLE_') or n.get('name', '').endswith('ROLE'))}\n",
                'OldOwnerIsolationTests.test_role_write_extraction_call', 'AssertionError: Gate not raised'))
 
@@ -89,6 +89,9 @@ PROBES.append(('registry_event_only_restored',
                'OldOwnerIsolationTests.test_role_configured_independent_coverage_and_gate_removals',
                'AssertionError: old_owner_role_extraction_empty'))
 
+
+PROBES.append(('xpnts_deployment_call', '        community = token_deployment_community(recorded, pin, token_factory, token)\n', '',
+               'OldOwnerIsolationTests.test_xpnts_deployment_call', 'AssertionError:'))
 
 DELTA_GATES = ('address', 'removed', 'topics', 'range', 'canonical', 'number', 'allowance',
                'config_owner', 'timelock_role', 'old_role', 'targets', 'xpnts')
@@ -110,6 +113,14 @@ def manifest_probes():
     probes.append(('configured_roles_closing_standard',
                    "{r['value'] for r in spec['roles']} | {log['topics'][1] for log in logs}",
                    "{log['topics'][1] for log in logs}", 'ManifestTests.test_configured_roles_closing_without_events'))
+    isolation_source = (ROOT/ISOLATION).read_text()
+    for stage in ('pre_send', 'closing'):
+        site = "    isolation.never_granted_recheck(rpc,plan['pin'],block)\n" if stage == 'pre_send' else "    never_granted = isolation.never_granted_recheck(rpc,plan['pin'],block)\n"
+        replacement = '' if stage == 'pre_send' else '    never_granted = {}\n'
+        probes.append(('xpnts_owner_'+stage+'_call',site,replacement,'ManifestTests.test_xpnts_owner_'+stage))
+    # The shared owner gate is in isolation, exercised through both callers.
+    owner_gate = next(line for line in isolation_source.splitlines(True) if "a.need('old_owner_xpnts_owner_recheck'" in line)
+    probes.append(('xpnts_owner_recheck',owner_gate,'', 'ManifestTests.test_xpnts_owner_pre_send'))
     ok = True
     with tempfile.TemporaryDirectory() as directory:
         tree = pathlib.Path(directory)
@@ -119,9 +130,12 @@ def manifest_probes():
                 (tree/extra).symlink_to(ROOT/extra)
         for name, old, new, test in probes:
             (tree/path).write_text(source)
-            count = source.count(old)
+            (tree/ISOLATION).write_text(isolation_source)
+            target_path = ISOLATION if name == 'xpnts_owner_recheck' else path
+            target_source = isolation_source if name == 'xpnts_owner_recheck' else source
+            count = target_source.count(old)
             base_rc, base_tail, _ = run(tree, test, 'script/upgrade/test_manifest_exec.py')
-            (tree/path).write_text(source.replace(old, new))
+            (tree/target_path).write_text(target_source.replace(old, new))
             mut_rc, mut_tail, mut_err = run(tree, test, 'script/upgrade/test_manifest_exec.py')
             red = count == 1 and base_rc == 0 and mut_rc != 0 and 'failures=1' in mut_tail and 'errors=' not in mut_tail and 'AssertionError' in mut_err
             ok &= red
@@ -153,7 +167,7 @@ def main():
             mut_rc, mut_tail, mut_err = run(tree, test)
         named = cause in mut_err
         red = count == 1 and base_rc == 0 and mut_rc != 0 and 'FAILED' in mut_tail and named
-        if name.startswith('old_owner_role_') or name in ('role_write_extraction_call', 'registry_event_only_restored'):
+        if name.startswith(('old_owner_role_', 'old_owner_xpnts_')) or name in ('role_write_extraction_call', 'registry_event_only_restored', 'xpnts_deployment_call'):
             red &= 'failures=' in mut_tail and 'errors=' not in mut_tail
         ok &= red
         print(f'{name}: matches={count} baseline=rc{base_rc} [{base_tail}] removed=rc{mut_rc} [{mut_tail}] cause={named} '

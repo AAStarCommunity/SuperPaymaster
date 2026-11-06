@@ -1909,6 +1909,33 @@ class ManifestTests(unittest.TestCase):
     def test_never_granted_pre_send_change(self):
         self.never_recheck_change(False)
 
+
+    def xpnts_owner_change(self, closing):
+        for owner in (m.isolation.OLD,m.isolation.OLD_TIMELOCK):
+            plan = copy.deepcopy(self.plan)
+            plan['pin']['oldActivity']['dvtProposals'] = [{'recorded':True}]
+            token = plan['pin']['oldOwnerIsolation']['xpnts'][-1]
+            rpc = old_timelock_rpc(plan['pin'],'0x200',
+                (token,'communityOwner()',[],isolation_tests.raw([int(owner,16)])))
+            original = rpc
+            def rpc(method,params):
+                if method == 'eth_chainId': return '0x0'
+                return original(method,params)
+            rpc.local = True
+            with contextlib.ExitStack() as stack:
+                for item in self.closing_rpc(plan['pin']['oldAggregator']): stack.enter_context(item)
+                stack.enter_context(patch.object(m,'handover_gate'))
+                with self.assertRaises(a.Gate) as caught:
+                    if closing: m.dvt_closing(rpc,plan)
+                    else: m.pre_send(rpc,plan,dict(tx={}),{})
+                self.assertEqual(caught.exception.record['gate'],'old_owner_xpnts_owner_recheck')
+
+    def test_xpnts_owner_closing(self):
+        self.xpnts_owner_change(True)
+
+    def test_xpnts_owner_pre_send(self):
+        self.xpnts_owner_change(False)
+
     def test_old_role_closing_change(self):
         self.never_recheck_change(True, 'oldRoleReads', 'old_owner_role_recheck')
 
@@ -1952,7 +1979,8 @@ class ManifestTests(unittest.TestCase):
                 else:
                     action = lambda: m.old_timelock_holds_nothing(rpc, pin, block)
                 with self.assertRaises(a.Gate) as caught: action()
-                self.assertEqual(caught.exception.record['gate'], gate)
+                expected = 'old_owner_xpnts_owner_recheck' if closing and bad and bad[1] == 'communityOwner()' else gate
+                self.assertEqual(caught.exception.record['gate'], expected)
 
     def assert_timelock_build_gate(self, gate, mutate):
         changed = copy.deepcopy(self.pin)

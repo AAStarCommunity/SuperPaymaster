@@ -210,6 +210,11 @@ def fixture_rpc(pin, overrides=None, factory_token=TOKEN):
             query = params[0]
             if not a.qty(query['fromBlock']) <= a.qty(pin['stateBlock']) <= a.qty(query['toBlock']):
                 return []
+            if query['topics'][0] == a.keccak(o.TOKEN_EVENT):
+                token = '0x'+query['topics'][2][-40:]
+                community = token if token in o.ROUND_CLONES else o.NEW if token != TOKEN else u.DEPLOYER
+                return [dict(address=FACTORY, topics=[a.keccak(o.TOKEN_EVENT),'0x'+community[2:].zfill(64),query['topics'][2]],
+                             blockNumber=pin['stateBlock'],blockHash=pin['stateBlockHash'])]
             if query['topics'] == [a.keccak(o.ROLE_EVENT)]:
                 return [dict(address=u.REG,topics=[a.keccak(o.ROLE_EVENT),role],blockNumber=pin['stateBlock'],blockHash=pin['stateBlockHash'])
                         for role in [*[r['value'] for r in inventory()['Registry']['roles']],CUSTOM_ROLE]]
@@ -517,6 +522,53 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     o.extract(tree)
                 self.assertEqual(caught.exception.record['gate'],gate)
 
+
+    def test_xpnts_transferred_owner(self):
+        key = ('eth_call', str([dict(to=TOKEN,data=a.calldata('communityOwner()')),self.pin['stateBlock']]))
+        mapping = ('eth_call', str([dict(to=FACTORY,data=a.calldata('communityToToken(address)',o.NEW)),self.pin['stateBlock']]))
+        try:
+            result = o.audit(fixture_rpc(self.pin,{key:raw([int(o.NEW,16)]),mapping:raw([0])}),self.pin,inventory())
+        except a.Gate as fault:
+            self.fail(fault.record['gate'])
+        self.assertIn(TOKEN,result['xpnts'])
+        self.assertTrue(any(row.get('target') == TOKEN and row.get('signature') == 'communityOwner()'
+                            and row['result'] == raw([int(o.NEW,16)]) for row in result['reads']))
+
+    def test_xpnts_owner_pin(self):
+        for owner in (o.OLD,o.OLD_TIMELOCK):
+            key = ('eth_call', str([dict(to=TOKEN,data=a.calldata('communityOwner()')),self.pin['stateBlock']]))
+            self.assert_gate('old_owner_xpnts_owner_pin',lambda:o.audit(fixture_rpc(self.pin,{key:raw([int(owner,16)])}),self.pin,inventory()))
+
+    def deployment_case(self, edit):
+        base = fixture_rpc(self.pin)
+        def rpc(method, params):
+            result = base(method,params)
+            if method == 'eth_getLogs' and params[0]['topics'][0] == a.keccak(o.TOKEN_EVENT):
+                result = edit(result) if result else result
+            return result
+        return lambda:o.token_deployment_community(rpc,self.pin,FACTORY,TOKEN)
+
+    def test_xpnts_deployment_count(self):
+        for edit in (lambda rows:[],lambda rows:rows*2):
+            self.assert_gate('old_owner_xpnts_deployment_count',self.deployment_case(edit))
+
+    def test_xpnts_deployment_log(self):
+        for field, value in (('address',o.NEW),('removed',True),('blockHash',a.ZERO32),
+                             ('blockNumber',hex(a.qty(self.pin['stateBlock'])+1)),
+                             ('topics',[a.keccak(o.TOKEN_EVENT),'0x'+u.DEPLOYER[2:].zfill(64),'0x'+o.NEW[2:].zfill(64)])):
+            def mismatch(rows):
+                rows[0][field] = value
+                return rows
+            with self.subTest(field=field):
+                self.assert_gate('old_owner_xpnts_deployment_log',self.deployment_case(mismatch))
+
+    def test_xpnts_deployment_call(self):
+        base = fixture_rpc(self.pin)
+        def rpc(method,params):
+            if method == 'eth_getLogs' and params[0]['topics'][0] == a.keccak(o.TOKEN_EVENT): return []
+            return base(method,params)
+        self.assert_gate('old_owner_xpnts_deployment_count',lambda:o.audit(rpc,self.pin,inventory()))
+
     def test_role_event_abi_and_inventory_source_seam(self):
         with tempfile.TemporaryDirectory() as directory:
             tree = Path(directory)
@@ -605,7 +657,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         yield 'old_owner_role_admin_ROLE_COMMUNITY',query(u.REG,'getRoleConfig(bytes32)',[registry_role]),raw(cfg)
         for name,target in [('GTokenStaking',STAKING),('GToken',GTOKEN),('xPNTsFactory',FACTORY),('xPNTsToken',TOKEN),('MySBT',SBT),('PaymasterFactory',o.PAYMASTER_FACTORY)]:
             getter = {'xPNTsToken':'communityOwner','MySBT':'daoMultisig'}.get(name,'owner')
-            yield 'old_owner_authority_'+name+'_'+getter,query(target,getter+'()',[]),raw([int(o.OLD,16)])
+            yield ('old_owner_xpnts_owner_pin' if name == 'xPNTsToken' else 'old_owner_authority_'+name+'_'+getter),query(target,getter+'()',[]),raw([int(o.OLD,16)])
         for name,target,label in [('GTokenStaking',STAKING,'authorizedSlashers'),('xPNTsFactory',FACTORY,'isXPNTs'),('xPNTsToken',TOKEN,'autoApprovedSpenders')]:
             yield 'old_owner_mapping_'+name+'_'+label,query(target,label+'(address)',[o.OLD]),raw([1])
         yield 'old_owner_role_Registry_'+CUSTOM_ROLE,query(u.REG,'hasRole(bytes32,address)',[CUSTOM_ROLE,o.OLD]),raw([1])
@@ -1315,7 +1367,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
 
     def test_named_clones_storage_authority_controls(self):
         for token in o.ROUND_CLONES:
-            cases = [('communityOwner()',[],int(o.OLD,16),'old_owner_authority_xPNTsToken_communityOwner'),
+            cases = [('communityOwner()',[],int(o.OLD,16),'old_owner_xpnts_owner_pin'),
                      ('approvedFacilitators(address)',[o.OLD],1,'old_owner_mapping_xPNTsToken_approvedFacilitators'),
                      ('autoApprovedSpenders(address)',[o.OLD],1,'old_owner_mapping_xPNTsToken_autoApprovedSpenders'),
                      ('allowance(address,address)',[u.SAFE,o.OLD],1,'old_owner_allowance_'+token+'_'+u.SAFE)]
