@@ -666,9 +666,10 @@ def discover_targets(rpc, pin):
                    xPNTsFactory=[address(u.SP,'xpntsFactory()')],PaymasterFactory=[PAYMASTER_FACTORY])
     targets['GToken'] = [address(targets['GTokenStaking'][0],'GTOKEN()')]
     enumerated = set(u.addr_array(a.call(rpc,targets['xPNTsFactory'][0],'getAllTokens()',block=block)))
-    # The factory's own enumeration must stand alone: nonempty and containing every round clone.
-    a.need('old_owner_factory_enumeration',bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)
-    tokens = enumerated | set(ROUND_CLONES)
+    # Before the switch, the factory must enumerate every round clone itself.
+    switched = 'discoveryOriginalFactory' in pin and targets['xPNTsFactory'][0] != pin['discoveryOriginalFactory']
+    a.need('old_owner_factory_enumeration',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)
+    tokens = enumerated | set(ROUND_CLONES) | (set(pin['discoveryRetainedTokens']) if switched else set())
     for who in pin['pauseList']:
         values = u.uints(a.call(rpc,u.SP,'operators(address)',who,block=block))
         a.need('old_owner_discovery_operator_shape',len(values),9)

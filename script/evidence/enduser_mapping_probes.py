@@ -4,7 +4,8 @@
 Each probe deletes exactly one site (the pattern must match once) in a scratch copy of script/, then runs its
 bound test there: the baseline must pass and the mutated copy must fail that test with the named cause
 (the gate that now STOPs, or the TypeError the deleted gate used to pre-empt).
-Prints ENDUSER_PROBES PASS only if every probe is red and every baseline is green.
+Prints per-target match counts and results, plus DISCOVERY_DELETION_PROBES for the
+discovery subset and ENDUSER_PROBES PASS only if every probe is red and every baseline is green.
 """
 import ast
 import pathlib
@@ -109,18 +110,41 @@ def manifest_probes():
                  and n.value.args and isinstance(n.value.args[0], ast.Constant) and n.value.args[0].value == gate]
         assert len(nodes) == 1, (gate, len(nodes))
         probes.append((gate, ast.get_source_segment(source, nodes[0]), 'pass', 'DeltaTests.test_'+gate))
-    probes.append(('post_pin_delta_call', "    delta = post_pin_delta(rpc, plan['pin'], block)\n", '', 'DeltaTests.test_pre_send_delta_call'))
+    test_tree = ast.parse((ROOT/'script/upgrade/test_manifest_exec.py').read_text())
+    constants = {n.targets[0].id: ast.literal_eval(n.value) for n in test_tree.body
+                 if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)
+                 and n.targets[0].id in ('DISCOVERY_GATES', 'DISCOVERY_CALLS')}
+    for gate in constants['DISCOVERY_GATES']:
+        nodes = [n for n in ast.walk(tree) if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
+                 and isinstance(n.value.func, ast.Attribute) and n.value.func.attr == 'need'
+                 and n.value.args and isinstance(n.value.args[0], ast.Constant) and n.value.args[0].value == gate]
+        assert len(nodes) == 1, (gate, len(nodes))
+        probes.append((gate, ast.get_source_segment(source,nodes[0]), 'pass', 'DiscoveryTests.test_'+gate))
+    for i, (function, expression, gate) in enumerate(constants['DISCOVERY_CALLS']):
+        fn = next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name == function)
+        body = ast.get_source_segment(source,fn)
+        assert body.count(expression) == 1, (function, expression)
+        probes.append(('discovery_call_'+str(i), body, body.replace(expression,'None'), 'DiscoveryCallTests.test_call_'+str(i)))
+    probes.append(('post_pin_delta_call', "    delta = post_pin_delta(rpc, coverage, block)\n", '', 'DeltaTests.test_pre_send_delta_call'))
     probes.append(('configured_roles_closing_standard',
                    "{r['value'] for r in spec['roles']} | {log['topics'][1] for log in logs}",
                    "{log['topics'][1] for log in logs}", 'ManifestTests.test_configured_roles_closing_without_events'))
     isolation_source = (ROOT/ISOLATION).read_text()
     for stage in ('pre_send', 'closing'):
-        site = "    isolation.never_granted_recheck(rpc,plan['pin'],block)\n" if stage == 'pre_send' else "    never_granted = isolation.never_granted_recheck(rpc,plan['pin'],block)\n"
+        site = "    isolation.never_granted_recheck(rpc, coverage, block)\n" if stage == 'pre_send' else "    never_granted = isolation.never_granted_recheck(rpc, coverage, block)\n"
         replacement = '' if stage == 'pre_send' else '    never_granted = {}\n'
         probes.append(('xpnts_owner_'+stage+'_call',site,replacement,'ManifestTests.test_xpnts_owner_'+stage))
     # The shared owner gate is in isolation, exercised through both callers.
     owner_gate = next(line for line in isolation_source.splitlines(True) if "a.need('old_owner_xpnts_owner_recheck'" in line)
     probes.append(('xpnts_owner_recheck',owner_gate,'', 'ManifestTests.test_xpnts_owner_pre_send'))
+    probes += [
+        ('discovery_preswitch_gate', "    a.need('old_owner_factory_enumeration',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)\n", '', 'DiscoveryTests.test_preswitch_enumeration'),
+        ('discovery_switch_path', "switched = 'discoveryOriginalFactory' in pin and targets['xPNTsFactory'][0] != pin['discoveryOriginalFactory']", 'switched = False', 'DiscoveryTests.test_postswitch_enumeration'),
+        ('discovery_retained_tokens', " | (set(pin['discoveryRetainedTokens']) if switched else set())", '', 'DiscoveryTests.test_postswitch_enumeration'),
+    ]
+    discovery_names = set(constants['DISCOVERY_GATES']) | {'discovery_call_'+str(i) for i in range(len(constants['DISCOVERY_CALLS']))} | {
+        'discovery_preswitch_gate', 'discovery_switch_path', 'discovery_retained_tokens'}
+    discovery_results = []
     ok = True
     with tempfile.TemporaryDirectory() as directory:
         tree = pathlib.Path(directory)
@@ -131,15 +155,21 @@ def manifest_probes():
         for name, old, new, test in probes:
             (tree/path).write_text(source)
             (tree/ISOLATION).write_text(isolation_source)
-            target_path = ISOLATION if name == 'xpnts_owner_recheck' else path
-            target_source = isolation_source if name == 'xpnts_owner_recheck' else source
+            target_path = ISOLATION if name in ('xpnts_owner_recheck', 'discovery_preswitch_gate', 'discovery_switch_path', 'discovery_retained_tokens') else path
+            target_source = isolation_source if target_path == ISOLATION else source
             count = target_source.count(old)
             base_rc, base_tail, _ = run(tree, test, 'script/upgrade/test_manifest_exec.py')
             (tree/target_path).write_text(target_source.replace(old, new))
             mut_rc, mut_tail, mut_err = run(tree, test, 'script/upgrade/test_manifest_exec.py')
             red = count == 1 and base_rc == 0 and mut_rc != 0 and 'failures=1' in mut_tail and 'errors=' not in mut_tail and 'AssertionError' in mut_err
             ok &= red
+            if name in discovery_names:
+                discovery_results.append(red)
             print(f'{name}: matches={count} baseline=rc{base_rc} [{base_tail}] removed=rc{mut_rc} [{mut_tail}] {"red" if red else "NOT RED"}')
+    discovery_ok = len(discovery_results) == len(discovery_names) and all(discovery_results)
+    print(f'DISCOVERY_DELETION_PROBES {"PASS" if discovery_ok else "FAIL"} '
+          f'{sum(discovery_results)}/{len(discovery_names)}; each matches=1 and red')
+    ok &= discovery_ok
     print('DELTA_DELETION_PROBES', 'PASS' if ok else 'FAIL')
     return ok
 

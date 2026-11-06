@@ -29,7 +29,9 @@ ART = dict(scope=dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymas
     bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
 
-ART['oldOwnerInventory'] = isolation_tests.inventory()
+ART['oldOwnerInventory'] = copy.deepcopy(isolation_tests.inventory())
+for release_name, deployed_name in (('xPNTsFactoryV2', 'xPNTsFactory'), ('xPNTsTokenV2', 'xPNTsToken'), ('xPNTsTokenV2Ext', 'xPNTsToken')):
+    ART['oldOwnerInventory'][release_name] = copy.deepcopy(ART['oldOwnerInventory'][deployed_name])
 import ast
 import re
 ART['calldataSignatures'] = sorted({n.value for module in (m,u) for n in ast.walk(ast.parse(Path(module.__file__).read_text()))
@@ -245,6 +247,9 @@ def orphan_replies(pin):
     for token in pin['oldOwnerIsolation']['tokens']:
         for holder in o.allowance_holders():
             replies[(token, a.calldata('allowance(address,address)', holder, o.OLD_TIMELOCK))] = raw([0])
+    for (target, data), value in list(replies.items()):
+        if o.OLD_TIMELOCK[2:] in data:
+            replies[(target, data.replace(o.OLD_TIMELOCK[2:], o.OLD[2:]))] = value
     return replies
 
 
@@ -347,7 +352,7 @@ class DeltaTests(unittest.TestCase):
         self.assertNotIn(self.holder, m.isolation.allowance_holders())
         self.assertNotIn(self.holder, self.pin['oldTimelock']['approvalOwners'].get(self.token, []))
         with patch.object(m, 'handover_gate'), self.assertRaises(a.Gate) as caught:
-            m.pre_send(self.rpc('allowance'), dict(pin=self.pin), dict(tx={}), {})
+            m.pre_send(self.rpc('allowance'), dict(pin=self.pin, steps=[]), dict(tx={}), {})
         self.assertEqual(caught.exception.record['gate'], 'old_timelock_delta_allowance')
 
     def test_unrelated(self):
@@ -754,7 +759,7 @@ class RebuiltScopeTests(unittest.TestCase):
             self.assertIs(m.rebuild(), built)
             json.dumps(built)  # Manifest rebuild metadata must remain serializable.
             scope.assert_called_once_with(trees[0])
-            extracted.assert_called_once_with(trees[0])
+            extracted.assert_called_once_with(trees[0], tuple(sorted(set(m.isolation.NAMES) | {'xPNTsFactoryV2', 'xPNTsTokenV2', 'xPNTsTokenV2Ext'})))
             self.assertEqual(built['oldOwnerInventory'], ART['oldOwnerInventory'])
         self.assertTrue(trees[0].exists())
         m.rebuild_commit(ART['commit'])['treeOwner'].cleanup()
@@ -763,7 +768,7 @@ class RebuiltScopeTests(unittest.TestCase):
 
 class ManifestTests(unittest.TestCase):
     def setUp(self):
-        source_validation = patch.object(m.isolation,'validate_deployed',side_effect=lambda section,pin,sources,pending=None:(m.isolation.require_adopted_sources(pending),m.isolation.validate(section,pin,ART['oldOwnerInventory'])))
+        source_validation = patch.object(m.isolation,'validate_deployed',side_effect=lambda section,pin,sources,pending=None:(m.isolation.require_adopted_sources(pending),m.isolation.validate(section,pin,{k: ART['oldOwnerInventory'][k] for k in m.isolation.NAMES})))
         source_validation.start(); self.addCleanup(source_validation.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -1233,6 +1238,7 @@ class ManifestTests(unittest.TestCase):
                         patch.object(u, 'safe_state', return_value=self.pin['safe']),
                         patch.object(u, 'governance'),
                         patch.object(u, 'code', side_effect=lambda r,t,*args:self.pin['bindings'][t]),
+                        patch.object(m, 'discovery_coverage', return_value=copy.deepcopy(self.plan['pin'])),
                         patch.object(m, 'old_activity', return_value={}),
                         patch.object(m, 'dvt_activity', return_value=[])):
                         stack.enter_context(mock)
@@ -1961,7 +1967,8 @@ class ManifestTests(unittest.TestCase):
             return [{'recorded': True}] if activity == 'pin' else [{'changed': True}]
         return [patch.object(a, 'address', side_effect=address), patch.object(a, 'call', side_effect=call),
                 patch.object(a, 'block_data', return_value=dict(number='0x200')),
-                patch.object(m, 'dvt_activity', side_effect=activity_at)]
+                patch.object(m, 'dvt_activity', side_effect=activity_at),
+                patch.object(m, 'discovery_coverage', side_effect=lambda plan, passed: copy.deepcopy(plan['pin']))]
 
     def check_old_timelock(self, gate, bad=None, pin=None):
         pin = pin or self.pin
@@ -4221,7 +4228,7 @@ class OldExitExemptionTests(unittest.TestCase):
         p['oldActivity'] = m.old_activity(good, OLD, p['stateBlock'], [])
         p = dict(pin(), **p)
         p.update(bindings={}, safe={})
-        plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
+        plan = dict(pin=p, steps=[], externalInputs=dict(data=dict(pop=[])))
         step = dict(tx={'from':u.DEPLOYER, 'nonce':'0x0'}, safeNonce=0)
         bad = old_exit_rpc(p, self.guardian, occupied=13)
         def rpc(method, params):
@@ -4680,6 +4687,292 @@ class F05Q3ForkControls(F05Fixture):
 
     def test_B4_control_restore(self): self.b4('B4_control_restore')
 
+
+
+class DiscoveryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.fixture = ManifestTests()
+        cls.fixture.setUp()
+        cls.addClassCleanup(cls.fixture.doCleanups)
+
+    def setUp(self):
+        self.plan = copy.deepcopy(self.fixture.plan)
+        self.pin = self.plan['pin']
+        self.passed = {s['id'] for s in self.plan['steps']}
+        self.block = '0x200'
+
+    def gate(self, name, action):
+        with self.assertRaises(a.Gate, msg=name) as caught:
+            action()
+        self.assertEqual(caught.exception.record['gate'], name)
+
+    def rpc(self, plan=None, passed=None, extra=None, bad=None):
+        plan = plan or self.plan
+        passed = self.passed if passed is None else passed
+        coverage = m.discovery_coverage(plan, passed)
+        state = m.expected_discovery(plan, passed)
+        section = coverage['oldOwnerIsolation']
+        factory = state['targets']['xPNTsFactory']
+        replies = orphan_replies(plan['pin'])
+        replies[(plan['addresses']['xPNTsFactoryV2'],a.calldata('getAllTokens()'))] = isolation_tests.raw([32,0])
+        replies[(u.SP, a.calldata('xpntsFactory()'))] = isolation_tests.raw([int(factory, 16)])
+        tokens = state['xpnts'] if factory == plan['pin']['oldOwnerIsolation']['targets']['xPNTsFactory'] else sorted(set(state['xpnts']) - set(plan['pin']['oldOwnerIsolation']['xpnts']))
+        if extra: tokens = tokens + [extra]
+        replies[(factory, a.calldata('getAllTokens()'))] = isolation_tests.raw([32, len(tokens), *[int(t,16) for t in tokens]])
+        for target, sig, args, kind in m.isolation.authority_rows(section):
+            if kind == 'config': continue
+            for holder in (m.isolation.OLD, m.isolation.OLD_TIMELOCK):
+                arguments = [holder if v == m.isolation.OLD_TIMELOCK else v for v in args]
+                replies[(target, a.calldata(sig, *arguments))] = isolation_tests.raw([int(u.DEPLOYER,16) if kind == 'address' else 0])
+        for token in section['xpnts']:
+            replies[(token, a.calldata('communityOwner()'))] = isolation_tests.raw([int(u.DEPLOYER,16)])
+        for token in section['tokens']:
+            for holder in m.isolation.allowance_holders():
+                for spender in (m.isolation.OLD, m.isolation.OLD_TIMELOCK):
+                    replies[(token,a.calldata('allowance(address,address)',holder,spender))] = isolation_tests.raw([0])
+        if bad:
+            target, sig, args, value = bad
+            replies[(target,a.calldata(sig,*args))] = isolation_tests.raw([value])
+        baseline = old_timelock_rpc(plan['pin'], self.block)
+        def rpc(method, params):
+            if method == 'eth_getLogs':
+                if params[0]['address'] == u.REG and a.qty(params[0]['fromBlock']) <= a.qty(plan['pin']['stateBlock']):
+                    return baseline(method,params)
+                return []
+            if method == 'eth_getCode': return '0x6000'
+            if method == 'eth_chainId': return '0x0'
+            if method == 'eth_getBlockByNumber': return dict(number=self.block,hash=plan['pin']['stateBlockHash'],timestamp='0x123',gasLimit='0xbebc200')
+            if method == 'eth_call':
+                self.assertEqual(params[1], self.block)
+                key = (params[0]['to'],params[0]['data'])
+                if key in replies: return replies[key]
+            return baseline(method,params)
+        rpc.local = True
+        return rpc
+
+    def closing(self, rpc, plan=None):
+        plan = plan or self.plan
+        plan['pin']['oldActivity']['dvtProposals'] = [{'recorded': True}]
+        pointer = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
+        with contextlib.ExitStack() as stack:
+            # Keep the real coverage helper; only unrelated DVT reads are stubbed.
+            for item in self.fixture.closing_rpc(pointer)[:-1]: stack.enter_context(item)
+            with patch.object(m.isolation, 'role_history', side_effect=lambda rpc,pin,target,spec,creation: list(pin['oldOwnerIsolation']['roleHistory'].get(target,[]))):
+                return m.dvt_closing(rpc,plan)
+
+    def pre(self, rpc, passed=None):
+        with patch.object(m, 'handover_gate'):
+            return m.pre_send(rpc,self.plan,dict(tx={}),dict(passed=self.passed if passed is None else passed))
+
+    def test_stages(self):
+        class Checked(Exception): pass
+        a7, b4, _ = self.fixture.staged_chain()
+        for plan in (a7,b4,m.build_plan(self.pin,self.fixture.inputs,'c'),self.plan):
+            passed = set()
+            for step in plan['steps']:
+                rpc = self.rpc(plan,passed)
+                with patch.object(m,'handover_gate',side_effect=Checked), self.assertRaises(Checked):
+                    m.pre_send(rpc,plan,step,dict(passed=passed))
+                passed.add(step['id'])
+                expected = plan['expectedDiscoveryAfter'][step['id']]
+                self.assertEqual(m.current_discovery(self.rpc(plan,passed),m.discovery_coverage(plan,passed),self.block),expected)
+            self.closing(self.rpc(plan,passed),plan)
+
+    def test_expected_states(self):
+        state = m.pin_discovery(self.pin)
+        factory = self.plan['addresses']['xPNTsFactoryV2']
+        token = a.create_address(factory,1)
+        for step in self.plan['steps']:
+            sid = step['id']
+            if sid == 'A4.factory': state['targets']['releaseFactory'] = factory
+            if sid == 'upgrade_execute_exec':
+                state['targets']['legacyFactory'] = state['targets']['xPNTsFactory']
+                state['targets']['xPNTsFactory'] = factory
+            if sid in ('C3.deploy','C3.configure'): state['xpnts'] = sorted(set(state['xpnts']) | {token})
+            self.assertEqual(self.plan['expectedDiscoveryAfter'][sid],state,sid)
+
+    def closing_inventory(self, gained_role=False):
+        coverage = m.discovery_coverage(self.plan, self.passed)
+        pinned = self.pin['oldOwnerIsolation']['roleHistory']
+        target = self.pin['oldOwnerIsolation']['targets']['xPNTsFactory']
+        self.assertIn(target, pinned)
+        self.assertNotEqual(coverage['discoveryExpected'], m.pin_discovery(self.pin))
+        def history(rpc, pin, address, spec, creation):
+            roles = list(pinned.get(address, []))
+            if gained_role and address == target:
+                roles.append('0x'+'ab'*32)
+            return roles
+        with patch.object(m.isolation, 'role_history', side_effect=history):
+            return m.closing_timelock_inventory(self.rpc(), coverage, self.block)
+
+    def test_closing_planned_discovery_pinned_history_unchanged(self):
+        result = self.closing_inventory()
+        for target, roles in self.pin['oldOwnerIsolation']['roleHistory'].items():
+            self.assertEqual(result['oldOwnerIsolation']['roleHistory'][target], roles)
+        self.assertIn(self.plan['addresses']['xPNTsFactoryV2'], result['oldOwnerIsolation']['roleHistory'])
+
+    def test_old_timelock_inventory_pinned_history(self):
+        self.gate('old_timelock_inventory_pinned_history', lambda: self.closing_inventory(gained_role=True))
+
+    def test_creation_before_upgrade_execution(self):
+        index = next(i for i, s in enumerate(self.plan['steps']) if s['id'] == 'upgrade_execute_exec')
+        self.plan['steps'].insert(index, dict(id='test.creation', tx=dict(to=None, data='0x6000')))
+        expected = m.build_expected_discovery(self.plan)
+        self.assertEqual(expected['upgrade_execute_exec'], self.plan['expectedDiscoveryAfter']['upgrade_execute_exec'])
+        self.plan['steps'][index+1]['tx']['to'] = None
+        self.gate('discovery_factory_argument', lambda: m.build_expected_discovery(self.plan))
+
+    def test_discovery_step_table(self):
+        self.plan['steps'] = [s for s in self.plan['steps'] if s['id'] != 'A6.upgrade']
+        self.gate('discovery_step_table',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_unlisted_effect(self):
+        step = copy.deepcopy(next(s for s in self.plan['steps'] if s['id'] == 'C3.configure'))
+        step['id'] = 'unplanned'
+        self.plan['steps'].append(step)
+        self.gate('discovery_unlisted_effect',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_factory_prediction(self):
+        next(s for s in self.plan['steps'] if s['id'] == 'A4.factory')['creates'] = u.SP
+        self.gate('discovery_factory_prediction',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_factory_argument(self):
+        step = next(s for s in self.plan['steps'] if s['id'] == 'upgrade_execute_exec')
+        step['tx']['data'] = a.calldata('setXPNTsFactory(address)',u.SP)
+        self.gate('discovery_factory_argument',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_token_prediction(self):
+        next(s for s in self.plan['steps'] if s['id'] == 'C3.deploy')['tx']['to'] = u.SP
+        self.gate('discovery_token_prediction',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_operator_argument(self):
+        next(s for s in self.plan['steps'] if s['id'] == 'C3.configure')['tx']['data'] = a.calldata('configureOperator(address,address)',u.SP,m.PC_TREASURY)
+        self.gate('discovery_operator_argument',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_old_authority(self):
+        factory = self.pin['oldOwnerIsolation']['targets']['xPNTsFactory']
+        self.gate('discovery_old_authority',lambda:self.pre(self.rpc(bad=(factory,'owner()',[],int(m.isolation.OLD,16)))))
+
+    def test_extra_token_pre(self):
+        self.gate('old_timelock_delta_xpnts',lambda:self.pre(self.rpc(extra=u.SP)))
+
+    def test_wrong_factory_pre(self):
+        self.gate('old_timelock_delta_targets',lambda:self.pre(self.rpc(bad=(u.SP,'xpntsFactory()',[],int(self.pin['oldOwnerIsolation']['targets']['xPNTsFactory'],16)))))
+
+    def test_extra_token_closing(self):
+        self.gate('old_timelock_inventory',lambda:self.closing(self.rpc(extra=u.SP)))
+
+    def test_extra_token_in_inactive_factory(self):
+        for passed, factory in (({'A4.factory'}, self.plan['addresses']['xPNTsFactoryV2']),
+                                (self.passed, self.pin['oldOwnerIsolation']['targets']['xPNTsFactory'])):
+            original = self.rpc(passed=passed)
+            def rpc(method,params):
+                if method == 'eth_call' and params[0] == dict(to=factory,data=a.calldata('getAllTokens()')):
+                    return isolation_tests.raw([32,1,int(u.SP,16)])
+                return original(method,params)
+            rpc.local = True
+            self.gate('old_timelock_delta_xpnts',lambda:self.pre(rpc,passed))
+
+    def test_old_allowance_after_switch(self):
+        for token in self.pin['oldOwnerIsolation']['xpnts']:
+            bad = (token,'allowance(address,address)',[u.DEPLOYER,m.isolation.OLD_TIMELOCK],1)
+            self.gate('old_timelock_allowance',lambda:self.pre(self.rpc(bad=bad)))
+            self.gate('old_timelock_allowance',lambda:self.closing(self.rpc(bad=bad)))
+
+    def test_new_owner_pre(self):
+        token = a.create_address(self.plan['addresses']['xPNTsFactoryV2'],1)
+        self.gate('old_owner_xpnts_owner_recheck',lambda:self.pre(self.rpc(bad=(token,'communityOwner()',[],int(m.isolation.OLD,16)))))
+
+    def test_new_owner_closing(self):
+        token = a.create_address(self.plan['addresses']['xPNTsFactoryV2'],1)
+        self.gate('old_owner_xpnts_owner_recheck',lambda:self.closing(self.rpc(bad=(token,'communityOwner()',[],int(m.isolation.OLD_TIMELOCK,16)))))
+
+    def test_build_call(self):
+        plan = m.build_plan(self.pin,self.fixture.inputs,'a7')
+        self.assertIn('expectedDiscoveryAfter',plan,'discovery_step_table')
+        self.assertEqual(set(plan['expectedDiscoveryAfter']),{s['id'] for s in plan['steps']},'discovery_step_table')
+
+    def test_release_inventory(self):
+        coverage = m.discovery_coverage(self.plan,self.passed)
+        spec = coverage['oldOwnerIsolation']['inventory']['targetInventories']
+        self.assertEqual(spec[self.plan['addresses']['xPNTsFactoryV2']],ART['oldOwnerInventory']['xPNTsFactoryV2'])
+        self.assertIn(a.create_address(self.plan['addresses']['xPNTsFactoryV2'],1),spec)
+
+    def test_postswitch_enumeration(self):
+        coverage = m.discovery_coverage(self.plan,self.passed)
+        original = self.rpc()
+        old_factory = self.pin['oldOwnerIsolation']['targets']['xPNTsFactory']
+        def rpc(method,params):
+            if method == 'eth_call' and params[0] == dict(to=old_factory,data=a.calldata('getAllTokens()')):
+                tokens = m.isolation.ROUND_CLONES
+                return isolation_tests.raw([32,len(tokens),*[int(t,16) for t in tokens]])
+            return original(method,params)
+        try:
+            actual = m.current_discovery(rpc,coverage,self.block)
+        except a.Gate as fault:
+            self.fail(fault.record['gate'])
+        self.assertEqual(actual,m.expected_discovery(self.plan,self.passed),'old_timelock_delta_xpnts')
+
+    def test_preswitch_enumeration(self):
+        rpc = self.rpc(passed=set(),bad=(self.pin['oldOwnerIsolation']['targets']['xPNTsFactory'],'getAllTokens()',[],32))
+        original = rpc
+        def missing(method,params):
+            if method == 'eth_call' and params[0]['data'] == a.calldata('getAllTokens()'): return isolation_tests.raw([32,0])
+            return original(method,params)
+        self.gate('old_owner_factory_enumeration',lambda:m.current_discovery(missing,m.discovery_coverage(self.plan,set()),self.block))
+
+
+DISCOVERY_GATES = ('discovery_step_table', 'discovery_unlisted_effect', 'discovery_factory_prediction',
+                   'discovery_factory_argument', 'discovery_token_prediction', 'discovery_operator_argument',
+                   'discovery_old_authority', 'old_timelock_inventory_pinned_history')
+DISCOVERY_CALLS = [
+    ('rebuild_commit', 'isolation.inventory_source(tree, mode="release", names=tuple(sorted(set(isolation.NAMES) | {"xPNTsFactoryV2", "xPNTsTokenV2", "xPNTsTokenV2Ext"})))', 'discovery_old_authority'),
+    ('build_expected_discovery', "pin_discovery(plan['pin'])", 'discovery_step_table'),
+    ('expected_discovery', "pin_discovery(plan['pin'])", 'old_timelock_delta_targets'),
+    ('discovery_coverage', 'expected_discovery(plan, passed)', 'old_timelock_delta_targets'),
+    ('closing_timelock_inventory', 'current_discovery(rpc, pin, block)', 'old_timelock_inventory'),
+    ('closing_timelock_inventory', 'pin_discovery(pin)', 'old_timelock_inventory'),
+    ('post_pin_delta', 'current_discovery(rpc, pin, block)', 'old_timelock_delta_targets'),
+    ('post_pin_delta', 'pin_discovery(pin)', 'old_timelock_delta_xpnts'),
+    ('dvt_closing', "discovery_coverage(plan, {s['id'] for s in plan['steps']})", 'old_timelock_inventory'),
+    ('dvt_closing', 'discovery_old_authority(rpc, closing, block)', 'discovery_old_authority'),
+    ('finish', 'build_expected_discovery(plan)', 'discovery_step_table'),
+    ('pre_send', "discovery_coverage(plan, context.get('passed', set()))", 'old_timelock_delta_targets'),
+    ('pre_send', 'discovery_old_authority(rpc, coverage, block)', 'discovery_old_authority'),
+    ('pre_send', 'isolation.never_granted_recheck(rpc, coverage, block)', 'old_owner_xpnts_owner_recheck'),
+    ('dvt_closing', 'isolation.never_granted_recheck(rpc, coverage, block)', 'old_owner_xpnts_owner_recheck'),
+    ('current_discovery', 'isolation.discover_targets(rpc, dict(pin, stateBlock=block))', 'old_timelock_delta_xpnts'),
+    ('current_discovery', "u.code(rpc, pin['discoveryReleaseFactory'], block)", 'old_timelock_delta_targets'),
+    ('discovery_old_authority', "isolation.authority_rows(pin['oldOwnerIsolation'])", 'discovery_old_authority'),
+    ('discovery_old_authority', 'a.call(rpc, target, sig, *args, block=block)', 'discovery_old_authority'),
+    ('discovery_old_authority', "a.call(rpc, token, 'allowance(address,address)', holder, isolation.OLD, block=block)", 'discovery_old_authority'),
+    ('build_expected_discovery', "isolation.assert_manifest_calldata([step], plan['rebuild']['calldataSignatures'])", 'discovery_unlisted_effect'),
+    ('pre_send', "old_timelock_holds_nothing(rpc, coverage, block, delta['approvalOwners'])", 'old_timelock_allowance'),
+    ('dvt_closing', 'old_timelock_holds_nothing(rpc, closing, block)', 'old_timelock_allowance'),
+    ('dvt_closing', 'closing_timelock_inventory(rpc, coverage, block)', 'old_timelock_inventory'),
+    ('current_discovery', "a.call(rpc, pin['discoveryReleaseFactory'], 'getAllTokens()', block=block)", 'old_timelock_delta_xpnts'),
+    ('current_discovery', "a.call(rpc, pin['discoveryOriginalFactory'], 'getAllTokens()', block=block)", 'old_timelock_delta_xpnts'),
+]
+
+
+class DiscoveryCallTests(unittest.TestCase):
+    """Deletion controls bind each caller to its named behavioral gate above."""
+    pass
+
+
+def discovery_call_test(function, expression, gate):
+    def test(self):
+        source = Path(m.__file__).read_text()
+        tree = ast.parse(source)
+        fn = next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name == function)
+        sites = [n for n in ast.walk(fn) if isinstance(n,ast.Call) and ast.get_source_segment(source,n) == expression]
+        self.assertEqual(len(sites),1,gate)
+    return test
+
+
+for _i, (_function, _expression, _gate) in enumerate(DISCOVERY_CALLS):
+    setattr(DiscoveryCallTests,'test_call_'+str(_i),discovery_call_test(_function,_expression,_gate))
 
 if __name__ == '__main__':
     unittest.main()

@@ -84,12 +84,14 @@ CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_'+g, 'old_ow
 C2_GATES = ('xpnts_deployment_count', 'xpnts_deployment_log', 'xpnts_owner_pin')
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_'+g, 'old_owner_'+g) for g in C2_GATES]
 CASES += [(base_tests.ManifestTests, 'test_xpnts_owner_'+stage, 'old_owner_xpnts_owner_recheck') for stage in ('pre_send','closing')]
+CASES += [(base_tests.DiscoveryTests, 'test_'+gate, gate) for gate in base_tests.DISCOVERY_GATES]
 # These new/changed isolation gates must fail by assertion, with zero test errors.
 ASSERTION_ONLY_GATES = {'old_owner_never_granted_set', 'old_owner_never_granted_holder',
                         'old_owner_never_granted_recheck', 'old_owner_role_recheck', 'old_owner_mapping_getter',
                         'old_owner_mapping_positive', 'old_owner_mapping_negative',
                         'old_owner_history_positive'}
 ASSERTION_ONLY_GATES.update('old_owner_'+g for g in (*C1_GATES,*C2_GATES,'xpnts_owner_recheck'))
+ASSERTION_ONLY_GATES.update(base_tests.DISCOVERY_GATES)
 ASSERTION_ONLY_GATES.update('old_timelock_delta_'+g for g in base_tests.DELTA_CASES)
 GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")
 # Gate literals whose control is a whole family (name+'_gate', name+'_restore').
