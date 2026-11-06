@@ -94,6 +94,8 @@ C2_GATES = ('xpnts_deployment_count', 'xpnts_deployment_log', 'xpnts_owner_pin')
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_'+g, 'old_owner_'+g) for g in C2_GATES]
 CASES += [(base_tests.ManifestTests, 'test_xpnts_owner_'+stage, 'old_owner_xpnts_owner_recheck') for stage in ('pre_send','closing')]
 CASES += [(base_tests.DiscoveryTests, 'test_'+gate, gate) for gate in base_tests.DISCOVERY_GATES]
+CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
+          ('callsite_source_path', 'callsite_source_commit', 'callsite_source_sha256', 'callsite_source_expected')]
 # These new/changed isolation gates must fail by assertion, with zero test errors.
 ASSERTION_ONLY_GATES = {'old_owner_never_granted_set', 'old_owner_never_granted_holder',
                         'old_owner_never_granted_recheck', 'old_owner_role_recheck', 'old_owner_mapping_getter',
@@ -144,13 +146,7 @@ def run(cls, name, gate=None):
         class Delete(ast.NodeTransformer):
             def visit_Expr(self, node):
                 return ast.copy_location(ast.Pass(), node) if node is target else self.generic_visit(node)
-        # Recompile only the containing top-level function. Re-executing a module
-        # discards unrelated fixture patches (notably committed target expectations).
-        owners = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                  and any(child is target for child in ast.walk(node))]
-        if len(owners) != 1:
-            return True, False, f'{gate}: expected one containing function, got {len(owners)}'
-        tree = ast.fix_missing_locations(ast.Module(body=[Delete().visit(owners[0])], type_ignores=[]))
+        tree = ast.fix_missing_locations(Delete().visit(tree))
         module = next(m for m in (base_tests.m, base_tests.isolation_tests.o, base_tests.u) if Path(m.__file__).resolve() == Path(filename).resolve())
         saved = module.__dict__.copy()
         exec(compile(tree, filename, 'exec'), module.__dict__)

@@ -557,24 +557,42 @@ def authority_rows(section):
 
 
 
-def callsite_target_expectations():
-    # Independent of the Registry getters being checked: the committed in-scope deployment record.
-    config = json.loads(subprocess.run(
-        ['git', 'show', 'HEAD:deployments/config.sepolia.json'], cwd=u.ROOT,
-        capture_output=True, check=True).stdout)
-    return dict(GTOKEN_STAKING=config['staking'].lower(), MYSBT=config['sbt'].lower(),
-                SUPER_PAYMASTER=config['superPaymaster'].lower())
+CALLSITE_CONFIG_PATH = 'deployments/config.sepolia.json'
 
 
-def registry_callsite_targets(addr, targets):
-    expected = callsite_target_expectations()
+def committed_callsite_config(commit):
+    return subprocess.run(['git', 'show', commit+':'+CALLSITE_CONFIG_PATH], cwd=u.ROOT,
+                          capture_output=True, check=True).stdout
+
+
+def callsite_target_source(commit=None):
+    if commit is None:
+        commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=u.ROOT,
+                                capture_output=True, text=True, check=True).stdout.strip()
+    raw = committed_callsite_config(commit)
+    config = json.loads(raw)
+    return dict(path=CALLSITE_CONFIG_PATH, commit=commit, sha256=hashlib.sha256(raw).hexdigest(),
+                expected=dict(GTOKEN_STAKING=config['staking'].lower(), MYSBT=config['sbt'].lower(),
+                              SUPER_PAYMASTER=config['superPaymaster'].lower()))
+
+
+def validate_callsite_source(section, commit):
+    source = section['callsiteTargetSource']
+    a.need('callsite_source_path', source['path'], CALLSITE_CONFIG_PATH)
+    a.need('callsite_source_commit', source['commit'], commit)
+    recorded = callsite_target_source(source['commit'])
+    a.need('callsite_source_sha256', source['sha256'], recorded['sha256'])
+    a.need('callsite_source_expected', source['expected'], recorded['expected'])
+
+
+def registry_callsite_targets(addr, targets, expected):
     a.need('old_owner_role_callsite_sp', expected['SUPER_PAYMASTER'], u.SP.lower())
     actual = {name: addr(u.REG, name+'()').lower() for name in expected}
     a.need('old_owner_role_callsite_target', actual, expected)
     return actual
 
 
-def audit(rpc, pin, inventory, fork=None):
+def audit(rpc, pin, inventory, expected, fork=None):
     block = pin['stateBlock']
     reads, fork_controls, histories = [], [], {}
     history_counts, declared_never, never_reads, old_role_reads = {}, {}, [], []
@@ -624,7 +642,7 @@ def audit(rpc, pin, inventory, fork=None):
     targets.update(GTokenStaking=addr(u.REG,'GTOKEN_STAKING()'),
                    MySBT=addr(u.REG,'MYSBT()'), xPNTsFactory=addr(u.SP,'xpntsFactory()'),
                    PaymasterFactory=PAYMASTER_FACTORY)
-    callsite_targets = registry_callsite_targets(addr, targets)
+    callsite_targets = registry_callsite_targets(addr, targets, expected)
     targets['GToken'] = addr(targets['GTokenStaking'],'GTOKEN()')
     for name in ('GTokenStaking','GToken','xPNTsFactory','MySBT','PaymasterFactory'):
         a.need('old_owner_target_'+name, targets[name] != a.ZERO, True)
@@ -864,12 +882,13 @@ def audit(rpc, pin, inventory, fork=None):
     return dict(registryCallsiteTargets=callsite_targets, declaredNeverGranted=declared_never, neverGrantedReads=never_reads, oldRoleReads=old_role_reads, safeFallback=dict(address=FALLBACK_HANDLER,provenance='docs/release/a3a-precheck-v4/snapshot.json; DSR canonical deployment-list confirmation required'), forkControls=fork_controls, roleHistory=histories, roleHistoryCounts=history_counts, inventory=inventory, targets=targets, configuredRoles=sorted(roles), xpnts=sorted(xpnts), tokens=sorted(tokens), reverseAllowances=reverse, reads=reads)
 
 
-def validate(section, pin, inventory):
+def validate(section, pin, inventory, callsite_expected):
     a.need('old_owner_evidence_present', isinstance(section,dict), True)
     a.need('old_owner_inventory',section.get('inventory'),inventory)
     endpoints = section.get('endpointResults', {})
     a.need('old_owner_endpoints', sorted(endpoints), ['primary','secondary'])
-    expected = {k:v for k,v in section.items() if k != 'endpointResults'}
+    # The config source is validated against committed bytes by build_plan.
+    expected = {k:v for k,v in section.items() if k not in ('endpointResults', 'callsiteTargetSource')}
     for endpoint, transcript in endpoints.items():
         index = 0
         def replay(method, params):
@@ -891,7 +910,7 @@ def validate(section, pin, inventory):
                 raise fault
             return row['result']
         replay.local = True
-        actual = audit(replay,pin,inventory,fork=replay)
+        actual = audit(replay,pin,inventory,callsite_expected,fork=replay)
         a.need('old_owner_replay_unused',index,len(transcript))
         a.need('old_owner_replay_transcript',actual['reads'],transcript)
         a.need('old_owner_revalidated_'+endpoint,actual,expected)
@@ -1189,7 +1208,7 @@ def require_adopted_sources(pending):
     a.need('deployed_source_pending', pending or {}, {})
 
 
-def collect_deployed(rpc, pin, sources, fork=None, pending=None):
+def collect_deployed(rpc, pin, sources, expected, fork=None, pending=None):
     require_adopted_sources(pending)
     reads = []
     def recorded(method, params):
@@ -1197,7 +1216,7 @@ def collect_deployed(rpc, pin, sources, fork=None, pending=None):
         reads.append(dict(method=method,params=params,result=value))
         return value
     inventory = inventory_source(rpc=recorded,pin=pin,sources=sources)
-    section = audit(rpc,pin,inventory,fork=fork)
+    section = audit(rpc,pin,inventory,expected,fork=fork)
     section['sourceReads'] = reads
     section['sourceSelection'] = sources
     return section
@@ -1221,7 +1240,7 @@ def validate_deployed(section, pin, sources, pending=None):
     for identity in identities.values():
         a.typed(identity,a.HASH32)
     clean = {k:v for k,v in section.items() if k not in ('sourceReads','sourceSelection','endpointIdentities')}
-    validate(clean,pin,inventory)
+    validate(clean,pin,inventory,section['callsiteTargetSource']['expected'])
 
 
 def post_upgrade_check(rpc, pin, release_tree, release_targets, token_kinds, pre_upgrade, fork=None):
@@ -1265,10 +1284,10 @@ def post_upgrade_check(rpc, pin, release_tree, release_targets, token_kinds, pre
         if target not in current.get(name,[]):
             post['isolationExtraTargets'].setdefault(name,[]).append(target)
     post['isolationLegacyTokens'] = pre_upgrade['xpnts']
-    section = audit(rpc,post,inventory,fork=fork)
+    section = audit(rpc,post,inventory,pre_upgrade['callsiteTargetSource']['expected'],fork=fork)
     section['cloneEvidence'] = clone_evidence
     section['cloneReads'] = clone_reads
-    section['negativeControls'] = negative_controls(section,post,inventory)
+    section['negativeControls'] = negative_controls(section,post,inventory,pre_upgrade['callsiteTargetSource']['expected'])
     return section
 
 
@@ -1605,7 +1624,7 @@ def assert_endpoint_identities(identities):
     a.need('old_owner_endpoint_distinct',identities['primary'] != identities['secondary'],True)
 
 
-def negative_controls(section, pin, inventory):
+def negative_controls(section, pin, inventory, callsite_expected):
     """Replay each inventoried exclusion with one forbidden result; never mutate live state."""
     results = []
     for injected, row in enumerate(section['reads']):
@@ -1635,7 +1654,7 @@ def negative_controls(section, pin, inventory):
         replay.local = True
         stopped = None
         try:
-            audit(replay,pin,inventory,fork=replay)
+            audit(replay,pin,inventory,callsite_expected,fork=replay)
         except a.Gate as error:
             stopped = error.record['gate']
         a.need('old_owner_release_negative_control',stopped,control['gate'])
