@@ -853,10 +853,16 @@ def immutable_expectations(implementation=None):
     return result
 
 
-def decode_immutable(identity, values, artifact, expectations):
+def validate_immutable_inputs(identity, values, artifact):
+    """Validate decoder prerequisites before any declaration or value is dereferenced."""
     declaration = artifact.get('immutableDeclarations', {}).get(identity)
     a.need('old_owner_immutable_ast', declaration is not None, True)
     a.need('old_owner_immutable_values', bool(values), True)
+
+
+def decode_immutable(identity, values, artifact, expectations):
+    validate_immutable_inputs(identity, values, artifact)
+    declaration = artifact['immutableDeclarations'][identity]
     name, typ = declaration['name'], declaration['type']
     number = int.from_bytes(values[0], 'big')
     address_type = typ in ('address', 'address payable') or typ.startswith('contract ')

@@ -3,6 +3,7 @@
 import sys
 sys.dont_write_bytecode = True
 import copy
+from collections import UserDict
 from gate_assertions import assert_stop
 import contextlib
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ import test_old_owner_isolation as isolation_tests
 from test_old_owner_isolation import OldOwnerIsolationTests
 
 a, u = m.a, m.u
+REAL_FUNDING_GATE = m.funding_gate
 REAL_RELEASE_GATE = m.release_gate
 REAL_A3A_VALIDATE_PLAN = a.validate_plan
 ANNI = m.ANNI
@@ -1778,13 +1780,17 @@ class ManifestTests(unittest.TestCase):
         self.rehearse_fake(fault='drift', gate='accounting_unchanged_since_phase_c')
 
     def test_rehearsal_funding_rechecked_after_phase_c(self):
-        # run_manifest must call the funding re-read right after the last Phase C step and stop
-        # on its gate before any Phase D transaction (the real gate is tested in the Phase C suite).
+        from test_manifest_phase_c import Chain
         def drained(rpc, plan):
-            a.need('C_funding_bundler', False, True)
+            chain = Chain(plan, 'after_phase_c')
+            chain.balances[chain.B] = plan['phaseC']['bundlerTarget']-1
+            # Use real read helpers with the offline chain, including the production gate.
+            with patch.object(a, 'word', base_word), patch.object(a, 'block_data', base_block), chain.patches()[0]:
+                return REAL_FUNDING_GATE(chain, plan)
+        base_word, base_block = a.word, a.block_data
         with patch.object(m, 'funding_gate', side_effect=drained):
             sent, _, _, _ = self.rehearse_fake(fault='funding', gate='C_funding_bundler')
-        self.assertEqual(sent[-1][0], self.plan['phaseC']['steps'][-1])
+        self.assertEqual(sent[-1][0], self.plan['phaseC']['steps'][-1], 'C_funding_bundler')
 
     def test_rehearsal_orders_all_steps_warps_and_b2(self):
         sent, waits, gates, state = self.rehearse_fake()
@@ -2009,8 +2015,10 @@ class ManifestTests(unittest.TestCase):
     def test_old_timelock_block(self):
         self.assert_timelock_build_gate('old_timelock_block', lambda p: p['oldTimelock']['reads'][0].update(block='0x123'))
 
-    def test_old_timelock_replay(self):
+    def test_old_timelock_replay_reads(self):
         self.assert_timelock_build_gate('old_timelock_replay', lambda p: p['oldTimelock']['reads'][0].update(target=u.SP))
+
+    def test_old_timelock_replay_owners(self):
         self.assert_timelock_build_gate('old_timelock_replay', lambda p: p['oldTimelock']['approvalOwners'].clear())
 
     def test_old_timelock_unused(self):
@@ -2095,16 +2103,19 @@ class ManifestTests(unittest.TestCase):
             m.old_timelock_holds_nothing(rpc, self.pin, self.pin['stateBlock'])
         self.assertEqual(caught.exception.record['gate'], 'old_owner_log_partition')
 
-    def test_old_timelock_approval_history(self):
-        for invalid_range in (True, False):
-            pin = copy.deepcopy(self.pin)
-            rpc, token, _ = self.approval_rpc(pin['stateBlock'], amount=0, malformed=not invalid_range)
-            if invalid_range:
-                pin['oldOwnerIsolation']['inventory']['deployedSources'] = [dict(target=token, creationBlock=0)]
-            with self.subTest(invalid_range=invalid_range):
-                with assert_stop(self, 'old_timelock_approval_history') as caught:
-                    m.old_timelock_holds_nothing(rpc, pin, pin['stateBlock'])
-                self.assertEqual(caught.exception.record['gate'], 'old_timelock_approval_history')
+    def approval_history_control(self, invalid_range):
+        pin = copy.deepcopy(self.pin)
+        rpc, token, _ = self.approval_rpc(pin['stateBlock'], amount=0, malformed=not invalid_range)
+        if invalid_range:
+            pin['oldOwnerIsolation']['inventory']['deployedSources'] = [dict(target=token, creationBlock=0)]
+        with assert_stop(self, 'old_timelock_approval_history'):
+            m.old_timelock_holds_nothing(rpc, pin, pin['stateBlock'])
+
+    def test_old_timelock_approval_history_range(self):
+        self.approval_history_control(True)
+
+    def test_old_timelock_approval_history_log(self):
+        self.approval_history_control(False)
 
     def test_old_timelock_approval_creation_bounds(self):
         pin = copy.deepcopy(self.pin)
@@ -3813,6 +3824,30 @@ class SafeGovernanceTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_proof_read')
 
 
+class NamedStopAssertionTests(unittest.TestCase):
+    def test_expected_gate(self):
+        with assert_stop(self, 'expected'):
+            a.need('expected', False, True)
+
+    def test_wrong_gate_names_both(self):
+        with self.assertRaisesRegex(AssertionError, 'expected') as caught:
+            with assert_stop(self, 'expected'):
+                a.need('other', False, True)
+        self.assertIn('other', str(caught.exception))
+
+    def test_acceptance_names_gate(self):
+        with self.assertRaisesRegex(AssertionError, 'expected: Gate not raised'):
+            with assert_stop(self, 'expected'):
+                pass
+
+    def test_unexpected_exception_propagates(self):
+        fault = ValueError('unrelated failure')
+        with self.assertRaises(ValueError) as caught:
+            with assert_stop(self, 'expected'):
+                raise fault
+        self.assertIs(caught.exception, fault)
+
+
 class GasGateControls(unittest.TestCase):
     def setUp(self):
         self.step = dict(id='approve', executionTimestamp=100,
@@ -3836,17 +3871,27 @@ class GasGateControls(unittest.TestCase):
         u.validate_gas_evidence(self.plan, self.step)
 
     def test_gas_evidence_missing(self):
-        del self.step['gasEvidence']
+        self.step['gasEvidence'] = UserDict(self.step['gasEvidence'])
         self.stop('gas_evidence_missing')
 
     def test_remote_estimate_context(self):
-        del self.step['gasEvidence']['estimateContext']
+        self.step['gasEvidence']['estimateContext'] = UserDict(self.step['gasEvidence']['estimateContext'])
         self.stop('remote_estimate_context')
 
-    def test_measurement_executionTimestamp(self):
+    def test_measurement_executionTimestamp_context(self):
         self.step['executionTimestamp'] = 0
         self.step['gasEvidence']['estimateContext']['blockOverrides'] = {'time': '0x0'}
-        self.stop('measurement_executionTimestamp')
+        # Isolate the context check from the separately tested transaction validator.
+        with patch.object(u, 'validate_gas'):
+            self.stop('measurement_executionTimestamp')
+
+    def test_measurement_executionTimestamp_transaction(self):
+        self.step['executionTimestamp'] = 0
+        self.stop('measurement_executionTimestamp', lambda: self.validate_transaction_gas())
+
+    def validate_transaction_gas(self):
+        with u.gas_step(self.step):
+            u.validate_gas(self.step)
 
     def test_measurement_blockGasLimit(self):
         self.step['gasEvidence']['blockGasLimit'] = 200_000_000.0
@@ -4082,13 +4127,12 @@ class GasGateControls(unittest.TestCase):
 
 
 class GasProbeReportingTests(unittest.TestCase):
-    def test_suppressed_outcomes_distinguish_defense_in_depth(self):
+    def test_all_single_site_deletions_are_strict(self):
         import probe_gas_gates as probes
         for name, gate in probes.CASES.items():
             with self.subTest(gate=gate):
-                # Older duplicate timestamp validation stays green after deleting one site.
                 red, log = probes.strict_outcome(name, gate)
-                self.assertEqual(red, gate != 'measurement_executionTimestamp', gate+'\n'+log)
+                self.assertTrue(red, gate+'\n'+log)
 
     def test_suppressed_gate_cannot_be_reported_as_another_defense(self):
         import probe_gas_gates as probes

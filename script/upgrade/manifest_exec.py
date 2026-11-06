@@ -2096,6 +2096,14 @@ def stage_readback(plan, rpc):
     return dict(prefixDigest=plan['prefixDigest'], domainSeparator=domain)
 
 
+def stage_pin(pin, stage):
+    """Require Phase C evidence before the builder reads it; strip it for earlier stages."""
+    if stage in PC_STAGES:
+        a.need('stage_pin_phase_c', 'phaseC' in pin, True)
+        return pin
+    return {k: v for k, v in pin.items() if k != 'phaseC'}
+
+
 def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     a.need('manifest_inputs_required', inputs is not None, True)
     required(inputs, ('sha256', 'data'), 'external_binding')
@@ -2105,10 +2113,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     validate_external(d, stage)
     # Phase C pin reads belong only to the stages that build Phase C; a7/b4 prefixes are
     # byte-identical whether or not the supplied pin carries them.
-    if stage in PC_STAGES:
-        a.need('stage_pin_phase_c', 'phaseC' in pin, True)
-    else:
-        pin = {k: v for k, v in pin.items() if k != 'phaseC'}
+    pin = stage_pin(pin, stage)
     sources = copy.deepcopy(stage_sources or {})
     a.need("stage_sources", set(sources), set() if stage == "a7" else ({"a7"} if stage == "b4" else ({"a7", "b4"} if sources else set())))
     salt_digest = sources["b4"]["plan"]["externalInputs"]["sha256"] if "b4" in sources else inputs["sha256"]

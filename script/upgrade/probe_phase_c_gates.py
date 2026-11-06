@@ -58,17 +58,17 @@ CASES += [
 CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
           ('old_timelock_holds_nothing', 'old_timelock_tl_roles', 'old_timelock_authority', 'old_timelock_safe')]
 CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
-          ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_replay',
+          ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block',
            'old_timelock_unused', 'old_timelock_allowance')]
 CASES += [(base_tests.ManifestTests, 'test_old_timelock_inventory_new_role', 'old_timelock_inventory'),
           (base_tests.ManifestTests, 'test_old_timelock_inventory_new_token', 'old_timelock_inventory')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_legacy_timelock_source_targets', 'old_owner_source_targets')]
-CASES += [(base_tests.ManifestTests, 'test_old_timelock_approval_history', 'old_timelock_approval_history'),
+CASES += [(base_tests.ManifestTests, 'test_old_timelock_approval_history_range', 'old_timelock_approval_history'),
           (base_tests.ManifestTests, 'test_old_timelock_external_approval', 'old_timelock_allowance'),
           (base_tests.ManifestTests, 'test_old_timelock_approval_incomplete', 'old_owner_log_partition')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_never_granted_range_grant', 'old_owner_never_granted_set')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_never_granted_control_holder', 'old_owner_never_granted_holder')]
-CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_function_falls_back', 'old_owner_mapping_getter')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_function_getter_rejected_per_role', 'old_owner_mapping_getter')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_role_control_case_without_path_gate', 'old_owner_role_control_case')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_positive_zero', 'old_owner_mapping_positive')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_negative_one', 'old_owner_mapping_negative')]
@@ -82,6 +82,12 @@ CASES += [(base_tests.ManifestTests,'test_never_granted_pre_send_change','old_ow
 CASES += [(base_tests.ManifestTests, name, 'old_owner_role_recheck') for name in ('test_old_role_closing_change', 'test_old_role_pre_send_change')]
 CASES += [(base_tests.DeltaTests, 'test_old_timelock_delta_'+g, 'old_timelock_delta_'+g) for g in base_tests.DELTA_CASES]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_history_standard_revoke_only', 'old_owner_history_positive')]
+CASES += [(base_tests.ManifestTests, name, gate) for name, gate in (
+    ('test_old_timelock_replay_reads', 'old_timelock_replay'),
+    ('test_old_timelock_replay_owners', 'old_timelock_replay'),
+    ('test_old_timelock_approval_history_log', 'old_timelock_approval_history'))]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_proxy_runtime_'+kind, 'old_owner_runtime_'+kind)
+          for kind in ('length', 'parity')]
 C1_GATES = ('role_write_key', 'role_assembly', 'role_lowlevel_call', 'registry_source_commit', 'role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control')
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_'+g, 'old_owner_'+g) for g in C1_GATES]
 C2_GATES = ('xpnts_deployment_count', 'xpnts_deployment_log', 'xpnts_owner_pin')

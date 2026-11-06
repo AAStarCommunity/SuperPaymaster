@@ -48,9 +48,12 @@ F05 = {
 }
 CLOSING = 'ManifestTests.test_dvt_closing_binds_pointer_and_stale_proposals'
 REQUIRED = {
-    ('old_timelock_holds_nothing', 'old_timelock_approval_history'): 'ManifestTests.test_old_timelock_approval_history',
+    ('old_timelock_holds_nothing', 'old_timelock_approval_history'): ('ManifestTests.test_old_timelock_approval_history_range',
+        'ManifestTests.test_old_timelock_approval_history_log'),
     **{('validate_old_timelock', g): 'ManifestTests.test_'+g for g in
-       ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_replay', 'old_timelock_unused')},
+       ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_unused')},
+    ('validate_old_timelock', 'old_timelock_replay'): (
+        'ManifestTests.test_old_timelock_replay_reads', 'ManifestTests.test_old_timelock_replay_owners'),
     ('old_timelock_holds_nothing', 'old_timelock_allowance'): 'ManifestTests.test_old_timelock_allowance',
     ('closing_timelock_inventory', 'old_timelock_inventory'): 'ManifestTests.test_old_timelock_inventory_new_role',
     **{('old_timelock_holds_nothing', g): 'ManifestTests.test_'+g for g in
@@ -97,8 +100,7 @@ def parse(rc, out):
 
 
 def probe(row):
-    line, function, gate = row
-    bound = REQUIRED[(function, gate)]
+    line, function, gate, bound = row
     tests = 'test_old_owner_isolation' if bound.startswith('OldOwnerIsolationTests.') else 'test_manifest_exec'
     options = dict(module='old_owner_isolation' if function in ISOLATION_FUNCTIONS else 'manifest_exec',tests=tests)
     base = parse(*sh('--baseline', '--select', bound, **options))
@@ -138,6 +140,18 @@ def main():
         if m and (m.group(2), m.group(3).strip()) in REQUIRED:
             rows.append((int(m.group(1)), m.group(2), m.group(3).strip()))
     missing = sorted(set(REQUIRED) - {(fn, g) for _, fn, g in rows})
+    # Multi-site gates bind one distinct test to each source statement, in source order.
+    bound_rows = []
+    for key, controls in REQUIRED.items():
+        sites = sorted(row for row in rows if row[1:] == key)
+        if isinstance(controls, tuple):
+            if len(sites) != len(controls):
+                missing.append((key, 'expected '+str(len(controls))+' sites, got '+str(len(sites))))
+                continue
+            bound_rows.extend((*row, control) for row, control in zip(sites, controls))
+        else:
+            bound_rows.extend((*row, controls) for row in sites)
+    rows = bound_rows
     with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
         results = []
         for result in pool.map(probe, rows):

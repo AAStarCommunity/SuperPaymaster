@@ -1,5 +1,6 @@
 """Offline L-1 controls, using synthetic compiler ASTs and strict RPC replies."""
 import copy
+from collections import UserDict
 from gate_assertions import assert_stop
 import json
 import os
@@ -565,8 +566,10 @@ class OldOwnerIsolationTests(unittest.TestCase):
         return lambda:o.token_deployment_community(rpc,self.pin,FACTORY,TOKEN)
 
     def test_xpnts_deployment_count(self):
-        for edit in (lambda rows:[],lambda rows:rows*2):
-            self.assert_gate('old_owner_xpnts_deployment_count',self.deployment_case(edit))
+        self.assert_gate('old_owner_xpnts_deployment_count',self.deployment_case(lambda rows: rows*2))
+
+    def test_xpnts_deployment_empty(self):
+        self.assert_gate('old_owner_xpnts_deployment_count',self.deployment_case(lambda rows: []))
 
     def test_xpnts_deployment_log(self):
         for field, value in (('address',o.NEW),('removed',True),('blockHash',a.ZERO32),
@@ -1150,7 +1153,23 @@ class OldOwnerIsolationTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'],'old_owner_role_extraction_empty')
         removed_probe(self,lambda:o.audit(rpc,self.pin,inv),'old_owner_role_extraction_empty')
 
+    def test_proxy_runtime_length(self):
+        self.proxy_runtime_control('old_owner_runtime_length', '0x6312345678506000')
+
+    def test_proxy_runtime_parity(self):
+        self.proxy_runtime_control('old_owner_runtime_parity', '0x6001')
+
     def test_proxy_runtime_extra_selector_stops(self):
+        from probe_phase_c_gates import run
+        for kind in ('length', 'parity'):
+            name, gate = 'test_proxy_runtime_'+kind, 'old_owner_runtime_'+kind
+            baseline, _, log = run(type(self), name)
+            self.assertTrue(baseline, log)
+            invalid, matched, log = run(type(self), name, gate)
+            self.assertTrue(matched and not invalid, gate+'\n'+log)
+            print(f'STRICT_CONTROL {gate} matches=1 baseline=OK failures>=1 errors=0 named_assertion=True')
+
+    def proxy_runtime_control(self, gate, code):
         baseline,sources,build = self.source_fixture()
         # Implementation remains correct; only the proxy bytecode is changed.
         impl = '0x'+'ab'*20
@@ -1159,18 +1178,12 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for target in (u.REG,u.SP):
             def rpc(method,params):
                 if method == 'eth_getStorageAt' and params[0] in (u.REG,u.SP) and params[1] == o.IMPLEMENTATION_SLOT: return raw([int(impl,16)])
-                if method == 'eth_getCode' and params == [target,self.pin['stateBlock']]: return '0x6312345678506000'+CBOR
+                if method == 'eth_getCode' and params == [target,self.pin['stateBlock']]: return code+CBOR
                 return baseline(method,params)
             with patch.object(o,'deployed_build',side_effect=build):
                 action = lambda:o.deployed_inventory(rpc,self.pin,sources)
-                with assert_stop(self, 'old_owner_runtime_length') as caught: action()
-                self.assertEqual(caught.exception.record['gate'],'old_owner_runtime_length')
-                removed_probe(self,action,'old_owner_runtime_length')
-                original = a.need
-                def removed(label,actual,expected):
-                    if label not in ('old_owner_runtime_length','old_owner_runtime_parity'): original(label,actual,expected)
-                with patch.object(a,'need',side_effect=removed): action()
-                print('LEGACY_NOT_STRICT proxy_runtime_all_parity_gates sites=2 outcome=accepted failures=0 errors=0')
+                with assert_stop(self, gate):
+                    action()
 
     def test_deployment_record_binding_and_gate_removals(self):
         fragment = json.loads((Path(__file__).parent/'fixtures/old-owner/deployed-sources.json').read_text())
@@ -1179,13 +1192,23 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for field,value,gate in [
             ('sha256','0'*64,'old_owner_record_sha256'),
             ('commit','b'*40,'old_owner_record_commit'),
-            ('contractAddress',TOKEN,'old_owner_record_address'),
-            ('txHash',a.ZERO32,'old_owner_record_receipt')]:
+            ('contractAddress',TOKEN,'old_owner_record_address')]:
             bad = copy.deepcopy(spec); bad['deploymentRecord'][field] = value
             action = lambda:o.verify_deployment_record(bad)
             with assert_stop(self, gate) as caught: action()
             self.assertEqual(caught.exception.record['gate'],gate)
             removed_probe(self,action,gate)
+        missing = copy.deepcopy(spec)
+        missing['deploymentRecord']['txHash'] = a.ZERO32
+        self.assert_gate('old_owner_record_receipt', lambda: o.verify_deployment_record(missing))
+        duplicate = copy.deepcopy(spec)
+        receipt_ref = duplicate['deploymentRecord'].pop('receipt')
+        receipt = o.committed_record(receipt_ref['path'], receipt_ref['sha256'])
+        record = dict(commit=spec['commit'], receipts=[receipt, copy.deepcopy(receipt)])
+        with patch.object(o, 'committed_record', return_value=record):
+            action = lambda: o.verify_deployment_record(duplicate)
+            self.assert_gate('old_owner_record_receipt', action)
+            removed_probe(self, action, 'old_owner_record_receipt')
         bad = copy.deepcopy(spec); bad['commit']='b'*40; bad['deploymentRecord']['commit']='b'*40
         action = lambda:o.verify_deployment_record(bad)
         with assert_stop(self, 'old_owner_record_source_commit') as caught: action()
@@ -1197,7 +1220,11 @@ class OldOwnerIsolationTests(unittest.TestCase):
             action = lambda:o.deployed_inventory(rpc,self.pin,sources)
             with assert_stop(self, 'old_owner_record_required') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_record_required')
-            removed_probe(self,action,'old_owner_record_required')
+        typed = copy.deepcopy(spec)
+        typed['deploymentRecord'] = UserDict(typed['deploymentRecord'])
+        action = lambda: o.verify_deployment_record(typed)
+        self.assert_gate('old_owner_record_required', action)
+        removed_probe(self,action,'old_owner_record_required')
 
     def test_optional_fork_harness_with_mock_rpc(self):
         baseline = fixture_fork(self.pin)
@@ -1350,7 +1377,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         artifact['immutableDeclarations'] = {}
         with assert_stop(self, 'old_owner_immutable_ast') as caught: run(good)
         self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_ast')
-        removed_probe(self,lambda:run(good),'old_owner_immutable_ast')
+        removed_probe(self,lambda:o.validate_immutable_inputs('7', [bytes(32)], artifact),'old_owner_immutable_ast')
 
     def test_pin_time_immutable_gates(self):
         baseline,sources,build = self.source_fixture()
@@ -1399,7 +1426,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         action = lambda:o.runtime_parity(artifact['deployedBytecode']['object'],artifact)
         with assert_stop(self, 'old_owner_immutable_values') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_values')
-        removed_probe(self,action,'old_owner_immutable_values')
+        removed_probe(self,lambda:o.validate_immutable_inputs('7', [], artifact),'old_owner_immutable_values')
 
     def test_clone_identity_and_factory_origin_controls(self):
         factory = '0x67422d2e44a33c8da99b3b776841bf316bd209a2'

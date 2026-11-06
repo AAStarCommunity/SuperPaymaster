@@ -5,7 +5,8 @@ import test_manifest_exec as tests
 CASES = {
     'test_gas_evidence_missing': 'gas_evidence_missing',
     'test_remote_estimate_context': 'remote_estimate_context',
-    'test_measurement_executionTimestamp': 'measurement_executionTimestamp',
+    'test_measurement_executionTimestamp_context': 'measurement_executionTimestamp',
+    'test_measurement_executionTimestamp_transaction': 'measurement_executionTimestamp',
     'test_measurement_blockGasLimit': 'measurement_blockGasLimit',
     'test_B4_variant_measurements': 'B4_variant_measurements',
     'test_B4_placeholder_measurements_tx': 'B4_placeholder_measurements',

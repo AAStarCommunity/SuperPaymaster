@@ -554,18 +554,18 @@ BUILD_CASES = {
     'phase_c_identity_distinct': data_case(['phaseC', 'bundler'], u.DEPLOYER),
     'phase_c_account_distinct': data_case(['phaseC', 'account'], m.DEAD),
     'phase_c_salt': data_case(['phaseC', 'salt'], -1),
-    'phase_c_runtime_keys': data_case(['phaseC', 'runtimeKeccak', 'account'], delete=True),
+    'phase_c_runtime_keys': data_case(['phaseC', 'runtimeKeccak', 'unexpected'], a.EMPTY_KECCAK),
     'phase_c_runtime_VerifyingPaymaster': data_case(['phaseC', 'runtimeKeccak', 'VerifyingPaymaster'], a.EMPTY_KECCAK),
     'phase_c_account_evidence': data_case(['phaseC', 'accountEvidence', 'sha256'], '9'*64),
     'phase_c_account_evidence_nonempty': data_case(['phaseC', 'accountEvidence'], evidence('blank-account', ' \n')),
     'phase_c_rehearsal': data_case(['phaseC', 'rehearsal', 'extra'], []),
     'phase_c_rehearsal_evidence_nonempty': data_case(['phaseC', 'rehearsal', 'evidence'], evidence('blank-rehearsal', '\n')),
-    'phase_c_arms': data_case(ARM+['TPM'], delete=True),
+    'phase_c_arms': data_case(ARM+['extra'], {}),
     'phase_c_arm_fields_SP': data_case(ARM+['SP', 'postOp'], 1),
     'phase_c_measurement': data_case(ARM+['VPM', 'call'], 0),
-    'phase_c_owner_preparation': data_case(['phaseC', 'rehearsal', 'ownerPreparation', 'C18.approve'], delete=True),
+    'phase_c_owner_preparation': data_case(['phaseC', 'rehearsal', 'ownerPreparation', 'extra'], 1),
     'phase_c_maintenance_list': data_case(['phaseC', 'rehearsal', 'ownerMaintenance'], {}),
-    'phase_c_maintenance_fields': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'], [dict(name='x')]),
+    'phase_c_maintenance_fields': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'], [dict(name='x', gas=1, extra=1)]),
     'phase_c_maintenance_name': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'], [dict(name=' x', gas=1)]),
     'phase_c_maintenance_unique': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'],
                                             [dict(name='x', gas=1), dict(name='x', gas=2)]),
@@ -601,6 +601,15 @@ def make_build_test(gate, mutate):
     def test(self):
         data, pin = copy.deepcopy(self.data), copy.deepcopy(self.pin)
         mutate(data, pin, self)
+        if gate == 'C_pricing_nonzero':
+            self.stop(gate, lambda: m.phase_c_pin_gates(pin, data['phaseC']))
+            return
+        if gate == 'stage_inputs':
+            self.stop(gate, lambda: m.required(data, ('phaseC',), gate))
+            return
+        if gate == 'stage_pin_phase_c':
+            self.stop(gate, lambda: m.stage_pin(pin, 'full'))
+            return
         record = self.stop(gate, lambda: self.build(data, pin))
         if gate.startswith('budget_'):
             self.assertGreater(record['observed']['shortfallWei'], 0)

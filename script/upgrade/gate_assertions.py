@@ -12,8 +12,6 @@ def assert_stop(test, gate):
     except u.a.Gate as fault:
         caught.exception = fault
         test.assertEqual(fault.record['gate'], gate, gate)
-    except Exception as fault:
-        test.fail(f'{gate}: expected STOP before {type(fault).__name__}: {fault}')
     else:
         test.fail(f'{gate}: Gate not raised')
 
