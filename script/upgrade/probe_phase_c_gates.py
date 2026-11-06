@@ -79,11 +79,14 @@ CASES += [(base_tests.ManifestTests,'test_never_granted_pre_send_change','old_ow
 CASES += [(base_tests.ManifestTests, name, 'old_owner_role_recheck') for name in ('test_old_role_closing_change', 'test_old_role_pre_send_change')]
 CASES += [(base_tests.DeltaTests, 'test_old_timelock_delta_'+g, 'old_timelock_delta_'+g) for g in base_tests.DELTA_CASES]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_history_standard_revoke_only', 'old_owner_history_positive')]
+C1_GATES = ('role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control')
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_'+g, 'old_owner_'+g) for g in C1_GATES]
 # These new/changed isolation gates must fail by assertion, with zero test errors.
 ASSERTION_ONLY_GATES = {'old_owner_never_granted_set', 'old_owner_never_granted_holder',
                         'old_owner_never_granted_recheck', 'old_owner_role_recheck', 'old_owner_mapping_getter',
                         'old_owner_mapping_positive', 'old_owner_mapping_negative',
                         'old_owner_history_positive'}
+ASSERTION_ONLY_GATES.update('old_owner_'+g for g in C1_GATES)
 ASSERTION_ONLY_GATES.update('old_timelock_delta_'+g for g in base_tests.DELTA_CASES)
 GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")
 # Gate literals whose control is a whole family (name+'_gate', name+'_restore').

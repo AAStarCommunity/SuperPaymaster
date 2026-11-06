@@ -2136,6 +2136,20 @@ class ManifestTests(unittest.TestCase):
                 m.dvt_closing(changed, plan)
             self.assertEqual(caught.exception.record['gate'], 'old_timelock_inventory')
 
+    def test_configured_roles_closing_without_events(self):
+        pin = copy.deepcopy(self.pin)
+        section = pin['oldOwnerIsolation']
+        section['roleHistory'] = {target: [] for target in section['roleHistory']}
+        section['configuredRoles'] = sorted(r['value'] for r in section['inventory']['Registry']['roles'])
+        rpc = isolation_tests.fixture_rpc(pin)
+        with patch.object(m.isolation, 'role_history', return_value=[]), patch.object(
+                m.isolation, 'bounded_history_logs', return_value=[]):
+            try:
+                result = m.closing_timelock_inventory(rpc, pin, pin['stateBlock'])
+            except a.Gate as fault:
+                self.fail(fault.record['gate'])
+        self.assertEqual(result['oldOwnerIsolation']['configuredRoles'], section['configuredRoles'])
+
     def test_old_timelock_inventory_new_role(self):
         self.check_closing_inventory(new_role=True)
 

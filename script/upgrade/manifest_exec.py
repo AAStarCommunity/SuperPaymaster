@@ -931,7 +931,7 @@ def closing_timelock_inventory(rpc, pin, block):
     spec = inventory.get('targetInventories', {}).get(u.REG, inventory['Registry'])
     logs = isolation.bounded_history_logs(rpc, dict(address=u.REG, fromBlock=hex(pin['registryCreation']),
         toBlock=block, topics=[spec['roleEventTopic']]))
-    section['configuredRoles'] = sorted({log['topics'][1] for log in logs} | set(section['roleHistory'].get(u.REG, [])))
+    section['configuredRoles'] = sorted({r['value'] for r in spec['roles']} | {log['topics'][1] for log in logs} | set(section['roleHistory'].get(u.REG, [])))
     fields = ('targets', 'xpnts', 'tokens', 'roleHistory', 'configuredRoles')
     a.need('old_timelock_inventory', {k: section[k] for k in fields},
            {k: pin['oldOwnerIsolation'][k] for k in fields})
