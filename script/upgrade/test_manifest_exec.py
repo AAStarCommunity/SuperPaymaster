@@ -2132,10 +2132,11 @@ class ManifestTests(unittest.TestCase):
             if mutation == 'mismatch': rows[index]['params'][0]['address'] = u.SAFE
             if mutation == 'unused': rows.append(copy.deepcopy(rows[index]))
             if mutation == 'owners': pin['oldTimelock']['approvalOwners'][token] = []
-            with self.subTest(mutation=mutation), self.assertRaises(a.Gate) as caught:
-                m.validate_old_timelock(pin)
-            self.assertEqual(caught.exception.record['gate'],
-                'old_timelock_unused' if mutation == 'unused' else 'old_timelock_replay')
+            with self.subTest(mutation=mutation):
+                with self.assertRaises(a.Gate) as caught:
+                    m.validate_old_timelock(pin)
+                self.assertEqual(caught.exception.record['gate'],
+                    'old_timelock_unused' if mutation == 'unused' else 'old_timelock_replay')
 
     def check_closing_inventory(self, new_role=False):
         block = '0x200'
@@ -2189,7 +2190,18 @@ class ManifestTests(unittest.TestCase):
         self.check_closing_inventory(new_role=True)
 
     def test_old_timelock_inventory_new_token(self):
-        self.check_closing_inventory()
+        block = '0x200'
+        rpc = old_timelock_rpc(self.pin, block)
+        new = '0x'+'ab'*20
+        def changed(method, params):
+            if method == 'eth_call' and params[0]['data'] == a.calldata('getAllTokens()'):
+                tokens = u.addr_array(rpc(method, params)) + [new]
+                return isolation_tests.raw([32, len(tokens), *(int(t, 16) for t in tokens)])
+            return rpc(method, params)
+        # End at inventory validation; a deleted gate must not reach unrelated authority RPCs.
+        with self.assertRaises(a.Gate) as caught:
+            m.closing_timelock_inventory(changed, self.pin, block)
+        self.assertEqual(caught.exception.record['gate'], 'old_timelock_inventory')
 
     def test_old_timelock_tl_roles(self):
         for role in [a.ZERO32, *(a.keccak(r+'_ROLE') for r in ('PROPOSER', 'EXECUTOR', 'CANCELLER'))]:
