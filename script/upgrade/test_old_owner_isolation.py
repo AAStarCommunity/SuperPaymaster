@@ -440,15 +440,21 @@ class OldOwnerIsolationTests(unittest.TestCase):
 
     def test_history_standard_revoke_only(self):
         baseline = fixture_rpc(self.pin)
-        role = inventory()['TimelockController']['roles'][0]['value']
+        spec = copy.deepcopy(inventory()['TimelockController'])
+        role = a.keccak('REVOKE_ONLY_ROLE')
+        spec['roles'].append(dict(name='REVOKE_ONLY_ROLE', value=role))
+        self.assertEqual(len(spec['roles']), 2)
+        self.assertFalse({r['value'] for r in spec['roles']} & set(o.NEVER_GRANTED.get(u.TL, [])))
         def rpc(method, params):
             result = baseline(method, params)
-            if method == 'eth_getLogs':
-                return [dict(log, topics=[a.keccak(o.REVOKED), *log['topics'][1:]])
-                        if log['topics'][1] == role else log for log in result]
+            if method == 'eth_getLogs' and result:
+                grant = result[0]
+                revoke = dict(grant, topics=[a.keccak(o.REVOKED), role, *grant['topics'][2:]],
+                              logIndex=hex(a.qty(grant['logIndex'])+1))
+                return [*result, revoke]
             return result
         with self.assertRaises(a.Gate) as caught:
-            o.role_history(rpc, self.pin, u.TL, inventory()['TimelockController'], 1)
+            o.role_history(rpc, self.pin, u.TL, spec, 1)
         self.assertEqual(caught.exception.record['gate'], 'old_owner_history_positive')
 
     def test_history_all_roles_zero(self):
