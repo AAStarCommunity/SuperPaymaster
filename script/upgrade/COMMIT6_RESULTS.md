@@ -328,3 +328,170 @@ PROBES_ALL_RED=1
 ```
 
 `git diff --check` passed. No ERROR or interrupted run is credited as proof.
+
+
+## 6c
+
+Work in progress on base HEAD `49bb77420d0e079b07d9ba1b4c772de8ade6d8ac`
+(COMMIT 6b). No commit, network RPC, environment credentials, keystore, or chain
+was used. All transaction counts below come from offline fakes.
+This section supersedes no historical results above and is **not full 6c acceptance**.
+
+### Implemented
+
+- Item 1: `pre_send` and `dvt_closing` now read all three Registry target getters
+  at their selected block through `registry_callsite_targets`, before discovery.
+  Expected values still come from committed `deployments/config.sepolia.json`.
+  Tests change each getter at pre-send for every packet step, and at closing.
+  Look-alike targets answer as the real targets rather than crashing a fake.
+  The known 6b closing authority rows now expect `old_owner_role_callsite_target`;
+  none are skipped. Existing fixtures answer `SUPER_PAYMASTER()` correctly.
+- Item 2, partial: `test_authority_checkpoints.py` covers the 3 × 2 × 2 matrix
+  for Registry `owner()` and an existing standard role config owner, with
+  OLD/OLD_TIMELOCK and pin/pre-send/closing. Four behavioral deletion probes
+  bind both authority-check calls in pre-send and closing.
+- Item 4: whole-call deletion controls for `stage_pin` in `build_plan` and
+  `validate_immutable_inputs` in `decode_immutable`. Adverse containers preserve
+  downstream data while denying declaration/presence; deleting the calls permits
+  acceptance rather than an indexing error. No production fallback was added.
+- Item 5: `ExceptionStopTests` drives the real rehearsal loop through
+  `manifest_exec.main`. Injected KeyError at first pre-send yields zero receipt
+  calls; at k=2 and k=3 pre-send/measurement/readback yield k−1/k−1/k sends,
+  rc 1 and `FAILURE.json` naming `manifest_error`. Sign/send refusals in all three
+  entrypoints return rc 3 without RPC construction or HTTP access; a3a/SP output
+  directories receive the disabled failure record. Whole-handler deletions in
+  manifest/a3a main must fail assertions naming `manifest_error`/`executor_error`.
+- Item 6: `swallow_audit.py` computes a conservative AST function-reference closure
+  from `run_manifest` across the six requested modules. It follows import aliases,
+  module aliases, lexical helpers, nested callbacks and RPC callable methods.
+  Broad handlers without guaranteed raising must match a reviewed body hash.
+  Tests inject Exception/BaseException/bare handlers, a cross-module callback,
+  a partial re-raise, and an altered allowlisted body. Line-number changes preserve
+  identity. A strict deletion probe removes the check itself.
+
+### Reviewed swallow allowlist
+
+The machine-readable source is `script/upgrade/swallow_allowlist.json`.
+
+| Module | Function | Exception | Handler-body SHA256 | Reason | Condition under which execution continues |
+|---|---|---|---|---|---|
+| a3a_exec | RPC._post_with_deadline.work | Exception | 15a0fb0c037bd1cbc065647524c5eb1c4177a1a0c4517a86ac5c0eb3da456932 | Worker transfers the exception to the waiting caller in `box['error']`. | Only the worker returns. After join, the caller raises the stored error; deadline expiry raises TimeoutError. No successful RPC result is returned. |
+
+### Undone / not certified
+
+- Item 2: role first configured by a packet step and present only in closing
+  inventory; full standard/event/history role coverage and real Registry inventory
+  assertion. An exploratory read of the existing local Registry artifact through
+  `inventory_source(ROOT, mode='release', names=('Registry',))` STOPped at
+  `old_owner_role_callsite_count`; it was not bypassed or accepted.
+- Item 3 (M7): the existing `DiscoveryCallTests` spelling checks have **not** all
+  been replaced. Their historical PASS output is not behavioral evidence.
+- Item 7: complete per-row COMMIT 5 A/B re-audit and changed-conclusion table.
+- Item 8: complete provenance column 5 table for #599/#601/#604, including all
+  adverse inputs and classification of every probe beyond the known 14.
+  In particular `removed_probe` still suppresses by gate label, without proving
+  a single source site. Its green suite is not strict single-site certification.
+- No claim that every requested control is ASSERT named is made while these
+  items remain open. ERROR and unnamed assertion outcomes never count as success.
+
+### Verification
+
+Final command summaries are recorded below after completion. Initial manifest
+verification exposed outdated address-read mocks (15 failures and 1 error);
+these were repaired, and the affected 16 tests passed. Initial closing-target
+mutation reached an unprogrammed post-packet token in the fake; using the closing
+state inventory repaired it. Those initial runs were rejected, not accepted.
+
+
+### Provenance findings so far
+
+One additional probe beyond the known 14 was disproved in this run:
+
+| Origin | Test | Gate | 6b input/result | 6c adverse input/result |
+|---|---|---|---|---|
+| #604 | SnapshotControlTests.test_control_slot_readback | C_control_layout_cachedPrice | Missing cachedPrice entry; HAS-ERROR (`IndexError` after deletion). | Duplicate valid cachedPrice entries; the first remains decodable. Focused strict rerun: ASSERT named. The missing-entry rejection remains a separate test. |
+
+#599 was rerun in full: `GAS_GATE_PROBES PASS 17/17`. All following inputs
+are unchanged from 6b; no new production fallback or disabled gate was needed.
+
+| Test (GasGateControls) | Gate | Adverse input | Result |
+|---|---|---|---|
+| test_gas_evidence_missing | gas_evidence_missing | Populated UserDict instead of dict | ASSERT named |
+| test_remote_estimate_context | remote_estimate_context | Populated context UserDict instead of dict | ASSERT named |
+| test_measurement_executionTimestamp_context | measurement_executionTimestamp | Zero timestamp and matching zero time override; separate gas validator isolated | ASSERT named |
+| test_measurement_executionTimestamp_transaction | measurement_executionTimestamp | Zero transaction timestamp | ASSERT named |
+| test_measurement_blockGasLimit | measurement_blockGasLimit | Float block limit 200000000.0 | ASSERT named |
+| test_B4_variant_measurements | B4_variant_measurements | Extra unexpected variant key | ASSERT named |
+| test_B4_placeholder_measurements_tx | B4_placeholder_measurements | Unexpected populated tx key | ASSERT named |
+| test_B4_placeholder_measurements_unexpected | B4_placeholder_measurements | Extra unexpected placeholder key | ASSERT named |
+| test_fresh_estimate_pin | fresh_estimate_pin | Missing pin block with overrides | ASSERT named |
+| test_remote_margin | measured_gas_limit | Limit based on 68394 despite remote estimate 135104 | ASSERT named |
+| test_missing_remote | remote_estimate_missing | Missing estimateGas | ASSERT named |
+| test_wrong_pin | remote_estimate_pin | Evidence block 0x124 instead of 0x123 | ASSERT named |
+| test_missing_override | remote_estimate_overrides | Empty state overrides | ASSERT named |
+| test_fresh_estimate | fresh_estimate | Fresh estimate one above gas limit | ASSERT named |
+| test_block_limit | block_gas_limit | Block limit one below transaction gas | ASSERT named |
+| test_wrong_time_override | remote_estimate_time | Override timestamp one above execution timestamp | ASSERT named |
+| test_wrong_prior_steps | remote_estimate_prior_steps | Missing prior step in prefix | ASSERT named |
+
+
+A second additional adverse-input defect was found in
+`OldOwnerIsolationTests.test_legacy_timelock_source_targets` /
+`old_owner_source_targets` (#604 binding of a #601 test): replacing the current
+Timelock record with the legacy record caused HAS-ERROR (`KeyError`) on deletion.
+The deletion input now adds the legacy record while retaining the current record;
+the replacement rejection remains a separate test.
+
+The first Phase C pass also exposed a driver defect: re-executing the complete
+`old_owner_isolation` module during a mutation replaced the offline
+`callsite_target_expectations` patch with the real config reader. Mutants then
+failed in fixture setup at `old_owner_role_callsite_target`. These are rejected
+HAS-ERROR runs, not evidence for the gate being deleted. The driver now recompiles
+only the containing top-level function, retaining unrelated fixture bindings.
+Exactly one failing source statement and the strict named-assertion/zero-error
+criterion remain mandatory. A fresh full driver run was started after this fix.
+
+
+### Latest completed verification summaries
+
+Verbatim summary lines (no runner ERROR is accepted):
+
+| Command | Summary | Log |
+|---|---|---|
+| `test_old_owner_isolation.py` | `Ran 143 tests in 143.173s` / `OK (skipped=2)` | `/tmp/6c-isolation-final.log` |
+| `test_manifest_exec.py (latest completed; final rerun pending)` | `Ran 525 tests in 597.572s` / `OK (skipped=2)` | `/tmp/commit6c-checks/test_manifest_exec.log` |
+| `test_manifest_phase_c.py` | `Ran 141 tests in 443.941s` / `OK` | `/tmp/6c-phase-final.log` |
+| `test_a3a_exec.py` | `Ran 102 tests in 3.886s` / `OK` | `/tmp/commit6c-checks/test_a3a_exec.log` |
+| `test_sp_upgrade_exec.py` | `Ran 141 tests in 2.563s` / `OK` | `/tmp/commit6c-checks/test_sp_upgrade_exec.log` |
+| `probe_gas_gates.py` | `GAS_GATE_PROBES PASS 17/17` | `/tmp/6c-gas-final.log` |
+| `inventory_replay_probes.py` | `INVENTORY_REPLAY_PROBES PASS` | `/tmp/commit6c-checks/inventory_replay_probes.log` |
+| `registry_ast_probes.py` | `REGISTRY_AST_PROBES PASS 40/40 strict red` | `/tmp/6c-registry-final.log` |
+| `stale_proposal_probes.py` | `PROBES_ALL_RED=1` | `/tmp/commit6c-checks/stale_proposal_probes.log` |
+| `probe_commit6c.py` | `COMMIT6C_PROBES PASS 12/12 strict red` | `/tmp/6c-probes-final12.log` |
+| `test_authority_checkpoints.py` | `Ran 6 tests in 17.489s` / `OK` | `/tmp/commit6c-checks/test_authority_checkpoints.log` |
+| `test_swallow_exceptions.py` | `Ran 6 tests in 7.799s` / `OK` | `/tmp/6c-swallow-final.log` |
+| `test_manifest_exec.py ExceptionStopTests (final strengthened fault-reached assertions)` | `Ran 4 tests in 0.130s` / `OK` | `/tmp/6c-exceptions-final.log` |
+
+
+### Running commands at the budget checkpoint
+
+All requested commands were started. The following have no completed final summary
+at this checkpoint; they are **not** reported as PASS:
+
+| Command | Output log | Tool session / owner |
+|---|---|---|
+| final test_manifest_exec.py rerun after retained source-replacement test | /tmp/6c-manifest-final.log | 15211 |
+| fresh probe_phase_c_gates.py 645ff3a1 after harness/input fixes | /tmp/6c-phase-probes-final.log | 72809 |
+| audit605_probes.py --jobs 3 | /tmp/commit6c-checks/audit605_probes.log | batch 36207 |
+| enduser_mapping_probes.py | /tmp/commit6c-checks/enduser_mapping_probes.log | batch 36207 |
+
+The initial Phase C run, whose log is
+`/tmp/commit6c-checks/probe_phase_c_gates.log`, predates the harness and adverse-input
+repairs. Its HAS-ERROR results are rejected. It may still finish its discovery
+subset; that does not supersede the fresh run. The original batch also contains
+inventory/stale/Registry checks; completed standalone summaries above are retained.
+The audit605 baseline was green (`BASELINE_SUITE green Ran 521 tests in 590.854s`),
+but that baseline alone is not a successful deletion audit.
+
+No commits were made. `git diff --check` passed at this checkpoint. Work remaining
+is explicitly listed above; full 6c acceptance is withheld.

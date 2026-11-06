@@ -231,7 +231,7 @@ def orphan_replies(pin):
     raw = isolation_tests.raw
     replies = {}
     discovery = isolation_tests.fixture_rpc(copy.deepcopy(pin))
-    for target, sig in ((u.REG, 'GTOKEN_STAKING()'), (u.REG, 'MYSBT()'), (u.SP, 'xpntsFactory()'),
+    for target, sig in ((u.REG, 'GTOKEN_STAKING()'), (u.REG, 'MYSBT()'), (u.REG, 'SUPER_PAYMASTER()'), (u.SP, 'xpntsFactory()'),
                         (isolation_tests.STAKING, 'GTOKEN()'), (isolation_tests.FACTORY, 'getAllTokens()')):
         replies[(target, a.calldata(sig))] = a.call(discovery, target, sig, block=pin['stateBlock'])
     for who in pin['pauseList']:
@@ -1223,12 +1223,14 @@ class ManifestTests(unittest.TestCase):
             return hex(a.CHAIN)
         rpc.local = True
         rpc = with_orphan_reads(rpc, self.plan['pin'], '0x150')
-        real_word, real_call = a.word, a.call
+        real_word, real_call, real_address = a.word, a.call, a.address
         for accepted in (False, True):
             passed = {s['id'] for s in self.plan['steps']}-{'D.registry_execute_exec'}
             if accepted: passed.add('D.registry_execute_exec')
             for owner in (u.DEPLOYER, u.TL):
                 def address(r, target, sig, *args):
+                    if sig in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+                        return real_address(r, target, sig, *args)
                     self.assertEqual(sig, 'owner()')
                     return owner if target == u.REG else u.TL
                 with self.subTest(accepted=accepted, owner=owner), contextlib.ExitStack() as stack:
@@ -1958,7 +1960,10 @@ class ManifestTests(unittest.TestCase):
     def closing_rpc(self, pointer, activity='pin', executed=(), stray=None):
         # Every read must name the one closing block (0x200); `stray` points one target elsewhere.
         getters = {u.REG: 'blsAggregator()', DVT: 'BLS_AGGREGATOR()', COMMITTEE: 'blsAggregator()'}
+        real_address = a.address
         def address(r, target, sig, block=None):
+            if target == u.REG and sig in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+                return real_address(r, target, sig, block)
             self.assertEqual((sig, block), (getters[target], '0x200'))
             return u.SP if target == stray else pointer
         real_call = a.call
@@ -1993,6 +1998,8 @@ class ManifestTests(unittest.TestCase):
                 else:
                     action = lambda: m.old_timelock_holds_nothing(rpc, pin, block)
                 expected = 'old_owner_xpnts_owner_recheck' if closing and bad and bad[1] == 'communityOwner()' else gate
+                if closing and bad and bad[0] == u.REG and bad[1] in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+                    expected = 'old_owner_role_callsite_target'
                 with assert_stop(self, expected) as caught: action()
                 self.assertEqual(caught.exception.record['gate'], expected)
 
@@ -2401,7 +2408,7 @@ class ManifestTests(unittest.TestCase):
         rpc = with_orphan_reads(rpc, self.plan['pin'], '0x200')
         with patch.object(a, 'nonce', return_value=a.qty(step['tx']['nonce'])), \
              patch.object(a, 'word', side_effect=word), \
-             patch.object(a, 'address', side_effect=lambda r,t,s,*args: self.pin['capped'] if s == 'pendingAPNTsToken()' else u.DEPLOYER), \
+             patch.object(a, 'address', side_effect=lambda r,t,s,*args: m.isolation.callsite_target_expectations()[s[:-2]] if s[:-2] in m.isolation.callsite_target_expectations() else self.pin['capped'] if s == 'pendingAPNTsToken()' else u.DEPLOYER), \
              patch.object(u, 'safe_state', return_value=self.pin['safe']), patch.object(u, 'governance'), \
              patch.object(u, 'code', side_effect=lambda r,t,*args:'0xdead' if bad_runtime else self.pin['bindings'][t]), \
              patch.object(m, 'old_activity', return_value={}), patch.object(m, 'dvt_activity', return_value=[]), \
@@ -4375,13 +4382,15 @@ class F05PreSendGates(F05Fixture):
             raise AssertionError((method, params))
         rpc.local = True
         rpc = with_orphan_reads(rpc, self.plan['pin'], '0x200')
-        real_word, real_call = a.word, a.call
+        real_word, real_call, real_address = a.word, a.call, a.address
         def word(rpc, target, sig, *args, **kw):
             if sig == 'nonce()': return step['safeNonce'] + int(gate == 'safe_nonce')
             if sig == 'pendingAPNTsTokenEta()':
                 return self.pin['pendingAPNTsTokenEta'] + int(gate == 'pending_token_eta')
             return real_word(rpc, target, sig, *args, **kw)
         def address(rpc, target, sig, *args):
+            if sig in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+                return real_address(rpc, target, sig, *args)
             if sig == 'pendingAPNTsToken()':
                 return a.ZERO if gate == 'pending_token' else self.pin['capped']
             return a.ZERO if target == u.SP and gate == 'SP_owner' else u.DEPLOYER
@@ -5027,6 +5036,152 @@ DISCOVERY_CALLS = [
     ('current_discovery', "a.call(rpc, pin['discoveryReleaseFactory'], 'getAllTokens()', block=block)", 'old_timelock_delta_xpnts'),
     ('current_discovery', "a.call(rpc, pin['discoveryOriginalFactory'], 'getAllTokens()', block=block)", 'old_timelock_delta_xpnts'),
 ]
+
+
+class ExceptionStopTests(unittest.TestCase):
+    def rehearsal_fault(self, phase, k):
+        import io
+        state = {'sends': 0, 'injected': False}
+        steps = [dict(id=f'test_{i}', tx={'from': u.DEPLOYER, 'nonce': hex(i-1)},
+                      safeNonce=0, forkGasUsed=1, rrRequired=False, readbacks=[dict(kind='test', index=i)])
+                 for i in range(1, 4)]
+        plan = dict(stage='a7', externalInputs={}, pin=dict(senders={}, block='0x1'), steps=steps)
+        def rpc(method, params):
+            self.assertIn(method, ('evm_setNextBlockTimestamp', 'eth_getTransactionByHash'))
+            return {}
+        rpc.local, rpc.engine_process = True, None
+        def pre(rpc, plan, step, context, measured=False):
+            if phase == 'pre_send' and step['id'] == f'test_{k}':
+                state['injected'] = True
+                raise KeyError('injected pre_send')
+        def measure(remote, rpc, plan, step, *args):
+            if phase == 'measure_step' and step['id'] == f'test_{k}':
+                state['injected'] = True
+                raise KeyError('injected measure_step')
+            return {}
+        def readback(rpc, pred, timestamp):
+            if phase == 'readback' and pred['index'] == k:
+                state['injected'] = True
+                raise KeyError('injected readback')
+            return {}
+        def receipt(rpc, tx):
+            state['sends'] += 1
+            return dict(gasUsed='0x1', blockNumber=hex(state['sends']), transactionHash=a.ZERO32)
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+            out = Path(directory)/'out'
+            # These files contain no endpoint; RPC construction and fork creation are replaced by local fakes.
+            endpoint = Path(directory)/'offline'; endpoint.write_text('offline-test-only')
+            for item in (
+                patch.object(a, 'RPC', return_value=rpc),
+                patch.object(a, 'fork', side_effect=lambda *args: contextlib.nullcontext(rpc)),
+                patch.object(m, 'external', return_value={}),
+                patch.object(m, 'collect_pair', return_value=plan['pin']),
+                patch.object(m, 'build_plan', return_value=plan), patch.object(m, 'validate_plan'),
+                patch.object(a, 'process_alive'), patch.object(m, 'controls_at'), patch.object(m, 'phase_c_controls'),
+                patch.object(m, 'pre_send', side_effect=pre), patch.object(u, 'measure_step', side_effect=measure),
+                patch.object(u, 'fresh_gas', return_value={}), patch.object(u, 'receipt', side_effect=receipt),
+                patch.object(a, 'block_data', side_effect=lambda *args: dict(timestamp=hex(10+state['sends']))),
+                patch.object(a, 'mined_identity'), patch.object(a, 'nonce', side_effect=lambda *args: state['sends']),
+                patch.object(a, 'word', return_value=0), patch.object(m, 'check_predicate', side_effect=readback),
+                patch.object(u, 'log'), patch.object(a, 'trace_overrides'),
+                contextlib.redirect_stderr(io.StringIO()),
+            ):
+                stack.enter_context(item)
+            rc = m.main(['simulate', '--stage', 'a7', '--inputs', str(endpoint), '--rpc-file', str(endpoint),
+                         '--rpc-file-secondary', str(endpoint), '--block', '1', '--out', str(out)])
+            self.assertEqual(rc, 1, 'manifest_error')
+            self.assertEqual(json.loads((out/'FAILURE.json').read_text())['gate'], 'manifest_error', 'manifest_error')
+            self.assertEqual(state['sends'], k if phase == 'readback' else k-1, 'manifest_error')
+            self.assertTrue(state['injected'], 'manifest_error: injected fault was not reached')
+
+    def test_first_pre_send_exception(self):
+        self.rehearsal_fault('pre_send', 1)
+
+    def test_later_rehearsal_exceptions(self):
+        for phase in ('pre_send', 'measure_step', 'readback'):
+            for k in (2, 3):
+                with self.subTest(phase=phase, k=k):
+                    self.rehearsal_fault(phase, k)
+
+    def test_a3a_exception(self):
+        import io
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)/'out'
+            endpoint = Path(directory)/'offline'; endpoint.write_text('offline-test-only')
+            with patch.object(a, 'RPC', side_effect=KeyError('injected')), contextlib.redirect_stderr(io.StringIO()):
+                rc = a.main(['plan', '--rpc-file', str(endpoint), '--block', '1', '--out', str(out)])
+            self.assertEqual(rc, 1, 'executor_error')
+            self.assertEqual(json.loads((out/'FAILURE.json').read_text())['gate'], 'executor_error', 'executor_error')
+
+    def test_refusals_without_rpc(self):
+        import io
+        for module in (m, a, u):
+            for command in ('sign', 'send'):
+                with self.subTest(module=module.__name__, command=command), tempfile.TemporaryDirectory() as directory:
+                    args = [command] if module is m else [command, '--out', directory]
+                    with patch.object(a, 'RPC') as rpc, patch.object(a.urllib.request, 'urlopen') as network, contextlib.redirect_stderr(io.StringIO()):
+                        self.assertEqual(module.main(args), 3)
+                        rpc.assert_not_called()
+                        network.assert_not_called()
+                    if module is not m:
+                        self.assertEqual(json.loads((Path(directory)/'FAILURE.json').read_text())['gate'], command+'_disabled')
+
+
+class TargetReadTests(unittest.TestCase):
+    setUpClass = classmethod(DiscoveryTests.setUpClass.__func__)
+    setUp = DiscoveryTests.setUp
+    rpc = DiscoveryTests.rpc
+    closing = DiscoveryTests.closing
+    gate = DiscoveryTests.gate
+
+    def changed_rpc(self, signature, closing=False):
+        base = self.rpc(passed=self.passed if closing else set())
+        value = m.isolation.callsite_target_expectations()[signature[:-2]]
+        wrong = value[:20] + ('ff' if value[20:22] != 'ff' else '00') + value[22:]
+        def rpc(method, params):
+            if method == 'eth_call':
+                first = params[0]
+                if first['to'] == u.REG and first['data'] == a.calldata(signature):
+                    self.assertEqual(params[1], self.block)
+                    return isolation_tests.raw([int(wrong, 16)])
+                # A look-alike contract answers exactly as the real target if the read is deleted.
+                params = [dict(first, to=value if first['to'] == wrong else first['to'],
+                               data=first['data'].replace(wrong[2:], value[2:])), *params[1:]]
+            return base(method, params)
+        rpc.local = True
+        return rpc
+
+    def test_pre_send_target_change(self):
+        # The pin remains unchanged; each step observes the adverse value only at its pre-send block.
+        for signature in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+            rpc = self.changed_rpc(signature)
+            for step in self.plan['steps']:
+                with self.subTest(signature=signature, step=step['id']), patch.object(m, 'handover_gate'):
+                    self.gate('old_owner_role_callsite_target', lambda: m.pre_send(
+                        rpc, self.plan, step, dict(passed=set())))
+
+    def test_closing_target_change(self):
+        for signature in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+            with self.subTest(signature=signature):
+                self.gate('old_owner_role_callsite_target', lambda: self.closing(self.changed_rpc(signature, closing=True)))
+
+
+class PrerequisiteCallTests(F05Fixture):
+    def test_stage_pin_call(self):
+        class UndeclaredPhaseC(dict):
+            def __contains__(self, key):
+                return False if key == 'phaseC' else super().__contains__(key)
+        # All downstream data remain available: removal must not cause a missing-key crash.
+        self.stop('stage_pin_phase_c', lambda: m.build_plan(UndeclaredPhaseC(self.pin), self.inputs))
+
+    def test_decode_immutable_call(self):
+        class UndeclaredValues(list):
+            def __bool__(self):
+                return False
+        values = UndeclaredValues([int(u.SP, 16).to_bytes(32, 'big')])
+        artifact = dict(immutableDeclarations={'1': dict(name='SP', type='address')})
+        self.stop('old_owner_immutable_values', lambda: m.isolation.decode_immutable(
+            '1', values, artifact, {'SP': u.SP}))
 
 
 class DiscoveryCallTests(unittest.TestCase):

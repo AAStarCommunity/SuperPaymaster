@@ -1202,6 +1202,7 @@ def dvt_closing(rpc, plan):
     # Every read is bound to one block (DSR #606 L2); all three A8 pointers are re-read (L1).
     d = plan['externalInputs']['data']
     dvt, block = d['dvt'], a.block_data(rpc, 'latest')['number']
+    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {})
     coverage = discovery_coverage(plan, {s['id'] for s in plan['steps']})
     never_granted = isolation.never_granted_recheck(rpc, coverage, block)
     expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
@@ -3209,6 +3210,7 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
     block = a.block_data(rpc,'latest')['number']
+    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {})
     # Before every send, not only at closing: a post-pin allowance, role or authority of the orphaned timelock.
     coverage = discovery_coverage(plan, context.get('passed', set()))
     isolation.never_granted_recheck(rpc, coverage, block)

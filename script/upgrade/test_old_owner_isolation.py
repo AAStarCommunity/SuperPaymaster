@@ -930,10 +930,16 @@ class OldOwnerIsolationTests(unittest.TestCase):
 
     def test_legacy_timelock_source_targets(self):
         rpc, sources, build = self.source_fixture()
-        sources[o.OLD_TIMELOCK] = sources.pop(u.TL)
+        sources[o.OLD_TIMELOCK] = copy.deepcopy(sources[u.TL])
         with patch.object(o, 'deployed_build', side_effect=build), assert_stop(self, 'old_owner_source_targets') as caught:
             o.deployed_inventory(rpc, self.pin, sources)
         self.assertEqual(caught.exception.record['gate'], 'old_owner_source_targets')
+
+    def test_legacy_timelock_cannot_replace_timelock(self):
+        rpc, sources, build = self.source_fixture()
+        sources[o.OLD_TIMELOCK] = sources.pop(u.TL)
+        with patch.object(o, 'deployed_build', side_effect=build), assert_stop(self, 'old_owner_source_targets'):
+            o.deployed_inventory(rpc, self.pin, sources)
 
     def test_all_inventory_targets_read_both_slots_at_pin(self):
         baseline,sources,build = self.source_fixture()

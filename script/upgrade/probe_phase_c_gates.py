@@ -144,7 +144,13 @@ def run(cls, name, gate=None):
         class Delete(ast.NodeTransformer):
             def visit_Expr(self, node):
                 return ast.copy_location(ast.Pass(), node) if node is target else self.generic_visit(node)
-        tree = ast.fix_missing_locations(Delete().visit(tree))
+        # Recompile only the containing top-level function. Re-executing a module
+        # discards unrelated fixture patches (notably committed target expectations).
+        owners = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                  and any(child is target for child in ast.walk(node))]
+        if len(owners) != 1:
+            return True, False, f'{gate}: expected one containing function, got {len(owners)}'
+        tree = ast.fix_missing_locations(ast.Module(body=[Delete().visit(owners[0])], type_ignores=[]))
         module = next(m for m in (base_tests.m, base_tests.isolation_tests.o, base_tests.u) if Path(m.__file__).resolve() == Path(filename).resolve())
         saved = module.__dict__.copy()
         exec(compile(tree, filename, 'exec'), module.__dict__)

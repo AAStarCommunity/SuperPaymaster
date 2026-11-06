@@ -945,6 +945,13 @@ class SnapshotControlTests(PhaseCTests):
         with contextlib.ExitStack() as stack:
             for p in chain.patches(): stack.enter_context(p)
             self.stop('C_control_slot', lambda: m.phase_c_controls(chain, bad, self.pc['steps'][0], [], chain.context))
+        duplicate = copy.deepcopy(self.plan)
+        storage = duplicate['rebuild']['contracts']['SuperPaymaster']['storageLayout']['storage']
+        storage.append(copy.deepcopy(next(row for row in storage if row['label'] == 'cachedPrice')))
+        # Keep a readable first slot: deleting the uniqueness gate must permit acceptance.
+        self.stop('C_control_layout_cachedPrice', lambda: m.layout_slot(duplicate, 'SuperPaymaster', 'cachedPrice'))
+
+    def test_control_slot_missing(self):
         missing = copy.deepcopy(self.plan)
         missing['rebuild']['contracts']['SuperPaymaster']['storageLayout']['storage'].pop()
         self.stop('C_control_layout_cachedPrice', lambda: m.layout_slot(missing, 'SuperPaymaster', 'cachedPrice'))
