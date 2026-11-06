@@ -175,6 +175,12 @@ def validate_ci_run(e):
     a.need('evidence_ci_overall', not failing if run['overall'] == 'success' else bool(direct & accepted), True)
 
 
+@lru_cache(maxsize=32)
+def evidence_test_names(source):
+    return frozenset(n.name for n in ast.walk(ast.parse(source))
+                     if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)))
+
+
 def validate_evidence_details(e, kind, evidence_dir=None):
     if kind == 'conformance':
         schema = json.loads(Path(__file__).with_name('release-evidence.schema.json').read_text())['oneOf'][0]
@@ -186,7 +192,7 @@ def validate_evidence_details(e, kind, evidence_dir=None):
                 path = (root / ref['suite']).resolve()
                 a.need('evidence_test_suite', path.is_relative_to(root) and path.suffix == '.py' and path.is_file(), True)
                 try:
-                    names = {n.name for n in ast.walk(ast.parse(path.read_text())) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+                    names = evidence_test_names(path.read_text())
                 except (OSError, SyntaxError):
                     names = set()
                 a.need('evidence_test_name', ref['test'] in names, True)
@@ -1018,17 +1024,19 @@ def discovery_coverage(plan, passed):
 
 def current_discovery(rpc, pin, block):
     found = isolation.discover_targets(rpc, dict(pin, stateBlock=block))
+    release_tokens = None
     if 'discoveryReleaseFactory' in pin and u.code(rpc, pin['discoveryReleaseFactory'], block) != '0x':
         found['releaseFactory'] = [pin['discoveryReleaseFactory']]
-        if found['xPNTsFactory'] != found['releaseFactory']:
-            tokens = u.addr_array(a.call(rpc, pin['discoveryReleaseFactory'], 'getAllTokens()', block=block))
-            found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(tokens))
+        release_tokens = u.addr_array(a.call(rpc, pin['discoveryReleaseFactory'], 'getAllTokens()', block=block))
+        found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(release_tokens))
     if 'discoveryOriginalFactory' in pin and found['xPNTsFactory'][0] != pin['discoveryOriginalFactory']:
         found['legacyFactory'] = [pin['discoveryOriginalFactory']]
         tokens = u.addr_array(a.call(rpc, pin['discoveryOriginalFactory'], 'getAllTokens()', block=block))
+        a.need('old_owner_original_factory_enumeration', set(isolation.ROUND_CLONES) | set(pin['discoveryRetainedTokens']) <= set(tokens), True)
+        a.need('old_owner_release_factory_enumeration', release_tokens is not None and set(release_tokens) == set(pin['discoveryExpected']['xpnts']) - set(pin['discoveryRetainedTokens']), True)
         found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(tokens))
     return dict(targets={name: group[0] for name, group in found.items() if name != 'xPNTsToken'},
-                xpnts=sorted(set(found['xPNTsToken']) | set(pin.get('isolationLegacyTokens', []))))
+                xpnts=sorted(set(found['xPNTsToken'])))
 
 
 def discovery_old_authority(rpc, pin, block):

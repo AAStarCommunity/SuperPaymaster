@@ -7,6 +7,7 @@ each gate in memory (a.need for that name becomes a no-op) and requires its cont
 import sys
 sys.dont_write_bytecode = True
 import copy
+from gate_assertions import assert_stop
 import contextlib
 import json
 from pathlib import Path
@@ -188,7 +189,7 @@ class PhaseCTests(unittest.TestCase):
         self.base_data = copy.deepcopy(self.data)
 
     def stop(self, gate, action):
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, gate) as caught:
             action()
         self.assertEqual(caught.exception.record['gate'], gate)
         return caught.exception.record
@@ -918,7 +919,10 @@ class SnapshotControlTests(PhaseCTests):
             self.stop('X_gate', lambda: m.stop_control(chain, 'X', 'C_price_bound', lambda: None, check))
             mutate = lambda: chain.set(SP, 'paused()', value=1)
             self.stop('X_gate', lambda: m.stop_control(chain, 'X', 'C_price_bound', mutate, check))
-            record = m.stop_control(chain, 'X', 'C_global_unpaused', mutate, check)
+            try:
+                record = m.stop_control(chain, 'X', 'C_global_unpaused', mutate, check)
+            except a.Gate as fault:
+                self.fail(f'X_restore: successful control did not restore state before {fault.record["gate"]}')
             self.assertEqual(record['gate'], 'C_global_unpaused')
             self.assertEqual(chain.get(SP, 'paused()'), 0)
             chain.fail_revert = True

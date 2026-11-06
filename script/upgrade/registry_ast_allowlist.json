@@ -1,0 +1,14 @@
+{
+  "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/proxy/utils/Initializable.sol": {
+    "keccak": "0x631188737069917d2f909d29ce62c4d48611d326686ba6683e26b72a23bfac0b",
+    "reason": "OpenZeppelin ERC-7201 initializer storage pointer; initializer authority is checked by the role-write proof."
+  },
+  "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/utils/Address.sol": {
+    "keccak": "0xaf28a975a78550e45f65e559a3ad6a5ad43b9b8a37366999abd1b7084eb70721",
+    "reason": "OpenZeppelin call/delegatecall utility used by ERC1967 upgrades; upgrade authority is covered by owner isolation."
+  },
+  "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/utils/StorageSlot.sol": {
+    "keccak": "0x32ba59b4b7299237c8ba56319110989d7978a039faf754793064e967e5894418",
+    "reason": "OpenZeppelin typed storage-slot access for ERC1967 upgrades; upgrade authority is covered by owner isolation."
+  }
+}

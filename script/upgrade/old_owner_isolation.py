@@ -55,6 +55,35 @@ def ast_walk(node):
             yield from ast_walk(value)
 
 
+REGISTRY_SOURCE_COMMIT = 'a839347e04b40da287522c3641e12121ef2e8e9e'
+REGISTRY_AST_ALLOWLIST = json.loads(Path(__file__).with_name('registry_ast_allowlist.json').read_text())
+
+
+def registry_opaque_writes(entries, source_inputs):
+    """Reject opaque storage/call paths unless the exact reviewed OZ source is pinned."""
+    trusted_sources = {path: bool(rule['reason']) and a.keccak(source_inputs[path]['content']) == rule['keccak']
+                       for path, rule in REGISTRY_AST_ALLOWLIST.items() if path in source_inputs}
+    assembly_safe, calls_safe = all(trusted_sources.values()), True
+    for path, fn in entries:
+        if fn.get('nodeType') not in ('FunctionDefinition', 'ModifierDefinition'):
+            continue
+        allowed = REGISTRY_AST_ALLOWLIST.get(path)
+        trusted = trusted_sources.get(path, False)
+        # A changed allowlisted file loses its exception, including if its AST appears harmless.
+        assembly_safe &= not allowed or trusted
+        for n in ast_walk(fn):
+            if n.get('nodeType') == 'InlineAssembly':
+                dangerous = any(v.get('name', '').lower() in
+                                ('sstore', 'delegatecall', 'call', 'callcode', 'create', 'create2', 'selfdestruct')
+                                for v in ast_walk(n))
+                assembly_safe &= not dangerous or trusted
+            # Reject all unreviewed low-level calls: this also covers selectors hidden in locals.
+            if n.get('nodeType') == 'MemberAccess' and n.get('memberName') in ('delegatecall', 'call', 'staticcall', 'callcode'):
+                calls_safe &= trusted
+    a.need('old_owner_role_assembly', assembly_safe, True)
+    a.need('old_owner_role_lowlevel_call', calls_safe, True)
+
+
 def registry_role_writes(entries):
     """Conservatively prove the deployed Registry's configuration enumeration."""
     members = {n.get('id'): n for _, n in entries if 'id' in n}
@@ -100,6 +129,26 @@ def registry_role_writes(entries):
                 escapes.append(i)
     a.need('old_owner_role_write_sites', len(mappings) == 1 and len(init) == 1 and len(configure) == 1
            and set(writes) == init | configure and not escapes, True)
+    role_parameters = {}
+    valid_keys = True
+    for i in init | configure:
+        fn = functions[i]
+        params = fn.get('parameters', {}).get('parameters', [])
+        role = params[0] if params else {}
+        role_id = role.get('id')
+        role_parameters[i] = role_id
+        def direct(node):
+            return isinstance(node, dict) and node.get('nodeType') == 'Identifier' and node.get('referencedDeclaration') == role_id
+        valid_keys &= role_id is not None and role.get('typeDescriptions', {}).get('typeString') == 'bytes32'
+        for n in ast_walk(fn.get('body')):
+            kind = n.get('nodeType')
+            target = n.get('leftHandSide') if kind == 'Assignment' else n.get('subExpression')
+            if kind in ('Assignment', 'UnaryOperation'):
+                valid_keys &= not direct(target) and not any(direct(v) for v in (target or {}).get('components', []))
+            if kind == 'InlineAssembly': valid_keys &= not any(r.get('declaration') == role_id for r in n.get('externalReferences', []))
+            if kind == 'IndexAccess' and references(n.get('baseExpression')):
+                valid_keys &= direct(n.get('indexExpression'))
+    a.need('old_owner_role_write_key', valid_keys, True)
     def initializer_only(i, path):
         if i in path:
             return False
@@ -170,10 +219,13 @@ def registry_role_writes(entries):
     def emits(i):
         body = functions[i].get('body', {})
         statements = body if isinstance(body, list) else body.get('statements', [])
-        return not any(n.get('nodeType') == 'Return' for n in ast_walk(body)) and any(
-            n.get('nodeType') == 'EmitStatement'
-            and n.get('eventCall', {}).get('expression', {}).get('referencedDeclaration') in events
-            for n in statements)
+        emissions = [n for n in ast_walk(body) if n.get('nodeType') == 'EmitStatement'
+                     and n.get('eventCall', {}).get('expression', {}).get('referencedDeclaration') in events]
+        return (not any(n.get('nodeType') == 'Return' for n in ast_walk(body))
+                and any(n in statements for n in emissions)
+                and all((n.get('eventCall', {}).get('arguments') or [{}])[0].get('nodeType') == 'Identifier'
+                        and (n.get('eventCall', {}).get('arguments') or [{}])[0].get('referencedDeclaration') == role_parameters[i]
+                        for n in emissions))
     a.need('old_owner_role_configure_emit', all(emits(i) for i in configure), True)
     return set().union(*(r for r in resolved if r is not None))
 
@@ -211,6 +263,12 @@ def extract(tree, names=NAMES):
                     elif n.get('nodeType') == 'VariableDeclaration':
                         entries.append((p,n))
             if name == 'Registry':
+                opaque_entries = list(entries)
+                for p in visited:
+                    for node in sources[p]['ast']['nodes']:
+                        if node.get('contractKind') == 'library':
+                            opaque_entries.extend((p, n) for n in node['nodes'])
+                registry_opaque_writes(opaque_entries, data['input']['sources'])
                 initialized_roles = registry_role_writes(entries)
             groups = dict(roles=[], authorities=[], mappings=[])
             seen = set()
@@ -263,6 +321,10 @@ def extract(tree, names=NAMES):
                 a.need('old_owner_role_event_signature', event['name']+'('+','.join(abi_type(v) for v in event['inputs'])+')', ROLE_EVENT)
                 a.need('old_owner_role_event_indexed', [v['indexed'] for v in event['inputs']], [True, False, False])
                 groups['roleEventTopic'] = a.keccak(ROLE_EVENT)
+            if name == 'Registry':
+                groups['astProofInputs'] = dict(buildInfoId=data.get('id', path.stem),
+                    buildInfoSha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                    sourceHashes={p: a.keccak(data['input']['sources'][p]['content']) for p in sorted(visited)})
             groups['hasRoleGetter'] = 'public-mapping' if any(
                 n.get('nodeType') == 'VariableDeclaration' and n.get('name') == 'hasRole'
                 and n.get('stateVariable') and n.get('visibility') == 'public'
@@ -635,6 +697,7 @@ def validate(section, pin, inventory):
 def deployed_build(commit, name):
     """Archive exact local objects, including submodules; never install dependencies."""
     a.need('old_owner_source_commit', len(commit) == 40 and all(c in '0123456789abcdef' for c in commit), True)
+    a.need('old_owner_registry_source_commit', name != 'Registry' or commit == REGISTRY_SOURCE_COMMIT, True)
     with tempfile.TemporaryDirectory(prefix='old-owner-source-') as directory:
         tree = Path(directory)/'tree'
         a.archive_commit(u.ROOT, commit, tree)
@@ -669,14 +732,14 @@ def discover_targets(rpc, pin):
     # Before the switch, the factory must enumerate every round clone itself.
     switched = 'discoveryOriginalFactory' in pin and targets['xPNTsFactory'][0] != pin['discoveryOriginalFactory']
     a.need('old_owner_factory_enumeration',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)
-    tokens = enumerated | set(ROUND_CLONES) | (set(pin['discoveryRetainedTokens']) if switched else set())
+    tokens = set(enumerated)
     for who in pin['pauseList']:
         values = u.uints(a.call(rpc,u.SP,'operators(address)',who,block=block))
         a.need('old_owner_discovery_operator_shape',len(values),9)
         token = u.addr_word(values[3])
         if token != a.ZERO:
             tokens.add(token)
-    a.need('old_owner_discovery_tokens',bool(tokens),True)
+    a.need('old_owner_discovery_tokens',switched or bool(tokens),True)
     targets['xPNTsToken'] = sorted(tokens)
     return targets
 
@@ -901,7 +964,10 @@ def deployed_inventory(rpc, pin, sources):
             variants[target] = built['inventory']
             result.setdefault(name,built['inventory'])
             mapping.append(dict(contract=name,target=target,implementation=implementation,commit=spec['commit'],
-                                claim=spec['claim'],creationBlock=creation,compiler=built['compiler'],settings=built['settings'],forge=built['forge'],parity=parity,proxy=proxy,deploymentRecord=record))
+                                claim=spec['claim'],creationBlock=creation,compiler=built['compiler'],settings=built['settings'],forge=built['forge'],parity=parity,proxy=proxy,deploymentRecord=record,
+                                astProof=dict(implementation=implementation, commit=spec['commit'],
+                                    inputs=built['inventory'].get('astProofInputs'),
+                                    existingEvidence='script/upgrade/deployed_source_candidates.json: Registry.reRulingBuild.parity') if name == 'Registry' else None))
     a.need('old_owner_source_pin_after',rpc('eth_getBlockByNumber',[block,False]),canonical)
     result['deployedSources'] = mapping
     result['targetInventories'] = variants
@@ -1128,9 +1194,9 @@ def token_deployment_community(rpc, pin, factory, token):
     logs = bounded_history_logs(rpc, dict(address=factory, fromBlock='0x0', toBlock=block,
                                         topics=[topic, None, '0x'+token[2:].zfill(64)]))
     a.need('old_owner_xpnts_deployment_count', len(logs), 1)
-    # Unreachable unless a gate above is deleted; the zero fallback keeps a deletion probe an assertion
-    # failure (communityToToken(0) is never a token) instead of a TypeError, and never matches a real community.
-    log = logs[0] if logs else {}
+    # The count gate above establishes the unique deployment event.
+    # Invalid evidence must never be replaced with a synthetic deployment.
+    log = logs[0]
     topics = log.get('topics', [])
     number = log.get('blockNumber', block)
     canonical = rpc('eth_getBlockByNumber', [number, False])
@@ -1144,7 +1210,7 @@ def token_deployment_community(rpc, pin, factory, token):
              log.get('blockHash') == canonical['hash'] and
              pin_block['number'] == block and pin_block['hash'] == pin['stateBlockHash'])
     a.need('old_owner_xpnts_deployment_log', valid, True)
-    return '0x'+topics[1][-40:] if len(topics) == 3 else a.ZERO
+    return '0x'+topics[1][-40:]
 
 
 def never_granted_recheck(rpc, pin, block):
