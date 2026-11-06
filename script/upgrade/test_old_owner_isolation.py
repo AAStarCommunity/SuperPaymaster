@@ -275,7 +275,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def test_never_granted_extra_zero(self):
         spec = copy.deepcopy(inventory()['Registry'])
         spec['roles'].append(dict(name='EXTRA_ROLE',value=CUSTOM_ROLE))
-        self.assert_gate('old_owner_never_granted_set',lambda:o.role_history(fixture_rpc(self.pin),self.pin,u.REG,spec,1))
+        self.assert_gate('old_owner_history_positive',lambda:o.role_history(fixture_rpc(self.pin),self.pin,u.REG,spec,1))
 
     def test_never_granted_missing_role(self):
         spec = copy.deepcopy(inventory()['Registry'])
@@ -437,6 +437,19 @@ class OldOwnerIsolationTests(unittest.TestCase):
         result = o.role_history(fixture_rpc(self.pin),self.pin,u.SP,spec,1,declared=declared)
         self.assertEqual(result,sorted(r['value'] for r in spec['roles']))
         self.assertEqual(declared,{})
+
+    def test_history_standard_revoke_only(self):
+        baseline = fixture_rpc(self.pin)
+        role = inventory()['TimelockController']['roles'][0]['value']
+        def rpc(method, params):
+            result = baseline(method, params)
+            if method == 'eth_getLogs':
+                return [dict(log, topics=[a.keccak(o.REVOKED), *log['topics'][1:]])
+                        if log['topics'][1] == role else log for log in result]
+            return result
+        with self.assertRaises(a.Gate) as caught:
+            o.role_history(rpc, self.pin, u.TL, inventory()['TimelockController'], 1)
+        self.assertEqual(caught.exception.record['gate'], 'old_owner_history_positive')
 
     def test_history_all_roles_zero(self):
         baseline = fixture_rpc(self.pin)

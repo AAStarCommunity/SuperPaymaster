@@ -225,6 +225,12 @@ def orphan_replies(pin):
     o = m.isolation
     raw = isolation_tests.raw
     replies = {}
+    discovery = isolation_tests.fixture_rpc(copy.deepcopy(pin))
+    for target, sig in ((u.REG, 'GTOKEN_STAKING()'), (u.REG, 'MYSBT()'), (u.SP, 'xpntsFactory()'),
+                        (isolation_tests.STAKING, 'GTOKEN()'), (isolation_tests.FACTORY, 'getAllTokens()')):
+        replies[(target, a.calldata(sig))] = a.call(discovery, target, sig, block=pin['stateBlock'])
+    for who in pin['pauseList']:
+        replies[(u.SP, a.calldata('operators(address)', who))] = raw([0]*9)
     for target, sig, args, kind in o.authority_rows(pin['oldOwnerIsolation']):
         if kind == 'config':
             values = [32]+[0]*13
@@ -247,6 +253,9 @@ def with_orphan_reads(rpc, pin, block):
     # exactly those reads at `block` and pass every other request to their own strict handler.
     replies = orphan_replies(pin)
     def wrapped(method, params):
+        if method == 'eth_getLogs' and a.qty(params[0]['fromBlock']) > a.qty(pin['stateBlock']) and (
+                isinstance(params[0]['topics'][0], list) or params[0]['topics'][0] in (a.keccak('Approval(address,address,uint256)'), a.keccak(m.isolation.ROLE_EVENT))):
+            return []
         if method == 'eth_call' and (params[0]['to'], params[0]['data']) in replies and params[1] == block:
             return replies[(params[0]['to'], params[0]['data'])]
         return rpc(method, params)
@@ -257,17 +266,116 @@ def with_orphan_reads(rpc, pin, block):
 def old_timelock_rpc(pin, block, bad=None):
     replies = orphan_replies(pin)
     discovery = isolation_tests.fixture_rpc(copy.deepcopy(dict(pin, stateBlock=block)))
+    history = isolation_tests.fixture_rpc(copy.deepcopy(pin))
     if bad:
         target, sig, args, value = bad
         replies[(target, a.calldata(sig, *args))] = value
     def rpc(method, params):
         if method == 'eth_getLogs' and params[0]['topics'][0] == a.keccak('Approval(address,address,uint256)'):
             return []
+        if method == 'eth_getLogs': return history(method, params)
         if method == 'eth_call' and (params[0]['to'], params[0]['data']) in replies:
             assert params[1] == block
             return replies[(params[0]['to'], params[0]['data'])]
         return discovery(method, params)
     return rpc
+
+
+class DeltaTests(unittest.TestCase):
+    def setUp(self):
+        self.pin = pin()
+        self.block = hex(a.qty(self.pin['stateBlock'])+1)
+        self.role = a.keccak('POST_PIN_ROLE')
+        self.holder = '0x'+'ac'*20
+        self.token = self.pin['oldOwnerIsolation']['tokens'][0]
+
+    def rpc(self, fault=None, kind='approval'):
+        o = m.isolation
+        topic = a.keccak('Approval(address,address,uint256)' if kind == 'approval' else o.ROLE_EVENT if kind == 'config' else o.REGISTERED if kind == 'registered' else o.GRANTED)
+        target = self.token if kind == 'approval' else u.REG
+        topics = [topic, '0x'+self.holder[2:].zfill(64), '0x'+o.OLD_TIMELOCK[2:].zfill(64)] if kind == 'approval' else [topic, self.role]
+        if kind in ('grant', 'registered'):
+            topics += ['0x'+(o.OLD if fault == 'old_role' else u.SAFE)[2:].zfill(64)] + (['0x'+u.SAFE[2:].zfill(64)] if kind == 'grant' else [])
+        event = dict(address=target, removed=False, topics=topics, blockNumber=self.block,
+                     blockHash=self.pin['stateBlockHash'], data=isolation_tests.raw([0, 123]))
+        if fault == 'address': event['address'] = u.SP
+        if fault == 'removed': event['removed'] = True
+        if fault == 'topics': event['topics'] = topics+[a.ZERO32]
+        if fault == 'range': event['blockNumber'] = self.pin['stateBlock']
+        if fault == 'canonical': event['blockHash'] = a.ZERO32
+        baseline = old_timelock_rpc(self.pin, self.block)
+        def rpc(method, params):
+            if method == 'eth_getLogs':
+                query = params[0]
+                ts = query['topics'][0]
+                return [event] if query['address'] == target and (topic in ts if isinstance(ts, list) else topic == ts) else []
+            if method == 'eth_getBlockByNumber':
+                return dict(number='0x0' if fault == 'number' else self.block, hash=self.pin['stateBlockHash'], timestamp='0x123', gasLimit='0xbebc200')
+            if method == 'eth_chainId': return '0x0'
+            if method == 'eth_call':
+                self.assertEqual(params[1], self.block)
+                to, data = params[0]['to'], params[0]['data']
+                if data == a.calldata('allowance(address,address)', self.holder, o.OLD_TIMELOCK):
+                    return isolation_tests.raw([int(fault == 'allowance')])
+                if to == u.REG and data == a.calldata('getRoleConfig(bytes32)', self.role):
+                    values = [32]+[0]*13
+                    values[10], values[11] = 384, int(o.OLD_TIMELOCK if fault == 'config_owner' else u.SAFE, 16)
+                    return isolation_tests.raw(values)
+                for who, gate in ((o.OLD, 'old_role'), (o.OLD_TIMELOCK, 'timelock_role')):
+                    if data == a.calldata('hasRole(bytes32,address)', self.role, who):
+                        return isolation_tests.raw([int(fault == gate)])
+                if fault == 'xpnts' and data == a.calldata('getAllTokens()'):
+                    tokens = sorted(set(self.pin['oldOwnerIsolation']['xpnts']) | {self.holder})
+                    return isolation_tests.raw([32, len(tokens), *[int(t,16) for t in tokens]])
+                if fault == 'targets' and data == a.calldata('MYSBT()'):
+                    return isolation_tests.raw([int(self.holder,16)])
+            return baseline(method, params)
+        rpc.local = True
+        return rpc
+
+    def check(self, fault, kind='approval'):
+        rpc = self.rpc(fault, kind)
+        with self.assertRaises(a.Gate) as caught:
+            delta = m.post_pin_delta(rpc, self.pin, self.block)
+            m.old_timelock_holds_nothing(rpc, self.pin, self.block, delta['approvalOwners'])
+        self.assertEqual(caught.exception.record['gate'], 'old_timelock_delta_'+fault)
+
+    def test_pre_send_delta_call(self):
+        tree = ast.parse(Path(m.__file__).read_text())
+        pre = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'pre_send')
+        self.assertEqual(sum(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'post_pin_delta' for n in ast.walk(pre)), 1)
+        self.assertNotIn(self.holder, m.isolation.allowance_holders())
+        self.assertNotIn(self.holder, self.pin['oldTimelock']['approvalOwners'].get(self.token, []))
+        with patch.object(m, 'handover_gate'), self.assertRaises(a.Gate) as caught:
+            m.pre_send(self.rpc('allowance'), dict(pin=self.pin), dict(tx={}), {})
+        self.assertEqual(caught.exception.record['gate'], 'old_timelock_delta_allowance')
+
+    def test_unrelated(self):
+        for kind in ('approval', 'config', 'grant', 'registered'):
+            rpc = self.rpc(kind=kind)
+            delta = m.post_pin_delta(rpc, self.pin, self.block)
+            m.old_timelock_holds_nothing(rpc, self.pin, self.block, delta['approvalOwners'])
+            self.assertEqual(sum(delta['logCounts'].values()), 1)
+            self.assertEqual(delta['fromBlock'], self.block)
+            if kind == 'approval': self.assertIn(self.holder, delta['approvalOwners'][self.token])
+            else: self.assertIn(self.role, delta['rolesChecked'][u.REG])
+
+    def test_empty_range_discovery(self):
+        self.block = self.pin['stateBlock']
+        rpc = self.rpc('xpnts')
+        def no_logs(method, params):
+            self.assertNotEqual(method, 'eth_getLogs')
+            return rpc(method, params)
+        with self.assertRaises(a.Gate) as caught:
+            m.post_pin_delta(no_logs, self.pin, self.block)
+        self.assertEqual(caught.exception.record['gate'], 'old_timelock_delta_xpnts')
+
+
+DELTA_CASES = dict(address='approval', removed='approval', topics='approval', range='approval',
+                   canonical='approval', number='approval', allowance='approval', config_owner='config',
+                   timelock_role='grant', old_role='registered', targets='approval', xpnts='approval')
+for _fault, _kind in DELTA_CASES.items():
+    setattr(DeltaTests, 'test_old_timelock_delta_'+_fault, lambda self, f=_fault, k=_kind: self.check(f, k))
 
 
 class FakeChain:
@@ -1107,6 +1215,7 @@ class ManifestTests(unittest.TestCase):
             return hex(a.CHAIN)
         rpc.local = True
         rpc = with_orphan_reads(rpc, self.plan['pin'], '0x150')
+        real_word, real_call = a.word, a.call
         for accepted in (False, True):
             passed = {s['id'] for s in self.plan['steps']}-{'D.registry_execute_exec'}
             if accepted: passed.add('D.registry_execute_exec')
@@ -1117,9 +1226,9 @@ class ManifestTests(unittest.TestCase):
                 with self.subTest(accepted=accepted, owner=owner), contextlib.ExitStack() as stack:
                     for mock in (
                         patch.object(a, 'nonce', return_value=a.qty(step['tx']['nonce'])),
-                        patch.object(a, 'word', return_value=step['safeNonce']),
+                        patch.object(a, 'word', side_effect=lambda r,t,s,*args,**kw: step['safeNonce'] if s == 'nonce()' else real_word(r,t,s,*args,**kw)),
                         patch.object(a, 'address', side_effect=address),
-                        patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' else u.frozen_config(self.pin['roleConfig'])),
+                        patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' else u.frozen_config(self.pin['roleConfig']) if s == 'getRoleConfig(bytes32)' else real_call(r,t,s,*args,**kw)),
                         patch.object(a, 'block_data', return_value={'number':'0x150'}),
                         patch.object(u, 'safe_state', return_value=self.pin['safe']),
                         patch.object(u, 'governance'),
@@ -1926,8 +2035,7 @@ class ManifestTests(unittest.TestCase):
         plan = copy.deepcopy(self.plan)
         plan['pin']['oldTimelock'] = dict(plan['pin'].get('oldTimelock') or {}, approvalOwners={token: [holder]})
         def sender(method, params):
-            if method == 'eth_getLogs':
-                raise AssertionError('pre_send uses the pinned owners, no log scan')
+            if method == 'eth_getLogs': return []
             if method == 'eth_chainId': return '0x0'
             return rpc(method, params)
         sender.local = True
@@ -3817,7 +3925,7 @@ class GasGateControls(unittest.TestCase):
                     select.assert_not_called()
 
     def test_b4_preapplied_real_measurement(self):
-        self.plan['pin']['oldOwnerIsolation'] = pin()['oldOwnerIsolation']
+        self.plan['pin'] = dict(pin(), **self.plan['pin'])
         # Stop at the pre-send chain check: all replay and selection helpers are real.
         class ReachedPreSend(Exception):
             pass
@@ -4069,7 +4177,8 @@ class OldExitExemptionTests(unittest.TestCase):
     def test_pre_send_enforces_exit_gate(self):
         p, good = self.fixture()
         p['oldActivity'] = m.old_activity(good, OLD, p['stateBlock'], [])
-        p.update(bindings={}, safe={}, oldOwnerIsolation=pin()['oldOwnerIsolation'])
+        p = dict(pin(), **p)
+        p.update(bindings={}, safe={})
         plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
         step = dict(tx={'from':u.DEPLOYER, 'nonce':'0x0'}, safeNonce=0)
         bad = old_exit_rpc(p, self.guardian, occupied=13)
@@ -4163,11 +4272,12 @@ class F05PreSendGates(F05Fixture):
             raise AssertionError((method, params))
         rpc.local = True
         rpc = with_orphan_reads(rpc, self.plan['pin'], '0x200')
+        real_word, real_call = a.word, a.call
         def word(rpc, target, sig, *args, **kw):
             if sig == 'nonce()': return step['safeNonce'] + int(gate == 'safe_nonce')
             if sig == 'pendingAPNTsTokenEta()':
                 return self.pin['pendingAPNTsTokenEta'] + int(gate == 'pending_token_eta')
-            raise AssertionError(sig)
+            return real_word(rpc, target, sig, *args, **kw)
         def address(rpc, target, sig, *args):
             if sig == 'pendingAPNTsToken()':
                 return a.ZERO if gate == 'pending_token' else self.pin['capped']
@@ -4178,7 +4288,7 @@ class F05PreSendGates(F05Fixture):
                 patch.object(a, 'nonce', side_effect=lambda r,w,block='latest':
                     nonce + int(gate == ('pending_nonce' if block == 'pending' else 'sender_nonce'))),
                 patch.object(a, 'word', side_effect=word), patch.object(a, 'address', side_effect=address),
-                patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' or gate == 'onchain_safe_hash' else step['safeHash']),
+                patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' else (a.ZERO32 if gate == 'onchain_safe_hash' else step['safeHash']) if s.startswith('getTransactionHash(') else real_call(r,t,s,*args,**kw)),
                 patch.object(a, 'block_data', return_value=dict(number='0x200',
                     gasLimit=hex(a.qty(step['tx']['gas']) - int(gate == 'block_gas_limit')))),
                 patch.object(u, 'safe_state', return_value={} if gate == 'safe_state' else self.pin['safe']),

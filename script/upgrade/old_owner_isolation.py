@@ -942,7 +942,7 @@ def role_history(rpc, pin, target, spec, creation, counts=None, declared=None):
     standard = {r['value'] for r in spec['roles']}
     roles = {l['topics'][1] for l in logs}
     grant_roles = {l['topics'][1] for l in logs if l['topics'][0] in grants}
-    a.need('old_owner_history_positive',not spec['hasRole'] or bool(standard & grant_roles),True)
+    a.need('old_owner_history_positive',not spec['hasRole'] or (standard - set(NEVER_GRANTED.get(target, []))) <= grant_roles,True)
     # Imported constants on contracts without hasRole are not local role memberships.
     never = sorted(standard - roles) if spec['hasRole'] else []
     a.need('old_owner_never_granted_set',never,NEVER_GRANTED.get(target,[]))

@@ -938,9 +938,66 @@ def closing_timelock_inventory(rpc, pin, block):
     return dict(pin, oldOwnerIsolation=section)
 
 
+def post_pin_delta(rpc, pin, block):
+    section = pin['oldOwnerIsolation']
+    start, stop = a.qty(pin['stateBlock'])+1, a.qty(block)
+    owners = copy.deepcopy(pin['oldTimelock']['approvalOwners'])
+    counts, checked, canonical = {}, {}, {}
+    spender = '0x'+isolation.OLD_TIMELOCK[2:].zfill(64)
+    approval = a.keccak('Approval(address,address,uint256)')
+    inventory = section['inventory']
+    registry = inventory.get('targetInventories', {}).get(u.REG, inventory['Registry'])
+    configured = registry['roleEventTopic']
+    def scan(target, topics):
+        logs = isolation.bounded_history_logs(rpc, dict(address=target, fromBlock=hex(start), toBlock=block, topics=topics)) if start <= stop else []
+        for log in logs:
+            a.need('old_timelock_delta_address', log.get('address'), target)
+            a.need('old_timelock_delta_removed', log.get('removed', False), False)
+            ts = log.get('topics', [])
+            signatures = topics[0] if isinstance(topics[0], list) else [topics[0]]
+            length = 2 if ts and ts[0] == configured else 3 if ts and ts[0] in (approval, a.keccak(isolation.REGISTERED), a.keccak(isolation.EXITED)) else 4
+            a.need('old_timelock_delta_topics', isinstance(ts, list) and len(ts) == length and ts[0] in signatures and
+                   all(isinstance(t, str) and re.fullmatch(r'0x[0-9a-fA-F]{64}', t) for t in ts) and
+                   (topics[0] != approval or ts[2] == spender), True)
+            number = a.qty(a.typed(log.get('blockNumber'), a.QTY))
+            a.need('old_timelock_delta_range', start <= number <= stop, True)
+            if number not in canonical:
+                canonical[number] = rpc('eth_getBlockByNumber', [hex(number), False])
+            a.need('old_timelock_delta_canonical', log.get('blockHash'), canonical[number]['hash'])
+            a.need('old_timelock_delta_number', canonical[number]['number'], hex(number))
+        counts[target+':'+str(topics[0])] = len(logs)
+        return logs
+    for token in section['tokens']:
+        holders = set(owners.get(token, []))
+        for log in scan(token, [approval, None, spender]):
+            holders.add(u.addr_word(int(log['topics'][1], 16)))
+        owners[token] = sorted(holders)
+        for holder in sorted(holders - set(pin['oldTimelock']['approvalOwners'].get(token, []))):
+            a.need('old_timelock_delta_allowance', u.uints(a.call(rpc, token, 'allowance(address,address)', holder, isolation.OLD_TIMELOCK, block=block)), [0])
+    configured_roles = {log['topics'][1] for log in scan(u.REG, [configured])}
+    for name, target in [*sorted(section['targets'].items()), *(('xPNTsToken', t) for t in section['xpnts'])]:
+        spec = inventory.get('targetInventories', {}).get(target, inventory[name])
+        roles = set(configured_roles) if target == u.REG else set()
+        if spec['hasRole']:
+            events = [isolation.GRANTED, isolation.REVOKED] + ([isolation.REGISTERED, isolation.EXITED] if target == u.REG else [])
+            roles.update(log['topics'][1] for log in scan(target, [[a.keccak(e) for e in events]]))
+        checked[target] = sorted(roles)
+        for role in sorted(roles):
+            if target == u.REG:
+                a.need('old_timelock_delta_config_owner', u.config(a.call(rpc, target, 'getRoleConfig(bytes32)', role, block=block))['owner'] != isolation.OLD_TIMELOCK, True)
+            if spec['hasRole']:
+                a.need('old_timelock_delta_timelock_role', u.uints(a.call(rpc, target, 'hasRole(bytes32,address)', role, isolation.OLD_TIMELOCK, block=block)), [0])
+                a.need('old_timelock_delta_old_role', u.uints(a.call(rpc, target, 'hasRole(bytes32,address)', role, isolation.OLD, block=block)), [0])
+    found = isolation.discover_targets(rpc, dict(pin, stateBlock=block))
+    xpnts = sorted(set(found.pop('xPNTsToken')) | set(pin.get('isolationLegacyTokens', [])))
+    targets = {name: group[0] for name, group in found.items()}
+    a.need('old_timelock_delta_targets', targets, section['targets'])
+    a.need('old_timelock_delta_xpnts', xpnts, section['xpnts'])
+    return dict(fromBlock=hex(start), toBlock=block, logCounts=counts, rolesChecked=checked, approvalOwners=owners)
+
+
 def old_timelock_holds_nothing(rpc, pin, block, owners=None):
-    # owners: the pin's discovered Approval owners per token. pre_send passes them to skip the log scan (every
-    # other read and predicate runs live at `block`); closing and the pin rediscover them.
+    # pre_send supplies pinned owners plus the post-pin delta; closing and the pin scan full history.
     section = pin['oldOwnerIsolation']
     reads = []
     def call(target, sig, *args):
@@ -3003,9 +3060,9 @@ def pre_send(rpc, plan, step, context, measured=False):
     block = a.block_data(rpc,'latest')['number']
     isolation.never_granted_recheck(rpc,plan['pin'],block)
     # Before every send, not only at closing: a post-pin allowance, role or authority of the orphaned timelock.
-    # Without the pin's owner set (never for a valid plan) fall back to full rediscovery.
-    owners = (plan['pin'].get('oldTimelock') or {}).get('approvalOwners')
-    old_timelock_holds_nothing(rpc, plan['pin'], block, owners if isinstance(owners, dict) else None)
+    delta = post_pin_delta(rpc, plan['pin'], block)
+    context['oldTimelockDelta'] = delta
+    old_timelock_holds_nothing(rpc, plan['pin'], block, delta['approvalOwners'])
     handover_gate(rpc, plan, step, context)
     if step.get('phase') == 'C':
         phase_c_pre_send(rpc, plan, step, context)

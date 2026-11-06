@@ -71,17 +71,20 @@ CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_posi
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_negative_one', 'old_owner_mapping_negative')]
 CASES += [(base_tests.ManifestTests, 'test_never_granted_closing_change', 'old_owner_never_granted_recheck')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, name, gate) for name, gate in (
-    ('test_never_granted_extra_zero','old_owner_never_granted_set'),
+    ('test_never_granted_extra_zero','old_owner_history_positive'),
     ('test_never_granted_missing_role','old_owner_never_granted_set'),
     ('test_never_granted_old_holder','old_owner_never_granted_holder'),
     ('test_history_all_roles_zero','old_owner_history_positive'))]
 CASES += [(base_tests.ManifestTests,'test_never_granted_pre_send_change','old_owner_never_granted_recheck')]
 CASES += [(base_tests.ManifestTests, name, 'old_owner_role_recheck') for name in ('test_old_role_closing_change', 'test_old_role_pre_send_change')]
+CASES += [(base_tests.DeltaTests, 'test_old_timelock_delta_'+g, 'old_timelock_delta_'+g) for g in base_tests.DELTA_CASES]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_history_standard_revoke_only', 'old_owner_history_positive')]
 # These new/changed isolation gates must fail by assertion, with zero test errors.
 ASSERTION_ONLY_GATES = {'old_owner_never_granted_set', 'old_owner_never_granted_holder',
                         'old_owner_never_granted_recheck', 'old_owner_role_recheck', 'old_owner_mapping_getter',
                         'old_owner_mapping_positive', 'old_owner_mapping_negative',
                         'old_owner_history_positive'}
+ASSERTION_ONLY_GATES.update('old_timelock_delta_'+g for g in base_tests.DELTA_CASES)
 GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")
 # Gate literals whose control is a whole family (name+'_gate', name+'_restore').
 FAMILIES = {'_gate': 'X_gate', '_restore': 'X_restore'}
@@ -138,10 +141,13 @@ def main(argv):
     print('|---|---|---|---|')
     for row in rows:
         print('| %s | `%s` | %s | %s |' % row)
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'evidence'))
+    from enduser_mapping_probes import manifest_probes
+    deletions = manifest_probes()
     bad = [r for r in rows if r[3] != 'red']
-    print(f'PHASE_C_GATE_PROBES {"PASS" if not bad and not missing else "FAIL"} '
+    print(f'PHASE_C_GATE_PROBES {"PASS" if not bad and not missing and deletions else "FAIL"} '
           f'{len(rows)-len(bad)}/{len(rows)} red; uncovered new gates: {missing}')
-    return 1 if bad or missing else 0
+    return 1 if bad or missing or not deletions else 0
 
 
 if __name__ == '__main__':

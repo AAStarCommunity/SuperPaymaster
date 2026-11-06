@@ -6,6 +6,7 @@ bound test there: the baseline must pass and the mutated copy must fail that tes
 (the gate that now STOPs, or the TypeError the deleted gate used to pre-empt).
 Prints ENDUSER_PROBES PASS only if every probe is red and every baseline is green.
 """
+import ast
 import pathlib
 import shutil
 import subprocess
@@ -68,15 +69,52 @@ PROBES = [
 ]
 
 
-def run(tree, test):
-    proc = subprocess.run([sys.executable, '-B', TESTS, test], cwd=tree, capture_output=True, text=True,
+DELTA_GATES = ('address', 'removed', 'topics', 'range', 'canonical', 'number', 'allowance',
+               'config_owner', 'timelock_role', 'old_role', 'targets', 'xpnts')
+
+
+def manifest_probes():
+    path = 'script/upgrade/manifest_exec.py'
+    source = (ROOT/path).read_text()
+    tree = ast.parse(source)
+    probes = []
+    for suffix in DELTA_GATES:
+        gate = 'old_timelock_delta_'+suffix
+        nodes = [n for n in ast.walk(tree) if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
+                 and isinstance(n.value.func, ast.Attribute) and n.value.func.attr == 'need'
+                 and n.value.args and isinstance(n.value.args[0], ast.Constant) and n.value.args[0].value == gate]
+        assert len(nodes) == 1, (gate, len(nodes))
+        probes.append((gate, ast.get_source_segment(source, nodes[0]), 'pass', 'DeltaTests.test_'+gate))
+    probes.append(('post_pin_delta_call', "    delta = post_pin_delta(rpc, plan['pin'], block)\n", '', 'DeltaTests.test_pre_send_delta_call'))
+    ok = True
+    with tempfile.TemporaryDirectory() as directory:
+        tree = pathlib.Path(directory)
+        shutil.copytree(ROOT/'script', tree/'script')
+        for extra in ('contracts', 'foundry.toml', 'out', 'lib', 'singleton-paymaster'):
+            if (ROOT/extra).exists():
+                (tree/extra).symlink_to(ROOT/extra)
+        for name, old, new, test in probes:
+            (tree/path).write_text(source)
+            count = source.count(old)
+            base_rc, base_tail, _ = run(tree, test, 'script/upgrade/test_manifest_exec.py')
+            (tree/path).write_text(source.replace(old, new))
+            mut_rc, mut_tail, mut_err = run(tree, test, 'script/upgrade/test_manifest_exec.py')
+            red = count == 1 and base_rc == 0 and mut_rc != 0 and 'failures=1' in mut_tail and 'errors=' not in mut_tail and 'AssertionError' in mut_err
+            ok &= red
+            print(f'{name}: matches={count} baseline=rc{base_rc} [{base_tail}] removed=rc{mut_rc} [{mut_tail}] {"red" if red else "NOT RED"}')
+    print('DELTA_DELETION_PROBES', 'PASS' if ok else 'FAIL')
+    return ok
+
+
+def run(tree, test, tests=TESTS):
+    proc = subprocess.run([sys.executable, '-B', tests, test], cwd=tree, capture_output=True, text=True,
                           stdin=subprocess.DEVNULL)
     tail = [line for line in proc.stderr.splitlines() if line.startswith(('Ran ', 'OK', 'FAILED'))]
     return proc.returncode, ' '.join(tail), proc.stderr
 
 
 def main():
-    ok = True
+    ok = manifest_probes()
     for name, old, new, test, cause in PROBES:
         with tempfile.TemporaryDirectory() as directory:
             tree = pathlib.Path(directory)
