@@ -10,5 +10,84 @@
   "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/utils/StorageSlot.sol": {
     "keccak": "0x32ba59b4b7299237c8ba56319110989d7978a039faf754793064e967e5894418",
     "reason": "OpenZeppelin typed storage-slot access for ERC1967 upgrades; upgrade authority is covered by owner isolation."
+  },
+  "callSites": [
+    {
+      "absolutePath": "contracts/src/core/Registry.sol",
+      "keccak": "0xc85c4338d41f200f9b5c6a92479c9936701c52c0932ca409d8dd14b89b4d19a6",
+      "function": "_safeSetRoleExitFee",
+      "functionSrc": "10573:329:29",
+      "src": "10693:28:29",
+      "memberName": "call",
+      "target": "GTOKEN_STAKING",
+      "interfacePath": "contracts/src/interfaces/v3/IGTokenStaking.sol",
+      "interfaceFunction": "setRoleExitFee",
+      "interfaceSrc": "9297:115:39",
+      "reason": "Best-effort synchronization to an in-scope target; storage writers and pin-time address binding are separately required."
+    },
+    {
+      "absolutePath": "contracts/src/core/Registry.sol",
+      "keccak": "0xc85c4338d41f200f9b5c6a92479c9936701c52c0932ca409d8dd14b89b4d19a6",
+      "function": "exitRole",
+      "functionSrc": "17742:3471:29",
+      "src": "19920:20:29",
+      "memberName": "call",
+      "target": "SUPER_PAYMASTER",
+      "interfacePath": "contracts/src/interfaces/ISuperPaymaster.sol",
+      "interfaceFunction": "updateSBTStatus",
+      "interfaceSrc": "4462:61:31",
+      "reason": "Best-effort synchronization to an in-scope target; storage writers and pin-time address binding are separately required."
+    },
+    {
+      "absolutePath": "contracts/src/core/Registry.sol",
+      "keccak": "0xc85c4338d41f200f9b5c6a92479c9936701c52c0932ca409d8dd14b89b4d19a6",
+      "function": "exitRole",
+      "functionSrc": "17742:3471:29",
+      "src": "20241:19:29",
+      "memberName": "call",
+      "target": "MYSBT",
+      "interfacePath": "contracts/src/interfaces/v3/IMySBT.sol",
+      "interfaceFunction": "burnSBT",
+      "interfaceSrc": "3449:40:40",
+      "reason": "Best-effort synchronization to an in-scope target; storage writers and pin-time address binding are separately required."
+    }
+  ],
+  "targetWriters": {
+    "GTOKEN_STAKING": [
+      {
+        "function": "initialize",
+        "functionSrc": "3782:5630:29",
+        "src": "3925:47:29",
+        "modifier": "initializer"
+      },
+      {
+        "function": "setStaking",
+        "functionSrc": "12788:301:29",
+        "src": "12961:41:29",
+        "modifier": "onlyOwner"
+      }
+    ],
+    "MYSBT": [
+      {
+        "function": "initialize",
+        "functionSrc": "3782:5630:29",
+        "src": "3982:22:29",
+        "modifier": "initializer"
+      },
+      {
+        "function": "setMySBT",
+        "functionSrc": "13817:261:29",
+        "src": "14001:22:29",
+        "modifier": "onlyOwner"
+      }
+    ],
+    "SUPER_PAYMASTER": [
+      {
+        "function": "setSuperPaymaster",
+        "functionSrc": "14084:235:29",
+        "src": "14245:21:29",
+        "modifier": "onlyOwner"
+      }
+    ]
   }
 }

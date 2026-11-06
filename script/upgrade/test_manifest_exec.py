@@ -242,7 +242,7 @@ def orphan_replies(pin):
             values[10], values[11] = 384, int(u.DEPLOYER, 16)
         else:
             values = [int(u.DEPLOYER, 16) if kind == 'address' else 0]
-        replies[(target, a.calldata(sig, *args))] = raw(values)
+        replies.setdefault((target, a.calldata(sig, *args)), raw(values))
     for role in [a.ZERO32, *(a.keccak(r+'_ROLE') for r in ('PROPOSER', 'EXECUTOR', 'CANCELLER'))]:
         replies[(u.TL, a.calldata('hasRole(bytes32,address)', role, o.OLD_TIMELOCK))] = raw([0])
     replies[(u.SAFE, a.calldata('getOwners()'))] = raw([32, 2, int(a.APPROVER, 16), int(a.EXECUTOR, 16)])
@@ -4757,14 +4757,8 @@ class DiscoveryTests(unittest.TestCase):
         self.block = '0x200'
 
     def gate(self, name, action):
-        try:
+        with assert_stop(self, name):
             action()
-        except a.Gate as fault:
-            self.assertEqual(fault.record['gate'], name, name)
-        except Exception as fault:
-            self.fail(f'{name}: expected STOP before {type(fault).__name__}: {fault}')
-        else:
-            self.fail(f'{name}: Gate not raised')
 
     def rpc(self, plan=None, passed=None, extra=None, bad=None):
         plan = plan or self.plan
@@ -4783,7 +4777,7 @@ class DiscoveryTests(unittest.TestCase):
             if kind == 'config': continue
             for holder in (m.isolation.OLD, m.isolation.OLD_TIMELOCK):
                 arguments = [holder if v == m.isolation.OLD_TIMELOCK else v for v in args]
-                replies[(target, a.calldata(sig, *arguments))] = isolation_tests.raw([int(u.DEPLOYER,16) if kind == 'address' else 0])
+                replies.setdefault((target, a.calldata(sig, *arguments)), isolation_tests.raw([int(u.DEPLOYER,16) if kind == 'address' else 0]))
         for token in section['xpnts']:
             replies[(token, a.calldata('communityOwner()'))] = isolation_tests.raw([int(u.DEPLOYER,16)])
         for token in section['tokens']:

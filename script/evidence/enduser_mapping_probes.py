@@ -85,10 +85,10 @@ for _suffix in ('role_write_key', 'role_assembly', 'role_lowlevel_call', 'regist
     assert len(_nodes) == 1, (_gate, len(_nodes))
     PROBES.append((_gate, ast.get_source_segment(_c1_source, _nodes[0]), 'pass',
                    'OldOwnerIsolationTests.test_'+_suffix, 'AssertionError:' if _suffix.startswith('xpnts_') else 'AssertionError: Gate not raised'))
-PROBES.append(('role_write_extraction_call', '                initialized_roles = registry_role_writes(entries)\n', "                initialized_roles = {n['name'] for _, n in entries if n.get('constant') and n.get('typeDescriptions', {}).get('typeString') == 'bytes32' and (n.get('name', '').startswith('ROLE_') or n.get('name', '').endswith('ROLE'))}\n",
+PROBES.append(('role_write_extraction_call', '                initialized_roles = registry_role_writes(entries, source_inputs, declarations)\n', "                initialized_roles = {n['name'] for _, n in entries if n.get('constant') and n.get('typeDescriptions', {}).get('typeString') == 'bytes32' and (n.get('name', '').startswith('ROLE_') or n.get('name', '').endswith('ROLE'))}\n",
                'OldOwnerIsolationTests.test_role_write_extraction_call', 'AssertionError: Gate not raised'))
 
-PROBES.append(('role_opaque_extraction_call', '                registry_opaque_writes(opaque_entries, data["input"]["sources"])'.replace('"', "'")+'\n', '',
+PROBES.append(('role_opaque_extraction_call', '                callsite_matches = registry_opaque_writes(opaque_entries, source_inputs, declarations)\n', '                callsite_matches = []\n',
                'OldOwnerIsolationTests.test_role_opaque_extraction_call', 'old_owner_role_assembly'))
 
 PROBES.append(('registry_event_only_restored',

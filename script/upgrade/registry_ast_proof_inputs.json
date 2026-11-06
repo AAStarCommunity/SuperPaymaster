@@ -23,9 +23,8 @@
     "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/utils/ReentrancyGuard.sol": "0xf980daa263b661ab8ddee7d4fd833c7da7e7995e2c359ff1f17e67e4112f2236",
     "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/utils/StorageSlot.sol": "0x32ba59b4b7299237c8ba56319110989d7978a039faf754793064e967e5894418"
   },
-  "proofStatus": "STOP",
-  "gate": "old_owner_role_lowlevel_call",
-  "reason": "Pinned Registry defines selector-encoded low-level calls outside the OZ-only allowlist",
+  "proofStatus": "PASS",
+  "reason": "Offline archived-build AST proof passes with exactly three consumed call-site entries, complete storage-writer proof, closed-world body scan and configureRole emit ordering.",
   "roleWriteProof": {
     "status": "PASS",
     "initializedRoles": [
@@ -78,5 +77,26 @@
       "solc": "0.8.33",
       "ipfs": null
     }
-  }
+  },
+  "consumedCallSites": [
+    {
+      "absolutePath": "contracts/src/core/Registry.sol",
+      "function": "_safeSetRoleExitFee",
+      "src": "10693:28:29",
+      "target": "GTOKEN_STAKING"
+    },
+    {
+      "absolutePath": "contracts/src/core/Registry.sol",
+      "function": "exitRole",
+      "src": "19920:20:29",
+      "target": "SUPER_PAYMASTER"
+    },
+    {
+      "absolutePath": "contracts/src/core/Registry.sol",
+      "function": "exitRole",
+      "src": "20241:19:29",
+      "target": "MYSBT"
+    }
+  ],
+  "nodeTypes": "registry_ast_node_types.json"
 }

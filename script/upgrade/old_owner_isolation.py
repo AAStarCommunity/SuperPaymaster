@@ -57,12 +57,141 @@ def ast_walk(node):
 
 REGISTRY_SOURCE_COMMIT = 'a839347e04b40da287522c3641e12121ef2e8e9e'
 REGISTRY_AST_ALLOWLIST = json.loads(Path(__file__).with_name('registry_ast_allowlist.json').read_text())
+REGISTRY_AST_NODE_TYPES = json.loads(Path(__file__).with_name('registry_ast_node_types.json').read_text())
 
 
-def registry_opaque_writes(entries, source_inputs):
+
+def registry_modifier(fn, name, declarations, source_inputs):
+    files = {'initializer': 'proxy/utils/Initializable.sol', 'onlyOwner': 'access/Ownable.sol',
+             'nonReentrant': 'utils/ReentrancyGuard.sol'}
+    path = 'singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/' + files[name]
+    pinned = REGISTRY_AST_NODE_TYPES['sourceKeccaks'][path]
+    if path not in source_inputs or a.keccak(source_inputs[path]['content']) != pinned:
+        return False
+    return any(p == path and decl.get('nodeType') == 'ModifierDefinition' and decl.get('name') == name
+               for mod in fn.get('modifiers', [])
+               for p, decl in [declarations.get(mod.get('modifierName', {}).get('referencedDeclaration'), ('', {}))])
+
+
+def registry_callsite_proof(entries, source_inputs, declarations):
+    """Exactly three reviewed call sites, bound to mutable storage and its complete writers."""
+    rules = REGISTRY_AST_ALLOWLIST['callSites']
+    candidates = [(p, fn, n) for p, fn in entries for n in ast_walk(fn.get('body'))
+                  if n.get('nodeType') == 'MemberAccess'
+                  and n.get('memberName') in ('call', 'delegatecall', 'staticcall', 'callcode')]
+    def site(rule, p, fn, n):
+        return (p == rule['absolutePath'] and fn.get('name') == rule['function']
+                and fn.get('src') == rule['functionSrc'] and n.get('src') == rule['src'])
+    a.need('old_owner_role_callsite_count', len(rules) == 3 and len({r['src'] for r in rules}) == 3
+           and all(sum(site(r, p, fn, n) for p, fn, n in candidates) == 1 for r in rules), True)
+    target_names = {'GTOKEN_STAKING', 'MYSBT', 'SUPER_PAYMASTER'}
+    states = {n.get('name'): n for p, n in entries if p == 'contracts/src/core/Registry.sol'
+              and n.get('nodeType') == 'VariableDeclaration' and n.get('stateVariable')
+              and n.get('name') in target_names}
+    ids = {n.get('id'): name for name, n in states.items()}
+    writers = {name: [] for name in target_names}
+    safe = set(states) == target_names and all(not n.get('constant') and n.get('value') is None for n in states.values())
+    for p, fn in entries:
+        for n in ast_walk(fn.get('body')):
+            kind = n.get('nodeType')
+            if kind not in ('Assignment', 'UnaryOperation'):
+                continue
+            lhs = n.get('leftHandSide') if kind == 'Assignment' else n.get('subExpression')
+            if kind == 'UnaryOperation' and n.get('operator') not in ('delete', '++', '--'):
+                continue
+            for ref in ast_walk(lhs):
+                if ref.get('referencedDeclaration') in ids:
+                    name = ids[ref['referencedDeclaration']]
+                    modifier = 'initializer' if fn.get('name') == 'initialize' else 'onlyOwner'
+                    safe &= (p == 'contracts/src/core/Registry.sol' and kind == 'Assignment'
+                             and lhs.get('nodeType') == 'Identifier'
+                             and registry_modifier(fn, modifier, declarations, source_inputs))
+                    writers[name].append(dict(function=fn.get('name'), functionSrc=fn.get('src'),
+                                              src=n.get('src'), modifier=modifier))
+    expected = REGISTRY_AST_ALLOWLIST['targetWriters']
+    safe &= set(expected) == target_names and all(
+        sorted(writers[n], key=lambda w: str(w['src'])) == sorted(expected[n], key=lambda w: str(w['src']))
+        for n in target_names)
+    a.need('old_owner_callsite_target_writers', safe, True)
+    matched = []
+    allowed_nodes = set()
+    for rule in rules:
+        for p, fn, member in candidates:
+            if not site(rule, p, fn, member):
+                continue
+            calls = [n for n in ast_walk(fn.get('body')) if n.get('nodeType') == 'FunctionCall'
+                     and n.get('expression') is member]
+            target = member.get('expression', {})
+            if target.get('nodeType') == 'FunctionCall':
+                cast = target.get('expression', {})
+                args = target.get('arguments', [])
+                target = (args[0] if len(args) == 1 and target.get('kind') == 'typeConversion'
+                          and cast.get('nodeType') == 'ElementaryTypeNameExpression'
+                          and cast.get('typeName', {}).get('name') == 'address' else {})
+            args = calls[0].get('arguments', []) if len(calls) == 1 else []
+            encoded = args[0] if len(args) == 1 else {}
+            enc = encoded.get('expression', {})
+            enc_args = encoded.get('arguments', [])
+            iface = enc_args[0] if len(enc_args) == 2 else {}
+            ip, function = declarations.get(iface.get('referencedDeclaration'), ('', {}))
+            cp, contract = declarations.get(iface.get('expression', {}).get('referencedDeclaration'), ('', {}))
+            valid = (rule.get('reason') and rule.get('memberName') == member.get('memberName') == 'call'
+                     and p in source_inputs and a.keccak(source_inputs[p]['content']) == rule['keccak']
+                     and target.get('nodeType') == 'Identifier'
+                     and ids.get(target.get('referencedDeclaration')) == rule['target']
+                     and encoded.get('nodeType') == 'FunctionCall'
+                     and enc.get('nodeType') == 'MemberAccess' and enc.get('memberName') == 'encodeCall'
+                     and enc.get('expression', {}).get('name') == 'abi'
+                     and enc.get('expression', {}).get('referencedDeclaration', 0) < 0
+                     and ip == cp == rule['interfacePath'] and function.get('nodeType') == 'FunctionDefinition'
+                     and function.get('name') == rule['interfaceFunction'] and function.get('src') == rule['interfaceSrc']
+                     and contract.get('contractKind') == 'interface' and contract.get('name') == Path(ip).stem
+                     and ip in source_inputs
+                     and a.keccak(source_inputs[ip]['content']) == REGISTRY_AST_NODE_TYPES['sourceKeccaks'].get(ip))
+            if valid:
+                allowed_nodes.add(id(member))
+                matched.append(dict(absolutePath=p, function=fn['name'], src=member['src'], target=rule['target']))
+    return allowed_nodes, matched
+
+def registry_opaque_writes(entries, source_inputs, declarations=None):
     """Reject opaque storage/call paths unless the exact reviewed OZ source is pinned."""
-    trusted_sources = {path: bool(rule['reason']) and a.keccak(source_inputs[path]['content']) == rule['keccak']
-                       for path, rule in REGISTRY_AST_ALLOWLIST.items() if path in source_inputs}
+    # This is the first layer, before any source-specific exception or semantic rule.
+    body_nodes = [n for _, fn in entries
+                  if fn.get('nodeType') in ('FunctionDefinition', 'ModifierDefinition')
+                  for n in ast_walk(fn.get('body'))]
+    a.need('old_owner_role_node_type', all(
+        n.get('nodeType') in REGISTRY_AST_NODE_TYPES['solidityBodyNodeTypes']
+        for n in body_nodes if 'nodeType' in n and not n['nodeType'].startswith('Yul')), True)
+    source_rules = {p: r for p, r in REGISTRY_AST_ALLOWLIST.items() if p.endswith('.sol')}
+    required = {path for path, node in entries if path in source_rules or node.get('nodeType') == 'SourceUnit'}
+    trusted_sources = {path: bool(rule['reason']) and path in source_inputs
+                       and a.keccak(source_inputs[path]['content']) == rule['keccak']
+                       for path, rule in source_rules.items()
+                       if path in source_inputs or path in required}
+    a.need('old_owner_role_allowlisted_source', all(path in source_inputs for path in required), True)
+    free_ids = {fn.get('id') for _, fn in entries
+                if fn.get('nodeType') == 'FunctionDefinition' and fn.get('kind') == 'freeFunction'} - {None}
+    a.need('old_owner_role_free_function', not any(
+        n.get('referencedDeclaration') in free_ids for _, fn in entries for n in ast_walk(fn)), True)
+    functions = {fn.get('id'): fn for _, fn in entries if fn.get('nodeType') == 'FunctionDefinition'}
+    def storage_receiver(n):
+        if n.get('nodeType') != 'MemberAccess':
+            return False
+        fn = functions.get(n.get('referencedDeclaration'), {})
+        params = fn.get('parameters', {}).get('parameters', [])
+        return bool(params) and params[0].get('storageLocation') == 'storage'
+    a.need('old_owner_role_storage_escape', not any(
+        n.get('nodeType') == 'UsingForDirective' or storage_receiver(n)
+        for _, fn in entries for n in ast_walk(fn)), True)
+    a.need('old_owner_role_storage_return', not any(
+        p.get('storageLocation') == 'storage'
+        for path, fn in entries if not trusted_sources.get(path, False)
+        for p in fn.get('returnParameters', {}).get('parameters', [])), True)
+    a.need('old_owner_role_yul_terminator', not any(
+        n.get('nodeType') == 'YulFunctionCall'
+        and n.get('functionName', {}).get('name') in ('return', 'stop', 'selfdestruct', 'invalid')
+        for path, fn in entries for n in ast_walk(fn)), True)
+    allowed_nodes, matched = registry_callsite_proof(entries, source_inputs, declarations) if declarations is not None else (set(), [])
     assembly_safe, calls_safe = all(trusted_sources.values()), True
     for path, fn in entries:
         if fn.get('nodeType') not in ('FunctionDefinition', 'ModifierDefinition'):
@@ -73,18 +202,16 @@ def registry_opaque_writes(entries, source_inputs):
         assembly_safe &= not allowed or trusted
         for n in ast_walk(fn):
             if n.get('nodeType') == 'InlineAssembly':
-                dangerous = any(v.get('name', '').lower() in
-                                ('sstore', 'delegatecall', 'call', 'callcode', 'create', 'create2', 'selfdestruct')
-                                for v in ast_walk(n))
-                assembly_safe &= not dangerous or trusted
+                assembly_safe &= trusted
             # Reject all unreviewed low-level calls: this also covers selectors hidden in locals.
             if n.get('nodeType') == 'MemberAccess' and n.get('memberName') in ('delegatecall', 'call', 'staticcall', 'callcode'):
-                calls_safe &= trusted
+                calls_safe &= trusted or id(n) in allowed_nodes
     a.need('old_owner_role_assembly', assembly_safe, True)
     a.need('old_owner_role_lowlevel_call', calls_safe, True)
+    return matched
 
 
-def registry_role_writes(entries):
+def registry_role_writes(entries, source_inputs, declarations):
     """Conservatively prove the deployed Registry's configuration enumeration."""
     members = {n.get('id'): n for _, n in entries if 'id' in n}
     mappings = {i for i, n in members.items() if n.get('stateVariable') and n.get('name') == 'roleConfigs'}
@@ -92,7 +219,7 @@ def registry_role_writes(entries):
                  and n.get('body') is not None}
     init = {i for i, n in functions.items() if n.get('name') == '_initRole'}
     configure = {i for i, n in functions.items() if n.get('name') == 'configureRole'}
-    declarations = {n['id']: n for n in ast_walk(list(functions.values()))
+    local_declarations = {n['id']: n for n in ast_walk(list(functions.values()))
                     if n.get('nodeType') == 'VariableDeclaration' and 'id' in n}
     aliases = set(mappings)
     def references(node):
@@ -106,7 +233,7 @@ def registry_role_writes(entries):
                 aliases.update(d['id'] for d in n['declarations'] if d and d.get('storageLocation') == 'storage')
             if n.get('nodeType') == 'Assignment' and references(n.get('rightHandSide')):
                 aliases.update(v['referencedDeclaration'] for v in ast_walk(n['leftHandSide'])
-                               if declarations.get(v.get('referencedDeclaration'), {}).get('storageLocation') == 'storage')
+                               if local_declarations.get(v.get('referencedDeclaration'), {}).get('storageLocation') == 'storage')
         changed = before != aliases
     writes, escapes = [], []
     callers = {i: set() for i in functions}
@@ -157,7 +284,7 @@ def registry_role_writes(entries):
         if 'reinitializer' in modifiers:
             return False
         if 'initializer' in modifiers:
-            return True
+            return registry_modifier(fn, 'initializer', declarations, source_inputs)
         if fn.get('visibility') in ('public', 'external') or not callers[i]:
             return False
         return all(initializer_only(caller, path | {i}) for caller in callers[i])
@@ -217,15 +344,71 @@ def registry_role_writes(entries):
     a.need('old_owner_role_init_ids', bool(resolved) and all(r is not None for r in resolved), True)
     events = {i for i, n in members.items() if n.get('nodeType') == 'EventDefinition' and n.get('name') == 'RoleConfigured'}
     def emits(i):
-        body = functions[i].get('body', {})
+        fn = functions[i]
+        body = fn.get('body', {})
         statements = body if isinstance(body, list) else body.get('statements', [])
         emissions = [n for n in ast_walk(body) if n.get('nodeType') == 'EmitStatement'
                      and n.get('eventCall', {}).get('expression', {}).get('referencedDeclaration') in events]
-        return (not any(n.get('nodeType') == 'Return' for n in ast_walk(body))
-                and any(n in statements for n in emissions)
-                and all((n.get('eventCall', {}).get('arguments') or [{}])[0].get('nodeType') == 'Identifier'
-                        and (n.get('eventCall', {}).get('arguments') or [{}])[0].get('referencedDeclaration') == role_parameters[i]
-                        for n in emissions))
+        if len(emissions) != 1 or emissions[0] not in statements:
+            return False
+        emit = emissions[0]
+        args = emit.get('eventCall', {}).get('arguments') or [{}]
+        if args[0].get('nodeType') != 'Identifier' or args[0].get('referencedDeclaration') != role_parameters[i]:
+            return False
+        if any(n.get('nodeType') in ('Return', 'TryStatement') for n in ast_walk(body)):
+            return False
+        write_nodes = [n for n in ast_walk(body) if
+                       (n.get('nodeType') == 'Assignment' and references(n.get('leftHandSide')))
+                       or (n.get('nodeType') == 'UnaryOperation' and n.get('operator') in ('delete', '++', '--')
+                           and references(n.get('subExpression')))]
+        direct_writes = [(j, stmt.get('expression', stmt)) for j, stmt in enumerate(statements)
+                         if stmt.get('expression', stmt) in write_nodes]
+        if len(direct_writes) != len(write_nodes) or not direct_writes:
+            return False
+        last = max(j for j, _ in direct_writes)
+        end = statements.index(emit)
+        if last >= end:
+            return False
+        high_calls = 0
+        for stmt in statements[last+1:end]:
+            expr = stmt.get('expression', {})
+            if stmt.get('nodeType') != 'ExpressionStatement':
+                return False
+            if expr.get('nodeType') == 'FunctionCall':
+                member = expr.get('expression', {})
+                path, decl = declarations.get(member.get('referencedDeclaration'), ('', {}))
+                target_path, target = declarations.get(member.get('expression', {}).get('referencedDeclaration'), ('', {}))
+                rule = next(r for r in REGISTRY_AST_ALLOWLIST['callSites'] if r['target'] == 'GTOKEN_STAKING')
+                if not (member.get('nodeType') == 'MemberAccess' and member.get('memberName') == 'setRoleExitFee'
+                        and member.get('expression', {}).get('nodeType') == 'Identifier'
+                        and target_path == 'contracts/src/core/Registry.sol'
+                        and target.get('stateVariable') and target.get('name') == 'GTOKEN_STAKING'
+                        and decl.get('name') == rule['interfaceFunction'] and path == rule['interfacePath']
+                        and decl.get('src') == rule['interfaceSrc']
+                        and not any(n.get('nodeType') in ('FunctionCall', 'FunctionCallOptions')
+                                    for arg in expr.get('arguments', []) for n in ast_walk(arg))):
+                    return False
+                high_calls += 1
+            elif (not expr.get('isPure', False) or any(n.get('nodeType') in
+                  ('FunctionCall', 'FunctionCallOptions', 'Assignment', 'UnaryOperation') for n in ast_walk(expr))):
+                return False
+        return high_calls == 1
+    def configure_guard(fn):
+        if len(fn.get('modifiers', [])) != 1 or not registry_modifier(fn, 'nonReentrant', declarations, source_inputs):
+            return False
+        path, modifier = declarations.get(fn['modifiers'][0].get('modifierName', {}).get('referencedDeclaration'), ('', {}))
+        statements = modifier.get('body', {}).get('statements', [])
+        if len(statements) != 3 or statements[1].get('nodeType') != 'PlaceholderStatement':
+            return False
+        for stmt, name in ((statements[0], '_nonReentrantBefore'), (statements[2], '_nonReentrantAfter')):
+            expr = stmt.get('expression', {})
+            p, callee = declarations.get(expr.get('expression', {}).get('referencedDeclaration'), ('', {}))
+            if not (stmt.get('nodeType') == 'ExpressionStatement' and expr.get('nodeType') == 'FunctionCall'
+                    and expr.get('expression', {}).get('nodeType') == 'Identifier' and not expr.get('arguments')
+                    and p == path and callee.get('nodeType') == 'FunctionDefinition' and callee.get('name') == name):
+                return False
+        return True
+    a.need('old_owner_role_configure_guard', all(configure_guard(functions[i]) for i in configure), True)
     a.need('old_owner_role_configure_emit', all(emits(i) for i in configure), True)
     return set().union(*(r for r in resolved if r is not None))
 
@@ -257,19 +440,21 @@ def extract(tree, names=NAMES):
                 if p in visited:
                     continue
                 visited.add(p)
-                for n in sources[p]['ast']['nodes']:
+                for n in sources.get(p, {}).get('ast', {}).get('nodes', []):
                     if n.get('nodeType') == 'ImportDirective':
                         pending.append(n['absolutePath'])
-                    elif n.get('nodeType') == 'VariableDeclaration':
+                    elif n.get('nodeType') in ('VariableDeclaration', 'FunctionDefinition'):
                         entries.append((p,n))
             if name == 'Registry':
-                opaque_entries = list(entries)
+                opaque_entries = list(entries) + [(p, dict(nodeType='SourceUnit')) for p in visited]
                 for p in visited:
-                    for node in sources[p]['ast']['nodes']:
+                    for node in sources.get(p, {}).get('ast', {}).get('nodes', []):
                         if node.get('contractKind') == 'library':
                             opaque_entries.extend((p, n) for n in node['nodes'])
-                registry_opaque_writes(opaque_entries, data['input']['sources'])
-                initialized_roles = registry_role_writes(entries)
+                declarations = {n['id']: (p, n) for p, s in sources.items() for n in ast_walk(s['ast']) if 'id' in n}
+                source_inputs = {p: s for p, s in data['input']['sources'].items() if p in sources}
+                callsite_matches = registry_opaque_writes(opaque_entries, source_inputs, declarations)
+                initialized_roles = registry_role_writes(entries, source_inputs, declarations)
             groups = dict(roles=[], authorities=[], mappings=[])
             seen = set()
             for p,n in entries:
@@ -322,7 +507,7 @@ def extract(tree, names=NAMES):
                 a.need('old_owner_role_event_indexed', [v['indexed'] for v in event['inputs']], [True, False, False])
                 groups['roleEventTopic'] = a.keccak(ROLE_EVENT)
             if name == 'Registry':
-                groups['astProofInputs'] = dict(buildInfoId=data.get('id', path.stem),
+                groups['astProofInputs'] = dict(callSites=callsite_matches, buildInfoId=data.get('id', path.stem),
                     buildInfoSha256=hashlib.sha256(path.read_bytes()).hexdigest(),
                     sourceHashes={p: a.keccak(data['input']['sources'][p]['content']) for p in sorted(visited)})
             groups['hasRoleGetter'] = 'public-mapping' if any(
@@ -369,6 +554,24 @@ def authority_rows(section):
         if spec['hasRole']:
             rows.extend((target, 'hasRole(bytes32,address)', [r, OLD_TIMELOCK], 'bool') for r in sorted(roles))
     return rows
+
+
+
+def callsite_target_expectations():
+    # Independent of the Registry getters being checked: the committed in-scope deployment record.
+    config = json.loads(subprocess.run(
+        ['git', 'show', 'HEAD:deployments/config.sepolia.json'], cwd=u.ROOT,
+        capture_output=True, check=True).stdout)
+    return dict(GTOKEN_STAKING=config['staking'].lower(), MYSBT=config['sbt'].lower(),
+                SUPER_PAYMASTER=config['superPaymaster'].lower())
+
+
+def registry_callsite_targets(addr, targets):
+    expected = callsite_target_expectations()
+    a.need('old_owner_role_callsite_sp', expected['SUPER_PAYMASTER'], u.SP.lower())
+    actual = {name: addr(u.REG, name+'()').lower() for name in expected}
+    a.need('old_owner_role_callsite_target', actual, expected)
+    return actual
 
 
 def audit(rpc, pin, inventory, fork=None):
@@ -421,6 +624,7 @@ def audit(rpc, pin, inventory, fork=None):
     targets.update(GTokenStaking=addr(u.REG,'GTOKEN_STAKING()'),
                    MySBT=addr(u.REG,'MYSBT()'), xPNTsFactory=addr(u.SP,'xpntsFactory()'),
                    PaymasterFactory=PAYMASTER_FACTORY)
+    callsite_targets = registry_callsite_targets(addr, targets)
     targets['GToken'] = addr(targets['GTokenStaking'],'GTOKEN()')
     for name in ('GTokenStaking','GToken','xPNTsFactory','MySBT','PaymasterFactory'):
         a.need('old_owner_target_'+name, targets[name] != a.ZERO, True)
@@ -657,7 +861,7 @@ def audit(rpc, pin, inventory, fork=None):
                getter=dict(target=u.SAFE,signature='isModuleEnabled(address)',args=['$ACCOUNT'])))
     canonical_pin()
     roles.update(histories.get(u.REG,[]))
-    return dict(declaredNeverGranted=declared_never, neverGrantedReads=never_reads, oldRoleReads=old_role_reads, safeFallback=dict(address=FALLBACK_HANDLER,provenance='docs/release/a3a-precheck-v4/snapshot.json; DSR canonical deployment-list confirmation required'), forkControls=fork_controls, roleHistory=histories, roleHistoryCounts=history_counts, inventory=inventory, targets=targets, configuredRoles=sorted(roles), xpnts=sorted(xpnts), tokens=sorted(tokens), reverseAllowances=reverse, reads=reads)
+    return dict(registryCallsiteTargets=callsite_targets, declaredNeverGranted=declared_never, neverGrantedReads=never_reads, oldRoleReads=old_role_reads, safeFallback=dict(address=FALLBACK_HANDLER,provenance='docs/release/a3a-precheck-v4/snapshot.json; DSR canonical deployment-list confirmation required'), forkControls=fork_controls, roleHistory=histories, roleHistoryCounts=history_counts, inventory=inventory, targets=targets, configuredRoles=sorted(roles), xpnts=sorted(xpnts), tokens=sorted(tokens), reverseAllowances=reverse, reads=reads)
 
 
 def validate(section, pin, inventory):

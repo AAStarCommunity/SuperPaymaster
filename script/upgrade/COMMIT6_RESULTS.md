@@ -157,3 +157,174 @@ each proxy gate was removed separately. Each PASS above uses the existing strict
 runner: one site, green baseline, at least one named assertion failure, no errors.
 
 `git diff --check` passed at this checkpoint. No release acceptance is claimed.
+
+## 6b
+
+**Partial checkpoint; not release acceptance. No commit was made.** All changes
+are offline. No live RPC, environment file, keystore, transaction, deployment,
+pre-send/closing target reads, or authority time-point matrix was used or added.
+
+### Implemented
+
+- A: `registry_ast_allowlist.json` now has exactly three `callSites`, with the
+  archived Registry source keccak, enclosing function/name/src, member src,
+  target storage variable, resolved interface function/path/src, and reason.
+  Only direct `.call(abi.encodeCall(...))` matches; options, other call kinds,
+  unmatched calls, changed offsets, and missing/extra entries STOP. Evidence
+  records the three consumed entries.
+- A: complete target-writer enumeration is compared with reviewed assignment
+  offsets in `targetWriters`. Initializer/owner modifiers resolve by declaration
+  ID to keccak-pinned OZ sources. No immutable assumption is used for these
+  variables. Extra/missing writers and absent/non-OZ owner modifiers STOP.
+- A, pin only: `registry_callsite_targets` reads through the Registry proxy using
+  the existing recorded offline audit calls, compares full lowercased addresses
+  with `targets['GTokenStaking']`, `targets['MySBT']`, and `u.SP`, and records
+  `registryCallsiteTargets` plus the raw reads. Fake-RPC mismatch and middle-byte
+  controls pass. Canonical config/staking/SBT/SP equality is tested.
+- B / H1-H3: imported free functions and library bodies join the opaque scan;
+  modifiers remain included. Free-function references, using-for directives,
+  storage-parameter member calls, and unreviewed storage returns STOP. Required
+  import sources cannot silently disappear. Pinned OZ storage helpers retain
+  their existing keccak exception.
+- F1: `registry_ast_node_types.json` records the actual archived build ID,
+  source keccaks and Solidity body-node set. Unknown body node types STOP before
+  the semantic rules. Non-OZ assembly is rejected completely; Registry's Yul
+  allowlist is empty. Yul `return`, `stop`, `selfdestruct`, and `invalid` STOP
+  anywhere scanned, including otherwise trusted source bodies.
+- H4 / F4 / G1: configureRole's sole RoleConfigured emit must follow all its
+  direct roleConfigs writes in the same function. Nested/later writes, early
+  returns, try/catch and intervening calls STOP, except exactly one resolved
+  typed `GTOKEN_STAKING.setRoleExitFee` call. The sole modifier must resolve to
+  pinned OZ nonReentrant, with the reviewed before/placeholder/after body shape.
+  `_initRole` remains initializer-only and enumerated through `init_ids`.
+- M5: initializer-only proof now resolves the actual modifier declaration and
+  verifies the OZ source hash. Missing required allowlisted source inputs STOP.
+- F2: the archived-build regression now expects PASS and exactly three consumed
+  sites. The archive is required, never skipped. `registry_ast_proof_inputs.json`
+  records AST PASS and the consumed entries; this is not chain acceptance.
+- F3: `script/evidence/registry_ast_probes.py` binds every one of the ten new
+  gates and the changed existing gates to strict one-site deletion controls.
+  It also tests the call/writer/emit variants and extraction-scope seams.
+- M6, targeted: retained strict `assert_stop`; removed the remaining broad
+  exception conversion in `DiscoveryTests.gate`. Replaced the old
+  `test_role_control_case_without_path_gate` crash-catching control with a valid
+  UserDict adverse case: deleting the dict gate now reaches acceptance and
+  fails with `old_owner_role_control_case: Gate not raised`, errors=0.
+  The existing duplicate-log count control and separate empty-log case remain.
+- Updated synthetic inventory fixtures with the real reviewed sites, writer
+  assignments and OZ declarations. Generic authority replies now preserve
+  concrete discovered target values. Updated extraction-call deletion seams
+  for the new function signatures.
+
+### Still undone
+
+1. **M7:** `DiscoveryCallTests` still uses source-spelling assertions. The 26
+   discovery-call controls have NOT been replaced with adverse fake-RPC
+   behavioral tests and corresponding strict call-site deletion probes. Their
+   historical green results are not credited as behavioral evidence.
+2. **F5:** the complete COMMIT 5 A/B table has NOT been re-audited under strict
+   exception semantics. The earlier 6a invalidation table remains applicable.
+   Two additional conclusions changed here: the old role-control-case probe's
+   A classification depended on catching arbitrary exceptions; it is now
+   replaced and strictly red by acceptance. `DiscoveryTests.gate` also caught
+   arbitrary exceptions; that conversion is removed, but the whole family
+   still needs a completed strict deletion re-audit. No unchanged table row is
+   newly certified by this checkpoint.
+3. **M6 global acceptance:** all deletion drivers were launched again. The
+   Phase C, audit605 and enduser drivers were interrupted before completion
+   (exit 130); no full-driver PASS is claimed for them. Fix any further strict
+   failures and complete those runs after M7/F5. The earlier runs that failed
+   on fixture address overwrites are not accepted evidence.
+4. **F3 completeness beyond Registry:** the new Registry gates have strict
+   probes, but the missing M7 controls/global re-audit prevent claiming the
+   entire requested 6b acceptance scope complete.
+
+The pre-send/closing target reads and authority time-point matrix are deliberately
+out of scope for this pass, not implemented, and not counted as completed work.
+
+### Verification evidence
+
+Final Registry deletion command:
+`python3 -B script/evidence/registry_ast_probes.py`.
+Each PASS below requires a green baseline, exactly one deleted statement,
+failures >= 1, errors == 0, and the gate in an AssertionError message. The gate
+coverage comparison against HEAD found ten new gates and zero uncovered gates.
+
+```text
+REGISTRY_AST_PROBE test_node_type gate=old_owner_role_node_type baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_free_function gate=old_owner_role_free_function baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_using_for gate=old_owner_role_storage_escape baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_storage_receiver gate=old_owner_role_storage_escape baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_using_library_assembly_scope gate=old_owner_role_storage_escape baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_storage_return gate=old_owner_role_storage_return baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_yul_terminator gate=old_owner_role_yul_terminator baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_missing_allowlisted_source gate=old_owner_role_allowlisted_source baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_extra_writer gate=old_owner_callsite_target_writers baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_setter_without_owner gate=old_owner_callsite_target_writers baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_setter_non_oz_owner gate=old_owner_callsite_target_writers baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_missing_writer gate=old_owner_callsite_target_writers baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_initializer_declaration gate=old_owner_role_initializer_only baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_configure_guard gate=old_owner_role_configure_guard baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_modifier_post_termination gate=old_owner_role_configure_guard baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_emit_nested_write gate=old_owner_role_configure_emit baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_emit_early_return gate=old_owner_role_configure_emit baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_emit_before_write gate=old_owner_role_configure_emit baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_emit_internal_call gate=old_owner_role_configure_emit baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_emit_two_calls gate=old_owner_role_configure_emit baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_emit_try gate=old_owner_role_configure_emit baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_emit_different_target gate=old_owner_role_configure_emit baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_emit_different_function gate=old_owner_role_configure_emit baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_extra_call gate=old_owner_role_lowlevel_call baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_delegatecall gate=old_owner_role_lowlevel_call baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_call_value gate=old_owner_role_lowlevel_call baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_call_gas gate=old_owner_role_lowlevel_call baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_call_wrong_target gate=old_owner_role_lowlevel_call baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_call_wrong_interface gate=old_owner_role_lowlevel_call baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_modifier_delegatecall_scope gate=old_owner_role_lowlevel_call baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_src_offset gate=old_owner_role_callsite_count baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_allowlist_two gate=old_owner_role_callsite_count baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_allowlist_four gate=old_owner_role_callsite_count baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_pin_target_middle_byte gate=old_owner_role_callsite_target baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_pin_target_rpc_mismatch gate=old_owner_role_callsite_target baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_free_function_assembly_scope gate=old_owner_role_assembly baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBE test_library_assembly_scope gate=old_owner_role_assembly baseline=green sites=1 failures=1 errors=0 PASS
+REGISTRY_AST_PROBES PASS 37/37 strict red
+```
+
+Final requested command: `python3 -B script/upgrade/test_old_owner_isolation.py`.
+
+```text
+Ran 138 tests in 52.716s
+OK (skipped=2)
+```
+
+The two skips are the pre-existing opt-in live/fork controls. The archived-build
+positive control ran and passed; no archive absence was skipped.
+
+Other completed offline checks:
+
+```text
+GAS_GATE_PROBES PASS 17/17
+INVENTORY_REPLAY_PROBES PASS
+```
+
+The focused discovery baseline completed with `Ran 25 tests in 76.548s` and
+`OK`. This is baseline evidence only, not M7 call-deletion acceptance.
+
+Local logs: `/private/tmp/registry-6b-unit-final.log`,
+`/private/tmp/registry-6b-probes-final.log`,
+`/private/tmp/registry-6b-gas.log`,
+`/private/tmp/registry-6b-replay-final.log`. Interrupted global runs:
+`/private/tmp/registry-6b-phase-final.log`,
+`/private/tmp/registry-6b-audit-final.log`,
+`/private/tmp/registry-6b-enduser-final.log`.
+
+The final stale-proposal driver also completed successfully
+(`/private/tmp/registry-6b-stale-final.log`):
+
+```text
+SOURCE_UNCHANGED 1
+PROBES_ALL_RED=1
+```
+
+`git diff --check` passed. No ERROR or interrupted run is credited as proof.

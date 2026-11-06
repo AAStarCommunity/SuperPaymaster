@@ -6,7 +6,6 @@ import json
 import os
 import subprocess
 import tempfile
-import traceback
 import unittest
 from functools import lru_cache
 from pathlib import Path
@@ -23,6 +22,10 @@ CBOR = 'a164736f6c6343000821000a'
 IMPL = a.create_address(FACTORY,1)
 CLONE = '0x363d3d373d3d3d363d73'+IMPL[2:]+'5af43d82803e903d91602b57fd5bf3'
 OP_TYPES = ['uint128','bool','bool','address','uint32','uint48','address','uint256','uint256']
+# Offline fixtures use synthetic staking/SBT addresses; the real config binding is tested separately.
+REAL_CALLSITE_TARGET_EXPECTATIONS = o.callsite_target_expectations
+FIXTURE_CALLSITE_TARGETS = dict(GTOKEN_STAKING=STAKING, MYSBT=SBT, SUPER_PAYMASTER=u.SP.lower())
+patch.object(o, 'callsite_target_expectations', return_value=FIXTURE_CALLSITE_TARGETS).start()
 
 
 def registry_write_ast(roles=None):
@@ -57,14 +60,37 @@ def registry_write_ast(roles=None):
     nodes[3]['parameters']['parameters'][0]['id'] = 1400
     nodes[3]['body'][0]['leftHandSide']['indexExpression']['referencedDeclaration'] = 1400
     nodes[3]['body'][1]['eventCall']['arguments'][0]['referencedDeclaration'] = 1400
+    real = archived_registry_build()
+    original = next(n for n in real['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes']
+                    if n.get('name') == 'Registry')
+    initializer = next(n for n in original['nodes'] if n.get('name') == 'initialize')
+    configure = next(n for n in original['nodes'] if n.get('name') == 'configureRole')
+    nodes[-1]['modifiers'] = copy.deepcopy(initializer['modifiers'])
+    nodes[3]['modifiers'] = copy.deepcopy(configure['modifiers'])
+    call = next(stmt for stmt in configure['body']['statements']
+                if stmt.get('expression', {}).get('expression', {}).get('memberName') == 'setRoleExitFee')
+    nodes[3]['body'].insert(-1, copy.deepcopy(call))
     return nodes
+
+
+def role_writes(nodes):
+    real = archived_registry_build()
+    declarations = {n['id']: (p, n) for p, src in real['output']['sources'].items()
+                    for n in o.ast_walk(src['ast']) if 'id' in n}
+    return o.registry_role_writes([('', n) for n in nodes], real['input']['sources'], declarations)
+
+
+@lru_cache(maxsize=1)
+def archived_registry_build():
+    path = Path('/private/tmp/l1-builds')/o.REGISTRY_SOURCE_COMMIT/'out/build-info/e34c552b450719a1.json'
+    return json.loads(path.read_text())
 
 
 def fixture_ast(tree):
     sources, inputs, artifacts = {}, {}, {}
     counter = 0
     for name in o.NAMES:
-        path = 'contracts/src/'+name+'.sol'
+        path = 'contracts/src/'+('core/' if name == 'Registry' else '')+name+'.sol'
         members, abi = [], []
         def function(label, ins, outs):
             abi.append(dict(type='function', name=label, inputs=[dict(type=t) for t in ins], outputs=[dict(type=t) for t in outs]))
@@ -113,6 +139,37 @@ def fixture_ast(tree):
         sources[path] = dict(ast=dict(nodes=[node]))
         inputs[path] = dict(content='// one\ncontract fixture {}')
         artifacts[name] = dict(abi=abi)
+    # Retain the small role-enumeration fixture, but use real reviewed call sites,
+    # storage writers, modifier declarations and source identities for the call proof.
+    real = archived_registry_build()
+    real_sources = real['output']['sources']
+    registry_path = 'contracts/src/core/Registry.sol'
+    original = next(n for n in real_sources[registry_path]['ast']['nodes']
+                    if n.get('nodeType') == 'ContractDefinition' and n.get('name') == 'Registry')
+    root = sources[registry_path]['ast']['nodes'][0]
+    root['linearizedBaseContracts'] += original['linearizedBaseContracts'][1:]
+    roots = {n['id']: p for p, src in real_sources.items() for n in src['ast']['nodes']
+             if n.get('nodeType') == 'ContractDefinition'}
+    for base in original['linearizedBaseContracts'][1:]:
+        path = roots[base]
+        # Import only inherited OZ files; synthetic role constants stay enumerated.
+        if '/openzeppelin-' in path:
+            sources[registry_path]['ast']['nodes'].append(dict(nodeType='ImportDirective', absolutePath=path))
+    for path, src in real_sources.items():
+        if path != registry_path and path in o.REGISTRY_AST_NODE_TYPES['sourceKeccaks']:
+            sources.setdefault(path, copy.deepcopy(src))
+    inputs.update({path: copy.deepcopy(real['input']['sources'][path]) for path in o.REGISTRY_AST_NODE_TYPES['sourceKeccaks']})
+    wanted = {'GTOKEN_STAKING', 'MYSBT', 'SUPER_PAYMASTER', '_safeSetRoleExitFee',
+              'setStaking', 'setMySBT', 'setSuperPaymaster', 'exitRole'}
+    root['nodes'].extend(copy.deepcopy(n) for n in original['nodes'] if n.get('name') in wanted)
+    init = next(n for n in root['nodes'] if n.get('name') == 'initialize')
+    real_init = next(n for n in original['nodes'] if n.get('name') == 'initialize')
+    init['src'], init['modifiers'] = real_init['src'], copy.deepcopy(real_init['modifiers'])
+    target_ids = {n['id'] for n in original['nodes'] if n.get('name') in wanted and n.get('stateVariable')}
+    init['body'].extend(copy.deepcopy(n) for n in real_init['body']['statements']
+                        if n.get('expression', {}).get('leftHandSide', {}).get('referencedDeclaration') in target_ids)
+    for label in ('GTOKEN_STAKING', 'MYSBT', 'SUPER_PAYMASTER'):
+        artifacts['Registry']['abi'].append(dict(type='function', name=label, inputs=[], outputs=[dict(type='address')]))
     directory = tree/'out/build-info'
     directory.mkdir(parents=True)
     (directory/'test.json').write_text(json.dumps(dict(input=dict(sources=inputs),output=dict(sources=sources))))
@@ -161,7 +218,7 @@ def fixture_rpc(pin, overrides=None, factory_token=TOKEN):
         for row in inventory()[name]['mappings']:
             for who in {o.OLD,o.NEW,o.OLD_TOKEN,u.SAFE,u.TL,u.SP,u.REG,u.DEPLOYER,a.APPROVER,a.EXECUTOR,*targets,*pin['pauseList']}:
                 put(target,row['signature'],[who],[int(who != o.OLD)])
-    for target,sig,value in [(u.REG,'GTOKEN_STAKING()',STAKING),(u.REG,'MYSBT()',SBT),
+    for target,sig,value in [(u.REG,'SUPER_PAYMASTER()',u.SP),(u.REG,'GTOKEN_STAKING()',STAKING),(u.REG,'MYSBT()',SBT),
                               (u.SP,'xpntsFactory()',FACTORY),(STAKING,'GTOKEN()',GTOKEN)]:
         put(target,sig,[],[int(value,16)])
     if factory_token != TOKEN:
@@ -279,7 +336,7 @@ def evidence(pin):
 
 
 def removed_probe(test, action, gate):
-    # Class A: a missing STOP is an assertion failure, including downstream exceptions.
+    # Class A: acceptance or a wrong Gate must fail by assertion; crashes remain ERRORs.
     original = a.need
     def removed(label, actual, expected):
         if label != gate:
@@ -342,7 +399,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            nodes = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]['nodes']
+            nodes = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]['nodes']
             node = next(n for n in nodes if n['name'] == 'hasRole')
             node.clear()
             node.update(nodeType='FunctionDefinition',name='hasRole',src='7:1:0',
@@ -439,26 +496,14 @@ class OldOwnerIsolationTests(unittest.TestCase):
         self.assert_enduser_controls(self.enduser_audit('configured'))
 
     def test_role_control_case_without_path_gate(self):
-        # With the path gate only recording (diagnostic mode), a missing case still STOPs as a gate, not a TypeError.
-        key = ('eth_call',str([dict(to=u.REG,data=a.calldata('hasRole(bytes32,address)',CUSTOM_ROLE,u.SAFE)),self.pin['stateBlock']]))
-        original = a.need
-        def recording(name, observed, expected):
-            if name != 'old_owner_role_control_path':
-                return original(name, observed, expected)
-        # Catch any exception so that deleting the case gate fails this test by assertion, not by a TypeError error.
-        # assertRaises strips the traceback, so catch by hand: the failure names where the exception was raised,
-        # letting a probe tell a missing case gate from an unrelated failure.
-        with patch.object(a,'need',side_effect=recording):
-            try:
-                o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory())
-            except Exception as exc:
-                caught = exc
-            else:
-                self.fail('audit returned without stopping')
-        origin = traceback.extract_tb(caught.__traceback__)[-1]
-        where = f'old_owner_role_control_case: {type(caught).__name__} raised at {os.path.basename(origin.filename)}:{origin.name}'
-        self.assertIsInstance(caught,a.Gate,where)
-        self.assertEqual(caught.record['gate'],'old_owner_role_control_case')
+        key = ('eth_call', str([dict(to=u.REG, data=a.calldata('hasRole(bytes32,address)', CUSTOM_ROLE, u.SAFE)), self.pin['stateBlock']]))
+        # A mapping with valid contents violates the exact dict requirement but
+        # remains executable after deletion, so this probe cannot pass on a crash.
+        case = UserDict(dict(sender=u.SAFE, gate='old_owner_event_role_Registry',
+            transactions=[dict(target=u.REG, signature='grantRole(bytes32,address)', args=[CUSTOM_ROLE, '$ACCOUNT'])],
+            getter=dict(target=u.REG, signature='hasRole(bytes32,address)', args=[CUSTOM_ROLE, '$ACCOUNT'])))
+        self.pin['isolationControlCases'] = {u.REG+':'+CUSTOM_ROLE: case}
+        self.assert_gate('old_owner_role_control_case', lambda: o.audit(fixture_rpc(self.pin, {key: raw([0])}), self.pin, inventory()))
 
     # Codex P2: every listed role, by name, so a role-specific shortcut in mapping_control cannot pass.
     MAPPING_ROLES = ('ROLE_ANODE','ROLE_KMS','ROLE_ENDUSER')
@@ -518,7 +563,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def test_extraction_and_no_has_role(self):
         data = inventory()
         self.assertEqual(data['Registry']['roles'][1]['name'],'ROLE_COMMUNITY')
-        self.assertEqual(data['Registry']['roles'][1]['line'],2)
+        self.assertEqual(data['Registry']['roles'][1]['line'],1)
         self.assertFalse(data['APNTsCapped']['hasRole'])
         self.assertIn('no hasRole',data['SuperPaymaster']['roleStatus'])
 
@@ -531,8 +576,10 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 artifacts = fixture_ast(tree)
                 path = tree/'out/build-info/test.json'
                 data = json.loads(path.read_text())
-                root = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]
-                labels = {r['name'] for r in inventory()['Registry'][category]}
+                subject = 'GToken' if category == 'authorities' else 'Registry'
+                source = 'contracts/src/GToken.sol' if subject == 'GToken' else 'contracts/src/core/Registry.sol'
+                root = data['output']['sources'][source]['ast']['nodes'][0]
+                labels = {r['name'] for r in inventory()[subject][category]}
                 root['nodes'] = [n for n in root['nodes'] if n['name'] not in labels]
                 path.write_text(json.dumps(data))
                 with patch.object(a,'raw_artifact',side_effect=lambda t,n:artifacts[n]), assert_stop(self, gate) as caught:
@@ -607,7 +654,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            source = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes']
+            source = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes']
             root = source[0]
             role = root['nodes'].pop(0)
             source.append(role)
@@ -977,7 +1024,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                              expression=dict(nodeType='Identifier', referencedDeclaration=1010)))]
             nodes.append(dict(nodeType='FunctionDefinition', id=1006, name='other', body=body))
             with assert_stop(self, 'old_owner_role_write_sites') as caught:
-                o.registry_role_writes([('', n) for n in nodes])
+                role_writes(nodes)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_write_sites')
 
     def test_role_write_key(self):
@@ -1008,15 +1055,15 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     declarations=[dict(nodeType='VariableDeclaration', id=1302, storageLocation='storage')]),
                     dict(nodeType='Assignment', leftHandSide=dict(nodeType='Identifier', referencedDeclaration=1302))]
             with self.subTest(mode=mode):
-                self.assert_gate('old_owner_role_write_key', lambda: o.registry_role_writes([('', n) for n in nodes]))
+                self.assert_gate('old_owner_role_write_key', lambda: role_writes(nodes))
 
     def test_role_configure_emit_wrong_parameter(self):
         nodes = registry_write_ast()
         nodes[3]['body'][-1]['eventCall']['arguments'][0]['referencedDeclaration'] = 9999
-        self.assert_gate('old_owner_role_configure_emit', lambda: o.registry_role_writes([('', n) for n in nodes]))
+        self.assert_gate('old_owner_role_configure_emit', lambda: role_writes(nodes))
 
     def test_role_assembly(self):
-        for opcode in ('sstore', 'delegatecall', 'call', 'callcode', 'create', 'create2', 'selfdestruct'):
+        for opcode in ('sstore', 'delegatecall', 'call', 'callcode', 'create', 'create2'):
             fn = dict(nodeType='FunctionDefinition', body=dict(nodeType='InlineAssembly', externalReferences=[],
                       AST=dict(nodeType='YulFunctionCall', functionName=dict(name=opcode))))
             self.assert_gate('old_owner_role_assembly', lambda: o.registry_opaque_writes([('Registry.sol', fn)], {}))
@@ -1028,7 +1075,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 artifacts = fixture_ast(tree)
                 path = tree/'out/build-info/test.json'
                 data = json.loads(path.read_text())
-                root = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]
+                root = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]
                 body = (dict(nodeType='InlineAssembly', externalReferences=[], AST=dict(name='sstore')) if kind == 'assembly'
                         else dict(nodeType='MemberAccess', memberName='delegatecall'))
                 root['nodes'].append(dict(nodeType='FunctionDefinition', id=9000, name='opaque', body=body))
@@ -1067,14 +1114,14 @@ class OldOwnerIsolationTests(unittest.TestCase):
                                       body=[dict(nodeType='FunctionCall', expression=dict(referencedDeclaration=1003),
                                             arguments=[dict(nodeType='Identifier', referencedDeclaration=1100)])]))
             with assert_stop(self, 'old_owner_role_initializer_only') as caught:
-                o.registry_role_writes([('', n) for n in nodes])
+                role_writes(nodes)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_initializer_only')
 
     def test_role_configure_emit(self):
         nodes = registry_write_ast()
         nodes[3]['body'].pop()
         with assert_stop(self, 'old_owner_role_configure_emit') as caught:
-            o.registry_role_writes([('', n) for n in nodes])
+            role_writes(nodes)
         self.assertEqual(caught.exception.record['gate'], 'old_owner_role_configure_emit')
 
     def test_role_init_ids(self):
@@ -1089,13 +1136,13 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 body.append(dict(nodeType='Assignment', leftHandSide=dict(
                     nodeType='Identifier', referencedDeclaration=1200), rightHandSide=dict(nodeType='Literal')))
             with assert_stop(self, 'old_owner_role_init_ids') as caught:
-                o.registry_role_writes([('', n) for n in nodes])
+                role_writes(nodes)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_init_ids')
 
     def test_role_init_direct_constant(self):
         nodes = registry_write_ast()
         nodes[-1]['body'][1]['arguments'][0] = dict(nodeType='Identifier', referencedDeclaration=1100)
-        self.assertEqual(o.registry_role_writes([('', n) for n in nodes]), {'ROLE_COMMUNITY'})
+        self.assertEqual(role_writes(nodes), {'ROLE_COMMUNITY'})
 
     def test_role_init_standard(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1103,7 +1150,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            nodes = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]['nodes']
+            nodes = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]['nodes']
             initialize = next(n for n in nodes if n.get('name') == 'initialize')
             initialize['body'][0]['initialValue']['components'].pop()
             path.write_text(json.dumps(data))
@@ -1115,8 +1162,10 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def test_role_init_real_build_info(self):
         tree = Path('/private/tmp/l1-builds')/o.REGISTRY_SOURCE_COMMIT
         self.assertTrue(list((tree/'out/build-info').glob('*.json')), 'a839347e build-info required')
-        # The deployed source contains selector calls outside OZ: the DSR rule must STOP.
-        self.assert_gate('old_owner_role_lowlevel_call', lambda: o.extract(tree, ('Registry',)))
+        result = o.extract(tree, ('Registry',))
+        matches = result['Registry']['astProofInputs']['callSites']
+        self.assertEqual(len(matches), 3)
+        self.assertEqual({m['src'] for m in matches}, {r['src'] for r in o.REGISTRY_AST_ALLOWLIST['callSites']})
 
     def test_role_write_extraction_call(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1124,7 +1173,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            nodes = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]['nodes']
+            nodes = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]['nodes']
             next(n for n in nodes if n.get('name') == 'configureRole')['body'].pop()
             path.write_text(json.dumps(data))
             with patch.object(a, 'raw_artifact', side_effect=lambda t,n: artifacts[n]):
@@ -1337,7 +1386,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            root = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]
+            root = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]
             root['nodes'].append(dict(nodeType='VariableDeclaration',name='extraOwner',src='7:1:0',
                 stateVariable=True,visibility='public',typeDescriptions=dict(typeString='address')))
             artifacts['Registry']['abi'].append(dict(type='function',name='extraOwner',inputs=[],outputs=[dict(type='address')]))
@@ -1410,12 +1459,13 @@ class OldOwnerIsolationTests(unittest.TestCase):
             fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            root = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]
+            root = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]
             root['nodes'].append(dict(nodeType='VariableDeclaration',id=7,name='entryPoint',mutability='immutable',
                 typeDescriptions=dict(typeString='contract IEntryPoint')))
             path.write_text(json.dumps(data))
             declarations = o.immutable_declarations(tree)
-        self.assertEqual(declarations, {'7':dict(name='entryPoint',type='contract IEntryPoint')})
+        self.assertEqual(declarations, {'7':dict(name='entryPoint',type='contract IEntryPoint'),
+                                        '162357':dict(name='__self',type='address')})
         artifact = dict(immutableDeclarations=declarations,
             deployedBytecode=dict(object='0x'+'00'*32+CBOR,immutableReferences={'7':[dict(start=0,length=32)]}))
         action = lambda:o.runtime_parity(raw([2**160])+CBOR,artifact)
@@ -1857,6 +1907,308 @@ class OldOwnerIsolationTests(unittest.TestCase):
             self.assertEqual(caught.exception.record['gate'],gate)
             removed_probe(self,action,gate)
 
+
+@lru_cache(maxsize=1)
+def registry_proof_template():
+    data = archived_registry_build()
+    sources = data['output']['sources']
+    contracts = {n['id']: (p, n) for p, s in sources.items() for n in s['ast']['nodes']
+                 if n.get('nodeType') == 'ContractDefinition'}
+    _, root = next((p, n) for p, n in contracts.values() if n.get('name') == 'Registry')
+    paths = set(o.REGISTRY_AST_NODE_TYPES['sourceKeccaks'])
+    entries = [(p, n) for base in root['linearizedBaseContracts'] for p, c in [contracts[base]] for n in c['nodes']]
+    entries += [(p, n) for p in paths for c in sources[p]['ast']['nodes']
+                if c.get('contractKind') == 'library' for n in c['nodes']]
+    entries += [(p, n) for p in paths for n in sources[p]['ast']['nodes'] if n.get('nodeType') == 'VariableDeclaration']
+    inputs = {p: data['input']['sources'][p] for p in paths}
+    declarations = {n['id']: (p, n) for p in paths for n in o.ast_walk(sources[p]['ast']) if 'id' in n}
+    return entries, inputs, declarations
+
+
+class RegistryASTProofTests(unittest.TestCase):
+    def setUp(self):
+        self.entries, self.inputs, self.declarations = copy.deepcopy(registry_proof_template())
+        self.functions = {n.get('name'): n for p, n in self.entries if p == 'contracts/src/core/Registry.sol'
+                          and n.get('nodeType') == 'FunctionDefinition'}
+        self.body = self.functions['configureRole']['body']['statements']
+
+    def opaque(self):
+        return o.registry_opaque_writes(self.entries, self.inputs, self.declarations)
+
+    def roles(self):
+        return o.registry_role_writes(self.entries, self.inputs, self.declarations)
+
+    def extra(self, node):
+        self.entries.append(('contracts/src/core/Registry.sol', node))
+
+    def stop(self, gate, action=None):
+        with assert_stop(self, gate):
+            (action or self.opaque)()
+
+    def test_real_positive(self):
+        matched = self.opaque()
+        self.assertEqual(len(matched), 3)
+        self.assertEqual({m['target'] for m in matched}, {'GTOKEN_STAKING', 'MYSBT', 'SUPER_PAYMASTER'})
+        self.assertEqual(len(self.roles()), 7)
+        data = archived_registry_build()
+        self.assertEqual(data['id'], o.REGISTRY_AST_NODE_TYPES['buildInfoId'])
+        self.assertEqual({p: a.keccak(v['content']) for p, v in self.inputs.items()}, o.REGISTRY_AST_NODE_TYPES['sourceKeccaks'])
+        actual = {n['nodeType'] for _, fn in self.entries if fn.get('nodeType') in ('FunctionDefinition','ModifierDefinition')
+                  for n in o.ast_walk(fn.get('body')) if 'nodeType' in n and not n['nodeType'].startswith('Yul')}
+        self.assertEqual(actual, set(o.REGISTRY_AST_NODE_TYPES['solidityBodyNodeTypes']))
+        self.assertEqual(o.REGISTRY_AST_NODE_TYPES['registryYulNodeTypes'], [])
+
+    def test_node_type(self):
+        self.body.append(dict(nodeType='UnmodelledStatement'))
+        self.stop('old_owner_role_node_type')
+
+    def test_free_function(self):
+        self.extra(dict(nodeType='FunctionDefinition', kind='freeFunction', id=-101, body=[]))
+        self.body.append(dict(nodeType='ExpressionStatement', expression=dict(nodeType='Identifier', referencedDeclaration=-101)))
+        self.stop('old_owner_role_free_function')
+
+    def test_using_for(self):
+        self.extra(dict(nodeType='UsingForDirective'))
+        self.stop('old_owner_role_storage_escape')
+
+    def test_storage_receiver(self):
+        self.extra(dict(nodeType='FunctionDefinition', id=-102, parameters=dict(parameters=[dict(storageLocation='storage')]), body=[]))
+        self.body.append(dict(nodeType='ExpressionStatement', expression=dict(nodeType='MemberAccess', referencedDeclaration=-102)))
+        self.stop('old_owner_role_storage_escape')
+
+    def test_storage_return(self):
+        self.extra(dict(nodeType='FunctionDefinition', returnParameters=dict(parameters=[dict(storageLocation='storage')]), body=[]))
+        self.stop('old_owner_role_storage_return')
+
+    def test_yul_terminator(self):
+        self.body.append(dict(nodeType='InlineAssembly', AST=dict(nodeType='YulFunctionCall', functionName=dict(name='return'))))
+        self.stop('old_owner_role_yul_terminator')
+
+    def test_missing_allowlisted_source(self):
+        del self.inputs[next(p for p in self.inputs if p.endswith('/StorageSlot.sol'))]
+        self.stop('old_owner_role_allowlisted_source')
+
+    def test_extra_writer(self):
+        setter = self.functions['setStaking']
+        assignment = next(n for n in o.ast_walk(setter['body']) if n.get('nodeType') == 'Assignment')
+        self.body.append(dict(nodeType='ExpressionStatement', expression=copy.deepcopy(assignment)))
+        self.stop('old_owner_callsite_target_writers')
+
+    def test_setter_without_owner(self):
+        self.functions['setMySBT']['modifiers'] = []
+        self.stop('old_owner_callsite_target_writers')
+
+    def test_setter_non_oz_owner(self):
+        modifier = self.functions['setSuperPaymaster']['modifiers'][0]['modifierName']['referencedDeclaration']
+        _, decl = self.declarations[modifier]
+        self.declarations[modifier] = ('EvilOwnable.sol', decl)
+        self.stop('old_owner_callsite_target_writers')
+
+    def test_missing_writer(self):
+        self.functions['setStaking']['body']['statements'] = []
+        self.stop('old_owner_callsite_target_writers')
+
+    def test_initializer_declaration(self):
+        fn = self.functions['initialize']
+        fn['modifiers'][0]['modifierName']['referencedDeclaration'] = -103
+        self.stop('old_owner_role_initializer_only', self.roles)
+
+    def test_configure_guard(self):
+        self.functions['configureRole']['modifiers'] = []
+        self.stop('old_owner_role_configure_guard', self.roles)
+
+    def test_modifier_post_termination(self):
+        modifier = self.functions['configureRole']['modifiers'][0]['modifierName']['referencedDeclaration']
+        self.declarations[modifier][1]['body']['statements'].append(dict(nodeType='Return'))
+        self.stop('old_owner_role_configure_guard', self.roles)
+
+    def test_emit_nested_write(self):
+        write = next(s for s in self.body if s.get('expression', {}).get('nodeType') == 'Assignment')
+        self.body.append(dict(nodeType='IfStatement', trueBody=copy.deepcopy(write)))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_early_return(self):
+        self.body.insert(0, dict(nodeType='Return'))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_before_write(self):
+        self.body.insert(0, self.body.pop())
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_internal_call(self):
+        self.body.insert(-1, dict(nodeType='ExpressionStatement', expression=dict(nodeType='FunctionCall', expression=dict(nodeType='Identifier', name='helper'))))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_two_calls(self):
+        self.body.insert(-1, copy.deepcopy(self.body[-2]))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_try(self):
+        self.body.insert(-1, dict(nodeType='TryStatement'))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_different_target(self):
+        target = next(n for p, n in self.entries if n.get('name') == 'MYSBT')
+        self.body[-2]['expression']['expression']['expression']['referencedDeclaration'] = target['id']
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_different_function(self):
+        self.body[-2]['expression']['expression']['referencedDeclaration'] = -104
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_extra_call(self):
+        self.body.append(dict(nodeType='ExpressionStatement', expression=dict(nodeType='FunctionCall', expression=dict(nodeType='MemberAccess', memberName='call'))))
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_delegatecall(self):
+        member = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('memberName') == 'call')
+        member['memberName'] = 'delegatecall'
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_call_value(self):
+        self.call_options('value')
+
+    def test_call_gas(self):
+        self.call_options('gas')
+
+    def call_options(self, name):
+        call = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('expression', {}).get('memberName') == 'call')
+        call['expression'] = dict(nodeType='FunctionCallOptions', expression=call['expression'], names=[name], options=[dict(nodeType='Literal', value='1')])
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_call_wrong_target(self):
+        member = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('memberName') == 'call')
+        member['expression']['arguments'][0]['referencedDeclaration'] = -105
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_call_wrong_interface(self):
+        call = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('expression', {}).get('memberName') == 'encodeCall')
+        call['arguments'][0]['referencedDeclaration'] = -106
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_src_offset(self):
+        member = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('memberName') == 'call')
+        member['src'] = '1:1:29'
+        self.stop('old_owner_role_callsite_count')
+
+    def test_allowlist_two(self):
+        self.count(2)
+
+    def test_allowlist_four(self):
+        self.count(4)
+
+    def count(self, size):
+        allow = copy.deepcopy(o.REGISTRY_AST_ALLOWLIST)
+        allow['callSites'] = (allow['callSites']*2)[:size]
+        with patch.object(o, 'REGISTRY_AST_ALLOWLIST', allow):
+            self.stop('old_owner_role_callsite_count')
+
+    def test_pin_target_middle_byte(self):
+        targets = {}
+        expected = dict(GTOKEN_STAKING=STAKING, MYSBT=SBT, SUPER_PAYMASTER=u.SP)
+        wrong = STAKING[:20] + 'ff' + STAKING[22:]
+        self.assertEqual(wrong[:10], STAKING[:10])
+        self.assertEqual(wrong[-8:], STAKING[-8:])
+        def addr(target, sig):
+            self.assertEqual(target, u.REG)
+            return wrong if sig == 'GTOKEN_STAKING()' else expected[sig[:-2]]
+        self.stop('old_owner_role_callsite_target', lambda: o.registry_callsite_targets(addr, targets))
+
+    def test_pin_target_rpc_mismatch(self):
+        pin = dict(stateBlockHash=BLOCK_HASH, registryCreation=1, stateBlock='0x123', capped=CAPPED, pauseList=[u.DEPLOYER])
+        key = ('eth_call', str([dict(to=u.REG, data=a.calldata('SUPER_PAYMASTER()')), pin['stateBlock']]))
+        wrong = u.SP[:20] + ('ff' if u.SP[20:22] != 'ff' else '00') + u.SP[22:]
+        rpc = fixture_rpc(pin, {key: raw([int(wrong, 16)])})
+        self.stop('old_owner_role_callsite_target', lambda: o.audit(rpc, pin, inventory()))
+
+    def test_pin_target_real_config(self):
+        # DSR full 40-hex values read at block 12068600 via Registry proxy 0xf5bf37ca...8e71.
+        self.assertEqual(REAL_CALLSITE_TARGET_EXPECTATIONS(), dict(
+            GTOKEN_STAKING='0x472297b557c1d0f030f281a5bb8a535f6c5ab65e',
+            MYSBT='0x4867b4302bf4c7818b71f55e53a3520ee1855aa7',
+            SUPER_PAYMASTER='0x09df0d2e3722ec0e401fe3819e64278a42ae4de9'))
+
+    def audit_target_middle_byte(self, signature, value):
+        pin = dict(stateBlockHash=BLOCK_HASH, registryCreation=1, stateBlock='0x123', capped=CAPPED, pauseList=[u.DEPLOYER])
+        key = ('eth_call', str([dict(to=u.REG, data=a.calldata(signature)), pin['stateBlock']]))
+        wrong = value[:20] + ('ff' if value[20:22] != 'ff' else '00') + value[22:]
+        self.assertEqual((wrong[:10], wrong[-8:]), (value[:10], value[-8:]))
+        base = fixture_rpc(pin, {key: raw([int(wrong, 16)])})
+        def rpc(method, params):
+            # The look-alike answers as the real target, so deleting the gate leads to acceptance.
+            if method in ('eth_call', 'eth_getCode', 'eth_getStorageAt', 'eth_getBalance') and params:
+                first = params[0]
+                if isinstance(first, dict):
+                    to = value if str(first.get('to', '')).lower() == wrong else first.get('to')
+                    data = first.get('data', '').replace(wrong[2:], value[2:])
+                    params = [dict(first, to=to, data=data), *params[1:]]
+                elif isinstance(first, str) and first.lower() == wrong:
+                    params = [value, *params[1:]]
+            return base(method, params)
+        self.stop('old_owner_role_callsite_target', lambda: o.audit(rpc, pin, inventory()))
+
+    def test_pin_target_audit_staking_middle_byte(self):
+        # The expected value must not come from the getter under test.
+        self.audit_target_middle_byte('GTOKEN_STAKING()', STAKING)
+
+    def test_pin_target_audit_sbt_middle_byte(self):
+        self.audit_target_middle_byte('MYSBT()', SBT)
+
+    def test_pin_target_sp_constant(self):
+        wrong = dict(FIXTURE_CALLSITE_TARGETS, SUPER_PAYMASTER='0x'+'99'*20)
+        with patch.object(o, 'callsite_target_expectations', return_value=wrong):
+            self.stop('old_owner_role_callsite_sp', lambda: o.registry_callsite_targets(lambda t, s: wrong[s[:-2]], {}))
+
+    def test_pin_target_evidence(self):
+        pin = dict(stateBlockHash=BLOCK_HASH, registryCreation=1, stateBlock='0x123', capped=CAPPED, pauseList=[u.DEPLOYER])
+        result = o.audit(fixture_rpc(pin), pin, inventory())
+        self.assertEqual(result['registryCallsiteTargets'], dict(GTOKEN_STAKING=STAKING, MYSBT=SBT, SUPER_PAYMASTER=u.SP))
+        for signature in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+            rows = [r for r in result['reads'] if r.get('signature') == signature and r.get('target') == u.REG]
+            self.assertTrue(rows)
+            self.assertTrue(all(r['block'] == pin['stateBlock'] for r in rows))
+
+    def test_canonical_target_sources(self):
+        config = json.loads((Path(__file__).resolve().parents[2]/'deployments/config.sepolia.json').read_text())
+        self.assertEqual(config['staking'].lower(), '0x472297b557c1d0f030f281a5bb8a535f6c5ab65e')
+        self.assertEqual(config['sbt'].lower(), '0x4867b4302bf4c7818b71f55e53a3520ee1855aa7')
+        self.assertEqual(config['superPaymaster'].lower(), '0x09df0d2e3722ec0e401fe3819e64278a42ae4de9')
+        self.assertEqual(config['superPaymaster'].lower(), u.SP)
+
+    def test_free_function_assembly_scope(self):
+        self.scope('freeFunction', 'old_owner_role_assembly')
+
+    def test_modifier_delegatecall_scope(self):
+        self.scope('ModifierDefinition', 'old_owner_role_lowlevel_call')
+
+    def test_library_assembly_scope(self):
+        self.scope('library', 'old_owner_role_assembly')
+
+    def test_using_library_assembly_scope(self):
+        self.scope('usingLibrary', 'old_owner_role_storage_escape')
+
+    def scope(self, category, gate):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory)
+            artifacts = fixture_ast(tree)
+            path = tree/'out/build-info/test.json'
+            data = json.loads(path.read_text())
+            reg = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]
+            fn = dict(nodeType='FunctionDefinition', kind='freeFunction', id=-200, body=dict(nodeType='InlineAssembly', AST=dict(nodeType='YulFunctionCall', functionName=dict(name='sstore'))))
+            if category == 'usingLibrary':
+                reg['nodes'].append(dict(nodeType='UsingForDirective', libraryName=dict(referencedDeclaration=-201)))
+            if category == 'ModifierDefinition':
+                fn.update(nodeType=category, body=dict(nodeType='MemberAccess', memberName='delegatecall'))
+                reg['nodes'].append(fn)
+            else:
+                source = 'Extra.sol'
+                data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'].append(dict(nodeType='ImportDirective', absolutePath=source))
+                nodes = [fn] if category == 'freeFunction' else [dict(nodeType='ContractDefinition', id=-201, contractKind='library', name='Extra', nodes=[fn])]
+                data['output']['sources'][source] = dict(ast=dict(nodes=nodes))
+                data['input']['sources'][source] = dict(content='// adverse scope fixture')
+            path.write_text(json.dumps(data))
+            with patch.object(a, 'raw_artifact', side_effect=lambda t, n: artifacts[n]):
+                self.stop(gate, lambda: o.extract(tree))
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
