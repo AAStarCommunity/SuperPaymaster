@@ -63,23 +63,37 @@
     "file": "script/upgrade/manifest_exec.py",
     "baseline": "81d074ce",
     "before_sha256": "2cce6ef9c2658d569d7408bb353c4ca3e4bfd4a0e29cde4f14909fdeae079c28",
-    "after_sha256": "62758036a53493ea4b8f0af25c58ce4fcfdfc7a3a09d848407033d4326b74259",
+    "after_sha256": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
     "line": 1,
     "column": 0,
-    "ast_sha256": "3bb2393be5d7b28664d3ec16ce106d5560efa1ff191b2fc33160cd6aa63f081c",
-    "gates": [],
-    "reason": "H1/H2 replace tree-only implementation with shared integrity helper; 6h: exact repository integrity loader under private module name"
+    "ast_sha256": "8b76da7912a16b6ebbf86ff72e15830ee55da6006fd0e5ceb279e2776a329c78",
+    "gates": [
+      {
+        "gate": "execution_integrity_source_manifest",
+        "line": 3429,
+        "column": 4,
+        "ast_sha256": "9430c4a2d5a589e299986207e0c4e256ece191d862e89ac9960e7eed5aae63cf"
+      }
+    ],
+    "reason": "H1/H2 replace tree-only implementation with shared integrity helper; 6h: exact repository integrity loader under private module name; 6i: helper bytes verified against the commit before the helper runs (execution_integrity_source_manifest)"
   },
   {
     "file": "script/a3a/a3a_send.py",
     "baseline": "81d074ce",
     "before_sha256": "d6179257dac8d63f4d95a9f197aadbcd06323bc6c2902b003a82f3432617143d",
-    "after_sha256": "e33d47b8e07863b53548e8b62014359b278574c820f73a6773926c3e3b8e7a3e",
+    "after_sha256": "ab9fb005ee79f19fac0a0cb257b82316ab7c6eac7cea26a51430ea9a5c8b8a4a",
     "line": 1,
     "column": 0,
-    "ast_sha256": "55015d21c9bd0a0df4241146a1139141eb96f6df5c848bc5492dcdfa2111f6c2",
-    "gates": [],
-    "reason": "H1 invoke shared integrity before signing and after confirmation before broadcast; operator moved the recheck before the broadcast.json attempt record; 6g: load fresh integrity helper from exact repository file under private name; synthetic tests patch sender wrapper"
+    "ast_sha256": "12a6d65741ebe98af587751ed4653337fe3bcbbe5d7e956e09952d700b58cdd7",
+    "gates": [
+      {
+        "gate": "execution_integrity_source",
+        "line": 60,
+        "column": 4,
+        "ast_sha256": "d736776e06b0c278062f72c73da609bed04f5ff863ea66937c05fc790c096851"
+      }
+    ],
+    "reason": "H1 invoke shared integrity before signing and after confirmation before broadcast; operator moved the recheck before the broadcast.json attempt record; 6g: load fresh integrity helper from exact repository file under private name; synthetic tests patch sender wrapper; 6i: helper bytes verified against the commit before the helper runs (execution_integrity_source)"
   },
   {
     "file": "script/upgrade/execution_reads.py",

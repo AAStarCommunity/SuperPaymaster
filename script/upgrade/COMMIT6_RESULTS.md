@@ -7191,3 +7191,30 @@ HEAD_UNCHANGED 6aff70e4f57051d642032e401e9c016e7db6afe6
 INDEX_UNCHANGED staged_files=0
 ASSERT_STOP_UNCHANGED catches=a.Gate
 ```
+
+## 6i — helper bytes verified before the helper runs (operator, 2026-11-08)
+
+Daybreak Blue round 4: `REVIEW_608_DAYBREAK4 Critical=0 High=1 Medium=0 Low=1`.
+High: both entry points executed the working-tree `execution_integrity.py` before
+authenticating it. Fix (operator-written): `a3a_send.integrity_check` and
+`manifest_exec.execution_tree_gates` compare the helper's bytes with
+`git show <rebuild commit>:script/upgrade/execution_integrity.py` (sanitized GIT env,
+stdlib only) before `exec_module`; gates `execution_integrity_source` and
+`execution_integrity_source_manifest`. The helper then attests every loaded repository
+module, the entry point included, which closes the loop.
+Low (a legitimate external harness module whose basename collides with a tracked
+`script/**.py` causes `execution_bootstrap_origin`): accepted residual — it fails closed
+and no tracked basename collides in CLI execution.
+
+Positive tests (`HelperSourceTests`, edited helper with a leftover early `return`):
+`Ran 2 tests ... OK`. Strict deletion probes (temporary copy of `script/`, gate line
+replaced by `pass`):
+```text
+PROBE test_execution_integrity_source sites=1 FAILED (failures=1)
+PROBE test_execution_integrity_source_manifest sites=1 FAILED (failures=1)
+```
+Suites: test_execution_integrity `Ran 20 ... OK`; test_a3a_send `Ran 74 ... OK`;
+test_a3a_exec `Ran 102 ... OK`; test_execution_head `Ran 6 ... OK`;
+test_execution_reads `Ran 10 ... OK`; test_gate_names `Ran 27 ... OK` (after refreshing
+the 64 `manifest_exec.py` dependency digests in gate_finite_domains.json).
+`GATE_RENAME_AST_DIFF PASS n_changes=366`; `GATE_NAME_PROBES PASS`.

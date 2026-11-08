@@ -270,6 +270,52 @@ unittest.main()
         self.run_shadow('sender.integrity_check(COMMIT)', 'sp_upgrade_exec')
 
 
+class HelperSourceTests(unittest.TestCase):
+    """An edited execution_integrity.py is refused before any of it runs."""
+    def run_altered(self, entry, gate):
+        import shutil
+        with tempfile.TemporaryDirectory(prefix='commit6i-helper-') as directory:
+            root = Path(directory) / 'repo'
+            shutil.copytree(Path(__file__).resolve().parents[2] / 'script', root / 'script',
+                            ignore=shutil.ignore_patterns('__pycache__'))
+            env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+            env.update(PYTHONDONTWRITEBYTECODE='1', PYTHONPATH=os.pathsep.join(
+                str(root / path) for path in ('script/upgrade', 'script/a3a')),
+                GIT_CONFIG_NOSYSTEM='1')
+            def git(*args):
+                return subprocess.run(['git', *args], cwd=root, env=env, check=True,
+                                      capture_output=True, text=True).stdout.strip()
+            git('init', '-q')
+            git('add', '.')
+            git('-c', 'user.name=Offline', '-c', 'user.email=offline@example.invalid',
+                '-c', 'commit.gpgsign=false', 'commit', '-qm', 'helper fixture')
+            commit = git('rev-parse', 'HEAD')
+            helper = root / 'script/upgrade/execution_integrity.py'
+            # The accidental edit this guards against: a debugging early return left behind.
+            helper.write_text(helper.read_text() + '\n\ndef check(commit):\n    return\n')
+            code = f"""
+import unittest
+import manifest_exec as manifest
+import a3a_send as sender
+from gate_assertions import assert_stop
+class Regression(unittest.TestCase):
+    def runTest(self):
+        with assert_stop(self, {gate!r}):
+            {entry}
+unittest.main()
+"""
+            result = subprocess.run([sys.executable, '-B', '-c', code.replace('COMMIT', repr(commit))],
+                                    cwd=root, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_execution_integrity_source(self):
+        self.run_altered('sender.integrity_check(COMMIT)', 'execution_integrity_source')
+
+    def test_execution_integrity_source_manifest(self):
+        self.run_altered("manifest.execution_tree_gates({'rebuild': {'commit': COMMIT}})",
+                         'execution_integrity_source_manifest')
+
+
 class DeclarationTests(unittest.TestCase):
     def test_6f_declarations_reject_changed_bytes_and_gate_locations(self):
         import json
