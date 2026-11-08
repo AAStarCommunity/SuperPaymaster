@@ -491,7 +491,7 @@ def extract(tree, names=NAMES):
                         a.need('old_owner_role_expression_'+label, False, True)
                 else:
                     a.need('old_owner_getter_abi_'+name+'_'+label, sig in signatures, True)
-                    a.need('old_owner_getter_output_'+label, [v['type'] for v in signatures[sig]['outputs']], ['address' if category == 'authorities' else 'bool'])
+                    a.need('old_owner_getter_signature_present', sig in signatures, True); a.need('old_owner_getter_output_'+label, [v['type'] for v in signatures[sig]['outputs']], ['address' if category == 'authorities' else 'bool'])
                 groups[category].append(row)
             if name == 'Registry':
                 a.need('old_owner_role_init_standard', sorted(initialized_roles), sorted({r['name'] for r in groups['roles']}))
@@ -612,7 +612,7 @@ def audit(rpc, pin, inventory, expected, fork=None):
     def negative(gate, value):
         reads[-1]['negativeControl'] = dict(gate=gate,result=value if isinstance(value,str) else '0x'+format(value,'064x'))
     def call(target, sig, *args):
-        raw = a.typed(rpc('eth_call', [dict(to=target, data=a.calldata(sig, *args)), block]), a.HEXDATA)
+        raw = a.typed(rpc('eth_call', [dict(to=target, data=a.calldata(sig, *args)), block]), a.HEXDATA, gate='rpc_result_call_eth_call_3')
         reads.append(dict(kind='call', target=target, signature=sig, args=list(args), block=block, result=raw))
         return raw
     def words(target, sig, *args):
@@ -624,7 +624,7 @@ def audit(rpc, pin, inventory, expected, fork=None):
     def addr(target,sig):
         return u.addr_word(word(target,sig))
     def storage(slot):
-        raw = a.typed(rpc('eth_getStorageAt',[u.SAFE,slot,block]), a.HASH32)
+        raw = a.typed(rpc('eth_getStorageAt',[u.SAFE,slot,block]), a.HASH32, gate='rpc_result_storage_eth_getStorageAt')
         reads.append(dict(kind='storage', target=u.SAFE, slot=slot, block=block, result=raw))
         return u.addr_word(int(raw,16))
     def recorded(method, params):
@@ -671,13 +671,13 @@ def audit(rpc, pin, inventory, expected, fork=None):
             return
         case = pin.get('isolationControlCases',{}).get(target+':'+role)
         if case is None and name == 'TimelockController':
-            case = dict(sender=u.TL,gate='old_owner_event_role_'+name,
+            case = dict(sender=u.TL,gate='old_owner_event_role_member_'+name,
                         transactions=[dict(target=target,signature='grantRole(bytes32,address)',args=[role,'$ACCOUNT'])],
                         getter=dict(target=target,signature='hasRole(bytes32,address)',args=[role,'$ACCOUNT']))
         a.need('old_owner_role_control_path','available' if case else 'unverified','available')
         a.need('old_owner_role_control_case',isinstance(case,dict),True)
         a.need('old_owner_role_control_getter',case['getter'],dict(target=target,signature='hasRole(bytes32,address)',args=[role,'$ACCOUNT']))
-        a.need('old_owner_role_control_gate',case['gate'],'old_owner_event_role_'+name)
+        a.need('old_owner_role_control_gate',case['gate'],'old_owner_event_role_member_'+name)
         probe(case)
     def check_target(name, target):
         spec = inventory.get('targetInventories',{}).get(target,inventory[name])
@@ -692,26 +692,26 @@ def audit(rpc, pin, inventory, expected, fork=None):
         if spec['hasRole']:
             for role in spec['roles']:
                 value = old_role(target,role['value'])
-                gate = 'old_owner_role_'+name+'_'+role['name']
+                gate = 'old_owner_role_member_declared_'+name+'_'+role['name']
                 negative(gate,1)
                 a.need(gate,value,0)
                 if name == 'Registry':
-                    role_owner(target,role['value'],'old_owner_role_admin_'+role['name'])
+                    role_owner(target,role['value'],'old_owner_role_admin_declared_'+role['name'])
         for role in histories[target]:
             if spec['hasRole']:
                 value = old_role(target,role)
-                negative('old_owner_event_role_'+name,1)
-                a.need('old_owner_event_role_'+name,value,0)
+                negative('old_owner_event_role_member_'+name,1)
+                a.need('old_owner_event_role_member_'+name,value,0)
                 role_control(name,target,role,spec)
                 if name == 'Registry':
                     role_owner(target,role,'old_owner_event_role_admin')
         for row in spec['authorities']:
             value = addr(target,row['signature'])
-            gate = 'old_owner_authority_'+name+'_'+row['name']
+            gate = 'old_owner_authority_member_'+name+'_'+row['name']
             negative(gate,int(OLD,16))
             a.need(gate,value != OLD,True)
         for row in spec['mappings']:
-            gate = 'old_owner_mapping_'+name+'_'+row['name']
+            gate = 'old_owner_mapping_member_'+name+'_'+row['name']
             value = word(target,row['signature'],OLD)
             negative(gate,1)
             a.need(gate,value,0)
@@ -760,13 +760,13 @@ def audit(rpc, pin, inventory, expected, fork=None):
             topics = log.get('topics',[])
             a.need('old_owner_role_log_topics', len(topics), 2)
             a.need('old_owner_role_log_topic', topics[0], topic)
-            role = a.typed(topics[1],a.HASH32)
-            number = a.typed(log.get('blockNumber'),a.QTY)
+            role = a.typed(topics[1],a.HASH32, gate='rpc_result_audit_1')
+            number = a.typed(log.get('blockNumber'),a.QTY, gate='rpc_result_audit_blockNumber')
             a.need('old_owner_role_log_range', creation <= a.qty(number) <= a.qty(block), True)
             if number not in canonical_blocks:
                 canonical_blocks[number] = recorded('eth_getBlockByNumber',[number,False])
             canonical = canonical_blocks[number]
-            a.need('old_owner_role_log_canonical', a.typed(log.get('blockHash'),a.HASH32), canonical['hash'])
+            a.need('old_owner_role_log_canonical', a.typed(log.get('blockHash'),a.HASH32, gate='rpc_result_audit_blockHash'), canonical['hash'])
             a.need('old_owner_role_log_block', canonical['number'], number)
             roles.add(role)
         canonical_pin()
@@ -781,10 +781,10 @@ def audit(rpc, pin, inventory, expected, fork=None):
         configured_by_target[target] = roles
         for role in sorted(roles-standard-set(histories.get(target, []))):
             value = old_role(target,role)
-            negative('old_owner_role_'+name+'_'+role,1)
-            a.need('old_owner_role_'+name+'_'+role,value,0)
+            negative('old_owner_role_member_configured_'+name+'_'+role,1)
+            a.need('old_owner_role_member_configured_'+name+'_'+role,value,0)
             if name == 'Registry':
-                role_owner(target,role,'old_owner_role_admin_'+role)
+                role_owner(target,role,'old_owner_role_admin_configured_'+role)
             role_control(name,target,role,spec)
     roles = configured_by_target[u.REG]
     proposer = next((r['value'] for r in inventory['TimelockController']['roles'] if r['name'] == 'PROPOSER_ROLE'), None)
@@ -802,7 +802,7 @@ def audit(rpc, pin, inventory, expected, fork=None):
     a.need('old_owner_operator',value,[0]*len(operator_types))
     tokens = {pin['capped'], OLD_TOKEN, targets['GToken']}
     enumerated = set(u.addr_array(call(targets['xPNTsFactory'],'getAllTokens()')))
-    a.need('old_owner_factory_enumeration',bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)
+    a.need('old_owner_factory_enumeration_audit',bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)
     xpnts = enumerated | set(pin.get('isolationLegacyTokens',[])) | set(ROUND_CLONES)
     configured = False
     for who in sorted(set(pin['pauseList'])):
@@ -840,12 +840,12 @@ def audit(rpc, pin, inventory, expected, fork=None):
     for token in sorted(tokens):
         for who in principals:
             value = word(token,'allowance(address,address)',who,OLD)
-            gate = 'old_owner_allowance_'+token+'_'+who
+            gate = 'old_owner_allowance_pair_'+token+'_'+who
             negative(gate,1)
             a.need(gate,value,0)
         live = [word(token,'allowance(address,address)',holder,spender) for holder in principals for spender in (u.SP,u.REG)]
         if not any(live):
-            probe(dict(sender=u.SAFE,gate='old_owner_allowance_'+token+'_'+u.SAFE,
+            probe(dict(sender=u.SAFE,gate='old_owner_allowance_pair_'+token+'_'+u.SAFE,
                        transactions=[dict(target=token,signature='approve(address,uint256)',args=['$ACCOUNT',1])],
                        getter=dict(target=token,signature='allowance(address,address)',args=[u.SAFE,'$ACCOUNT'])))
         for spender in (u.SP,u.REG):
@@ -883,7 +883,7 @@ def audit(rpc, pin, inventory, expected, fork=None):
 
 
 def validate(section, pin, inventory, callsite_expected):
-    a.need('old_owner_evidence_present', isinstance(section,dict), True)
+    a.need('old_owner_evidence_present_validate', isinstance(section,dict), True)
     a.need('old_owner_inventory',section.get('inventory'),inventory)
     endpoints = section.get('endpointResults', {})
     a.need('old_owner_endpoints', sorted(endpoints), ['primary','secondary'])
@@ -930,8 +930,8 @@ def deployed_build(commit, name):
             version = subprocess.run([str(a.REBUILD_FORGE),'--version'], capture_output=True, text=True, check=True).stdout.strip()
             built = subprocess.run([str(a.REBUILD_FORGE),'build','--offline','--ast','--build-info'], cwd=tree, env=env, capture_output=True)
         except (OSError, subprocess.CalledProcessError) as error:
-            raise a.Gate('old_owner_deployed_build', type(error).__name__, 'rebuildable deployed source; DSR decision required') from None
-        a.need('old_owner_deployed_build', built.returncode, 0)
+            raise a.Gate('old_owner_deployed_build_launch', type(error).__name__, 'rebuildable deployed source; DSR decision required') from None
+        a.need('old_owner_deployed_build_exit', built.returncode, 0)
         artifact_name = 'GTokenAuthorization' if name == 'GToken' and commit == 'cf26915e032ccc9e8e02f9aaf3769afd4335027e' else name
         art = a.raw_artifact(tree,artifact_name)
         art['immutableDeclarations'] = immutable_declarations(tree)
@@ -954,7 +954,7 @@ def discover_targets(rpc, pin):
     enumerated = set(u.addr_array(a.call(rpc,targets['xPNTsFactory'][0],'getAllTokens()',block=block)))
     # Before the switch, the factory must enumerate every round clone itself.
     switched = 'discoveryOriginalFactory' in pin and targets['xPNTsFactory'][0] != pin['discoveryOriginalFactory']
-    a.need('old_owner_factory_enumeration',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)
+    a.need('old_owner_factory_enumeration_discover_targets',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)
     tokens = set(enumerated)
     for who in pin['pauseList']:
         values = u.uints(a.call(rpc,u.SP,'operators(address)',who,block=block))
@@ -973,7 +973,7 @@ def is_clone(code):
 
 
 def clone_implementation(code):
-    code = a.typed(code,a.HEXDATA).lower()
+    code = a.typed(code,a.HEXDATA, gate='rpc_result_clone_implementation_code').lower()
     a.need('old_owner_clone_standard',is_clone(code),True)
     return '0x'+code[22:62]
 
@@ -1009,7 +1009,7 @@ def verify_deployment_record(spec):
     a.need('old_owner_record_source_commit',resolved.stdout.strip() if resolved.returncode == 0 else None,spec['commit'])
     address = ref['contractAddress']
     a.need('old_owner_record_address',address,spec['implementation'])
-    a.typed(ref['txHash'],a.HASH32)
+    a.typed(ref['txHash'],a.HASH32, gate='rpc_result_verify_deployment_record_txHash')
     receipts = record.get('receipts',[])
     if 'receipt' in ref:
         receipt_ref = ref['receipt']
@@ -1112,8 +1112,8 @@ def decode_immutable(identity, values, artifact, expectations):
 
 def runtime_parity(code, artifact, deployment_record=None, expectations=None):
     deployed = artifact['deployedBytecode']
-    actual = bytearray.fromhex(a.typed(code,a.HEXDATA)[2:])
-    expected = bytearray.fromhex(a.typed(deployed['object'],a.HEXDATA)[2:])
+    actual = bytearray.fromhex(a.typed(code,a.HEXDATA, gate='rpc_result_runtime_parity_code')[2:])
+    expected = bytearray.fromhex(a.typed(deployed['object'],a.HEXDATA, gate='rpc_result_runtime_parity_object')[2:])
     a.need('old_owner_runtime_length',len(actual),len(expected))
     a.need('old_owner_runtime_nonempty',bool(actual),True)
     cbor, metadata_start = runtime_metadata(code)
@@ -1165,12 +1165,12 @@ def deployed_inventory(rpc, pin, sources):
             # Verify the supplied deployment boundary instead of trusting a late start.
             a.need('old_owner_creation_before',rpc('eth_getCode',[target,hex(creation-1)]),'0x')
             a.need('old_owner_creation_at',rpc('eth_getCode',[target,hex(creation)]) != '0x',True)
-            code = a.typed(rpc('eth_getCode',[target,block]),a.HEXDATA)
-            implementation_word = int(a.typed(rpc('eth_getStorageAt',[target,IMPLEMENTATION_SLOT,block]),a.HASH32),16)
-            beacon_word = int(a.typed(rpc('eth_getStorageAt',[target,BEACON_SLOT,block]),a.HASH32),16)
-            a.need('unexpected_proxy', not (implementation_word or beacon_word) or target in VERIFIED_PROXIES, True)
+            code = a.typed(rpc('eth_getCode',[target,block]),a.HEXDATA, gate='rpc_result_deployed_inventory_eth_getCode')
+            implementation_word = int(a.typed(rpc('eth_getStorageAt',[target,IMPLEMENTATION_SLOT,block]),a.HASH32, gate='rpc_result_deployed_inventory_eth_getStorageAt'),16)
+            beacon_word = int(a.typed(rpc('eth_getStorageAt',[target,BEACON_SLOT,block]),a.HASH32, gate='rpc_result_deployed_inventory_eth_getStorageAt_2'),16)
+            a.need('unexpected_proxy_other', not (implementation_word or beacon_word) or target in VERIFIED_PROXIES, True)
             # The allowlist verifies ERC1967Proxy runtime, which does not use beacons.
-            a.need('unexpected_proxy', beacon_word == 0, True)
+            a.need('unexpected_proxy_beacon', beacon_word == 0, True)
             implementation = u.addr_word(implementation_word)
             a.need('old_owner_undeclared_clone', name == 'xPNTsToken' or not is_clone(code), True)
             proxy = None
@@ -1224,7 +1224,7 @@ def collect_deployed(rpc, pin, sources, expected, fork=None, pending=None):
 
 def validate_deployed(section, pin, sources, pending=None):
     require_adopted_sources(pending)
-    a.need('old_owner_evidence_present',isinstance(section,dict),True)
+    a.need('old_owner_evidence_present_validate_deployed',isinstance(section,dict),True)
     a.need('old_owner_source_selection',section.get('sourceSelection'),sources)
     rows = iter(section.get('sourceReads',[]))
     def replay(method, params):
@@ -1238,7 +1238,7 @@ def validate_deployed(section, pin, sources, pending=None):
     a.need('old_owner_endpoint_identities',sorted(identities),['primary','secondary'])
     assert_endpoint_identities(identities)
     for identity in identities.values():
-        a.typed(identity,a.HASH32)
+        a.typed(identity,a.HASH32, gate='rpc_result_validate_deployed_identity')
     clean = {k:v for k,v in section.items() if k not in ('sourceReads','sourceSelection','endpointIdentities')}
     validate(clean,pin,inventory,section['callsiteTargetSource']['expected'])
 
@@ -1247,12 +1247,12 @@ def post_upgrade_check(rpc, pin, release_tree, release_targets, token_kinds, pre
     """M2.5 hook; all manifest release contracts and discovered token kinds are explicit."""
     import copy
     import manifest_exec as manifest
-    a.typed(pin['stateBlock'],a.QTY)
+    a.typed(pin['stateBlock'],a.QTY, gate='rpc_result_post_upgrade_check_stateBlock')
     a.need('old_owner_post_targets',sorted(release_targets),sorted(manifest.NAMES))
     for group in release_targets.values():
         a.need('old_owner_post_target_nonempty',isinstance(group,list) and bool(group),True)
         for target in group:
-            a.typed(target,a.ADDRESS_RX)
+            a.typed(target,a.ADDRESS_RX, gate='rpc_result_post_upgrade_check_target')
             a.need('old_owner_post_target_nonzero',target != a.ZERO,True)
     inventory = inventory_source(release_tree,mode='release',names=tuple(sorted(set(NAMES) | set(manifest.NAMES))))
     # Every extraction above is release source, including delegated getter surfaces.
@@ -1361,21 +1361,21 @@ def role_history(rpc, pin, target, spec, creation, counts=None, declared=None):
         ts = log.get('topics',[])
         a.need('old_owner_history_topics',len(ts),3 if ts and ts[0] in (a.keccak(REGISTERED),a.keccak(EXITED)) else 4)
         if ts and ts[0] in (a.keccak(REGISTERED),a.keccak(EXITED)):
-            a.need('old_owner_history_data',len(a.typed(log.get('data'),a.HEXDATA)),130)
+            a.need('old_owner_history_data',len(a.typed(log.get('data'),a.HEXDATA, gate='rpc_result_role_history_data')),130)
         a.need('old_owner_history_signature',ts[0] in topics,True)
         for topic in ts[1:]:
-            a.typed(topic,a.HASH32)
+            a.typed(topic,a.HASH32, gate='rpc_result_role_history_topic')
         for topic in ts[2:]:
             u.addr_word(int(topic,16))
-        number = a.qty(a.typed(log.get('blockNumber'),a.QTY))
+        number = a.qty(a.typed(log.get('blockNumber'),a.QTY, gate='rpc_result_role_history_blockNumber'))
         a.need('old_owner_history_log_range',start <= number <= stop,True)
         if number not in canonical:
             canonical[number] = rpc('eth_getBlockByNumber',[hex(number),False])
         a.need('old_owner_history_canonical',log['blockHash'],canonical[number]['hash'])
         a.need('old_owner_history_number',canonical[number]['number'],hex(number))
-        a.typed(log.get('transactionHash'),a.HASH32)
-        a.typed(log.get('transactionIndex'),a.QTY)
-        a.typed(log.get('logIndex'),a.QTY)
+        a.typed(log.get('transactionHash'),a.HASH32, gate='rpc_result_role_history_transactionHash')
+        a.typed(log.get('transactionIndex'),a.QTY, gate='rpc_result_role_history_transactionIndex')
+        a.typed(log.get('logIndex'),a.QTY, gate='rpc_result_role_history_logIndex')
     for log in logs:
         identity = (log['blockHash'],log['transactionHash'],log['logIndex'])
         a.need('old_owner_history_duplicate',identity not in identities,True)
@@ -1490,14 +1490,14 @@ def fork_probe(rpc, pin, case):
             getter = case['getter']
             if 'slot' in getter:
                 raw = rpc('eth_getStorageAt',[getter['target'],getter['slot'],'latest'])
-                a.typed(raw,a.HASH32)
+                a.typed(raw,a.HASH32, gate='rpc_result_fork_probe_raw')
                 value = u.addr_word(int(raw,16))
                 a.need('old_owner_fork_readback',value,who)
                 normalized = '0x'+format(int(value == OLD),'064x')
             else:
                 args = [who if arg == '$ACCOUNT' else arg for arg in getter['args']]
                 raw = rpc('eth_call',[dict(to=getter['target'],data=a.calldata(getter['signature'],*args)),'latest'])
-                a.typed(raw,a.HASH32)
+                a.typed(raw,a.HASH32, gate='rpc_result_fork_probe_raw_2')
                 a.need('old_owner_fork_positive',int(raw,16) > 0,True)
                 normalized = raw
             if case.get('module'):
@@ -1507,9 +1507,9 @@ def fork_probe(rpc, pin, case):
             stopped = False
             if who == OLD:
                 try:
-                    absent(normalized,case['gate'])
+                    absent(normalized,'old_owner_fork_case_'+case['gate'])
                 except a.Gate as error:
-                    a.need('old_owner_fork_stop_gate',error.record['gate'],case['gate'])
+                    a.need('old_owner_fork_stop_gate',error.record['gate'],'old_owner_fork_case_'+case['gate'])
                     stopped = True
                 a.need('old_owner_fork_negative',stopped,True)
             results.append(dict(account=who,raw=raw,stopped=stopped))
@@ -1555,9 +1555,9 @@ def assert_manifest_calldata(steps, signatures):
     decoded = []
     def inspect(data, signature=None, depth=0):
         a.need('old_owner_calldata_depth',depth <= 32,True)
-        a.typed(data,a.HEXDATA)
+        a.typed(data,a.HEXDATA, gate='rpc_result_inspect_data')
         # Also catches packed addresses and opaque bytes, independently of ABI types.
-        a.need('old_owner_calldata_bytes',OLD[2:] not in data[2:].lower(),True)
+        a.need('old_owner_calldata_bytes_payload',OLD[2:] not in data[2:].lower(),True)
         if data == '0x':
             return []
         sig = signature or catalogue.get(data[:10])
@@ -1588,8 +1588,8 @@ def assert_manifest_calldata(steps, signatures):
     for step in steps:
         for tx in [step['tx'],*step.get('variants',{}).values()]:
             a.need('old_owner_calldata_target',str(tx.get('to')).lower() != OLD,True)
-            a.typed(tx['data'],a.HEXDATA)
-            a.need('old_owner_calldata_bytes',OLD[2:] not in tx['data'][2:].lower(),True)
+            a.typed(tx['data'],a.HEXDATA, gate='rpc_result_assert_manifest_calldata_data')
+            a.need('old_owner_calldata_bytes_outer_tx',OLD[2:] not in tx['data'][2:].lower(),True)
             if tx.get('to') is None:
                 ctor = step.get('constructor')
                 a.need('old_owner_constructor_abi',isinstance(ctor,dict),True)

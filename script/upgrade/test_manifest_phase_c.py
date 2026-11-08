@@ -312,7 +312,7 @@ class PhaseCTests(unittest.TestCase):
     def test_pin_price_zero(self):
         pin = copy.deepcopy(self.pin)
         pin['phaseC']['sp']['cachedPrice'] = [0, 0, 0, 8]
-        self.stop('C_price_bound', lambda: self.build(None, pin))
+        self.stop('C_price_bound_pin', lambda: self.build(None, pin))
 
     def test_operator_fields_match_solidity_struct(self):
         import re
@@ -335,10 +335,10 @@ class PhaseCTests(unittest.TestCase):
 
     def test_reduced_n_or_amount_is_refused(self):
         # n is never reduced to fit a budget; every amount is rebuilt from the pin.
-        for key, mutate in (('manifest_phaseC', lambda p: p['phaseC'].update(attempts=99)),
-                            ('manifest_phaseC', lambda p: p['phaseC'].update(Amax=p['phaseC']['Amax']-1)),
-                            ('manifest_tx_value', lambda p: next(s for s in p['steps'] if s['id'] == 'C19')['tx'].update(value='0x1')),
-                            ('manifest_tx_data', lambda p: next(s for s in p['steps'] if s['id'] == 'C9.mode')['tx'].update(
+        for key, mutate in (('manifest_plan_key_phaseC', lambda p: p['phaseC'].update(attempts=99)),
+                            ('manifest_plan_key_phaseC', lambda p: p['phaseC'].update(Amax=p['phaseC']['Amax']-1)),
+                            ('manifest_tx_field_value', lambda p: next(s for s in p['steps'] if s['id'] == 'C19')['tx'].update(value='0x1')),
+                            ('manifest_tx_field_data', lambda p: next(s for s in p['steps'] if s['id'] == 'C9.mode')['tx'].update(
                                 data=a.calldata('execute(address,uint256,bytes)', p['phaseC']['addresses']['X'], 0,
                                                 a.calldata('setRenewalMode(uint8)', 1)))),
                             ('manifest_length', lambda p: p['steps'].remove(next(s for s in p['steps'] if s['id'] == 'C16.tpm')))):
@@ -385,11 +385,11 @@ class PhaseCTests(unittest.TestCase):
         bad = copy.deepcopy(plan)
         bad['steps'] = bad['steps'][:-1]
         bad['prefixDigest'] = m.prefix_digest(bad)
-        self.stop('prefix_boundary', lambda: m.verify_prefix(self.plan, bad, 'c'))
+        self.stop('prefix_boundary_phase_c', lambda: m.verify_prefix(self.plan, bad, 'c'))
         b4 = copy.deepcopy(self.plan)
         b4['steps'] = b4['steps'][:[s['id'] for s in b4['steps']].index('B4')+1]
         b4.update(stage='c', prefixDigest=m.prefix_digest(b4))
-        self.stop('prefix_boundary', lambda: m.verify_prefix(self.plan, b4, 'c'))
+        self.stop('prefix_boundary_phase_c', lambda: m.verify_prefix(self.plan, b4, 'c'))
         # Phase C pin reads never change the A/B prefix digest.
         stripped = copy.deepcopy(self.plan)
         stripped['pin'].pop('phaseC')
@@ -402,7 +402,7 @@ class PhaseCTests(unittest.TestCase):
         m.save_artifact(out, plan)
         self.assertTrue((out/'stage-c.json.sha256').exists())
         self.stop('final_stage', lambda: m.require_final(dict(plan, final=True)))
-        self.stop('stage_not_final', lambda: m.save_artifact(out, dict(plan, final=True)))
+        self.stop('stage_not_final_save_artifact', lambda: m.save_artifact(out, dict(plan, final=True)))
 
     def test_stage_c_prefix_must_end_in_phase_c(self):
         plan = self.build(stage='c')
@@ -556,13 +556,13 @@ BUILD_CASES = {
     'phase_c_salt': data_case(['phaseC', 'salt'], -1),
     'phase_c_runtime_keys': data_case(['phaseC', 'runtimeKeccak', 'unexpected'], a.EMPTY_KECCAK),
     'phase_c_runtime_VerifyingPaymaster': data_case(['phaseC', 'runtimeKeccak', 'VerifyingPaymaster'], a.EMPTY_KECCAK),
-    'phase_c_account_evidence': data_case(['phaseC', 'accountEvidence', 'sha256'], '9'*64),
+    'phase_c_account_evidence_bytes': data_case(['phaseC', 'accountEvidence', 'sha256'], '9'*64),
     'phase_c_account_evidence_nonempty': data_case(['phaseC', 'accountEvidence'], evidence('blank-account', ' \n')),
     'phase_c_rehearsal': data_case(['phaseC', 'rehearsal', 'extra'], []),
     'phase_c_rehearsal_evidence_nonempty': data_case(['phaseC', 'rehearsal', 'evidence'], evidence('blank-rehearsal', '\n')),
     'phase_c_arms': data_case(ARM+['extra'], {}),
     'phase_c_arm_fields_SP': data_case(ARM+['SP', 'postOp'], 1),
-    'phase_c_measurement': data_case(ARM+['VPM', 'call'], 0),
+    'phase_c_measurement_arms': data_case(ARM+['VPM', 'call'], 0),
     'phase_c_owner_preparation': data_case(['phaseC', 'rehearsal', 'ownerPreparation', 'extra'], 1),
     'phase_c_maintenance_list': data_case(['phaseC', 'rehearsal', 'ownerMaintenance'], {}),
     'phase_c_maintenance_fields': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'], [dict(name='x', gas=1, extra=1)]),
@@ -576,23 +576,23 @@ BUILD_CASES = {
     'phase_c_pin': pin_case(['phaseC', 'extra'], 1),
     'phase_c_pin_identity_owner': pin_case(['phaseC', 'owner', 'address'], '0x'+'99'*20),
     'phase_c_eoa_bundler': pin_case(['phaseC', 'bundler', 'code'], '0x6000'),
-    'C1_minter': pin_case(['phaseC', 'capped', 'minter'], u.DEPLOYER),
+    'C1_minter_pin': pin_case(['phaseC', 'capped', 'minter'], u.DEPLOYER),
     'C_price_shape': pin_case(['phaseC', 'sp', 'cachedPrice'], [1, 2, 3]),
-    'C_price_bound': pin_case(['phaseC', 'sp', 'cachedPrice'], [3500*10**8+1, 0, 1, 8]),
+    'C_price_bound_pin': pin_case(['phaseC', 'sp', 'cachedPrice'], [3500*10**8+1, 0, 1, 8]),
     'C_pricing_nonzero': pin_case(['phaseC', 'sp', 'aPNTsPriceUSD'], 0),
     'C_operator_shape': pin_case(['phaseC', 'sp', 'deployerOperator'], [0]*8),
-    'C2_operator_role': pin_case(['phaseC', 'roles', 'PAYMASTER_SUPER'], 0),
-    'C3_community': pin_case(['phaseC', 'roles', 'COMMUNITY'], 0),
-    'C7_enduser_active': pin_case(['phaseC', 'endUser', 'roleConfig'], lambda case: config_raw(active=False)),
+    'C2_operator_role_pin': pin_case(['phaseC', 'roles', 'PAYMASTER_SUPER'], 0),
+    'C3_community_pin': pin_case(['phaseC', 'roles', 'COMMUNITY'], 0),
+    'C7_enduser_active_pin': pin_case(['phaseC', 'endUser', 'roleConfig'], lambda case: config_raw(active=False)),
     'C5_factory_runtime': pin_case(['phaseC', 'account', 'factoryCodeHash'], '0x'+'77'*32),
     'C5_factory_implementation': pin_case(['phaseC', 'account', 'implementation'], '0x'+'77'*20),
     'C5_implementation_runtime': pin_case(['phaseC', 'account', 'implementationCodeHash'], '0x'+'77'*32),
     'C5_implementation_entrypoint': pin_case(['phaseC', 'account', 'implementationEntryPoint'], '0x'+'77'*20),
-    'C5_counterfactual': pin_case(['phaseC', 'account', 'counterfactual'], '0x'+'77'*20),
+    'C5_counterfactual_pin': pin_case(['phaseC', 'account', 'counterfactual'], '0x'+'77'*20),
     'C5_existing_account': pin_case(['phaseC', 'account', 'codeHash'], t.PC_RUNTIMES['account']),
-    'C_account_status': pin_case(['phaseC', 'account', 'status'], [1, 0, 0]),
-    'C1_cap_headroom': pin_case(['phaseC', 'capped', 'cap'], 10**18),
-    'C6_gtoken_balance': pin_case(['phaseC', 'endUser', 'deployerGToken'], 2),
+    'C_account_status_pin': pin_case(['phaseC', 'account', 'status'], [1, 0, 0]),
+    'C1_cap_headroom_worksheet': pin_case(['phaseC', 'capped', 'cap'], 10**18),
+    'C6_gtoken_balance_worksheet': pin_case(['phaseC', 'endUser', 'deployerGToken'], 2),
     'budget_deployer_values': pin_case(['senders', 'deployer', 'balance'], 10**18),
 }
 
@@ -657,24 +657,24 @@ LIVE_CASES = {
     'C_sampled_unpaused': ('C2.approve', lambda c: c.get(SP, 'operators(address)', D).__setitem__(2, 1)),
     'C_unsampled_paused': ('C2.approve', lambda c: c.get(SP, 'operators(address)', t.ANNI).__setitem__(2, 0)),
     'C_price_decimals': ('C2.approve', lambda c: c.get(SP, 'cachedPrice()').__setitem__(3, 18)),
-    'C_price_bound': ('C2.approve', lambda c: c.get(SP, 'cachedPrice()').__setitem__(0, 3500*10**8+1)),
+    'C_price_bound_exec': ('C2.approve', lambda c: c.get(SP, 'cachedPrice()').__setitem__(0, 3500*10**8+1)),
     'C_pricing_unchanged': ('C2.approve', lambda c: c.set(SP, 'protocolFeeBPS()', value=1001)),
-    'C1_minter': ('C1_approve', lambda c: c.set(c.plan['pin']['capped'], 'minter()', value=int(D, 16))),
-    'C1_cap_headroom': ('C1_exec', lambda c: c.set(c.plan['pin']['capped'], 'totalSupply()', value=10**27)),
+    'C1_minter_exec': ('C1_approve', lambda c: c.set(c.plan['pin']['capped'], 'minter()', value=int(D, 16))),
+    'C1_cap_headroom_exec': ('C1_exec', lambda c: c.set(c.plan['pin']['capped'], 'totalSupply()', value=10**27)),
     'C1_pinned_balance': ('C1_approve', lambda c: c.set(c.plan['pin']['capped'], 'balanceOf(address)', D, value=0)),
-    'C2_operator_role': ('C2.approve', lambda c: c.set(u.REG, 'hasRole(bytes32,address)', m.role_id('PAYMASTER_SUPER'), D, value=0)),
+    'C2_operator_role_exec': ('C2.approve', lambda c: c.set(u.REG, 'hasRole(bytes32,address)', m.role_id('PAYMASTER_SUPER'), D, value=0)),
     'C2_token_balance': ('C2.approve', lambda c: c.set(c.plan['pin']['capped'], 'balanceOf(address)', D,
                                                         value=c.plan['phaseC']['operatorTopUp']-1)),
-    'C_operator_before': ('C3.configure', lambda c: c.get(SP, 'operators(address)', D).__setitem__(4, 1)),
+    'C_operator_before_configure': ('C3.configure', lambda c: c.get(SP, 'operators(address)', D).__setitem__(4, 1)),
     'C3_factory_active': ('C3.deploy', lambda c: c.set(SP, 'xpntsFactory()', value=0)),
-    'C3_community': ('C3.deploy', lambda c: c.set(u.REG, 'hasRole(bytes32,address)', m.role_id('COMMUNITY'), D, value=0)),
+    'C3_community_exec': ('C3.deploy', lambda c: c.set(u.REG, 'hasRole(bytes32,address)', m.role_id('COMMUNITY'), D, value=0)),
     'C3_factory_fresh': ('C3.deploy', lambda c: c.set(c.factory, 'getDeployedCount()', value=1)),
-    'C5_counterfactual': ('C5', lambda c: c.set(m.ACCOUNT_FACTORY, 'getAddress(address,uint256)', c.O, 7, value=1)),
+    'C5_counterfactual_exec': ('C5', lambda c: c.set(m.ACCOUNT_FACTORY, 'getAddress(address,uint256)', c.O, 7, value=1)),
     'C5_absent': ('C5', lambda c: c.codes.__setitem__(c.S, '0x6000')),
-    'C7_enduser_active': ('C6', lambda c: c.set(u.REG, 'getRoleConfig(bytes32)', m.role_id('ENDUSER'), value=config_raw(False))),
+    'C7_enduser_active_exec': ('C6', lambda c: c.set(u.REG, 'getRoleConfig(bytes32)', m.role_id('ENDUSER'), value=config_raw(False))),
     'C7_enduser_config': ('C7', lambda c: c.set(u.REG, 'getRoleConfig(bytes32)', m.role_id('ENDUSER'), value=config_raw(True, 5))),
-    'C_account_status': ('C6', lambda c: c.set(SP, 'sbtHolders(address)', c.S, value=1)),
-    'C6_gtoken_balance': ('C6', lambda c: c.set(c.plan['pin']['phaseC']['endUser']['gtoken'], 'balanceOf(address)', D, value=1)),
+    'C_account_status_exec': ('C6', lambda c: c.set(SP, 'sbtHolders(address)', c.S, value=1)),
+    'C6_gtoken_balance_exec': ('C6', lambda c: c.set(c.plan['pin']['phaseC']['endUser']['gtoken'], 'balanceOf(address)', D, value=1)),
     'C8_community_owner': ('C8', lambda c: c.set(c.X, 'communityOwner()', value=1)),
     'C8_policy_off': ('C8', lambda c: c.set(c.X, 'pendingPolicyEta()', value=1)),
     'C8_user_clean': ('C8', lambda c: c.set(c.X, 'debts(address)', c.S, value=1)),
@@ -901,9 +901,9 @@ class SnapshotControlTests(PhaseCTests):
         controls = self.run_controls()
         self.assertEqual(sorted(x['control'] for x in controls), sorted(m.PC_CONTROLS))
         gates = {x['control']: x['gate'] for x in controls}
-        self.assertEqual(gates, {'C_price_above_cap': 'C_price_bound', 'C_cap_exhausted': 'C1_cap_headroom',
-            'C_factory_used': 'C3_factory_fresh', 'C_enduser_inactive': 'C7_enduser_active',
-            'C_status_mismatch': 'C_account_status', 'C_policy_pending': 'C8_policy_off',
+        self.assertEqual(gates, {'C_price_above_cap': 'C_price_bound_exec', 'C_cap_exhausted': 'C1_cap_headroom_exec',
+            'C_factory_used': 'C3_factory_fresh', 'C_enduser_inactive': 'C7_enduser_active_exec',
+            'C_status_mismatch': 'C_account_status_exec', 'C_policy_pending': 'C8_policy_off',
             'C_owner_underfunded': 'C_owner_budget', 'C_deposit_front_run': 'C17_deposit_before',
             'C_allowance_exhausted': 'precheck_allowance', 'C_total_exhausted': 'precheck_total',
             'C_sp_renew': 'SP_RENEW_never', 'C_renewal_mode': 'precheck_renewal_mode',
@@ -925,9 +925,9 @@ class SnapshotControlTests(PhaseCTests):
         chain = Chain(self.plan, 'C2.approve')
         with chain.patches()[0]:
             check = lambda: m.phase_c_pre_send(chain, self.plan, self.step('C2.approve'), chain.context)
-            self.stop('X_gate', lambda: m.stop_control(chain, 'X', 'C_price_bound', lambda: None, check))
+            self.stop('X_gate', lambda: m.stop_control(chain, 'X', 'C_price_bound_exec', lambda: None, check))
             mutate = lambda: chain.set(SP, 'paused()', value=1)
-            self.stop('X_gate', lambda: m.stop_control(chain, 'X', 'C_price_bound', mutate, check))
+            self.stop('X_gate', lambda: m.stop_control(chain, 'X', 'C_price_bound_exec', mutate, check))
             try:
                 record = m.stop_control(chain, 'X', 'C_global_unpaused', mutate, check)
             except a.Gate as fault:
@@ -944,7 +944,7 @@ class SnapshotControlTests(PhaseCTests):
         chain.plan = self.plan
         with contextlib.ExitStack() as stack:
             for p in chain.patches(): stack.enter_context(p)
-            self.stop('C_control_slot', lambda: m.phase_c_controls(chain, bad, self.pc['steps'][0], [], chain.context))
+            self.stop('C_control_slot_cached_price', lambda: m.phase_c_controls(chain, bad, self.pc['steps'][0], [], chain.context))
         duplicate = copy.deepcopy(self.plan)
         storage = duplicate['rebuild']['contracts']['SuperPaymaster']['storageLayout']['storage']
         storage.append(copy.deepcopy(next(row for row in storage if row['label'] == 'cachedPrice')))

@@ -2028,3 +2028,4836 @@ outstanding 6d items. Overall 6d acceptance remains withheld.
 No gate names, production fallbacks, or Gate-only assertion semantics changed.
 No worktree commit or staging, RPC/environment-file/keystore/chain access, or full
 probe-driver batch. All launched commands exited; no background process remains.
+
+
+### 6e continuation of 6d #18/#19 (2026-11-07)
+
+**Done:** `unexpected_proxy_other` / `unexpected_proxy_beacon` and
+`old_owner_calldata_bytes_outer_tx` / `old_owner_calldata_bytes_payload` now have
+separate literal source sites. The focused foreground command was
+`python3 -u script/upgrade/probe_gate_rename_controls.py` (exit 0).
+Each baseline is green; each mutant deletes exactly one source statement and
+has failures >= 1, errors == 0, with a failing assertion naming the deleted gate.
+The proxy and outer-transaction deletions reach acceptance. The payload helper
+unit control uses the actual nested production code object, with its normal
+closure and all its guards; deleting its bytes gate reaches the argument gate,
+which produces a named wrong-Gate assertion. This is a helper unit control, not
+an assertion that a transaction bypasses the earlier outer-transaction gate.
+No production gate was suppressed to make a baseline pass.
+
+Verbatim final lines from `/tmp/commit6e-checks/rename_controls.log`:
+
+```text
+GATE_RENAME_CONTROL unexpected_proxy_other PASS baseline=green sites=1
+GATE_RENAME_CONTROL unexpected_proxy_beacon PASS baseline=green sites=1
+GATE_RENAME_CONTROL old_owner_calldata_bytes_outer_tx PASS baseline=green sites=1
+GATE_RENAME_CONTROL old_owner_calldata_bytes_payload PASS baseline=green sites=1
+GATE_RENAME_CONTROLS PASS 4/4 strict red
+```
+
+**Undone:** all other pre-existing 6d acceptance issues remain outside this
+one-item rename. Overall 6d acceptance remains withheld.
+
+## 6e
+
+**INCOMPLETE — acceptance withheld. No commit or staging.**
+
+Base HEAD: `2acc71afb62b23e72a5c610522be0e21dc87e119` (clean at entry).
+Before editing, the AST inventory re-derived exactly the recorded **47 duplicated
+literal names / 107 source sites**, using all twelve specified helpers and their
+explicit gate argument positions, including `gate=`. No duplicate-name set
+changed. Historical line offsets differ because committed 6d includes the #17
+accessor and B/C-order extraction. Rechecking HEAD against the map gives:
+
+```text
+COMMIT6E_HEAD_INVENTORY duplicate_names=47 source_sites=107 map_names=47
+```
+
+All 107 definition sites now have unique names of the form `OLD_NAME_suffix`.
+`gate_rename_map.json` records old name -> `{new, file, function, line}` entries,
+including the innermost function for nested gates. The current scan finds 862
+literal sites and `duplicate_names=0`. No gate condition, comparison, ordering,
+exception type, or `assert_stop` behavior was changed. `assert_stop` still catches
+only `a.Gate`.
+
+The rename also updates four production expected-gate references passed through
+`phase_c_controls.add()` (manifest_exec.py:3158, 3166, 3174, 3175). These references
+must match the execution gates for the negative controls to work. They are not
+additional gate definitions and do not change plan fields.
+
+### Strict AST comparison and unresolved requirements
+
+`gate_rename_ast_diff.py BEFORE AFTER` reads every changed Python file under
+`script/` from both revisions, parses and compares location-independent ASTs,
+prints each allowed change, and rejects anything beyond mapped gate-position
+string changes or exact mapped old-name strings in test/probe files. It supports
+`HEAD WORKTREE` for this explicitly uncommitted review. It fails closed on added
+or deleted Python files; no implicit infrastructure exemption exists.
+
+Foreground command:
+`python3 script/upgrade/gate_rename_ast_diff.py HEAD WORKTREE`.
+The final result below is **FAIL**, not waived:
+
+```text
+GATE_RENAME_AST_DIFF FAIL n_changes=215
+```
+
+Three literal-rule conflicts remain pending the user's clarification:
+
+1. Required new checker/test/probe files have no before-AST. Comparing every
+   changed `.py` file under strict identity necessarily rejects these additions.
+2. Four expected-gate references go through the local `add()` wrapper, which is
+   outside the stipulated helper set. The checker reports them as rejected
+   changes rather than broadening the helper set silently.
+3. Existing test loops share one old expected name across newly distinct gates:
+   `approval_history_control` (creation/log), `test_old_timelock_log_replay`
+   (reads/owners), `test_slither_raw_rederived_gate` (file/findings),
+   `test_factory_enumeration_must_stand_alone` (audit/discovery), and
+   `test_list_and_endpoint_controls` (check/collection). `test_log_identity_fields`
+   computes the old logIndex name from the field being mutated. Making all those
+   expectations exact requires test structure changes, not just replacement of
+   existing string literals. No prefix-matching or multi-Gate acceptance was added.
+
+Also pending are raw-source selectors in
+`script/evidence/enduser_mapping_probes.py:148` and
+`script/evidence/inventory_replay_probes.py:19`, which embed an old name inside a
+larger source-code string (not a string equal to an old gate name). The
+`audit605_probes.py` paired REQUIRED entries and F05-derived test-method names
+need explicit per-site bindings after the test/probe structure ruling. The full
+probe batch was not run, and these incomplete references are not certified.
+
+### Stored plan/manifest content
+
+**Yes**, gate names can be stored in plan content. Source evidence:
+
+- `old_owner_isolation.py:613` stores `negativeControl.gate` in a read record;
+  `old_owner_isolation.py:882` returns those reads in isolation evidence.
+- `manifest_exec.py:1952` stores isolation evidence in `pin['oldOwnerIsolation']`;
+  `manifest_exec.py:2173` copies that pin into the plan dictionary.
+- `sp_upgrade_exec.py:1180` serializes the entire plan to `plan.json`;
+  `manifest_exec.py:3630` serializes staged plans, and :3635 delegates final plans
+  to `u.save_plan`.
+- `manifest_exec.py:3127` also stores a caught gate in a negative-control result;
+  :3558 places controls in the simulation result (separate from the plan).
+
+A recursive scan of tracked JSON files whose filenames contain plan/manifest/stage
+found no literal `gate` fields in those existing files. Historical probe reports
+and provenance JSON do contain old names; they describe old runs and were not
+rewritten. No plan, frozen manifest, deployment, or evidence JSON was changed.
+Only the new rename map and dynamic-template registry are JSON changes.
+
+### Uniqueness and dynamic templates
+
+`test_gate_names.py` scans both production modules with the same helper set.
+Literal duplicate names fail by `gate_name_uniqueness`; unregistered dynamic
+sites fail by `gate_templates`. Registered finite templates must enumerate the
+actual containing loop's labels (checked statically, including tuple columns and
+module-level constant tuples), with a probe location for every label. Missing,
+stale, duplicate, or changed registrations fail. Tests also verify that the AST
+checker rejects condition changes and non-gate production strings.
+
+There are **100 dynamic sites**. The registry currently covers **9 finite
+template sites / 32 labels**. The remaining **91 sites are unregistered**, so the
+full gate-names suite intentionally remains FAIL; this is unfinished work, not
+a waiver. Some remaining domains are open-ended, for example `error['gate']`,
+role addresses, and recursive schema paths. Whether those may register a domain
+plus enumerated reviewed cases rather than an exhaustive label list is pending
+user clarification. Other unregistered finite templates also remain undone.
+
+Focused foreground commands (not the full probe batch):
+
+```sh
+python3 -u script/upgrade/probe_gate_names.py
+python3 -u script/upgrade/probe_gate_templates.py
+python3 -u script/upgrade/probe_gate_rename_controls.py
+```
+
+Verbatim final focused lines:
+
+```text
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+GATE_TEMPLATE_PROBES PASS 23/23 strict red
+```
+
+The uniqueness probe deletes exactly the one explicit FAIL statement, then runs
+the seeded duplicate test. Baseline is green; the mutant fails by
+`gate_name_uniqueness: duplicate accepted`, with zero errors. No failed baseline,
+ERROR, or unprogrammed fake crash is accepted as strict-red evidence.
+
+Operator command for the external run-all.sh (listed only; **outside-repo file
+not read or modified**):
+
+```sh
+python3 -u /Users/jason/Dev/aastar/sp-wt/auditfix2/script/upgrade/test_gate_names.py
+```
+
+This command currently fails on the unregistered templates; do not treat it as
+an accepted run-all addition until the remaining work is completed.
+
+### Affected suites — foreground final lines
+
+Logs are under `/tmp/commit6e-checks/`. Each command below ran in the foreground;
+all final lines are copied verbatim. FAIL/ERROR results are not accepted.
+
+`python3 -u script/upgrade/test_old_owner_isolation.py` — `old_owner_isolation.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 143 tests in 41.907s
+
+FAILED (failures=2, skipped=2)
+```
+
+`python3 -u script/upgrade/test_manifest_exec.py` — `manifest_exec-final.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 535 tests in 413.649s
+
+FAILED (failures=8, skipped=2)
+```
+
+`python3 -u script/upgrade/test_manifest_phase_c.py` — `manifest_phase_c-final.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 141 tests in 194.279s
+
+OK
+```
+
+`python3 -u script/a3a/test_a3a_exec.py` — `a3a.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 102 tests in 3.025s
+
+OK
+```
+
+`python3 -u script/upgrade/test_sp_upgrade_exec.py` — `sp_upgrade.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 141 tests in 1.428s
+
+OK
+```
+
+`python3 -u script/upgrade/test_authority_checkpoints.py` — `authority_checkpoints.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 10 tests in 16.595s
+
+OK
+```
+
+`python3 -u script/upgrade/test_swallow_exceptions.py` — `swallow.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 9 tests in 2.675s
+
+OK
+```
+
+`python3 -u script/upgrade/test_execution_head.py` — `execution_head.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 6 tests in 0.863s
+
+OK
+```
+
+`python3 -u script/upgrade/test_execution_reads.py` — `execution_reads.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 10 tests in 0.085s
+
+OK
+```
+
+`python3 -u script/upgrade/test_gate_names.py` — `gate_names.log`:
+
+```text
+----------------------------------------------------------------------
+Ran 6 tests in 0.947s
+
+FAILED (failures=1)
+```
+
+The first Phase C run had two errors from the stale production control
+references and two expectation failures; that run was rejected. After updating
+the references and correcting the literal expectations, its full final rerun is
+recorded above. The first manifest run had ten failures; correcting the two
+log-data references reduced the focused seven-test rerun to eight failures and
+zero errors. The full final manifest rerun above is authoritative. The remaining
+failures correspond to the shared/computed expectations described above.
+
+**Done:** re-derived inventory; 47-name/107-site rename and source map; strict AST
+checker; literal uniqueness guard and strict deletion probe; registered finite
+label controls listed above; four focused #18/#19 probes; plan-storage evidence;
+all ten affected suites run; operator command; `git diff --check`.
+
+**Undone:** resolving the AST-rule conflicts; exact shared/computed test
+expectations and remaining probe selectors; registration and per-label probes for
+all remaining dynamic sites; all-green affected suites; full 6e acceptance.
+
+No RPC, environment-file, keystore, or chain access; no production fallback;
+no full probe-driver batch; no outside-repository run-all edit; no commit or
+staging. All launched foreground commands exited before handoff; no background
+process was launched or left running.
+
+
+### DSR continuation: dynamic-domain STOP (2026-11-07)
+
+This continuation preserves the entire inherited 6e diff. The historical results above are not new verification. Only this results document was changed during this continuation.
+
+Ruling 4(iii) requires: **“If (iii) exceeds 10 sites, STOP after categorising all 91 sites and report.”** The census below triggers that stop. No acceptance or all-green claim is made. The final suite/probe run and rulings 1–3 implementation are not performed after this stop.
+
+**Method:** read-only AST inventory using the retained gate_sites helper, subtracting the nine exact (file, function, line, expression) registry entries. Categorised every remaining site by inspecting enclosing loops, branches, module constants, helper callers and parameter/data origins. No production module was imported or executed. Finite rows are categorisations, not completed registrations or verified deletion probes. Generic parameter sites remain counted as open obligations, not excluded forwarding references; per-call-site binding may later close some of those domains. The threshold does not depend on that choice: the nine schema-path sites plus M:2691, O:816 and O:845 alone give 12 open sites.
+
+**Forwarding:** a temporary AST census automatically identified direct record reconstruction by the shape a.Gate(record["gate"], record["observed"], record["expected"]) with the same record base and no intervening string operation. Exactly O:908 and O:1650 qualify in these 91 sites. Source inspection confirms both records originate from recorded rangeError. case["gate"] at O:1510 is a control specification and does not qualify. Bare formal parameters do not qualify. This is census evidence only: the permanent scanner still needs the required AST implementation and counter-example/deletion tests.
+
+**Scope:** M = script/upgrade/manifest_exec.py; O = script/upgrade/old_owner_isolation.py. Census remains the requested original 91 sites; future automatic wrapper discovery may add call-site definitions and must report that delta, not silently replace this denominator.
+
+| # | Site / function | Expression | Category | Domain / reason |
+|---|---|---|---|---|
+| 1 | M:78 / reviewed_bytes | `gate + '_hash'` | iii: open | Caller-provided gate string plus _hash; no closed domain in helper signature; string operation prevents forwarding exclusion. |
+| 2 | M:80 / reviewed_bytes | `gate + '_path'` | iii: open | Caller-provided gate string plus _path; no closed domain in helper signature; string operation prevents forwarding exclusion. |
+| 3 | M:82 / reviewed_bytes | `gate` | iii: open | Caller-provided gate parameter; no Gate-record origin. Must retain and bind wrapper definitions; not an exclusion. |
+| 4 | M:87 / reviewed_file | `gate` | iii: open | Caller-provided gate parameter forwarded to reviewed_bytes; no Gate-record origin; not an exclusion. |
+| 5 | M:127 / required | `label` | iii: open | Caller-provided label parameter forwarded to a.need; no Gate-record origin; not an exclusion. |
+| 6 | M:132 / evidence_file | `'evidence_' + kind` | i: finite | EVIDENCE_KINDS (six kind labels; validated evidence dispatch). |
+| 7 | M:203 / validate_evidence_details | `'evidence_mutation_' + name` | i: finite | Keys of module constant MUTATIONS (seven labels). |
+| 8 | M:211 / validate_evidence_details | `'evidence_suite_' + name` | i: finite | Keys of module constant DVT_SUITES (three labels). |
+| 9 | M:295 / validate_evidence_details | `'evidence_full_creation_' + name` | i: finite | NAMES; OverIssueFraudProofVerifier excluded by branch. |
+| 10 | M:343 / compare_build_evidence | `'reproducible_bytes_' + name` | iii: open | Caller-supplied contracts mapping keys; no fixed key whitelist in compare_build_evidence. |
+| 11 | M:345 / compare_build_evidence | `'rebuild_record_' + name` | iii: open | Caller-supplied contracts mapping keys; no fixed key whitelist in compare_build_evidence. |
+| 12 | M:347 / compare_build_evidence | `'reproducible_executable_' + name` | iii: open | Caller-supplied contracts mapping keys; no fixed key whitelist in compare_build_evidence. |
+| 13 | M:349 / compare_build_evidence | `'reproducible_full_' + name` | iii: open | Caller-supplied contracts mapping keys except verifier; no fixed key whitelist in compare_build_evidence. |
+| 14 | M:379 / _fraud_schema | `'fraud_schema_' + path` | iii: open | Recursive schema path: input object keys and array indices appended to path; arbitrary keys/lengths cannot be exhaustively enumerated. |
+| 15 | M:381 / _fraud_schema | `'fraud_schema_enum_' + path` | iii: open | Recursive schema path: input object keys and array indices appended to path; arbitrary keys/lengths cannot be exhaustively enumerated. |
+| 16 | M:384 / _fraud_schema | `'fraud_schema_type_' + path` | iii: open | Recursive schema path: input object keys and array indices appended to path; arbitrary keys/lengths cannot be exhaustively enumerated. |
+| 17 | M:388 / _fraud_schema | `'fraud_schema_required_' + path` | iii: open | Recursive schema path: input object keys and array indices appended to path; arbitrary keys/lengths cannot be exhaustively enumerated. |
+| 18 | M:389 / _fraud_schema | `'fraud_schema_properties_' + path` | iii: open | Recursive schema path: input object keys and array indices appended to path; arbitrary keys/lengths cannot be exhaustively enumerated. |
+| 19 | M:394 / _fraud_schema | `'fraud_schema_fields_' + path` | iii: open | Recursive schema path: input object keys and array indices appended to path; arbitrary keys/lengths cannot be exhaustively enumerated. |
+| 20 | M:398 / _fraud_schema | `'fraud_schema_length_' + path` | iii: open | Recursive schema path: input object keys and array indices appended to path; arbitrary keys/lengths cannot be exhaustively enumerated. |
+| 21 | M:403 / _fraud_schema | `'fraud_schema_pattern_' + path` | iii: open | Recursive schema path: input object keys and array indices appended to path; arbitrary keys/lengths cannot be exhaustively enumerated. |
+| 22 | M:405 / _fraud_schema | `'fraud_schema_range_' + path` | iii: open | Recursive schema path: input object keys and array indices appended to path; arbitrary keys/lengths cannot be exhaustively enumerated. |
+| 23 | M:439 / fraud_fixture | `'fraud_' + n['id'] + '_guardians'` | i: finite | Schema mustReject IDs N1..N4; branch excludes N1. |
+| 24 | M:441 / fraud_fixture | `'fraud_' + n['id'] + '_proof'` | i: finite | Schema mustReject IDs N1..N4; branch excludes N3. |
+| 25 | M:460 / fraud_fixture | `'fraud_uint_' + key` | i: finite | pid, fraudProofId, signerMask. |
+| 26 | M:494 / fraud_fixture | `'fraud_token_zero_owner_' + str(offset)` | i: finite | 130, 210, converted to strings. |
+| 27 | M:536 / fraud_rehearsal | `'fraud_runtime_' + sid` | i: finite | A7, A12a (tuple first column). |
+| 28 | M:592 / fraud_rehearsal | `'fraud_revert_' + name` | i: finite | N1, N2, N3 (valid handled separately; N4 has a separate branch). |
+| 29 | M:640 / validate_external | `'verifier_' + key` | i: finite | ciSha256, buildSha256. |
+| 30 | M:644 / validate_external | `'canonical_' + key` | i: finite | anni, dvt, committee. |
+| 31 | M:645 / validate_external | `'nonzero_' + key` | i: finite | anni, dvt, committee. |
+| 32 | M:659 / validate_external | `'pop_unique_' + key` | i: finite | validator, slot. |
+| 33 | M:1330 / rebuild_baselines | `'baseline_immutables_' + name` | i: finite | F1TestToken, F1Oracle. |
+| 34 | M:1336 / rebuild_baselines | `'baseline_source_' + name` | i: finite | BASELINE_ARTIFACTS keys: VerifyingPaymaster, TokenPaymaster. |
+| 35 | M:1338 / rebuild_baselines | `'baseline_constructor_count_' + name` | i: finite | BASELINE_ARTIFACTS keys: VerifyingPaymaster, TokenPaymaster. |
+| 36 | M:1363 / pc_address | `gate` | iii: open | Caller-provided gate parameter; no Gate-record origin. Must retain and bind wrapper definitions; not an exclusion. |
+| 37 | M:1369 / pc_hash | `gate` | iii: open | Caller-provided gate parameter; no Gate-record origin. Must retain and bind wrapper definitions; not an exclusion. |
+| 38 | M:1375 / pc_integer | `gate` | iii: open | Caller-provided gate parameter; no Gate-record origin. Must retain and bind wrapper definitions; not an exclusion. |
+| 39 | M:1438 / collect_phase_c | `'phase_c_pending_nonce_' + label` | i: finite | owner, bundler, verifyingSigner. |
+| 40 | M:1710 / check_governance | `'safe_gap_' + field` | i: finite | from, to, nonce, gas, maxFeePerGas, maxPriorityFeePerGas, value, chainId. |
+| 41 | M:1824 / nonce_expectations | `'a3a_last_' + label` | i: finite | deployer, approver, executor. |
+| 42 | M:1831 / nonce_expectations | `'prepin_nonce_' + label` | i: finite | deployer, approver, executor. |
+| 43 | M:1832 / nonce_expectations | `'prepin_nonce_floor_' + label` | i: finite | deployer, approver, executor. |
+| 44 | M:1848 / history_steps | `'a3a_nonce_complete_' + label` | i: finite | deployer, approver, executor. |
+| 45 | M:1873 / validate_nonce_history | `'a3a_mined_' + step['id']` | i: finite | a.STEP_IDS: S1,S2,S3,S4,S5a,S5b,S6a,S6b,S7; history_steps validates IDs. |
+| 46 | M:1876 / validate_nonce_history | `'a3a_status_' + step['id']` | i: finite | a.STEP_IDS: S1,S2,S3,S4,S5a,S5b,S6a,S6b,S7; history_steps validates IDs. |
+| 47 | M:1899 / reconcile_nonces | `'a3a_mined_' + step['id']` | i: finite | a.STEP_IDS: S1,S2,S3,S4,S5a,S5b,S6a,S6b,S7; history_steps validates IDs. |
+| 48 | M:1993 / runtime_bytes | `'immutable_supplied_' + entry['name']` | iii: open | Artifact runtimeIdentity range names supplied to runtime_bytes; names originate in build metadata, not a closed literal loop. |
+| 49 | M:2148 / build_plan | `'sender_fields_' + label` | i: finite | deployer, anni, approver, executor; preceding sender_labels validates keys. |
+| 50 | M:2155 / build_plan | `'sender_' + label` | i: finite | a.SENDERS keys: deployer, approver, executor. |
+| 51 | M:2211 / deploy | `'nonempty_runtime_' + name` | i: finite | Literal deploy call names: SuperPaymaster, GlobalTierSource, AOAProtocolRegistry, xPNTsTokenV2Ext, xPNTsTokenV2, xPNTsFactoryV2, SuperPaymasterLens, Registry, BLSAggregator, OverIssueFraudProofVerifier. |
+| 52 | M:2300 / build_plan | `'drain_operator_present_' + label` | i: finite | deployer, anni. |
+| 53 | M:2366 / build_plan | `'C_baseline_commit_' + name` | i: finite | F1TestToken, F1Oracle, VerifyingPaymaster, TokenPaymaster. |
+| 54 | M:2597 / handover_trace | `'handover_trace_' + key` | i: finite | from, to, input. |
+| 55 | M:2661 / handover_controls | `label + '_status'` | i: finite | handover_sp_setProtocolFee; handover_{aggregator,old_aggregator}_{setSlashThreshold,setGuardianSlashBps}; append _status (five). |
+| 56 | M:2691 / b2_gate | `'B2_pending_slash_' + who` | iii: open | Addresses from plan.pin.pauseList; runtime inventory, not statically enumerable. |
+| 57 | M:2841 / check_predicate | `'readback_' + p.get('signature', kind)` | iii: open | Predicate signature or kind supplied by caller; arbitrary signature strings, not a closed literal loop. |
+| 58 | M:2886 / budget | `'budget_' + label` | iii: open | plan.pin.senders keys plus optional owner; budget does not itself bound caller-supplied sender keys. |
+| 59 | M:2897 / validate_plan | `'manifest_' + key` | iii: open | Keys of expected plan; caller may supply expected explicitly, so no exhaustive static key set. |
+| 60 | M:2910 / validate_plan | `'manifest_step_' + key` | iii: open | Keys of expected step; derived from caller-supplied expected plan, no exhaustive static key set. |
+| 61 | M:2913 / validate_plan | `'manifest_tx_' + key` | iii: open | Keys of expected transaction; derived from caller-supplied expected plan, no exhaustive static key set. |
+| 62 | M:2920 / validate_plan | `'B4_variant_' + key` | iii: open | Keys of expected variant transaction; derived from caller-supplied expected plan, no exhaustive static key set. |
+| 63 | M:2965 / phase_c_state | `'C_sampled_unpaused' if who in sampled else 'C_unsampled_paused'` | i: finite | C_sampled_unpaused, C_unsampled_paused (conditional literal branches). |
+| 64 | M:3039 / phase_c_pre_send | `sid + '_recipient_balance'` | i: finite | C19, C20; branch bounds sid. |
+| 65 | M:3040 / phase_c_pre_send | `sid + '_recipient_eoa'` | i: finite | C19, C20; branch bounds sid. |
+| 66 | M:3104 / layout_slot | `'C_control_layout_' + label` | i: finite | Existing callers: cachedPrice, _auto, _budget (tuple label captured by exhaust). |
+| 67 | M:3123 / stop_control | `name + '_gate'` | iii: open | Caller-supplied control name plus _gate; public helper has no bounded name domain; string operation prevents forwarding exclusion. |
+| 68 | M:3125 / stop_control | `name + '_restore'` | iii: open | Caller-supplied control name plus _restore; public helper has no bounded name domain; string operation prevents forwarding exclusion. |
+| 69 | O:491 / extract | `'old_owner_role_expression_' + label` | iii: open | Solidity AST role declaration labels; build input identifiers are not a fixed Python label tuple. |
+| 70 | O:493 / extract | `'old_owner_getter_abi_' + name + '_' + label` | iii: open | Contract name and Solidity AST getter label; names argument/build input identifiers are not a closed domain. |
+| 71 | O:494 / extract | `'old_owner_getter_output_' + label` | iii: open | Solidity AST getter label; build input identifiers are not a fixed Python label tuple. |
+| 72 | O:525 / extract | `'old_owner_duplicate_source_' + name` | iii: open | Contract names selected by caller-supplied names argument; default NAMES is not the complete accepted domain. |
+| 73 | O:530 / extract | `'old_owner_extraction_roles_' + name` | iii: open | Caller-supplied names argument; default NAMES is not the complete accepted domain. |
+| 74 | O:648 / audit | `'old_owner_target_' + name` | i: finite | GTokenStaking, GToken, xPNTsFactory, MySBT, PaymasterFactory. |
+| 75 | O:665 / role_owner | `gate` | iii: open | Caller-provided gate parameter; no Gate-record origin; retain and bind role_owner wrapper definitions. |
+| 76 | O:697 / check_target | `gate` | iii: open | old_owner_role_ + target name + extracted role name; target inventory and build role labels are input-dependent. |
+| 77 | O:699 / check_target | `'old_owner_role_admin_' + role['name']` | iii: open | Extracted role name; inventory role declarations are not a closed Python literal set. |
+| 78 | O:704 / check_target | `'old_owner_event_role_' + name` | iii: open | Target name from targets plus isolationExtraTargets input keys; extra target names are not statically bounded. |
+| 79 | O:712 / check_target | `gate` | iii: open | old_owner_authority_ + target name + authority row name; extracted build identifiers are input-dependent. |
+| 80 | O:717 / check_target | `gate` | iii: open | old_owner_mapping_ + target name + mapping row name; extracted build identifiers are input-dependent. |
+| 81 | O:733 / audit | `'old_owner_control_' + name` | i: finite | GTokenStaking, GToken, xPNTsFactory, MySBT, PaymasterFactory. |
+| 82 | O:785 / audit | `'old_owner_role_' + name + '_' + role` | iii: open | Target name and configured/event role bytes32; runtime role inventory is not statically enumerable. |
+| 83 | O:787 / audit | `'old_owner_role_admin_' + role` | iii: open | Configured/event role bytes32; runtime role inventory is not statically enumerable. |
+| 84 | O:816 / audit | `'old_owner_operator_treasury_' + who` | iii: open | Address from pin.pauseList; runtime operator inventory is not statically enumerable. |
+| 85 | O:845 / audit | `gate` | iii: open | old_owner_allowance_ + token address + holder address; runtime token/holder inventories are not statically enumerable. |
+| 86 | O:868 / audit | `'old_owner_safe_' + label` | i: finite | guard, fallback. |
+| 87 | O:908 / replay | `error['gate']` | ii: record forwarding | AST: a.Gate(record[gate], record[observed], record[expected]), identical record base, direct subscripts, no string operation. Source assigns record from rangeError. |
+| 88 | O:916 / validate | `'old_owner_revalidated_' + endpoint` | i: finite | primary, secondary; preceding old_owner_endpoints bounds keys. |
+| 89 | O:1468 / absent | `gate` | iii: open | Caller-provided gate parameter; no Gate-record origin; retain and bind absent wrapper definitions. |
+| 90 | O:1510 / fork_probe | `case['gate']` | iii: open | case['gate'] is a caller-provided control specification, NOT a Gate error record; unrestricted string domain, no exclusion. |
+| 91 | O:1650 / replay | `error['gate']` | ii: record forwarding | AST: a.Gate(record[gate], record[observed], record[expected]), identical record base, direct subscripts, no string operation. Source assigns record from rangeError. |
+
+**Source fingerprints (SHA-256; retained bytes at this stop):**
+
+- `script/upgrade/manifest_exec.py`: `e03ade0628501e62542b07e87465f36da276a28af7611316665c491668fa45e7`
+- `script/upgrade/old_owner_isolation.py`: `2a632c8dc84c85bafa9af3cf2e8c761fde67ddbf37b5a106ff1b7ee25b1c69cb`
+
+**Verbatim final census lines** (foreground offline Python AST/read-only source inspection):
+
+```text
+COMMIT6E_DYNAMIC_CENSUS total=100 registered=9 remaining=91 categorized=91
+COMMIT6E_DYNAMIC_CATEGORIES finite=41 record_forwarding=2 open=48
+COMMIT6E_FORWARDING_EXCLUDED script/upgrade/old_owner_isolation.py:908 script/upgrade/old_owner_isolation.py:1650
+COMMIT6E_DYNAMIC_THRESHOLD STOP open_sites_gt_10=true independent_lower_bound=12
+COMMIT6E_ACCEPTANCE INCOMPLETE final_suites_not_run=true focused_probes_not_run=true
+```
+
+**Remaining work, deliberately not certified:** common-file AST comparison and added-file hashes/line counts; automatic transitive wrapper definitions and duplicate counter-example/probe; exact shared-expectation repairs with before/after subcase/assertion tables and explicit operator-review exclusions; complete template registrations and per-label/per-fixture probes; prefix-disjointness rule and counter-example/deletion probe; raw-source selector replacements and sites=1 checks; audit605 REQUIRED/F05 per-site bindings; every requested final suite and focused strict probe. Existing failing results remain failures, not waived. No ERROR accepted. assert_stop unchanged and still catches only a.Gate.
+
+No RPC, env-file, keystore, chain access, production fallback, commit, staging, full probe-driver batch, or background process. All commands in this continuation finished in the foreground.
+
+### 6e DSR continuation — no stop threshold
+
+This continuation preserves the preceding uncommitted diff on HEAD
+`2acc71afb62b23e72a5c610522be0e21dc87e119`. The historical threshold stop above
+is superseded for this run. No commit or staging. Acceptance remains withheld
+until the final evidence below; a blocked label does not stop other labels.
+
+Ruling 1: compare only common Python files. All added files under `script/` are
+reported with path, SHA-256 of actual bytes and line count. Deleted paths are
+reported separately. Added infrastructure does not receive a fictitious before AST.
+
+Ruling 2: `gate_name_flow.py` resolves local function names lexically (including
+the two unrelated `add` functions), iterates parameter forwarding to a fixed
+point, and handles positional and keyword arguments. Forwarded call-site literals
+are definitions. Suffixes compose transitively; `reviewed_bytes`/`reviewed_file`
+produce the base, `_hash`, and `_path` definitions, and `stop_control`/its nested
+`add` produce `_gate` and `_restore` definitions. The two loop-supplied control
+names at M:3202 are finite expansions, not R exemptions. Forwarding cycles with
+unbounded suffix growth fail closed. Seeded new-wrapper, transitive-wrapper,
+lexical-shadow, suffix-collision and AST-rename controls exercise this mechanism.
+
+Expected gate references are tracked separately: a comparison against a variable
+assigned from `error.record['gate']` inside `except a.Gate` propagates through
+local wrappers. This admits the four Phase C expected-name changes without
+counting their references as additional definitions. Direct reconstruction
+`a.Gate(record['gate'], record['observed'], record['expected'])` with the same
+record base and no string operation excludes precisely O:908 and O:1650.
+Counterexamples retain computed record names and control-specification gates.
+
+O:1510 remains R. `audit.role_control` reads
+`pin['isolationControlCases'][target+':'+role]` (O:673); `check_target` also reads
+caller-provided control cases (O:720). They pass through `probe` (O:609) to
+`fork_probe`. Some calls construct dictionaries locally, but the complete domain
+is runtime-dependent; it is not a literal case list.
+
+The original 41 finite sites are registered in addition to the existing nine.
+Suffix expansion adds two evidence-file sites at M:132 and two finite control
+suffixes at M:3202: **54 registered expressions / 210 enumerated labels**.
+`gate_finite_domains.json` binds reviewed nontrivial domains to the enclosing
+function AST fingerprint; containing literal loops retain the existing static
+enumerator. Registry validation rejects stale scope fingerprints, missing labels,
+missing probe functions and incorrect expanded probe names. Finite expansions
+participate in uniqueness together with literals. This exposed nine shared
+`a3a_mined_<sid>` names and the literal/template collision
+`safe_gap_log_transactionIndex`. Their new names are respectively
+`a3a_mined_history_<sid>`, `a3a_mined_reconcile_<sid>`, and
+`safe_gap_log_transactionIndex_typed` (the comparison keeps its name).
+Only gate-name strings changed in production.
+
+Ruling 3 allows only the recorded before/after AST fingerprints of the six
+specified test functions and the `audit605` REQUIRED assignment. The checker
+prints `REVIEWED_STRUCTURE` for each; a further edit invalidates the fingerprint.
+These are explicit review boundaries, not a blanket test-file AST exemption.
+
+Counts below count executed negative subcases, not Python loop statements.
+An `assert_stop` contributes one exact-name assertion; an explicit subsequent
+`assertEqual(record['gate'], expected)` contributes another. The shared `stop`
+helper contains both. Successful fixture setup is not a negative subcase.
+
+| Test/helper | Subcases before → after | Exact-name assertions before → after | Exact expectations after |
+|---|---:|---:|---|
+| `approval_history_control` | 2 → 2 | 2 → 2 | range: `old_timelock_approval_history_creation`; log: `old_timelock_approval_history_log` |
+| `test_old_timelock_log_replay` | 4 → 4 | 8 → 8 | omit/mismatch: `old_timelock_replay_reads`; unused: `old_timelock_unused`; owners: `old_timelock_replay_owners` |
+| `test_slither_raw_rederived_gate` | 3 → 3 | 6 → 6 | hash: `evidence_slither_rederived_file`; drop/move: `evidence_slither_rederived_findings` |
+| `test_factory_enumeration_must_stand_alone` | 4 → 4 | 8 → 8 | each of two lists × audit/discovery: `old_owner_factory_enumeration_audit` / `old_owner_factory_enumeration_discover_targets` |
+| `test_list_and_endpoint_controls` | 4 → 4 | 8 → 8 | list: `safe_gap_list`; check: `safe_gap_endpoints_check_governance`; collection: `safe_gap_endpoints_governance_evidence`; swap: `safe_gap_swap_required` |
+| `test_log_identity_fields` | 5 → 5 | 10 → 10 | four fields: exact `safe_gap_log_<field>`; logIndex: `safe_gap_log_logIndex_sequence` |
+
+Before-name expectations were the shared old names: `old_timelock_approval_history`,
+`old_timelock_replay` (unused already separate), `evidence_slither_rederived`,
+`old_owner_factory_enumeration`, `safe_gap_endpoints`, and computed
+`safe_gap_log_<field>`. No subcase or exact-name assertion was removed; no prefix
+or any-of assertion was introduced. `gate_assertions.assert_stop` is unchanged
+and accepts only `a.Gate`.
+
+Raw-source selectors now name the exact discovery and replay-owner gates.
+`audit605` has separate REQUIRED bindings for creation/log and reads/owners;
+renamed F05 collect/build gates retain their existing `test_stake_not_unlocking`
+method bindings. The full audit605/probe-driver batch is not run.
+
+### 6e final results for this continuation
+
+**INCOMPLETE — 193/210 finite-label probes meet the strict criterion; 17 remain blocked. Acceptance is withheld.** All 210 labels have explicit test-file/class/method bindings, and all were attempted. No stop threshold was used. The 36 R sites are separately deferred as requested. No ERROR, failed baseline, surviving mutation, or unnamed assertion was accepted.
+
+The final suite state is eleven green suites and `gate_names` failing solely on the 36 unregistered R sites. The final template-control suite contains 171 tests, all green. Its focused deletion runs pass 74/74 + 67/67 + 30/30. Six additional boundary controls pass, including all five old-owner target labels and the `anni` drain label. The other sixteen strict passes come from existing focused controls.
+
+The initial finite discovery pass was **38/210**, not accepted as completion. Named per-label controls replaced broad `assertRaises` families and subtest loops that produced unnamed failures or secondary errors. Two target fixtures initially produced `KeyError`; these results were rejected. Their final fixtures assert the specific forbidden downstream zero-target read before consulting a sparse response table. Staking/SBT tests supply invalid caller-provided expected targets to exercise the local aggregate guard; the staking fixture models its explicit pre-guard `GTOKEN()` read. No earlier gate is disabled. The fixed PaymasterFactory address is varied only as a test configuration. The `anni` drain fixture rebuilds dependent offline inventory/transcript evidence and runs all revalidation gates.
+
+The receipt-index literal/template collision has its own fifth rename control: malformed receipt `transactionIndex` with matching log fields must raise exactly `safe_gap_log_transactionIndex_typed`. Its deletion must fail by a named assertion.
+
+Reviewed finite domains are also bound to byte fingerprints of their production module, the A3A source and the fraud schema, so changing a global constant or external enumerated domain cannot silently retain a stale registration.
+
+#### Blocked finite labels — precise final baseline failures
+
+These are failed probe candidates, not waivers. With ordinary decoded input values, earlier checks constrain the later predicate. The current run does not bypass those checks to manufacture a green baseline. For sender identities, the recorded candidate first fails nonce-history lookup; the subsequent `u.validate_pin` identity check also precedes the selected manifest identity check. For the deployer drain check, sampled-deployer membership plus exact pause-list/balance-key equality already require that key.
+
+| Source | Deleted gate sought | Earlier failure in final candidate |
+|---|---|---|
+| M:494 | `fraud_token_zero_owner_130` | `AssertionError: 'fraud_token_pinned_runtime' != 'fraud_token_zero_owner_130' ` |
+| M:494 | `fraud_token_zero_owner_210` | `AssertionError: 'fraud_token_pinned_runtime' != 'fraud_token_zero_owner_210' ` |
+| M:640 | `verifier_ciSha256` | `AssertionError: 'evidence_dvt-ci_hash' != 'verifier_ciSha256' ` |
+| M:640 | `verifier_buildSha256` | `AssertionError: 'verifier_build_identity' != 'verifier_buildSha256' ` |
+| M:644 | `canonical_anni` | `AssertionError: 'fixed_anni' != 'canonical_anni' ` |
+| M:644 | `canonical_dvt` | `AssertionError: 'fixed_dvt' != 'canonical_dvt' ` |
+| M:644 | `canonical_committee` | `AssertionError: 'fixed_committee' != 'canonical_committee' ` |
+| M:645 | `nonzero_anni` | `AssertionError: 'fixed_anni' != 'nonzero_anni' ` |
+| M:645 | `nonzero_dvt` | `AssertionError: 'fixed_dvt' != 'nonzero_dvt' ` |
+| M:645 | `nonzero_committee` | `AssertionError: 'fixed_committee' != 'nonzero_committee' ` |
+| M:2148 | `sender_fields_deployer` | `AssertionError: 'sender' != 'sender_fields_deployer' ` |
+| M:2148 | `sender_fields_approver` | `AssertionError: 'sender' != 'sender_fields_approver' ` |
+| M:2148 | `sender_fields_executor` | `AssertionError: 'sender' != 'sender_fields_executor' ` |
+| M:2155 | `sender_deployer` | `AssertionError: 'a3a_sender_history' != 'sender_deployer' ` |
+| M:2155 | `sender_approver` | `AssertionError: 'a3a_sender_history' != 'sender_approver' ` |
+| M:2155 | `sender_executor` | `AssertionError: 'a3a_sender_history' != 'sender_executor' ` |
+| M:2300 | `drain_operator_present_deployer` | `AssertionError: 'drain_inventory' != 'drain_operator_present_deployer' ` |
+
+No gate was removed or weakened to resolve these blockers. The 17 finite probes remain required work; they are **not** part of the deferred R group.
+
+#### Final commands and verbatim suite lines
+
+All commands below are offline foreground Python runs. Logs are in `/tmp/commit6e-rulings/`. The full probe-driver/audit605 batch was not run.
+
+`python3 -B script/upgrade/test_old_owner_isolation.py`
+
+```text
+Ran 143 tests in 48.181s
+OK (skipped=2)
+```
+
+`python3 -B script/upgrade/test_manifest_exec.py`
+
+```text
+Ran 535 tests in 484.409s
+OK (skipped=2)
+```
+
+`python3 -B script/upgrade/test_manifest_phase_c.py`
+
+```text
+Ran 141 tests in 233.715s
+OK
+```
+
+`python3 -B script/a3a/test_a3a_exec.py`
+
+```text
+Ran 102 tests in 3.254s
+OK
+```
+
+`python3 -B script/upgrade/test_sp_upgrade_exec.py`
+
+```text
+Ran 141 tests in 1.652s
+OK
+```
+
+`python3 -B script/upgrade/test_authority_checkpoints.py`
+
+```text
+Ran 10 tests in 20.508s
+OK
+```
+
+`python3 -B script/upgrade/test_swallow_exceptions.py`
+
+```text
+Ran 9 tests in 3.075s
+OK
+```
+
+`python3 -B script/upgrade/test_execution_head.py`
+
+```text
+Ran 6 tests in 1.069s
+OK
+```
+
+`python3 -B script/upgrade/test_execution_reads.py`
+
+```text
+Ran 10 tests in 0.107s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_names.py`
+
+```text
+Ran 11 tests in 4.081s
+FAILED (failures=1)
+```
+
+`python3 -B script/upgrade/test_gate_rename_controls.py`
+
+```text
+Ran 5 tests in 5.990s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_template_controls.py`
+
+```text
+Ran 171 tests in 206.906s
+OK
+```
+
+`python3 -B script/upgrade/gate_rename_ast_diff.py HEAD WORKTREE`
+
+```text
+ADDED script/upgrade/gate_finite_domains.json sha256=5ba687d367681ba85c3eaacc4fc5194bfc3dbe996d6e63b322b5f0ac9aeedbde lines=810
+ADDED script/upgrade/gate_name_flow.py sha256=2fb53fe0077858160909b9d906e9c25830295ef4a96b0bc046f7343a8e5d34c4 lines=101
+ADDED script/upgrade/gate_probe_trace.py sha256=5603c564b6184ac201052710d6a45d106321bc04a27bd29d12ac5f650755b53e lines=23
+ADDED script/upgrade/gate_rename_ast_diff.py sha256=875cf684749ef7aa8c31110f6fac53b6b1ca90cedf5a1451a551ae4ea1802edb lines=184
+ADDED script/upgrade/gate_rename_map.json sha256=756ac5bdc3c86c550b0dc79f4e1e4efc26fc8a178bcb57bc4701de33328ece89 lines=760
+ADDED script/upgrade/gate_rename_structural.json sha256=7d29202ace78827329bc92cbe3df98c24ec2511c23a3d8abc667c87eaac93bb3 lines=65
+ADDED script/upgrade/gate_templates.json sha256=c5048a1ebf24f6747f756ce75ef6df82643dbb61214b72865d6e13aef6e4573e lines=2432
+ADDED script/upgrade/probe_finite_gate_blockers.py sha256=ce5ba67226409ee9f7facc2ff027858bfa8165d31011073d01f77fc351c06bcb lines=187
+ADDED script/upgrade/probe_finite_gate_labels.py sha256=64fd711e96932830e2fe0ac993e94dba37e8f1f65cd8e7af8b143cc5227fc358 lines=116
+ADDED script/upgrade/probe_gate_bindings.py sha256=d01bd6a7206cfae8e041d515f9351aefa336f5ccd19c49c10eb460f25e8e4e1c lines=35
+ADDED script/upgrade/probe_gate_names.py sha256=2408db76141fa26db0eba9ab0224e0ae200ca622177cdd84191338abf7feb012 lines=74
+ADDED script/upgrade/probe_gate_rename_controls.py sha256=2b2f91cb1e89a11d8f3faf85043a9c7801daf239fb4a3092c381be67a5e18639 lines=50
+ADDED script/upgrade/probe_gate_templates.py sha256=91f9900598da04f985055887b537744077c93b14ded64f6e67b9f2903b8b55e6 lines=46
+ADDED script/upgrade/test_gate_names.py sha256=babeedcfd2d0825df16b7509441ac3bbfac9eeef47122c92ba919946a87e546e lines=215
+ADDED script/upgrade/test_gate_rename_controls.py sha256=011881a959082a7473709b6afd5e3937137dfe40db43331b4a8636915212fab6 lines=75
+ADDED script/upgrade/test_gate_template_controls.py sha256=2a10e3c11457a0f8a569d91adb66018df328a8304d19b11e68313533fced68f7 lines=646
+GATE_RENAME_AST_DIFF PASS n_changes=220
+```
+
+#### Verbatim focused probe and binding final lines
+
+Commands: `probe_gate_names.py`, `probe_gate_rename_controls.py`, `probe_gate_bindings.py`, `script/evidence/inventory_replay_probes.py`, `probe_finite_gate_labels.py`, `probe_finite_gate_blockers.py`, and `probe_gate_templates.finite_label_probes()` for the 74 initial, 67 supplemental and 30 final controls. Supplemental calls select only cases not already certified by the previous focused log.
+
+```text
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+GATE_RENAME_CONTROL safe_gap_log_transactionIndex_typed PASS baseline=green sites=1
+GATE_RENAME_CONTROL unexpected_proxy_other PASS baseline=green sites=1
+GATE_RENAME_CONTROL unexpected_proxy_beacon PASS baseline=green sites=1
+GATE_RENAME_CONTROL old_owner_calldata_bytes_outer_tx PASS baseline=green sites=1
+GATE_RENAME_CONTROL old_owner_calldata_bytes_payload PASS baseline=green sites=1
+GATE_RENAME_CONTROLS PASS 5/5 strict red
+GATE_BINDING old_timelock_approval_history_creation PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_BINDING old_timelock_approval_history_log PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_BINDING old_timelock_replay_reads PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_BINDING old_timelock_replay_owners PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_BINDING stake_not_unlocking_collect PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_BINDING stake_not_unlocking_build_plan PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_BINDING old_owner_factory_enumeration_discover_targets PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_BINDING_PROBES PASS 7/7 strict red
+inventory_drift: matches=1, baseline OK, mutated FAILED (failures=1)
+replay_owners: matches=1, baseline OK, mutated FAILED (failures=1)
+replay_unused: matches=1, baseline OK, mutated FAILED (failures=1)
+INVENTORY_REPLAY_PROBES PASS
+GATE_TEMPLATE_PROBES PASS 74/74 strict red
+GATE_TEMPLATE_PROBES PASS 67/67 strict red
+GATE_TEMPLATE_PROBES PASS 30/30 strict red
+FINITE_BOUNDARY_PROBES FAIL 6/23 strict red
+AUDIT605_BINDINGS PASS pairs=94 missing=[]
+RAW_SELECTOR inventory_drift sites=1
+RAW_SELECTOR replay_owners sites=1
+RAW_SELECTOR replay_unused sites=1
+FINITE_PROBE_BINDINGS PASS labels=210
+RAW_SELECTOR discovery_preswitch_gate sites=1
+```
+
+#### Every registered label — verbatim final proof line
+
+For forwarded definitions, `source_sites=1` means one statically selected call site and one recorded failing primitive statement; the recorded production call stack must connect them. The deletion removes that primitive only. Each PASS also requires green baseline, failures ≥ 1, errors = 0, and an assertion message naming the deleted gate. The three template logs contain the complete unittest summaries and assertion messages.
+
+```text
+FINITE_LABEL script/upgrade/manifest_exec.py:3080 SP C_funding_entrypoint_SP PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3080 VPM C_funding_entrypoint_VPM PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3080 TPM C_funding_entrypoint_TPM PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3084 bundler C_funding_bundler PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3084 owner C_funding_owner PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3091 user C_funding_user PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3091 feeToken C_funding_feeToken PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3091 taskSender C_funding_taskSender PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3091 taskRecipient C_funding_taskRecipient PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL phase_c_address_bundler PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_address_accountOwner PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_address_verifyingSigner PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_address_account PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_address_accountImplementation PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_runtime_accountFactory PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_runtime_accountImplementation PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_runtime_account PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_runtime_VerifyingPaymaster PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_runtime_TokenPaymaster PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_arm_fields_SP PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_arm_fields_VPM PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_arm_fields_TPM PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_pin_identity_owner PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_pin_identity_bundler PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_pin_identity_verifyingSigner PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_eoa_owner PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_eoa_bundler PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL phase_c_eoa_verifyingSigner PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL safe_gap_log_transactionHash PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL safe_gap_log_blockHash PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL safe_gap_log_blockNumber PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL safe_gap_log_transactionIndex PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_conformance PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_mutation PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_slither PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_reproducible-build PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_dvt-ci PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_dvt-conformance-4.12 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_conformance_hash PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_mutation_hash PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_slither_hash PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_reproducible-build_hash PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_dvt-ci_hash PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_dvt-conformance-4.12_hash PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_conformance_path PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_mutation_path PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_slither_path PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_reproducible-build_path PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_dvt-ci_path PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_dvt-conformance-4.12_path PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL evidence_mutation_remove_B2 PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_mutation_remove_AGGREGATOR_getter PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_mutation_remove_REGISTRY_getter PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_mutation_remove_bound_runtime_loop PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_mutation_remove_isEqualSet PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_mutation_subset_comparison PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_mutation_length_not_equal_to_less_than PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_suite_CC115CrossRepoConformance PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_suite_CC115GenuinePragueCrossRepo PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_suite_provenance PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_SuperPaymaster PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_SuperPaymasterAdmin PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_GlobalTierSource PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_AOAProtocolRegistry PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_xPNTsTokenV2Ext PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_xPNTsTokenV2 PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_xPNTsFactoryV2 PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_SuperPaymasterLens PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_Registry PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL evidence_full_creation_BLSAggregator PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL fraud_N2_guardians PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL fraud_N3_guardians PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL fraud_N4_guardians PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL fraud_N1_proof PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL fraud_N2_proof PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL fraud_N4_proof PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL fraud_uint_pid PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL fraud_uint_fraudProofId PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL fraud_uint_signerMask PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+FINITE_BOUNDARY fraud_token_zero_owner_130 BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY fraud_token_zero_owner_210 BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+GATE_TEMPLATE_CONTROL fraud_runtime_A7 PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL fraud_runtime_A12a PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL fraud_revert_N1 PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL fraud_revert_N2 PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL fraud_revert_N3 PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+FINITE_BOUNDARY verifier_ciSha256 BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY verifier_buildSha256 BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY canonical_anni BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY canonical_dvt BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY canonical_committee BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY nonzero_anni BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY nonzero_dvt BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY nonzero_committee BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+GATE_TEMPLATE_CONTROL pop_unique_validator PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL pop_unique_slot PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL baseline_immutables_F1TestToken PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL baseline_immutables_F1Oracle PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL baseline_source_VerifyingPaymaster PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL baseline_source_TokenPaymaster PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL baseline_constructor_count_VerifyingPaymaster PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL baseline_constructor_count_TokenPaymaster PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL phase_c_pending_nonce_owner PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL phase_c_pending_nonce_bundler PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL phase_c_pending_nonce_verifyingSigner PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL safe_gap_from PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL safe_gap_to PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL safe_gap_nonce PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL safe_gap_gas PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL safe_gap_maxFeePerGas PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL safe_gap_maxPriorityFeePerGas PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL safe_gap_value PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL safe_gap_chainId PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL a3a_last_deployer PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL a3a_last_approver PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL a3a_last_executor PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL prepin_nonce_deployer PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL prepin_nonce_approver PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL prepin_nonce_executor PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL prepin_nonce_floor_deployer PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL prepin_nonce_floor_approver PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL prepin_nonce_floor_executor PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:1848 deployer a3a_nonce_complete_deployer PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL a3a_nonce_complete_approver PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL a3a_nonce_complete_executor PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL a3a_mined_history_S1 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_history_S2 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_history_S3 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_history_S4 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_history_S5a PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_history_S5b PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_history_S6a PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_history_S6b PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_history_S7 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_status_S1 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_status_S2 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_status_S3 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_status_S4 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_status_S5a PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_status_S5b PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_status_S6a PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_status_S6b PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_status_S7 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_reconcile_S1 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_reconcile_S2 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_reconcile_S3 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_reconcile_S4 PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_reconcile_S5a PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_reconcile_S5b PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_reconcile_S6a PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_reconcile_S6b PASS baseline=green source_sites=1
+GATE_TEMPLATE_CONTROL a3a_mined_reconcile_S7 PASS baseline=green source_sites=1
+FINITE_BOUNDARY sender_fields_deployer BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+GATE_TEMPLATE_CONTROL sender_fields_anni PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+FINITE_BOUNDARY sender_fields_approver BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY sender_fields_executor BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY sender_deployer BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY sender_approver BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY sender_executor BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+GATE_TEMPLATE_CONTROL nonempty_runtime_SuperPaymaster PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL nonempty_runtime_GlobalTierSource PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL nonempty_runtime_AOAProtocolRegistry PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL nonempty_runtime_xPNTsTokenV2Ext PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL nonempty_runtime_xPNTsTokenV2 PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL nonempty_runtime_xPNTsFactoryV2 PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL nonempty_runtime_SuperPaymasterLens PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL nonempty_runtime_Registry PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL nonempty_runtime_BLSAggregator PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL nonempty_runtime_OverIssueFraudProofVerifier PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+FINITE_BOUNDARY drain_operator_present_deployer BLOCKED definitions=1 sites=0 baseline=RED failures=0 errors=0 named=False
+FINITE_BOUNDARY drain_operator_present_anni PASS definitions=1 sites=1 baseline=green failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_baseline_commit_F1TestToken PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_baseline_commit_F1Oracle PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_baseline_commit_VerifyingPaymaster PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_baseline_commit_TokenPaymaster PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL handover_trace_from PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL handover_trace_to PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL handover_trace_input PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL handover_sp_setProtocolFee_status PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL handover_aggregator_setSlashThreshold_status PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL handover_aggregator_setGuardianSlashBps_status PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL handover_old_aggregator_setSlashThreshold_status PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL handover_old_aggregator_setGuardianSlashBps_status PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:2965 C_sampled_unpaused C_sampled_unpaused PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:2965 C_unsampled_paused C_unsampled_paused PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3039 C19 C19_recipient_balance PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3039 C20 C20_recipient_balance PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3040 C19 C19_recipient_eoa PASS sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_LABEL script/upgrade/manifest_exec.py:3040 C20 C20_recipient_eoa PASS sites=1 baseline=green failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_control_layout_cachedPrice PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_control_layout__auto PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_control_layout__budget PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_allowance_exhausted_gate PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_total_exhausted_gate PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_allowance_exhausted_restore PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL C_total_exhausted_restore PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+FINITE_BOUNDARY old_owner_target_GTokenStaking PASS definitions=1 sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_BOUNDARY old_owner_target_GToken PASS definitions=1 sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_BOUNDARY old_owner_target_xPNTsFactory PASS definitions=1 sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_BOUNDARY old_owner_target_MySBT PASS definitions=1 sites=1 baseline=green failures=1 errors=0 named=True
+FINITE_BOUNDARY old_owner_target_PaymasterFactory PASS definitions=1 sites=1 baseline=green failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL old_owner_control_GTokenStaking PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL old_owner_control_GToken PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL old_owner_control_xPNTsFactory PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL old_owner_control_MySBT PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL old_owner_control_PaymasterFactory PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL old_owner_safe_guard PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL old_owner_safe_fallback PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL old_owner_revalidated_primary PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+GATE_TEMPLATE_CONTROL old_owner_revalidated_secondary PASS baseline=green source_sites=1 failures=1 errors=0 named=True
+```
+
+#### Exactly the deferred R sites
+
+M = `script/upgrade/manifest_exec.py`; O = `script/upgrade/old_owner_isolation.py`. The gate-names suite prints these same 36 unregistered sites and no others.
+
+| Site | Function | Expression |
+|---|---|---|
+| M:343 | `compare_build_evidence` | `'reproducible_bytes_' + name` |
+| M:345 | `compare_build_evidence` | `'rebuild_record_' + name` |
+| M:347 | `compare_build_evidence` | `'reproducible_executable_' + name` |
+| M:349 | `compare_build_evidence` | `'reproducible_full_' + name` |
+| M:379 | `_fraud_schema` | `'fraud_schema_' + path` |
+| M:381 | `_fraud_schema` | `'fraud_schema_enum_' + path` |
+| M:384 | `_fraud_schema` | `'fraud_schema_type_' + path` |
+| M:388 | `_fraud_schema` | `'fraud_schema_required_' + path` |
+| M:389 | `_fraud_schema` | `'fraud_schema_properties_' + path` |
+| M:394 | `_fraud_schema` | `'fraud_schema_fields_' + path` |
+| M:398 | `_fraud_schema` | `'fraud_schema_length_' + path` |
+| M:403 | `_fraud_schema` | `'fraud_schema_pattern_' + path` |
+| M:405 | `_fraud_schema` | `'fraud_schema_range_' + path` |
+| M:1993 | `runtime_bytes` | `'immutable_supplied_' + entry['name']` |
+| M:2691 | `b2_gate` | `'B2_pending_slash_' + who` |
+| M:2841 | `check_predicate` | `'readback_' + p.get('signature', kind)` |
+| M:2886 | `budget` | `'budget_' + label` |
+| M:2897 | `validate_plan` | `'manifest_' + key` |
+| M:2910 | `validate_plan` | `'manifest_step_' + key` |
+| M:2913 | `validate_plan` | `'manifest_tx_' + key` |
+| M:2920 | `validate_plan` | `'B4_variant_' + key` |
+| O:491 | `extract` | `'old_owner_role_expression_' + label` |
+| O:493 | `extract` | `'old_owner_getter_abi_' + name + '_' + label` |
+| O:494 | `extract` | `'old_owner_getter_output_' + label` |
+| O:525 | `extract` | `'old_owner_duplicate_source_' + name` |
+| O:530 | `extract` | `'old_owner_extraction_roles_' + name` |
+| O:697 | `check_target` | `gate` |
+| O:699 | `check_target` | `'old_owner_role_admin_' + role['name']` |
+| O:704 | `check_target` | `'old_owner_event_role_' + name` |
+| O:712 | `check_target` | `gate` |
+| O:717 | `check_target` | `gate` |
+| O:785 | `audit` | `'old_owner_role_' + name + '_' + role` |
+| O:787 | `audit` | `'old_owner_role_admin_' + role` |
+| O:816 | `audit` | `'old_owner_operator_treasury_' + who` |
+| O:845 | `audit` | `gate` |
+| O:1510 | `fork_probe` | `case['gate']` |
+
+Final production SHA-256 fingerprints:
+
+- `script/upgrade/manifest_exec.py`: `3f3949fbbba242d9802bb2ac92baa526b741b5411918aea50eafdc0601e78d4e`
+- `script/upgrade/old_owner_isolation.py`: `2a632c8dc84c85bafa9af3cf2e8c761fde67ddbf37b5a106ff1b7ee25b1c69cb`
+
+`git diff --check` passes. `gate_assertions.py` has no diff; `assert_stop` still catches only `a.Gate`. HEAD is unchanged, index is unchanged, and no commit was made. No RPC, env-file, keystore or chain operations were used. Every launched test/probe process completed in the foreground; no process was left running.
+
+Verbatim final aggregation lines:
+
+```text
+COMMIT6E_GATE_INVENTORY definitions=1114 duplicate_names=0 finite_sites=54 finite_labels=210 deferred_R=36
+COMMIT6E_FINITE_PROBES FAIL passed=193 total=210 blocked=17 errors_accepted=0
+COMMIT6E_ACCEPTANCE INCOMPLETE finite_probe_blockers=17 deferred_R=36 committed=false background_processes=0
+```
+
+### 6e R-domain continuation — final DSR classification (2026-11-07)
+HEAD remains `2acc71af`. The earlier uncommitted 6e diff is preserved; nothing is committed or staged. This continuation used offline Python tests, local synthetic RPC doubles, local AST/ABI fixtures and local git/cast operations only. No RPC endpoint, env file, keystore, live chain, full probe-driver batch, or background job was used. `gate_assertions.py` is unchanged: `assert_stop` catches only `a.Gate`.
+
+**Classification is complete: 23 of the original 36 candidates moved to (i), leaving 13 R sites.** The final registry contains 77 finite sites / 765 labels. `gate_r_review.json` preserves the original 36-site review input, not the final R list. `gate_open_templates.json` is the authoritative final R registry, including each expression, source site, fixed prefix, open-domain justification, fixture probe and two-label positive test.
+
+| Moved source sites | Constant domain |
+|---|---|
+| M:343,345,347,349 | `NAMES` plus the verifier, excluding verifier from the full-byte comparison branch |
+| M:379,381,384,388,389,394,398,403,405 | Fixed fixture JSON schema, both `fixture` and format-only `export` paths; bounded array indices; enum domain is empty |
+| M:1993 | `IMMUTABLES`, including imported EIP-712/SP constants, plus verifier `AGGREGATOR` and baseline `MINTER` |
+| M:2841 | Literal predicate-constructor signatures and finite getter tuples; `upgrade` / `activation` dispatch to `batch_readback` and are excluded; batch and handover signatures are included |
+| M:2886 | Validated sender keys `deployer`, `anni`, `approver`, `executor`, plus Phase C `owner` |
+| M:2897,2910,2913,2920 | `build_plan.finish/add`, timing fields, transaction dictionary and B4 variant dictionary keys |
+| O:525,530 | `NAMES ∪ manifest.NAMES`, plus the explicit `GTokenAuthorization` artifact alias |
+| O:704 | Audit target names from `NAMES ∪ manifest.NAMES`; post-upgrade extra targets are checked against `manifest.NAMES` |
+
+M = `script/upgrade/manifest_exec.py`; O = `script/upgrade/old_owner_isolation.py`. The finite-domain records bind reviewed scopes and source dependencies by SHA-256. New domain tests also compare registry labels against `gate_r_domains` derivation. The R prefix check compares every R prefix against literal names, expanded finite names, other R prefixes and finite template fixed prefixes, in both prefix directions. Its counterexamples cover a literal collision and both directions of R/R and R/finite collisions.
+
+#### Prefix renames in this continuation
+
+Every production prefix change and the corresponding expected-name references are recorded in `gate_rename_map.json`. Fixed prefixes retain their old prefix wherever possible. Exact generated expected names and the fork caller-name expression need explicit migration; their map entries document why disjointness takes priority. No predicate, comparison value or production fallback was changed.
+
+| Before | After |
+|---|---|
+| `case['gate']` | `'old_owner_fork_case_' + case['gate']` |
+| `manifest_` | `manifest_plan_key_` |
+| `manifest_step_` | `manifest_step_key_` |
+| `manifest_tx_` | `manifest_tx_field_` |
+| `old_owner_allowance_` | `old_owner_allowance_pair_` |
+| `old_owner_authority_` | `old_owner_authority_member_` |
+| `old_owner_event_role_` | `old_owner_event_role_member_` |
+| `old_owner_mapping_` | `old_owner_mapping_member_` |
+| `old_owner_role_` | `old_owner_role_member_configured_` |
+| `old_owner_role_` | `old_owner_role_member_declared_` |
+| `old_owner_role_admin_` | `old_owner_role_admin_configured_` |
+| `old_owner_role_admin_` | `old_owner_role_admin_declared_` |
+| `readback_` | `readback_value_` |
+
+#### Final R sites
+
+| Site / function | Template expression | Prefix | Fixture gate / final strict result |
+|---|---|---|---|
+| M:2691 `b2_gate` | `'B2_pending_slash_' + who` | `B2_pending_slash_` | `B2_pending_slash_0x1111111111111111111111111111111111111111` — PASS |
+| O:491 `extract` | `'old_owner_role_expression_' + label` | `old_owner_role_expression_` | `old_owner_role_expression_PROPOSER_ROLE` — PASS |
+| O:493 `extract` | `'old_owner_getter_abi_' + name + '_' + label` | `old_owner_getter_abi_` | `old_owner_getter_abi_GToken_owner` — BLOCKED |
+| O:494 `extract` | `'old_owner_getter_output_' + label` | `old_owner_getter_output_` | `old_owner_getter_output_owner` — PASS |
+| O:697 `check_target` | `'old_owner_role_member_declared_' + name + '_' + role['name']` | `old_owner_role_member_declared_` | `old_owner_role_member_declared_TimelockController_PROPOSER_ROLE` — PASS |
+| O:699 `check_target` | `'old_owner_role_admin_declared_' + role['name']` | `old_owner_role_admin_declared_` | `old_owner_role_admin_declared_ROLE_COMMUNITY` — PASS |
+| O:712 `check_target` | `'old_owner_authority_member_' + name + '_' + row['name']` | `old_owner_authority_member_` | `old_owner_authority_member_SuperPaymaster_pendingOwner` — PASS |
+| O:717 `check_target` | `'old_owner_mapping_member_' + name + '_' + row['name']` | `old_owner_mapping_member_` | `old_owner_mapping_member_Registry_authorized` — PASS |
+| O:785 `audit` | `'old_owner_role_member_configured_' + name + '_' + role` | `old_owner_role_member_configured_` | `old_owner_role_member_configured_Registry_0x7777777777777777777777777777777777777777777777777777777777777777` — PASS |
+| O:787 `audit` | `'old_owner_role_admin_configured_' + role` | `old_owner_role_admin_configured_` | `old_owner_role_admin_configured_0x7777777777777777777777777777777777777777777777777777777777777777` — PASS |
+| O:816 `audit` | `'old_owner_operator_treasury_' + who` | `old_owner_operator_treasury_` | `old_owner_operator_treasury_0xb5600060e6de5e11d3636731964218e53caadf0e` — PASS |
+| O:845 `audit` | `'old_owner_allowance_pair_' + token + '_' + who` | `old_owner_allowance_pair_` | `old_owner_allowance_pair_0x2222222222222222222222222222222222222222_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf` — PASS |
+| O:1510 `fork_probe` | `'old_owner_fork_case_' + case['gate']` | `old_owner_fork_case_` | `old_owner_fork_case_old_owner_event_role_member_TimelockController` — PASS |
+
+#### Remaining strict-probe blockers (all other items continued)
+
+- **19 `fraud_schema_properties_*` labels, M:389:** the checked-in schema contains no positive `minProperties`. The expression is `len(value) >= 0` for every corresponding dict. A valid fixture therefore cannot trip this gate: each baseline fails with the full generated `...: Gate not raised` message. These are finite, unprovable deletion controls, not R and not passing probes.
+- **`old_owner_extraction_roles_Registry`, O:530:** removing the Registry role constants reaches `old_owner_role_init_ids` at O:344 through `registry_role_writes` first. The named baseline is red; that earlier security gate was not bypassed.
+- **`old_owner_getter_abi_GToken_owner`, O:493 (R):** baseline is green and the site is unique, but deleting it causes `KeyError: 'owner()'` at O:494 (`signatures[sig]['outputs']`). The mutant has zero FAILs and one ERROR. It is rejected, never counted as strict red; no catch-all assertion or production fallback was introduced.
+- **Empty finite domain at M:381:** the checked-in schema has no `enum` nodes. It is registered as (i) with a verified empty label set and an explicit unreachable reason. There is no real fixture label for a deletion probe; no invented enum label is counted.
+- The **17 finite-label blockers from the previous 6e continuation remain unresolved**. This run does not relabel those prior failures as success.
+
+Initial fixture problems (None causing downstream schema TypeErrors, noncanonical fake balance quantities, stale exact expected names, and shared inventory mutation) were repaired and the affected controls rerun. Final results below select the latest completed result for each currently registered label/site. The first interrupted probe attempts were stopped for fixture correction, not used as evidence, and left no process running. All 568 current new-label/R controls were attempted; 547 passed and 21 are blocked. The focused runner never accepts ERROR.
+
+#### Final suites and verifier — verbatim lines
+
+Logs are in `/tmp/commit6e-r-final/`. Initial manifest, Phase C, authority-checkpoint and execution-read runs found stale expected-name references. The corrected full-suite reruns below supersede those failures; the original logs remain as `*-initial.log`.
+
+`old_owner_isolation`
+
+```text
+Ran 143 tests in 41.106s
+OK (skipped=2)
+```
+
+`manifest_exec`
+
+```text
+Ran 535 tests in 431.786s
+OK (skipped=2)
+```
+
+`manifest_phase_c`
+
+```text
+Ran 141 tests in 207.499s
+OK
+```
+
+`a3a`
+
+```text
+Ran 102 tests in 3.132s
+OK
+```
+
+`sp_upgrade`
+
+```text
+Ran 141 tests in 1.461s
+OK
+```
+
+`authority_checkpoints`
+
+```text
+Ran 10 tests in 16.045s
+OK
+```
+
+`swallow`
+
+```text
+Ran 9 tests in 2.656s
+OK
+```
+
+`execution_head`
+
+```text
+Ran 6 tests in 0.852s
+OK
+```
+
+`execution_reads`
+
+```text
+Ran 10 tests in 0.083s
+OK
+```
+
+`gate_names`
+
+```text
+Ran 27 tests in 12.941s
+OK
+```
+
+`gate_rename_controls`
+
+```text
+Ran 5 tests in 6.416s
+OK
+```
+
+`gate_template_controls`
+
+```text
+Ran 171 tests in 212.731s
+OK
+```
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=267
+```
+
+```text
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+```
+
+```text
+GATE_RENAME_CONTROLS PASS 5/5 strict red
+```
+
+```text
+GATE_PREFIX_PROBE PASS source_sites=1 baseline=green failures=4 errors=0 named=True
+```
+
+#### Every current new finite-label / R site — verbatim final probe lines
+
+```text
+R_SITE_PROBE B2_pending_slash_0x1111111111111111111111111111111111111111 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE B4_variant_chainId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE B4_variant_data PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE B4_variant_from PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE B4_variant_maxFeePerGas PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE B4_variant_maxPriorityFeePerGas PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE B4_variant_nonce PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE B4_variant_to PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE B4_variant_value PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE budget_anni PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE budget_approver PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE budget_deployer PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE budget_executor PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE budget_owner PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.chainId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.forkState.commitment.check PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.forkState.commitment.mapping PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.forkState.token.overIssuedStorageSlot PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.0.change PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.0.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.0.id PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.1.change PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.1.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.1.id PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.2.change PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.2.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.2.id PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.3.call PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.3.change PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.3.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.mustReject.3.id PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.purpose PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.valid.call PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_export.valid.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_export PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_export.forkState PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_export.forkState.commitment PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_export.forkState.token PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_export.mustReject.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_export.mustReject.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_export.mustReject.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_export.mustReject.3 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_export.valid PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture.export PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture.export.forkState PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture.export.forkState.commitment PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture.export.forkState.token PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture.export.mustReject.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture.export.mustReject.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture.export.mustReject.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture.export.mustReject.3 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fields_fixture.export.valid PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.chainId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.forkState.commitment.check PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.forkState.commitment.mapping PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.forkState.token.overIssuedStorageSlot PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.0.change PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.0.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.0.id PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.1.change PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.1.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.1.id PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.2.change PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.2.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.2.id PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.3.call PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.3.change PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.3.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.mustReject.3.id PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.purpose PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.valid.call PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.valid.expect PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.export.version PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_fixture.verifierCommit PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_export.mustReject PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_export.mustReject.0.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_export.mustReject.1.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_export.mustReject.2.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_export.mustReject.3.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_export.valid.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_fixture.export.mustReject PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_fixture.export.mustReject.0.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_fixture.export.mustReject.1.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_fixture.export.mustReject.2.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_fixture.export.mustReject.3.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_length_fixture.export.valid.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.aggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.domainSeparator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.forkState.commitment.key PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.forkState.commitment.value PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.forkState.token.address PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.forkState.token.runtimeBytecode PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.0.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.0.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.0.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.1.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.1.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.1.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.1.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.2.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.2.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.2.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.2.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.3.domainDigest PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.3.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.3.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.3.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.mustReject.3.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.owner PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.domainDigest PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.epoch PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.fraudProofId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.operator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.proposalId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.valid.signerMask PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.verifier PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_export.version PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.aggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.domainSeparator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.forkState.commitment.key PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.forkState.commitment.value PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.forkState.token.address PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.forkState.token.runtimeBytecode PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.0.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.0.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.0.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.1.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.1.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.1.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.1.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.2.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.2.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.2.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.2.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.3.domainDigest PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.3.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.3.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.3.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.mustReject.3.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.owner PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.domainDigest PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.epoch PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.fraudProofId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.operator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.proposalId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.valid.signerMask PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.export.verifier PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_pattern_fixture.toolCommit PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_properties_export BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_export.forkState BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_export.forkState.commitment BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_export.forkState.token BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_export.mustReject.0 BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_export.mustReject.1 BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_export.mustReject.2 BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_export.mustReject.3 BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_export.valid BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture.export BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture.export.forkState BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture.export.forkState.commitment BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture.export.forkState.token BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture.export.mustReject.0 BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture.export.mustReject.1 BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture.export.mustReject.2 BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture.export.mustReject.3 BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_properties_fixture.export.valid BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE fraud_schema_range_export.block PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_range_export.valid.slashLevel PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_range_fixture.export.block PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_range_fixture.export.valid.slashLevel PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_export PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_export.forkState PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_export.forkState.commitment PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_export.forkState.token PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_export.mustReject.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_export.mustReject.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_export.mustReject.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_export.mustReject.3 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_export.valid PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture.export PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture.export.forkState PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture.export.forkState.commitment PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture.export.forkState.token PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture.export.mustReject.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture.export.mustReject.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture.export.mustReject.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture.export.mustReject.3 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_required_fixture.export.valid PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.aggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.block PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.domainSeparator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.forkState PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.forkState.commitment PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.forkState.commitment.key PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.forkState.commitment.value PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.forkState.token PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.forkState.token.address PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.forkState.token.runtimeBytecode PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.0.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.0.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.0.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.0.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.1.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.1.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.1.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.1.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.1.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.2.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.2.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.2.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.2.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.2.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.3 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.3.domainDigest PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.3.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.3.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.3.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.3.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.mustReject.3.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.owner PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.domainDigest PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.epoch PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.fraudProofId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.operator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.proposalId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.signerMask PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.valid.slashLevel PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.verifier PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_export.version PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.aggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.block PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.domainSeparator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.forkState PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.forkState.commitment PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.forkState.commitment.key PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.forkState.commitment.value PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.forkState.token PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.forkState.token.address PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.forkState.token.runtimeBytecode PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.0.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.0.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.0.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.0.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.1.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.1.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.1.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.1.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.1.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.2.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.2.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.2.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.2.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.2.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.3 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.3.domainDigest PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.3.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.3.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.3.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.3.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.mustReject.3.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.owner PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.domainDigest PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.epoch PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.fraudProof PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.fraudProofId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.guiltyGuardians PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.guiltyGuardians.0 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.guiltyGuardians.1 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.guiltyGuardians.2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.operator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.proposalId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.signerMask PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.valid.slashLevel PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.export.verifier PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE fraud_schema_type_fixture.toolCommit PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_AGGREGATOR PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_ETH_USD_PRICE_FEED PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_EXTENSION PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_MINTER PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_PROTOCOL_REGISTRY PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_REGISTRY PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied___self PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied__cachedChainId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied__cachedDomainSeparator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied__cachedThis PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied__hashedName PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied__hashedVersion PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied__name PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied__version PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_entryPoint PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_extensionCodehash PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_implementation PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE immutable_supplied_implementationCodehash PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_activationScheduleNotBefore PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_addresses PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_b4Disclosure PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_controls PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_creationMetadataLayouts PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_expectedDiscoveryAfter PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_expectedDomainSeparator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_extension PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_externalInputs PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_final PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_gasParams PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_gasPolicy PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_implementation PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_operations PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_phaseC PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_pin PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_prefixDigest PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_rebuild PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_route PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_schema PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_stage PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_stageSources PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_plan_key_timelockRuntimeIdentity PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_constructor PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_creates PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_executionTimestamp PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_gasBound PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_id PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_inner PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_operation PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_phase PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_readbacks PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_safeHash PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_safeNonce PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_safeTarget PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_sender PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_step_key_warpTarget PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_tx_field_chainId PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_tx_field_data PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_tx_field_from PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_tx_field_maxFeePerGas PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_tx_field_maxPriorityFeePerGas PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_tx_field_nonce PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_tx_field_to PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE manifest_tx_field_value PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_allowance_pair_0x2222222222222222222222222222222222222222_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_authority_member_SuperPaymaster_pendingOwner PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_AOAProtocolRegistry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_APNTsCapped PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_BLSAggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_GToken PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_GTokenAuthorization PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_GTokenStaking PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_GlobalTierSource PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_MySBT PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_PaymasterFactory PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_Registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_SuperPaymaster PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_SuperPaymasterAdmin PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_SuperPaymasterLens PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_TimelockController PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_xPNTsFactory PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_xPNTsFactoryV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_xPNTsToken PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_xPNTsTokenV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_duplicate_source_xPNTsTokenV2Ext PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_AOAProtocolRegistry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_APNTsCapped PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_BLSAggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_GToken PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_GTokenStaking PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_GlobalTierSource PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_MySBT PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_PaymasterFactory PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_Registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_SuperPaymaster PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_SuperPaymasterAdmin PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_SuperPaymasterLens PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_TimelockController PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_xPNTsFactory PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_xPNTsFactoryV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_xPNTsToken PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_xPNTsTokenV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_event_role_member_xPNTsTokenV2Ext PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_AOAProtocolRegistry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_APNTsCapped PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_BLSAggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_GToken PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_GTokenAuthorization PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_GTokenStaking PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_GlobalTierSource PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_MySBT PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_PaymasterFactory PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_Registry BLOCKED source_sites=1 baseline=RED failures=0 errors=0 named=False
+R_SITE_PROBE old_owner_extraction_roles_SuperPaymaster PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_SuperPaymasterAdmin PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_SuperPaymasterLens PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_TimelockController PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_xPNTsFactory PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_xPNTsFactoryV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_xPNTsToken PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_xPNTsTokenV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_extraction_roles_xPNTsTokenV2Ext PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_fork_case_old_owner_event_role_member_TimelockController PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_getter_abi_GToken_owner BLOCKED source_sites=1 baseline=green failures=0 errors=1 named=False
+R_SITE_PROBE old_owner_getter_output_owner PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_mapping_member_Registry_authorized PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_operator_treasury_0xb5600060e6de5e11d3636731964218e53caadf0e PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_role_admin_configured_0x7777777777777777777777777777777777777777777777777777777777777777 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_role_admin_declared_ROLE_COMMUNITY PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_role_expression_PROPOSER_ROLE PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_role_member_configured_Registry_0x7777777777777777777777777777777777777777777777777777777777777777 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE old_owner_role_member_declared_TimelockController_PROPOSER_ROLE PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_AGGREGATOR() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_APNTS_TOKEN() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_BALANCE_MODE_VERSION() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_BLS_AGGREGATOR() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_DVT_VALIDATOR() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_EXTENSION() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_FACTORY() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_MINTER() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_REGISTRY() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_SUPERPAYMASTER() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_SUPERPAYMASTER_ADDRESS() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_allowance(address,address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_approved(uint8,bytes32) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_approvedHashes(address,bytes32) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_autoAllowance(address,address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_autoRenewUsed(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_balance PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_balanceOf(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_blsAggregator() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_cachedPrice() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_cap() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_code PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_codeHash PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_community() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_communityENS() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_communityName() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_communityOwner() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_creditPolicy() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_creditTierSource() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_debts(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_decimals() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_defaultThreshold() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_defaultTierSource() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_domainSeparator() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_entryPoint() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_exchangeRate() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_fraudProofVerifier() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_getBLSPublicKey(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_getDeployedCount() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_getDepositInfo(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_getOperationState(bytes32) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_getRoleConfig(bytes32) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_getRoleStake(bytes32,address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_getTokenAddress(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_guardianSlashBps() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_hasRole(bytes32,address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_isEligibleForSponsorship(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_isReputationSource(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_isXPNTs(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_latestRoundData() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_maxSingleTxLimit() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_minThreshold() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_minter() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_name() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_operators(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_owner() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_paused() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_pendingAPNTsToken() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_pendingAPNTsTokenEta() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_pendingBLSAgg() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_pendingBLSAggEta() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_pendingFraudProofVerifier() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_pendingFraudProofVerifierReadyAt() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_pendingOwner() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_pendingPolicyEta() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_protocolFeeBPS() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_protocolRevenue() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_renewalMode(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_sbtHolders(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_sealed_() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_slashPolicyAdmin() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_slashThresholds(uint8) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_storage PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_symbol() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_token() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_tokenPaymasterConfig() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_totalSupply() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_totalTrackedBalance() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_uniswap() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_userTotal(address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_validatorAtSlot(uint8) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_verifyCommunityMembership(address,address) PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_verifyingSigner() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_version() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_wrappedNative() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE readback_value_xpntsFactory() PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_AOAProtocolRegistry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_BLSAggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_GlobalTierSource PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_OverIssueFraudProofVerifier PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_Registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_SuperPaymaster PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_SuperPaymasterAdmin PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_SuperPaymasterLens PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_xPNTsFactoryV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_xPNTsTokenV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE rebuild_record_xPNTsTokenV2Ext PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_AOAProtocolRegistry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_BLSAggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_GlobalTierSource PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_OverIssueFraudProofVerifier PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_Registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_SuperPaymaster PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_SuperPaymasterAdmin PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_SuperPaymasterLens PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_xPNTsFactoryV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_xPNTsTokenV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_bytes_xPNTsTokenV2Ext PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_AOAProtocolRegistry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_BLSAggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_GlobalTierSource PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_OverIssueFraudProofVerifier PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_Registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_SuperPaymaster PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_SuperPaymasterAdmin PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_SuperPaymasterLens PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_xPNTsFactoryV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_xPNTsTokenV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_executable_xPNTsTokenV2Ext PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_AOAProtocolRegistry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_BLSAggregator PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_GlobalTierSource PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_Registry PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_SuperPaymaster PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_SuperPaymasterAdmin PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_SuperPaymasterLens PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_xPNTsFactoryV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_xPNTsTokenV2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+R_SITE_PROBE reproducible_full_xPNTsTokenV2Ext PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+```
+
+#### Final aggregation — verbatim
+
+```text
+COMMIT6E_R_RECLASSIFICATION moved_to_i=23 final_R=13 finite_sites=77 finite_labels=765
+COMMIT6E_R_PROBES FAIL passed=12 total=13 blocked=1 errors_accepted=0
+COMMIT6E_RECLASSIFIED_PROBES FAIL passed=535 total=555 blocked=20 empty_domains=1 errors_accepted=0
+COMMIT6E_R_FOCUSED_PROBES FAIL passed=547 total=568 blocked=21 missing=0 errors_accepted=0
+COMMIT6E_R_ACCEPTANCE INCOMPLETE strict_probe_blockers=21 unreachable_enum_sites=1 prior_finite_blockers=17 committed=false background_processes=0
+```
+
+
+### DSR ruling 1 — empty schema checks (continuation at 2acc71af, uncommitted)
+
+M:389 and M:381 now have synthetic-schema positive controls in
+`test_gate_empty_schema.py`. Each copies the real schema to a temporary file,
+adds one optional `export.synthetic` constraint, verifies an allowed input, then
+requires `assert_stop` with exactly `fraud_schema_properties_export.synthetic`
+or `fraud_schema_enum_export.synthetic` for a violating input. The loader is not
+parameterisable: the tests patch only `Path.read_text` for the exact schema path
+used by `manifest_exec.fraud_format_only`; all other reads delegate unchanged.
+Production `json.loads`, format adaptation, and `_fraud_schema` execute normally.
+The checked-in schema, production gates, and `assert_stop` are unchanged.
+
+`probe_gate_empty_schema.py` copies `script/` into temporary trees and deletes
+exactly one matching gate statement per site there. Separate real-schema
+tripwires require zero positive minProperties and zero enum nodes; their mutation
+controls add one constraint to the copied schema and require a named assertion
+failure. Temporary trees are cleaned on completion. No full probe-driver batch
+was run. An initial synthetic sample-builder KeyError was fixed before the final
+probe run; that ERROR was not accepted as evidence.
+
+`gate_templates.json` registers both site proofs and their tripwires. The finite
+and R acceptance drivers invoke the focused empty-schema acceptance, and omit
+the obsolete impossible per-label controls. Registry validation also checks the
+real schema counts and registered test methods. This resolves 19 actual
+minProperties labels and the empty enum site (20 entries); it does not invent an
+enum label or claim 20 real minProperties labels. Prior unrelated blockers remain
+unchanged: O:530 Registry extraction encounters `old_owner_role_init_ids` first;
+O:493 getter deletion yields a KeyError, which remains rejected; the earlier 17
+finite-label blockers have not been rerun or accepted in this ruling.
+
+Final focused probe lines, verbatim (`/tmp/commit6e-rulings/empty-schema.log`):
+
+```text
+EMPTY_SCHEMA_PROBE fraud_schema_properties_export.synthetic PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+EMPTY_SCHEMA_TRIPWIRE schema_tripwire_min_properties PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+EMPTY_SCHEMA_PROBE fraud_schema_enum_export.synthetic PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+EMPTY_SCHEMA_TRIPWIRE schema_tripwire_enum PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+EMPTY_SCHEMA_ACCEPTANCE PASS sites=2 controls=4/4 resolved_labels=19 blocked_labels=0 empty_enum_sites_resolved=1 errors_accepted=0
+```
+
+Final verifier lines, verbatim (foreground commands):
+
+```text
+python3 script/upgrade/gate_rename_ast_diff.py 2acc71af WORKTREE
+GATE_RENAME_AST_DIFF PASS n_changes=267
+python3 script/upgrade/probe_gate_names.py
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+```
+
+Final requested suite summaries, verbatim. Each ran in the foreground via `python3 -B <test-file> -v`; logs are `/tmp/commit6e-rulings/dsr1-<name>.log`. Buffered fixture diagnostics after some summaries are not additional acceptance results.
+
+`old_owner_isolation`:
+
+```text
+Ran 143 tests in 41.300s
+OK (skipped=2)
+```
+
+`manifest_exec`:
+
+```text
+Ran 535 tests in 409.567s
+OK (skipped=2)
+```
+
+`manifest_phase_c`:
+
+```text
+Ran 141 tests in 193.479s
+OK
+```
+
+`a3a`:
+
+```text
+Ran 102 tests in 2.916s
+OK
+```
+
+`sp_upgrade_exec`:
+
+```text
+Ran 141 tests in 1.380s
+OK
+```
+
+`authority_checkpoints`:
+
+```text
+Ran 10 tests in 16.161s
+OK
+```
+
+`swallow_exceptions`:
+
+```text
+Ran 9 tests in 2.579s
+OK
+```
+
+`execution_head`:
+
+```text
+Ran 6 tests in 0.824s
+OK
+```
+
+`execution_reads`:
+
+```text
+Ran 10 tests in 0.083s
+OK
+```
+
+`gate_names`:
+
+```text
+Ran 27 tests in 12.339s
+OK
+```
+
+`gate_rename_controls`:
+
+```text
+Ran 5 tests in 6.001s
+OK
+```
+
+`gate_template_controls`:
+
+```text
+Ran 171 tests in 195.468s
+OK
+```
+
+`gate_empty_schema`:
+
+```text
+Ran 4 tests in 0.004s
+OK
+```
+
+Additional new-file suites from the preserved 6e diff were also run in the foreground. `gate_extra_finite` remains blocked at `test_extra_530_Registry`: the exact-gate assertion expects `old_owner_extraction_roles_Registry`, but production first raises `old_owner_role_init_ids` from `registry_role_writes` at O:344 (called at O:457). This is one assertion failure, zero errors; it is not a passing deletion probe. All other suites continued. The R-controls suite is green after the obsolete empty-domain per-label cases were replaced by the registered site proofs.
+
+`gate_extra_finite`:
+
+```text
+Ran 56 tests in 4.202s
+FAILED (failures=1)
+```
+
+`gate_r_controls`:
+
+```text
+Ran 608 tests in 162.999s
+OK
+```
+
+Final scoped acceptance (all foreground processes completed; no background job was started):
+
+```text
+COMMIT6E_DSR1_ACCEPTANCE PASS strict_controls=4/4 schema_sites=2 resolved_finite_labels=19 resolved_empty_domains=1 requested_suites=13/13 additional_suites=1/2 errors_accepted=0
+COMMIT6E_ACCEPTANCE INCOMPLETE unrelated_blockers_preserved=true committed=false background_processes=0
+```
+
+### 6e DSR ruling 3 — crash-red #20 / getter accessor pair (2026-11-07)
+
+**Crash-red #20:** O:493, `old_owner_getter_abi_<name>_<label>`.
+The preserved pre-addition probe for `old_owner_getter_abi_GToken_owner`
+had baseline green and one source site; deleting O:493 reached O:494
+`signatures[sig]['outputs']` and raised `KeyError: 'owner()'` (failures=0,
+errors=1). That historical result remains rejected, not strict red.
+
+Added production gate **A = `old_owner_getter_signature_present`**, the only
+non-rename production addition in this continuation. It checks `sig in
+signatures` immediately before the lookup, without changing the lookup,
+exception handling, or any existing gate. It is a fixed literal, automatically
+registered by the literal gate-name inventory; no dynamic template or rename-map
+entry is appropriate. `gate_production_additions.json` separately declares the
+reviewed addition at `script/upgrade/old_owner_isolation.py:494:20` in `extract`,
+with statement AST SHA256
+`e07c54d15b43bf2c80ac93eafa655700ac4db26bd8cf1bf5eb166f42ba6b9068`.
+The semicolon keeps the retained O-site line coordinates stable. The R-probe
+selector distinguishes literal statements on the shared line before selecting
+an expression, rather than deleting by line number alone.
+
+`gate_rename_ast_diff.py` removes only the exactly declared new statement from
+its comparison tree after matching file, function, line, column and AST hash;
+it rejects missing, moved, altered or duplicate additions, and continues the
+ordinary gate-only comparison for all remaining AST nodes. New tests cover
+these rejection cases and literal registration. There is no blanket production
+exemption. The gate uniqueness/prefix-disjointness suite also covers A.
+
+`test_getter_accessor.test_getter_pair` first requires the missing-ABI fixture
+to fire the exact name `old_owner_getter_abi_GToken_owner`. A valid extraction
+then must execute that gate immediately followed by A. The positive path records
+and delegates every `a.need` call; no gate is suppressed. The ordered-pair
+assertion makes deletion of A observable even though O:493 still protects the
+missing-ABI path. `assert_stop` remains unchanged and accepts only `a.Gate`.
+
+`probe_getter_accessor.py` runs only the two requested deletions. Each mutant is
+written to its own temporary source copy, loaded for its single test, and
+restored/removed in `finally`/temporary-directory cleanup. The real production
+sources retain both gates. Delete O:493 only: the exact-name assertion fails
+with A as the actual gate. Delete A only: the ordered-pair assertion fails and
+names O:493 and A. Both results require one source site, baseline green,
+failures>=1, errors==0 and a FAIL message naming the deleted gate and its pair.
+The full probe-driver batch was not run.
+
+Verbatim final check lines (expected mutant FAILs are the strict-red evidence,
+not passing test suites):
+
+```text
+GETTER_ACCESSOR_PROBE old_owner_getter_abi_GToken_owner PASS source_sites=1 baseline=green failures=1 errors=0 named=True pair_named=True
+GETTER_ACCESSOR_PROBE old_owner_getter_signature_present PASS source_sites=1 baseline=green failures=1 errors=0 named=True pair_named=True
+GETTER_ACCESSOR_PROBES PASS passed=2/2 errors_accepted=0
+ALLOWED script/upgrade/old_owner_isolation.py:494:20 REVIEWED_PRODUCTION_ADDITION old_owner_getter_signature_present ast_sha256=e07c54d15b43bf2c80ac93eafa655700ac4db26bd8cf1bf5eb166f42ba6b9068
+GATE_RENAME_AST_DIFF PASS n_changes=268
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+```
+
+The first final `gate_names` suite correctly rejected stale reviewed-domain
+source hashes (two FAILs, zero ERRORs). All seven stale bindings in
+`gate_finite_domains.json` referenced `old_owner_isolation.py`. Removing exactly
+the newly declared accessor statement in memory reproduces the old source hash
+`3b1475fcc056fa060963e8f492e6a921535f9d903580e4bd50b173069def62fd`.
+After that check, those seven bindings were updated to
+`a07a25f9330bcd597099efa36c24553a3d955f0ff7dfb64e6bc288122c289404`.
+The domain labels are unchanged; the complete gate-name suite was rerun and
+passed. No stale binding was ignored or exempted.
+
+### 6e DSR ruling 3 — final foreground suite results
+
+Verbatim unittest summary lines, including the initial stale-binding failure
+and its corrected rerun:
+
+`old_owner_isolation`:
+
+```text
+Ran 143 tests in 36.800s
+OK (skipped=2)
+```
+
+`manifest_exec`:
+
+```text
+Ran 535 tests in 399.859s
+OK (skipped=2)
+```
+
+`manifest_phase_c`:
+
+```text
+Ran 141 tests in 188.573s
+OK
+```
+
+`a3a`:
+
+```text
+Ran 102 tests in 2.951s
+OK
+```
+
+`sp_upgrade`:
+
+```text
+Ran 141 tests in 1.391s
+OK
+```
+
+`authority_checkpoints`:
+
+```text
+Ran 10 tests in 15.978s
+OK
+```
+
+`swallow`:
+
+```text
+Ran 9 tests in 2.590s
+OK
+```
+
+`execution_head`:
+
+```text
+Ran 6 tests in 0.817s
+OK
+```
+
+`execution_reads`:
+
+```text
+Ran 10 tests in 0.084s
+OK
+```
+
+`gate_names`:
+
+```text
+Ran 27 tests in 7.678s
+FAILED (failures=2)
+```
+
+`gate_names-rerun`:
+
+```text
+Ran 27 tests in 12.622s
+OK
+```
+
+`gate_rename_controls`:
+
+```text
+Ran 5 tests in 5.880s
+OK
+```
+
+`gate_template_controls`:
+
+```text
+Ran 171 tests in 194.244s
+OK
+```
+
+`gate_empty_schema`:
+
+```text
+Ran 4 tests in 0.004s
+OK
+```
+
+`gate_extra_finite`:
+
+```text
+Ran 56 tests in 4.065s
+FAILED (failures=1)
+```
+
+`gate_r_controls`:
+
+```text
+Ran 608 tests in 161.255s
+OK
+```
+
+`getter_accessor`:
+
+```text
+Ran 2 tests in 3.396s
+OK
+```
+
+The remaining extra-finite blocker is unchanged: `test_extra_530_Registry`
+expects `old_owner_extraction_roles_Registry`, but `extract` calls
+`registry_role_writes` at O:457 and the earlier `old_owner_role_init_ids`
+gate fires at O:344. This is one FAIL, zero ERRORs, and a red baseline; it
+is not accepted as a strict deletion result. The runner continued through
+R-controls and the new accessor suite after recording the blocker.
+
+The final AST comparison after refreshing the reviewed source bindings:
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=268
+```
+
+All launched commands and their foreground children finished. Temporary getter
+probe trees were removed by context-manager cleanup. No background job was
+started or left running, and the full probe-driver batch was not run. HEAD
+remains `2acc71af`; nothing was committed or staged. The retained 6e diff is
+preserved. No RPC endpoint, env file, keystore or chain was accessed.
+
+```text
+COMMIT6E_DSR3_ACCEPTANCE PASS strict_pair_probes=2/2 requested_suites=12/12 new_suites=1/1 additional_suites=2/3 errors_accepted=0
+COMMIT6E_ACCEPTANCE INCOMPLETE extra_finite_registry_blocker_preserved=true committed=false background_processes=0
+```
+
+### 6e DSR ruling 2 — eighteen earlier-gate blockers (2026-11-07)
+
+Scope: preserved HEAD `2acc71af` and the existing uncommitted 6e diff. No commit,
+RPC endpoint, environment file, keystore, or chain operation. No production gate
+was removed, replaced, or weakened. Only temporary copies under the system temp
+directory receive AST statement deletions. `assert_stop` remains unchanged and
+catches only `a.Gate`. The full probe-driver batch was not run.
+
+Reproducible controls: `test_gate_dsr2.py` reuses the exact eighteen previously
+blocked bad-input constructors. Its normal suite runs only real-tree shadow
+controls, requiring the precise E name. `probe_gate_dsr2.py` runs each case in a
+separate temporary source tree; it deletes one AST statement for E, then deletes
+one AST statement for T only if the E-only tree reaches T. Source line numbers
+below refer to this 6e worktree. Deletions preserve line numbers. An E-only
+exact-T control must be green before the E+T deletion can count. Accepted mutant
+results require at least one unittest FAIL, zero ERRORs, and an assertion message
+naming T. Neither an unrelated exception nor a blocked baseline counts.
+
+Preferred method (a) feasibility review, using ordinary JSON-decoded values and
+unchanged production constants:
+
+- `fraud_token_zero_owner_{130,210}`: the input changes one runtime byte at the
+  named offset to `01`. The pinned full runtime and stripped executable hashes
+  constrain that byte before T; passing those checks with changed executable
+  bytes would require defeating the hash pin. The second hash is a further gate.
+- `verifier_ciSha256`: the input sets the digest to `invalid`. The earlier
+  `reviewed_bytes` format predicate is identical to T's format predicate; the
+  subsequent file-hash equality also constrains it.
+- `verifier_buildSha256`: the input sets the digest to `invalid`. The pinned
+  `VERIFIER_SHA256` accepted by E is already a nonzero lowercase 64-digit digest.
+- `canonical_{anni,dvt,committee}`: uppercase address hex violates T, but E
+  requires equality with the fixed lowercase address. `nonzero_*` uses the zero
+  address, which cannot equal the fixed nonzero address. No constants are patched.
+- `sender_fields_{deployer,approver,executor}`: an extra `extra: true` field
+  violates both the earlier `sender` exact-key check and T's identical check.
+- `sender_{deployer,approver,executor}`: the original candidate replaces the
+  address with zero. This removes its matching nonce-history rows. Even rebuilding
+  that evidence cannot reach T with a different identity: `u.validate_pin` checks
+  `sender_identity` against the same `a.SENDERS` values before T. Removing the
+  history guard alone can expose `max([])`; that is an ERROR, never acceptance.
+- `drain_operator_present_deployer`: the input removes the deployer balance key
+  and subtracts its balance from the total. Passing `drain_inventory` requires
+  removing it from the pause list too, but `sampled_deployer_only` and
+  `sampled_inventory` together require deployer membership in that list.
+- `old_owner_extraction_roles_Registry`: the input removes the Registry constant
+  declarations from the synthetic AST while retaining `hasRole`. The initializer
+  analysis requires nonempty resolved role-constant references, and
+  `old_owner_role_init_standard` binds their names to the extracted roles. No
+  production initializer or extraction predicate is bypassed in the real tree.
+
+All eighteen sub-items are processed regardless of blockers. Logs and structured
+results for this run are in `/tmp/commit6e-dsr2/`; the initial focused probe log is
+`/tmp/commit6e-dsr2-probes.log`. These are local transient evidence, not release
+attestations. Final tables and verbatim result lines follow below.
+
+#### DSR2 final eighteen-target table
+
+`b` requires all three stages: E-only exact-T baseline green, E-only explicit
+unittest FAIL naming T with zero errors, and E+T deletion FAIL naming T with zero
+errors; the real-tree shadow control separately requires E's exact name. The
+explicit E-only red output was confirmed in a separate bounded pass over the
+12 reachable targets (`DSR2_B1_RED`); the checked-in runner now includes that
+confirmation directly. `DSR2_PAIR` lines below are verbatim from the initial
+focused run; `DSR2_B1_RED` lines are verbatim from that confirmation pass.
+
+`chain` means no third gate was deleted. `c (ERROR-blocked)` routes the three
+sender-identity targets to ruling (c)'s DSR review: T did not fire after E was
+removed, but the reason was a non-Gate exception. This is not accepted evidence
+of a successful probe or a proof of dead code for every input. T remains intact.
+The runner's raw `method=blocked-error` distinguishes this from a gate chain.
+
+| T | E | Method | Probe result lines (verbatim) |
+|---|---|---|---|
+| `fraud_token_zero_owner_130` | `fraud_token_pinned_runtime` | chain | `DSR2_PAIR fraud_token_zero_owner_130 BLOCKED E=fraud_token_pinned_runtime method=chain E_sites=1 shadow=green b1_failures=1 b1_errors=0 T_reached=False` |
+| `fraud_token_zero_owner_210` | `fraud_token_pinned_runtime` | chain | `DSR2_PAIR fraud_token_zero_owner_210 BLOCKED E=fraud_token_pinned_runtime method=chain E_sites=1 shadow=green b1_failures=1 b1_errors=0 T_reached=False` |
+| `verifier_ciSha256` | `evidence_dvt-ci_hash` | chain | `DSR2_PAIR verifier_ciSha256 BLOCKED E=evidence_dvt-ci_hash method=chain E_sites=1 shadow=green b1_failures=1 b1_errors=0 T_reached=False` |
+| `verifier_buildSha256` | `verifier_build_identity` | b | `DSR2_PAIR verifier_buildSha256 PASS E=verifier_build_identity source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED verifier_buildSha256 PASS E_sites=1 failures=1 errors=0 named=True` |
+| `canonical_anni` | `fixed_anni` | b | `DSR2_PAIR canonical_anni PASS E=fixed_anni source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED canonical_anni PASS E_sites=1 failures=1 errors=0 named=True` |
+| `nonzero_anni` | `fixed_anni` | b | `DSR2_PAIR nonzero_anni PASS E=fixed_anni source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED nonzero_anni PASS E_sites=1 failures=1 errors=0 named=True` |
+| `canonical_dvt` | `fixed_dvt` | b | `DSR2_PAIR canonical_dvt PASS E=fixed_dvt source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED canonical_dvt PASS E_sites=1 failures=1 errors=0 named=True` |
+| `nonzero_dvt` | `fixed_dvt` | b | `DSR2_PAIR nonzero_dvt PASS E=fixed_dvt source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED nonzero_dvt PASS E_sites=1 failures=1 errors=0 named=True` |
+| `canonical_committee` | `fixed_committee` | b | `DSR2_PAIR canonical_committee PASS E=fixed_committee source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED canonical_committee PASS E_sites=1 failures=1 errors=0 named=True` |
+| `nonzero_committee` | `fixed_committee` | b | `DSR2_PAIR nonzero_committee PASS E=fixed_committee source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED nonzero_committee PASS E_sites=1 failures=1 errors=0 named=True` |
+| `sender_fields_deployer` | `sender` | b | `DSR2_PAIR sender_fields_deployer PASS E=sender source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED sender_fields_deployer PASS E_sites=1 failures=1 errors=0 named=True` |
+| `sender_deployer` | `a3a_sender_history` | c (ERROR-blocked) | `DSR2_PAIR sender_deployer BLOCKED E=a3a_sender_history method=blocked-error E_sites=1 shadow=green b1_failures=0 b1_errors=1 T_reached=False` |
+| `sender_fields_approver` | `sender` | b | `DSR2_PAIR sender_fields_approver PASS E=sender source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED sender_fields_approver PASS E_sites=1 failures=1 errors=0 named=True` |
+| `sender_approver` | `a3a_sender_history` | c (ERROR-blocked) | `DSR2_PAIR sender_approver BLOCKED E=a3a_sender_history method=blocked-error E_sites=1 shadow=green b1_failures=0 b1_errors=1 T_reached=False` |
+| `sender_fields_executor` | `sender` | b | `DSR2_PAIR sender_fields_executor PASS E=sender source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED sender_fields_executor PASS E_sites=1 failures=1 errors=0 named=True` |
+| `sender_executor` | `a3a_sender_history` | c (ERROR-blocked) | `DSR2_PAIR sender_executor BLOCKED E=a3a_sender_history method=blocked-error E_sites=1 shadow=green b1_failures=0 b1_errors=1 T_reached=False` |
+| `drain_operator_present_deployer` | `drain_inventory` | b | `DSR2_PAIR drain_operator_present_deployer PASS E=drain_inventory source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED drain_operator_present_deployer PASS E_sites=1 failures=1 errors=0 named=True` |
+| `old_owner_extraction_roles_Registry` | `old_owner_role_init_ids` | b | `DSR2_PAIR old_owner_extraction_roles_Registry PASS E=old_owner_role_init_ids source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED old_owner_extraction_roles_Registry PASS E_sites=1 failures=1 errors=0 named=True` |
+
+#### Remaining DSR decisions — exact input and stopping reason
+
+- `fraud_token_zero_owner_130`: set runtime byte 130 to `01`. Chain:
+  `fraud_token_pinned_runtime` (M:487) → `fraud_token_stripped_runtime` (M:491)
+  → T (M:494). Only the first gate was deleted in the temporary tree.
+- `fraud_token_zero_owner_210`: set runtime byte 210 to `01`. The same chain
+  stops before T. No deletion of the stripped-runtime gate was attempted.
+- `verifier_ciSha256`: set `verifier.ciSha256` to `invalid`. Chain:
+  `evidence_dvt-ci_hash` (M:78) → `evidence_dvt-ci` (M:82) → T (M:640).
+  The second guard compares the file's actual SHA-256 to the supplied digest;
+  it was not deleted.
+- `sender_deployer`, `sender_approver`, `sender_executor`: separately set that
+  sender's address to the zero address while retaining its original nonce-history
+  fixture. E is `a3a_sender_history` (M:1822). Removing E leaves `rows=[]`, and
+  `max(rows, ...)` at M:1823 raises `ValueError` before T (M:2155). Each result is
+  zero failures and one ERROR, so no E+T deletion was attempted. The real tree
+  stops each identical input at E with its exact name. Additionally, for ordinary
+  decoded inputs the later `sender_identity` check at U:735 enforces the same
+  identity as T; it was not removed. These are retained redundant/dead-code
+  candidates for DSR, not accepted deletion probes. No exception was converted
+  into a passing `assert_stop`, and no fallback was introduced.
+
+Verbatim blocker exception-message lines:
+
+```text
+fraud_token_zero_owner_130:
+AssertionError: 'fraud_token_stripped_runtime' != 'fraud_token_zero_owner_130'
+fraud_token_zero_owner_210:
+AssertionError: 'fraud_token_stripped_runtime' != 'fraud_token_zero_owner_210'
+verifier_ciSha256:
+AssertionError: 'evidence_dvt-ci' != 'verifier_ciSha256'
+sender_deployer:
+ValueError: max() arg is an empty sequence
+sender_approver:
+ValueError: max() arg is an empty sequence
+sender_executor:
+ValueError: max() arg is an empty sequence
+```
+
+Verbatim focused-run final lines:
+
+```text
+DSR2_PROBES COMPLETE accepted=12/18 blocked=6 errors_accepted=0
+DSR2_B1_RED_COMPLETE accepted=12/12 errors_accepted=0
+```
+
+#### DSR2 final foreground validation — verbatim final lines
+
+Every command below finished in the foreground. No full probe-driver batch was
+run. The requested twelve suites all passed, and the new eighteen-case shadow
+suite passed. All pre-existing untracked 6e test files were also run: the extra
+finite-label suite retains its one ordinary Registry baseline failure; the
+other additional suites passed. A paired probe does not make that ordinary
+baseline green, so its expectation was not weakened or rewritten.
+
+`python3 -B script/upgrade/gate_rename_ast_diff.py 2acc71af WORKTREE` (exit 0):
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=268
+```
+
+`python3 -B script/upgrade/probe_gate_names.py` (exit 0):
+
+```text
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+```
+
+`python3 -B script/upgrade/test_old_owner_isolation.py` (exit 0):
+
+```text
+Ran 143 tests in 43.832s
+OK (skipped=2)
+```
+
+`python3 -B script/upgrade/test_manifest_exec.py` (exit 0):
+
+```text
+Ran 535 tests in 442.190s
+OK (skipped=2)
+```
+
+`python3 -B script/upgrade/test_manifest_phase_c.py` (exit 0):
+
+```text
+Ran 141 tests in 205.988s
+OK
+```
+
+`python3 -B script/a3a/test_a3a_exec.py` (exit 0):
+
+```text
+Ran 102 tests in 2.938s
+OK
+```
+
+`python3 -B script/upgrade/test_sp_upgrade_exec.py` (exit 0):
+
+```text
+Ran 141 tests in 1.401s
+OK
+```
+
+`python3 -B script/upgrade/test_authority_checkpoints.py` (exit 0):
+
+```text
+Ran 10 tests in 15.924s
+OK
+```
+
+`python3 -B script/upgrade/test_swallow_exceptions.py` (exit 0):
+
+```text
+Ran 9 tests in 2.560s
+OK
+```
+
+`python3 -B script/upgrade/test_execution_head.py` (exit 0):
+
+```text
+Ran 6 tests in 0.820s
+OK
+```
+
+`python3 -B script/upgrade/test_execution_reads.py` (exit 0):
+
+```text
+Ran 10 tests in 0.083s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_names.py` (exit 0):
+
+```text
+Ran 27 tests in 12.479s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_rename_controls.py` (exit 0):
+
+```text
+Ran 5 tests in 5.901s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_template_controls.py` (exit 0):
+
+```text
+Ran 171 tests in 192.503s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_dsr2.py` (exit 0):
+
+```text
+Ran 18 tests in 31.481s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_empty_schema.py` (exit 0):
+
+```text
+Ran 4 tests in 0.005s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_extra_finite.py` (exit 1):
+
+```text
+Ran 56 tests in 4.578s
+FAILED (failures=1)
+```
+
+`python3 -B script/upgrade/test_gate_r_controls.py` (exit 0):
+
+```text
+Ran 608 tests in 179.767s
+OK
+```
+
+`python3 -B script/upgrade/test_getter_accessor.py` (exit 0):
+
+```text
+Ran 2 tests in 3.730s
+OK
+```
+
+The failing additional-suite test is `test_extra_530_Registry`. Its exact
+exception-message line in this run is:
+
+```text
+AssertionError: 'old_owner_role_init_ids' != 'old_owner_extraction_roles_Registry'
+```
+
+The final repeat of `python3 -B script/upgrade/gate_rename_ast_diff.py 2acc71af WORKTREE`
+after the focused runner and report additions also returned exit 0:
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=268
+```
+
+`git diff --check` returned exit 0 with no output. HEAD remains `2acc71af`.
+The pre-existing 6e diff is preserved and uncommitted. This continuation adds
+only the two focused DSR2 Python files and this results subsection. All owned
+foreground processes finished; the temporary DSR2 source-tree count is zero.
+No production gate, `assert_stop`, environment file, keystore, or deployment
+configuration was changed. No live RPC/chain operation was performed.
+
+All eighteen targets were processed without a stop threshold. Six remain for
+DSR: three gate chains and three ERROR-blocked sender-identity candidates.
+Their gates remain intact. This is incomplete probe acceptance, not a waiver.
+
+```text
+COMMIT6E_DSR2_RESULT INCOMPLETE targets_processed=18 strict_pairs=12/18 chain_blocked=3 error_blocked=3 requested_suites=12/12 new_shadow_suite=18/18 additional_suites=3/4 errors_accepted=0
+```
+
+### 6e final six-target DSR continuation (2026-11-07)
+
+This continuation preserves HEAD `2acc71af`, the uncommitted 6e changes, and the
+twelve accepted DSR2 pair results above. No commit or RPC/env/keystore/chain
+operation was performed. No full probe-driver batch was run. Only the six
+remaining targets were selected by `probe_gate_dsr2.py --remaining`; the new
+accessor has its own single-deletion probe. All source deletions occur in
+temporary copies, with line numbers preserved, including same-line statements.
+`assert_stop` still catches only `a.Gate`.
+
+The only new production statement is the named guard
+`a3a_sender_history_rows_present` immediately before `max(rows, ...)` at
+M:1823. It retains the existing history gate at M:1822 and adds no fallback.
+Its exact location, enclosing function, and AST SHA-256 are registered in
+`gate_production_additions.json`, using the same fail-closed comparator path
+as the O:494 accessor. Positive tests verify its exact-name stop after E is
+removed in a temporary copy, its ordered pair on valid input, inventory
+uniqueness/prefix disjointness, and rejection of missing, moved, duplicated,
+or predicate-altered additions. The existing getter registration test now
+selects its own registry row rather than assuming that only one addition exists.
+The finite-domain dependency hashes were refreshed for this single production
+addition; all reviewed domains are unchanged. The nonce_expectations scope fingerprint is also refreshed after proving that removing only the declared accessor reproduces its previous fingerprint (see the initial gate_names failure and corrected rerun below).
+
+For three-level chains, the exact-T control must be green with E1+E2 removed.
+The same bad input must also produce an explicit unittest FAIL naming T with
+zero ERRORs. Removing T as well must remain red, with a FAIL message naming T
+and zero ERRORs. Each deleted statement must have one source site. The real
+tree must stop at E1's exact name. The E1-only observation separately requires
+E2's exact name. No fourth prerequisite is deleted.
+
+For sender targets, only E at M:1822 and `sender_identity` at U:735 are removed
+before checking T. The new accessor remains enabled. A red exact-T baseline
+is a blocker, even when deleting T also produces a named assertion failure.
+These results do not prove universal unreachability and do not authorize
+deleting any sender gate.
+
+#### Before/after subcase and exact-name assertion accounting
+
+“Before” is the preceding recorded 56-case extra-finite suite plus the existing
+18 shadow and 18 target DSR2 controls. “After” is the current callable control
+inventory. Counts are registered subcases, not repeated probe invocations or
+accepted mutation results. Every counted control executes one `assert_stop`
+with an exact gate name; blocked target controls are included as controls,
+never as passing probes.
+
+| Control family | Subcases before | Subcases after | Exact-name assertions before | Exact-name assertions after |
+|---|---:|---:|---:|---:|
+| extra-finite | 56 | 55 | 56 | 55 |
+| DSR2 real-tree shadow | 18 | 18 | 18 | 18 |
+| DSR2 target/pair | 18 | 18 | 18 | 18 |
+| DSR2 E1-only second stop | 0 | 6 | 0 | 6 |
+| **Total** | **92** | **97** | **92** | **97** |
+
+The removed `test_extra_530_Registry` was an invalid direct-T expectation:
+the unchanged real tree stops at `old_owner_role_init_ids`. Registry coverage
+remains in `test_shadow_old_owner_extraction_roles_Registry` and
+`test_target_old_owner_extraction_roles_Registry`, with its accepted strict
+pair result preserved above. Both aggregate totals increase by five.
+The accessor's two new tests and its deletion probe are additional and are
+not used to inflate this accounting.
+
+#### Crash-red #21 accessor evidence
+
+The single-deletion probe returned exit 0. Its verbatim final line:
+
+```text
+SENDER_ACCESSOR_PROBE a3a_sender_history_rows_present PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+```
+
+Initial positive and fingerprint suite (exit 0), verbatim final lines:
+
+```text
+Ran 2 tests in 19.726s
+OK
+```
+
+#### Final T / chain / method / verbatim result lines
+
+The twelve earlier accepted rows are preserved verbatim below; they were not rerun by the six-target command. The six remaining rows are new results. M, O, and U denote manifest_exec.py, old_owner_isolation.py, and sp_upgrade_exec.py.
+
+| T | Chain | Method | Verbatim result lines |
+|---|---|---|---|
+| `verifier_buildSha256` | `verifier_build_identity`  → T | preserved strict pair | `DSR2_PAIR verifier_buildSha256 PASS E=verifier_build_identity source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED verifier_buildSha256 PASS E_sites=1 failures=1 errors=0 named=True` |
+| `canonical_anni` | `fixed_anni`  → T | preserved strict pair | `DSR2_PAIR canonical_anni PASS E=fixed_anni source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED canonical_anni PASS E_sites=1 failures=1 errors=0 named=True` |
+| `nonzero_anni` | `fixed_anni`  → T | preserved strict pair | `DSR2_PAIR nonzero_anni PASS E=fixed_anni source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED nonzero_anni PASS E_sites=1 failures=1 errors=0 named=True` |
+| `canonical_dvt` | `fixed_dvt`  → T | preserved strict pair | `DSR2_PAIR canonical_dvt PASS E=fixed_dvt source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED canonical_dvt PASS E_sites=1 failures=1 errors=0 named=True` |
+| `nonzero_dvt` | `fixed_dvt`  → T | preserved strict pair | `DSR2_PAIR nonzero_dvt PASS E=fixed_dvt source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED nonzero_dvt PASS E_sites=1 failures=1 errors=0 named=True` |
+| `canonical_committee` | `fixed_committee`  → T | preserved strict pair | `DSR2_PAIR canonical_committee PASS E=fixed_committee source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED canonical_committee PASS E_sites=1 failures=1 errors=0 named=True` |
+| `nonzero_committee` | `fixed_committee`  → T | preserved strict pair | `DSR2_PAIR nonzero_committee PASS E=fixed_committee source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED nonzero_committee PASS E_sites=1 failures=1 errors=0 named=True` |
+| `sender_fields_deployer` | `sender`  → T | preserved strict pair | `DSR2_PAIR sender_fields_deployer PASS E=sender source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED sender_fields_deployer PASS E_sites=1 failures=1 errors=0 named=True` |
+| `sender_fields_approver` | `sender`  → T | preserved strict pair | `DSR2_PAIR sender_fields_approver PASS E=sender source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED sender_fields_approver PASS E_sites=1 failures=1 errors=0 named=True` |
+| `sender_fields_executor` | `sender`  → T | preserved strict pair | `DSR2_PAIR sender_fields_executor PASS E=sender source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED sender_fields_executor PASS E_sites=1 failures=1 errors=0 named=True` |
+| `drain_operator_present_deployer` | `drain_inventory`  → T | preserved strict pair | `DSR2_PAIR drain_operator_present_deployer PASS E=drain_inventory source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED drain_operator_present_deployer PASS E_sites=1 failures=1 errors=0 named=True` |
+| `old_owner_extraction_roles_Registry` | `old_owner_role_init_ids`  → T | preserved strict pair | `DSR2_PAIR old_owner_extraction_roles_Registry PASS E=old_owner_role_init_ids source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E failures=1 errors=0 named=True`<br>`DSR2_B1_RED old_owner_extraction_roles_Registry PASS E_sites=1 failures=1 errors=0 named=True` |
+| fraud_token_zero_owner_130 | fraud_token_pinned_runtime M:487 → fraud_token_stripped_runtime M:491 → T M:494 | three-level | `DSR2_SECOND fraud_token_zero_owner_130 PASS delete_only=fraud_token_pinned_runtime exact_stop=fraud_token_stripped_runtime`<br>`DSR2_FINAL fraud_token_zero_owner_130 PASS method=three-level source_sites=1 E_sites=1 second_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| fraud_token_zero_owner_210 | fraud_token_pinned_runtime M:487 → fraud_token_stripped_runtime M:491 → T M:494 | three-level | `DSR2_SECOND fraud_token_zero_owner_210 PASS delete_only=fraud_token_pinned_runtime exact_stop=fraud_token_stripped_runtime`<br>`DSR2_FINAL fraud_token_zero_owner_210 PASS method=three-level source_sites=1 E_sites=1 second_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| verifier_ciSha256 | evidence_dvt-ci_hash M:78 → evidence_dvt-ci M:82 → T M:640 | three-level | `DSR2_SECOND verifier_ciSha256 PASS delete_only=evidence_dvt-ci_hash exact_stop=evidence_dvt-ci`<br>`DSR2_FINAL verifier_ciSha256 PASS method=three-level source_sites=1 E_sites=1 second_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| sender_deployer | sender_identity U:735 → T M:2155; E and #21 intact | rebuilt non-zero fixture, strict pair | `DSR2_PAIR sender_deployer PASS E=sender_identity source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E b1_failures=1 b1_errors=0 b1_named=True failures=1 errors=0 named=True` |
+| sender_approver | sender_identity U:735 → T M:2155; E and #21 intact | rebuilt non-zero fixture, strict pair | `DSR2_PAIR sender_approver PASS E=sender_identity source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E b1_failures=1 b1_errors=0 b1_named=True failures=1 errors=0 named=True` |
+| sender_executor | sender_identity U:735 → T M:2155; E and #21 intact | rebuilt non-zero fixture, strict pair | `DSR2_PAIR sender_executor PASS E=sender_identity source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E b1_failures=1 b1_errors=0 b1_named=True failures=1 errors=0 named=True` |
+
+The E1-only observations are also recorded as their own verbatim lines:
+
+```text
+DSR2_SECOND fraud_token_zero_owner_130 PASS delete_only=fraud_token_pinned_runtime exact_stop=fraud_token_stripped_runtime
+DSR2_SECOND fraud_token_zero_owner_210 PASS delete_only=fraud_token_pinned_runtime exact_stop=fraud_token_stripped_runtime
+DSR2_SECOND verifier_ciSha256 PASS delete_only=evidence_dvt-ci_hash exact_stop=evidence_dvt-ci
+DSR2_SECOND sender_deployer PASS delete_only=a3a_sender_history exact_stop=a3a_sender_history_rows_present
+DSR2_SECOND sender_approver PASS delete_only=a3a_sender_history exact_stop=a3a_sender_history_rows_present
+DSR2_SECOND sender_executor PASS delete_only=a3a_sender_history exact_stop=a3a_sender_history_rows_present
+```
+
+Historical fixture diagnosis (superseded by the non-zero sender fixture continuation below): the former sender dead-code candidates used the offline ManifestTemplateTests fixture: deepcopy(self.pin), replace only pin["senders"][role]["address"] with a.ZERO (0x0000000000000000000000000000000000000000), then call m.build_plan(pin, self.inputs). No evidence, nonce, sender constants, or input fields are repaired.
+
+- `sender_deployer`: with M:1822 and U:735 deleted in the temporary tree, the address has no matching plan history rows, so M:1823 raises `a3a_sender_history_rows_present` before max and before T. Exact baseline failure message:
+
+    `AssertionError: 'a3a_sender_history_rows_present' != 'sender_deployer'`
+
+- `sender_approver`: with M:1822 and U:735 deleted in the temporary tree, the address has no matching plan history rows, so M:1823 raises `a3a_sender_history_rows_present` before max and before T. Exact baseline failure message:
+
+    `AssertionError: 'a3a_sender_history_rows_present' != 'sender_approver'`
+
+- `sender_executor`: with M:1822 and U:735 deleted in the temporary tree, the address has no matching plan history rows, so M:1823 raises `a3a_sender_history_rows_present` before max and before T. Exact baseline failure message:
+
+    `AssertionError: 'a3a_sender_history_rows_present' != 'sender_executor'`
+
+These are bounded dead-code candidates for the exact inputs above. They are not accepted deletion probes and not a proof about every possible input. No deeper chain was deleted. All six targets completed despite these blockers.
+
+```text
+DSR2_REMAINING COMPLETE processed=6 accepted=3 blocked=3 preserved_accepted=12 errors_accepted=0
+```
+
+#### Gate-name fingerprint correction during final verification
+
+The first gate_names suite failed two assertions with `gate_templates: reviewed domain source changed`. The whole-file dependency hash had been refreshed, but the three records bound to nonce_expectations still contained its old AST fingerprint. For each affected record (M:1824, M:1831, M:1832), removing only the registered M:1823 accessor from the parsed function reproduced the old fingerprint exactly. Only those three scope hashes were then refreshed; domains, labels, predicates, and assertion behavior were unchanged. Other suites continued throughout.
+
+Initial gate_names run (exit 1), verbatim final lines:
+
+```text
+Ran 27 tests in 5.003s
+FAILED (failures=2)
+```
+
+Corrected gate_names rerun (exit 0), verbatim final lines:
+
+```text
+Ran 27 tests in 23.271s
+OK
+```
+
+#### Final foreground verification — verbatim final lines
+
+All commands ran in the foreground and completed. The final gate_names result below is its corrected rerun; the initial failure remains recorded above. These are suite results, distinct from intentional mutation FAILs. Logs are under /tmp/commit6e-final-checks/, with the corrected gate-name log at /tmp/commit6e-gate-names-rerun.log and final AST log at /tmp/commit6e-final-ast.log. No full probe-driver batch was run.
+
+`python3 -B script/upgrade/gate_rename_ast_diff.py 2acc71af WORKTREE` — final exit 0:
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=269
+```
+
+`python3 -B script/upgrade/probe_gate_names.py` — final exit 0:
+
+```text
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+```
+
+`python3 -B script/upgrade/test_old_owner_isolation.py` — final exit 0:
+
+```text
+Ran 143 tests in 42.686s
+OK (skipped=2)
+```
+
+`python3 -B script/upgrade/test_manifest_exec.py` — final exit 0:
+
+```text
+Ran 535 tests in 538.896s
+OK (skipped=2)
+```
+
+`python3 -B script/upgrade/test_manifest_phase_c.py` — final exit 0:
+
+```text
+Ran 141 tests in 202.996s
+OK
+```
+
+`python3 -B script/a3a/test_a3a_exec.py` — final exit 0:
+
+```text
+Ran 102 tests in 2.974s
+OK
+```
+
+`python3 -B script/upgrade/test_sp_upgrade_exec.py` — final exit 0:
+
+```text
+Ran 141 tests in 1.405s
+OK
+```
+
+`python3 -B script/upgrade/test_authority_checkpoints.py` — final exit 0:
+
+```text
+Ran 10 tests in 16.374s
+OK
+```
+
+`python3 -B script/upgrade/test_swallow_exceptions.py` — final exit 0:
+
+```text
+Ran 9 tests in 2.657s
+OK
+```
+
+`python3 -B script/upgrade/test_execution_head.py` — final exit 0:
+
+```text
+Ran 6 tests in 0.851s
+OK
+```
+
+`python3 -B script/upgrade/test_execution_reads.py` — final exit 0:
+
+```text
+Ran 10 tests in 0.086s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_names.py` — final exit 0:
+
+```text
+Ran 27 tests in 23.271s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_rename_controls.py` — final exit 0:
+
+```text
+Ran 5 tests in 6.138s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_template_controls.py` — final exit 0:
+
+```text
+Ran 171 tests in 260.279s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_dsr2.py` — final exit 0:
+
+```text
+Ran 18 tests in 34.896s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_empty_schema.py` — final exit 0:
+
+```text
+Ran 4 tests in 0.004s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_extra_finite.py` — final exit 0:
+
+```text
+Ran 55 tests in 4.170s
+OK
+```
+
+`python3 -B script/upgrade/test_gate_r_controls.py` — final exit 0:
+
+```text
+Ran 608 tests in 176.000s
+OK
+```
+
+`python3 -B script/upgrade/test_getter_accessor.py` — final exit 0:
+
+```text
+Ran 2 tests in 3.727s
+OK
+```
+
+`python3 -B script/upgrade/test_sender_accessor.py` — final exit 0:
+
+```text
+Ran 2 tests in 20.552s
+OK
+```
+
+Cleanup and worktree verification: all processes launched for this continuation were waited to completion; none remain running. The temporary probe-tree check and HEAD check returned these verbatim lines:
+
+```text
+TEMP_PROBE_TREES remaining=0
+2acc71af
+```
+
+git diff --check passed with no output. HEAD remains unchanged and the complete 6e diff remains uncommitted. No real-tree gate was deleted; assert_stop remains unchanged. Three sender targets remain explicitly blocked by the new accessor for the exact zero-address inputs, and are not counted as accepted.
+
+```text
+COMMIT6E_FINAL_RESULT COMPLETE_WITH_BLOCKERS targets_processed=18 accepted_targets=15/18 preserved_pairs=12/12 dead_code_candidates=3 accessor_probes=1/1 suites=18/18 ast_diff=PASS gate_name_probes=PASS errors_accepted=0
+```
+
+
+### 6e independent tooling review follow-up (2026-11-07)
+
+HEAD remains `2acc71afb62b23e72a5c610522be0e21dc87e119`; no commit was made. The incoming uncommitted 6e production/test diff is preserved. This follow-up changes offline tooling, adds regression tests and explicit reference declarations, and records results. No RPC, chain, keystore or environment configuration was used. No full probe-driver batch was run. Gate deletion controls operate on copied ASTs/temporary fixtures, never on real production source files. `gate_assertions.assert_stop` is unchanged and catches only `a.Gate` (through `u.a.Gate`). Errors never count as successful deletion controls.
+
+Fixes:
+
+1. Automatic AST acceptance no longer walks descendants of lookups or arbitrary expressions, exempts test filenames, accepts arbitrary `dict(gate=...)`, or accepts raw-source selectors implicitly. Direct label literals/concatenation components and restricted expected-name forwarding are checked. Parameters with non-label consumers are rejected. Other legitimate gate-name references require an exact file, line, AST path, before/after node fingerprint and before/after complete-source fingerprint in `gate_rename_references.json`.
+2. Forwarding rules carry the primitive guard's line and column. Two distinct guards sharing a parameter/suffix remain two inventory entries; inventory exposes primitive provenance alongside the caller site.
+3. Simple helper aliases and positional/keyword-only wrapper defaults are bound. Ambiguous aliases, helper escapes and unsupported argument bindings fail explicitly. The implicit `a.typed` default is read from the helper's source AST rather than invented or ignored.
+4. R registrations validate the actual local runner callable, test class and method, exact CASES binding, production file and source line. Finite registrations routed through the R runner receive the same checks. The runner reconciles the multiset of registered and attempted/executed bindings by production file, source line, gate, test class and method, rejecting missing, extra and duplicate bindings. Passing still requires every strict deletion result: one source site, green baseline, failures >= 1, errors == 0, and an assertion failure message naming the deleted gate.
+5. Deleted files now enter AST-diff faults and force FAIL.
+
+Each requested finding has an independently named counterexample in `test_gate_review_controls.py`. The original eight tests were run before the fixes: all eight failed assertions, zero errors. Additional wrong-source-site and shared-parameter counterexamples were also run red before their respective fixes. Three supplemental tests cover reconciliation mismatches, keyword-only defaults and explicit rejection of escaped aliases.
+
+Verbatim pre-fix counterexample failure headers and final lines:
+
+`red.log`:
+
+```text
+FAIL: test_deleted_file_rejected (__main__.ReviewControls.test_deleted_file_rejected)
+FAIL: test_distinct_forwarded_guards (__main__.ReviewControls.test_distinct_forwarded_guards)
+FAIL: test_helper_alias (__main__.ReviewControls.test_helper_alias)
+FAIL: test_lookup_in_label_rejected (__main__.ReviewControls.test_lookup_in_label_rejected)
+FAIL: test_stale_open_binding (__main__.ReviewControls.test_stale_open_binding)
+FAIL: test_test_lookup_rejected (__main__.ReviewControls.test_test_lookup_rejected)
+FAIL: test_unproven_record_rejected (__main__.ReviewControls.test_unproven_record_rejected)
+FAIL: test_wrapper_default (__main__.ReviewControls.test_wrapper_default)
+----------------------------------------------------------------------
+Ran 8 tests in 0.004s
+
+FAILED (failures=8)
+```
+
+`red-binding.log`:
+
+```text
+FAIL: test_wrong_executable_site_binding (test_gate_review_controls.ReviewControls.test_wrong_executable_site_binding)
+----------------------------------------------------------------------
+Ran 1 test in 1.907s
+
+FAILED (failures=1)
+```
+
+`red-shared.log`:
+
+```text
+FAIL: test_shared_label_parameter_rejected (test_gate_review_controls.ReviewControls.test_shared_label_parameter_rejected)
+FAIL: test_shared_expected_parameter_rejected (test_gate_review_controls.ReviewControls.test_shared_expected_parameter_rejected)
+----------------------------------------------------------------------
+Ran 2 tests in 0.006s
+
+FAILED (failures=2)
+```
+
+Strict real-diff review: all 143 rejected changes below are classification **(y)**: legitimate gate-name labels/references requiring precise declarations. No rejected change was classification (x), and no production change was reverted. The exact declarations include `classification: "y"`, the before/after text, full source hashes, node hashes, location and rationale. Source-removal selectors remain explicit declarations rather than test-file exemptions. Production expected labels, label assignments, `negative`/`role_owner` arguments and fixture `gate` values remain explicit declarations rather than generic string privileges.
+
+Verbatim first strict AST rejection list (every entry is y):
+
+```text
+REJECTED script/evidence/audit605_probes.py:38: 'stake_not_unlocking' -> 'stake_not_unlocking_collect'
+REJECTED script/evidence/audit605_probes.py:39: 'stake_not_unlocking' -> 'stake_not_unlocking_build_plan'
+REJECTED script/evidence/enduser_mapping_probes.py:148: "    a.need('old_owner_factory_enumeration',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)\n" -> "    a.need('old_owner_factory_enumeration_discover_targets',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)\n"
+REJECTED script/evidence/enduser_mapping_probes.py:214: 'old_owner_factory_enumeration' -> 'old_owner_factory_enumeration_discover_targets'
+REJECTED script/evidence/enduser_mapping_probes.py:215: 'old_owner_factory_enumeration' -> 'old_owner_factory_enumeration_discover_targets'
+REJECTED script/evidence/inventory_replay_probes.py:19: "    a.need('old_timelock_replay', actual['approvalOwners'], section['approvalOwners'])\n" -> "    a.need('old_timelock_replay_owners', actual['approvalOwners'], section['approvalOwners'])\n"
+REJECTED script/upgrade/manifest_exec.py:2799: 'readback_fraudProofVerifier()' -> 'readback_value_fraudProofVerifier()'
+REJECTED script/upgrade/manifest_exec.py:3158: 'C_price_bound' -> 'C_price_bound_exec'
+REJECTED script/upgrade/manifest_exec.py:3166: 'C1_cap_headroom' -> 'C1_cap_headroom_exec'
+REJECTED script/upgrade/manifest_exec.py:3174: 'C7_enduser_active' -> 'C7_enduser_active_exec'
+REJECTED script/upgrade/manifest_exec.py:3175: 'C_account_status' -> 'C_account_status_exec'
+REJECTED script/upgrade/old_owner_isolation.py:674: 'old_owner_event_role_' -> 'old_owner_event_role_member_'
+REJECTED script/upgrade/old_owner_isolation.py:680: 'old_owner_event_role_' -> 'old_owner_event_role_member_'
+REJECTED script/upgrade/old_owner_isolation.py:695: 'old_owner_role_' -> 'old_owner_role_member_declared_'
+REJECTED script/upgrade/old_owner_isolation.py:703: 'old_owner_event_role_' -> 'old_owner_event_role_member_'
+REJECTED script/upgrade/old_owner_isolation.py:710: 'old_owner_authority_' -> 'old_owner_authority_member_'
+REJECTED script/upgrade/old_owner_isolation.py:714: 'old_owner_mapping_' -> 'old_owner_mapping_member_'
+REJECTED script/upgrade/old_owner_isolation.py:784: 'old_owner_role_' -> 'old_owner_role_member_configured_'
+REJECTED script/upgrade/old_owner_isolation.py:843: 'old_owner_allowance_' -> 'old_owner_allowance_pair_'
+REJECTED script/upgrade/old_owner_isolation.py:848: 'old_owner_allowance_' -> 'old_owner_allowance_pair_'
+REJECTED script/upgrade/old_owner_isolation.py:1512: "case['gate']" -> "'old_owner_fork_case_' + case['gate']" (AST node type changed)
+REJECTED script/upgrade/probe_phase_c_gates.py:34: 'C_price_bound' -> 'C_price_bound_pin'
+REJECTED script/upgrade/probe_phase_c_gates.py:35: 'prefix_boundary' -> 'prefix_boundary_phase_c'
+REJECTED script/upgrade/probe_phase_c_gates.py:45: 'C_control_slot' -> 'C_control_slot_cached_price'
+REJECTED script/upgrade/probe_phase_c_gates.py:66: 'old_timelock_approval_history' -> 'old_timelock_approval_history_creation'
+REJECTED script/upgrade/probe_phase_c_gates.py:86: 'old_timelock_replay' -> 'old_timelock_replay_reads'
+REJECTED script/upgrade/probe_phase_c_gates.py:87: 'old_timelock_replay' -> 'old_timelock_replay_owners'
+REJECTED script/upgrade/probe_phase_c_gates.py:88: 'old_timelock_approval_history' -> 'old_timelock_approval_history_log'
+REJECTED script/upgrade/test_authority_checkpoints.py:35: 'old_owner_role_admin_' -> 'old_owner_role_admin_declared_'
+REJECTED script/upgrade/test_authority_checkpoints.py:35: 'old_owner_authority_Registry_' -> 'old_owner_authority_member_Registry_'
+REJECTED script/upgrade/test_execution_reads.py:126: 'manifest_externalInputs' -> 'manifest_plan_key_externalInputs'
+REJECTED script/upgrade/test_manifest_exec.py:1034: 'stage_not_final' -> 'stage_not_final_load_artifact'
+REJECTED script/upgrade/test_manifest_exec.py:1613: 'manifest_tx_data' -> 'manifest_tx_field_data'
+REJECTED script/upgrade/test_manifest_exec.py:1615: 'manifest_tx_data' -> 'manifest_tx_field_data'
+REJECTED script/upgrade/test_manifest_exec.py:2073: 'old_timelock_replay' -> 'old_timelock_replay_reads'
+REJECTED script/upgrade/test_manifest_exec.py:2076: 'old_timelock_replay' -> 'old_timelock_replay_owners'
+REJECTED script/upgrade/test_manifest_exec.py:2638: 'built_aggregator_version' -> 'built_aggregator_version_release_gate'
+REJECTED script/upgrade/test_manifest_exec.py:2639: 'built_aggregator_version' -> 'built_aggregator_version_release_gate'
+REJECTED script/upgrade/test_manifest_exec.py:3204: 'evidence_slither_rederived' -> 'evidence_slither_rederived_filename'
+REJECTED script/upgrade/test_manifest_exec.py:3206: 'evidence_slither_rederived' -> 'evidence_slither_rederived_filename'
+REJECTED script/upgrade/test_manifest_exec.py:3219: 'evidence_slither_rederived' -> 'evidence_slither_rederived_path_containment'
+REJECTED script/upgrade/test_manifest_exec.py:3221: 'evidence_slither_rederived' -> 'evidence_slither_rederived_path_containment'
+REJECTED script/upgrade/test_manifest_exec.py:3242: 'evidence_scope_recomputed' -> 'evidence_scope_recomputed_validate_evidence_details'
+REJECTED script/upgrade/test_manifest_exec.py:3244: 'evidence_scope_recomputed' -> 'evidence_scope_recomputed_validate_evidence_details'
+REJECTED script/upgrade/test_manifest_exec.py:3259: 'evidence_scope_recomputed' -> 'evidence_scope_recomputed_validate_evidence_details'
+REJECTED script/upgrade/test_manifest_exec.py:3261: 'evidence_scope_recomputed' -> 'evidence_scope_recomputed_validate_evidence_details'
+REJECTED script/upgrade/test_manifest_exec.py:3542: 'safe_gap_receipt_identity' -> 'safe_gap_receipt_identity_fields'
+REJECTED script/upgrade/test_manifest_exec.py:3548: 'safe_gap_trace_storage' -> 'safe_gap_trace_storage_mapping'
+REJECTED script/upgrade/test_manifest_exec.py:3548: 'safe_gap_trace_storage' -> 'safe_gap_trace_storage_key'
+REJECTED script/upgrade/test_manifest_exec.py:3549: 'safe_gap_trace_storage' -> 'safe_gap_trace_storage_value'
+REJECTED script/upgrade/test_manifest_exec.py:3551: 'safe_gap_miner_balance' -> 'safe_gap_miner_balance_post'
+REJECTED script/upgrade/test_manifest_exec.py:3551: 'safe_gap_miner_balance' -> 'safe_gap_miner_balance_delta'
+REJECTED script/upgrade/test_manifest_exec.py:3552: 'safe_gap_miner_balance' -> 'safe_gap_miner_balance_delta'
+REJECTED script/upgrade/test_manifest_exec.py:3624: 'safe_gap_pin_owners' -> 'safe_gap_pin_owners_pin'
+REJECTED script/upgrade/test_manifest_exec.py:3626: 'safe_gap_owner_eoa' -> 'safe_gap_owner_eoa_pin'
+REJECTED script/upgrade/test_manifest_exec.py:3628: 'safe_gap_pin_nonce' -> 'safe_gap_pin_nonce_pin'
+REJECTED script/upgrade/test_manifest_exec.py:3630: 'safe_gap_pin_threshold' -> 'safe_gap_pin_threshold_pin'
+REJECTED script/upgrade/test_manifest_exec.py:3638: 'safe_gap_owner_eoa' -> 'safe_gap_owner_eoa_live'
+REJECTED script/upgrade/test_manifest_exec.py:3640: 'safe_gap_owner_eoa' -> 'safe_gap_owner_eoa_live'
+REJECTED script/upgrade/test_manifest_exec.py:3664: 'safe_gap_miner_balance' -> 'safe_gap_miner_balance_delta'
+REJECTED script/upgrade/test_manifest_exec.py:3709: 'safe_gap_miner_balance' -> 'safe_gap_miner_balance_delta'
+REJECTED script/upgrade/test_manifest_exec.py:3815: 'safe_gap_log_data' -> 'safe_gap_log_data_approval'
+REJECTED script/upgrade/test_manifest_exec.py:3816: 'safe_gap_log_data' -> 'safe_gap_log_data_swap_execution'
+REJECTED script/upgrade/test_manifest_exec.py:3817: 'safe_gap_log_data' -> 'safe_gap_log_data_swap_tail'
+REJECTED script/upgrade/test_manifest_exec.py:3836: 'safe_gap_pin_owners' -> 'safe_gap_pin_owners_live'
+REJECTED script/upgrade/test_manifest_exec.py:3836: 'safe_gap_pin_threshold' -> 'safe_gap_pin_threshold_live'
+REJECTED script/upgrade/test_manifest_exec.py:3837: 'safe_gap_pin_nonce' -> 'safe_gap_pin_nonce_live'
+REJECTED script/upgrade/test_manifest_exec.py:3837: 'safe_gap_owner_eoa' -> 'safe_gap_owner_eoa_live'
+REJECTED script/upgrade/test_manifest_exec.py:3850: 'safe_gap_hash' -> 'safe_gap_hash_check_governance'
+REJECTED script/upgrade/test_manifest_exec.py:3853: 'safe_gap_gas_used' -> 'safe_gap_gas_used_check_governance'
+REJECTED script/upgrade/test_manifest_exec.py:3854: 'safe_gap_gas_price' -> 'safe_gap_gas_price_check_governance'
+REJECTED script/upgrade/test_manifest_exec.py:3906: 'safe_gap_endpoints' -> 'safe_gap_endpoints_governance_evidence'
+REJECTED script/upgrade/test_manifest_exec.py:3908: 'safe_gap_endpoints' -> 'safe_gap_endpoints_governance_evidence'
+REJECTED script/upgrade/test_manifest_exec.py:4635: 'stake_not_unlocking' -> 'stake_not_unlocking_build_plan'
+REJECTED script/upgrade/test_manifest_exec.py:4651: 'stake_not_unlocking' -> 'stake_not_unlocking_collect'
+REJECTED script/upgrade/test_manifest_exec.py:4676: 'stake_not_unlocking' -> 'stake_not_unlocking_collect'
+REJECTED script/upgrade/test_manifest_exec.py:5119: 'old_owner_factory_enumeration' -> 'old_owner_factory_enumeration_discover_targets'
+REJECTED script/upgrade/test_manifest_phase_c.py:315: 'C_price_bound' -> 'C_price_bound_pin'
+REJECTED script/upgrade/test_manifest_phase_c.py:338: 'manifest_phaseC' -> 'manifest_plan_key_phaseC'
+REJECTED script/upgrade/test_manifest_phase_c.py:339: 'manifest_phaseC' -> 'manifest_plan_key_phaseC'
+REJECTED script/upgrade/test_manifest_phase_c.py:340: 'manifest_tx_value' -> 'manifest_tx_field_value'
+REJECTED script/upgrade/test_manifest_phase_c.py:341: 'manifest_tx_data' -> 'manifest_tx_field_data'
+REJECTED script/upgrade/test_manifest_phase_c.py:388: 'prefix_boundary' -> 'prefix_boundary_phase_c'
+REJECTED script/upgrade/test_manifest_phase_c.py:392: 'prefix_boundary' -> 'prefix_boundary_phase_c'
+REJECTED script/upgrade/test_manifest_phase_c.py:405: 'stage_not_final' -> 'stage_not_final_save_artifact'
+REJECTED script/upgrade/test_manifest_phase_c.py:559: 'phase_c_account_evidence' -> 'phase_c_account_evidence_bytes'
+REJECTED script/upgrade/test_manifest_phase_c.py:565: 'phase_c_measurement' -> 'phase_c_measurement_arms'
+REJECTED script/upgrade/test_manifest_phase_c.py:579: 'C1_minter' -> 'C1_minter_pin'
+REJECTED script/upgrade/test_manifest_phase_c.py:581: 'C_price_bound' -> 'C_price_bound_pin'
+REJECTED script/upgrade/test_manifest_phase_c.py:584: 'C2_operator_role' -> 'C2_operator_role_pin'
+REJECTED script/upgrade/test_manifest_phase_c.py:585: 'C3_community' -> 'C3_community_pin'
+REJECTED script/upgrade/test_manifest_phase_c.py:586: 'C7_enduser_active' -> 'C7_enduser_active_pin'
+REJECTED script/upgrade/test_manifest_phase_c.py:591: 'C5_counterfactual' -> 'C5_counterfactual_pin'
+REJECTED script/upgrade/test_manifest_phase_c.py:593: 'C_account_status' -> 'C_account_status_pin'
+REJECTED script/upgrade/test_manifest_phase_c.py:594: 'C1_cap_headroom' -> 'C1_cap_headroom_worksheet'
+REJECTED script/upgrade/test_manifest_phase_c.py:595: 'C6_gtoken_balance' -> 'C6_gtoken_balance_worksheet'
+REJECTED script/upgrade/test_manifest_phase_c.py:660: 'C_price_bound' -> 'C_price_bound_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:662: 'C1_minter' -> 'C1_minter_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:663: 'C1_cap_headroom' -> 'C1_cap_headroom_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:665: 'C2_operator_role' -> 'C2_operator_role_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:668: 'C_operator_before' -> 'C_operator_before_configure'
+REJECTED script/upgrade/test_manifest_phase_c.py:670: 'C3_community' -> 'C3_community_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:672: 'C5_counterfactual' -> 'C5_counterfactual_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:674: 'C7_enduser_active' -> 'C7_enduser_active_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:676: 'C_account_status' -> 'C_account_status_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:677: 'C6_gtoken_balance' -> 'C6_gtoken_balance_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:904: 'C_price_bound' -> 'C_price_bound_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:904: 'C1_cap_headroom' -> 'C1_cap_headroom_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:905: 'C7_enduser_active' -> 'C7_enduser_active_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:906: 'C_account_status' -> 'C_account_status_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:928: 'C_price_bound' -> 'C_price_bound_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:930: 'C_price_bound' -> 'C_price_bound_exec'
+REJECTED script/upgrade/test_manifest_phase_c.py:947: 'C_control_slot' -> 'C_control_slot_cached_price'
+REJECTED script/upgrade/test_old_owner_isolation.py:518: 'old_owner_event_role_Registry' -> 'old_owner_event_role_member_Registry'
+REJECTED script/upgrade/test_old_owner_isolation.py:711: 'old_owner_event_role_TimelockController' -> 'old_owner_event_role_member_TimelockController'
+REJECTED script/upgrade/test_old_owner_isolation.py:734: 'old_owner_role_TimelockController_PROPOSER_ROLE' -> 'old_owner_role_member_declared_TimelockController_PROPOSER_ROLE'
+REJECTED script/upgrade/test_old_owner_isolation.py:735: 'old_owner_authority_SuperPaymaster_pendingOwner' -> 'old_owner_authority_member_SuperPaymaster_pendingOwner'
+REJECTED script/upgrade/test_old_owner_isolation.py:736: 'old_owner_mapping_Registry_authorized' -> 'old_owner_mapping_member_Registry_authorized'
+REJECTED script/upgrade/test_old_owner_isolation.py:740: 'old_owner_role_admin_ROLE_COMMUNITY' -> 'old_owner_role_admin_declared_ROLE_COMMUNITY'
+REJECTED script/upgrade/test_old_owner_isolation.py:743: 'old_owner_authority_' -> 'old_owner_authority_member_'
+REJECTED script/upgrade/test_old_owner_isolation.py:745: 'old_owner_mapping_' -> 'old_owner_mapping_member_'
+REJECTED script/upgrade/test_old_owner_isolation.py:746: 'old_owner_role_Registry_' -> 'old_owner_role_member_configured_Registry_'
+REJECTED script/upgrade/test_old_owner_isolation.py:747: 'old_owner_role_admin_' -> 'old_owner_role_admin_configured_'
+REJECTED script/upgrade/test_old_owner_isolation.py:748: 'old_owner_allowance_' -> 'old_owner_allowance_pair_'
+REJECTED script/upgrade/test_old_owner_isolation.py:752: 'old_owner_allowance_' -> 'old_owner_allowance_pair_'
+REJECTED script/upgrade/test_old_owner_isolation.py:774: 'old_owner_mapping_xPNTsToken_autoApprovedSpenders' -> 'old_owner_mapping_member_xPNTsToken_autoApprovedSpenders'
+REJECTED script/upgrade/test_old_owner_isolation.py:776: 'old_owner_mapping_xPNTsToken_autoApprovedSpenders' -> 'old_owner_mapping_member_xPNTsToken_autoApprovedSpenders'
+REJECTED script/upgrade/test_old_owner_isolation.py:986: 'unexpected_proxy' -> 'unexpected_proxy_other'
+REJECTED script/upgrade/test_old_owner_isolation.py:987: 'unexpected_proxy' -> 'unexpected_proxy_other'
+REJECTED script/upgrade/test_old_owner_isolation.py:988: 'unexpected_proxy' -> 'unexpected_proxy_other'
+REJECTED script/upgrade/test_old_owner_isolation.py:1389: 'old_owner_deployed_build' -> 'old_owner_deployed_build_launch'
+REJECTED script/upgrade/test_old_owner_isolation.py:1390: 'old_owner_deployed_build' -> 'old_owner_deployed_build_launch'
+REJECTED script/upgrade/test_old_owner_isolation.py:1391: 'old_owner_deployed_build' -> 'old_owner_deployed_build_launch'
+REJECTED script/upgrade/test_old_owner_isolation.py:1559: 'old_owner_mapping_xPNTsToken_approvedFacilitators' -> 'old_owner_mapping_member_xPNTsToken_approvedFacilitators'
+REJECTED script/upgrade/test_old_owner_isolation.py:1560: 'old_owner_mapping_xPNTsToken_autoApprovedSpenders' -> 'old_owner_mapping_member_xPNTsToken_autoApprovedSpenders'
+REJECTED script/upgrade/test_old_owner_isolation.py:1561: 'old_owner_allowance_' -> 'old_owner_allowance_pair_'
+REJECTED script/upgrade/test_old_owner_isolation.py:1649: 'old_owner_calldata_bytes' -> 'old_owner_calldata_bytes_outer_tx'
+REJECTED script/upgrade/test_old_owner_isolation.py:1650: 'old_owner_calldata_bytes' -> 'old_owner_calldata_bytes_outer_tx'
+REJECTED script/upgrade/test_old_owner_isolation.py:1651: 'old_owner_calldata_bytes' -> 'old_owner_calldata_bytes_outer_tx'
+REJECTED script/upgrade/test_old_owner_isolation.py:1663: 'old_owner_calldata_bytes' -> 'old_owner_calldata_bytes_outer_tx'
+REJECTED script/upgrade/test_old_owner_isolation.py:1848: 'old_owner_allowance_' -> 'old_owner_allowance_pair_'
+GATE_RENAME_AST_DIFF FAIL n_changes=128
+REJECTED script/upgrade/old_owner_isolation.py:699: 'old_owner_role_admin_' -> 'old_owner_role_admin_declared_'
+REJECTED script/upgrade/old_owner_isolation.py:787: 'old_owner_role_admin_' -> 'old_owner_role_admin_configured_'
+GATE_RENAME_AST_DIFF FAIL n_changes=267
+```
+
+Newly exposed acceptance blockers (not waived):
+
+- The old inventory counted explicit `a.typed` labels only. Binding its actual omitted default exposes `rpc_result` at the 46 source sites below. A uniqueness PASS would require distinct reviewed labels and corresponding coverage at those sites; silently excluding the default would recreate finding 3. This follow-up preserves the real 6e source diff and reports the collision rather than claiming uniqueness.
+- `old_owner_extraction_roles_Registry`, `old_owner_isolation.py:530`, has stale finite-domain metadata claiming `FiniteIsolationTests.test_extra_530_Registry`. That method is deliberately not generated at `test_gate_extra_finite.py:78`; the attempted negative input trips `old_owner_role_init_ids` at production line 344 first. The real-tree target baseline was independently run and is RED by assertion, not error. The existing DSR2 paired/shadow controls are not substituted for a one-site green-baseline proof. No registration or gate was removed to obtain PASS.
+
+Verbatim duplicate inventory:
+
+```text
+DUPLICATE_GATE rpc_result sites=46
+script/upgrade/manifest_exec.py:293 validate_evidence_details
+script/upgrade/manifest_exec.py:306 verifier_executable
+script/upgrade/manifest_exec.py:457 fraud_fixture
+script/upgrade/manifest_exec.py:458 fraud_fixture
+script/upgrade/manifest_exec.py:464 fraud_fixture
+script/upgrade/manifest_exec.py:472 fraud_fixture
+script/upgrade/manifest_exec.py:474 fraud_fixture
+script/upgrade/manifest_exec.py:482 fraud_fixture
+script/upgrade/manifest_exec.py:484 fraud_fixture
+script/upgrade/manifest_exec.py:510 fraud_fixture
+script/upgrade/manifest_exec.py:517 fraud_fixture
+script/upgrade/manifest_exec.py:635 validate_external
+script/upgrade/manifest_exec.py:643 validate_external
+script/upgrade/manifest_exec.py:650 validate_external
+script/upgrade/manifest_exec.py:651 validate_external
+script/upgrade/manifest_exec.py:664 validate_external
+script/upgrade/manifest_exec.py:1110 scan
+script/upgrade/manifest_exec.py:1151 call
+script/upgrade/manifest_exec.py:1193 old_timelock_holds_nothing
+script/upgrade/manifest_exec.py:2119 build_plan
+script/upgrade/manifest_exec.py:2131 build_plan
+script/upgrade/old_owner_isolation.py:615 call
+script/upgrade/old_owner_isolation.py:627 storage
+script/upgrade/old_owner_isolation.py:763 audit
+script/upgrade/old_owner_isolation.py:764 audit
+script/upgrade/old_owner_isolation.py:769 audit
+script/upgrade/old_owner_isolation.py:976 clone_implementation
+script/upgrade/old_owner_isolation.py:1012 verify_deployment_record
+script/upgrade/old_owner_isolation.py:1115 runtime_parity
+script/upgrade/old_owner_isolation.py:1116 runtime_parity
+script/upgrade/old_owner_isolation.py:1168 deployed_inventory
+script/upgrade/old_owner_isolation.py:1169 deployed_inventory
+script/upgrade/old_owner_isolation.py:1170 deployed_inventory
+script/upgrade/old_owner_isolation.py:1241 validate_deployed
+script/upgrade/old_owner_isolation.py:1250 post_upgrade_check
+script/upgrade/old_owner_isolation.py:1255 post_upgrade_check
+script/upgrade/old_owner_isolation.py:1364 role_history
+script/upgrade/old_owner_isolation.py:1367 role_history
+script/upgrade/old_owner_isolation.py:1370 role_history
+script/upgrade/old_owner_isolation.py:1376 role_history
+script/upgrade/old_owner_isolation.py:1377 role_history
+script/upgrade/old_owner_isolation.py:1378 role_history
+script/upgrade/old_owner_isolation.py:1493 fork_probe
+script/upgrade/old_owner_isolation.py:1500 fork_probe
+script/upgrade/old_owner_isolation.py:1558 inspect
+script/upgrade/old_owner_isolation.py:1591 assert_manifest_calldata
+```
+
+Verbatim exhaustive R binding audit (all registrations inspected despite the missing binding):
+
+```text
+R_BINDING BLOCKED ["script/upgrade/old_owner_isolation.py", 530, {"file": "script/upgrade/probe_gate_r.py", "function": "run_probes", "gate": "old_owner_extraction_roles_Registry", "test_class": "FiniteIsolationTests", "test_file": "script/upgrade/test_gate_extra_finite.py", "test_method": "test_extra_530_Registry"}, "gate_templates: test binding missing"]
+R_BINDING MISSING ('script/upgrade/old_owner_isolation.py', 530, 'old_owner_extraction_roles_Registry', 'FiniteIsolationTests', 'test_extra_530_Registry') count=1
+R_BINDING_AUDIT FAIL registered=549 valid=548 executable=548 missing=1 extra=0 invalid=1
+```
+
+Verbatim targeted Registry baseline final lines:
+
+```text
+----------------------------------------------------------------------
+Ran 1 test in 1.318s
+
+FAILED (failures=1)
+REGISTRY_BINDING_BASELINE BLOCKED failures=1 errors=0 expected=old_owner_extraction_roles_Registry earlier=old_owner_role_init_ids
+```
+
+Accessor-suite integration adjustment: the first runs of `getter_accessor` and `sender_accessor` each failed one assertion (zero errors) because their exact inventory-record expectations omitted the newly exposed primitive source line/column. The assertions were updated to require those fields to equal the production-addition registry's exact line/column. No guard or fingerprint check was relaxed. Both entire accessor suites were rerun; final outcomes follow below.
+
+Verbatim initial accessor failure identities and final lines:
+
+```text
+FAIL: test_addition_registry_and_fingerprint (__main__.GetterAccessorTests.test_addition_registry_and_fingerprint)
+----------------------------------------------------------------------
+Ran 2 tests in 1.773s
+
+FAILED (failures=1)
+```
+
+```text
+FAIL: test_sender_accessor_registration (__main__.SenderAccessorTests.test_sender_accessor_registration)
+----------------------------------------------------------------------
+Ran 2 tests in 14.365s
+
+FAILED (failures=1)
+```
+
+Final verification for this tooling-review follow-up (foreground, continued through every suite):
+
+Verbatim per-test green counterexample output (the final suite execution is also recorded below):
+
+```text
+test_deleted_file_rejected (__main__.ReviewControls.test_deleted_file_rejected) ... ok
+test_distinct_forwarded_guards (__main__.ReviewControls.test_distinct_forwarded_guards) ... ok
+test_execution_binding_multiset (__main__.ReviewControls.test_execution_binding_multiset) ... ok
+test_helper_alias (__main__.ReviewControls.test_helper_alias) ... ok
+test_keyword_only_default (__main__.ReviewControls.test_keyword_only_default) ... ok
+test_lookup_in_label_rejected (__main__.ReviewControls.test_lookup_in_label_rejected) ... ok
+test_shared_expected_parameter_rejected (__main__.ReviewControls.test_shared_expected_parameter_rejected) ... ok
+test_shared_label_parameter_rejected (__main__.ReviewControls.test_shared_label_parameter_rejected) ... ok
+test_stale_open_binding (__main__.ReviewControls.test_stale_open_binding) ... ok
+test_test_lookup_rejected (__main__.ReviewControls.test_test_lookup_rejected) ... ok
+test_unproven_record_rejected (__main__.ReviewControls.test_unproven_record_rejected) ... ok
+test_unsupported_alias_escape_rejected (__main__.ReviewControls.test_unsupported_alias_escape_rejected) ... ok
+test_wrapper_default (__main__.ReviewControls.test_wrapper_default) ... ok
+test_wrong_executable_site_binding (__main__.ReviewControls.test_wrong_executable_site_binding) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 2.017s
+
+OK
+```
+
+One intermediate diagnostic run rejected omitted `a.typed` labels as unsupported and produced four unittest errors. That was not accepted: the analyzer was corrected to bind the source-declared default, exposing the duplicate label instead. Its diagnostic final lines were:
+
+```text
+----------------------------------------------------------------------
+Ran 27 tests in 0.788s
+
+FAILED (errors=4)
+```
+
+`python3 -B script/upgrade/gate_rename_ast_diff.py 2acc71af WORKTREE` — exit 0:
+
+```text
+ALLOWED script/upgrade/test_old_owner_isolation.py:1650 REVIEWED_GATE_REFERENCE 'old_owner_calldata_bytes' -> 'old_owner_calldata_bytes_outer_tx'
+ALLOWED script/upgrade/test_old_owner_isolation.py:1651 REVIEWED_GATE_REFERENCE 'old_owner_calldata_bytes' -> 'old_owner_calldata_bytes_outer_tx'
+ALLOWED script/upgrade/test_old_owner_isolation.py:1663 REVIEWED_GATE_REFERENCE 'old_owner_calldata_bytes' -> 'old_owner_calldata_bytes_outer_tx'
+ALLOWED script/upgrade/test_old_owner_isolation.py:1848 REVIEWED_GATE_REFERENCE 'old_owner_allowance_' -> 'old_owner_allowance_pair_'
+GATE_RENAME_AST_DIFF PASS n_changes=269
+```
+
+`python3 -B script/upgrade/probe_gate_names.py` — exit 0:
+
+```text
+Ran 3 tests in 0.001s
+OK
+Ran 3 tests in 0.001s
+FAILED (failures=3)
+Ran 1 test in 12.776s
+OK
+Ran 1 test in 1.625s
+Ran 1 test in 1.549s
+OK
+Ran 1 test in 1.645s
+Ran 1 test in 1.556s
+OK
+Ran 1 test in 1.632s
+Ran 1 test in 1.596s
+OK
+Ran 1 test in 1.585s
+Ran 1 test in 1.616s
+OK
+Ran 1 test in 1.619s
+Ran 1 test in 1.671s
+OK
+Ran 1 test in 1.678s
+Ran 1 test in 1.613s
+OK
+Ran 1 test in 1.670s
+Ran 1 test in 1.542s
+OK
+Ran 1 test in 1.546s
+Ran 1 test in 1.577s
+OK
+Ran 1 test in 1.563s
+
+FAILED (failures=1)
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+```
+
+`python3 -B script/upgrade/test_old_owner_isolation.py` — exit 0:
+
+```text
+Ran 143 tests in 41.317s
+OK (skipped=2)
+L1_CONTROL old_owner_implementation removed=assertion-failure errors=0
+L1_CONTROL old_owner_creation_before removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL old_owner_undeclared_clone removed=assertion-failure errors=0
+```
+
+`python3 -B script/upgrade/test_manifest_exec.py` — exit 0:
+
+```text
+Ran 535 tests in 462.319s
+OK (skipped=2)
+L1_CONTROL old_owner_implementation removed=assertion-failure errors=0
+L1_CONTROL old_owner_creation_before removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL old_owner_undeclared_clone removed=assertion-failure errors=0
+```
+
+`python3 -B script/upgrade/test_manifest_phase_c.py` — exit 0:
+
+```text
+..............
+----------------------------------------------------------------------
+Ran 141 tests in 200.427s
+
+OK
+```
+
+`python3 -B script/a3a/test_a3a_exec.py` — exit 0:
+
+```text
+
+----------------------------------------------------------------------
+Ran 102 tests in 3.024s
+
+OK
+```
+
+`python3 -B script/a3a/test_a3a_send.py` — exit 0:
+
+```text
+...................................
+----------------------------------------------------------------------
+Ran 73 tests in 31.276s
+
+OK
+```
+
+`python3 -B script/upgrade/test_sp_upgrade_exec.py` — exit 0:
+
+```text
+
+----------------------------------------------------------------------
+Ran 141 tests in 1.441s
+
+OK
+```
+
+`python3 -B script/upgrade/test_authority_checkpoints.py` — exit 0:
+
+```text
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 17.781s
+
+OK
+```
+
+`python3 -B script/upgrade/test_swallow_exceptions.py` — exit 0:
+
+```text
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 2.669s
+
+OK
+```
+
+`python3 -B script/upgrade/test_execution_head.py` — exit 0:
+
+```text
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.867s
+
+OK
+```
+
+`python3 -B script/upgrade/test_execution_reads.py` — exit 0:
+
+```text
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 0.088s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_names.py` — exit 1:
+
+```text
+
+----------------------------------------------------------------------
+Ran 27 tests in 23.500s
+
+FAILED (failures=3)
+```
+
+Verbatim failing test identities:
+
+```text
+FAIL: test_dynamic_templates_registered (__main__.GateNameTests.test_dynamic_templates_registered)
+FAIL: test_literal_names_unique (__main__.GateNameTests.test_literal_names_unique)
+FAIL: test_registered_finite_templates_labels_and_probes (__main__.GateNameTests.test_registered_finite_templates_labels_and_probes)
+```
+
+`python3 -B script/upgrade/test_gate_rename_controls.py` — exit 0:
+
+```text
+Ran 5 tests in 6.299s
+
+OK
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL old_owner_undeclared_clone removed=assertion-failure errors=0
+```
+
+`python3 -B script/upgrade/test_gate_template_controls.py` — exit 0:
+
+```text
+...........................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 171 tests in 203.595s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_dsr2.py` — exit 0:
+
+```text
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 33.726s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_empty_schema.py` — exit 0:
+
+```text
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.003s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_extra_finite.py` — exit 0:
+
+```text
+.......................................................
+----------------------------------------------------------------------
+Ran 55 tests in 4.248s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_review_controls.py` — exit 0:
+
+```text
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 1.891s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_r_controls.py` — exit 0:
+
+```text
+................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 608 tests in 170.462s
+
+OK
+```
+
+`python3 -B script/upgrade/test_getter_accessor.py` — exit 0:
+
+```text
+..
+----------------------------------------------------------------------
+Ran 2 tests in 4.727s
+
+OK
+```
+
+`python3 -B script/upgrade/test_sender_accessor.py` — exit 0:
+
+```text
+..
+----------------------------------------------------------------------
+Ran 2 tests in 25.649s
+
+OK
+```
+
+This is **not acceptance of COMMIT 6e uniqueness/coverage**. AST and focused deletion probes pass; gate_names remains failed on the two documented root causes (duplicate default label and nonexistent registered executable binding). All other requested/extra suites were still run. No unittest ERROR is accepted as a deletion success. No production gate was deleted, no commit was made, and the incoming production source changes were retained.
+
+```text
+COMMIT6E_TOOLING_REVIEW_RESULT BLOCKED requested_findings_fixed=5 counterexamples_red_then_green=11 supplemental_tests=3 ast_diff=PASS gate_name_probes=PASS suites_passed=19/20 duplicate_default_sites=46 missing_probe_bindings=1 errors_accepted=0
+```
+
+Final worktree/process verification (verbatim):
+
+```text
+2acc71afb62b23e72a5c610522be0e21dc87e119
+ASSERT_STOP_UNCHANGED catches=a.Gate
+INDEX_UNCHANGED staged_files=0
+GIT_DIFF_CHECK PASS
+LAUNCHED_FOREGROUND_SESSIONS remaining=0
+PROCESS_TABLE_UNAVAILABLE ps rejected by filesystem sandbox (PermissionError: Operation not permitted)
+```
+
+All launched foreground sessions were waited to completion; no background command was started or left running. A global process-table scan was unavailable because the sandbox rejected `ps`; no escalation was attempted. Temporary gate mutations were confined to copied ASTs or context-managed temporary trees. `/tmp/commit6e-review` retains logs and orchestration scripts, not a mutated production tree.
+
+
+### 6e non-zero sender fixture continuation (2026-11-07)
+
+Scope: preserve HEAD `2acc71af` and the incoming uncommitted 6e diff; no
+commit, RPC, environment-file, keystore, or chain access. Only test fixtures,
+the bounded sender probe selection, and this report changed in this continuation.
+Production constants, predicates, and `assert_stop` were not changed.
+
+The old zero-address fixture classification is superseded. Each replacement
+address is valid lowercase hex but non-canonical for the approved sender role:
+
+| Role | Exact input X |
+|---|---|
+| deployer | `0x0000000000000000000000000000000000d5a201` |
+| approver | `0x0000000000000000000000000000000000d5a202` |
+| executor | `0x0000000000000000000000000000000000d5a203` |
+
+The fixture asserts X is non-zero and absent from the original pin, inputs,
+artifact identities, and string constants in `a` (including all `a.SENDERS`
+values represented in the pin). The three X values are distinct.
+
+Rebuilt evidence fields, test-only:
+
+- `pin.senders[role].address` becomes X.
+- Every matching `a3aPlan.steps[*].tx.from` and corresponding
+  `pin.a3aHistory[step.id].transaction.from` becomes X. Step IDs, nonces,
+  receipt hashes, block identities, status, and nonce-range boundaries remain
+  self-consistent and unchanged. The plan has no nonce gaps, and the fixture
+  asserts both plan/spec gap lists and `a3aGapReads` are empty.
+- `inputs.data.a3aPlan.path` and `.sha256` are rebuilt from the rewritten
+  reviewed plan; the external input JSON and `inputs.sha256` are rebuilt via
+  `m.external`.
+- For deployer only, the old deployer's `operatorBalances` entry becomes zero
+  and its amount is added to the existing `anni` entry. Inventory keys and
+  `totalTrackedBalance` remain unchanged. This passes `drain_senders` after U
+  is removed without changing any production authorization.
+
+`validate_nonce_history` runs on the rebuilt fixture, followed by `build_plan`.
+Real-tree b3 requires exactly `sender_identity` at U:735, proving E M:1822,
+accessor #21 M:1823, and all preceding gates passed. Temporary copies delete
+only U for b1 and then the single T statement M:2155 for b2. E and #21 remain
+intact throughout. The first deployer attempt exposed `drain_senders` after U;
+that result was not accepted, and its log is retained at
+`/tmp/commit6e-sender-final/senders-initial.log`. The final corrected fixture
+preserves the balance sum as described above.
+
+Final sender probe command: `python3 -B script/upgrade/probe_gate_dsr2.py --senders` (exit 0). No full probe-driver batch was run. Verbatim final result lines:
+
+```text
+DSR2_PAIR sender_deployer PASS E=sender_identity source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E b1_failures=1 b1_errors=0 b1_named=True failures=1 errors=0 named=True
+DSR2_PAIR sender_approver PASS E=sender_identity source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E b1_failures=1 b1_errors=0 b1_named=True failures=1 errors=0 named=True
+DSR2_PAIR sender_executor PASS E=sender_identity source_sites=1 E_sites=1 baseline=green b1=exact_T b3=exact_E b1_failures=1 b1_errors=0 b1_named=True failures=1 errors=0 named=True
+DSR2_AGGREGATE accepted=18/18 preserved_accepted=15 rerun=3 blocked=0 errors_accepted=0
+```
+
+After U + T deletion, `sender_deployer` produced `AssertionError: 'drain_operator_present_deployer' != 'sender_deployer'` (one FAIL, zero ERROR).
+
+After U + T deletion, `sender_approver` produced `AssertionError: sender_approver: Gate not raised` (one FAIL, zero ERROR).
+
+After U + T deletion, `sender_executor` produced `AssertionError: sender_executor: Gate not raised` (one FAIL, zero ERROR).
+
+
+#### Final foreground verification for the non-zero sender continuation
+
+All 22 commands completed; the final-state AST recheck also completed. No full probe-driver batch ran. Logs: `/tmp/commit6e-sender-final/`.
+
+`python3 -B script/upgrade/gate_rename_ast_diff.py 2acc71af WORKTREE` — exit 0:
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=269
+```
+
+`python3 -B script/upgrade/probe_gate_names.py` — exit 0:
+
+```text
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+```
+
+`python3 -B script/upgrade/test_old_owner_isolation.py` — exit 0:
+
+```text
+Ran 143 tests in 43.120s
+
+OK (skipped=2)
+L1_CONTROL old_owner_calldata_payload removed=assertion-failure errors=0
+L1_CONTROL old_owner_endpoint_distinct removed=assertion-failure errors=0
+L1_CONTROL old_owner_endpoint_distinct removed=assertion-failure errors=0
+L1_CONTROL old_owner_uncancelled_grants removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_extraction_empty removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_address removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_removed removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_topic removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_canonical removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_range removed=assertion-failure errors=0
+L1_CONTROL old_owner_fallback_canonical removed=assertion-failure errors=0
+L1_CONTROL old_owner_module_page removed=assertion-failure errors=0
+L1_CONTROL old_owner_implementation removed=assertion-failure errors=0
+L1_CONTROL old_owner_creation_before removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL old_owner_undeclared_clone removed=assertion-failure errors=0
+```
+
+`python3 -B script/upgrade/test_manifest_exec.py` — exit 0:
+
+```text
+Ran 535 tests in 552.106s
+
+OK (skipped=2)
+L1_CONTROL old_owner_calldata_bytes_outer_tx removed=assertion-failure errors=0
+L1_CONTROL old_owner_source_claim removed=assertion-failure errors=0
+L1_CONTROL old_owner_calldata_bytes_outer_tx removed=assertion-failure errors=0
+L1_CONTROL old_owner_calldata_target removed=assertion-failure errors=0
+L1_CONTROL old_owner_calldata_target removed=assertion-failure errors=0
+L1_CONTROL old_owner_calldata_payload removed=assertion-failure errors=0
+L1_CONTROL old_owner_endpoint_distinct removed=assertion-failure errors=0
+L1_CONTROL old_owner_endpoint_distinct removed=assertion-failure errors=0
+L1_CONTROL old_owner_uncancelled_grants removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_extraction_empty removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_address removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_removed removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_topic removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_canonical removed=assertion-failure errors=0
+L1_CONTROL old_owner_role_log_range removed=assertion-failure errors=0
+L1_CONTROL old_owner_fallback_canonical removed=assertion-failure errors=0
+L1_CONTROL old_owner_module_page removed=assertion-failure errors=0
+L1_CONTROL old_owner_implementation removed=assertion-failure errors=0
+L1_CONTROL old_owner_creation_before removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL old_owner_undeclared_clone removed=assertion-failure errors=0
+```
+
+`python3 -B script/upgrade/test_manifest_phase_c.py` — exit 0:
+
+```text
+Ran 141 tests in 241.032s
+
+OK
+```
+
+`python3 -B script/a3a/test_a3a_exec.py` — exit 0:
+
+```text
+Ran 102 tests in 3.183s
+
+OK
+```
+
+`python3 -B script/a3a/test_a3a_send.py` — exit 0:
+
+```text
+Ran 73 tests in 32.272s
+
+OK
+```
+
+`python3 -B script/upgrade/test_sp_upgrade_exec.py` — exit 0:
+
+```text
+Ran 141 tests in 1.629s
+
+OK
+```
+
+`python3 -B script/upgrade/test_authority_checkpoints.py` — exit 0:
+
+```text
+Ran 10 tests in 19.026s
+
+OK
+```
+
+`python3 -B script/upgrade/test_swallow_exceptions.py` — exit 0:
+
+```text
+Ran 9 tests in 2.819s
+
+OK
+```
+
+`python3 -B script/upgrade/test_execution_head.py` — exit 0:
+
+```text
+Ran 6 tests in 1.043s
+
+OK
+```
+
+`python3 -B script/upgrade/test_execution_reads.py` — exit 0:
+
+```text
+Ran 10 tests in 0.097s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_names.py` — exit 1:
+
+```text
+Ran 27 tests in 25.869s
+
+FAILED (failures=3)
+```
+
+`python3 -B script/upgrade/test_gate_rename_controls.py` — exit 0:
+
+```text
+Ran 5 tests in 7.863s
+
+OK
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL old_owner_undeclared_clone removed=assertion-failure errors=0
+```
+
+`python3 -B script/upgrade/test_gate_template_controls.py` — exit 0:
+
+```text
+Ran 171 tests in 254.928s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_dsr2.py` — exit 0:
+
+```text
+Ran 18 tests in 36.302s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_empty_schema.py` — exit 0:
+
+```text
+Ran 4 tests in 0.006s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_extra_finite.py` — exit 0:
+
+```text
+Ran 55 tests in 4.739s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_review_controls.py` — exit 0:
+
+```text
+Ran 14 tests in 2.132s
+
+OK
+```
+
+`python3 -B script/upgrade/test_gate_r_controls.py` — exit 0:
+
+```text
+Ran 608 tests in 186.918s
+
+OK
+```
+
+`python3 -B script/upgrade/test_getter_accessor.py` — exit 0:
+
+```text
+Ran 2 tests in 5.121s
+
+OK
+```
+
+`python3 -B script/upgrade/test_sender_accessor.py` — exit 0:
+
+```text
+Ran 2 tests in 24.938s
+
+OK
+```
+
+The gate-name suite remains BLOCKED, with three assertion failures and zero errors. Two registration assertions fail because `gate_templates.json` registers `FiniteIsolationTests.test_extra_530_Registry` for `old_owner_extraction_roles_Registry` at O:530, while `test_gate_extra_finite.py:78` explicitly skips `(530, 'Registry')`. The uniqueness assertion reports one repeated label, `rpc_result`, at 46 source sites where the actual `a.typed` default is used (21 in manifest_exec.py and 25 in old_owner_isolation.py). The detailed site inventory is preserved in the preceding tooling-review section and the current test_gate_names.log. These were not treated as passing coverage or hidden by weakening the checker. All later suites completed despite the failures.
+
+Verbatim failing test identities:
+
+```text
+FAIL: test_dynamic_templates_registered (__main__.GateNameTests.test_dynamic_templates_registered)
+FAIL: test_literal_names_unique (__main__.GateNameTests.test_literal_names_unique)
+FAIL: test_registered_finite_templates_labels_and_probes (__main__.GateNameTests.test_registered_finite_templates_labels_and_probes)
+```
+
+```text
+COMMIT6E_SENDER_RESULT DSR2=18/18 sender_pairs=3/3 ast_diff=PASS gate_name_probes=PASS suites_passed=19/20 gate_names=BLOCKED failures=3 errors=0 errors_accepted=0
+```
+
+Final verification (verbatim):
+
+```text
+HEAD_UNCHANGED 2acc71afb62b23e72a5c610522be0e21dc87e119
+ASSERT_STOP_UNCHANGED catches=a.Gate
+INDEX_UNCHANGED staged_files=0
+GIT_DIFF_CHECK PASS
+LAUNCHED_FOREGROUND_SESSIONS remaining=0
+```
+
+All launched command sessions were collected to exit 0, including the orchestration runner (whose individual gate_names exit 1 is explicitly recorded above). No background command was launched. Sender mutation trees were context-managed temporary copies and were removed on completion. No production gate was deleted in the real worktree. No commit was made.
+
+
+### DSR 8a900e9c continuation — required typed gates and declaration integrity
+
+The existing 6e diff was preserved on HEAD `2acc71afb62b23e72a5c610522be0e21dc87e119`.
+No commit, RPC connection, environment-file read, keystore access, or chain operation was made.
+Only named offline suites and focused probes were invoked; the full probe-driver batch was not run.
+
+The AST inventory covers tracked and untracked Python files and follows module aliases,
+imported-function aliases, and assigned aliases. It finds 120 actual `typed` call sites:
+88 formerly defaulted calls now have unique literal `gate=` keywords, while the 32
+already explicit calls retain their gate names. The 88 sites comprise 25 in `a3a_exec`,
+2 in `a3a_send`, 21 in `manifest_exec`, 25 in `old_owner_isolation`, and 15 in
+`sp_upgrade_exec`. `typed` has no default gate parameter. The new names participate
+in uniqueness and prefix-disjointness checks. Negative controls require a missing
+argument to raise `TypeError` and the uniqueness inventory to reject missing gates,
+including calls through aliases. The negative runtime test deliberately uses `getattr`
+to call without the required argument; it is not a production gate site.
+
+`gate_typed_changes.json` declares each of the 88 added keywords individually, with
+file, function, line, column, gate, and AST fingerprint. The required-parameter signature
+change has its own exact before/after fingerprint declaration. There is no blanket
+keyword exemption. Test instrumentation uses tracing/profiling rather than an additional
+forwarding call to `typed`.
+
+All 143 `(y)` reference declarations are retained. Reference, structural, signature,
+keyword, production-addition, and rename-map declarations are checked for use; fingerprint,
+source, or location mismatches cannot silently fall through to ordinary rename acceptance.
+The stronger checker exposed one stale map entry: the old `autoApprovedSpenders` name
+incorrectly mapped to the `approvedFacilitators` reference at O-test:1559. That unused
+entry was removed, and two `test_placeholder` function metadata values were corrected
+to `test_named_clones_storage_authority_controls`. No gate registration was removed.
+Reviewed finite-domain digests were rebound only after stripping the new keywords
+(and restoring the old signature for the dependency check) reproduced the previous digests.
+
+The O:530 Registry registration now binds `test_gate_dsr2.RegistryShadowTests` shadow
+and target methods to the existing DSR2 pair runner, including the exact earlier gate
+`old_owner_role_init_ids`. The validator checks source file, line, gate, class, both methods,
+runner function, and earlier gate. Wrong bindings remain rejected.
+
+The RPC probes use temporary script-tree copies plus the three existing offline JSON
+fixtures needed by the A3a and upgrade suites. Final probes inject malformed values through
+original function inputs or immediate RPC/cast return boundaries, so every later read sees
+the malformed value. Field reads are not independently overwritten after earlier validation.
+The mutant removes only the selected `typed` call. `assert_stop` is unchanged and accepts
+only `a.Gate`. Acceptance requires one source site, a green exact-Gate baseline, at least
+one failure, zero errors, and a failure message naming the deleted gate. The mutation helper
+refuses paths inside the real worktree. Earlier schema/fixed-value stops are blockers, not passes.
+
+An initial diagnostic attempted argument-boundary substitution, which could bypass earlier
+checks of the same value. That diagnostic was rejected, interrupted (exit 130), and none of
+its apparent passes count below. The corrected sweep retained completed per-site records;
+its slow candidate searches were interrupted (exit 130) and resumed at the first
+unfinished site with real malformed-provider fixtures. This was a harness replacement, not
+a stop threshold: every remaining site was processed. All mutation trees are context-managed.
+
+Deployed-inventory mutants exposed a missing fixture dependency: provenance reads used
+`git show` inside the temporary tree, which initially had no Git history. Those ERROR
+results were rejected. The focused retry uses a local, checkout-free repository copy
+(`git clone --local --no-hardlinks --no-checkout`) with the script sources overlaid.
+Git provenance gates remain intact and read from the temporary repository. The first
+clone attempt used hardlinks, which the sandbox rejected; the retry copies objects.
+No source redirection, production fallback, network clone, or commit was used.
+
+The first combined suite-discovery process exited 129 during the sender PTY test. The sender
+suite and remaining suites were rerun as isolated foreground child processes. Strengthened
+unused-declaration checks initially rejected the getter/sender synthetic accessor comparisons
+because they loaded unrelated real-tree declarations. Those synthetic fixtures now load only
+their exact relevant production-addition declaration; the complete real-tree comparator still
+checks every declaration. Both accessor suites passed on rerun. No ERROR was accepted as a
+successful gate probe or suite result.
+
+Real declared-location counterexamples (temporary metadata/source only): changing the
+`case['gate']` lookup key at O:1512 while rebinding only the source digest leaves its node
+fingerprint mismatched and must fail; adding an unused declaration must also fail.
+Verbatim output:
+
+```text
+REJECTED script/upgrade/old_owner_isolation.py: declaration fingerprint/location mismatch script/upgrade/old_owner_isolation.py.body[82].body[5].body[2].body[8].body[0].handlers[0].body[0].value.args[2]
+REJECTED script/upgrade/old_owner_isolation.py: stale/unused or mismatched reference declaration script/upgrade/old_owner_isolation.py.body[82].body[5].body[2].body[8].body[0].handlers[0].body[0].value.args[2]
+REJECTED script/upgrade/old_owner_isolation.py: stale/unused or mismatched mapping declaration {'new': "'old_owner_fork_case_' + case['gate']", 'file': 'script/upgrade/old_owner_isolation.py', 'function': 'fork_probe', 'line': 1512, 'kind': 'prefix_expression', 'reason': 'Disjointness wins: fork STOP definition must not reuse caller gate namespaces.'}
+GATE_RENAME_AST_DIFF FAIL counterexample=declared_lookup_key
+REJECTED script/upgrade/old_owner_isolation.py: stale/unused or mismatched reference declaration script/upgrade/old_owner_isolation.py.body[82].body[5].body[2].body[8].body[0].handlers[0].body[0].value.args[2].unused
+GATE_RENAME_AST_DIFF FAIL counterexample=stale_declaration
+GATE_DECLARATION_COUNTEREXAMPLES PASS baseline=green lookup=red stale=red
+```
+
+Focused verification final lines (verbatim):
+
+```text
+REGISTRY_DSR2_PAIR PASS sites=1 earlier_sites=1 baseline=green shadow=green failures=1 errors=0 named=True
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+GATE_RENAME_CONTROL safe_gap_log_transactionIndex_typed PASS baseline=green sites=1
+GATE_RENAME_CONTROL unexpected_proxy_other PASS baseline=green sites=1
+GATE_RENAME_CONTROL unexpected_proxy_beacon PASS baseline=green sites=1
+GATE_RENAME_CONTROL old_owner_calldata_bytes_outer_tx PASS baseline=green sites=1
+GATE_RENAME_CONTROL old_owner_calldata_bytes_payload PASS baseline=green sites=1
+GATE_RENAME_CONTROLS PASS 5/5 strict red
+```
+
+Final DSR verification results
+
+The final RPC evidence is in `gate_typed_probe_results.json`: 88 individually located
+source sites, 69 strict deletion passes, and 19 blockers. Eleven blockers have a real
+malformed-input fixture proving an earlier named gate stops first; eight have no
+established independent malformed-input fixture. The latter are not claims of
+unreachability. None are passes. Every site was processed; there was no global stop
+threshold. `validate_external_key` also has green shadow controls for `fixed_dvt`
+and `fixed_committee`, in addition to the probed `fixed_anni` input.
+
+Each accepted record retains its exact fixture, green baseline log, mutant log, and
+verbatim final line. Blocked records retain their baseline diagnostics or the exact
+missing fixture boundary. The initial argument-injection diagnostic is excluded.
+The local-history retries supersede the three deployed-inventory ERROR results.
+
+Precise remaining blockers:
+
+| Site | Gate | Reason |
+| --- | --- | --- |
+| `script/a3a/a3a_exec.py:668:33` | `rpc_result_rebuild_artifacts_object` | No independent malformed current-artifact fixture was established through the intact rebuild_head, pinned Forge-version, compile_commit, and committed-config path; argument substitution after these checks is prohibited. |
+| `script/a3a/a3a_exec.py:669:34` | `rpc_result_rebuild_artifacts_object_2` | No independent malformed rebuilt-artifact fixture was established through compile_commit and its artifact validation; replacing the field after that producer would bypass earlier checks. |
+| `script/a3a/a3a_exec.py:1525:30` | `rpc_result_scheduled_eta_data` | No independent malformed log-data fixture was established through find_step_schedule while preserving its schedule/receipt binding and the earlier schedule metadata checks. |
+| `script/upgrade/manifest_exec.py:457:43` | `rpc_result_fraud_fixture_key` | Malformed original input stops first at fraud_schema_pattern_fixture.export.aggregator; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:458:51` | `rpc_result_fraud_fixture_key_2` | Malformed original input stops first at fraud_schema_pattern_fixture.export.domainSeparator; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:464:26` | `rpc_result_fraud_fixture_who` | Malformed original input stops first at fraud_schema_pattern_fixture.export.valid.guiltyGuardians.0; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:472:4` | `rpc_result_fraud_fixture_fraudProof` | Malformed original input stops first at fraud_schema_pattern_fixture.export.valid.fraudProof; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:474:4` | `rpc_result_fraud_fixture_address` | Malformed original input stops first at fraud_schema_pattern_fixture.export.forkState.token.address; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:482:4` | `rpc_result_fraud_fixture_address_2` | Malformed original input stops first at fraud_schema_pattern_fixture.export.forkState.token.address; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:484:4` | `rpc_result_fraud_fixture_runtime` | Malformed original input stops first at fraud_schema_pattern_fixture.export.forkState.token.runtimeBytecode; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:510:4` | `rpc_result_fraud_fixture_fraudProof_2` | Malformed original input stops first at fraud_schema_pattern_fixture.export.mustReject.2.fraudProof; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:517:4` | `rpc_result_fraud_fixture_domainDigest` | Malformed original input stops first at fraud_schema_pattern_fixture.export.mustReject.3.domainDigest; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:643:8` | `rpc_result_validate_external_key` | Malformed original input stops first at fixed_anni; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/manifest_exec.py:664:8` | `rpc_result_validate_external_who` | Malformed original input stops first at sampled_deployer_only; exact-target baseline is red, so deletion cannot be accepted. |
+| `script/upgrade/old_owner_isolation.py:1012:4` | `rpc_result_verify_deployment_record_txHash` | No standalone malformed txHash fixture was established with a committed deployment record, matching source commit and address. The local-history retry fixes fixture availability but does not itself prove this site. |
+| `script/upgrade/old_owner_isolation.py:1241:8` | `rpc_result_validate_deployed_identity` | No malformed endpoint-identity fixture was established with complete sourceReads/sourceSelection replay and intact endpoint-identity checks. |
+| `script/upgrade/old_owner_isolation.py:1250:4` | `rpc_result_post_upgrade_check_stateBlock` | No independent malformed stateBlock fixture was established for the complete release post-upgrade path; existing discovery reached this site only with valid input. No deletion probe is claimed. |
+| `script/upgrade/old_owner_isolation.py:1255:12` | `rpc_result_post_upgrade_check_target` | No independent malformed release-target fixture was established for the complete release post-upgrade path; existing discovery reached this site only with valid input. No deletion probe is claimed. |
+| `script/upgrade/old_owner_isolation.py:1558:8` | `rpc_result_inspect_data` | No malformed decoded nested-call fixture was established: outer tx data is typed before inspect, explicit payload children pass old_owner_calldata_payload_shape, and no independent malformed recursive decoded-value route was demonstrated. |
+
+Final lines for all 88 RPC sites, followed by the merged aggregate (verbatim):
+
+```text
+RPC_RESULT_PROBE rpc_result_qty_value PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_keccak_keccak PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_rpc_keccak_web3_sha3 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_rpc_keccak_data PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_verify_runtime_artifactRuntime PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_verify_runtime_code PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_calldata_calldata PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_call_eth_call PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_block_data_hash PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_artifact_sources_keccak256 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_cbor_tail_code PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_rebuild_artifacts_object BLOCKED sites=1 candidates=0 attempts=0 reason=no independent malformed original-input fixture for current[field]['object'] in rebuild_artifacts; field-boundary injection prohibited
+RPC_RESULT_PROBE rpc_result_rebuild_artifacts_object_2 BLOCKED sites=1 candidates=0 attempts=0 reason=no independent malformed original-input fixture for fresh[field]['object'] in rebuild_artifacts; field-boundary injection prohibited
+RPC_RESULT_PROBE rpc_result_safe_extensions_eth_getStorageAt PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_preflight_eth_getCode PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_receipt_eth_sendTransaction PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_roles_readback_1 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_roles_readback_2 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_roles_readback_3 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_pin_blockHash PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_gaps_hash PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_check_gaps_eth_getCode PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_scheduled_eta_data BLOCKED sites=1 candidates=0 attempts=0 reason=no independent malformed original-input fixture for log['data'] in scheduled_eta; field-boundary injection prohibited
+RPC_RESULT_PROBE rpc_result_pre_send_eth_getCode PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_require_deployed_eth_getCode PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_local_keccak_value PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_check_signed_hash PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_evidence_details_value PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_verifier_executable_code PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_fraud_fixture_key BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_fraud_fixture_key_2 BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_fraud_fixture_who BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_fraud_fixture_fraudProof BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_fraud_fixture_address BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_fraud_fixture_address_2 BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_fraud_fixture_runtime BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_fraud_fixture_fraudProof_2 BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_fraud_fixture_domainDigest BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_validate_external_sid PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_external_key BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_validate_external_validator PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_external_calldata PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_external_who BLOCKED sites=1 candidates=1 attempts=1 reason=real fixture failed exact-target baseline or strict deletion criterion; see per-attempt logs
+RPC_RESULT_PROBE rpc_result_scan_blockNumber PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_call_eth_call_2 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_old_timelock_holds_nothing_1 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_build_plan_value PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_build_plan_code PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_call_eth_call_3 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_storage_eth_getStorageAt PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_audit_1 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_audit_blockNumber PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_audit_blockHash PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_clone_implementation_code PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_verify_deployment_record_txHash BLOCKED sites=1 candidates=0 attempts=0 reason=no independent malformed original-input fixture for ref['txHash'] in verify_deployment_record; field-boundary injection prohibited
+RPC_RESULT_PROBE rpc_result_runtime_parity_code PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_runtime_parity_object PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_deployed_inventory_eth_getCode PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_deployed_inventory_eth_getStorageAt PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_deployed_inventory_eth_getStorageAt_2 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_deployed_identity BLOCKED sites=1 candidates=0 attempts=0 reason=no independent malformed original-input fixture for identity in validate_deployed; field-boundary injection prohibited
+RPC_RESULT_PROBE rpc_result_post_upgrade_check_stateBlock BLOCKED sites=1 candidates=0 attempts=0 reason=no independent malformed original-input fixture for pin['stateBlock'] in post_upgrade_check; field-boundary injection prohibited
+RPC_RESULT_PROBE rpc_result_post_upgrade_check_target BLOCKED sites=1 candidates=0 attempts=0 reason=no independent malformed original-input fixture for target in post_upgrade_check; field-boundary injection prohibited
+RPC_RESULT_PROBE rpc_result_role_history_data PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_role_history_topic PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_role_history_blockNumber PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_role_history_transactionHash PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_role_history_transactionIndex PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_role_history_logIndex PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_fork_probe_raw PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_fork_probe_raw_2 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_inspect_data BLOCKED sites=1 candidates=0 attempts=0 reason=no independent malformed original-input fixture for data in inspect; field-boundary injection prohibited
+RPC_RESULT_PROBE rpc_result_assert_manifest_calldata_data PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_uints_raw PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_code_eth_getCode PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_scan_blockHash PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_scan_transactionHash PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_inventory_2 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_inventory_1 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_safe_state_eth_getStorageAt PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_pending_operations_1 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_initial_guardian_eth_getStorageAt PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_gas_transactionHash PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_admission_gas_data PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_pin_field PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_pin_who PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_pin_who_2 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBE rpc_result_validate_pin_who_3 PASS sites=1 baseline=green failures=1 errors=0 named=True
+RPC_RESULT_PROBES passed=69 total=88 blocked=19 errors_accepted=0
+```
+
+All requested suites and all new test files ran in the foreground. Four existing
+opt-in tests were skipped; no skipped test was used as a passing deletion probe.
+Production sources did not change between the full suite runs and the final focused
+checks. Final suite summary lines (verbatim):
+
+```text
+test_old_owner_isolation
+Ran 143 tests in 99.896s
+OK (skipped=2)
+
+test_manifest_exec
+Ran 535 tests in 577.144s
+OK (skipped=2)
+
+test_manifest_phase_c
+Ran 141 tests in 207.760s
+OK
+
+test_a3a_exec
+Ran 102 tests in 4.143s
+OK
+
+test_a3a_send
+Ran 73 tests in 31.772s
+OK
+
+test_sp_upgrade_exec
+Ran 141 tests in 1.797s
+OK
+
+test_authority_checkpoints
+Ran 10 tests in 25.185s
+OK
+
+test_swallow_exceptions
+Ran 9 tests in 6.792s
+OK
+
+test_execution_head
+Ran 6 tests in 0.920s
+OK
+
+test_execution_reads
+Ran 10 tests in 0.102s
+OK
+
+test_gate_names
+Ran 27 tests in 57.677s
+OK
+
+test_gate_rename_controls
+Ran 5 tests in 7.115s
+OK
+
+test_gate_template_controls
+Ran 171 tests in 264.830s
+OK
+
+test_gate_dsr2
+Ran 18 tests in 42.801s
+OK
+
+test_gate_empty_schema
+Ran 4 tests in 0.006s
+OK
+
+test_gate_extra_finite
+Ran 55 tests in 7.396s
+OK
+
+test_gate_review_controls
+Ran 14 tests in 2.562s
+OK
+
+test_gate_r_controls
+Ran 608 tests in 250.059s
+OK
+
+test_getter_accessor
+Ran 2 tests in 15.856s
+OK
+
+test_sender_accessor
+Ran 2 tests in 46.979s
+OK
+
+test_gate_typed_controls
+Ran 5 tests in 3.616s
+OK
+
+test_gate_declaration_controls
+Ran 8 tests in 0.048s
+OK
+
+test_gate_typed_boundaries
+Ran 14 tests in 0.003s
+OK
+
+test_gate_typed_fields
+Ran 30 tests in 21.534s
+OK
+
+test_gate_typed_shadow_controls
+Ran 12 tests in 30.303s
+OK
+
+test_gate_typed_log_fields
+Ran 18 tests in 14.703s
+OK
+
+OFFLINE_SUITES PASS suites=26 tests=2163 failures=0 errors=0
+```
+
+Final checker and workspace lines (verbatim):
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=358
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+TYPED_AST_INVENTORY PASS calls=120 renamed_defaults=88 preserved_explicit=32 bare_rpc_result=0
+HEAD_UNCHANGED 2acc71afb62b23e72a5c610522be0e21dc87e119
+ASSERT_STOP_UNCHANGED catches=a.Gate
+INDEX_UNCHANGED staged_files=0
+GIT_DIFF_CHECK PASS
+OWNED_PROBE_TEMP_TREES remaining=0
+LAUNCHED_FOREGROUND_SESSIONS remaining=0
+```
+
+No commit was made. All owned foreground sessions were collected; no background
+job was launched. One interrupted probe directory required explicit cleanup after
+the owning session exited; no owned probe directories remain. System-wide process
+enumeration was unavailable in the sandbox, so lifecycle verification is based on
+the owned command sessions, synchronous child-process completion, and temporary-tree
+cleanup. The worktree retains the existing 6e diff plus this continuation.
+
+
+### DSR ruling df8c67a9, part 1 — rpc_result continuation (2026-11-07)
+
+Scope: the requested call sites in `script/upgrade/manifest_exec.py` at
+457, 458, 464, 472, 474, 482, 484, 510, 517, 643 and 664. The new
+`test_gate_dsr2_rpc.py` and bounded `probe_gate_dsr2_rpc.py` reuse the existing
+DSR-2 `delete` / `strict` machinery and unchanged `gate_assertions.assert_stop`
+(which catches only `a.Gate`). Production files and the incoming uncommitted 6e
+diff were preserved. Gate deletion occurred only in temporary script-tree copies.
+No commit, RPC, env-file, keystore or chain operation was performed; local cast
+was used only for offline ABI encoding and hashing. No full probe-driver batch
+was run and no failure threshold was applied.
+
+Preferred-method assessment: schema patterns are identical to or stricter than
+these address/hash/hex-data wire checks; derived messageHash is already checked by
+`a.keccak`. The external address loop follows fixed identity gates, and the
+sampled-address loop follows exact `[DEPLOYER]` equality. No input passing these
+preceding checks while violating T was identified, so paired deletion is used.
+Schema E deletion removes the single pattern-check source statement M:403 in the
+temporary copy (all dynamic invocations of that statement), not the schema
+validator or production schema. Malformed guardian/proof inputs also update their
+corresponding negative-fixture copies to preserve unrelated consistency checks.
+
+The first M:458 input used an uppercase `0X` prefix. Deleting E exposed
+`local_encoding`, not T, so that attempt was rejected and T was not deleted.
+A local encoding check showed that prefixless domain/token values are accepted
+by the ABI parser while violating wire regexes. Those inputs are used in the
+final controls; no parser or production fallback was added. M:482 uses the
+three-stage chain through M:474, with an explicit E1-only observation.
+
+Tooling diagnostics were not accepted as evidence: a Python 3.9 direct diagnostic
+failed import with `ModuleNotFoundError: No module named 'tomllib'`; a Python 3.14
+AST check rejected declaration fingerprints/AST forms. The shim-started attempt
+and Python 3.14 processes were interrupted and collected. Final checks use the
+installed `/Users/jason/.pyenv/versions/3.11.9/bin/python3`; no review declaration
+was relaxed to accommodate interpreter differences.
+
+An initial `test_gate_rename_controls.py` run from `script/upgrade` raised
+`a3a_exec.Gate: safe_gap_packet_path` because governance packet references are
+repository-relative. This was rejected, not counted as a passing control. The
+launcher was corrected to use root-based unittest discovery; the failed suite
+and all remaining suites were then run from the repository root. The ongoing
+template-suite attempt was interrupted and restarted with the corrected cwd.
+Previously completed green suites were retained without redundant reruns.
+
+Rejected diagnostic final lines (verbatim; AST scope is tracked/eligible untracked
+files under `script/`, with changed/common Python files compared):
+
+```text
+Ran 1 test in 0.000s
+FAILED (errors=1)
+GATE_RENAME_AST_DIFF FAIL n_changes=168
+Ran 5 tests in 7.842s
+FAILED (errors=1)
+```
+
+Final target table. Each source-site count scans the indicated target statement
+in `script/upgrade/manifest_exec.py` in its temporary copy; the schema E source
+statement is M:403, fixed_anni is M:631, and sampled_deployer_only is M:660.
+The `source_sites=0` in the rejected exploratory line means no T deletion was
+attempted, not that the source definition is absent. No final target is blocked.
+
+| T | E chain | Method | Verbatim result lines |
+|---|---|---|---|
+| `rpc_result_fraud_fixture_key` | `fraud_schema_pattern_fixture.export.aggregator` | paired | `DSR2_RPC rpc_result_fraud_fixture_key PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_fraud_fixture_key_2` | `fraud_schema_pattern_fixture.export.domainSeparator` | paired | `DSR2_RPC rpc_result_fraud_fixture_key_2 PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_fraud_fixture_who` | `fraud_schema_pattern_fixture.export.valid.guiltyGuardians.0` | paired | `DSR2_RPC rpc_result_fraud_fixture_who PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_fraud_fixture_fraudProof` | `fraud_schema_pattern_fixture.export.valid.fraudProof` | paired | `DSR2_RPC rpc_result_fraud_fixture_fraudProof PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_fraud_fixture_address` | `fraud_schema_pattern_fixture.export.forkState.token.address` | paired | `DSR2_RPC rpc_result_fraud_fixture_address PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_fraud_fixture_address_2` | `fraud_schema_pattern_fixture.export.forkState.token.address → rpc_result_fraud_fixture_address` | three-level | `DSR2_RPC_SECOND rpc_result_fraud_fixture_address_2 delete_only=fraud_schema_pattern_fixture.export.forkState.token.address exact_stop=rpc_result_fraud_fixture_address baseline=green failures=0 errors=0`<br>`DSR2_RPC rpc_result_fraud_fixture_address_2 PASS method=three-level source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_fraud_fixture_runtime` | `fraud_schema_pattern_fixture.export.forkState.token.runtimeBytecode` | paired | `DSR2_RPC rpc_result_fraud_fixture_runtime PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_fraud_fixture_fraudProof_2` | `fraud_schema_pattern_fixture.export.mustReject.2.fraudProof` | paired | `DSR2_RPC rpc_result_fraud_fixture_fraudProof_2 PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_fraud_fixture_domainDigest` | `fraud_schema_pattern_fixture.export.mustReject.3.domainDigest` | paired | `DSR2_RPC rpc_result_fraud_fixture_domainDigest PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_validate_external_key` | `fixed_anni` | paired | `DSR2_RPC rpc_result_validate_external_key PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+| `rpc_result_validate_external_who` | `sampled_deployer_only` | paired | `DSR2_RPC rpc_result_validate_external_who PASS method=paired source_sites=1 baseline=green shadow=exact_E s1_failures=1 s1_errors=0 s1_named=True failures=1 errors=0 named=True` |
+
+Verbatim aggregate after replacing the rejected M:458 attempt with its passing
+focused rerun (scope: only the target sites listed in the aggregate):
+
+```text
+DSR2_RPC_FINAL scope=script/upgrade/manifest_exec.py:457,458,464,472,474,482,484,510,517,643,664 processed=11 accepted=11 blocked=0 errors_accepted=0
+```
+
+Superseded first-attempt lines, preserved verbatim and not accepted:
+
+```text
+DSR2_RPC rpc_result_fraud_fixture_key_2 BLOCKED method=dead-code-candidate source_sites=0 baseline=RED shadow=exact_E s1_failures=0 s1_errors=0 s1_named=False failures=0 errors=0 named=False
+FAIL: test_target_rpc_result_fraud_fixture_key_2 (test_gate_dsr2_rpc.RpcShadowTests.test_target_rpc_result_fraud_fixture_key_2)
+AssertionError: 'local_encoding' != 'rpc_result_fraud_fixture_key_2'
+FAILED (failures=1)
+DSR2_RPC_AGGREGATE scope=manifest_exec.py:457,458,464,472,474,482,484,510,517,643,664 processed=11 accepted=10 blocked=1 errors_accepted=0
+```
+
+Full per-stage outputs: `/tmp/commit6e-dsr2-rpc/probes.json`,
+`/tmp/commit6e-dsr2-rpc-domain/probes.json`; merged final records:
+`/tmp/commit6e-dsr2-rpc/final.json`. Temporary mutated source trees were removed
+by their context managers; these report files contain logs only.
+
+The suite summaries retain opt-in fork-control skips. In
+`test_old_owner_isolation.py`, `test_optional_anvil_fork_role_grant` requires
+`OLD_OWNER_FORK_PIN/RPC` and an Anvil engine; `test_optional_all_fork_controls`
+requires `OLD_OWNER_CONTROL_RPC`, a fixed pin, and the engine. They remain disabled
+under this run's no-RPC/no-chain instruction. `test_manifest_exec.py` imports the
+same test class, so its summary also includes these skips. They are not counted
+as executed fork coverage or accepted deletion probes.
+
+Final regression scope: every top-level `test_*.py` in `script/upgrade/`,
+`script/a3a/`, and `script/upgrade/audit/`, plus the only other `test_gate_*.py`
+found by scanning `script/`: `script/a6-collector/reproduction/scripts/test_gate_stats_from_csv.py`.
+The exact file list and verbatim unittest final lines follow. These suite totals
+count the final run of each file, excluding probe mutations, interrupted runs,
+and superseded diagnostics. The new shadow suite was rerun after its final edits.
+
+```text
+OFFLINE_SUITES PASS scope=explicit_file_list_below suites=32 tests=2311 skipped=4 failed_suites=0
+
+script/a3a/test_a3a_exec.py
+Ran 102 tests in 3.070s
+OK
+
+script/a3a/test_a3a_send.py
+Ran 73 tests in 32.540s
+OK
+
+script/a6-collector/reproduction/scripts/test_gate_stats_from_csv.py
+Ran 3 tests in 0.304s
+OK
+
+script/upgrade/audit/test_audit_findings.py
+Ran 6 tests in 19.784s
+OK
+
+script/upgrade/test_authority_checkpoints.py
+Ran 10 tests in 23.273s
+OK
+
+script/upgrade/test_execution_head.py
+Ran 6 tests in 0.970s
+OK
+
+script/upgrade/test_execution_reads.py
+Ran 10 tests in 0.116s
+OK
+
+script/upgrade/test_gate_declaration_controls.py
+Ran 8 tests in 0.034s
+OK
+
+script/upgrade/test_gate_dsr2.py
+Ran 18 tests in 39.776s
+OK
+
+script/upgrade/test_gate_dsr2_rpc.py
+Ran 11 tests in 27.518s
+OK
+
+script/upgrade/test_gate_empty_schema.py
+Ran 4 tests in 0.005s
+OK
+
+script/upgrade/test_gate_extra_finite.py
+Ran 55 tests in 5.407s
+OK
+
+script/upgrade/test_gate_names.py
+Ran 27 tests in 35.802s
+OK
+
+script/upgrade/test_gate_r_controls.py
+Ran 608 tests in 178.070s
+OK
+
+script/upgrade/test_gate_rename_controls.py
+Ran 5 tests in 8.921s
+OK
+
+script/upgrade/test_gate_review_controls.py
+Ran 14 tests in 2.486s
+OK
+
+script/upgrade/test_gate_template_controls.py
+Ran 171 tests in 236.455s
+OK
+
+script/upgrade/test_gate_typed_boundaries.py
+Ran 14 tests in 0.002s
+OK
+
+script/upgrade/test_gate_typed_controls.py
+Ran 5 tests in 3.294s
+OK
+
+script/upgrade/test_gate_typed_fields.py
+Ran 30 tests in 20.765s
+OK
+
+script/upgrade/test_gate_typed_log_fields.py
+Ran 18 tests in 13.908s
+OK
+
+script/upgrade/test_gate_typed_shadow_controls.py
+Ran 12 tests in 28.787s
+OK
+
+script/upgrade/test_getter_accessor.py
+Ran 2 tests in 5.879s
+OK
+
+script/upgrade/test_manifest_exec.py
+Ran 535 tests in 425.345s
+OK (skipped=2)
+
+script/upgrade/test_manifest_phase_c.py
+Ran 141 tests in 203.526s
+OK
+
+script/upgrade/test_no_legacy_timelock.py
+Ran 6 tests in 5.477s
+OK
+
+script/upgrade/test_old_owner_isolation.py
+Ran 143 tests in 38.638s
+OK (skipped=2)
+
+script/upgrade/test_pop_adapter.py
+Ran 53 tests in 0.305s
+OK
+
+script/upgrade/test_release_evidence.py
+Ran 69 tests in 2.562s
+OK
+
+script/upgrade/test_sender_accessor.py
+Ran 2 tests in 24.336s
+OK
+
+script/upgrade/test_sp_upgrade_exec.py
+Ran 141 tests in 1.596s
+OK
+
+script/upgrade/test_swallow_exceptions.py
+Ran 9 tests in 2.739s
+OK
+```
+
+Final checker output (verbatim). AST scan scope: Git-tracked and eligible
+untracked files under `script/`, with common changed/declared Python ASTs compared
+against `2acc71af` and added files fingerprinted. Name-inventory scope:
+`manifest_exec.py` and `old_owner_isolation.py` plus the repository-wide tracked/
+eligible untracked Python typed-call scan in `gate_typed_sites.inventory`; the
+focused name probe uses synthetic uniqueness controls and Phase C funding labels.
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=358
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+```
+
+Full regression logs: `/tmp/commit6e-final-rpc/`; rejected Python 3.14 diagnostics:
+`/tmp/commit6e-final-rpc-python314/`.
+
+Exact Python files contributing the accepted AST changes above:
+
+```text
+script/a3a/a3a_exec.py
+script/a3a/a3a_send.py
+script/evidence/audit605_probes.py
+script/evidence/enduser_mapping_probes.py
+script/evidence/inventory_replay_probes.py
+script/upgrade/manifest_exec.py
+script/upgrade/old_owner_isolation.py
+script/upgrade/probe_phase_c_gates.py
+script/upgrade/sp_upgrade_exec.py
+script/upgrade/test_authority_checkpoints.py
+script/upgrade/test_execution_reads.py
+script/upgrade/test_manifest_exec.py
+script/upgrade/test_manifest_phase_c.py
+script/upgrade/test_old_owner_isolation.py
+```
+
+The raw launcher aggregate retains the superseded cwd failure as an attempt;
+its attempt count is not the final suite/file count. Verbatim:
+
+```text
+OFFLINE_CHECKS COMPLETE commands=34 passed=33 failed=1
+```
+
+Final workspace/lifecycle checks (verbatim; index scope is this worktree,
+source assertion scope is `script/upgrade/gate_assertions.py`):
+
+```text
+HEAD_UNCHANGED 2acc71afb62b23e72a5c610522be0e21dc87e119
+ASSERT_STOP_UNCHANGED catches=a.Gate
+INDEX_UNCHANGED staged_files=0
+GIT_DIFF_CHECK PASS
+OWNED_PROBE_TEMP_TREES scope=commit6e-dsr2-rpc-* containing_script remaining=0
+LAUNCHED_FOREGROUND_SESSIONS scope=this_continuation remaining=0
+```
+
+No commit was made. The incoming uncommitted 6e diff is retained, with only
+the bounded RPC DSR runner, its shadow tests, and this results continuation added
+by this task. All owned sessions were collected, including interrupted diagnostics;
+no background job was launched. Lifecycle verification uses the owned sessions
+and temporary-tree paths, not a system-wide process census.
+
+### DSR ruling df8c67a9, part 2 — producer-only continuation (2026-11-07)
+
+This continuation preserves the incoming 6e changes and does not commit. No RPC,
+env-file, keystore, or chain operations are used. Local `cast` supplies offline
+encoding/hashing only. `assert_stop` is unchanged and catches only `a.Gate`.
+The full probe-driver batch is not run. Individual blockers do not stop the
+remaining checks. Deletion occurs only in an owned temporary script-tree copy.
+
+The new `test_gate_producer_controls.py` uses the real `find_step_schedule` on
+`FakeChain`, saves its return, and replaces that one producer inside a test-local
+`patch.object` context. The control returns a deep copy of the real return. The
+negative changes only the returned log data to prefixless hex. All intervening
+checks remain enabled. Each exercise asserts producer identity after leaving the
+context; `test_original_restored` also exercises both modes and checks identity.
+`prove_schedule_flow` checks the AST's unique `log` assignment, the exact producer
+call and tuple position, the target argument, and every intervening use of `log`.
+The baseline suite includes this proof. The deletion run removes only the target
+`typed` call, preserving its value expression and the surrounding `need` call.
+
+Scan scope for the following table: the eight specified typed-call sites in
+`script/a3a/a3a_exec.py` and `script/upgrade/old_owner_isolation.py`. The AST
+extraction with parameters, preceding assignments, and target expressions is
+saved in `/tmp/commit6e-producer-controls/dataflow.json`. A parameter is not
+credited as the return of an unrelated producer called by the same function.
+
+| Site | Gate | Producer/dataflow assessment | Result |
+| --- | --- | --- | --- |
+| a3a_exec.py:668 | `rpc_result_rebuild_artifacts_object` | `current = artifacts[name]`: `artifacts` is a parameter. `build_plan` supplies either `compile_commit` output (historical branch) or two `artifact` calls (current branch). No single unconditional producer across these paths. The current `artifact` loader also stops at `build_artifact` for both required artifacts in this worktree. | BLOCKED; not counted |
+| a3a_exec.py:669 | `rpc_result_rebuild_artifacts_object_2` | `fresh = rebuilt[name]`; `rebuilt, config = compile_commit(...)`. This is a single producer path; real offline producer baseline assessed separately below. | See compiler outcome below |
+| a3a_exec.py:1525 | `rpc_result_scheduled_eta_data` | `log` is tuple element 1 from `find_step_schedule`; unique assignment and intervening consumers checked by AST. | PASS |
+| old_owner_isolation.py:1012 | `rpc_result_verify_deployment_record_txHash` | `ref = spec.get('deploymentRecord')`; target reads `ref['txHash']`. `spec` is a parameter. `committed_record` produces `record`, not `ref`; replacing it cannot alter this target value. Caller `deployed_inventory` selects `spec` from its `sources` argument. | BLOCKED; not counted |
+| old_owner_isolation.py:1241 | `rpc_result_validate_deployed_identity` | `identity` iterates `section.get('endpointIdentities', {}).values()`; `section` is a parameter. `inventory_source` returns `inventory`, not these identities. `assert_endpoint_identities` is a check whose return is discarded. | BLOCKED; not counted |
+| old_owner_isolation.py:1250 | `rpc_result_post_upgrade_check_stateBlock` | Target reads the `pin` parameter before any producer call. No returned producer value supplies it inside this function. | BLOCKED; not counted |
+| old_owner_isolation.py:1255 | `rpc_result_post_upgrade_check_target` | `target` iterates groups in the `release_targets` parameter before `inventory_source` or `discover_targets` runs. Neither return supplies this value. | BLOCKED; not counted |
+| old_owner_isolation.py:1558 | `rpc_result_inspect_data` | Nested `inspect(data)` has multiple callers: outer transaction data, constructor selector plus tail, recursive decoded values via `visit`, and payload children. `decoded_arguments` covers only the recursive route; outer values derive from `steps`, constructor paths also use `a.keccak`. No sole producer covers this source site. | BLOCKED; not counted |
+
+Existing test coverage by producer (names are from scanning
+`script/a3a/test_a3a_exec.py` and `script/upgrade/test_old_owner_isolation.py`):
+
+- `find_step_schedule`: `ExecutorTests.test_schedule_logs_query_reuses_indexed_lookup`,
+  `test_indexed_schedule_receipt_bounded_calls`, `test_indexed_schedule_receipt_guards`,
+  `test_schedule_canonical_membership_and_identity`, `test_fake_blocks_share_full_and_header_data`.
+  These exercise the real producer using the offline chain fixture.
+- `compile_commit`: `ExecutorTests.test_compile_uses_offline_forge_default_profile_and_cleans_temp`
+  exercises the real function with archive/compiler/artifact boundaries doubled.
+  `test_rebuild_compares_all_bytecode_and_reference_fields` doubles this producer;
+  it does not establish a real compiler-return baseline for this ruling.
+- Current `artifact` loader: orchestration tests including
+  `ExecutorTests.test_amend_requires_a_valid_ungapped_source_and_well_formed_gaps`
+  and `test_amend_follows_renumbered_ast_ids_only` replace `artifact` with their
+  fixture. They are caller coverage, not proof of a real-loader baseline.
+- The five blocked `old_owner_isolation.py` targets have no qualifying sole
+  producer. Related consumer coverage is
+  `OldOwnerTests.test_deployment_record_binding_and_gate_removals`,
+  `test_clone_collection_and_post_upgrade_gate_removals`,
+  `test_review_low_endpoint_identity`, `test_manifest_calldata_invalid_cast_output`,
+  and `test_calldata_payload_removal_hits_named_gate` (class names verified below).
+
+Verbatim focused probe final line:
+
+```text
+PRODUCER_PROBE scope=script/a3a/a3a_exec.py:1525 gate=rpc_result_scheduled_eta_data PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+```
+
+Full baseline and deletion output: `/tmp/commit6e-producer-controls/result.json`.
+
+
+### DSR ruling df8c67a9, part 2 — resumed verification (2026-11-08)
+
+This subsection supersedes the incomplete producer-only continuation above.
+HEAD remains `2acc71af`; the incoming uncommitted 6e diff is retained. No commit,
+RPC connection, env-file access, keystore or chain operation is authorized or used.
+Only offline test boundaries and local cast encoding/hashing are used. Production
+gates and `assert_stop` (only `a.Gate`) remain unchanged. No full probe-driver
+batch is run. Each blocked item is recorded independently; it does not halt the
+remaining work.
+
+The prior schedule test inherited `ExecutorTests.setUp`, which installed an
+additional `rebuild_artifacts` double; `chain_and_plan` also installed fixture
+patches. The prior PASS therefore was not sufficient evidence of the exactly-one-
+producer rule. Removing that setup exposed `rebuild_head` in the temporary tree
+(the rejected attempt had baseline errors and was not accepted). The final test
+uses a standalone deterministic in-memory remote boundary, without inheriting
+fixture patches or replacing any production function during setup. It invokes
+the real `find_step_schedule` to obtain the real return before installing exactly
+one test-local `patch.object(a, 'find_step_schedule', ...)`. The real-return control,
+malformed-return control, and restoration test run with every intervening check
+enabled. `test_original_restored` asserts object identity after both contexts.
+`test_flow` proves the unique producer assignment, returned tuple slot, target
+expression, every intervening `log` use, and nesting within `schedule_log_data`.
+`test_compile_flow` separately proves the unique `rebuilt` and `fresh` assignments,
+producer call, indexing path, and absence of another pre-target use or alias escape.
+
+The claimed intermediate schedule gate has the reverse execution order in this
+worktree: `need('schedule_log_data', typed(log['data'], ..., gate=T).lower(), ...)`
+evaluates T before invoking E. With the same malformed producer return, real-tree
+`assert_stop(..., E)` FAILs naming T; E is observed only after deleting T. The
+requested paired experiment was nevertheless performed in temporary copies:
+deleting just E preserves evaluation of its checked argument (including T), then
+deleting E+T remains red without ERROR. Because the real-tree exact-E shadow is
+red, the paired method is BLOCKED, not accepted. The independently passing direct
+T-deletion method supplies this site's credit. No greater-than-three-level chain
+is traversed.
+
+Existing producer coverage (scan scope: `script/a3a/test_a3a_exec.py` and
+`script/upgrade/test_old_owner_isolation.py`; names below are test methods):
+
+- `find_step_schedule`: `ExecutorTests.test_schedule_logs_query_reuses_indexed_lookup`,
+  `test_indexed_schedule_receipt_bounded_calls`, `test_indexed_schedule_receipt_guards`,
+  `test_schedule_canonical_membership_and_identity`, `test_schedule_filters_foreign_history`,
+  `test_schedule_log_range_splitting_and_errors`, `test_schedule_range_bounds_and_chunk_order`.
+- `compile_commit`: `ExecutorTests.test_compile_uses_offline_forge_default_profile_and_cleans_temp`
+  covers the real function with lower boundaries doubled;
+  `test_rebuild_compares_all_bytecode_and_reference_fields` replaces the producer.
+  Neither is counted as an undoubled real compiler baseline for this ruling.
+- `artifact`: `ExecutorTests.test_amend_requires_a_valid_ungapped_source_and_well_formed_gaps`
+  and `test_amend_follows_renumbered_ast_ids_only` are caller coverage with the loader
+  replaced, not an undoubled loader baseline.
+- No sole producer qualifies for the specified old-owner targets. Related consumer
+  tests belong to `OldOwnerIsolationTests` (correcting the prior class label):
+  `test_deployment_record_binding_and_gate_removals`,
+  `test_clone_collection_and_post_upgrade_gate_removals`, `test_review_low_endpoint_identity`,
+  `test_manifest_calldata_invalid_cast_output`, `test_calldata_payload_removal_hits_named_gate`.
+
+Verbatim focused producer lines (source-site scope is the named statement in
+`script/a3a/a3a_exec.py`, in owned temporary copies):
+
+```text
+PRODUCER_PROBE scope=script/a3a/a3a_exec.py:1525 gate=rpc_result_scheduled_eta_data PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+PRODUCER_PAIR scope=script/a3a/a3a_exec.py:1525 BLOCKED E=schedule_log_data T=rpc_result_scheduled_eta_data E_sites=1 real_shadow_E=RED delete_E_exact_T=True delete_E_failures=1 delete_E_errors=0 delete_E_named=True delete_ET_failures=1 delete_ET_errors=0 delete_ET_named=True reason=T_evaluates_before_E
+```
+
+Verbatim real current-loader observations (scope: the local `out` paths shown):
+
+```text
+CURRENT_ARTIFACT scope=out/APNTsCapped.sol producer=artifact contract=APNTsCapped BLOCKED gate=build_artifact observed=APNTsCapped missing
+CURRENT_ARTIFACT scope=out/TimelockController.sol producer=artifact contract=TimelockController BLOCKED gate=build_artifact observed=TimelockController missing
+```
+
+The undoubled `compile_commit('2acc71af', forge_version)` completed successfully
+using the existing offline archive/compiler path. Its exact returned artifact and
+config values are preserved as test-only data in
+`script/upgrade/fixtures/gate-producer-compile.json`, with the full commit and Forge
+version. SHA256 of this capture:
+`19786182591b6522357f7129416909cdee21e3bb3a0250cee329735cd22fd841`.
+No synthesized compiler result, production fallback, or additional producer double
+was used. `CompileProducerTests` replaces only `compile_commit` in a test-local
+context; it retains real HEAD/Forge/config/bytecode/metadata checks. The malformed
+return changes only the first bytecode object's two-character prefix to `zz`,
+which violates T but preserves decoded bytes after T deletion. Its separate
+restoration test asserts the original function identity after both control modes.
+Temporary probe copies include a copy of the worktree's `.git` pointer solely for
+the consumer's read-only `rev-parse` and `show` calls. No Git mutation is invoked.
+
+Verbatim compiler observation and final combined producer results:
+
+```text
+FORGE_VERSION forge Version: 1.7.1
+COMPILE_REAL_RETURN PASS
+PRODUCER_PROBE scope=script/a3a/a3a_exec.py:1525 gate=rpc_result_scheduled_eta_data PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+PRODUCER_PAIR scope=script/a3a/a3a_exec.py:1525 BLOCKED E=schedule_log_data T=rpc_result_scheduled_eta_data E_sites=1 real_shadow_E=RED delete_E_exact_T=True delete_E_failures=1 delete_E_errors=0 delete_E_named=True delete_ET_failures=1 delete_ET_errors=0 delete_ET_named=True reason=T_evaluates_before_E
+PRODUCER_PROBE scope=script/a3a/a3a_exec.py:669 gate=rpc_result_rebuild_artifacts_object_2 PASS source_sites=1 baseline=green failures=1 errors=0 named=True
+```
+
+Final per-site assessment. Scan scope: exactly the specified statements in
+`script/a3a/a3a_exec.py` and `script/upgrade/old_owner_isolation.py`; the saved
+`/tmp/commit6e-producer-controls/dataflow.json` locations and value expressions
+were checked against the current AST. Each credited deletion matches one source
+call, and requires a green baseline, at least one failure, zero errors, and an
+assertion message naming the deleted gate.
+
+| Source site | Gate | Sole-producer assessment and final result |
+| --- | --- | --- |
+| `a3a_exec.py:668` | `rpc_result_rebuild_artifacts_object` | BLOCKED: `current = artifacts[name]` uses a function parameter. `build_plan` supplies historical `compile_commit` results or separate current `artifact` loads; no single unconditional producer supplies the site's value. Both real current loader calls additionally stop at `build_artifact` because local artifacts are absent. No credit. |
+| `a3a_exec.py:669` | `rpc_result_rebuild_artifacts_object_2` | PASS: `compile_commit` return element 0 → `rebuilt[name]` → `fresh[field]['object']`; AST proof, real captured return control, single scoped double, restoration, and strict deletion all pass. |
+| `a3a_exec.py:1525` | `rpc_result_scheduled_eta_data` | PASS by direct strict deletion: `find_step_schedule` return element 1 → `log['data']`. Single scoped double, real-return control, restoration and AST proof pass. Proposed E=`schedule_log_data` paired method is separately BLOCKED because E follows T; no paired credit is claimed. |
+| `old_owner_isolation.py:1012` | `rpc_result_verify_deployment_record_txHash` | BLOCKED: target `ref['txHash']` derives from parameter `spec.get('deploymentRecord')`. `committed_record` returns the separate `record` object and does not supply `ref`. No qualifying sole producer. |
+| `old_owner_isolation.py:1241` | `rpc_result_validate_deployed_identity` | BLOCKED: identity iterates `section.get('endpointIdentities', {}).values()`, from parameter `section`. `inventory_source` supplies `inventory`; `assert_endpoint_identities` has no used return. Neither supplies identity. |
+| `old_owner_isolation.py:1250` | `rpc_result_post_upgrade_check_stateBlock` | BLOCKED: `pin['stateBlock']` reads the parameter before a producer call. No qualifying returned value. |
+| `old_owner_isolation.py:1255` | `rpc_result_post_upgrade_check_target` | BLOCKED: target iterates groups from parameter `release_targets`, before `inventory_source`/`discover_targets`. Neither return supplies the value. |
+| `old_owner_isolation.py:1558` | `rpc_result_inspect_data` | BLOCKED: nested `inspect` receives outer transaction data, constructor selector plus tail, recursive decoded values, and payload children. `decoded_arguments` supplies only recursive routes; other routes use `steps` and `a.keccak`. No single producer supplies all routes. |
+
+The merged RPC count retains the previously accepted direct results in
+`gate_typed_probe_results.json` and the final part-1 paired results recorded above
+(`/tmp/commit6e-dsr2-rpc/final.json`), then adds the two distinct producer passes.
+It does not rerun the full probe-driver batch or count the failed proposed schedule
+pair. Aggregate scan scope: the 88 formerly defaulted typed-call sites in
+`script/a3a/a3a_exec.py` (25), `script/a3a/a3a_send.py` (2),
+`script/upgrade/manifest_exec.py` (21), `script/upgrade/old_owner_isolation.py` (25),
+and `script/upgrade/sp_upgrade_exec.py` (15). Existing explicitly named typed calls
+are excluded from this aggregate. The union and its per-site provenance are saved
+in `/tmp/commit6e-producer-final/rpc-merged.json`.
+
+```text
+RPC_RESULT_PROBES scope=script/a3a/a3a_exec.py,script/a3a/a3a_send.py,script/upgrade/manifest_exec.py,script/upgrade/old_owner_isolation.py,script/upgrade/sp_upgrade_exec.py passed=82 total=88 blocked=6 errors_accepted=0
+```
+
+Rejected fixture-setup diagnostic, verbatim (scope: the schedule target at
+`script/a3a/a3a_exec.py:1525` in the temporary copy, after removing inherited
+patches but before replacing the fixture construction). This is not accepted
+probe evidence; the final standalone fixture supersedes it:
+
+```text
+PRODUCER_PROBE scope=script/a3a/a3a_exec.py:1525 gate=rpc_result_scheduled_eta_data BLOCKED source_sites=1 baseline=RED failures=0 errors=1 named=False
+```
+
+The final shared producer baseline includes both producers and both restoration
+tests. Verbatim (test-file scope: `script/upgrade/test_gate_producer_controls.py`):
+
+```text
+Ran 8 tests in 0.456s
+OK
+```
+
+Consolidated per-site RPC ledger. Scope: the formerly defaulted typed calls in
+`script/a3a/a3a_exec.py`, `script/a3a/a3a_send.py`,
+`script/upgrade/manifest_exec.py`, `script/upgrade/old_owner_isolation.py`, and
+`script/upgrade/sp_upgrade_exec.py`. `prior-direct` and `part1-paired` retain the
+accepted evidence recorded above; `part2-producer` is verified in this continuation.
+`BLOCKED` rows receive no credit and use the detailed explanations in the preceding
+producer table. This is an evidence union, not a full probe-driver rerun.
+
+| Source site | Gate | Result | Evidence |
+| --- | --- | --- | --- |
+| `a3a_exec.py:103` | `rpc_result_qty_value` | PASS | prior-direct |
+| `a3a_exec.py:186` | `rpc_result_keccak_keccak` | PASS | prior-direct |
+| `a3a_exec.py:211` | `rpc_result_rpc_keccak_web3_sha3` | PASS | prior-direct |
+| `a3a_exec.py:211` | `rpc_result_rpc_keccak_data` | PASS | prior-direct |
+| `a3a_exec.py:334` | `rpc_result_verify_runtime_artifactRuntime` | PASS | prior-direct |
+| `a3a_exec.py:335` | `rpc_result_verify_runtime_code` | PASS | prior-direct |
+| `a3a_exec.py:367` | `rpc_result_calldata_calldata` | PASS | prior-direct |
+| `a3a_exec.py:371` | `rpc_result_call_eth_call` | PASS | prior-direct |
+| `a3a_exec.py:394` | `rpc_result_block_data_hash` | PASS | prior-direct |
+| `a3a_exec.py:451` | `rpc_result_artifact_sources_keccak256` | PASS | prior-direct |
+| `a3a_exec.py:471` | `rpc_result_cbor_tail_code` | PASS | prior-direct |
+| `a3a_exec.py:668` | `rpc_result_rebuild_artifacts_object` | BLOCKED | blocked |
+| `a3a_exec.py:669` | `rpc_result_rebuild_artifacts_object_2` | PASS | part2-producer |
+| `a3a_exec.py:711` | `rpc_result_safe_extensions_eth_getStorageAt` | PASS | prior-direct |
+| `a3a_exec.py:763` | `rpc_result_preflight_eth_getCode` | PASS | prior-direct |
+| `a3a_exec.py:1123` | `rpc_result_receipt_eth_sendTransaction` | PASS | prior-direct |
+| `a3a_exec.py:1196` | `rpc_result_roles_readback_1` | PASS | prior-direct |
+| `a3a_exec.py:1196` | `rpc_result_roles_readback_2` | PASS | prior-direct |
+| `a3a_exec.py:1201` | `rpc_result_roles_readback_3` | PASS | prior-direct |
+| `a3a_exec.py:1322` | `rpc_result_validate_pin_blockHash` | PASS | prior-direct |
+| `a3a_exec.py:1346` | `rpc_result_validate_gaps_hash` | PASS | prior-direct |
+| `a3a_exec.py:1377` | `rpc_result_check_gaps_eth_getCode` | PASS | prior-direct |
+| `a3a_exec.py:1525` | `rpc_result_scheduled_eta_data` | PASS | part2-producer |
+| `a3a_exec.py:1559` | `rpc_result_pre_send_eth_getCode` | PASS | prior-direct |
+| `a3a_exec.py:1728` | `rpc_result_require_deployed_eth_getCode` | PASS | prior-direct |
+| `a3a_send.py:134` | `rpc_result_local_keccak_value` | PASS | prior-direct |
+| `a3a_send.py:147` | `rpc_result_check_signed_hash` | PASS | prior-direct |
+| `manifest_exec.py:293` | `rpc_result_validate_evidence_details_value` | PASS | prior-direct |
+| `manifest_exec.py:306` | `rpc_result_verifier_executable_code` | PASS | prior-direct |
+| `manifest_exec.py:457` | `rpc_result_fraud_fixture_key` | PASS | part1-paired |
+| `manifest_exec.py:458` | `rpc_result_fraud_fixture_key_2` | PASS | part1-paired |
+| `manifest_exec.py:464` | `rpc_result_fraud_fixture_who` | PASS | part1-paired |
+| `manifest_exec.py:472` | `rpc_result_fraud_fixture_fraudProof` | PASS | part1-paired |
+| `manifest_exec.py:474` | `rpc_result_fraud_fixture_address` | PASS | part1-paired |
+| `manifest_exec.py:482` | `rpc_result_fraud_fixture_address_2` | PASS | part1-paired |
+| `manifest_exec.py:484` | `rpc_result_fraud_fixture_runtime` | PASS | part1-paired |
+| `manifest_exec.py:510` | `rpc_result_fraud_fixture_fraudProof_2` | PASS | part1-paired |
+| `manifest_exec.py:517` | `rpc_result_fraud_fixture_domainDigest` | PASS | part1-paired |
+| `manifest_exec.py:635` | `rpc_result_validate_external_sid` | PASS | prior-direct |
+| `manifest_exec.py:643` | `rpc_result_validate_external_key` | PASS | part1-paired |
+| `manifest_exec.py:650` | `rpc_result_validate_external_validator` | PASS | prior-direct |
+| `manifest_exec.py:651` | `rpc_result_validate_external_calldata` | PASS | prior-direct |
+| `manifest_exec.py:664` | `rpc_result_validate_external_who` | PASS | part1-paired |
+| `manifest_exec.py:1110` | `rpc_result_scan_blockNumber` | PASS | prior-direct |
+| `manifest_exec.py:1151` | `rpc_result_call_eth_call_2` | PASS | prior-direct |
+| `manifest_exec.py:1193` | `rpc_result_old_timelock_holds_nothing_1` | PASS | prior-direct |
+| `manifest_exec.py:2119` | `rpc_result_build_plan_value` | PASS | prior-direct |
+| `manifest_exec.py:2131` | `rpc_result_build_plan_code` | PASS | prior-direct |
+| `old_owner_isolation.py:615` | `rpc_result_call_eth_call_3` | PASS | prior-direct |
+| `old_owner_isolation.py:627` | `rpc_result_storage_eth_getStorageAt` | PASS | prior-direct |
+| `old_owner_isolation.py:763` | `rpc_result_audit_1` | PASS | prior-direct |
+| `old_owner_isolation.py:764` | `rpc_result_audit_blockNumber` | PASS | prior-direct |
+| `old_owner_isolation.py:769` | `rpc_result_audit_blockHash` | PASS | prior-direct |
+| `old_owner_isolation.py:976` | `rpc_result_clone_implementation_code` | PASS | prior-direct |
+| `old_owner_isolation.py:1012` | `rpc_result_verify_deployment_record_txHash` | BLOCKED | blocked |
+| `old_owner_isolation.py:1115` | `rpc_result_runtime_parity_code` | PASS | prior-direct |
+| `old_owner_isolation.py:1116` | `rpc_result_runtime_parity_object` | PASS | prior-direct |
+| `old_owner_isolation.py:1168` | `rpc_result_deployed_inventory_eth_getCode` | PASS | prior-direct |
+| `old_owner_isolation.py:1169` | `rpc_result_deployed_inventory_eth_getStorageAt` | PASS | prior-direct |
+| `old_owner_isolation.py:1170` | `rpc_result_deployed_inventory_eth_getStorageAt_2` | PASS | prior-direct |
+| `old_owner_isolation.py:1241` | `rpc_result_validate_deployed_identity` | BLOCKED | blocked |
+| `old_owner_isolation.py:1250` | `rpc_result_post_upgrade_check_stateBlock` | BLOCKED | blocked |
+| `old_owner_isolation.py:1255` | `rpc_result_post_upgrade_check_target` | BLOCKED | blocked |
+| `old_owner_isolation.py:1364` | `rpc_result_role_history_data` | PASS | prior-direct |
+| `old_owner_isolation.py:1367` | `rpc_result_role_history_topic` | PASS | prior-direct |
+| `old_owner_isolation.py:1370` | `rpc_result_role_history_blockNumber` | PASS | prior-direct |
+| `old_owner_isolation.py:1376` | `rpc_result_role_history_transactionHash` | PASS | prior-direct |
+| `old_owner_isolation.py:1377` | `rpc_result_role_history_transactionIndex` | PASS | prior-direct |
+| `old_owner_isolation.py:1378` | `rpc_result_role_history_logIndex` | PASS | prior-direct |
+| `old_owner_isolation.py:1493` | `rpc_result_fork_probe_raw` | PASS | prior-direct |
+| `old_owner_isolation.py:1500` | `rpc_result_fork_probe_raw_2` | PASS | prior-direct |
+| `old_owner_isolation.py:1558` | `rpc_result_inspect_data` | BLOCKED | blocked |
+| `old_owner_isolation.py:1591` | `rpc_result_assert_manifest_calldata_data` | PASS | prior-direct |
+| `sp_upgrade_exec.py:58` | `rpc_result_uints_raw` | PASS | prior-direct |
+| `sp_upgrade_exec.py:106` | `rpc_result_code_eth_getCode` | PASS | prior-direct |
+| `sp_upgrade_exec.py:135` | `rpc_result_scan_blockHash` | PASS | prior-direct |
+| `sp_upgrade_exec.py:135` | `rpc_result_scan_transactionHash` | PASS | prior-direct |
+| `sp_upgrade_exec.py:150` | `rpc_result_inventory_2` | PASS | prior-direct |
+| `sp_upgrade_exec.py:164` | `rpc_result_inventory_1` | PASS | prior-direct |
+| `sp_upgrade_exec.py:189` | `rpc_result_safe_state_eth_getStorageAt` | PASS | prior-direct |
+| `sp_upgrade_exec.py:207` | `rpc_result_pending_operations_1` | PASS | prior-direct |
+| `sp_upgrade_exec.py:309` | `rpc_result_initial_guardian_eth_getStorageAt` | PASS | prior-direct |
+| `sp_upgrade_exec.py:468` | `rpc_result_validate_gas_transactionHash` | PASS | prior-direct |
+| `sp_upgrade_exec.py:588` | `rpc_result_admission_gas_data` | PASS | prior-direct |
+| `sp_upgrade_exec.py:730` | `rpc_result_validate_pin_field` | PASS | prior-direct |
+| `sp_upgrade_exec.py:745` | `rpc_result_validate_pin_who` | PASS | prior-direct |
+| `sp_upgrade_exec.py:755` | `rpc_result_validate_pin_who_2` | PASS | prior-direct |
+| `sp_upgrade_exec.py:766` | `rpc_result_validate_pin_who_3` | PASS | prior-direct |
+
+```text
+RPC_RESULT_PROBES scope=script/a3a/a3a_exec.py,script/a3a/a3a_send.py,script/upgrade/manifest_exec.py,script/upgrade/old_owner_isolation.py,script/upgrade/sp_upgrade_exec.py passed=82 total=88 blocked=6 errors_accepted=0
+```
+
+Final checker lines (verbatim). AST scan scope: Git-tracked and eligible untracked
+files under `script/`, with changed/common Python ASTs compared against `2acc71af`
+and additions fingerprinted. Name-probe scope: `manifest_exec.py` and
+`old_owner_isolation.py` name inventories, repository Python typed-call inventory,
+synthetic uniqueness controls, and Phase C funding-label controls.
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=358
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+```
+
+Verbatim ledger verification (scopes are in each line):
+
+```text
+RPC_LEDGER_AST_MATCH scope=script/a3a/a3a_exec.py,script/a3a/a3a_send.py,script/upgrade/manifest_exec.py,script/upgrade/old_owner_isolation.py,script/upgrade/sp_upgrade_exec.py PASS source_sites=88
+RPC_RETAINED_STRICT_FIELDS scope=script/upgrade/gate_typed_probe_results.json,/tmp/commit6e-dsr2-rpc/final.json PASS retained_sites=80 errors_accepted=0
+```
+
+Final foreground suite lines (verbatim). Scan/execution scope is all top-level
+`script/upgrade/test_*.py` and `script/a3a/test_*.py` files, plus the audit-findings
+suite and the additional repository `test_gate_*` file under the A6 collector.
+A Git-tracked/eligible-untracked `*test_gate_*.py` scan and untracked `*test*.py`
+scan confirmed coverage of every such gate/new test file. Every requested suite
+completed. Existing skips are retained and shown. The producer file's final
+expanded suite supersedes its earlier narrower run and is counted once.
+No full probe-driver batch was run; no failure threshold terminated the queue.
+
+```text
+script/a3a/test_a3a_exec.py
+Ran 102 tests in 3.609s
+OK
+
+script/a3a/test_a3a_send.py
+Ran 73 tests in 31.970s
+OK
+
+script/upgrade/test_authority_checkpoints.py
+Ran 10 tests in 20.037s
+OK
+
+script/upgrade/test_execution_head.py
+Ran 6 tests in 1.225s
+OK
+
+script/upgrade/test_execution_reads.py
+Ran 10 tests in 0.108s
+OK
+
+script/upgrade/test_gate_declaration_controls.py
+Ran 8 tests in 0.026s
+OK
+
+script/upgrade/test_gate_dsr2.py
+Ran 18 tests in 44.114s
+OK
+
+script/upgrade/test_gate_dsr2_rpc.py
+Ran 11 tests in 33.942s
+OK
+
+script/upgrade/test_gate_empty_schema.py
+Ran 4 tests in 0.005s
+OK
+
+script/upgrade/test_gate_extra_finite.py
+Ran 55 tests in 7.707s
+OK
+
+script/upgrade/test_gate_names.py
+Ran 27 tests in 48.335s
+OK
+
+script/upgrade/test_gate_producer_controls.py
+Ran 8 tests in 0.527s
+OK
+
+script/upgrade/test_gate_r_controls.py
+Ran 608 tests in 182.359s
+OK
+
+script/upgrade/test_gate_rename_controls.py
+Ran 5 tests in 6.481s
+OK
+
+script/upgrade/test_gate_review_controls.py
+Ran 14 tests in 1.976s
+OK
+
+script/upgrade/test_gate_template_controls.py
+Ran 171 tests in 231.433s
+OK
+
+script/upgrade/test_gate_typed_boundaries.py
+Ran 14 tests in 0.001s
+OK
+
+script/upgrade/test_gate_typed_controls.py
+Ran 5 tests in 3.333s
+OK
+
+script/upgrade/test_gate_typed_fields.py
+Ran 30 tests in 19.057s
+OK
+
+script/upgrade/test_gate_typed_log_fields.py
+Ran 18 tests in 13.599s
+OK
+
+script/upgrade/test_gate_typed_shadow_controls.py
+Ran 12 tests in 27.620s
+OK
+
+script/upgrade/test_getter_accessor.py
+Ran 2 tests in 5.749s
+OK
+
+script/upgrade/test_manifest_exec.py
+Ran 535 tests in 433.852s
+OK (skipped=2)
+
+script/upgrade/test_manifest_phase_c.py
+Ran 141 tests in 212.625s
+OK
+
+script/upgrade/test_no_legacy_timelock.py
+Ran 6 tests in 5.446s
+OK
+
+script/upgrade/test_old_owner_isolation.py
+Ran 143 tests in 40.929s
+OK (skipped=2)
+
+script/upgrade/test_pop_adapter.py
+Ran 53 tests in 0.272s
+OK
+
+script/upgrade/test_release_evidence.py
+Ran 69 tests in 2.505s
+OK
+
+script/upgrade/test_sender_accessor.py
+Ran 2 tests in 24.681s
+OK
+
+script/upgrade/test_sp_upgrade_exec.py
+Ran 141 tests in 1.432s
+OK
+
+script/upgrade/test_swallow_exceptions.py
+Ran 9 tests in 2.652s
+OK
+
+script/upgrade/audit/test_audit_findings.py
+Ran 6 tests in 21.122s
+OK
+
+script/a6-collector/reproduction/scripts/test_gate_stats_from_csv.py
+Ran 3 tests in 0.360s
+OK
+
+FOREGROUND_SUITES scope=script/upgrade/test_*.py,script/a3a/test_*.py passed=31 total=31 blocked=0
+FINAL_SUITES scope=script/upgrade/test_*.py,script/a3a/test_*.py,script/upgrade/audit/test_audit_findings.py,script/a6-collector/reproduction/scripts/test_gate_stats_from_csv.py passed=33 total=33 blocked=0
+```
+
+Final workspace/lifecycle checks (verbatim; each scope is identified):
+
+```text
+HEAD_UNCHANGED 2acc71afb62b23e72a5c610522be0e21dc87e119
+ASSERT_STOP_UNCHANGED scope=script/upgrade/gate_assertions.py catches=a.Gate
+INDEX_UNCHANGED scope=this_worktree staged_files=0
+OWNED_PROBE_TEMP_TREES scope=commit6e-producer-probe-* remaining=0
+OWNED_COMPILE_TEMP_TREE scope=a3a-head-rebuild-oq4rajcv removed=True
+```
+
+All launched foreground tool sessions returned completion, including the real
+compiler and rejected fixture diagnostics; no background job was launched or left
+by this continuation. Owned temporary probe and compiler trees were cleaned by
+their context managers. Lifecycle verification uses this continuation's owned
+sessions and paths, not a system-wide process census. No commit was made; the
+incoming 6e production diff is retained. This continuation changes only the
+producer runner/tests, their captured compiler fixture, and this results record.
+Full logs and machine-readable merged evidence: `/tmp/commit6e-producer-final/`
+and `/tmp/commit6e-producer-controls/`.
+
+```text
+GIT_DIFF_CHECK scope=this_worktree PASS
+```
+
+### 6e closure — known gaps (DSR-agreed scope cap, 2026-11-08)
+
+6e adds no further proof requirements (author instruction 2026-11-08, accepted by DSR).
+The sites below have no accepted strict deletion probe. Each is a defence-in-depth
+`typed` check whose input is already constrained by the named earlier check; the gap is
+recorded, not waived, and receives no credit in any aggregate.
+Scan scope for these rows: `script/a3a/a3a_exec.py`, `script/a3a/a3a_send.py`,
+`script/upgrade/manifest_exec.py`, `script/upgrade/old_owner_isolation.py`,
+`script/upgrade/sp_upgrade_exec.py` (`RPC_RESULT_PROBES ... passed=82 total=88 blocked=6`).
+
+| Site | Gate | Why no probe | Covered by |
+|---|---|---|---|
+| `a3a_exec.py:668` | `rpc_result_rebuild_artifacts_object` | `artifacts[name]` is a parameter with two producers (historical `compile_commit` / current `artifact` load); no single producer | `build_artifact` on the current load; `rpc_result_rebuild_artifacts_object_2` (probed) and the rebuilt-vs-current equality |
+| `old_owner_isolation.py:1012` | `rpc_result_verify_deployment_record_txHash` | `ref` comes from caller-supplied `spec['deploymentRecord']`, not from a producer return | `committed_record` and the deployment-record receipt checks in `verify_deployment_record` |
+| `old_owner_isolation.py:1241` | `rpc_result_validate_deployed_identity` | identity iterates the `section` parameter | `assert_endpoint_identities` |
+| `old_owner_isolation.py:1250` | `rpc_result_post_upgrade_check_stateBlock` | `pin['stateBlock']` is a parameter read before any producer call | `u.validate_pin` on the same pin |
+| `old_owner_isolation.py:1255` | `rpc_result_post_upgrade_check_target` | targets iterate the `release_targets` parameter | `inventory_source` / `discover_targets` target checks |
+| `old_owner_isolation.py:1558` | `rpc_result_inspect_data` | nested `inspect` has several input routes (outer tx data, constructor tail, decoded values, payload children); no single producer | outer-tx `typed` check and `old_owner_calldata_payload_shape` |

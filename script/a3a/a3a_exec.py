@@ -93,14 +93,14 @@ def need(name, observed, expected):
         raise Gate(name, observed, expected)
 
 
-def typed(value, rx, gate='rpc_result'):
+def typed(value, rx, gate):
     if not isinstance(value, str) or not rx.fullmatch(value):
         raise Gate(gate, 'malformed typed result', rx.pattern)
     return value
 
 
 def qty(value):
-    number = int(typed(value, QTY), 16)
+    number = int(typed(value, QTY, gate='rpc_result_qty_value'), 16)
     need('canonical_quantity', value, hex(number))
     return number
 
@@ -183,7 +183,7 @@ def cast(*args):
 
 
 def keccak(data):
-    return typed(cast('keccak', data), HASH32)
+    return typed(cast('keccak', data), HASH32, gate='rpc_result_keccak_keccak')
 
 
 def _rlp_bytes(b):
@@ -208,7 +208,7 @@ def create_address(sender, nonce):
 
 
 def rpc_keccak(rpc, data):
-    return typed(rpc('web3_sha3', [typed(data, HEXDATA)]), HASH32).lower()
+    return typed(rpc('web3_sha3', [typed(data, HEXDATA, gate='rpc_result_rpc_keccak_data')]), HASH32, gate='rpc_result_rpc_keccak_web3_sha3').lower()
 
 
 def check_keccak(rpc):
@@ -331,8 +331,8 @@ def immutable_values(rpc, plan):
 def verify_runtime(rpc, plan, code, contract_name='APNTsCapped', identity=None, values=None):
     identity = identity if identity is not None else plan[
         'runtimeIdentity' if contract_name == 'APNTsCapped' else 'timelockRuntimeIdentity']
-    expected = bytearray.fromhex(typed(identity['artifactRuntime'], HEXDATA)[2:])
-    actual = bytearray.fromhex(typed(code, HEXDATA)[2:])
+    expected = bytearray.fromhex(typed(identity['artifactRuntime'], HEXDATA, gate='rpc_result_verify_runtime_artifactRuntime')[2:])
+    actual = bytearray.fromhex(typed(code, HEXDATA, gate='rpc_result_verify_runtime_code')[2:])
     need('runtime_length', len(actual), len(expected))
     if values is not None:
         cases = {}
@@ -364,11 +364,11 @@ def verify_runtime(rpc, plan, code, contract_name='APNTsCapped', identity=None, 
 
 
 def calldata(signature, *args):
-    return typed(cast('calldata', signature, *args), HEXDATA)
+    return typed(cast('calldata', signature, *args), HEXDATA, gate='rpc_result_calldata_calldata')
 
 
 def call(rpc, address, signature, *args, block='latest'):
-    return typed(rpc('eth_call', [{'to': address, 'data': calldata(signature, *args)}, block]), HEXDATA)
+    return typed(rpc('eth_call', [{'to': address, 'data': calldata(signature, *args)}, block]), HEXDATA, gate='rpc_result_call_eth_call')
 
 
 def word(rpc, address, signature, *args, block='latest'):
@@ -391,7 +391,7 @@ def block_data(rpc, block):
     b = rpc('eth_getBlockByNumber', [block, False])
     if not isinstance(b, dict):
         raise Gate('pinned_block', 'missing block', block)
-    typed(b.get('hash'), HASH32)
+    typed(b.get('hash'), HASH32, gate='rpc_result_block_data_hash')
     qty(b.get('number'))
     qty(b.get('timestamp'))
     return b
@@ -448,7 +448,7 @@ def artifact_sources(metadata, source_root=None):
         path = source_path(source, metadata['settings'].get('remappings', []), source_root)
         committed = committed_bytes(ROOT, path) if source_root is None else (root/path).read_bytes()
         expected = keccak('0x'+committed.hex())
-        need('artifact_source_metadata', typed(info.get('keccak256'), HASH32).lower(), expected)
+        need('artifact_source_metadata', typed(info.get('keccak256'), HASH32, gate='rpc_result_artifact_sources_keccak256').lower(), expected)
         need('artifact_source_worktree', keccak('0x'+(root/path).read_bytes().hex()), expected)
         hashes[source] = dict(path=path, keccak256=expected)
     return hashes
@@ -468,7 +468,7 @@ def plan_json(raw):
 
 
 def cbor_tail(code):
-    raw = bytes.fromhex(typed(code, HEXDATA)[2:])
+    raw = bytes.fromhex(typed(code, HEXDATA, gate='rpc_result_cbor_tail_code')[2:])
     if len(raw) < 3:
         raise Gate('metadata_cbor', 'short runtime', 'length-delimited CBOR trailer')
     size = int.from_bytes(raw[-2:], 'big')
@@ -665,8 +665,8 @@ def rebuild_artifacts(artifacts, commit=None):
         current, fresh = artifacts[name], rebuilt[name]
         fields = {}
         for field in ('bytecode', 'deployedBytecode'):
-            left = bytes.fromhex(typed(current[field]['object'], HEXDATA)[2:])
-            right = bytes.fromhex(typed(fresh[field]['object'], HEXDATA)[2:])
+            left = bytes.fromhex(typed(current[field]['object'], HEXDATA, gate='rpc_result_rebuild_artifacts_object')[2:])
+            right = bytes.fromhex(typed(fresh[field]['object'], HEXDATA, gate='rpc_result_rebuild_artifacts_object_2')[2:])
             need('rebuild_'+name+'_'+field, left == right, True)
             fields[field+'Sha256'] = hashlib.sha256(right).hexdigest()
         need('rebuild_'+name+'_immutableReferences', current['deployedBytecode'].get('immutableReferences', {}),
@@ -708,7 +708,7 @@ def validate_artifact(a, name, source_root=None, build_info=None):
 def safe_extensions(rpc, block):
     # Safe 1.4.1 GuardManager uses keccak256("guard_manager.guard.address").
     slot = keccak('guard_manager.guard.address')
-    need('safe_guard', typed(rpc('eth_getStorageAt', [SAFE, slot, block]), HASH32), ZERO32)
+    need('safe_guard', typed(rpc('eth_getStorageAt', [SAFE, slot, block]), HASH32, gate='rpc_result_safe_extensions_eth_getStorageAt'), ZERO32)
     # Empty page must also terminate at SENTINEL; reject malformed or truncated ABI responses.
     empty = '0x' + f'{64:064x}' + SENTINEL[2:].zfill(64) + '00'*32
     need('safe_modules', call(rpc, SAFE, 'getModulesPaginated(address,uint256)', SENTINEL, 10, block=block), empty)
@@ -760,7 +760,7 @@ def preflight(rpc, block):
     predicted = [create_address(DEPLOYER, n+i)
                  for i in (1, 2)]
     for a in predicted:
-        need('create_address_empty', typed(rpc('eth_getCode', [a, block]), HEXDATA), '0x')
+        need('create_address_empty', typed(rpc('eth_getCode', [a, block]), HEXDATA, gate='rpc_result_preflight_eth_getCode'), '0x')
     senders = {}
     for label, who in SENDERS.items():
         at_pin = nonce(rpc, who, block)
@@ -1120,7 +1120,7 @@ def mined_identity(mined, tx, label):
 
 
 def receipt(rpc, tx, status='0x1', gas_cap=GAS_CAP):
-    h = typed(rpc('eth_sendTransaction', [tx_rpc(tx, gas_cap=gas_cap)]), HASH32)
+    h = typed(rpc('eth_sendTransaction', [tx_rpc(tx, gas_cap=gas_cap)]), HASH32, gate='rpc_result_receipt_eth_sendTransaction')
     # Heavy txs under --steps-tracing can be mined well after eth_sendTransaction returns: allow 60 s.
     for _ in range(1200):
         r = rpc('eth_getTransactionReceipt', [h])
@@ -1193,12 +1193,12 @@ def roles_readback(rpc, plan, start):
         topics = log['topics']
         need('role_topics', len(topics), 4)
         need('role_event_topic', topics[0] in (granted, revoked, admin_changed), True)
-        role, account = typed(topics[1], HASH32), '0x'+typed(topics[2], HASH32)[-40:].lower()
+        role, account = typed(topics[1], HASH32, gate='rpc_result_roles_readback_1'), '0x'+typed(topics[2], HASH32, gate='rpc_result_roles_readback_2')[-40:].lower()
         if role not in members:
             raise Gate('role_unknown', role, list(members))
         if topics[0] == admin_changed:
             need('role_previous_admin', topics[2], admins[role])
-            admins[role] = typed(topics[3], HASH32)
+            admins[role] = typed(topics[3], HASH32, gate='rpc_result_roles_readback_3')
             continue
         if topics[0] == granted:
             members[role].add(account)
@@ -1319,7 +1319,7 @@ def validate_pin(pin):
         pin_integer(pin['sp'][name], name)
     need('pin_balance', pin['balance'], pin['senders']['deployer']['balance'])
     qty(pin['block'])
-    typed(pin['blockHash'], HASH32)
+    typed(pin['blockHash'], HASH32, gate='rpc_result_validate_pin_blockHash')
     need('pin_timestamp', pin['timestamp'] >= ACTIVATION, True)
 
 
@@ -1343,7 +1343,7 @@ def validate_gaps(plan):
         label = next(k for k, v in SENDERS.items() if v == g['from'])
         typed(g['nonce'], QTY, gate='nonce_gap_hex')
         need('nonce_gap_after_pin', qty(g['nonce']) >= plan['pin']['senders'][label]['nonce'], True)
-        need('nonce_gap_hash', typed(g['hash'], HASH32), g['hash'].lower())
+        need('nonce_gap_hash', typed(g['hash'], HASH32, gate='rpc_result_validate_gaps_hash'), g['hash'].lower())
     keys = [(g['from'], qty(g['nonce'])) for g in gaps]
     need('nonce_gaps_sorted_unique', keys, sorted(set(keys)))
     return gaps
@@ -1374,7 +1374,7 @@ def check_gaps(remote, plan, tx):
         need('nonce_gap_call_'+n, isinstance(to, str) and ADDRESS_RX.fullmatch(to) is not None, True)
         to = to.lower()
         need('nonce_gap_not_precompile_'+n, int(to, 16) > 0xffff, True)
-        need('nonce_gap_recipient_codeless_'+n, typed(remote('eth_getCode', [to, number]), HEXDATA), '0x')
+        need('nonce_gap_recipient_codeless_'+n, typed(remote('eth_getCode', [to, number]), HEXDATA, gate='rpc_result_check_gaps_eth_getCode'), '0x')
         block = remote('eth_getBlockByNumber', [number, False])
         need('nonce_gap_block_'+n, isinstance(block, dict) and str(block.get('hash', '')).lower(), block_hash)
         miner = typed(block.get('miner'), ADDRESS_RX, gate='nonce_gap_block_'+n).lower()
@@ -1522,7 +1522,7 @@ def scheduled_eta(remote, plan, done=False):
     need('schedule_delay', delay, 172800)
     data = cast('abi-encode', 'c(address,uint256,bytes,bytes32,uint256)',
                 plan['pin']['capped'], 0, calldata('acceptOwnership()'), ZERO32, delay)
-    need('schedule_log_data', typed(log['data'], HEXDATA).lower(), data.lower())
+    need('schedule_log_data', typed(log['data'], HEXDATA, gate='rpc_result_scheduled_eta_data').lower(), data.lower())
     need('schedule_log_tx', log['transactionHash'], r['transactionHash'])
     need('schedule_receipt_block', r['blockNumber'], log['blockNumber'])
     need('schedule_receipt_log', any(x.get('address', '').lower() == tl and x.get('topics') == log['topics']
@@ -1556,7 +1556,7 @@ def pre_send(step, remote):
     if index >= 3:
         dependencies.append(plan['pin']['capped'])
     for target in set(dependencies):
-        if typed(remote('eth_getCode', [target, 'latest']), HEXDATA) == '0x':
+        if typed(remote('eth_getCode', [target, 'latest']), HEXDATA, gate='rpc_result_pre_send_eth_getCode') == '0x':
             raise Gate('pre_send_code_'+sid, target, 'deployed contract code')
     check_gaps(remote, plan, tx)
     latest = nonce(remote, tx['from'], 'latest')
@@ -1725,7 +1725,7 @@ def rehearse(remote, plan, out, calibrate=False, after=None):
 
 
 def require_deployed(rpc, token):
-    if typed(rpc('eth_getCode', [token, 'latest']), HEXDATA) == '0x':
+    if typed(rpc('eth_getCode', [token, 'latest']), HEXDATA, gate='rpc_result_require_deployed_eth_getCode') == '0x':
         raise Gate('S4_requires_S3', 'empty code', 'S3 deployment completed')
 
 

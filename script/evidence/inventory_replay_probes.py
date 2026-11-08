@@ -16,7 +16,7 @@ PROBES = {
         "           (expected, {k: pin['oldOwnerIsolation'][k] for k in fields}))\n",
         'test_old_timelock_inventory_new_token'),
     'replay_owners': (
-        "    a.need('old_timelock_replay', actual['approvalOwners'], section['approvalOwners'])\n",
+        "    a.need('old_timelock_replay_owners', actual['approvalOwners'], section['approvalOwners'])\n",
         'test_old_timelock_log_replay'),
     'replay_unused': (
         "    a.need('old_timelock_unused', next(reads, None), None)\n",

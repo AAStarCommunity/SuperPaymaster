@@ -145,7 +145,7 @@ def manifest_probes():
     owner_gate = next(line for line in isolation_source.splitlines(True) if "a.need('old_owner_xpnts_owner_recheck'" in line)
     probes.append(('xpnts_owner_recheck',owner_gate,'', 'ManifestTests.test_xpnts_owner_pre_send'))
     probes += [
-        ('discovery_preswitch_gate', "    a.need('old_owner_factory_enumeration',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)\n", '', 'DiscoveryTests.test_preswitch_enumeration'),
+        ('discovery_preswitch_gate', "    a.need('old_owner_factory_enumeration_discover_targets',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)\n", '', 'DiscoveryTests.test_preswitch_enumeration'),
         ('discovery_switch_path', "switched = 'discoveryOriginalFactory' in pin and targets['xPNTsFactory'][0] != pin['discoveryOriginalFactory']", 'switched = False', 'DiscoveryTests.test_postswitch_enumeration'),
     ]
     discovery_names = set(constants['DISCOVERY_GATES']) | {'discovery_call_'+str(i) for i in range(len(constants['DISCOVERY_CALLS']))} | {
@@ -211,8 +211,8 @@ def manifest_gate(name, test, constants):
     if name.startswith('discovery_call_'):
         return constants['DISCOVERY_CALLS'][int(name.rsplit('_',1)[1])][2]
     return {
-        'discovery_preswitch_gate': 'old_owner_factory_enumeration',
-        'discovery_switch_path': 'old_owner_factory_enumeration',
+        'discovery_preswitch_gate': 'old_owner_factory_enumeration_discover_targets',
+        'discovery_switch_path': 'old_owner_factory_enumeration_discover_targets',
         'post_pin_delta_call': 'old_timelock_delta_allowance',
         'configured_roles_closing_standard': 'old_timelock_inventory',
         'xpnts_owner_pre_send_call': 'old_owner_xpnts_owner_recheck',

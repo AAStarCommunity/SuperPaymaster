@@ -35,8 +35,8 @@ F05 = {
     'run_manifest': ['post_nonce', 'post_safe_nonce', 'manifest_receipt_gas', 'steps_complete', 'controls_complete',
                      'post_swap_tracked', 'post_swap_revenue', 'post_swap_capped_balance', 'post_swap_solvency'],
     'execute_b4': ['B4_timestamp', 'B4_nonce_consumed', 'B4_safe_nonce'],
-    'collect': ['old_aggregator_owner', 'anni_eoa', 'stake_not_unlocking'],
-    'build_plan': ['stake_not_unlocking'],
+    'collect': ['old_aggregator_owner', 'anni_eoa', 'stake_not_unlocking_collect'],
+    'build_plan': ['stake_not_unlocking_build_plan'],
     'collect_pair': ['independent_pin'],
     'main': ['simulation_pin', 'pin_recheck'],
     # Q3: offline fake-chain controls.
@@ -48,12 +48,12 @@ F05 = {
 }
 CLOSING = 'ManifestTests.test_dvt_closing_binds_pointer_and_stale_proposals'
 REQUIRED = {
-    ('old_timelock_holds_nothing', 'old_timelock_approval_history'): ('ManifestTests.test_old_timelock_approval_history_range',
-        'ManifestTests.test_old_timelock_approval_history_log'),
+    ('old_timelock_holds_nothing', 'old_timelock_approval_history_creation'): 'ManifestTests.test_old_timelock_approval_history_range',
+    ('old_timelock_holds_nothing', 'old_timelock_approval_history_log'): 'ManifestTests.test_old_timelock_approval_history_log',
     **{('validate_old_timelock', g): 'ManifestTests.test_'+g for g in
        ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_unused')},
-    ('validate_old_timelock', 'old_timelock_replay'): (
-        'ManifestTests.test_old_timelock_replay_reads', 'ManifestTests.test_old_timelock_replay_owners'),
+    ('validate_old_timelock', 'old_timelock_replay_reads'): 'ManifestTests.test_old_timelock_replay_reads',
+    ('validate_old_timelock', 'old_timelock_replay_owners'): 'ManifestTests.test_old_timelock_replay_owners',
     ('old_timelock_holds_nothing', 'old_timelock_allowance'): 'ManifestTests.test_old_timelock_allowance',
     ('closing_timelock_inventory', 'old_timelock_inventory'): 'ManifestTests.test_old_timelock_inventory_new_role',
     **{('old_timelock_holds_nothing', g): 'ManifestTests.test_'+g for g in
@@ -66,7 +66,7 @@ REQUIRED = {
                                              'closing_committee_pointer', 'closing_dvt_activity',
                                              'closing_stale_unexecuted')},
     **{('old_pointers', g): 'ManifestTests.test_old_pointers_require_old_aggregator' for g in ('old_pointer', 'pointer_owner')},
-    **{(fn, g): f'{F05_CLASS[fn]}.test_{g}' for fn, gates in F05.items() for g in gates},
+    **{(fn, g): F05_CLASS[fn]+'.test_'+{'stake_not_unlocking_collect': 'stake_not_unlocking', 'stake_not_unlocking_build_plan': 'stake_not_unlocking'}.get(g, g) for fn, gates in F05.items() for g in gates},
 }
 
 ISOLATION_FUNCTIONS = {'role_history','audit','mapping_control','never_granted_recheck'}

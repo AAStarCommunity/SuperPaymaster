@@ -131,7 +131,7 @@ def decode(raw):
 def local_keccak(raw):
     r = subprocess.run([CAST, 'keccak'], input=raw, env=signer_env(), capture_output=True, text=True)
     ex.need('send_keccak_exit', r.returncode, 0)
-    return ex.typed(r.stdout.strip(), ex.HASH32).lower()
+    return ex.typed(r.stdout.strip(), ex.HASH32, gate='rpc_result_local_keccak_value').lower()
 
 
 def check_signed(decoded, tx):
@@ -144,7 +144,7 @@ def check_signed(decoded, tx):
     for k in expected:
         ex.need('send_signed_'+k, seen[k], expected[k])
     ex.need('send_signed_no_authorizations', decoded.get('authorizationList') in (None, []), True)
-    return ex.typed(decoded.get('hash'), ex.HASH32).lower()
+    return ex.typed(decoded.get('hash'), ex.HASH32, gate='rpc_result_check_signed_hash').lower()
 
 
 def fee_fits(remote, tx):
