@@ -177,6 +177,7 @@ def main():
         print('\n'.join(detail), flush=True)
         report.append(dict(gate=gate, passed=good, final=final, details=detail,
                            baseline=baseline, mutant=mutant, cls=cls.__name__, method=name))
+    Path('/tmp/commit6e-rulings').mkdir(parents=True, exist_ok=True)
     Path('/tmp/commit6e-rulings/boundary-probes.json').write_text(json.dumps(report, indent=2)+'\n')
     passed = sum(r['passed'] for r in report)
     print(f'FINITE_BOUNDARY_PROBES {"PASS" if passed == len(report) else "FAIL"} {passed}/{len(report)} strict red')

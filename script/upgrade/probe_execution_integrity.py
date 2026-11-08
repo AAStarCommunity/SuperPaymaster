@@ -18,7 +18,16 @@ CASES = {
     'execution_module_tracked': ['test_execution_module_tracked'],
     'execution_module_bytes': ['test_execution_module_bytes'],
     'execution_repo_read': ['test_os_open', 'test_popen'],
+    'execution_integrity_source': ['test_execution_integrity_source'],
+    'execution_integrity_source_manifest': ['test_execution_integrity_source_manifest'],
 }
+# Gates that live outside execution_integrity.py, and controls outside IntegrityTests.
+FILES = {'execution_repo_read': 'script/upgrade/execution_reads.py',
+         'execution_integrity_source': 'script/a3a/a3a_send.py',
+         'execution_integrity_source_manifest': 'script/upgrade/manifest_exec.py'}
+CLASSES = {'execution_bootstrap_origin': 'BootstrapTests',
+           'execution_integrity_source': 'HelperSourceTests',
+           'execution_integrity_source_manifest': 'HelperSourceTests'}
 
 
 def main():
@@ -27,8 +36,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix='commit6f-probe-') as directory:
             root = Path(directory)
             shutil.copytree(ROOT / 'script', root / 'script', ignore=shutil.ignore_patterns('__pycache__'))
-            file = root / 'script/upgrade' / ('execution_reads.py' if gate == 'execution_repo_read'
-                                              else 'execution_integrity.py')
+            file = root / FILES.get(gate, 'script/upgrade/execution_integrity.py')
             source = file.read_text()
             tree = ast.parse(source)
             sites = [node for node in ast.walk(tree) if isinstance(node, (ast.Expr, ast.Raise))
@@ -38,8 +46,8 @@ def main():
             env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(root / p) for p in
                        ('script/upgrade', 'script/a3a')), PYTHONDONTWRITEBYTECODE='1')
             command = [sys.executable, '-B', '-m', 'unittest', '-v',
-                       *['test_execution_integrity.' + ('BootstrapTests.' if gate == 'execution_bootstrap_origin'
-                                                      else 'IntegrityTests.') + name for name in tests]]
+                       *[f'test_execution_integrity.{CLASSES.get(gate, "IntegrityTests")}.{name}'
+                         for name in tests]]
             baseline = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True)
             if len(sites) != 1 or baseline.returncode:
                 print(baseline.stdout + baseline.stderr)
@@ -60,7 +68,7 @@ def main():
             print(f'{gate} {"PASS" if good else "FAIL"} sites=1 baseline=green '
                   f'failures={failures} errors={errors} named={named}')
     print(f'EXECUTION_INTEGRITY_PROBES {"PASS" if passed == len(CASES) else "FAIL"} '
-          f'scope=6_integrity_gates+existing_read_gate passed={passed} total={len(CASES)}')
+          f'scope=6_integrity_gates+2_source_gates+existing_read_gate passed={passed} total={len(CASES)}')
     return int(passed != len(CASES))
 
 

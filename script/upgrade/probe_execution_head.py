@@ -19,7 +19,7 @@ def run(name):
 
 
 def main():
-    module = t.m
+    module = t.integrity
     source = Path(module.__file__).read_text()
     passed = 0
     for gate, name in CASES:

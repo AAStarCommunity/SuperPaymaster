@@ -5,7 +5,9 @@ Each probe deletes exactly one site in a scratch copy of script/ and runs its
 bound test: baseline OK; mutated failures >= 1, errors == 0; at least one failing
 assertion message must contain the deleted gate's name.
 Prints per-target match counts and results, plus DISCOVERY_DELETION_PROBES for the
-discovery subset and ENDUSER_PROBES PASS only if every probe is red and every baseline is green.
+discovery subset, DELTA_DELETION_PROBES for the old_timelock_delta_* subset,
+MANIFEST_DELETION_PROBES for all manifest_exec/isolation probes, and ENDUSER_PROBES PASS
+only if every probe is red and every baseline is green.
 """
 import ast
 import re
@@ -127,11 +129,17 @@ def manifest_probes():
                  and n.value.args and isinstance(n.value.args[0], ast.Constant) and n.value.args[0].value == gate]
         assert len(nodes) == 1, (gate, len(nodes))
         probes.append((gate, ast.get_source_segment(source,nodes[0]), 'pass', 'DiscoveryTests.test_'+gate))
+    # Behavioural controls are defined in the DiscoveryCallTests class body; every
+    # other index is generated onto DiscoveryCallSourceTests (no shared fixture).
+    classes = {n.name: n for n in test_tree.body if isinstance(n, ast.ClassDef)}
+    assert {'DiscoveryCallTests', 'DiscoveryCallSourceTests'} <= set(classes), sorted(classes)
+    behavioural = {n.name for n in classes['DiscoveryCallTests'].body if isinstance(n, ast.FunctionDef)}
     for i, (function, expression, gate) in enumerate(constants['DISCOVERY_CALLS']):
         fn = next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name == function)
         body = ast.get_source_segment(source,fn)
         assert body.count(expression) == 1, (function, expression)
-        probes.append(('discovery_call_'+str(i), body, body.replace(expression,'None'), 'DiscoveryCallTests.test_call_'+str(i)))
+        owner = 'DiscoveryCallTests' if 'test_call_'+str(i) in behavioural else 'DiscoveryCallSourceTests'
+        probes.append(('discovery_call_'+str(i), body, body.replace(expression,'None'), owner+'.test_call_'+str(i)))
     probes.append(('post_pin_delta_call', "    delta = post_pin_delta(rpc, coverage, block)\n", '', 'DeltaTests.test_pre_send_delta_call'))
     probes.append(('configured_roles_closing_standard',
                    "{r['value'] for r in spec['roles']} | {log['topics'][1] for log in logs}",
@@ -151,6 +159,8 @@ def manifest_probes():
     discovery_names = set(constants['DISCOVERY_GATES']) | {'discovery_call_'+str(i) for i in range(len(constants['DISCOVERY_CALLS']))} | {
         'discovery_preswitch_gate', 'discovery_switch_path'}
     discovery_results = []
+    delta_names = {'old_timelock_delta_'+suffix for suffix in DELTA_GATES}
+    delta_results = []
     ok = True
     with tempfile.TemporaryDirectory() as directory:
         tree = pathlib.Path(directory)
@@ -172,12 +182,18 @@ def manifest_probes():
             ok &= red
             if name in discovery_names:
                 discovery_results.append(red)
+            if name in delta_names:
+                delta_results.append(red)
             print(f'{name}: matches={count} baseline=rc{base_rc} [{base_tail}] removed=rc{mut_rc} [{mut_tail}] {"red" if red else "NOT RED"}')
     discovery_ok = len(discovery_results) == len(discovery_names) and all(discovery_results)
     print(f'DISCOVERY_DELETION_PROBES {"PASS" if discovery_ok else "FAIL"} '
           f'{sum(discovery_results)}/{len(discovery_names)}; each matches=1 and red')
     ok &= discovery_ok
-    print('DELTA_DELETION_PROBES', 'PASS' if ok else 'FAIL')
+    delta_ok = len(delta_results) == len(delta_names) and all(delta_results)
+    print(f'DELTA_DELETION_PROBES {"PASS" if delta_ok else "FAIL"} {sum(delta_results)}/{len(delta_names)}')
+    ok &= delta_ok
+    # Aggregate over every manifest_exec/isolation probe above (delta, discovery and the rest).
+    print('MANIFEST_DELETION_PROBES', 'PASS' if ok else 'FAIL')
     return ok
 
 

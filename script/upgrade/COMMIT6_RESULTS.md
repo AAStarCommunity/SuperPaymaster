@@ -7267,17 +7267,17 @@ not counted as the requested method.
 
 | Site | Gate | Why method (a) fails | Retained coverage |
 |---|---|---|---|
-| 0: `rebuild_commit / inventory_source` | `discovery_old_authority` | Release source inventory is read from a build tree, not RPC. A good inventory still feeds the later authority reads; an RPC-only attack does not distinguish the substitution. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_0` |
-| 1: `build_expected_discovery / pin_discovery` | `discovery_step_table` | The named gate compares step IDs and required IDs, independently of the initial discovery state and RPC. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_1` |
-| 2: `expected_discovery / pin_discovery` | `old_timelock_delta_targets` | This is a pure pinned-state initializer. Passed-step snapshots replace it; otherwise an identical good pinned state leaves the live target comparison intact. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_2` |
-| 3: `discovery_coverage / expected_discovery` | `old_timelock_delta_targets` | Expected state depends only on the plan and passed steps. Substituting its good-state value does not bypass live discovery or target comparison. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_3` |
-| 5: `closing_timelock_inventory / pin_discovery` | `old_timelock_inventory` | With discoveryExpected present the eagerly evaluated default is unused. Without it the good pinned default is the same comparison operand; live drift still stops. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_5` |
-| 7: `post_pin_delta / pin_discovery` | `old_timelock_delta_xpnts` | With discoveryExpected present the default is unused. Otherwise a good pinned default preserves the token comparison against adversarial RPC discovery. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_7` |
-| 8: `dvt_closing / discovery_coverage` | `old_timelock_inventory` | Coverage is a pure plan-derived value. A matching good coverage substitute still reaches the real closing inventory comparison and rejects RPC drift. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_8` |
-| 10: `finish / build_expected_discovery` | `discovery_step_table` | The step-table gate validates plan structure during construction, without live RPC input. An adversarial RPC state cannot trigger this named gate. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_10` |
-| 11: `pre_send / discovery_coverage` | `old_timelock_delta_targets` | A good coverage value retains the expected targets; real post-pin discovery still rejects adversarial RPC targets. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_11` |
-| 17: `discovery_old_authority / authority_rows` | `discovery_old_authority` | Rows depend on the pinned inventory, not RPC results. Substituting the same complete good row list retains the bad authority read; omitting the affected row would be an incomplete rather than good inventory. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_17` |
-| 20: `build_expected_discovery / assert_manifest_calldata` | `discovery_unlisted_effect` | This decoder and its named gate operate on plan calldata/step IDs, not RPC. The existing adverse plan control is outside the requested RPC-state method. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_20` |
+| 0: `rebuild_commit / inventory_source` | `discovery_old_authority` | Release source inventory is read from a build tree, not RPC. A good inventory still feeds the later authority reads; an RPC-only attack does not distinguish the substitution. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_0` |
+| 1: `build_expected_discovery / pin_discovery` | `discovery_step_table` | The named gate compares step IDs and required IDs, independently of the initial discovery state and RPC. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_1` |
+| 2: `expected_discovery / pin_discovery` | `old_timelock_delta_targets` | This is a pure pinned-state initializer. Passed-step snapshots replace it; otherwise an identical good pinned state leaves the live target comparison intact. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_2` |
+| 3: `discovery_coverage / expected_discovery` | `old_timelock_delta_targets` | Expected state depends only on the plan and passed steps. Substituting its good-state value does not bypass live discovery or target comparison. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_3` |
+| 5: `closing_timelock_inventory / pin_discovery` | `old_timelock_inventory` | With discoveryExpected present the eagerly evaluated default is unused. Without it the good pinned default is the same comparison operand; live drift still stops. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_5` |
+| 7: `post_pin_delta / pin_discovery` | `old_timelock_delta_xpnts` | With discoveryExpected present the default is unused. Otherwise a good pinned default preserves the token comparison against adversarial RPC discovery. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_7` |
+| 8: `dvt_closing / discovery_coverage` | `old_timelock_inventory` | Coverage is a pure plan-derived value. A matching good coverage substitute still reaches the real closing inventory comparison and rejects RPC drift. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_8` |
+| 10: `finish / build_expected_discovery` | `discovery_step_table` | The step-table gate validates plan structure during construction, without live RPC input. An adversarial RPC state cannot trigger this named gate. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_10` |
+| 11: `pre_send / discovery_coverage` | `old_timelock_delta_targets` | A good coverage value retains the expected targets; real post-pin discovery still rejects adversarial RPC targets. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_11` |
+| 17: `discovery_old_authority / authority_rows` | `discovery_old_authority` | Rows depend on the pinned inventory, not RPC results. Substituting the same complete good row list retains the bad authority read; omitting the affected row would be an incomplete rather than good inventory. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_17` |
+| 20: `build_expected_discovery / assert_manifest_calldata` | `discovery_unlisted_effect` | This decoder and its named gate operate on plan calldata/step IDs, not RPC. The existing adverse plan control is outside the requested RPC-state method. | covered by the existing source-spelling control `DiscoveryCallSourceTests.test_call_20` |
 
 ### Foreground verification
 
@@ -7293,17 +7293,17 @@ not counted as the requested method.
 23: gate=old_timelock_inventory sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.setUp.pin (literal clean inventory) PASS
 24: gate=old_timelock_delta_xpnts sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.array([]) PASS
 25: gate=old_timelock_delta_xpnts sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.array(setUp.tokens=sorted(ROUND_CLONES)) PASS
-0: gate=discovery_old_authority GAP source-control=DiscoveryCallTests.test_call_0
-1: gate=discovery_step_table GAP source-control=DiscoveryCallTests.test_call_1
-2: gate=old_timelock_delta_targets GAP source-control=DiscoveryCallTests.test_call_2
-3: gate=old_timelock_delta_targets GAP source-control=DiscoveryCallTests.test_call_3
-5: gate=old_timelock_inventory GAP source-control=DiscoveryCallTests.test_call_5
-7: gate=old_timelock_delta_xpnts GAP source-control=DiscoveryCallTests.test_call_7
-8: gate=old_timelock_inventory GAP source-control=DiscoveryCallTests.test_call_8
-10: gate=discovery_step_table GAP source-control=DiscoveryCallTests.test_call_10
-11: gate=old_timelock_delta_targets GAP source-control=DiscoveryCallTests.test_call_11
-17: gate=discovery_old_authority GAP source-control=DiscoveryCallTests.test_call_17
-20: gate=discovery_unlisted_effect GAP source-control=DiscoveryCallTests.test_call_20
+0: gate=discovery_old_authority GAP source-control=DiscoveryCallSourceTests.test_call_0
+1: gate=discovery_step_table GAP source-control=DiscoveryCallSourceTests.test_call_1
+2: gate=old_timelock_delta_targets GAP source-control=DiscoveryCallSourceTests.test_call_2
+3: gate=old_timelock_delta_targets GAP source-control=DiscoveryCallSourceTests.test_call_3
+5: gate=old_timelock_inventory GAP source-control=DiscoveryCallSourceTests.test_call_5
+7: gate=old_timelock_delta_xpnts GAP source-control=DiscoveryCallSourceTests.test_call_7
+8: gate=old_timelock_inventory GAP source-control=DiscoveryCallSourceTests.test_call_8
+10: gate=discovery_step_table GAP source-control=DiscoveryCallSourceTests.test_call_10
+11: gate=old_timelock_delta_targets GAP source-control=DiscoveryCallSourceTests.test_call_11
+17: gate=discovery_old_authority GAP source-control=DiscoveryCallSourceTests.test_call_17
+20: gate=discovery_unlisted_effect GAP source-control=DiscoveryCallSourceTests.test_call_20
 COMMIT6J_PROBES PASS method_a=9/9 gaps=11 total=20
 ```
 
@@ -7340,3 +7340,32 @@ The tracked diff contains only `script/upgrade/test_manifest_exec.py` and this
 results file; the only new untracked file is
 `script/upgrade/probe_discovery_substitutions.py`. Production modules and
 `gate_assertions.py` are unchanged. HEAD remains `d21042ad`; no commit made.
+
+## 6k — d21042ad full-run triage: harness and stale-driver fixes (2026-11-08)
+
+Scope: `script/evidence/run_all_6j.sh` predecessor run at d21042ad, bin engine, every
+`script/upgrade/probe_*.py` plus the enduser / inventory / registry drivers. Ten drivers were
+red. None was a defect in executor or sender logic and no Solidity contract is involved; one
+was a real coverage gap (6i source gates without a committed deletion probe).
+
+| Driver | Red result | Cause | Fix in 6k |
+|---|---|---|---|
+| `test_gate_typed_controls` | `FAILED (failures=1)` | `gate_typed_inventory.json` held pre-6g `a3a_send.py` lines | lines 134→151, 147→164 |
+| `probe_typed_gates` | `FileNotFoundError candidates.json` | harness never ran `--discover` | harness runs `--discover` first; expected `passed=82 total=88 blocked=6` (6e known gaps) |
+| `probe_execution_head` | `FAIL 0/2` sites=0 | gates moved to `execution_integrity.py` in 6f | probe reads `t.integrity` |
+| `probe_finite_gate_blockers` | `FAIL 6/23` | identical to the 6e record; superseded by `probe_gate_dsr2` + `--remaining` | harness tags it INFO; `mkdir` before writing its report |
+| `probe_finite_gate_labels` | `INCOMPLETE 181/746` | prefix-discovery helper, never an acceptance gate | harness tags it INFO |
+| `probe_gate_templates` | `FAIL 159/171` | harness ran probes from `script/upgrade/`; safe-governance fixture paths are repo-root relative | harness runs every driver from the repo root |
+| `probe_gate_rename_controls` | `FAIL 4/5` | same cwd cause | same |
+| `probe_phase_c_gates 616e7979` | 54 "uncovered new gates" | `new_gates()` ignored `gate_rename_map.json` | renames excluded and printed; `COVERED_ELSEWHERE` requires the gate literal in the covering driver; base 645ff3a1 |
+| (gap) `execution_integrity_source`, `execution_integrity_source_manifest` | no committed probe | 6i probes were ad hoc | added to `probe_execution_integrity.py` (9/9) |
+| `enduser_mapping_probes` | `discovery_call_1/_20` errors=1 | since 6d the source-only tests shared a plan-building `setUpClass` | source-only tests moved to `DiscoveryCallSourceTests`; summary labels split |
+
+### 6k known gap — renamed gates without a by-name deletion probe (DSR log c0cff66a)
+
+The 52 gates below are 6e renames (old name present at 645ff3a1, mapped in
+`gate_rename_map.json`). Neither the old nor the new name has a by-name deletion probe; the
+rename itself is proven name-only by `gate_rename_ast_diff.py`. Recorded, not waived; no
+aggregate credits them. Not addressed in this release.
+
+`C_control_slot_allowance_used`, `C_operator_before_approve`, `a3a_gap_mined_before_pin_recording`, `a3a_gap_mined_before_pin_replay`, `a3a_mined_history_`, `a3a_mined_reconcile_`, `built_aggregator_version_rebuild_commit`, `built_aggregator_version_release_gate`, `evidence_scope_recomputed_validate_evidence_details`, `evidence_slither_rederived_filename`, `evidence_slither_rederived_findings`, `evidence_slither_rederived_path_containment`, `evidence_slither_rederived_path_syntax`, `evidence_slither_rederived_reference_fields`, `evidence_slither_rederived_success`, `evidence_unique_findings_all_scope`, `evidence_unique_findings_in_scope`, `fixed_old_aggregator_build_plan`, `fixed_old_aggregator_collect`, `fraud_token_fields_arm`, `fraud_token_fields_mock`, `manifest_local_only_pre_send`, `manifest_local_only_run_manifest`, `manifest_plan_key_`, `manifest_step_key_`, `manifest_tx_field_`, `prefix_boundary_prior_stage`, `readback_value_`, `safe_gap_endpoints_check_governance`, `safe_gap_endpoints_governance_evidence`, `safe_gap_hash_check_governance`, `safe_gap_log_data_approval`, `safe_gap_log_data_swap_execution`, `safe_gap_log_data_swap_tail`, `safe_gap_log_logIndex_sequence`, `safe_gap_miner_balance_delta`, `safe_gap_owner_eoa_live`, `safe_gap_owner_eoa_pin`, `safe_gap_pin_nonce_live`, `safe_gap_pin_nonce_pin`, `safe_gap_pin_owners_live`, `safe_gap_pin_owners_pin`, `safe_gap_pin_threshold_live`, `safe_gap_pin_threshold_pin`, `safe_gap_receipt_identity_fields`, `safe_gap_trace_storage_mapping`, `stage_not_final_load_artifact`, `stage_not_final_save_artifact`, `stake_not_unlocking_build_plan`, `stake_not_unlocking_collect`, `verifier_commit_validate_external`, `verifier_commit_verifier_artifact`

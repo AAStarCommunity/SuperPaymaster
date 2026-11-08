@@ -5,11 +5,13 @@ Production files are never modified: the baseline identifies the failing source
 statement, then the probe deletes exactly that AST statement in memory. A red
 probe has failures >= 1, zero errors, and a failing assertion naming the gate.
 The script also scans manifest_exec.py against a base revision and fails if a newly added
-gate literal has no probe case.
+gate literal has no probe case. A gate that gate_rename_map.json maps from an old name present
+at the base is a rename, not a new gate; every excluded rename is printed.
 """
 import sys
 sys.dont_write_bytecode = True
 import io
+import json
 import inspect
 import ast
 import re
@@ -175,12 +177,36 @@ def run(cls, name, gate=None):
     return not red, matches == 1, stream.getvalue()
 
 
+# Gates added outside Phase C whose strict deletion probe lives in another committed driver.
+# Each driver must name the gate as a string literal; main() prints every entry it relies on.
+COVERED_ELSEWHERE = {
+    'a3a_sender_history_rows_present': 'script/upgrade/probe_sender_accessor.py',
+    'execution_integrity_source_manifest': 'script/upgrade/probe_execution_integrity.py',
+}
+# Genuinely new gates accepted without a deletion probe: gate -> reason. Empty at 645ff3a1.
+KNOWN_GAPS = {}
+
+
 def new_gates(base):
+    """Return (new, renamed): renamed maps a 6e new name to an old name present at base."""
     path = 'script/upgrade/manifest_exec.py'
     root = Path(__file__).resolve().parents[2]
     old = subprocess.run(['git', 'show', base+':'+path], cwd=root, capture_output=True, text=True, check=True).stdout
     current = (root/path).read_text()
-    return sorted(set(GATE.findall(current))-set(GATE.findall(old)))
+    before = set(GATE.findall(old))
+    renames = json.loads((root/'script/upgrade/gate_rename_map.json').read_text())
+    sources = {}
+    for previous, entries in renames.items():
+        for entry in entries:
+            sources.setdefault(entry['new'], []).append(previous)
+    new, renamed = [], {}
+    for gate in sorted(set(GATE.findall(current))-before):
+        previous = [o for o in sources.get(gate, []) if o in before]
+        if previous:
+            renamed[gate] = previous
+        else:
+            new.append(gate)
+    return new, renamed
 
 
 def covered(gate, names):
@@ -194,7 +220,22 @@ def covered(gate, names):
 def main(argv):
     base = argv[1] if len(argv) > 1 else 'origin/main'
     names = {g for _, _, g in CASES} | {'_gate', '_restore'}
-    missing = [g for g in new_gates(base) if not covered(g, names)]
+    added, renamed = new_gates(base)
+    root = Path(__file__).resolve().parents[2]
+    print(f'base={base} renamed gates excluded (gate_rename_map.json, old name present at base): {len(renamed)}')
+    for gate, previous in renamed.items():
+        print(f'  RENAMED {gate} <- {", ".join(previous)}')
+    missing = []
+    for gate in added:
+        if covered(gate, names):
+            continue
+        driver = COVERED_ELSEWHERE.get(gate)
+        if driver and (f"'{gate}'" in (root/driver).read_text()):
+            print(f'  COVERED ELSEWHERE {gate} by {driver}')
+        elif gate in KNOWN_GAPS:
+            print(f'  KNOWN GAP {gate}: {KNOWN_GAPS[gate]}')
+        else:
+            missing.append(gate)
     rows = []
     for cls, name, gate in CASES:
         ok, _, log = run(cls, name)

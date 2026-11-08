@@ -5305,7 +5305,7 @@ class PrerequisiteCallTests(F05Fixture):
 
 
 class DiscoveryCallTests(unittest.TestCase):
-    """Behavioural caller controls; remaining source-only controls are marked below."""
+    """Behavioural caller controls; remaining source-only controls live in DiscoveryCallSourceTests."""
     setUpClass = classmethod(DiscoveryTests.setUpClass.__func__)
     setUp = DiscoveryTests.setUp
     rpc = DiscoveryTests.rpc
@@ -5493,9 +5493,16 @@ def discovery_call_test(function, expression, gate):
     return test
 
 
+class DiscoveryCallSourceTests(unittest.TestCase):
+    """Source-only call controls. Deliberately has no plan-building setUpClass:
+    deleting a call that build_plan itself reaches must fail the assertion, not
+    error out of a shared fixture. Indices with a behavioural control in
+    DiscoveryCallTests are not duplicated here."""
+
+
 for _i, (_function, _expression, _gate) in enumerate(DISCOVERY_CALLS):
     if not hasattr(DiscoveryCallTests, 'test_call_' + str(_i)):
-        setattr(DiscoveryCallTests, 'test_call_' + str(_i), discovery_call_test(_function, _expression, _gate))
+        setattr(DiscoveryCallSourceTests, 'test_call_' + str(_i), discovery_call_test(_function, _expression, _gate))
 
 
 if __name__ == '__main__':

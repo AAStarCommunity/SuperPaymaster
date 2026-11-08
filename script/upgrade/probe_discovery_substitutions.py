@@ -77,7 +77,7 @@ def main():
                   f'substitute=DiscoverySubstitutionTests.{sources[index]} {"PASS" if good else "FAIL"}')
             if not good: print(baseline['log'] + result['log'])
     for index in GAPS:
-        print(f'{index}: gate={t.DISCOVERY_CALLS[index][2]} GAP source-control=DiscoveryCallTests.test_call_{index}')
+        print(f'{index}: gate={t.DISCOVERY_CALLS[index][2]} GAP source-control=DiscoveryCallSourceTests.test_call_{index}')
     print(f'COMMIT6J_PROBES {"PASS" if passed == len(CASES) else "FAIL"} method_a={passed}/{len(CASES)} gaps={len(GAPS)} total=20')
     return int(passed != len(CASES))
 

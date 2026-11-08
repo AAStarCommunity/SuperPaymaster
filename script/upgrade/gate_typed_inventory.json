@@ -202,7 +202,7 @@
   {
     "file": "script/a3a/a3a_send.py",
     "function": "local_keccak",
-    "line": 134,
+    "line": 151,
     "column": 11,
     "gate": "rpc_result_local_keccak_value",
     "value": "r.stdout.strip()"
@@ -210,7 +210,7 @@
   {
     "file": "script/a3a/a3a_send.py",
     "function": "check_signed",
-    "line": 147,
+    "line": 164,
     "column": 11,
     "gate": "rpc_result_check_signed_hash",
     "value": "decoded.get('hash')"
