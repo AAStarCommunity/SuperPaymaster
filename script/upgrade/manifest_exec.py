@@ -3418,8 +3418,12 @@ def execution_tree_gates(plan):
 
     Retain this entry point for rehearsal fixtures; the sender shares the helper.
     """
-    import execution_integrity
-    execution_integrity.check(plan['rebuild']['commit'])
+    import importlib.util
+    path = Path(__file__).resolve().parent / 'execution_integrity.py'
+    spec = importlib.util.spec_from_file_location('_manifest_repository_execution_integrity', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.check(plan['rebuild']['commit'])
 
 
 def run_manifest(remote, rpc, plan, out, calibrate=True):

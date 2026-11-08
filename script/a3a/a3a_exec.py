@@ -71,10 +71,10 @@ SENDERS = {'deployer': DEPLOYER, 'approver': APPROVER, 'executor': EXECUTOR}
 EMPTY_KECCAK = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
 
 
-class Gate(Exception):
+class Gate(globals().get('_repository_gate_base', Exception)):
     def __init__(self, name, observed, expected):
         self.record = dict(status='FAILURE', gate=name, observed=observed, expected=expected)
-        super().__init__(name)
+        Exception.__init__(self, name)
 
 
 def same_value(observed, expected):

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import execution_integrity as e
+import sp_upgrade_exec as u
 import execution_reads as reads
 from gate_assertions import assert_stop
 
@@ -27,7 +28,17 @@ class IntegrityTests(unittest.TestCase):
         self.git('-c', 'user.name=Offline', '-c', 'user.email=offline@example.invalid',
                  '-c', 'commit.gpgsign=false', 'commit', '-qm', 'fixture')
         self.commit = self.git('rev-parse', 'HEAD').strip()
-        root = patch.object(e.u, 'ROOT', self.root)
+        bootstrap = patch.object(e, 'bootstrap')
+        bootstrap.start()
+        self.addCleanup(bootstrap.stop)
+        import manifest_exec as manifest
+        import a3a_send as sender
+        for module, name, callback in ((manifest, 'execution_tree_gates', lambda plan: e.check(plan['rebuild']['commit'])),
+                                       (sender, 'integrity_check', e.check)):
+            wrapper = patch.object(module, name, side_effect=callback)
+            wrapper.start()
+            self.addCleanup(wrapper.stop)
+        root = patch.object(u, 'ROOT', self.root)
         root.start()
         self.addCleanup(root.stop)
         modules = patch.dict(sys.modules, {'commit6f_fixture': self.load_module(self.source)})
@@ -66,36 +77,6 @@ class IntegrityTests(unittest.TestCase):
                 with assert_stop(self, 'execution_module_origin'):
                     e.check(self.commit)
 
-    def test_preloaded_execution_integrity_cannot_replace_sender_check(self):
-        import a3a_send as sender
-        from unittest.mock import Mock
-        self.track_first_party('execution_integrity')
-        external = self.base / 'execution_integrity.py'
-        external.write_text('def check(commit): pass\n')
-        permissive = Mock()
-        shadow = SimpleNamespace(__file__=str(external), check=permissive)
-        import hashlib
-        import json
-        raw = json.dumps({'rebuild': {'commit': self.commit}}).encode()
-        plan = self.base / 'plan.json'
-        plan.write_bytes(raw)
-        out = self.base / 'sender'
-        out.mkdir()
-        args = SimpleNamespace(plan=plan, out=out,
-                               reviewed_plan_sha256=hashlib.sha256(raw).hexdigest())
-        with patch.dict(sys.modules, {'execution_integrity': shadow,
-                                     '_a3a_repository_execution_integrity': shadow}), \
-             patch.object(sender.ex, 'plan_json', side_effect=json.loads), \
-             patch.object(sender.ex, 'signing_transaction') as signing, \
-             patch.object(sender, 'signed') as signed, \
-             patch.object(sender, 'broadcast') as broadcast:
-            with assert_stop(self, 'execution_module_origin'):
-                sender.run(args, None, 'offline.invalid')
-        permissive.assert_not_called()
-        signing.assert_not_called()
-        signed.assert_not_called()
-        broadcast.assert_not_called()
-
     def test_clean(self):
         e.check(self.commit)
 
@@ -112,7 +93,7 @@ class IntegrityTests(unittest.TestCase):
     def test_execution_root(self):
         child = self.root / 'child'
         child.mkdir()
-        with patch.object(e.u, 'ROOT', child):
+        with patch.object(u, 'ROOT', child):
             with assert_stop(self, 'execution_root'):
                 e.tree_gates(self.commit)
 
@@ -228,8 +209,65 @@ class IntegrityTests(unittest.TestCase):
                  'script/upgrade/execution_integrity.py')
         literals, _ = inventory({file: (root / file).read_text() for file in files})
         for gate in ('execution_root', 'execution_index_flags', 'execution_module_tracked',
-                     'execution_module_bytes', 'execution_module_origin', 'execution_head', 'execution_clean_tree'):
+                     'execution_module_bytes', 'execution_module_origin', 'execution_bootstrap_origin', 'execution_head', 'execution_clean_tree'):
             self.assertEqual(len(literals[gate]), 1, gate)
+
+
+class BootstrapTests(unittest.TestCase):
+    def run_shadow(self, entry, shadow_name):
+        import shutil
+        with tempfile.TemporaryDirectory(prefix='commit6h-bootstrap-') as directory:
+            root = Path(directory) / 'repo'
+            shutil.copytree(Path(__file__).resolve().parents[2] / 'script', root / 'script',
+                            ignore=shutil.ignore_patterns('__pycache__'))
+            env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+            env.update(PYTHONDONTWRITEBYTECODE='1', PYTHONPATH=os.pathsep.join(
+                str(root / path) for path in ('script/upgrade', 'script/a3a')),
+                GIT_CONFIG_NOSYSTEM='1')
+            def git(*args):
+                return subprocess.run(['git', *args], cwd=root, env=env, check=True,
+                                      capture_output=True, text=True).stdout.strip()
+            git('init', '-q')
+            git('add', '.')
+            git('-c', 'user.name=Offline', '-c', 'user.email=offline@example.invalid',
+                '-c', 'commit.gpgsign=false', 'commit', '-qm', 'bootstrap fixture')
+            commit = git('rev-parse', 'HEAD')
+            external = Path(directory) / (shadow_name + '.py')
+            external.write_text('def check(commit): pass\n')
+            code = f"""
+import sys
+import unittest
+from types import SimpleNamespace
+import a3a_exec as a
+import manifest_exec as manifest
+import a3a_send as sender
+from gate_assertions import assert_stop
+class Regression(unittest.TestCase):
+    def runTest(self):
+        sender.integrity_check(COMMIT)
+        manifest.execution_tree_gates({{'rebuild': {{'commit': COMMIT}}}})
+        shadow = SimpleNamespace(__file__={str(external)!r}, check=lambda commit: None,
+                                 ROOT={str(root)!r}, a=SimpleNamespace(need=lambda *args: None))
+        from pathlib import Path
+        shadow.ROOT = Path(shadow.ROOT)
+        sys.modules[{shadow_name!r}] = shadow
+        with assert_stop(self, 'execution_bootstrap_origin'):
+            {entry}
+unittest.main()
+"""
+            result = subprocess.run([sys.executable, '-B', '-c', code.replace('COMMIT', repr(commit))],
+                                    cwd=root, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_preloaded_execution_integrity_manifest(self):
+        self.run_shadow("manifest.execution_tree_gates({'rebuild': {'commit': COMMIT}})",
+                        'execution_integrity')
+
+    def test_preloaded_execution_integrity_sender(self):
+        self.run_shadow('sender.integrity_check(COMMIT)', 'execution_integrity')
+
+    def test_execution_bootstrap_origin(self):
+        self.run_shadow('sender.integrity_check(COMMIT)', 'sp_upgrade_exec')
 
 
 class DeclarationTests(unittest.TestCase):
@@ -238,7 +276,7 @@ class DeclarationTests(unittest.TestCase):
         import gate_rename_ast_diff as audit
         originals, changes = audit.declared_6f('WORKTREE')
         self.assertIn('script/upgrade/execution_integrity.py', originals)
-        self.assertEqual(len(changes), 6)
+        self.assertEqual(len(changes), 8)
         real_read = audit.read
         declaration = 'script/upgrade/gate_6f_additions.json'
         rows = json.loads(real_read('WORKTREE', declaration))

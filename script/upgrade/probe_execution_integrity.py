@@ -11,6 +11,7 @@ from gate_assertions import assertion_mentions
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = {
+    'execution_bootstrap_origin': ['test_execution_bootstrap_origin'],
     'execution_module_origin': ['test_execution_module_origin'],
     'execution_root': ['test_execution_root'],
     'execution_index_flags': ['test_execution_index_flags'],
@@ -37,7 +38,8 @@ def main():
             env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(root / p) for p in
                        ('script/upgrade', 'script/a3a')), PYTHONDONTWRITEBYTECODE='1')
             command = [sys.executable, '-B', '-m', 'unittest', '-v',
-                       *['test_execution_integrity.IntegrityTests.' + name for name in tests]]
+                       *['test_execution_integrity.' + ('BootstrapTests.' if gate == 'execution_bootstrap_origin'
+                                                      else 'IntegrityTests.') + name for name in tests]]
             baseline = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True)
             if len(sites) != 1 or baseline.returncode:
                 print(baseline.stdout + baseline.stderr)
@@ -58,7 +60,7 @@ def main():
             print(f'{gate} {"PASS" if good else "FAIL"} sites=1 baseline=green '
                   f'failures={failures} errors={errors} named={named}')
     print(f'EXECUTION_INTEGRITY_PROBES {"PASS" if passed == len(CASES) else "FAIL"} '
-          f'scope=5_integrity_gates+existing_read_gate passed={passed} total={len(CASES)}')
+          f'scope=6_integrity_gates+existing_read_gate passed={passed} total={len(CASES)}')
     return int(passed != len(CASES))
 
 

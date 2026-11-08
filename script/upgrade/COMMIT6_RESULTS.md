@@ -7097,3 +7097,97 @@ HEAD_UNCHANGED 383315b0005bee77e26c42e894106aa10e79803f
 INDEX_UNCHANGED staged_files=0
 ASSERT_STOP_UNCHANGED catches=a.Gate
 ```
+
+
+## 6h
+
+Daybreak round 3 trusted bootstrap: manifest execution exact-loads the repository
+integrity helper under a private module name. The helper starts with stdlib-only
+origin/committed-byte checks rooted at its own resolved `__file__`, using sanitized
+Git environment variables before invoking first-party modules. It exact-loads the
+verified Gate implementation and its verified RPC-classification dependency;
+the private Gate subclasses the authenticated canonical Gate, preserving strict
+`assert_stop` compatibility. Bootstrap rejection is `execution_bootstrap_origin`.
+
+Real temporary repositories cover clean sender/manifest checks, external integrity
+modules through both entry points, and external `sp_upgrade_exec` with permissive
+`a.need` through the sender. The new single-site deletion probe requires a named
+assertion failure and zero errors. Existing gate assertions remain intact.
+Byte/AST declarations and explicit gate locations are updated in
+`gate_6f_additions.json`; finite-domain dependency hashes are refreshed without
+changing labels or scopes. Synthetic fixtures patch their public wrappers.
+
+All requested commands ran in the foreground, offline. After preserving existing
+manifest template line locations and refreshing dependency hashes, the AST audit,
+both probes, gate-name suite and integrity suite were rerun successfully. No RPC,
+environment-file, keystore or chain access; no commit, staging or background job.
+Full logs: `/tmp/commit6h-final/`.
+
+Verbatim final lines:
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=366
+
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+
+execution_bootstrap_origin PASS sites=1 baseline=green failures=2 errors=0 named=True
+execution_module_origin PASS sites=1 baseline=green failures=2 errors=0 named=True
+execution_root PASS sites=1 baseline=green failures=1 errors=0 named=True
+execution_index_flags PASS sites=1 baseline=green failures=2 errors=0 named=True
+execution_module_tracked PASS sites=1 baseline=green failures=1 errors=0 named=True
+execution_module_bytes PASS sites=1 baseline=green failures=1 errors=0 named=True
+execution_repo_read PASS sites=1 baseline=green failures=2 errors=0 named=True
+EXECUTION_INTEGRITY_PROBES PASS scope=6_integrity_gates+existing_read_gate passed=7 total=7
+
+test_execution_integrity
+Ran 18 tests in 18.966s
+
+OK
+
+test_a3a_send
+Ran 74 tests in 31.839s
+
+OK
+
+test_a3a_exec
+Ran 102 tests in 3.070s
+
+OK
+
+test_manifest_exec
+Ran 535 tests in 427.306s
+
+OK (skipped=2)
+L1_CONTROL old_owner_creation_before removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL old_owner_undeclared_clone removed=assertion-failure errors=0
+
+test_manifest_phase_c
+Ran 141 tests in 213.048s
+
+OK
+
+test_execution_head
+Ran 6 tests in 1.216s
+
+OK
+
+test_execution_reads
+Ran 10 tests in 0.090s
+
+OK
+
+test_gate_names
+Ran 27 tests in 33.577s
+
+OK
+
+FOREGROUND_6H_CHECKS PASS passed=11 total=11
+
+HEAD_UNCHANGED 6aff70e4f57051d642032e401e9c016e7db6afe6
+INDEX_UNCHANGED staged_files=0
+ASSERT_STOP_UNCHANGED catches=a.Gate
+```
