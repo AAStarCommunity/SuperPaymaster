@@ -5375,6 +5375,112 @@ class DiscoveryCallTests(unittest.TestCase):
         self.assertEqual(self.pre(self.rpc())['from'], u.DEPLOYER)
         self.assertEqual(self.closing(self.rpc())['block'], self.block)
 
+
+class DiscoverySubstitutionTests(unittest.TestCase):
+    """6j: literal good states, independent of every production discovery helper."""
+    FACTORY = '0x' + '11' * 20
+    RELEASE = '0x' + '22' * 20
+    OTHER = '0x' + '33' * 20
+    WORD_ZERO = '0x' + '00' * 32
+    CODE = '0x6000'
+
+    def setUp(self):
+        # Constants and literal fixture fields only; never snapshot a production call.
+        self.targets = dict(Registry=u.REG, SuperPaymaster=u.SP, APNTsCapped=self.OTHER,
+            TimelockController=u.TL, GTokenStaking=self.OTHER, MySBT=self.OTHER,
+            xPNTsFactory=self.FACTORY, PaymasterFactory=m.isolation.PAYMASTER_FACTORY,
+            GToken=self.OTHER)
+        self.tokens = sorted(m.isolation.ROUND_CLONES)
+        self.good = dict(targets=dict(self.targets), xpnts=list(self.tokens))
+        spec = dict(authorities=[], mappings=[], roles=[], hasRole=False, roleEventTopic=a.ZERO32)
+        inventory = {name: copy.deepcopy(spec) for name in [*self.targets, 'xPNTsToken', 'releaseFactory', 'legacyFactory']}
+        self.pin = dict(stateBlock='0x1', capped=self.OTHER, pauseList=[], registryCreation=1,
+            oldTimelock=dict(approvalOwners={}), oldOwnerIsolation=dict(
+                targets=dict(self.targets), xpnts=list(self.tokens), tokens=list(self.tokens),
+                inventory=inventory, roleHistory={}, configuredRoles=[]))
+        self.bad = None
+
+    def array(self, values):
+        return isolation_tests.raw([32, len(values), *[int(v, 16) for v in values]])
+
+    def rpc(self, method, params):
+        if method == 'eth_getLogs': return []
+        if method == 'eth_getCode': return '0x' if self.bad == 'code' else self.CODE
+        self.assertEqual(method, 'eth_call')
+        self.assertEqual(params[1], '0x2')
+        target, data = params[0]['to'], params[0]['data']
+        if data == a.calldata('getAllTokens()'):
+            values = [] if target == self.pin.get('discoveryReleaseFactory') else list(self.tokens)
+            if self.bad == target: values.append(self.OTHER)
+            return self.array(values)
+        if data == a.calldata('xpntsFactory()'):
+            return isolation_tests.raw([int(self.OTHER if self.bad == 'factory' else self.FACTORY, 16)])
+        if data == a.calldata('owner()'):
+            return isolation_tests.raw([int(m.isolation.OLD, 16)])
+        if data.startswith(a.calldata('allowance(address,address)', u.SP, m.isolation.OLD)[:10]):
+            return isolation_tests.raw([1])
+        return isolation_tests.raw([int(self.OTHER, 16)])
+
+    def check(self, index):
+        gate = DISCOVERY_CALLS[index][2]
+        if index in (18, 19):
+            section = self.pin['oldOwnerIsolation']
+            section.update(targets={'Factory': self.FACTORY} if index == 18 else {}, xpnts=[],
+                           tokens=[] if index == 18 else [self.OTHER])
+            section['inventory']['Factory'] = dict(authorities=[dict(signature='owner()')], mappings=[], roles=[], hasRole=False)
+            action = lambda: m.discovery_old_authority(self.rpc, self.pin, '0x2')
+        else:
+            if index in (4, 6, 23): self.bad = 'factory'
+            if index == 15: self.bad = self.FACTORY
+            if index in (16, 24):
+                self.pin['discoveryReleaseFactory'] = self.RELEASE
+                self.good['targets']['releaseFactory'] = self.RELEASE
+                self.pin['discoveryExpected'] = copy.deepcopy(self.good)
+                self.bad = 'code' if index == 16 else self.RELEASE
+            if index == 25:
+                self.pin.update(discoveryReleaseFactory=self.RELEASE, discoveryOriginalFactory=self.RELEASE,
+                                discoveryRetainedTokens=list(self.tokens))
+                self.good['targets'].update(releaseFactory=self.RELEASE, legacyFactory=self.RELEASE)
+                self.pin['discoveryExpected'] = copy.deepcopy(self.good)
+                self.bad = self.RELEASE
+                # Release and original must be distinct for this post-switch fixture.
+                self.pin['discoveryReleaseFactory'] = self.OTHER
+                self.good['targets']['releaseFactory'] = self.OTHER
+                self.pin['discoveryExpected'] = copy.deepcopy(self.good)
+            action = lambda: m.post_pin_delta(self.rpc, self.pin, '0x2')
+            if index in (4, 23):
+                self.pin['discoveryExpected'] = copy.deepcopy(self.good)
+                action = lambda: m.closing_timelock_inventory(self.rpc, self.pin, '0x2')
+        with contextlib.ExitStack() as stack:
+            if index in (4, 23):
+                stack.enter_context(patch.object(m.isolation, 'role_history', return_value=[]))
+            if index == 23:
+                self.pin.update(oldAggregator=self.OTHER, oldActivity=dict(dvtProposals=[]))
+                self.pin['oldOwnerIsolation']['callsiteTargetSource'] = dict(expected={})
+                plan = dict(pin=self.pin, stage='a7', steps=[], externalInputs=dict(data=dict(dvt=self.OTHER, committee=self.OTHER)))
+                for item in (patch.object(a, 'block_data', return_value=dict(number='0x2')),
+                             patch.object(m.isolation, 'registry_callsite_targets'),
+                             patch.object(m, 'discovery_coverage', return_value=self.pin),
+                             patch.object(m.isolation, 'never_granted_recheck', return_value=[]),
+                             patch.object(a, 'address', return_value=self.OTHER),
+                             patch.object(m, 'dvt_activity', return_value=[]),
+                             patch.object(m, 'STALE_PROPOSALS', []),
+                             patch.object(m, 'discovery_old_authority'),
+                             patch.object(m, 'old_timelock_holds_nothing', return_value=[])):
+                    stack.enter_context(item)
+                action = lambda: m.dvt_closing(self.rpc, plan)
+            with assert_stop(self, gate): action()
+
+    def test_call_23(self): self.check(23)
+    def test_call_4(self): self.check(4)
+    def test_call_6(self): self.check(6)
+    def test_call_15(self): self.check(15)
+    def test_call_16(self): self.check(16)
+    def test_call_18(self): self.check(18)
+    def test_call_19(self): self.check(19)
+    def test_call_24(self): self.check(24)
+    def test_call_25(self): self.check(25)
+
 # Retained pending controls: these are source inventory checks, not behavioural
 # acceptance evidence. Do not count them toward item D completion.
 def discovery_call_test(function, expression, gate):

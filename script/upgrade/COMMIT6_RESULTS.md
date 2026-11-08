@@ -7218,3 +7218,125 @@ test_a3a_exec `Ran 102 ... OK`; test_execution_head `Ran 6 ... OK`;
 test_execution_reads `Ran 10 ... OK`; test_gate_names `Ran 27 ... OK` (after refreshing
 the 64 `manifest_exec.py` dependency digests in gate_finite_domains.json).
 `GATE_RENAME_AST_DIFF PASS n_changes=366`; `GATE_NAME_PROBES PASS`.
+
+
+## 6j
+
+DSR ruling `9fa206f9`, D / M7, test-only continuation. No commit, production edits,
+RPC endpoints, environment files, keystores, chain access, or background jobs.
+`assert_stop` is unchanged and catches only `a.Gate`; ERROR is never accepted.
+The 20 remaining source-spelling controls are all retained. Nine sites have
+additional method (a) behavioural controls; eleven remain known gaps. This is
+not a claim of full M7 completion.
+
+`DiscoverySubstitutionTests` supplies an independent, explicit good state:
+`FACTORY=0x1111111111111111111111111111111111111111`,
+`RELEASE=0x2222222222222222222222222222222222222222`,
+`OTHER=0x3333333333333333333333333333333333333333`, zero ABI word, and `0x6000`
+code. `setUp.targets` lists each target explicitly using these literals and
+existing address constants `u.REG`, `u.SP`, `u.TL`, and
+`isolation.PAYMASTER_FACTORY`; `setUp.tokens` is the sorted literal
+`isolation.ROUND_CLONES` tuple. `setUp.good` contains those targets and tokens;
+`setUp.pin` declares their empty role/approval histories and inventories.
+The fixture `array` helper only ABI-encodes these supplied literal token lists.
+None of the substitute values comes from the mutated function or a function
+it calls. Each probe line identifies its exact fixture source.
+
+Adverse fake-RPC replies change the factory pointer (4, 6, 23), add a token
+(15, 24, 25), remove release-factory code (16), return OLD as owner (18), or
+return a nonzero allowance (19). Real-tree tests demand the exact listed STOP.
+For 4 and 23, role-history scanning is held at an empty fixture history so it
+cannot mask discovery drift. For 23, unrelated DVT/pointer/authority checks and
+the pure coverage input are stubbed; the real `dvt_closing` inventory call and
+real `closing_timelock_inventory` discovery/comparison remain exercised.
+
+`probe_discovery_substitutions.py` copies tracked files (excluding `.env*`) into
+a temporary tree, includes the new untracked probe, locates exactly one AST
+call in its named function, and replaces only that expression with the literal
+fixture value. Each mutant runs in a fresh foreground interpreter against the
+copied tests and production modules. The real worktree is never mutated by the
+probe. Acceptance requires a green real-tree baseline, one source site,
+failures >= 1, errors == 0, and an assertion message naming the expected gate.
+
+### 6j known gaps
+
+These are limitations of method (a) with a good-state substitute and an
+adversarial RPC state, not untested claims of equivalent behavioural coverage.
+Changing plan inputs or substituting an intentionally incomplete inventory is
+not counted as the requested method.
+
+| Site | Gate | Why method (a) fails | Retained coverage |
+|---|---|---|---|
+| 0: `rebuild_commit / inventory_source` | `discovery_old_authority` | Release source inventory is read from a build tree, not RPC. A good inventory still feeds the later authority reads; an RPC-only attack does not distinguish the substitution. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_0` |
+| 1: `build_expected_discovery / pin_discovery` | `discovery_step_table` | The named gate compares step IDs and required IDs, independently of the initial discovery state and RPC. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_1` |
+| 2: `expected_discovery / pin_discovery` | `old_timelock_delta_targets` | This is a pure pinned-state initializer. Passed-step snapshots replace it; otherwise an identical good pinned state leaves the live target comparison intact. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_2` |
+| 3: `discovery_coverage / expected_discovery` | `old_timelock_delta_targets` | Expected state depends only on the plan and passed steps. Substituting its good-state value does not bypass live discovery or target comparison. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_3` |
+| 5: `closing_timelock_inventory / pin_discovery` | `old_timelock_inventory` | With discoveryExpected present the eagerly evaluated default is unused. Without it the good pinned default is the same comparison operand; live drift still stops. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_5` |
+| 7: `post_pin_delta / pin_discovery` | `old_timelock_delta_xpnts` | With discoveryExpected present the default is unused. Otherwise a good pinned default preserves the token comparison against adversarial RPC discovery. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_7` |
+| 8: `dvt_closing / discovery_coverage` | `old_timelock_inventory` | Coverage is a pure plan-derived value. A matching good coverage substitute still reaches the real closing inventory comparison and rejects RPC drift. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_8` |
+| 10: `finish / build_expected_discovery` | `discovery_step_table` | The step-table gate validates plan structure during construction, without live RPC input. An adversarial RPC state cannot trigger this named gate. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_10` |
+| 11: `pre_send / discovery_coverage` | `old_timelock_delta_targets` | A good coverage value retains the expected targets; real post-pin discovery still rejects adversarial RPC targets. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_11` |
+| 17: `discovery_old_authority / authority_rows` | `discovery_old_authority` | Rows depend on the pinned inventory, not RPC results. Substituting the same complete good row list retains the bad authority read; omitting the affected row would be an incomplete rather than good inventory. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_17` |
+| 20: `build_expected_discovery / assert_manifest_calldata` | `discovery_unlisted_effect` | This decoder and its named gate operate on plan calldata/step IDs, not RPC. The existing adverse plan control is outside the requested RPC-state method. | covered by the existing source-spelling control `DiscoveryCallTests.test_call_20` |
+
+### Foreground verification
+
+`python3 script/upgrade/probe_discovery_substitutions.py` — per-site records and aggregate, verbatim:
+
+```text
+4: gate=old_timelock_inventory sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.setUp.good PASS
+6: gate=old_timelock_delta_targets sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.setUp.good PASS
+15: gate=old_timelock_delta_xpnts sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.setUp.targets+tokens PASS
+16: gate=old_timelock_delta_targets sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.CODE PASS
+18: gate=discovery_old_authority sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.WORD_ZERO PASS
+19: gate=discovery_old_authority sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.WORD_ZERO PASS
+23: gate=old_timelock_inventory sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.setUp.pin (literal clean inventory) PASS
+24: gate=old_timelock_delta_xpnts sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.array([]) PASS
+25: gate=old_timelock_delta_xpnts sites=1 baseline=green failures=1 errors=0 named=true substitute=DiscoverySubstitutionTests.array(setUp.tokens=sorted(ROUND_CLONES)) PASS
+0: gate=discovery_old_authority GAP source-control=DiscoveryCallTests.test_call_0
+1: gate=discovery_step_table GAP source-control=DiscoveryCallTests.test_call_1
+2: gate=old_timelock_delta_targets GAP source-control=DiscoveryCallTests.test_call_2
+3: gate=old_timelock_delta_targets GAP source-control=DiscoveryCallTests.test_call_3
+5: gate=old_timelock_inventory GAP source-control=DiscoveryCallTests.test_call_5
+7: gate=old_timelock_delta_xpnts GAP source-control=DiscoveryCallTests.test_call_7
+8: gate=old_timelock_inventory GAP source-control=DiscoveryCallTests.test_call_8
+10: gate=discovery_step_table GAP source-control=DiscoveryCallTests.test_call_10
+11: gate=old_timelock_delta_targets GAP source-control=DiscoveryCallTests.test_call_11
+17: gate=discovery_old_authority GAP source-control=DiscoveryCallTests.test_call_17
+20: gate=discovery_unlisted_effect GAP source-control=DiscoveryCallTests.test_call_20
+COMMIT6J_PROBES PASS method_a=9/9 gaps=11 total=20
+```
+
+`python3 script/upgrade/test_gate_names.py` — verbatim final lines:
+
+```text
+----------------------------------------------------------------------
+Ran 27 tests in 36.098s
+
+OK
+```
+
+`python3 script/upgrade/test_manifest_exec.py` — verbatim unittest summary:
+
+```text
+Ran 544 tests in 549.428s
+
+OK (skipped=2)
+```
+
+Buffered control stdout followed the unittest summary in the combined capture.
+Verbatim final output lines:
+
+```text
+L1_CONTROL old_owner_implementation removed=assertion-failure errors=0
+L1_CONTROL old_owner_creation_before removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL old_owner_undeclared_clone removed=assertion-failure errors=0
+```
+
+All three foreground commands exited 0. `git diff --check` passed.
+The tracked diff contains only `script/upgrade/test_manifest_exec.py` and this
+results file; the only new untracked file is
+`script/upgrade/probe_discovery_substitutions.py`. Production modules and
+`gate_assertions.py` are unchanged. HEAD remains `d21042ad`; no commit made.
