@@ -11,7 +11,7 @@ echo "HEAD=$(git rev-parse HEAD) dirty=$(git status --porcelain | wc -l | tr -d 
 TESTS=(script/upgrade/test_*.py script/a3a/test_a3a_exec.py script/a3a/test_a3a_send.py script/upgrade/audit/test_audit_findings.py script/upgrade/audit/check_expected_failure_causes.py)
 for e in bin nightly; do
   if [ $e = bin ]; then export A3A_ENGINE_DIR=$HOME/.foundry/bin; else unset A3A_ENGINE_DIR; fi
-  echo "[$e] engine=$(${A3A_ENGINE_DIR:-$HOME/.foundry/bin}/forge --version 2>/dev/null | head -1)" >> $S
+  echo "[$e] engine=$(${A3A_ENGINE_DIR:-$HOME/Dev/aastar/tools/foundry-rams/nightly-4e8874b}/forge --version 2>/dev/null | head -1)" >> $S
   for t in $TESTS; do
     log=$out/$e-$(basename $t .py).log
     python3 -B $t > $log 2>&1 </dev/null; rc=$?
